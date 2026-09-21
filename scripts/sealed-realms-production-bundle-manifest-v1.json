@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "profile": "warpkeep-spacetime-binding-final-preparation-linux-x64-v1",
-  "sourceCommit": "1fd0f1e636bdeb5aada9ce719a427baed3b14242",
-  "sourceTree": "b306d71de5f437b9434da9b759bf9d76d0d764d1",
+  "sourceCommit": "970c1f2d02347757fe9f196bc8fea40a4d32341a",
+  "sourceTree": "6bccc60ec5e1ec4d3be0a959a549959b814efc13",
   "bundles": [
     {
       "lane": "activation",
       "path": "scripts/sealed-realms-production-activation-lane.bundle.mjs",
-      "byteLength": 1200732,
-      "sha256": "c4f3f840a15dc0dfc91ec03507befcf257f3952ac5f8a4c794b5a944154193f0",
-      "sourceClosureDigest": "7b63e0e47207009d4c9c7a42c75ec9fa0543a56878d3fd80b9abcaac390f5bc1",
+      "byteLength": 1200881,
+      "sha256": "b6e632493fec887d465fff77303f41fb3b2c557fba19855e8d877de5982dd3f4",
+      "sourceClosureDigest": "35cb2ce8ae0b75a1e8f0ff1bd15903f85d2e475c2447280dce43c15c88bb7f11",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -718,8 +718,8 @@
         },
         {
           "path": "scripts/ptr-production-state-observation.mjs",
-          "byteLength": 19600,
-          "sha256": "9f838b1a985dcb24070c7d19848f4fde24b7b94d761f8ed2ca5a304014a84308"
+          "byteLength": 19680,
+          "sha256": "0c933f4068bcdc06ae7072db6ee5650af9a70c83c30ffb963fc7fd59995304f0"
         },
         {
           "path": "scripts/ptr-update-definition-policy.mjs",
@@ -843,8 +843,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-recovery-preparation-transport.mjs",
-          "byteLength": 6047,
-          "sha256": "a308d9b415dbc7a0e9ec30fb1c7c027886270f20c148273309f2cb1b256b6627"
+          "byteLength": 6233,
+          "sha256": "71aa4a4305a4faa8cc4afa8030672e28ca7683ef063c5d9d8dae5fc1c1593184"
         },
         {
           "path": "scripts/sealed-realms-production-recovery-preparation.mjs",
@@ -913,8 +913,8 @@
         },
         {
           "path": "services/release-recovery/src/config.ts",
-          "byteLength": 13539,
-          "sha256": "ff3406283fe9949414ebb9d70dfc2c0b1e55df88ababb9f34d65c18348ea852a"
+          "byteLength": 13735,
+          "sha256": "1fa4e9c7746127e686bca1181808c2e44efc2dcedb757ca499854cab7b0fe6ec"
         },
         {
           "path": "services/release-recovery/src/crypto.ts",
@@ -1168,9 +1168,9 @@
     {
       "lane": "g002",
       "path": "scripts/sealed-realms-production-g002-lane.bundle.mjs",
-      "byteLength": 1138364,
-      "sha256": "d7c8f7621bcdd91b89a9d39aacbabd151cd534ff3c6ce2b2c216e71bfdbf0b77",
-      "sourceClosureDigest": "0b2165ac561851e6ab7403007146f728326a475f098c65ee984c25ddb5c0f9df",
+      "byteLength": 1138392,
+      "sha256": "4468fd55bf2c477198138d87855b48f397bac4d85ea003805d0f7e4a13516494",
+      "sourceClosureDigest": "58eb7108b00ded5698210b3662dfa7377a822254e8120d2b5c1566170ff05173",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -1879,8 +1879,8 @@
         },
         {
           "path": "scripts/ptr-production-state-observation.mjs",
-          "byteLength": 19600,
-          "sha256": "9f838b1a985dcb24070c7d19848f4fde24b7b94d761f8ed2ca5a304014a84308"
+          "byteLength": 19680,
+          "sha256": "0c933f4068bcdc06ae7072db6ee5650af9a70c83c30ffb963fc7fd59995304f0"
         },
         {
           "path": "scripts/ptr-update-definition-policy.mjs",
@@ -2014,8 +2014,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-recovery-preparation-transport.mjs",
-          "byteLength": 6047,
-          "sha256": "a308d9b415dbc7a0e9ec30fb1c7c027886270f20c148273309f2cb1b256b6627"
+          "byteLength": 6233,
+          "sha256": "71aa4a4305a4faa8cc4afa8030672e28ca7683ef063c5d9d8dae5fc1c1593184"
         },
         {
           "path": "scripts/sealed-realms-production-recovery-preparation.mjs",
@@ -2089,8 +2089,8 @@
         },
         {
           "path": "services/release-recovery/src/config.ts",
-          "byteLength": 13539,
-          "sha256": "ff3406283fe9949414ebb9d70dfc2c0b1e55df88ababb9f34d65c18348ea852a"
+          "byteLength": 13735,
+          "sha256": "1fa4e9c7746127e686bca1181808c2e44efc2dcedb757ca499854cab7b0fe6ec"
         },
         {
           "path": "services/release-recovery/src/crypto.ts",
@@ -2188,9 +2188,9 @@
     {
       "lane": "ptr",
       "path": "scripts/sealed-realms-production-ptr-lane.bundle.mjs",
-      "byteLength": 1135902,
-      "sha256": "f7374e8b0ba0327e8f6c6f4bb2dfe083f3eb5151bb399cb73c5706b43aea1775",
-      "sourceClosureDigest": "1dfeb82d5d42c0f889bd5783420021e87d07ad1a2fd184123de951284405417d",
+      "byteLength": 1135958,
+      "sha256": "3c35a0c32d31a65ff8e4d6e0e3350974804a322159e7eae96a221029abdc48dd",
+      "sourceClosureDigest": "4e7bb8ede18c4fb072d3e6beb20089f637a274dd2f3a90d77ca85b2357d02019",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -2899,8 +2899,8 @@
         },
         {
           "path": "scripts/ptr-production-state-observation.mjs",
-          "byteLength": 19600,
-          "sha256": "9f838b1a985dcb24070c7d19848f4fde24b7b94d761f8ed2ca5a304014a84308"
+          "byteLength": 19680,
+          "sha256": "0c933f4068bcdc06ae7072db6ee5650af9a70c83c30ffb963fc7fd59995304f0"
         },
         {
           "path": "scripts/ptr-update-definition-policy.mjs",
@@ -3034,8 +3034,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-recovery-preparation-transport.mjs",
-          "byteLength": 6047,
-          "sha256": "a308d9b415dbc7a0e9ec30fb1c7c027886270f20c148273309f2cb1b256b6627"
+          "byteLength": 6233,
+          "sha256": "71aa4a4305a4faa8cc4afa8030672e28ca7683ef063c5d9d8dae5fc1c1593184"
         },
         {
           "path": "scripts/sealed-realms-production-recovery-preparation.mjs",
@@ -3109,8 +3109,8 @@
         },
         {
           "path": "services/release-recovery/src/config.ts",
-          "byteLength": 13539,
-          "sha256": "ff3406283fe9949414ebb9d70dfc2c0b1e55df88ababb9f34d65c18348ea852a"
+          "byteLength": 13735,
+          "sha256": "1fa4e9c7746127e686bca1181808c2e44efc2dcedb757ca499854cab7b0fe6ec"
         },
         {
           "path": "services/release-recovery/src/crypto.ts",
