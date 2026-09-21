@@ -600,7 +600,7 @@
     {
       "path": "scripts/genesis001-linux-policy-materializer.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f33f3d981a43bd7cccb5e6ec52426673869eb9ae70f577d86c23ee1a279c4eab"
+      "sha256": "d9a13828bd80eba5424e68a1c05592ab505fef9032b179dba55fb96404f2955d"
     },
     {
       "path": "scripts/genesis001-linux-policy-native.d.mts",
@@ -1735,7 +1735,7 @@
     {
       "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a4b478f5d1ba4dd944d72dede05a9e49f89f90821286b38db1b8a84163df82b4"
+      "sha256": "693b6d3308117ed8d877aa920189ea59cd1f893e0f8fee6d64bfaff8960385c3"
     },
     {
       "path": "scripts/recovery-workflow-check-deployment.d.mts",
@@ -1925,7 +1925,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cdb1eda3411e5375318c15e784d67fcc694de4586ee6a74bde204a77b5263fdb"
+      "sha256": "9dad7c5e0c7a8747d1de9d962a553c2022f35ccbea5f75da2e338681ae13cd24"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
