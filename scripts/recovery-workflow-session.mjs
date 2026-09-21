@@ -33,7 +33,8 @@ export async function beginRecoveryWorkflowSession(...args) {
             : key.startsWith('candidate') ? /^[a-f0-9]{40}$/u : /^[a-f0-9]{64}$/u).test(context[key]))
         || context.pagesRunId === context.sourceVerifyRunId) fail();
     const binding = parseRecoveryBinding(bindingSource);
-    preflightRecoveryClaimHandoff(privateRoot);
+    if (typeof privateRoot === 'string') preflightRecoveryClaimHandoff(privateRoot);
+    else if (typeof privateRoot !== 'function') fail();
     const locators = Object.freeze({ requestId: binding.recoveryAuthorizationRequestId,
       candidateCommit: context.candidateCommit, sourceVerifyRunId: context.sourceVerifyRunId,
       sourceVerifyRunAttempt: context.sourceVerifyRunAttempt, artifactId: context.artifactId });
@@ -64,8 +65,13 @@ export async function beginRecoveryWorkflowSession(...args) {
     authorizationJws = undefined;
     phase = 'claimed';
     try {
-      writeRecoveryClaimHandoff(privateRoot, claimReceiptJws, claimExpectedSource);
-      handoffRoot = privateRoot;
+      // Production supplies a preflighted allocator. A failed OIDC/issue/claim
+      // request leaves no empty attempt directory; only a verified claim is
+      // worth retaining. A lost server response remains ambiguous, not reissued.
+      const storageRoot = typeof privateRoot === 'function' ? privateRoot() : privateRoot;
+      if (typeof privateRoot === 'function') preflightRecoveryClaimHandoff(storageRoot);
+      writeRecoveryClaimHandoff(storageRoot, claimReceiptJws, claimExpectedSource);
+      handoffRoot = storageRoot;
     } catch { phase = 'reconcile-only'; }
     try { await status(); } catch { phase = 'reconcile-only'; }
     return Object.freeze({

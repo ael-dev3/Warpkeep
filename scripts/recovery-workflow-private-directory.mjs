@@ -1,4 +1,4 @@
-import { constants, openSync, closeSync, lstatSync, fstatSync, realpathSync, mkdirSync, fsyncSync, readdirSync } from 'node:fs';
+import { constants, openSync, closeSync, lstatSync, fstatSync, realpathSync, mkdirSync, fsyncSync, readdirSync, accessSync } from 'node:fs';
 const ROOT = '/home/warpkeep/.warpkeep-recovery-v1';
 const fail = () => { throw new Error('RECOVERY_WORKFLOW_PRIVATE_DIRECTORY_INVALID'); };
 const valid = state => state.isDirectory() && state.uid === 1000n && (state.mode & 0o7777n) === 0o700n;
@@ -15,6 +15,16 @@ function directory(args, create) {
     if (!same(original, fstatSync(parent, { bigint: true }))) fail();
     const name = `pages-${args[0]}-${args[1]}`;
     const heldPath = `/proc/self/fd/${parent}/${name}`;
+    if (create === 'preflight') {
+      // Check the fixed parent and absent destination without leaving a marker
+      // that a later attempt could mistake for a retained claim.
+      accessSync(`/proc/self/fd/${parent}`, constants.W_OK);
+      let absent = false;
+      try { lstatSync(heldPath, { bigint: true }); }
+      catch (error) { if (error?.code === 'ENOENT') absent = true; else throw error; }
+      if (!absent || !same(original, lstatSync(ROOT, { bigint: true })) || realpathSync(ROOT) !== ROOT) fail();
+      return `${ROOT}/${name}`;
+    }
     // Exclusive allocation: an existing attempt is for reconciliation, never reuse.
     if (create) mkdirSync(heldPath, { mode: 0o700 });
     const before = lstatSync(heldPath, { bigint: true });
@@ -32,6 +42,8 @@ function directory(args, create) {
 }
 /** Caller supplies independently verified run coordinates, never a path. No authentication claim. */
 export function createRecoveryWorkflowPrivateDirectory(...args) { return directory(args, true); }
+/** Nonmutating validation before any provider authorization is requested. */
+export function preflightRecoveryWorkflowPrivateDirectory(...args) { return directory(args, 'preflight'); }
 /** Existing directory only; receipt verification remains mandatory. */
 export function resolveRecoveryWorkflowPrivateDirectory(...args) { return directory(args, false); }
 /** Select only this independently verified Pages run's earlier private attempt.

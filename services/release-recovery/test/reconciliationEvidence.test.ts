@@ -456,6 +456,39 @@ function pagesDeploymentStatusResponse(): Record<string, unknown> {
   }
 }
 
+function workflowActorResponse(): Record<string, unknown> {
+  const login = 'ael-dev3', apiUrl = `https://api.github.com/users/${login}`
+  return { ...githubActionsBotResponse(), login, id: 183124839,
+    node_id: 'U_workflowActorFixture', type: 'User', user_view_type: 'public',
+    avatar_url: 'https://avatars.githubusercontent.com/u/183124839?v=4',
+    url: apiUrl, html_url: `https://github.com/${login}`,
+    followers_url: `${apiUrl}/followers`, following_url: `${apiUrl}/following{/other_user}`,
+    gists_url: `${apiUrl}/gists{/gist_id}`, starred_url: `${apiUrl}/starred{/owner}{/repo}`,
+    subscriptions_url: `${apiUrl}/subscriptions`, organizations_url: `${apiUrl}/orgs`,
+    repos_url: `${apiUrl}/repos`, events_url: `${apiUrl}/events{/privacy}`,
+    received_events_url: `${apiUrl}/received_events` }
+}
+
+// Public provider shapes observed on successful Pages deployment 6104429969.
+// Locators/timestamps remain synthetic and correlate with this test's claim.
+function environmentDeploymentResponse(): Record<string, unknown> {
+  return { ...pagesDeploymentResponse(), creator: workflowActorResponse(),
+    description: null, production_environment: false,
+    performed_via_github_app: { id: 15368, slug: 'github-actions', name: 'GitHub Actions' } }
+}
+
+function environmentStatusHistory(): Record<string, unknown>[] {
+  return ['success', 'in_progress', 'queued', 'waiting'].map((state, index) => {
+    const id = Number(DEPLOYMENT_STATUS_ID) - index
+    const instant = new Date((NOW - [850, 900, 1000, 1050][index]!) * 1000).toISOString()
+    return { ...pagesDeploymentStatusResponse(), state, id,
+      url: `${API}/deployments/${DEPLOYMENT_ID}/statuses/${id}`,
+      creator: workflowActorResponse(), description: '', performed_via_github_app: null,
+      environment_url: index === 0 ? 'https://warpkeep.com/' : '',
+      created_at: instant, updated_at: instant }
+  })
+}
+
 type EvidenceState = {
   repository: Record<string, unknown>
   branch: Record<string, unknown>
@@ -599,9 +632,9 @@ async function makeFixture(outcome: 'completed' | 'not-deployed' = 'completed',
       ? jobsResponse()
       : jobsResponse(deployStep('skipped'), 'completed', 'failure'),
     deploymentsStatus: 200,
-    deploymentsBody: outcome === 'completed' ? [pagesDeploymentResponse()] : [],
+    deploymentsBody: outcome === 'completed' ? [environmentDeploymentResponse()] : [],
     deploymentStatusesStatus: 200,
-    deploymentStatusesBody: outcome === 'completed' ? [pagesDeploymentStatusResponse()] : [],
+    deploymentStatusesBody: outcome === 'completed' ? environmentStatusHistory() : [],
     pagesStatus: outcome === 'completed' ? 200 : 404,
     pagesBody: outcome === 'completed' ? { status: 'succeed' } : { message: 'Not Found' },
     publicBytes,
@@ -821,6 +854,60 @@ describe('read-only V2 deployment reconciliation evidence', () => {
     expect(fixture.requestInits[publicIndex]!.credentials).toBe('omit')
   })
 
+  it('accepts the real actor-attributed Pages history with optional App metadata and descriptive fields', async () => {
+    const fixture = await makeFixture()
+    const deployment = (fixture.state.deploymentsBody as Record<string, unknown>[])[0]!
+    const statuses = fixture.state.deploymentStatusesBody as Record<string, unknown>[]
+    expect(deployment).toMatchObject({ creator: { login: 'ael-dev3' }, description: null,
+      production_environment: false, performed_via_github_app: { id: 15368 } })
+    expect(statuses.map(status => status.state)).toEqual(['success', 'in_progress', 'queued', 'waiting'])
+    expect(statuses.map(status => status.environment_url)).toEqual(['https://warpkeep.com/', '', '', ''])
+    statuses[0]!.description = null
+    await expect(fixture.reader(fixture.projection)).resolves.toMatchObject({ outcome: 'completed' })
+  })
+
+  it('retains the legacy Actions-bot deployment shape without an App metadata field', async () => {
+    const fixture = await makeFixture()
+    fixture.state.deploymentsBody = [pagesDeploymentResponse()]
+    fixture.state.deploymentStatusesBody = [pagesDeploymentStatusResponse()]
+    await expect(fixture.reader(fixture.projection)).resolves.toMatchObject({ outcome: 'completed' })
+  })
+
+  it.each([
+    ['missing Actions provenance', (deployment: Record<string, unknown>) => { delete deployment.performed_via_github_app }],
+    ['unrelated App', (deployment: Record<string, unknown>) => { deployment.performed_via_github_app = { id: 17, slug: 'github-actions', name: 'GitHub Actions' } }],
+    ['wrong App slug', (deployment: Record<string, unknown>) => { (deployment.performed_via_github_app as Record<string, unknown>).slug = 'other' }],
+    ['malformed production metadata', (deployment: Record<string, unknown>) => { deployment.production_environment = 'false' }],
+  ])('rejects actor-attributed deployments with %s', async (_name, mutate) => {
+    const fixture = await makeFixture()
+    mutate((fixture.state.deploymentsBody as Record<string, unknown>[])[0]!)
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
+  it.each([
+    ['newer failure', (statuses: Record<string, unknown>[]) => { statuses[0]!.state = 'failure'; statuses[1]!.state = 'success' }],
+    ['newer in-progress', (statuses: Record<string, unknown>[]) => { statuses[0]!.state = 'in_progress'; statuses[1]!.state = 'success' }],
+    ['reordered status records', (statuses: Record<string, unknown>[]) => { [statuses[0], statuses[1]] = [statuses[1]!, statuses[0]!] }],
+    ['duplicate status identity', (statuses: Record<string, unknown>[]) => { statuses[1] = { ...statuses[0] } }],
+    ['a later timestamp hidden in older status', (statuses: Record<string, unknown>[]) => { statuses[1]!.updated_at = new Date(NOW * 1000).toISOString() }],
+    ['missing latest origin', (statuses: Record<string, unknown>[]) => { statuses[0]!.environment_url = '' }],
+    ['foreign older origin', (statuses: Record<string, unknown>[]) => { statuses[1]!.environment_url = 'https://other.example/' }],
+    ['foreign older job', (statuses: Record<string, unknown>[]) => { statuses[2]!.log_url = `https://github.com/ael-dev3/Warpkeep/actions/runs/${RUN_ID}/job/92` }],
+    ['foreign status actor', (statuses: Record<string, unknown>[]) => { (statuses[0]!.creator as Record<string, unknown>).id = 1 }],
+    ['foreign status App', (statuses: Record<string, unknown>[]) => { statuses[0]!.performed_via_github_app = { id: 17, slug: 'other', name: 'Other' } }],
+    ['unbounded status history', (statuses: Record<string, unknown>[]) => { while (statuses.length <= 100) statuses.push({ ...statuses[0] }) }],
+  ])('does not use an older success to hide %s', async (_name, mutate) => {
+    const fixture = await makeFixture()
+    mutate(fixture.state.deploymentStatusesBody as Record<string, unknown>[])
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
+  it('refuses a truncated status history even when its visible latest entry is successful', async () => {
+    const fixture = await makeFixture()
+    fixture.state.deploymentStatusesLink = `<${DEPLOYMENT_STATUSES_URL}&page=2>; rel="next"`
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
   it('marks not-deployed only for an authoritative terminal attempt, an unstarted exact step, and stable Pages absence', async () => {
     const fixture = await makeFixture('not-deployed')
 
@@ -834,6 +921,48 @@ describe('read-only V2 deployment reconciliation evidence', () => {
     expect(fixture.calls.filter(url => url === DEPLOYMENTS_URL)).toHaveLength(2)
     expect(fixture.calls).not.toContain(PAGES_STATUS_URL)
     expect(fixture.calls).not.toContain(PUBLIC_ATTESTATION_URL)
+  })
+
+  it('recognizes a skipped deploy step with GitHub zero-duration timestamps as unstarted', async () => {
+    const fixture = await makeFixture('not-deployed')
+    const job = (fixture.state.jobs.jobs as Record<string, unknown>[])[0]!
+    const step = (job.steps as Record<string, unknown>[])[1]!
+    step.started_at = step.completed_at = new Date((NOW - 1_000) * 1000).toISOString()
+    await expect(fixture.reader(fixture.projection)).resolves.toMatchObject({ outcome: 'not-deployed' })
+  })
+
+  it('does not classify a nonzero skipped-step interval as proof that deployment never started', async () => {
+    const fixture = await makeFixture('not-deployed')
+    const job = (fixture.state.jobs.jobs as Record<string, unknown>[])[0]!
+    const step = (job.steps as Record<string, unknown>[])[1]!
+    step.started_at = new Date((NOW - 1_000) * 1000).toISOString()
+    step.completed_at = new Date((NOW - 999) * 1000).toISOString()
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
+  it.each([0, 1, 2])('bounds scheduler-only skipped-job timestamp skew to one second: %i', async seconds => {
+    const fixture = await makeFixture()
+    const jobs = fixture.state.jobs.jobs as Record<string, unknown>[]
+    const jobUrl = `https://github.com/ael-dev3/Warpkeep/actions/runs/${RUN_ID}/job/92`
+    jobs.push({ ...jobs[0], id: 92, name: 'private-toolchain', status: 'completed', conclusion: 'skipped',
+      node_id: 'CR_skippedFixture', url: `${API}/actions/jobs/92`, html_url: jobUrl,
+      check_run_url: `${API}/check-runs/92`, runner_id: null, runner_name: null,
+      runner_group_id: null, runner_group_name: null, steps: [],
+      created_at: new Date((NOW - 2000) * 1000).toISOString(),
+      started_at: new Date((NOW - 2000) * 1000).toISOString(),
+      completed_at: new Date((NOW - 2000 - seconds) * 1000).toISOString() })
+    fixture.state.jobs.total_count = jobs.length
+    await expect(fixture.reader(fixture.projection)).resolves.toMatchObject({ outcome: seconds <= 1 ? 'completed' : 'ambiguous' })
+  })
+
+  it('never applies skipped scheduler-job timestamp tolerance to the original deployment job', async () => {
+    const fixture = await makeFixture('not-deployed')
+    const job = (fixture.state.jobs.jobs as Record<string, unknown>[])[0]!
+    job.conclusion = 'skipped'
+    job.started_at = new Date((NOW - 1990) * 1000).toISOString()
+    job.completed_at = new Date((NOW - 1991) * 1000).toISOString()
+    job.runner_id = job.runner_name = job.runner_group_id = job.runner_group_name = null
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
   })
 
   it('uses a transient workflow token without minting an App token or sending it to the public site', async () => {

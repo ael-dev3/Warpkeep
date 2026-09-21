@@ -199,6 +199,7 @@ type PagesDeploymentSnapshot = Readonly<{
   url: string
   createdAt: number
   updatedAt: number
+  creator: Readonly<{ id: string; login: string }>
 }>
 
 function exactKeySet(value: GitHubJsonObject, keys: readonly string[]): boolean {
@@ -819,6 +820,12 @@ function validateJobs(
       && nonemptyString(job.runner_name, 1_024)
       && nonnegative(job.runner_group_id)
       && nonemptyString(job.runner_group_name, 1_024)
+    // GitHub records scheduler-only skipped jobs with second-rounded clocks;
+    // their completion may precede the synthetic start by one second. This is
+    // never accepted for the retained deployment job or an executed job.
+    const skippedSchedulerJob = job.name !== DEPLOY_JOB && completed
+      && job.conclusion === 'skipped' && runnerAbsent
+      && Array.isArray(job.steps) && job.steps.length === 0
     if (
       (!completed && !active)
       || !nonemptyString(job.node_id)
@@ -838,10 +845,13 @@ function validateJobs(
       || !Array.isArray(job.steps)
       || job.steps.length > 100
       || !Number.isFinite(createdAt)
+      || (job.started_at !== null && startedAt === null)
+      || (job.completed_at !== null && completedAt === null)
       || (startedAt !== null && createdAt > startedAt)
       || (job.status === 'in_progress' && (startedAt === null || completedAt !== null))
       || (job.status === 'queued' && (startedAt !== null || completedAt !== null))
-      || (completed && (completedAt === null || (startedAt !== null && startedAt > completedAt)))
+      || (completed && (completedAt === null || (startedAt !== null
+        && startedAt > completedAt + (skippedSchedulerJob ? 1_000 : 0))))
       || (!runnerAbsent && !runnerPresent)
     ) throw new Error(ERROR_CODE)
     if (job.name === DEPLOY_JOB) named.push(job)
@@ -895,8 +905,8 @@ function validateJobs(
     && typeof job.conclusion === 'string'
     && step.status === 'completed'
     && step.conclusion === 'skipped'
-    && step.started_at === null
-    && step.completed_at === null
+    && ((step.started_at === null && step.completed_at === null)
+      || (validInstant(step.started_at) && step.started_at === step.completed_at))
   ) return 'unstarted'
   return 'ambiguous'
 }
@@ -1035,16 +1045,47 @@ function validateGitHubActionsBot(value: GitHubJsonValue | undefined): void {
   ) throw new Error(ERROR_CODE)
 }
 
+function optionalActionsApp(value: GitHubJsonValue | undefined): boolean {
+  if (value === undefined || value === null) return false
+  const app = objectValue(value)
+  if (app.id !== '15368' || app.slug !== 'github-actions' || app.name !== 'GitHub Actions') {
+    throw new Error(ERROR_CODE)
+  }
+  return true
+}
+
+function deploymentCreator(value: GitHubJsonValue | undefined): Readonly<{ id: string; login: string }> {
+  const actor = objectValue(value)
+  if (actor.id === '41898282') validateGitHubActionsBot(actor)
+  else if (!positive(actor.id) || typeof actor.login !== 'string'
+    || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/u.test(actor.login)
+    || actor.type !== 'User' || actor.url !== `https://api.github.com/users/${actor.login}`
+    || actor.html_url !== `https://github.com/${actor.login}`) throw new Error(ERROR_CODE)
+  return Object.freeze({ id: actor.id as string, login: actor.login as string })
+}
+
+function providerKeys(value: GitHubJsonObject, keys: readonly string[]): boolean {
+  return exactKeySet(value, keys) || exactKeySet(value, [...keys, 'performed_via_github_app'])
+}
+
+function description(value: GitHubJsonValue | undefined): boolean {
+  return value === null || (typeof value === 'string' && value.length <= 4_096)
+}
+
 function validatePagesDeployment(
   value: GitHubJsonObject,
   projection: ProjectionSnapshot,
 ): PagesDeploymentSnapshot {
-  if (!exactKeySet(value, DEPLOYMENT_KEYS) || !positive(value.id)) throw new Error(ERROR_CODE)
+  if (!providerKeys(value, DEPLOYMENT_KEYS) || !positive(value.id)) throw new Error(ERROR_CODE)
   const deploymentUrl = `${API}/deployments/${value.id}`
   const payload = objectValue(value.payload)
   const createdAt = validInstant(value.created_at) ? Date.parse(value.created_at) : Number.NaN
   const updatedAt = validInstant(value.updated_at) ? Date.parse(value.updated_at) : Number.NaN
-  validateGitHubActionsBot(value.creator)
+  const creator = deploymentCreator(value.creator)
+  const actionsApp = optionalActionsApp(value.performed_via_github_app)
+  // Environment deployments are attributed to the workflow actor. Their
+  // GitHub Actions App provenance, not a bot username, identifies the producer.
+  if (creator.id !== '41898282' && !actionsApp) throw new Error(ERROR_CODE)
   if (
     value.url !== deploymentUrl
     || !nonemptyString(value.node_id)
@@ -1054,7 +1095,7 @@ function validatePagesDeployment(
     || Reflect.ownKeys(payload).length !== 0
     || value.original_environment !== projection.authorization.workflowIdentity.environment
     || value.environment !== projection.authorization.workflowIdentity.environment
-    || value.description !== 'github-pages'
+    || !description(value.description)
     || !Number.isFinite(createdAt)
     || !Number.isFinite(updatedAt)
     || createdAt > updatedAt
@@ -1062,9 +1103,9 @@ function validatePagesDeployment(
     || value.statuses_url !== `${deploymentUrl}/statuses`
     || value.repository_url !== API
     || value.transient_environment !== false
-    || value.production_environment !== true
+    || typeof value.production_environment !== 'boolean'
   ) throw new Error(ERROR_CODE)
-  return Object.freeze({ id: value.id, url: deploymentUrl, createdAt, updatedAt })
+  return Object.freeze({ id: value.id, url: deploymentUrl, createdAt, updatedAt, creator })
 }
 
 function validatePagesDeploymentStatuses(
@@ -1072,32 +1113,40 @@ function validatePagesDeploymentStatuses(
   deployment: PagesDeploymentSnapshot,
   projection: ProjectionSnapshot,
 ): void {
-  if (values.length !== 1) throw new Error(ERROR_CODE)
-  const value = objectValue(values[0])
-  if (!exactKeySet(value, DEPLOYMENT_STATUS_KEYS) || !positive(value.id)) throw new Error(ERROR_CODE)
-  const statusUrl = `${deployment.url}/statuses/${value.id}`
+  if (values.length < 1 || values.length > 100) throw new Error(ERROR_CODE)
   const jobUrl = `https://github.com/${GITHUB_REPOSITORY}/actions/runs/${projection.authorization.workflowIdentity.pagesRunId}/job/${projection.authorization.workflowIdentity.checkRunId}`
-  const createdAt = validInstant(value.created_at) ? Date.parse(value.created_at) : Number.NaN
-  const updatedAt = validInstant(value.updated_at) ? Date.parse(value.updated_at) : Number.NaN
-  validateGitHubActionsBot(value.creator)
-  if (
-    value.url !== statusUrl
-    || !nonemptyString(value.node_id)
-    || value.state !== 'success'
-    || value.description !== 'Deployment finished successfully.'
-    || value.environment !== projection.authorization.workflowIdentity.environment
-    || value.target_url !== jobUrl
-    || !Number.isFinite(createdAt)
-    || !Number.isFinite(updatedAt)
-    || createdAt < deployment.createdAt
-    || createdAt > updatedAt
-    || updatedAt < deployment.updatedAt
-    || updatedAt > Date.now()
-    || value.deployment_url !== deployment.url
-    || value.repository_url !== API
-    || value.environment_url !== `${projection.authorization.canonicalOrigin}/`
-    || value.log_url !== jobUrl
-  ) throw new Error(ERROR_CODE)
+  const origin = `${projection.authorization.canonicalOrigin}/`
+  const states = new Set(['waiting', 'queued', 'pending', 'in_progress', 'success', 'failure', 'error', 'inactive'])
+  let previous: Readonly<{ id: bigint; createdAt: number; updatedAt: number }> | undefined
+  for (const [index, raw] of values.entries()) {
+    const value = objectValue(raw)
+    if (!providerKeys(value, DEPLOYMENT_STATUS_KEYS) || !positive(value.id)) throw new Error(ERROR_CODE)
+    const statusId = BigInt(value.id)
+    const createdAt = validInstant(value.created_at) ? Date.parse(value.created_at) : Number.NaN
+    const updatedAt = validInstant(value.updated_at) ? Date.parse(value.updated_at) : Number.NaN
+    const creator = deploymentCreator(value.creator)
+    optionalActionsApp(value.performed_via_github_app)
+    if (
+      value.url !== `${deployment.url}/statuses/${value.id}`
+      || !nonemptyString(value.node_id)
+      || typeof value.state !== 'string' || !states.has(value.state)
+      || !description(value.description)
+      || value.environment !== projection.authorization.workflowIdentity.environment
+      || value.target_url !== jobUrl || value.log_url !== jobUrl
+      || !Number.isFinite(createdAt) || !Number.isFinite(updatedAt)
+      || createdAt < deployment.createdAt || createdAt > updatedAt || updatedAt > Date.now()
+      || value.deployment_url !== deployment.url || value.repository_url !== API
+      || (creator.id !== deployment.creator.id || creator.login !== deployment.creator.login)
+      || (value.environment_url !== '' && value.environment_url !== origin)
+      // The endpoint returns newest first. Require complete, unique, ordered
+      // history so an older success cannot hide a later failure or transition.
+      || (previous !== undefined && (statusId >= previous.id
+        || createdAt > previous.createdAt || updatedAt > previous.updatedAt))
+      || (index === 0 && (value.state !== 'success' || value.environment_url !== origin
+        || updatedAt < deployment.updatedAt))
+    ) throw new Error(ERROR_CODE)
+    previous = Object.freeze({ id: statusId, createdAt, updatedAt })
+  }
 }
 
 async function loadPagesDisposition(
@@ -1116,7 +1165,7 @@ async function loadPagesDisposition(
   )
   const deployments = parseJsonArray(
     stableRaw(firstDeployments, secondDeployments).bytes,
-    ['/*/id', '/*/creator/id'],
+    ['/*/id', '/*/creator/id', '/*/performed_via_github_app/id'],
   )
   if (deployments.length === 0) return 'absent'
   if (deployments.length !== 1) return 'ambiguous'
@@ -1131,7 +1180,7 @@ async function loadPagesDisposition(
   )
   const statuses = parseJsonArray(
     stableRaw(firstStatuses, secondStatuses).bytes,
-    ['/*/id', '/*/creator/id'],
+    ['/*/id', '/*/creator/id', '/*/performed_via_github_app/id'],
   )
   validatePagesDeploymentStatuses(statuses, deployment, projection)
 

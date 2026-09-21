@@ -1,13 +1,13 @@
 // @vitest-environment node
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const fs = vi.hoisted(() => ({ names: [] as string[], uid: 1000n, mode: 0o40700n,
-  redirect: false, realpath: vi.fn(), stat: vi.fn(), fstat: vi.fn(), open: vi.fn(), close: vi.fn() }));
-vi.mock('node:fs', () => ({ constants: { O_RDONLY: 0, O_DIRECTORY: 1, O_NOFOLLOW: 2 },
+  redirect: false, realpath: vi.fn(), stat: vi.fn(), fstat: vi.fn(), open: vi.fn(), close: vi.fn(), access: vi.fn() }));
+vi.mock('node:fs', () => ({ constants: { O_RDONLY: 0, O_DIRECTORY: 1, O_NOFOLLOW: 2, W_OK: 4 },
   openSync: fs.open, closeSync: fs.close, lstatSync: fs.stat, fstatSync: fs.fstat,
-  realpathSync: fs.realpath, readdirSync: () => fs.names,
+  realpathSync: fs.realpath, readdirSync: () => fs.names, accessSync: fs.access,
   mkdirSync: () => { throw new Error('must never create'); }, fsyncSync: () => {},
 }));
-import { findRecoveryWorkflowPriorDirectory as find } from '../scripts/recovery-workflow-private-directory.mjs';
+import { findRecoveryWorkflowPriorDirectory as find, preflightRecoveryWorkflowPrivateDirectory as preflight } from '../scripts/recovery-workflow-private-directory.mjs';
 const root = '/home/warpkeep/.warpkeep-recovery-v1';
 beforeEach(() => {
   vi.resetAllMocks(); fs.names = []; fs.uid = 1000n; fs.mode = 0o40700n; fs.redirect = false;
@@ -45,4 +45,22 @@ it('does not accept path overrides or untrusted run coordinates', () => {
   expect(() => Reflect.apply(find, null, ['123', '2', '/tmp/override'])).toThrow('RECOVERY_WORKFLOW_PRIVATE_DIRECTORY_INVALID');
   expect(() => find('../123', '2')).toThrow('RECOVERY_WORKFLOW_PRIVATE_DIRECTORY_INVALID');
   expect(fs.open).not.toHaveBeenCalled();
+});
+it('preflights a writable fixed parent and absent target without allocating an attempt', () => {
+  const stat = fs.stat.getMockImplementation()!;
+  fs.stat.mockImplementation((path, options) => {
+    if (String(path).endsWith('/pages-123-1')) throw Object.assign(new Error('absent'), { code: 'ENOENT' });
+    return stat(path, options);
+  });
+  expect(preflight('123', '1')).toBe(`${root}/pages-123-1`);
+  expect(fs.access).toHaveBeenCalledExactlyOnceWith('/proc/self/fd/3', 4);
+  expect(fs.open).toHaveBeenCalledTimes(1);
+});
+it('rejects existing or unreadable destinations and read-only storage before remote work', () => {
+  expect(() => preflight('123', '1')).toThrow('RECOVERY_WORKFLOW_PRIVATE_DIRECTORY_INVALID');
+  fs.stat.mockImplementation(() => { throw Object.assign(new Error('denied'), { code: 'EACCES' }); });
+  expect(() => preflight('123', '1')).toThrow('RECOVERY_WORKFLOW_PRIVATE_DIRECTORY_INVALID');
+  fs.stat.mockReturnValue({ dev: 1n, ino: 2n, uid: fs.uid, mode: fs.mode, isDirectory: () => true });
+  fs.access.mockImplementation(() => { throw Object.assign(new Error('read-only'), { code: 'EROFS' }); });
+  expect(() => preflight('123', '1')).toThrow('RECOVERY_WORKFLOW_PRIVATE_DIRECTORY_INVALID');
 });

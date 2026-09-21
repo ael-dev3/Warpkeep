@@ -115,6 +115,38 @@ it('preflights before OIDC and persists before any status network wait', async (
   expect(mocks.write.mock.invocationCallOrder[0]).toBeLessThan(mocks.request.mock.invocationCallOrder[2]!);
   expect(mocks.write).toHaveBeenCalledWith('/synthetic-private-root', 'private-claim', 'private-context');
 });
+it.each(['oidc', 'issue', 'claim-response', 'claim-signature'])
+('does not allocate an empty private attempt after %s failure', async failure => {
+  const allocate = vi.fn(() => '/synthetic-private-root');
+  if (failure === 'oidc') mocks.oidc.mockRejectedValueOnce(new Error('provider unavailable'));
+  if (failure === 'issue') mocks.request.mockRejectedValueOnce(new Error('issue outcome unknown'));
+  if (failure === 'claim-response') mocks.request.mockResolvedValueOnce({ authorizationJws: 'private-authorization' })
+    .mockRejectedValueOnce(new Error('claim response lost'));
+  if (failure === 'claim-signature') mocks.claim.mockImplementationOnce(() => { throw new Error('invalid claim'); });
+  await expect(beginRecoveryWorkflowSession(fixture.bindingSource, JSON.stringify(fixture.context), allocate))
+    .rejects.toThrow('RECOVERY_WORKFLOW_SESSION_INVALID');
+  expect(allocate).not.toHaveBeenCalled();
+  expect(mocks.write).not.toHaveBeenCalled();
+  expect(mocks.request.mock.calls.filter(call => call[0] === 'issue').length).toBeLessThanOrEqual(1);
+});
+it('allocates exactly once after the verified signed claim and persists before status lookup', async () => {
+  const allocate = vi.fn(() => '/synthetic-private-root');
+  const session = await beginRecoveryWorkflowSession(fixture.bindingSource, JSON.stringify(fixture.context), allocate);
+  expect(allocate).toHaveBeenCalledTimes(1);
+  expect(mocks.claim.mock.invocationCallOrder[0]).toBeLessThan(allocate.mock.invocationCallOrder[0]!);
+  expect(allocate.mock.invocationCallOrder[0]).toBeLessThan(mocks.preflight.mock.invocationCallOrder[0]!);
+  expect(mocks.write.mock.invocationCallOrder[0]).toBeLessThan(mocks.request.mock.invocationCallOrder[2]!);
+  await session.checkDeploymentBoundary();
+  expect(allocate).toHaveBeenCalledTimes(1);
+});
+it('keeps only reconciliation if allocation fails after the signed claim returns', async () => {
+  const allocate = vi.fn(() => { throw new Error('filesystem changed since preflight'); });
+  const session = await beginRecoveryWorkflowSession(fixture.bindingSource, JSON.stringify(fixture.context), allocate);
+  await expect(session.checkDeploymentBoundary()).rejects.toThrow('RECOVERY_WORKFLOW_SESSION_INVALID');
+  await expect(session.finish('reconcile')).resolves.toEqual(terminal);
+  expect(allocate).toHaveBeenCalledTimes(1);
+  expect(mocks.request.mock.calls.map(call => call[0])).toEqual(['issue', 'claim', 'status', 'reconcile']);
+});
 it('rejects unavailable private storage before consuming authorization', async () => {
   mocks.preflight.mockImplementationOnce(() => { throw new Error('unavailable'); });
   await expect(begin()).rejects.toThrow('RECOVERY_WORKFLOW_SESSION_INVALID');

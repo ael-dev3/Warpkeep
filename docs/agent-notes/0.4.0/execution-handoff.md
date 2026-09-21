@@ -18,8 +18,12 @@ Fresh review of real GitHub Pages records found that successful deployment
 history includes multiple statuses and actor-attributed metadata. The earlier
 reader's single-status/bot-only fixture could reject a legitimate completion.
 Skipped jobs can also have reversed metadata timestamps, and a skipped deploy
-step can have equal non-null timestamps. These cases require focused reader
-repairs without relaxing original candidate/job/environment correlation.
+step can have equal non-null timestamps. The reader now handles these observed
+formats while retaining original candidate/job/environment correlation, bounded
+status history, newest-success proof and canonical live attestation. Unrelated
+scheduler-only skipped jobs get at most one second of rounding tolerance; the
+original deployment job remains strict. A skipped deploy step with a nonzero
+execution interval does not establish that no deployment occurred.
 
 The claim caller also allocated an attempt directory before contacting the
 signer; failure before a claim returned could leave an empty directory that
@@ -29,9 +33,18 @@ A lost claim response or crash before receipt persistence still leaves genuine
 remote ambiguity. Do not delete an old empty attempt or create a new claim to
 assume that away; retain evidence and investigate the original operation.
 
-These follow-up changes are under review. Record their final source and test
-results before reenabling integration. The accepted prepared baseline, live
-service state and M1/M2 requirements below are unchanged by a source review.
+Both patches passed independent cross-review. The complete recovery-service
+unit suite passed 1,461 cases with five platform skips; root retry/handoff suites
+passed 185 with eleven Windows skips, and compiled-module build/native-Node
+import checks passed eight. Root build-mode types and both service type projects
+passed. The five affected note files had 122 local links checked. Native-only
+execution and regenerated source closure follow source publication.
+
+The production claim caller is a compiled bundle. Its TypeScript repair must be
+rebuilt through `local-release-assembler.mjs prepare` and independent `check` on
+merged M1, then promoted with the generated M2 family. Updating the source-only
+closure does not rebuild this bundle. The accepted prepared baseline, live
+service state and M1/M2 requirements below are unchanged by these local results.
 
 ## Active unblocking work — 21 September 2026
 
