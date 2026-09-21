@@ -28,6 +28,10 @@ export const policyDigest = bytes => createHash('sha256').update(bytes).digest('
 const DIAGNOSTICS = new Set(['g001-credential', 'g001-host', 'g001-source', 'g001-closure',
   'g001-private-root', 'g001-materialization', 'g001-prepared-verification', 'g001-authority',
   'g001-credential-descriptor', 'g001-observation', 'g001-receipt', 'g001-cleanup']);
+for (const diagnostic of ['g001-admitted-identity', 'g001-admitted-aggregate',
+  'g001-admitted-enumeration', 'g001-admitted-status', 'g001-admitted-reconciliation']) {
+  DIAGNOSTICS.add(diagnostic);
+}
 export function policyFail(diagnostic) {
   const error = Error('G001_LINUX_POLICY_NATIVE_FAILED');
   if (DIAGNOSTICS.has(diagnostic)) error.diagnostic = diagnostic;

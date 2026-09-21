@@ -111,14 +111,16 @@ it.each(['authentication', 'network', 'schema', 'redirect', 'identity', 'token']
       }
       return response(failure === 'schema' ? '{}' : JSON.stringify(sql()), failure === 'authentication' ? 401 : 200);
     });
-    await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', fetcher as never)).rejects.toThrow();
+    await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', fetcher as never))
+      .rejects.toMatchObject({ diagnostic: 'g001-admitted-enumeration' });
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(db.procedures.adminGetAccessRequestAdmissionStatusV1).not.toHaveBeenCalled();
   });
 it('requires successful administrator aggregate authentication before querying any table', async () => {
   const db = connection(), fetcher = vi.fn();
   db.procedures.adminGetAlphaStatusV3.mockRejectedValueOnce(Error('not administrator'));
-  await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', fetcher)).rejects.toThrow();
+  await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', fetcher))
+    .rejects.toMatchObject({ diagnostic: 'g001-admitted-aggregate' });
   expect(fetcher).not.toHaveBeenCalled();
 });
 it.each(['missing', 'disabled', 'count-change', 'status-error'] as const)('rejects incomplete admission evidence: %s', async mode => {
@@ -128,7 +130,9 @@ it.each(['missing', 'disabled', 'count-change', 'status-error'] as const)('rejec
   if (mode === 'count-change') db.procedures.adminGetAlphaStatusV3.mockResolvedValueOnce({ allowedFids: 1n, enabledAllowedFids: 1n })
     .mockResolvedValueOnce({ allowedFids: 2n, enabledAllowedFids: 2n });
   if (mode === 'status-error') db.procedures.adminGetAccessRequestAdmissionStatusV1.mockRejectedValueOnce(Error('status failed'));
-  await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', vi.fn(async () => response()) as never)).rejects.toThrow();
+  await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', vi.fn(async () => response()) as never))
+    .rejects.toMatchObject({ diagnostic: mode === 'count-change' ? 'g001-admitted-reconciliation' :
+      mode === 'status-error' || mode === 'missing' || mode === 'disabled' ? 'g001-admitted-status' : 'g001-admitted-reconciliation' });
 });
 it('validates exact SQL schema, duplicate keys, safe FIDs and zero mutation statistics', () => {
   expect(Buffer.from(parseGenesis001LinuxCensusFidSql(Buffer.from(JSON.stringify(sql([[9007199254740991], [17]]))))).toString())

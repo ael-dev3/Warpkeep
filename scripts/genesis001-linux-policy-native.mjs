@@ -300,7 +300,11 @@ async function execute(handle, evidence, kind) {
       || JSON.stringify(secretStatus(secretPath)) !== JSON.stringify(before)
       || JSON.stringify(capturePrivateParents(secretRoot)) !== JSON.stringify(parents)) policyFail();
     closeSync(secretFd); secretFd = undefined;
-    if (observed.stderr !== '') policyFail();
+    if (observed.stderr !== '') {
+      const diagnostic = /^G001_LINUX_POLICY_NATIVE_FAILED(?::(g001-admitted-(?:identity|aggregate|enumeration|status|reconciliation)))?\n$/u.exec(observed.stderr)?.[1];
+      if (observed.stderr !== 'G001_LINUX_POLICY_NATIVE_FAILED\n' && diagnostic === undefined) policyFail();
+      policyFail(diagnostic ?? 'g001-observation');
+    }
     const receipt = canonicalResult(observed.stdout, kind === 'census' ? 4 * 1024 * 1024 : 32768);
     sameOperation(state);
     if (receipt.sourceCommit !== source.sourceCommit || receipt.mutationSubmitted !== false) policyFail();
