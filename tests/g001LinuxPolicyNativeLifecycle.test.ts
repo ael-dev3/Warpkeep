@@ -7,7 +7,7 @@ const fixture = vi.hoisted(() => {
   const root = `${process.env.TEMP ?? '/tmp'}${sep}warpkeep-policy-lifecycle-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const home = `${root}${sep}home`, privateRoot = `${home}${sep}private`;
   return { root, home, privateRoot, opened: 0, cleanup: 0, calls: [] as string[], fd: undefined as number | undefined,
-    clock: 0, advanceDuringAttestation: false, sourceChanged: false, childFailed: false, secretChanged: false,
+    clock: 0, advanceDuringAttestation: false, sourceChanged: false, childFailed: false, childStderr: undefined as string | undefined, secretChanged: false,
     censusMismatch: false, retainedChanged: false, complete: undefined as any,
     authority: { mode: 'S', operation: 'activation-evidence-inspect' }, permit: Object.freeze({}),
     refreshes: 0, liveAttestations: 0, failAttestation: 0, revoked: false,
@@ -114,6 +114,7 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
     fixture.calls.push('observe'); fixture.fd = options.inheritedFd4;
     expect(Number.isInteger(fixture.fd)).toBe(true);
     if (fixture.childFailed) throw Error('child failed');
+    if (fixture.childStderr !== undefined) return { stdout: '', stderr: fixture.childStderr };
     if (fixture.secretChanged) writeFileSync(join(fixture.privateRoot, 'admin-token'), 'synthetic-credential-replaced-with-longer-bytes');
     const request = JSON.parse(options.fd3);
     if (request.kind === 'census') {
@@ -139,7 +140,7 @@ import { assertFixedLinuxG001PolicyPreparation, disposeFixedLinuxG001PolicyObser
 describe('opaque policy preparation and final descriptor boundary', () => {
   beforeEach(() => {
     fixture.clock = 0; fixture.advanceDuringAttestation = false; fixture.opened = 0; fixture.cleanup = 0; fixture.calls = []; fixture.fd = undefined;
-    fixture.sourceChanged = false; fixture.childFailed = false; fixture.secretChanged = false;
+    fixture.sourceChanged = false; fixture.childFailed = false; fixture.childStderr = undefined; fixture.secretChanged = false;
     fixture.censusMismatch = false; fixture.retainedChanged = false;
     fixture.complete = undefined; fixture.refreshes = 0; fixture.liveAttestations = 0; fixture.failAttestation = 0;
     fixture.revoked = false; fixture.afterCollection = undefined; fixture.changeRetainedDigest = false;
@@ -176,6 +177,14 @@ describe('opaque policy preparation and final descriptor boundary', () => {
     const handle = await prepareFixedLinuxG001PolicyObservation(); fixture[mode] = true;
     await expect(executeFixedLinuxG001PolicyObservation(handle, fixture.source as never)).rejects.toMatchObject({
       diagnostic: mode === 'childFailed' ? 'g001-observation' : 'g001-receipt' });
+    expect(fixture.cleanup).toBe(1); expect(() => fstatSync(fixture.fd!)).toThrow();
+  });
+  it('retains an allowlisted admitted diagnostic when runner stderr adds warning noise', async () => {
+    vi.stubEnv('WARPKEEP_OPERATION', 'g001-freeze-census'); vi.stubEnv('GITHUB_RUN_ID', '1234'); vi.stubEnv('GITHUB_RUN_ATTEMPT', '1');
+    fixture.childStderr = 'node: warning: runner notice\nG001_LINUX_POLICY_NATIVE_FAILED:g001-admitted-enumeration\n';
+    const handle = await prepareFixedLinuxG001CensusObservation('synthetic-workflow-census-credential-000000');
+    await expect(executeFixedLinuxG001CensusObservation(handle, fixture.source as never)).rejects.toMatchObject({
+      diagnostic: 'g001-admitted-enumeration' });
     expect(fixture.cleanup).toBe(1); expect(() => fstatSync(fixture.fd!)).toThrow();
   });
   it('refuses evidence that expires during expensive attestation before opening the credential', async () => {

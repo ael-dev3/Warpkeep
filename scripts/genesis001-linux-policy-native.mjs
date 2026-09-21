@@ -22,6 +22,20 @@ const BOOTSTRAP = Object.freeze([MATERIALIZER, CHILD, 'scripts/genesis001-linux-
   'scripts/genesis001-linux-policy-boundary.mjs', 'scripts/local-binding-runtime-process.mjs',
   'scripts/local-binding-bounded-file.mjs', 'scripts/local-binding-runtime-core.mjs',
   'scripts/local-binding-native-ts-hooks.mjs']);
+const NATIVE_FAILURE_MARKER = /^G001_LINUX_POLICY_NATIVE_FAILED(?::(g001-admitted-(?:identity|aggregate|enumeration|status|reconciliation)))?$/u;
+const ADMITTED_DIAGNOSTICS = new Set([
+  'g001-admitted-identity', 'g001-admitted-aggregate', 'g001-admitted-enumeration',
+  'g001-admitted-status', 'g001-admitted-reconciliation',
+]);
+
+// Runtime warnings may reach stderr beside the child marker. Extract only the
+// allowlisted marker and never propagate surrounding stderr into evidence.
+function nativeFailureDiagnostic(stderr) {
+  const matches = [...stderr.matchAll(/(?:^|\r?\n)(G001_LINUX_POLICY_NATIVE_FAILED(?::g001-admitted-(?:identity|aggregate|enumeration|status|reconciliation))?)(?=\r?\n|$)/gu)];
+  if (matches.length !== 1) return undefined;
+  const parsed = NATIVE_FAILURE_MARKER.exec(matches[0][1]);
+  return parsed === null ? undefined : parsed[1] ?? 'g001-observation';
+}
 let active = false;
 let pending;
 const preparations = new WeakMap();
@@ -301,9 +315,9 @@ async function execute(handle, evidence, kind) {
       || JSON.stringify(capturePrivateParents(secretRoot)) !== JSON.stringify(parents)) policyFail();
     closeSync(secretFd); secretFd = undefined;
     if (observed.stderr !== '') {
-      const diagnostic = /^G001_LINUX_POLICY_NATIVE_FAILED(?::(g001-admitted-(?:identity|aggregate|enumeration|status|reconciliation)))?\n$/u.exec(observed.stderr)?.[1];
-      if (observed.stderr !== 'G001_LINUX_POLICY_NATIVE_FAILED\n' && diagnostic === undefined) policyFail();
-      policyFail(diagnostic ?? 'g001-observation');
+      const childDiagnostic = nativeFailureDiagnostic(observed.stderr);
+      if (childDiagnostic !== undefined) policyFail(childDiagnostic);
+      policyFail();
     }
     const receipt = canonicalResult(observed.stdout, kind === 'census' ? 4 * 1024 * 1024 : 32768);
     sameOperation(state);
@@ -333,7 +347,11 @@ async function execute(handle, evidence, kind) {
     return Object.freeze({ profile: 'warpkeep-g001-linux-census-completed-v1', sourceCommit: source.sourceCommit,
       attemptId: runId, githubRunId, githubRunAttempt, receiptDigest: complete.receiptDigest,
       completedAt: complete.completedAt, mutationSubmitted: false });
-  } catch { policyFail(diagnostic); }
+  } catch (error) {
+    const childDiagnostic = error && typeof error === 'object' ? error.diagnostic : undefined;
+    policyFail(typeof childDiagnostic === 'string' && ADMITTED_DIAGNOSTICS.has(childDiagnostic)
+      ? childDiagnostic : diagnostic);
+  }
   finally {
     try {
       if (secretFd !== undefined) closeSync(secretFd);
