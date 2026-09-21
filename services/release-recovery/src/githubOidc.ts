@@ -16,8 +16,8 @@ import {
   type GitHubJsonValue,
 } from './http.js'
 import {
-  mintGitHubInstallationToken,
-  type GitHubAppEnvironment,
+  resolveGitHubEvidenceToken,
+  type GitHubEvidenceEnvironment,
 } from './githubEvidence.js'
 import { base64UrlEncode } from './protocol.js'
 
@@ -53,7 +53,6 @@ const REQUIRED_CLAIMS = [
   'environment',
   'event_name',
   'runner_environment',
-  'check_run_id',
   'run_id',
   'run_attempt',
   'jti',
@@ -62,6 +61,7 @@ const REQUIRED_CLAIMS = [
   'exp',
 ] as const
 const OPTIONAL_CLAIMS = [
+  'check_run_id',
   'actor',
   'actor_id',
   'base_ref',
@@ -404,6 +404,7 @@ function validateDeployRecoveryJob(
   runUrl: string,
   checkUrl: string,
   check: CorrelatedCheck,
+  checkRunId: string,
 ): void {
   const code = 'RECOVERY_GITHUB_OIDC_INVALID'
   const jobs = jobsResponse.jobs
@@ -455,7 +456,7 @@ function validateDeployRecoveryJob(
   if (namedJobs.length !== 1) githubFail(code)
   const { job, labels, unassigned } = namedJobs[0]!
   if (
-    job.id !== claims.check_run_id
+    job.id !== checkRunId
     || job.run_id !== claims.run_id
     || job.run_attempt !== claims.run_attempt
     || job.workflow_name !== GITHUB_WORKFLOW_NAME
@@ -463,9 +464,9 @@ function validateDeployRecoveryJob(
     || job.head_sha !== candidateCommit
     || job.run_url !== runUrl
     || job.check_run_url !== checkUrl
-    || job.url !== `https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${claims.check_run_id}`
+    || job.url !== `https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/${checkRunId}`
     || job.node_id !== check.nodeId
-    || job.html_url !== `https://github.com/${GITHUB_REPOSITORY}/actions/runs/${claims.run_id}/job/${claims.check_run_id}`
+    || job.html_url !== `https://github.com/${GITHUB_REPOSITORY}/actions/runs/${claims.run_id}/job/${checkRunId}`
     || job.status !== 'in_progress'
     || job.conclusion !== null
     || labels.length !== RECOVERY_RUNNER_LABELS.length
@@ -481,7 +482,7 @@ function validateDeployRecoveryJob(
 export async function verifyGitHubWorkflowIdentity(input: Readonly<{
   token: string
   candidateCommit: string
-  environment: GitHubAppEnvironment
+  environment: GitHubEvidenceEnvironment
   fetch: typeof fetch
   nowSeconds: number
 }>): Promise<GitHubWorkflowIdentity> {
@@ -527,7 +528,7 @@ export async function verifyGitHubWorkflowIdentity(input: Readonly<{
     || claims.environment !== 'github-pages'
     || claims.event_name !== 'workflow_run'
     || claims.runner_environment !== 'self-hosted'
-    || !githubIdentifier(claims.check_run_id)
+    || (claims.check_run_id !== undefined && !githubIdentifier(claims.check_run_id))
     || !githubIdentifier(claims.run_id)
     || !githubIdentifier(claims.run_attempt)
     || typeof claims.jti !== 'string'
@@ -549,32 +550,22 @@ export async function verifyGitHubWorkflowIdentity(input: Readonly<{
     || expiresAt - issuedAt > 600
   ) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
 
-  const checkRunId = claims.check_run_id
   const runId = claims.run_id
   const runAttempt = claims.run_attempt
   let installationToken: string
   try {
-    installationToken = await mintGitHubInstallationToken(
-      inputSnapshot.environment as GitHubAppEnvironment,
+    installationToken = await resolveGitHubEvidenceToken(
+      inputSnapshot.environment as GitHubEvidenceEnvironment,
       fetchImplementation as typeof fetch,
       nowSeconds,
     )
   } catch {
     githubFail('RECOVERY_GITHUB_OIDC_INVALID')
   }
-  const checkUrl = `https://api.github.com/repos/${GITHUB_REPOSITORY}/check-runs/${checkRunId}`
   const runUrl = `https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${runId}`
   const runAttemptUrl = `${runUrl}/attempts/${runAttempt}`
   const init = { headers: githubHeaders(installationToken) }
-  const [checkResponse, run, jobs] = await Promise.all([
-    json(
-      fetchImplementation as typeof fetch,
-      checkUrl,
-      init,
-      'RECOVERY_GITHUB_OIDC_INVALID',
-      200,
-      ['/id', '/check_suite/id', '/app/id'],
-    ),
+  const [run, jobs] = await Promise.all([
     json(
       fetchImplementation as typeof fetch,
       runAttemptUrl,
@@ -607,6 +598,19 @@ export async function verifyGitHubWorkflowIdentity(input: Readonly<{
       ['/jobs/*/runner_id', '/jobs/*/runner_group_id'],
     ),
   ])
+  // GitHub's ordinary job OIDC token need not contain check_run_id. Derive it
+  // from the authenticated current-attempt job list, then verify the check and
+  // the complete job metadata below. A supplied claim must still agree.
+  if (!safeNonnegativeInteger(jobs.total_count) || jobs.total_count > 100
+    || !Array.isArray(jobs.jobs) || jobs.jobs.length !== jobs.total_count) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+  const selected = jobs.jobs.map(value => objectValue(value, 'RECOVERY_GITHUB_OIDC_INVALID'))
+    .filter(job => job.name === 'deploy-recovery')
+  if (selected.length !== 1 || !githubIdentifier(selected[0]!.id)) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+  const checkRunId = selected[0]!.id
+  if (claims.check_run_id !== undefined && claims.check_run_id !== checkRunId) githubFail('RECOVERY_GITHUB_OIDC_INVALID')
+  const checkUrl = `https://api.github.com/repos/${GITHUB_REPOSITORY}/check-runs/${checkRunId}`
+  const checkResponse = await json(fetchImplementation as typeof fetch, checkUrl, init,
+    'RECOVERY_GITHUB_OIDC_INVALID', 200, ['/id', '/check_suite/id', '/app/id'])
   const correlatedCheck = validateCheckRun(
     checkResponse,
     checkRunId,
@@ -622,6 +626,7 @@ export async function verifyGitHubWorkflowIdentity(input: Readonly<{
     runUrl,
     checkUrl,
     correlatedCheck,
+    checkRunId,
   )
 
   return Object.freeze({

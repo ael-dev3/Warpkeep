@@ -129,6 +129,12 @@ it('issues through real ledger and crypto, retries retained bytes with fresh ide
       if (row.state !== 'completed' && row.state !== 'not-deployed') throw new Error('test expected terminal')
       return { state: row.state, requestId: armed.requestId, outcome: row.outcome, completedAt: row.completedAt, revision: row.revision }
     },
+    async reconcile(value) {
+      if (row?.state === 'claimed') row = await applyLedgerV2Event(row, { type: 'alarm', now: value.now })
+      row = await applyLedgerV2Event(row!, { type: 'reconcile-proven', proof: value.proof, now: value.now })
+      if (row.state !== 'completed' && row.state !== 'not-deployed') throw new Error('test expected terminal')
+      return { state: row.state, requestId: armed.requestId, outcome: row.outcome, completedAt: row.completedAt, revision: row.revision }
+    },
   }
   const requestLedger = vi.fn(() => ledger)
   // Observation transport is mocked above; this sentinel must never be used as a real service.

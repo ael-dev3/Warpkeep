@@ -46,14 +46,27 @@ export async function completeRecoveryAuthorization(endpoint: 'complete' | 'reco
     environment: runtime.githubApp, fetch: runtime.fetch, nowSeconds: clock(now) })
   const ledger = runtime.requestLedger(req.requestId)
   const projection = await ledger.readClaimedProjection({ requestId: req.requestId })
+  // Completion belongs to the deploying job. Later reconciliation may use a
+  // fresh job of the same protected workflow and candidate, while every fact
+  // about what deployed remains bound to the original retained authorization.
+  const transientIdentityKeys = new Set(['pagesRunId', 'pagesRunAttempt', 'checkRunId'])
   if (projection.requestId !== req.requestId
     || Object.entries(projection.authorization.locators).some(([name, value]) => req[name] !== value)
-    || Object.entries(projection.authorization.workflowIdentity).some(([name, value]) => identity[name as keyof typeof identity] !== value)) githubFail('RECOVERY_CLAIM_RECEIPT_MISMATCH')
-  await verifyPostDeployClaimReceiptCorrelation({ compact: req.claimReceiptJws, projection, nowSeconds: clock(now) })
+    || Object.entries(projection.authorization.workflowIdentity).some(([name, value]) =>
+      !(endpoint === 'reconcile' && transientIdentityKeys.has(name))
+      && identity[name as keyof typeof identity] !== value)) githubFail('RECOVERY_CLAIM_RECEIPT_MISMATCH')
+  await verifyPostDeployClaimReceiptCorrelation({ compact: req.claimReceiptJws, projection,
+    nowSeconds: clock(now), purpose: endpoint })
   if (projection.state !== 'completed' && projection.state !== 'not-deployed') {
     const proof = await createDeploymentReconciliationProofReader({ githubApp: runtime.githubApp, fetch: runtime.fetch })(projection)
-    if (proof.outcome !== 'completed') githubFail('RECOVERY_LEDGER_COMPLETION_NOT_PROVEN')
-    await ledger.complete({ requestId: req.requestId, proof, now: clock(now) })
+    if (proof.outcome === 'ambiguous' || (endpoint === 'complete' && proof.outcome !== 'completed')) githubFail('RECOVERY_LEDGER_COMPLETION_NOT_PROVEN')
+    const observedAt = clock(now)
+    if (endpoint === 'reconcile' && observedAt >= projection.claim.claimDeadline) {
+      await ledger.reconcile({ requestId: req.requestId, proof, now: observedAt })
+    } else {
+      if (proof.outcome !== 'completed') githubFail('RECOVERY_LEDGER_COMPLETION_NOT_PROVEN')
+      await ledger.complete({ requestId: req.requestId, proof, now: observedAt })
+    }
   }
   const terminal = await ledger.readTerminalProjection({ requestId: req.requestId })
   if (terminal.rowBindingDigest !== projection.rowBindingDigest) githubFail('RECOVERY_CLAIM_RECEIPT_MISMATCH')

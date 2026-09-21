@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { recoveryAuthorizationFixture } from './fixtures/recoveryAuthorizationFixture';
 const mocks = vi.hoisted(() => ({ claim: vi.fn(), correlation: vi.fn() }));
-vi.mock('../scripts/verify-recovery-claim-receipt.mjs', () => ({ verifyRecoveryClaimReceipt: mocks.claim, verifyRecoveryClaimCorrelation: mocks.correlation }));
+vi.mock('../scripts/verify-recovery-claim-receipt.mjs', () => ({ verifyRecoveryClaimReceipt: mocks.claim,
+  verifyRecoveryClaimCorrelation: mocks.correlation, verifyRecoveryClaimHistory: mocks.correlation }));
 import { writeRecoveryClaimHandoff, readRecoveryClaimHandoffForDeployment, readRecoveryClaimHandoffForReconciliation, readRecoveryClaimHandoffHistory } from '../scripts/recovery-claim-handoff.mjs';
 const context = recoveryAuthorizationFixture().context;
 const contextSource = JSON.stringify(context);

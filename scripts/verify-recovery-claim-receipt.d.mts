@@ -6,6 +6,10 @@ export function verifyRecoveryClaimReceipt(compact: string, expectedSource: stri
 export function verifyRecoveryClaimCorrelation(compact: string, expectedSource: string, nowSeconds: number): Readonly<{
   purpose: 'reconciliation-only'; authorizationEpoch: number; claimedAt: number; claimDeadline: number;
 }>;
+/** Historical signature/binding only, without deployment authority or an expiry bypass for claims. */
+export function verifyRecoveryClaimHistory(compact: string, expectedSource: string, nowSeconds: number): Readonly<{
+  purpose: 'signed-history-only'; authorizationEpoch: number; claimedAt: number; claimDeadline: number;
+}>;
 /** Consumes a private canonical stdin envelope; checks the wall clock after EOF. */
 export function verifyRecoveryClaimReceiptFromStdin(input: import('node:stream').Readable): Promise<Readonly<{
   authorizationEpoch: number; claimSequence: number; issuedAt: number; expiresAt: number;

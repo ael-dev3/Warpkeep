@@ -13,6 +13,15 @@ only at `artifacts/delivery/0.4.0/` beneath the existing checkout, following the
 [output and retention rules](../../engineering/development-workflow.md#output-locations-and-retention).
 Do not create a new Desktop folder, handoff copy, backup or ZIP.
 
+On September 21, the two existing Desktop entry files (`Warpkeep 0.4 - Next
+Work.txt` and `Warpkeep - Full Project Handoff.md`) were updated in place. Their
+current headers now point to this repository's execution handoff, access guide,
+recovery bootstrap and synchronization procedure, including the
+[known blocker recovery paths](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths).
+The historical suffixes were preserved byte-for-byte. Their previously recorded
+character corruption remains explicitly marked; do not use those older hashes,
+URLs or commands as operating inputs. No new Desktop artifact was created.
+
 ## Start here
 
 - **Accepted source and checks:** the dated [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) owns the verified SHA, terminal main checks and read-only preflight result; resolve live refs before continuing

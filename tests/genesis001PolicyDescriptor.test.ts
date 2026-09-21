@@ -38,8 +38,16 @@ vi.mock('spacetimedb', () => ({
 }));
 vi.mock('../scripts/greater-realm-production-provenance.ts', () => ({
   attestGreaterRealmProductionProtectedMain: () => {
+    throw Error('the historical named-branch attestation cannot run in the SHA checkout');
+  },
+}));
+vi.mock('../scripts/genesis001-linux-policy-boundary.mjs', () => ({
+  attestPolicySource: (expected: unknown, root: string, kind: string) => {
+    expect(expected).toBeUndefined();
+    expect(root).toBe(resolve('.'));
+    expect(kind).toBe('policy');
     fixture.events.push('attest');
-    return fixture.source;
+    return { sourceCommit: fixture.source };
   },
 }));
 vi.mock('../scripts/greater-realm-production-transport.ts', () => ({

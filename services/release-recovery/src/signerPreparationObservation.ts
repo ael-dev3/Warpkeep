@@ -1,4 +1,5 @@
 import { githubFail, snapshotExactDataObject } from './config.js'
+import { githubEvidenceFromBindings } from './signerWorkflowCredential.js'
 import { parsePreparationDeployment, snapshotPreparationRequest } from './preparationPolicy.js'
 import { verifyPreparationWorkflowIdentity } from './preparationOidc.js'
 import { snapshotPreparationIntent, type PreparationIntent } from './preparationIntent.js'
@@ -89,11 +90,7 @@ export async function observePreparationFromEnvironment(
   })
   const deployment = parsePreparationDeployment(deploymentInput()),
     deploymentBytes = JSON.stringify(deployment)
-  const githubApp = {
-    GITHUB_APP_ID: env.GITHUB_APP_ID,
-    GITHUB_APP_INSTALLATION_ID: env.GITHUB_APP_INSTALLATION_ID,
-    GITHUB_APP_PRIVATE_KEY_PEM: env.GITHUB_APP_PRIVATE_KEY_PEM,
-  }
+  const githubApp = githubEvidenceFromBindings(env)
   const secrets = await validateSignerSecrets({
     RECOVERY_SIGNING_PRIVATE_JWK: env.RECOVERY_SIGNING_PRIVATE_JWK,
     RELEASE_RECOVERY_RPC_SECRET: env.RELEASE_RECOVERY_RPC_SECRET,

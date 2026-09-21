@@ -14,7 +14,7 @@ permissions:
 # values, so changing any protected executable requires an explicit refreeze.
 env:
   WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'd7d4600bb8cd248b79131a96de4d03698508e7f08b40bea094e838d132d9c162'
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '5e7853fda90b8a2763f664a99d748088f3e7d03603e85cd04cd3ee0d6db51f9d'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: 'a2c6ff6aee06ed983ff52ebfe5e38332723534eff8c8f0aa13ea8a93008dd68a'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '639d78a525a0592d25d06a103074c2ab961c229bf3b9c97c3079759f55a09e97'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: 'bcc41d30dbb00ecd612a1fdb5fe87b5e047d8cc777d0af9fc360b40e06bc1de2'
   WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256: '692420c1a2a1d8d0b76893caaf720be11f2b3dcb559bf777be4a2cc70c59a0c2'
@@ -512,8 +512,10 @@ jobs:
     runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
     timeout-minutes: 45
     permissions:
-      contents: read
       actions: read
+      checks: read
+      contents: read
+      deployments: read
       pages: write
       id-token: write
     environment:
@@ -626,7 +628,23 @@ jobs:
           done
           node scripts/auth-bridge-notification-prepared-deploy-closure.mjs
 
+      - name: Reconcile a retained recovery attempt before any deployment
+        id: recovery-resume
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          result="$(node scripts/recovery-workflow-reconciliation.mjs)"
+          case "$result" in
+            '{"resumed":false}') printf '%s\n' 'resumed=false' >> "$GITHUB_OUTPUT" ;;
+            '{"resumed":true,"outcome":"completed"}'|'{"resumed":true,"outcome":"not-deployed"}')
+              printf '%s\n' 'resumed=true' >> "$GITHUB_OUTPUT" ;;
+            *) echo 'RECOVERY_WORKFLOW_RECONCILIATION_INVALID' >&2; exit 1 ;;
+          esac
+
       - name: Validate recovery build inputs
+        if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
         shell: bash
         env:
           WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
@@ -639,12 +657,15 @@ jobs:
           node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build
 
       - name: Install exact recovery build dependencies
+        if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
         run: npm ci
 
       - name: Install the recovery build validation parser
+        if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
         run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
 
       - name: Re-attest the recovery runtime and source before build
+        if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -657,11 +678,13 @@ jobs:
           npm run validate:pages-config
 
       - name: Build the verified recovery release
+        if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
         run: npm run build
         env:
           GITHUB_PAGES: 'true'
 
       - name: Verify recovery release metadata and install its attestation
+        if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -672,9 +695,11 @@ jobs:
           node scripts/auth-bridge-notification-prepared-deploy-closure.mjs
 
       - name: Setup recovery Pages
+        if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
       - name: Upload exact recovery artifact
+        if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           name: github-pages-recovery-${{ github.run_id }}-${{ github.run_attempt }}
@@ -682,6 +707,7 @@ jobs:
           include-hidden-files: true
 
       - name: Prepare private recovery claim
+        if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
         id: recovery-claim
         shell: bash
         env:
@@ -690,6 +716,7 @@ jobs:
           node scripts/recovery-workflow-prepare-claim.mjs
 
       - name: Check recovery deployment boundary
+        if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
         id: recovery-boundary
         shell: bash
         env:
@@ -698,6 +725,7 @@ jobs:
           node scripts/recovery-workflow-check-deployment.mjs
 
       - name: Deploy recovery-authorized release to GitHub Pages
+        if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
         id: recovery-deployment
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
         with:
@@ -902,7 +930,9 @@ jobs:
     timeout-minutes: 20
     permissions:
       actions: read
+      checks: read
       contents: read
+      deployments: read
       pages: write
       id-token: write
     environment:

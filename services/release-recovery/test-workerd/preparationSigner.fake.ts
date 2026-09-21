@@ -30,6 +30,11 @@ export class RecoveryPreparationTestSigner extends ReleaseRecoverySignerEntrypoi
     try { await unconfigured.prepare(request); return { code: 'UNEXPECTED_SUCCESS' } }
     catch (error) { return { code: error instanceof Error ? error.message : 'UNKNOWN_FAILURE' } }
   }
+  async prepareWithoutApp(request: unknown, githubToken: unknown) {
+    const signer = new ReleaseRecoverySignerEntrypoint(this.ctx, { ...this.env,
+      GITHUB_APP_ID: undefined, GITHUB_APP_INSTALLATION_ID: undefined, GITHUB_APP_PRIVATE_KEY_PEM: undefined })
+    return signer.prepare(request, githubToken)
+  }
   async probeInvalidPtrUpdate(request: unknown, ...extra: unknown[]) {
     try { await super.ptrUpdateObservation(request, ...extra); return { code: 'UNEXPECTED_SUCCESS' } }
     catch (error) { return { code: error instanceof Error ? error.message : 'UNKNOWN_FAILURE' } }

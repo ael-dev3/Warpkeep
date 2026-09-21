@@ -1,6 +1,6 @@
-import { githubFail, type GitHubAppEnvironment } from './config.js'
+import { githubFail } from './config.js'
 import { signRecoveryAuthorizationJws, type RecoveryAuthorizationPayload } from './crypto.js'
-import { loadGitHubCandidateEvidence } from './githubEvidence.js'
+import { loadGitHubCandidateEvidence, type GitHubEvidenceEnvironment } from './githubEvidence.js'
 import { verifyGitHubWorkflowIdentity } from './githubOidc.js'
 import type { ReleaseRecoveryAuthorizationLedgerV2 } from './ledgerDurableObjectV2.js'
 import { RECOVERY_AUDIENCE, RECOVERY_ISSUER } from './protocol.js'
@@ -11,11 +11,11 @@ import { snapshotSignerRequest } from './signerRequests.js'
 import { validateSignerSecrets } from './signerSecrets.js'
 
 export type SignerIssueRuntime = Readonly<{
-  githubApp: GitHubAppEnvironment
+  githubApp: GitHubEvidenceEnvironment
   fetch: typeof fetch
   observation: Pick<ObserveRecoveryRealmEvidenceInput, 'bridge' | 'pins' | 'expectedRawModuleDefV10Fixtures'>
   requestLedger(requestId: string): Pick<ReleaseRecoveryAuthorizationLedgerV2,
-    'status' | 'installArming' | 'reserveIssue' | 'finalizeIssue' | 'readIssued' | 'claim' | 'readClaimedProjection' | 'readTerminalProjection' | 'complete'>
+    'status' | 'installArming' | 'reserveIssue' | 'finalizeIssue' | 'readIssued' | 'claim' | 'readClaimedProjection' | 'readTerminalProjection' | 'complete' | 'reconcile'>
 }>
 
 function clock(now: () => number): number {

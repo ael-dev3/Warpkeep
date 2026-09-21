@@ -1,4 +1,5 @@
-import { githubFail, type GitHubAppEnvironment } from './config.js'
+import { githubFail } from './config.js'
+import { githubEvidenceFromBindings, type GitHubEvidenceBindings } from './signerWorkflowCredential.js'
 import { parsePreparationDeployment, snapshotPreparationRequest } from './preparationPolicy.js'
 import { verifyPreparationWorkflowIdentity } from './preparationOidc.js'
 import { signPreparationReceipt } from './preparationReceipt.js'
@@ -6,16 +7,13 @@ import { validateSignerSecrets } from './signerSecrets.js'
 import type { ReleaseRecoveryAuthorizationLedgerV2 } from './ledgerDurableObjectV2.js'
 import { snapshotPreparationIntent } from './preparationIntent.js'
 
-export type PreparationSignerEnvironment = Readonly<{
+export type PreparationSignerEnvironment = GitHubEvidenceBindings & Readonly<{
   RECOVERY_ENABLED: string
   RECOVERY_AUTHORIZATION_EPOCH: string
   RECOVERY_ARMING_MANIFEST?: string
   RECOVERY_PREPARATION_POLICY?: string
   RECOVERY_SIGNING_PRIVATE_JWK: string
   RELEASE_RECOVERY_RPC_SECRET: string
-  GITHUB_APP_ID: string
-  GITHUB_APP_INSTALLATION_ID: string
-  GITHUB_APP_PRIVATE_KEY_PEM: string
   RECOVERY_LEDGER_V2: DurableObjectNamespace<ReleaseRecoveryAuthorizationLedgerV2>
 }>
 
@@ -28,8 +26,7 @@ export async function prepareRecoveryFromEnvironment(
   const deployment = parsePreparationDeployment({ RECOVERY_ENABLED: env.RECOVERY_ENABLED,
     RECOVERY_AUTHORIZATION_EPOCH: env.RECOVERY_AUTHORIZATION_EPOCH, RECOVERY_ARMING_MANIFEST: env.RECOVERY_ARMING_MANIFEST,
     RECOVERY_PREPARATION_POLICY: env.RECOVERY_PREPARATION_POLICY })
-  const githubApp: GitHubAppEnvironment = { GITHUB_APP_ID: env.GITHUB_APP_ID,
-    GITHUB_APP_INSTALLATION_ID: env.GITHUB_APP_INSTALLATION_ID, GITHUB_APP_PRIVATE_KEY_PEM: env.GITHUB_APP_PRIVATE_KEY_PEM }
+  const githubApp = githubEvidenceFromBindings(env)
   const secrets = await validateSignerSecrets({ RECOVERY_SIGNING_PRIVATE_JWK: env.RECOVERY_SIGNING_PRIVATE_JWK,
     RELEASE_RECOVERY_RPC_SECRET: env.RELEASE_RECOVERY_RPC_SECRET })
   const started = Date.now()

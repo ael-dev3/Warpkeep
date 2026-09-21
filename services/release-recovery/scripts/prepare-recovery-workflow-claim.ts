@@ -1,5 +1,5 @@
 import { readRecoveryWorkflowArtifact } from './read-recovery-workflow-artifact.js';
-import { createRecoveryWorkflowPrivateDirectory } from '../../../scripts/recovery-workflow-private-directory.mjs';
+import { createRecoveryWorkflowPrivateDirectory, preflightRecoveryWorkflowPrivateDirectory } from '../../../scripts/recovery-workflow-private-directory.mjs';
 import { beginRecoveryWorkflowSession, type RecoveryWorkflowSession } from '../../../scripts/recovery-workflow-session.mjs';
 const fail = (): never => { throw new Error('RECOVERY_WORKFLOW_CLAIM_PREPARATION_INVALID'); };
 
@@ -10,8 +10,9 @@ export async function prepareRecoveryWorkflowClaim(...args: readonly unknown[]):
     if (args.length !== 0) fail();
     const { bindingSource, contextSource } = await readRecoveryWorkflowArtifact();
     const context = JSON.parse(contextSource);
-    const privateRoot = createRecoveryWorkflowPrivateDirectory(context.pagesRunId, context.pagesRunAttempt);
-    session = await beginRecoveryWorkflowSession(bindingSource, contextSource, privateRoot);
+    preflightRecoveryWorkflowPrivateDirectory(context.pagesRunId, context.pagesRunAttempt);
+    session = await beginRecoveryWorkflowSession(bindingSource, contextSource,
+      () => createRecoveryWorkflowPrivateDirectory(context.pagesRunId, context.pagesRunAttempt));
     // Startup can retain a reconciliation-only session after persistence/status
     // failure. Do not report preparation success for that session.
     await session.checkDeploymentBoundary();

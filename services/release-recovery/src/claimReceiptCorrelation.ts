@@ -18,6 +18,7 @@ export type PostDeployClaimReceiptCorrelationInput = Readonly<{
   compact: string
   projection: LedgerSignerClaimProjection
   nowSeconds: number
+  purpose?: 'complete' | 'reconcile'
 }>
 
 export type PostDeployClaimReceiptCorrelation = Readonly<{
@@ -67,7 +68,8 @@ export async function verifyPostDeployClaimReceiptCorrelation(
     fail('RECOVERY_CLAIM_RECEIPT_MISMATCH')
   }
 
-  if (nowSeconds < receiptIssuedAt || nowSeconds >= claim.claimDeadline) {
+  if (nowSeconds < receiptIssuedAt
+    || (input.purpose !== 'reconcile' && nowSeconds >= claim.claimDeadline)) {
     fail('RECOVERY_CLAIM_RECEIPT_TIME_INVALID')
   }
 

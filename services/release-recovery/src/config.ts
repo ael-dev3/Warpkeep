@@ -276,3 +276,5 @@ export function recoveryRealmBindingProjectionFromArmed(
   return snapshotRecoveryRealmBindingProjection(projection, code)
 }
 export type GitHubAppEnvironment=Readonly<{GITHUB_APP_ID:string;GITHUB_APP_INSTALLATION_ID:string;GITHUB_APP_PRIVATE_KEY_PEM:string}>
+/** A request-scoped workflow token authenticates API reads, never workflow identity. */
+export type GitHubEvidenceEnvironment = GitHubAppEnvironment | Readonly<{ GITHUB_WORKFLOW_TOKEN: string }>

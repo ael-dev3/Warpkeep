@@ -82,7 +82,8 @@ it('uses the fixed OIDC audience and preparation endpoint without exporting requ
     'https://release-auth.warpkeep.com/v1/recovery/prepare',
   ]);
   expect(f.requests[0]!.init.headers).toMatchObject({ authorization: 'Bearer test-only-oidc-request-credential' });
-  expect(f.requests[1]!.init.headers).not.toHaveProperty('authorization');
+  expect(f.requests[1]!.init.headers).toMatchObject({ authorization: 'Bearer test-only-github-workflow-token' });
+  expect(f.requests[1]!.init.headers).not.toMatchObject({ authorization: 'Bearer test-only-oidc-request-credential' });
   expect(JSON.parse(f.requests[1]!.init.body as string)).toEqual({ oidcToken: 'signed.oidc.fixture', preparationCommit: 'c'.repeat(40) });
   expect(f.requests.every(x => x.init.redirect === 'error')).toBe(true);
 });

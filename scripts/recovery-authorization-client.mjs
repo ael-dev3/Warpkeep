@@ -34,6 +34,8 @@ export async function requestRecovery(...args) {
     }
     const url = `https://release-auth.warpkeep.com/v1/recovery/${endpoint === 'terminal' ? `requests/${request.requestId}` : endpoint}`;
     const get = endpoint === 'status' || endpoint === 'terminal';
+    const githubToken = get ? undefined : process.env.GITHUB_TOKEN;
+    if (!get && (typeof githubToken !== 'string' || !/^[\x21-\x7e]{1,4096}$/u.test(githubToken))) fail();
     body = get ? undefined : requestSource;
     const deadline = performance.now() + duration;
     const timeout = new Promise((_, reject) => {
@@ -46,7 +48,7 @@ export async function requestRecovery(...args) {
     };
     response = await bounded(fetch(url, {
       method: get ? 'GET' : 'POST', redirect: 'error', cache: 'no-store', credentials: 'omit',
-      headers: { accept: 'application/json', 'accept-encoding': 'identity', 'cache-control': 'no-store', ...(get ? {} : { 'content-type': 'application/json' }) },
+      headers: { accept: 'application/json', 'accept-encoding': 'identity', 'cache-control': 'no-store', ...(get ? {} : { 'content-type': 'application/json', authorization: `Bearer ${githubToken}` }) },
       body, signal: controller.signal,
     }));
     body = undefined;

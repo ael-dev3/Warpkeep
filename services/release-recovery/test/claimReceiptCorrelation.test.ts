@@ -179,6 +179,25 @@ function readP256S(signature: Uint8Array): bigint {
 }
 
 describe('post-deploy claim receipt correlation', () => {
+  it('correlates an expired original receipt only for reconciliation and retains signature and row checks', async () => {
+    const boundary = await loadTestBoundary()
+    const compact = await boundary.signRecoveryClaimJws(claimPayload, TEST_ONLY_PRIVATE_JWK)
+    const claimedProjection = await projection()
+    await expect(boundary.verifyPostDeployClaimReceiptCorrelation({ compact, projection: claimedProjection,
+      nowSeconds: CLAIM_DEADLINE + 86_400, purpose: 'reconcile',
+    })).resolves.toEqual({ rowBindingDigest: ROW_BINDING_DIGEST })
+    await expect(boundary.verifyPostDeployClaimReceiptCorrelation({ compact, projection: claimedProjection,
+      nowSeconds: CLAIM_DEADLINE + 86_400, purpose: 'complete',
+    })).rejects.toThrow('RECOVERY_CLAIM_RECEIPT_TIME_INVALID')
+    const substituted = await boundary.signRecoveryClaimJws({ ...claimPayload,
+      artifactId: '999',
+    }, TEST_ONLY_PRIVATE_JWK)
+    await expect(boundary.verifyPostDeployClaimReceiptCorrelation({ compact: substituted,
+      projection: claimedProjection, nowSeconds: CLAIM_DEADLINE + 86_400, purpose: 'reconcile',
+    })).rejects.toThrow('RECOVERY_CLAIM_RECEIPT_MISMATCH')
+    await expect(boundary.verifyRecoveryClaimJws(compact, CLAIM_DEADLINE + 86_400))
+      .rejects.toThrow('RECOVERY_JWS_TIME_INVALID')
+  })
   it('keeps ordinary claim verification strict after exp while correlating only before the durable deadline', async () => {
     const boundary = await loadTestBoundary()
     const compact = await boundary.signRecoveryClaimJws(claimPayload, TEST_ONLY_PRIVATE_JWK)

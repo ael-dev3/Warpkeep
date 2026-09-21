@@ -284,6 +284,11 @@ export type LedgerV2Event =
       proof: LedgerV2ReconciliationProof
       now: number
     }>
+  | Readonly<{
+      type: 'reconcile-proven'
+      proof: LedgerV2CompletedProof | LedgerV2NotDeployedProof
+      now: number
+    }>
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
 const decoder = new TextDecoder()
@@ -1211,11 +1216,15 @@ function alarm(state: RecoveryLedgerRecordV2, event: Extract<LedgerV2Event, { ty
 
 function reconcile(
   state: RecoveryLedgerRecordV2,
-  event: Extract<LedgerV2Event, { type: 'reconcile' }>,
+  event: Extract<LedgerV2Event, { type: 'reconcile' | 'reconcile-proven' }>,
 ): RecoveryLedgerRecordV2 {
   const now = unixSecond(event.now, 'RECOVERY_LEDGER_TIME_INVALID')
   assertNonBackwardTime(state, now)
   const proofKind = reconciliationProofKind(event.proof)
+  // An authenticated, fresh evidence read may finish a previously exhausted
+  // alarm sequence. It cannot restart retries or turn ambiguity into a result.
+  const proven = event.type === 'reconcile-proven'
+  if (proven && proofKind === 'ambiguous') fail('RECOVERY_LEDGER_COMPLETION_NOT_PROVEN')
   if (state.state === 'completed' || state.state === 'not-deployed') {
     if (proofKind === 'completed' || proofKind === 'not-deployed') {
       assertRowBinding(
@@ -1226,8 +1235,8 @@ function reconcile(
     return state
   }
   if (state.state !== 'reconciliation-required') fail('RECOVERY_LEDGER_RECONCILIATION_STATE_INVALID')
-  if (state.nextReconcileAt === null) fail('RECOVERY_LEDGER_RECONCILIATION_EXHAUSTED')
-  if (now < state.nextReconcileAt) fail('RECOVERY_LEDGER_RECONCILIATION_NOT_DUE')
+  if (!proven && state.nextReconcileAt === null) fail('RECOVERY_LEDGER_RECONCILIATION_EXHAUSTED')
+  if (!proven && state.nextReconcileAt !== null && now < state.nextReconcileAt) fail('RECOVERY_LEDGER_RECONCILIATION_NOT_DUE')
   if (proofKind === 'completed') {
     if (!completedProof(event.proof)) fail('RECOVERY_LEDGER_RECONCILIATION_PROOF_INVALID')
     assertRowBinding(state, event.proof.rowBindingDigest)
@@ -1314,6 +1323,7 @@ function ledgerEventSnapshot(value: unknown): LedgerV2Event {
       ])
     case 'complete':
     case 'reconcile':
+    case 'reconcile-proven':
       return exactEventSnapshot(value, ['type', 'proof', 'now'])
     case 'alarm':
       return exactEventSnapshot(value, ['type', 'now'])
@@ -1335,6 +1345,7 @@ export async function applyLedgerV2Event(
     case 'complete': return complete(state, event)
     case 'alarm': return alarm(state, event)
     case 'reconcile': return reconcile(state, event)
+    case 'reconcile-proven': return reconcile(state, event)
     default: fail('RECOVERY_LEDGER_EVENT_INVALID')
   }
 }

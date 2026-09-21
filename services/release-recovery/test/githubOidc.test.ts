@@ -394,6 +394,64 @@ function invalidOidc(options: FixtureOptions) {
 }
 
 describe('GitHub recovery OIDC identity', () => {
+  it('derives the active deploy check from authenticated jobs when GitHub omits check_run_id', async () => {
+    await expect(verify({ mutateClaims: claims => { delete claims.check_run_id } }))
+      .resolves.toMatchObject({ pagesRunId: '41', pagesRunAttempt: '2', checkRunId: '91' })
+  })
+
+  it('rejects an optional check_run_id that disagrees with the active job', async () => {
+    await invalidOidc({ mutateClaims: claims => { claims.check_run_id = '93' } })
+  })
+
+  it('reads current run evidence with the supplied job token without minting an App token', async () => {
+    const fixture = await signedFixture({ mutateClaims: claims => { delete claims.check_run_id } })
+    const calls: string[] = []
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      calls.push(url)
+      if (url.startsWith('https://api.github.com/')) {
+        expect(url).not.toBe(installationUrl)
+        expect(init?.method ?? 'GET').toBe('GET')
+        const headers = new Headers(init?.headers)
+        expect(headers.get('authorization')).toBe('Bearer workflow-token')
+        headers.set('authorization', 'Bearer installation-token')
+        return fixture.fetch(input, { ...init, headers })
+      }
+      return fixture.fetch(input, init)
+    }) as typeof fetch
+    await expect(verifyGitHubWorkflowIdentity({ token: fixture.token, candidateCommit,
+      environment: { GITHUB_WORKFLOW_TOKEN: 'workflow-token' }, fetch: fetcher, nowSeconds: now }))
+      .resolves.toMatchObject({ checkRunId: '91' })
+    expect(calls.slice(0, 2)).toEqual([expect.stringContaining('openid-configuration'), expect.stringContaining('/jwks')])
+  })
+
+  it.each(['wrong context', 'forged signature'])('rejects %s before using a supplied API token', async kind => {
+    const fixture = await signedFixture(kind === 'wrong context'
+      ? { mutateClaims: claims => { claims.repository = 'attacker/fork' } }
+      : { mutateSignature: signature => `${signature[0] === 'A' ? 'B' : 'A'}${signature.slice(1)}` })
+    const calls: string[] = []
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push(String(input))
+      return fixture.fetch(input, init)
+    }) as typeof fetch
+    await expect(verifyGitHubWorkflowIdentity({ token: fixture.token, candidateCommit,
+      environment: { GITHUB_WORKFLOW_TOKEN: 'workflow-token' }, fetch: fetcher, nowSeconds: now }))
+      .rejects.toThrow('RECOVERY_GITHUB_OIDC_INVALID')
+    expect(calls.some(url => url.startsWith('https://api.github.com/'))).toBe(false)
+  })
+
+  it('rejects an expired API credential even when signed workflow identity is valid', async () => {
+    const fixture = await signedFixture()
+    const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      return url.startsWith('https://api.github.com/')
+        ? responseAt(url, '{"message":"Bad credentials"}', { status: 401 }) : fixture.fetch(input, init)
+    }) as typeof fetch
+    await expect(verifyGitHubWorkflowIdentity({ token: fixture.token, candidateCommit,
+      environment: { GITHUB_WORKFLOW_TOKEN: 'expired-workflow-token' }, fetch: fetcher, nowSeconds: now }))
+      .rejects.toThrow('RECOVERY_GITHUB_OIDC_INVALID')
+  })
+
   it('verifies a realistic GitHub token, discovery, JWKS, run attempt, job, and check run', async () => {
     await expect(verify()).resolves.toEqual({
       repository,

@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import { realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { readRecoveryWorkflowPriorContext } from './recovery-workflow-current-context.mjs';
 import { readRecoveryClaimHandoffForReconciliation } from './recovery-claim-handoff.mjs';
 import { requestFreshRecoveryOidc } from './recovery-workflow-oidc.mjs';
 import { requestRecovery } from './recovery-authorization-client.mjs';
@@ -25,8 +28,8 @@ export function resumeRecoveryWorkflowReconciliation(...args) {
           const hash = createHash('sha256').update(oidcToken).digest('hex');
           if (tokenHashes.has(hash)) fail();
           tokenHashes.add(hash);
-          // Re-read after OIDC acquisition: that wait can cross the deadline,
-          // and storage may have changed since this process opened it.
+          // Re-read after OIDC acquisition: storage may have changed since
+          // this process opened the signed historical receipt.
           const current = readRecoveryClaimHandoffForReconciliation(privateRoot, contextSource);
           if (current.claimReceiptJws !== retained.claimReceiptJws || current.expectedSource !== retained.expectedSource) fail();
           const expected = JSON.parse(current.expectedSource);
@@ -48,4 +51,31 @@ export function resumeRecoveryWorkflowReconciliation(...args) {
       dispose() { phase = 'disposed'; retained = undefined; tokenHashes.clear(); },
     });
   } catch { retained = undefined; tokenHashes.clear(); fail(); }
+}
+
+/** Rerun boundary executed before any build, upload or new claim. */
+export async function reconcilePriorRecoveryWorkflowAttempt(...args) {
+  let session;
+  try {
+    if (args.length !== 0) fail();
+    const context = await readRecoveryWorkflowPriorContext();
+    if (context === null) return Object.freeze({ resumed: false });
+    session = resumeRecoveryWorkflowReconciliation(context.privateRoot, context.contextSource);
+    const terminal = await session.reconcile();
+    if (!['completed', 'not-deployed'].includes(terminal.outcome)) fail();
+    return Object.freeze({ resumed: true, outcome: terminal.outcome });
+  } catch { fail(); }
+  finally { session?.dispose(); }
+}
+
+let direct = false;
+try { direct = Boolean(process.argv[1]) && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url); } catch { /* import only */ }
+if (direct) {
+  try {
+    if (process.argv.length !== 2) fail();
+    process.stdout.write(`${JSON.stringify(await reconcilePriorRecoveryWorkflowAttempt())}\n`);
+  } catch {
+    process.stderr.write('RECOVERY_WORKFLOW_RECONCILIATION_INVALID\n');
+    process.exitCode = 1;
+  }
 }

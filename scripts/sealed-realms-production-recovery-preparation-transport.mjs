@@ -69,9 +69,11 @@ async function requestPurpose(preparationCommit, beforeSend, endpoint, responseK
     oidcToken = await request(url.href, { method: 'GET', headers: { authorization: `Bearer ${credential}`,
       accept: 'application/json', 'accept-encoding': 'identity', 'cache-control': 'no-store' } }, 'value', 30000);
     credential = undefined;
+    const githubToken = process.env.GITHUB_TOKEN;
+    if (typeof githubToken !== 'string' || !/^[\x21-\x7e]{1,4096}$/u.test(githubToken)) fail();
     // Supplied by the private owner, not the workflow constructor's caller.
     if (beforeSend() !== undefined) fail();
-    return await request(endpoint, { method: 'POST', headers: { 'content-type': 'application/json',
+    return await request(endpoint, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${githubToken}`,
       accept: 'application/json', 'accept-encoding': 'identity', 'cache-control': 'no-store' },
     body: JSON.stringify({ oidcToken, preparationCommit }) }, responseKey, 110000);
   } catch { fail(); }

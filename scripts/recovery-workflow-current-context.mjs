@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import { readRecoveryAttestationSource } from './recovery-attestation-source.mjs';
-import { readRecoveryWorkflowArtifactMetadata } from './recovery-workflow-run-context.mjs';
+import { readRecoveryWorkflowArtifactMetadata, readRecoveryWorkflowRunContext } from './recovery-workflow-run-context.mjs';
 import { verifyWarpkeepDeploymentAttestation } from './generate-warpkeep-deployment-attestation.mjs';
-import { resolveRecoveryWorkflowPrivateDirectory } from './recovery-workflow-private-directory.mjs';
+import { resolveRecoveryWorkflowPrivateDirectory, findRecoveryWorkflowPriorDirectory } from './recovery-workflow-private-directory.mjs';
 import { readRecoveryClaimHandoffHistory } from './recovery-claim-handoff.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 const fail = () => { throw new Error('RECOVERY_WORKFLOW_CURRENT_CONTEXT_INVALID'); };
@@ -41,4 +41,33 @@ export async function readRecoveryWorkflowCurrentContext(...args) {
     return Object.freeze({ privateRoot, bindingSource, contextSource });
   } catch { fail(); }
   finally { bindingBytes?.fill(0); }
+}
+
+/** Same-run rerun only. The original artifact is signed history, never new
+ * deployment authority; the signer re-reads its original GitHub metadata. */
+export async function readRecoveryWorkflowPriorContext(...args) {
+  try {
+    if (args.length !== 0) fail();
+    const identity = readRecoveryAttestationSource(process.cwd());
+    const current = await readRecoveryWorkflowRunContext();
+    if (current.candidateCommit !== identity.candidateCommit) fail();
+    const privateRoot = findRecoveryWorkflowPriorDirectory(current.pagesRunId, current.pagesRunAttempt);
+    if (privateRoot === null) return null;
+    const history = readRecoveryClaimHandoffHistory(privateRoot);
+    if (history.purpose !== 'signed-history-only') fail();
+    const original = JSON.parse(history.contextSource);
+    if (original.pagesRunId !== current.pagesRunId
+      || !/^[1-9][0-9]{0,15}$/u.test(original.pagesRunAttempt)
+      || BigInt(original.pagesRunAttempt) >= BigInt(current.pagesRunAttempt)
+      || resolveRecoveryWorkflowPrivateDirectory(current.pagesRunId, original.pagesRunAttempt) !== privateRoot
+      || original.candidateCommit !== current.candidateCommit
+      || original.candidateTree !== identity.candidateTree
+      || original.sourceVerifyRunId !== current.sourceVerifyRunId
+      || original.sourceVerifyRunAttempt !== current.sourceVerifyRunAttempt) fail();
+    if (JSON.stringify(await readRecoveryWorkflowRunContext()) !== JSON.stringify(current)
+      || JSON.stringify(readRecoveryAttestationSource(process.cwd())) !== JSON.stringify(identity)
+      || findRecoveryWorkflowPriorDirectory(current.pagesRunId, current.pagesRunAttempt) !== privateRoot
+      || readRecoveryClaimHandoffHistory(privateRoot).contextSource !== history.contextSource) fail();
+    return Object.freeze({ privateRoot, contextSource: history.contextSource });
+  } catch { fail(); }
 }

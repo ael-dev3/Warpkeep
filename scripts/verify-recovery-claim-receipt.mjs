@@ -13,7 +13,8 @@ const hex = (value, length) => typeof value === 'string' && new RegExp(`^[a-f0-9
 const uuid = value => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(value);
 const decimal = value => typeof value === 'string' && /^[1-9][0-9]*$/u.test(value);
 
-/** Strict deployment-time gate; no post-expiry mode. Expectations require independently verified authority. */
+/** Shared signed-claim grammar. Exported entrypoints fix whether the result is
+ * a deployment-time permit or non-authorizing historical correlation. */
 function verifyClaim(compact, expectedSource, now, deployment) {
   try {
     if (!integer(now) || typeof expectedSource !== 'string' || expectedSource.length > 16384) fail();
@@ -40,7 +41,7 @@ function verifyClaim(compact, expectedSource, now, deployment) {
       || !integer(p.claimedAt) || !integer(p.claimDeadline) || p.claimDeadline !== p.claimedAt + 1200
       || !integer(p.iat) || !integer(p.exp) || p.claimedAt !== p.iat || p.nbf !== p.iat
       || p.exp <= p.iat || p.exp - p.iat > 120 || p.exp > p.claimDeadline
-      || now < p.iat || now >= (deployment ? p.exp : p.claimDeadline)) fail();
+      || now < p.iat || (deployment !== 'history' && now >= (deployment ? p.exp : p.claimDeadline))) fail();
     return p;
   } catch { fail(); }
 }
@@ -55,6 +56,14 @@ export function verifyRecoveryClaimCorrelation(...args) {
   if (args.length !== 3) fail();
   const p = verifyClaim(...args, false);
   return Object.freeze({ purpose: 'reconciliation-only', authorizationEpoch: p.authorizationEpoch,
+    claimedAt: p.claimedAt, claimDeadline: p.claimDeadline });
+}
+/** Signature and original binding only. May survive expiry; grants no deployment
+ * permission and must be paired with fresh server-side provider reconciliation. */
+export function verifyRecoveryClaimHistory(...args) {
+  if (args.length !== 3) fail();
+  const p = verifyClaim(...args, 'history');
+  return Object.freeze({ purpose: 'signed-history-only', authorizationEpoch: p.authorizationEpoch,
     claimedAt: p.claimedAt, claimDeadline: p.claimDeadline });
 }
 /** Private canonical envelope: {claimReceiptJws, expectedSource}. No caller clock override. */

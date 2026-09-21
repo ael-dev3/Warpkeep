@@ -27,6 +27,10 @@ they do not create new permissions or silently restrict a newer product directio
    Verify the selected account, target, actual caller and required source checks.
    Ask only for the smallest human action the agent cannot perform, state why,
    and define the readback that will confirm success. Never request tokens in chat.
+   Check the [known blocker recovery paths](docs/operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths)
+   before repeating login, key generation, deployment or a failed command. Reviews
+   must name the actual checkout and HEAD; verify a reported defect still exists
+   there before changing code. Old mirrors and historical text are not current source.
 
 Use the [branch entry map](docs/engineering/ecosystem-map.md) to distinguish
 the published baseline from active development, and the

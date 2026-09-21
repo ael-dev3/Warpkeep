@@ -34,6 +34,7 @@ export function preparationTransportFixture(change?: (url: string, init: Request
     GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate', WARPKEEP_OPERATION: 'activation-evidence-generate',
     GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',
     GITHUB_SHA: f.intent.preparationCommit, GITHUB_RUN_ID: '12', GITHUB_RUN_ATTEMPT: '2',
+    GITHUB_TOKEN: 'test-only-github-workflow-token',
     ACTIONS_ID_TOKEN_REQUEST_URL: 'https://example.actions.githubusercontent.com/token?api-version=2',
     ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'test-only-oidc-request-credential' })) vi.stubEnv(key, value);
   const requests: { url: string; init: RequestInit }[] = [];

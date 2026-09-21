@@ -69,6 +69,11 @@ export type LedgerV2CompleteInput = Readonly<{
   proof: Extract<LedgerV2Event, { type: 'complete' }>['proof']
   now: number
 }>
+export type LedgerV2ReconcileInput = Readonly<{
+  requestId: string
+  proof: Extract<LedgerV2Event, { type: 'reconcile-proven' }>['proof']
+  now: number
+}>
 export type LedgerV2ProjectionInput = Readonly<{ requestId: string }>
 
 export type LedgerV2IssueReservation = Readonly<{
@@ -1512,6 +1517,39 @@ export class ReleaseRecoveryAuthorizationLedgerV2 extends DurableObject<SignerEn
       if (record === undefined) fail('RECOVERY_LEDGER_NOT_INITIALIZED')
       await this.#repairAlarm(record)
       return rpcSnapshot(projectClaimedLedgerV2Row(record))
+    })
+  }
+
+  /** Private signer RPC: proof is produced by its authenticated, request-local
+   * observer. Neither the job token nor caller identity is stored in this object. */
+  async reconcile(input: LedgerV2ReconcileInput): Promise<LedgerV2TerminalResult> {
+    return this.#withPublicErrors(async () => {
+      const name = this.#assertRole('request')
+      const source = exactData(input, ['requestId', 'proof', 'now'], 'RECOVERY_LEDGER_EVENT_INVALID')
+      if (source.requestId !== name) fail('RECOVERY_LEDGER_REQUEST_ID_MISMATCH')
+      const event = Object.freeze({ type: 'reconcile-proven', proof: source.proof, now: source.now }) as
+        Extract<LedgerV2Event, { type: 'reconcile-proven' }>
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        let current = await this.#loadRecord()
+        if (current === undefined) fail('RECOVERY_LEDGER_NOT_INITIALIZED')
+        try {
+          if (current.state === 'claimed') {
+            const required = await applyLedgerV2Event(current, { type: 'alarm', now: event.now })
+            // Validate the final proof before persisting even the overdue state.
+            await applyLedgerV2Event(required, event)
+            this.ctx.storage.transactionSync(() => this.#updateRecord(current!, required))
+            current = required
+          }
+          const next = await applyLedgerV2Event(current, event)
+          if (next.state !== 'completed' && next.state !== 'not-deployed') fail('RECOVERY_LEDGER_COMPLETION_STATE_INVALID')
+          if (next !== current) this.ctx.storage.transactionSync(() => this.#updateRecord(current!, next))
+          await this.#repairAlarm(next)
+          return terminalResult(next)
+        } catch (error) {
+          if (!(error instanceof CasConflict)) throw error
+        }
+      }
+      fail('RECOVERY_LEDGER_STORAGE_FAILED')
     })
   }
 

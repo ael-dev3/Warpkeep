@@ -4,13 +4,17 @@ import { parseDocument } from 'yaml'
 
 import {
   GITHUB_REPOSITORY,
-  type GitHubAppEnvironment,
   commit,
   positive,
   sha,
   snapshotExactDataObject,
 } from './config.js'
-import { mintGitHubInstallationToken, validateRecoveryWorkflowSource } from './githubEvidence.js'
+import {
+  resolveGitHubEvidenceToken,
+  snapshotGitHubEvidenceEnvironment,
+  validateRecoveryWorkflowSource,
+  type GitHubEvidenceEnvironment,
+} from './githubEvidence.js'
 import {
   githubEvidenceMetadataSha256,
   snapshotGitHubEvidenceMetadata,
@@ -153,7 +157,7 @@ export type DeploymentReconciliationProofReader = (
 ) => Promise<LedgerV2ReconciliationProof>
 
 export type DeploymentReconciliationProofReaderInput = Readonly<{
-  githubApp: GitHubAppEnvironment
+  githubApp: GitHubEvidenceEnvironment
   fetch: typeof globalThis.fetch
 }>
 
@@ -162,6 +166,7 @@ export type DeploymentReconciliationProofReaderFactory = (
 ) => DeploymentReconciliationProofReader
 
 type ProjectionSnapshot = Readonly<{
+  state: 'claimed' | 'reconciliation-required'
   requestId: string
   authorization: LedgerV2AuthorizationSnapshot
   authorizationJwsSha256: string
@@ -194,6 +199,7 @@ type PagesDeploymentSnapshot = Readonly<{
   url: string
   createdAt: number
   updatedAt: number
+  creator: Readonly<{ id: string; login: string }>
 }>
 
 function exactKeySet(value: GitHubJsonObject, keys: readonly string[]): boolean {
@@ -250,8 +256,7 @@ function terminalConclusion(value: unknown): value is string {
 function validateActor(value: GitHubJsonValue | undefined): void {
   const actor = objectValue(value)
   if (
-    !exactKeySet(actor, ['login', 'id', 'type'])
-    || !nonemptyString(actor.login, 256)
+    !nonemptyString(actor.login, 256)
     || !positive(actor.id)
     || !nonemptyString(actor.type, 64)
   ) throw new Error(ERROR_CODE)
@@ -266,33 +271,13 @@ function validateCommitActor(value: GitHubJsonValue | undefined): void {
   ) throw new Error(ERROR_CODE)
 }
 
-function copyGitHubApp(value: unknown): GitHubAppEnvironment {
-  const source = snapshotExactDataObject(
-    value,
-    ['GITHUB_APP_ID', 'GITHUB_APP_INSTALLATION_ID', 'GITHUB_APP_PRIVATE_KEY_PEM'],
-    ERROR_CODE,
-  )
-  if (
-    !positive(source.GITHUB_APP_ID)
-    || !positive(source.GITHUB_APP_INSTALLATION_ID)
-    || typeof source.GITHUB_APP_PRIVATE_KEY_PEM !== 'string'
-    || source.GITHUB_APP_PRIVATE_KEY_PEM.length < 64
-    || source.GITHUB_APP_PRIVATE_KEY_PEM.length > 32_768
-  ) throw new Error(ERROR_CODE)
-  return Object.freeze({
-    GITHUB_APP_ID: source.GITHUB_APP_ID,
-    GITHUB_APP_INSTALLATION_ID: source.GITHUB_APP_INSTALLATION_ID,
-    GITHUB_APP_PRIVATE_KEY_PEM: source.GITHUB_APP_PRIVATE_KEY_PEM,
-  })
-}
-
 function snapshotProjection(value: unknown): ProjectionSnapshot {
   const source = snapshotExactDataObject(value, [
     'state', 'requestId', 'authorization', 'authorizationJwsSha256', 'claim',
     'rowBindingDigest', 'revision',
   ], ERROR_CODE)
   if (
-    source.state !== 'reconciliation-required'
+    (source.state !== 'claimed' && source.state !== 'reconciliation-required')
     || typeof source.requestId !== 'string'
     || !UUID.test(source.requestId)
     || !sha(source.authorizationJwsSha256)
@@ -362,7 +347,9 @@ function snapshotProjection(value: unknown): ProjectionSnapshot {
     || claimSource.claimDeadline !== claimSource.claimedAt + RECOVERY_CLAIM_DEADLINE_SECONDS_V2
     || claimSource.claimedAt >= (authorizationSource.expiresAt as number)
     || claimSource.claimLiveInvariantDigest !== authorizationSource.liveInvariantDigest
-    || Date.now() < (claimSource.claimDeadline as number) * 1_000
+    || Date.now() < (claimSource.claimedAt as number) * 1_000
+    || (source.state === 'reconciliation-required'
+      && Date.now() < (claimSource.claimDeadline as number) * 1_000)
     || metadata.repository !== GITHUB_REPOSITORY
     || metadata.repositoryId !== REPOSITORY_ID
     || metadata.repositoryOwnerId !== REPOSITORY_OWNER_ID
@@ -388,6 +375,7 @@ function snapshotProjection(value: unknown): ProjectionSnapshot {
   }) as LedgerV2AuthorizationSnapshot
   const claim = Object.freeze({ ...claimSource }) as LedgerV2ClaimSnapshot
   return Object.freeze({
+    state: source.state,
     requestId: source.requestId,
     authorization,
     authorizationJwsSha256: source.authorizationJwsSha256,
@@ -744,8 +732,8 @@ function validateRun(
     || value.id !== runId
     || value.run_attempt !== runAttempt
     || value.name !== 'Deploy GitHub Pages'
-    || value.display_title !== 'Deploy GitHub Pages'
-    || value.path !== `${WORKFLOW_PATH}@main`
+    || !nonemptyString(value.display_title, 1_024)
+    || (value.path !== WORKFLOW_PATH && value.path !== `${WORKFLOW_PATH}@main`)
     || value.event !== 'workflow_run'
     || !nonemptyString(value.node_id)
     || !positive(value.run_number)
@@ -755,7 +743,7 @@ function validateRun(
     || value.url !== runUrl
     || value.html_url !== `https://github.com/${GITHUB_REPOSITORY}/actions/runs/${runId}`
     || value.jobs_url !== `${runUrl}/attempts/${runAttempt}/jobs`
-    || value.logs_url !== `${runUrl}/logs`
+    || value.logs_url !== `${runUrl}/attempts/${runAttempt}/logs`
     || value.artifacts_url !== `${runUrl}/artifacts`
     || value.cancel_url !== `${runUrl}/cancel`
     || value.rerun_url !== `${runUrl}/rerun`
@@ -772,7 +760,7 @@ function validateRun(
     || !Number.isFinite(updatedAt)
     || createdAt > startedAt
     || startedAt > updatedAt
-    || value.previous_attempt_url !== null
+    || value.previous_attempt_url !== (runAttempt === '1' ? null : `${runUrl}/attempts/${BigInt(runAttempt) - 1n}`)
     || !exactKeySet(headCommit, [
       'id', 'tree_id', 'message', 'timestamp', 'author', 'committer',
     ])
@@ -782,14 +770,20 @@ function validateRun(
     || headCommit.message.length < 1
     || headCommit.message.length > 64 * 1024
     || !validInstant(headCommit.timestamp)
-    || !exactKeySet(repository, ['id', 'name', 'full_name'])
     || repository.id !== REPOSITORY_ID
     || repository.name !== 'Warpkeep'
     || repository.full_name !== GITHUB_REPOSITORY
-    || !exactKeySet(headRepository, ['id', 'name', 'full_name'])
+    || objectValue(repository.owner).id !== REPOSITORY_OWNER_ID
+    || objectValue(repository.owner).login !== 'ael-dev3'
+    || repository.url !== API
+    || repository.html_url !== `https://github.com/${GITHUB_REPOSITORY}`
     || headRepository.id !== REPOSITORY_ID
     || headRepository.name !== 'Warpkeep'
     || headRepository.full_name !== GITHUB_REPOSITORY
+    || objectValue(headRepository.owner).id !== REPOSITORY_OWNER_ID
+    || objectValue(headRepository.owner).login !== 'ael-dev3'
+    || headRepository.url !== API
+    || headRepository.html_url !== `https://github.com/${GITHUB_REPOSITORY}`
   ) throw new Error(ERROR_CODE)
   return Object.freeze({ terminal })
 }
@@ -826,6 +820,12 @@ function validateJobs(
       && nonemptyString(job.runner_name, 1_024)
       && nonnegative(job.runner_group_id)
       && nonemptyString(job.runner_group_name, 1_024)
+    // GitHub records scheduler-only skipped jobs with second-rounded clocks;
+    // their completion may precede the synthetic start by one second. This is
+    // never accepted for the retained deployment job or an executed job.
+    const skippedSchedulerJob = job.name !== DEPLOY_JOB && completed
+      && job.conclusion === 'skipped' && runnerAbsent
+      && Array.isArray(job.steps) && job.steps.length === 0
     if (
       (!completed && !active)
       || !nonemptyString(job.node_id)
@@ -845,10 +845,13 @@ function validateJobs(
       || !Array.isArray(job.steps)
       || job.steps.length > 100
       || !Number.isFinite(createdAt)
+      || (job.started_at !== null && startedAt === null)
+      || (job.completed_at !== null && completedAt === null)
       || (startedAt !== null && createdAt > startedAt)
       || (job.status === 'in_progress' && (startedAt === null || completedAt !== null))
       || (job.status === 'queued' && (startedAt !== null || completedAt !== null))
-      || (completed && (completedAt === null || (startedAt !== null && startedAt > completedAt)))
+      || (completed && (completedAt === null || (startedAt !== null
+        && startedAt > completedAt + (skippedSchedulerJob ? 1_000 : 0))))
       || (!runnerAbsent && !runnerPresent)
     ) throw new Error(ERROR_CODE)
     if (job.name === DEPLOY_JOB) named.push(job)
@@ -902,8 +905,8 @@ function validateJobs(
     && typeof job.conclusion === 'string'
     && step.status === 'completed'
     && step.conclusion === 'skipped'
-    && step.started_at === null
-    && step.completed_at === null
+    && ((step.started_at === null && step.completed_at === null)
+      || (validInstant(step.started_at) && step.started_at === step.completed_at))
   ) return 'unstarted'
   return 'ambiguous'
 }
@@ -918,6 +921,7 @@ async function loadRunAndJobs(
   const runFields = [
     '/id', 'run_attempt', 'workflow_id', 'check_suite_id', 'run_number',
     '/actor/id', '/triggering_actor/id', '/repository/id', '/head_repository/id',
+    '/repository/owner/id', '/head_repository/owner/id',
   ]
   const firstRun = await jsonWithMetadata(
     fetchImplementation, attemptUrl, init, ERROR_CODE, 200, runFields, MAX_RUN_BYTES,
@@ -1017,7 +1021,9 @@ function validateGitHubActionsBot(value: GitHubJsonValue | undefined): void {
   const actor = objectValue(value)
   const apiUrl = 'https://api.github.com/users/github-actions%5Bbot%5D'
   if (
-    !exactKeySet(actor, GITHUB_USER_KEYS)
+    (!exactKeySet(actor, GITHUB_USER_KEYS)
+      && !exactKeySet(actor, [...GITHUB_USER_KEYS, 'user_view_type']))
+    || (actor.user_view_type !== undefined && actor.user_view_type !== 'public')
     || actor.login !== 'github-actions[bot]'
     || actor.id !== '41898282'
     || actor.node_id !== 'MDM6Qm90NDE4OTgyODI='
@@ -1039,16 +1045,47 @@ function validateGitHubActionsBot(value: GitHubJsonValue | undefined): void {
   ) throw new Error(ERROR_CODE)
 }
 
+function optionalActionsApp(value: GitHubJsonValue | undefined): boolean {
+  if (value === undefined || value === null) return false
+  const app = objectValue(value)
+  if (app.id !== '15368' || app.slug !== 'github-actions' || app.name !== 'GitHub Actions') {
+    throw new Error(ERROR_CODE)
+  }
+  return true
+}
+
+function deploymentCreator(value: GitHubJsonValue | undefined): Readonly<{ id: string; login: string }> {
+  const actor = objectValue(value)
+  if (actor.id === '41898282') validateGitHubActionsBot(actor)
+  else if (!positive(actor.id) || typeof actor.login !== 'string'
+    || !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/u.test(actor.login)
+    || actor.type !== 'User' || actor.url !== `https://api.github.com/users/${actor.login}`
+    || actor.html_url !== `https://github.com/${actor.login}`) throw new Error(ERROR_CODE)
+  return Object.freeze({ id: actor.id as string, login: actor.login as string })
+}
+
+function providerKeys(value: GitHubJsonObject, keys: readonly string[]): boolean {
+  return exactKeySet(value, keys) || exactKeySet(value, [...keys, 'performed_via_github_app'])
+}
+
+function description(value: GitHubJsonValue | undefined): boolean {
+  return value === null || (typeof value === 'string' && value.length <= 4_096)
+}
+
 function validatePagesDeployment(
   value: GitHubJsonObject,
   projection: ProjectionSnapshot,
 ): PagesDeploymentSnapshot {
-  if (!exactKeySet(value, DEPLOYMENT_KEYS) || !positive(value.id)) throw new Error(ERROR_CODE)
+  if (!providerKeys(value, DEPLOYMENT_KEYS) || !positive(value.id)) throw new Error(ERROR_CODE)
   const deploymentUrl = `${API}/deployments/${value.id}`
   const payload = objectValue(value.payload)
   const createdAt = validInstant(value.created_at) ? Date.parse(value.created_at) : Number.NaN
   const updatedAt = validInstant(value.updated_at) ? Date.parse(value.updated_at) : Number.NaN
-  validateGitHubActionsBot(value.creator)
+  const creator = deploymentCreator(value.creator)
+  const actionsApp = optionalActionsApp(value.performed_via_github_app)
+  // Environment deployments are attributed to the workflow actor. Their
+  // GitHub Actions App provenance, not a bot username, identifies the producer.
+  if (creator.id !== '41898282' && !actionsApp) throw new Error(ERROR_CODE)
   if (
     value.url !== deploymentUrl
     || !nonemptyString(value.node_id)
@@ -1058,7 +1095,7 @@ function validatePagesDeployment(
     || Reflect.ownKeys(payload).length !== 0
     || value.original_environment !== projection.authorization.workflowIdentity.environment
     || value.environment !== projection.authorization.workflowIdentity.environment
-    || value.description !== 'github-pages'
+    || !description(value.description)
     || !Number.isFinite(createdAt)
     || !Number.isFinite(updatedAt)
     || createdAt > updatedAt
@@ -1066,9 +1103,9 @@ function validatePagesDeployment(
     || value.statuses_url !== `${deploymentUrl}/statuses`
     || value.repository_url !== API
     || value.transient_environment !== false
-    || value.production_environment !== true
+    || typeof value.production_environment !== 'boolean'
   ) throw new Error(ERROR_CODE)
-  return Object.freeze({ id: value.id, url: deploymentUrl, createdAt, updatedAt })
+  return Object.freeze({ id: value.id, url: deploymentUrl, createdAt, updatedAt, creator })
 }
 
 function validatePagesDeploymentStatuses(
@@ -1076,32 +1113,40 @@ function validatePagesDeploymentStatuses(
   deployment: PagesDeploymentSnapshot,
   projection: ProjectionSnapshot,
 ): void {
-  if (values.length !== 1) throw new Error(ERROR_CODE)
-  const value = objectValue(values[0])
-  if (!exactKeySet(value, DEPLOYMENT_STATUS_KEYS) || !positive(value.id)) throw new Error(ERROR_CODE)
-  const statusUrl = `${deployment.url}/statuses/${value.id}`
+  if (values.length < 1 || values.length > 100) throw new Error(ERROR_CODE)
   const jobUrl = `https://github.com/${GITHUB_REPOSITORY}/actions/runs/${projection.authorization.workflowIdentity.pagesRunId}/job/${projection.authorization.workflowIdentity.checkRunId}`
-  const createdAt = validInstant(value.created_at) ? Date.parse(value.created_at) : Number.NaN
-  const updatedAt = validInstant(value.updated_at) ? Date.parse(value.updated_at) : Number.NaN
-  validateGitHubActionsBot(value.creator)
-  if (
-    value.url !== statusUrl
-    || !nonemptyString(value.node_id)
-    || value.state !== 'success'
-    || value.description !== 'Deployment finished successfully.'
-    || value.environment !== projection.authorization.workflowIdentity.environment
-    || value.target_url !== jobUrl
-    || !Number.isFinite(createdAt)
-    || !Number.isFinite(updatedAt)
-    || createdAt < deployment.createdAt
-    || createdAt > updatedAt
-    || updatedAt < deployment.updatedAt
-    || updatedAt > Date.now()
-    || value.deployment_url !== deployment.url
-    || value.repository_url !== API
-    || value.environment_url !== `${projection.authorization.canonicalOrigin}/`
-    || value.log_url !== jobUrl
-  ) throw new Error(ERROR_CODE)
+  const origin = `${projection.authorization.canonicalOrigin}/`
+  const states = new Set(['waiting', 'queued', 'pending', 'in_progress', 'success', 'failure', 'error', 'inactive'])
+  let previous: Readonly<{ id: bigint; createdAt: number; updatedAt: number }> | undefined
+  for (const [index, raw] of values.entries()) {
+    const value = objectValue(raw)
+    if (!providerKeys(value, DEPLOYMENT_STATUS_KEYS) || !positive(value.id)) throw new Error(ERROR_CODE)
+    const statusId = BigInt(value.id)
+    const createdAt = validInstant(value.created_at) ? Date.parse(value.created_at) : Number.NaN
+    const updatedAt = validInstant(value.updated_at) ? Date.parse(value.updated_at) : Number.NaN
+    const creator = deploymentCreator(value.creator)
+    optionalActionsApp(value.performed_via_github_app)
+    if (
+      value.url !== `${deployment.url}/statuses/${value.id}`
+      || !nonemptyString(value.node_id)
+      || typeof value.state !== 'string' || !states.has(value.state)
+      || !description(value.description)
+      || value.environment !== projection.authorization.workflowIdentity.environment
+      || value.target_url !== jobUrl || value.log_url !== jobUrl
+      || !Number.isFinite(createdAt) || !Number.isFinite(updatedAt)
+      || createdAt < deployment.createdAt || createdAt > updatedAt || updatedAt > Date.now()
+      || value.deployment_url !== deployment.url || value.repository_url !== API
+      || (creator.id !== deployment.creator.id || creator.login !== deployment.creator.login)
+      || (value.environment_url !== '' && value.environment_url !== origin)
+      // The endpoint returns newest first. Require complete, unique, ordered
+      // history so an older success cannot hide a later failure or transition.
+      || (previous !== undefined && (statusId >= previous.id
+        || createdAt > previous.createdAt || updatedAt > previous.updatedAt))
+      || (index === 0 && (value.state !== 'success' || value.environment_url !== origin
+        || updatedAt < deployment.updatedAt))
+    ) throw new Error(ERROR_CODE)
+    previous = Object.freeze({ id: statusId, createdAt, updatedAt })
+  }
 }
 
 async function loadPagesDisposition(
@@ -1120,7 +1165,7 @@ async function loadPagesDisposition(
   )
   const deployments = parseJsonArray(
     stableRaw(firstDeployments, secondDeployments).bytes,
-    ['/*/id', '/*/creator/id'],
+    ['/*/id', '/*/creator/id', '/*/performed_via_github_app/id'],
   )
   if (deployments.length === 0) return 'absent'
   if (deployments.length !== 1) return 'ambiguous'
@@ -1135,7 +1180,7 @@ async function loadPagesDisposition(
   )
   const statuses = parseJsonArray(
     stableRaw(firstStatuses, secondStatuses).bytes,
-    ['/*/id', '/*/creator/id'],
+    ['/*/id', '/*/creator/id', '/*/performed_via_github_app/id'],
   )
   validatePagesDeploymentStatuses(statuses, deployment, projection)
 
@@ -1200,7 +1245,7 @@ async function loadPublicAttestation(
 
 async function readEvidence(
   projectionValue: LedgerSignerClaimProjection,
-  githubApp: GitHubAppEnvironment,
+  githubApp: GitHubEvidenceEnvironment,
   fetchImplementation: typeof globalThis.fetch,
 ): Promise<LedgerV2ReconciliationProof> {
   try {
@@ -1208,7 +1253,7 @@ async function readEvidence(
     if (await githubEvidenceMetadataSha256(projection.authorization.githubMetadata)
       !== projection.authorization.githubMetadataSha256) return AMBIGUOUS
 
-    const token = await mintGitHubInstallationToken(
+    const token = await resolveGitHubEvidenceToken(
       githubApp,
       fetchImplementation,
       Math.floor(Date.now() / 1_000),
@@ -1237,7 +1282,8 @@ async function readEvidence(
         deploymentAttestationMatches: true,
       })
     }
-    if (run.terminal && run.step === 'unstarted' && pages === 'absent') {
+    if (Date.now() >= projection.claim.claimDeadline * 1_000
+      && run.terminal && run.step === 'unstarted' && pages === 'absent') {
       return Object.freeze({
         outcome: 'not-deployed',
         rowBindingDigest: projection.rowBindingDigest,
@@ -1311,7 +1357,7 @@ export function createDeploymentReconciliationProofReader(
 ): DeploymentReconciliationProofReader {
   try {
     const source = snapshotExactDataObject(input, ['githubApp', 'fetch'], ERROR_CODE)
-    const githubApp = copyGitHubApp(source.githubApp)
+    const githubApp = snapshotGitHubEvidenceEnvironment(source.githubApp)
     if (typeof source.fetch !== 'function') throw new Error(ERROR_CODE)
     const suppliedFetch = source.fetch as typeof globalThis.fetch
     const ownedTransport = createOwnedTransport(suppliedFetch)

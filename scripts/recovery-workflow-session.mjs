@@ -3,7 +3,7 @@ import { parseRecoveryBinding } from './recovery-activation-candidate.mjs';
 import { requestFreshRecoveryOidc } from './recovery-workflow-oidc.mjs';
 import { requestRecovery } from './recovery-authorization-client.mjs';
 import { verifyRecoveryAuthorization } from './verify-recovery-authorization-jws.mjs';
-import { verifyRecoveryClaimReceipt, verifyRecoveryClaimCorrelation } from './verify-recovery-claim-receipt.mjs';
+import { verifyRecoveryClaimReceipt, verifyRecoveryClaimCorrelation, verifyRecoveryClaimHistory } from './verify-recovery-claim-receipt.mjs';
 import { verifyRecoveryStatus } from './verify-recovery-status.mjs';
 import { verifyRecoveryTerminal } from './verify-recovery-terminal.mjs';
 import { preflightRecoveryClaimHandoff, writeRecoveryClaimHandoff, readRecoveryClaimHandoffForDeployment } from './recovery-claim-handoff.mjs';
@@ -33,7 +33,8 @@ export async function beginRecoveryWorkflowSession(...args) {
             : key.startsWith('candidate') ? /^[a-f0-9]{40}$/u : /^[a-f0-9]{64}$/u).test(context[key]))
         || context.pagesRunId === context.sourceVerifyRunId) fail();
     const binding = parseRecoveryBinding(bindingSource);
-    preflightRecoveryClaimHandoff(privateRoot);
+    if (typeof privateRoot === 'string') preflightRecoveryClaimHandoff(privateRoot);
+    else if (typeof privateRoot !== 'function') fail();
     const locators = Object.freeze({ requestId: binding.recoveryAuthorizationRequestId,
       candidateCommit: context.candidateCommit, sourceVerifyRunId: context.sourceVerifyRunId,
       sourceVerifyRunAttempt: context.sourceVerifyRunAttempt, artifactId: context.artifactId });
@@ -47,7 +48,8 @@ export async function beginRecoveryWorkflowSession(...args) {
         if (tokenHashes.has(hash)) fail();
         tokenHashes.add(hash);
         if (endpoint === 'complete' || endpoint === 'reconcile') {
-          verifyRecoveryClaimCorrelation(claimReceiptJws, claimExpectedSource, now());
+          (endpoint === 'reconcile' ? verifyRecoveryClaimHistory : verifyRecoveryClaimCorrelation)(
+            claimReceiptJws, claimExpectedSource, now());
         }
         return await requestRecovery(endpoint, JSON.stringify({ ...locators, oidcToken, ...extra }));
       } finally { oidcToken = undefined; }
@@ -63,8 +65,13 @@ export async function beginRecoveryWorkflowSession(...args) {
     authorizationJws = undefined;
     phase = 'claimed';
     try {
-      writeRecoveryClaimHandoff(privateRoot, claimReceiptJws, claimExpectedSource);
-      handoffRoot = privateRoot;
+      // Production supplies a preflighted allocator. A failed OIDC/issue/claim
+      // request leaves no empty attempt directory; only a verified claim is
+      // worth retaining. A lost server response remains ambiguous, not reissued.
+      const storageRoot = typeof privateRoot === 'function' ? privateRoot() : privateRoot;
+      if (typeof privateRoot === 'function') preflightRecoveryClaimHandoff(storageRoot);
+      writeRecoveryClaimHandoff(storageRoot, claimReceiptJws, claimExpectedSource);
+      handoffRoot = storageRoot;
     } catch { phase = 'reconcile-only'; }
     try { await status(); } catch { phase = 'reconcile-only'; }
     return Object.freeze({
