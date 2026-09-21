@@ -1805,12 +1805,12 @@
     {
       "path": "scripts/recovery-workflow-private-directory.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d87ac288fc85790301e8c5c761a0efa357f910c1c4f428e7a2aa208e4126c4ec"
+      "sha256": "fd2ce871ab81ef1c77a44f8a608164aef4324a3029c58eb6bb01f54235171dde"
     },
     {
       "path": "scripts/recovery-workflow-private-directory.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cc737d9dd324299ba52b43a909d390fb9be02ba13994f799ad9bca514ed87ced"
+      "sha256": "bac7e4714838abcfecb410ef21e0ecf72ff754936eb7fa7dfc1ba71714724704"
     },
     {
       "path": "scripts/recovery-workflow-reconcile-current-run.d.mts",
@@ -1845,12 +1845,12 @@
     {
       "path": "scripts/recovery-workflow-session.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "97c716ec3d963f923e517476600e814ad482ae07f31ef3a689ac6716ccf7c092"
+      "sha256": "c8d362a4dad7027a85e2e44354e7600d9a38b4a4f490c8f281d00dd2fb173a7b"
     },
     {
       "path": "scripts/recovery-workflow-session.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2387d850492567710cfbe18ac309b52b0879dcb9c869755357d618d2ac3f1857"
+      "sha256": "abdf3fb245ca2a032a23bec2d78cd7d8fa05b444ac97561ae5556a132a029e7a"
     },
     {
       "path": "scripts/sealed-realms-existing-update-protocol.d.mts",
