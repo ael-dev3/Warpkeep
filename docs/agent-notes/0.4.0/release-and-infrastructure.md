@@ -1,6 +1,6 @@
 # Release engineering, CI and infrastructure audit
 
-## Operational checkpoint — 22 September 2026
+## Operational checkpoint — 23 September 2026
 
 The [execution handoff](execution-handoff.md) owns the moving protected source,
 working branch, and terminal operation receipts. The [release checklist](../../operations/0.4.0-release-checklist.md)
@@ -8,8 +8,9 @@ owns the acceptance gates. Resolve both against GitHub before acting; dated
 evidence below is scoped to its recorded source and must not be reused as current
 authority.
 
-At this checkpoint, generated-only M2
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a` was the protected main source. Its
+Immediately before source-only recovery PR #337 merged, protected main was
+generated-only M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its
 push Verify `35766416370`, CodeQL `35760703269` and read-only preflight
 `35772760378` passed. The subsequent policy observation `35772933637` failed
 closed during the authenticated read-only operation because an older-source

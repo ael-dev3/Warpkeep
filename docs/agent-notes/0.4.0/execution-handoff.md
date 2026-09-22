@@ -1,8 +1,9 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 22 September 2026
+## Current checkpoint — 23 September 2026
 
-The exact-M2 push Verify
+Before source-only PR #337 merged, the previously protected generated-only M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a` passed its exact-main push Verify
 [`35766416370`](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
 and read-only preflight
 [`35772760378`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772760378)

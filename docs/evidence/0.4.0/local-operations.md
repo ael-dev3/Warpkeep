@@ -2,7 +2,7 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current source checkpoint — 22 September 2026
+## Current source checkpoint — 23 September 2026
 
 The previously verified protected main was generated-only M2
 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its PR Verify, CodeQL,

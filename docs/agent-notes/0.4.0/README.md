@@ -8,8 +8,9 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 ## Current working state
 
 The [execution handoff](execution-handoff.md) is the single dated record of
-protected main, active source, CI receipts and operation results. The exact-M2
-push Verify `35766416370` and read-only preflight `35772760378` passed. The
+protected main, active source, CI receipts and operation results. The preceding
+generated-only M2 push Verify `35766416370` and read-only preflight
+`35772760378` passed. The
 following read-only G001 policy observation `35772933637` failed because a valid
 older-source receipt occupied the active slot. Source-only recovery PR #337 is
 now merged through protection; all required PR checks passed. Resolve the exact

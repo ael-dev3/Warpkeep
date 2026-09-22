@@ -40,8 +40,8 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The gameplay foundation and generated M2 are integrated; 0.4 has not shipped.**
-The exact-M2 push Verify
+**The gameplay foundation is integrated; 0.4 has not shipped.**
+The preceding generated-only M2 push Verify
 [35766416370](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
 and read-only preflight
 [35772760378](https://github.com/ael-dev3/Warpkeep/actions/runs/35772760378)

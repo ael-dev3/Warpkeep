@@ -1,6 +1,6 @@
 # Warpkeep 0.4 recovery evidence
 
-## Current checkpoint supersession — 22 September 2026
+## Current checkpoint supersession — 23 September 2026
 
 The previously verified protected runtime source family was generated-only M2
 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its PR Verify, CodeQL,
