@@ -179,6 +179,14 @@ export async function collectGenesis001LinuxAdmittedCensus(connection: DbConnect
   }
 }
 
+/** Keep a failed cross-domain sample check actionable without exposing either
+ * private receipt. The public diagnostic names only the reconciliation gate. */
+export function reconcileGenesis001LinuxCensusSample(input: { applicant: unknown; admitted: unknown },
+  sourceCommit: string) {
+  try { return createGenesis001LinuxCensusSample(input, sourceCommit); }
+  catch { fail('g001-admitted-reconciliation'); }
+}
+
 type Session = ReturnType<typeof createGreaterRealmAdminTransportSession>;
 type Scope = Readonly<{ sourceCommit: string; repositoryRoot: string; attemptId: string;
   githubRunId: string; githubRunAttempt: string }>;
@@ -204,8 +212,8 @@ async function sample(session: Session, scope: Scope, kind: 'first' | 'second') 
     let applicant;
     try { applicant = JSON.parse(bytes.toString('utf8')); } finally { bytes.fill(0); }
     const admitted = await collectGenesis001LinuxAdmittedCensus(connection, scope.sourceCommit, new Date().toISOString());
-    if (identity(connection) !== callerIdentity) fail();
-    return { callerIdentity, record: createGenesis001LinuxCensusSample({ applicant, admitted }, scope.sourceCommit) };
+    if (identity(connection) !== callerIdentity) fail('g001-admitted-identity');
+    return { callerIdentity, record: reconcileGenesis001LinuxCensusSample({ applicant, admitted }, scope.sourceCommit) };
   });
 }
 
@@ -244,7 +252,7 @@ async function collect(scope: Scope, secret: string, dependencies: Dependencies)
     await session.invalidate();
     await observe();
     const second = await dependencies.collectSample(session, scope, 'second');
-    if (first.callerIdentity !== second.callerIdentity) fail();
+    if (first.callerIdentity !== second.callerIdentity) fail('g001-admitted-identity');
     validateGenesis001LinuxCensusPair(first.record, second.record, scope.sourceCommit);
     dependencies.retainSample(scope, 'second', second.record);
     const consumedAt = stamp(dependencies.now);

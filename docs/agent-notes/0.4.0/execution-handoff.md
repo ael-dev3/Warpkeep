@@ -1,6 +1,38 @@
 # Continue Warpkeep 0.4
 
-## Reliability follow-up — 21 September 2026
+## Current checkpoint — 22 September 2026
+
+The latest protected operation source is M2
+`ea327f965fa015f4980d85801c0cf194129b4f93`. Source-only PR #330 merged as M1
+`3c3c9a8195dd4511c52274b0ac34fb6acdb19416`; generated-only PR #331 merged as
+M2 through the normal signed-commit and required-check protections. Exact-M2
+Verify `35701085839`, CodeQL `35701085915`, and protected preflight `35706139447`
+passed. Read-only policy observation `35706296044` also passed.
+
+Read-only census `35706634110` failed at `g001-observation`. Inspection of the
+owner-only runner directory found one private applicant snapshot and its proof,
+but no complete first sample, second sample or completed census. The proof's
+schema and source binding validated locally without printing or copying player
+records. The run uploaded no artifact and submitted no provider mutation. Keep
+the retained private attempt intact; do not publish, delete or reuse its data.
+
+PR #332 (`codex/0.4-g001-census-diagnostics`) maps within-sample and
+between-sample caller-identity changes, plus invalid cross-domain sample
+reconciliation, to the existing privacy-safe diagnostics. It does not change
+gameplay or relax a census check.
+Resolve its latest checks and merge only through normal protections. Because the
+operator is a compiler input, then repeat the source M1 → native prepare/check →
+generated-only M2 sequence, wait for exact-M2 Verify, and run exact-source
+preflight, policy observation and a new census. Do not reuse `ea327f96` operation
+results as authority for the next source. Pages classified the M2 successfully
+but skipped build, deploy and live verification; 0.4 remains unshipped.
+
+No additional recovery key is needed for these read-only steps. Keep scheduled
+sync automation paused, make no new Desktop files, and use this handoff plus the
+[release checklist](../../operations/0.4.0-release-checklist.md) as the current
+route. Resolve live `main` and the PR head before each operation.
+
+## Reliability follow-up — 21 September 2026 (historical)
 
 The owner requested prevention of repeat blockers and maintenance only, with no
 new features. Continue on PR #324's existing branch. Its source was synchronized
@@ -50,7 +82,7 @@ merged M1, then promoted with the generated M2 family. Updating the source-only
 closure does not rebuild this bundle. The accepted prepared baseline, live
 service state and M1/M2 requirements below are unchanged by these local results.
 
-## Active unblocking work — 21 September 2026
+## Previous unblocking work — 21 September 2026 (historical)
 
 **Current owner direction: no additional recovery keys.** The App-key download
 path is no longer a prerequisite. The owner completed GitHub Mobile confirmation,
