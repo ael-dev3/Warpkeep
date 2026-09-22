@@ -1,30 +1,27 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 22 September 2026
+## Current checkpoint — 23 September 2026
 
-Protected `main` remains the signed generated-only M2 merge
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`, tree
-`ba968e91bed6890a9742a4e52466c65b4cbc3b81`. PR [#336](https://github.com/ael-dev3/Warpkeep/pull/336)
-integrated source M1 `0afb5099890428b95fd493f8c25b844364a7a4db` and its
-authenticated generated family. Exact-main push Verify
+Before source-only PR #337 merged, the previously protected generated-only M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a` passed its exact-main push Verify
 [`35766416370`](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
 and read-only preflight
 [`35772760378`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772760378)
-passed. The next exact-M2 `g001-policy-observe` run
+passed. The following exact-M2 `g001-policy-observe` run
 [`35772933637`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772933637)
-failed at the authenticated operation step. Supported private-state inspection
-found a valid older-source receipt at the no-clobber active path. It was a
-read-only operation: no census, deployment or player-data read followed.
+failed at the authenticated operation step because a valid older-source receipt
+occupied the no-clobber active path. Supported private-state inspection found no
+submitted mutation; no census, deployment or player-data read followed.
 
-Source-only PR [#337](https://github.com/ael-dev3/Warpkeep/pull/337) fixes the
-receipt recovery path. It adopts an exact current-source receipt on retry,
-archives an older valid receipt byte-for-byte before reusing the active slot,
-and preserves the original if history conflicts. The frozen-envelope path also
-accepts bounded retained lifecycle tombstones while rejecting duplicates,
-incomplete state and ambiguous authority. Read the live PR head and required
-job state before merging.
+Source-only recovery PR [#337](https://github.com/ael-dev3/Warpkeep/pull/337)
+is merged through the protected squash path. It adopts a valid current-source
+receipt on retry, archives an older valid receipt byte-for-byte before reusing
+the active slot, and preserves the original if history conflicts. The
+frozen-envelope path validates bounded retained lifecycle history, rejects
+duplicate run IDs, and adopts only an exact completed current-source observation.
+Incomplete or ambiguous state still fails closed.
 
-Verification on the code checkpoint published in PR #337:
+Verification on the published PR #337 source head:
 
 - The Windows dispatcher suite passed 89 tests with one platform skip; TypeScript
   and clean-tree `verify:sealed-launch` passed.
@@ -35,7 +32,12 @@ Verification on the code checkpoint published in PR #337:
   caused by missing CI setup: root/workspace dependencies, the pinned CLI and
   the exact offline YAML test input. All 34 tests in the four affected suites
   passed after matching those prerequisites. The full suite was not rerun with
-  corrected setup; hosted required Verify is the full-suite gate.
+  corrected setup, but the hosted full Linux Verify passed the exact PR head,
+  including tests, typecheck, builds, Pages variants, dependency audit and
+  release-source inventory.
+- All required PR contexts passed on the signed source head: Verify, Auth Bridge,
+  SpacetimeDB module integration, analysis and CodeQL. The native-contract and
+  release-recovery jobs also passed.
 
 The previous native M1 preparation and independent check were byte-identical.
 Their source-bound evidence is retained under the existing private root:
@@ -46,16 +48,18 @@ prepared-deploy closure SHA-256
 SHA-256 `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`,
 3,257 source/candidate files and 102 outputs. The generated-only M2 export
 re-read all 102 outputs and changed 11 tracked paths. `finalReleasePrepared:false`
-remains explicit; these earlier records do not certify PR #337 or grant deployment.
+remains explicit; those records belong to earlier source and cannot certify the
+merged recovery fix or grant deployment.
 
-After PR #337's current required checks pass, merge the source-only M1 through
-normal protections. Verify the signed merge, synchronize the idle native checkout
-to that exact main commit, and run the full native prepare plus independent check.
-Promote only its authenticated generated family as generated-only M2. After that
-M2 merges, wait for its exact push Verify, recheck `main`, then run preflight and
-a fresh read-only policy observation. Start census only after that observation
-completes with a source-bound receipt. Do not reuse the failed M2 attempt or
-previous candidate as authority.
+Resolve the exact current protected `main` and terminal push Verify after the
+source/handoff checkpoint is integrated. Synchronize the idle native checkout
+to that exact clean commit, run a fresh full native prepare and independent check,
+and retain the new source-bound handle and digests. Promote only its authenticated
+generated family as generated-only M2. After that M2 merges, wait for its exact
+push Verify, recheck `main`, then run preflight and a fresh read-only policy
+observation. Start census only after that observation completes with its
+source-bound receipt. Do not reuse the failed M2 attempt or the earlier candidate
+as authority.
 
 0.4 is not live or shipped. Provider deployment and recovery, G001 preservation
 and readback, owner-only PTR play, physical-device acceptance, measured
@@ -2756,9 +2760,10 @@ was enabled using squash, and GitHub restarted required checks for signed head
 state must be rechecked before proceeding to M1 preparation; these notes do not
 claim that PR #330 has merged or that 0.4 has shipped.
 
-## 22 September 2026 — exact-M2 policy receipt recovery
+## 22 September 2026 — historical exact-M2 policy receipt recovery
 
-Protected `main` is still exact M2 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`.
+At the time of this observation, before source-only recovery PR #337 merged,
+protected `main` was exact M2 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`.
 Its push Verify run [`35766416370`](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
 and read-only preflight [`35772760378`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772760378)
 both completed successfully. The next exact-M2 `g001-policy-observe` dispatch,
@@ -2793,16 +2798,14 @@ it is not a full-suite pass. A later WSL full sweep passed 12,327 tests but had
 14 setup failures; all 34 tests in the four affected suites passed after the
 exact CI prerequisites were installed. The full suite was not rerun locally
 with corrected setup, so the hosted Linux check is the full-suite gate. This
-remains a source-only, unmerged and undeployed fix.
-
-PR #337 is the source-only M1 repair and handoff update. Its live required checks
-must pass before normal merge. No Auth Bridge prepared-closure refresh is needed;
-the source change belongs to the sealed operation bundle, which must be generated
-by the exact protected-M1 prepare/check after merge. The prior native candidate
-and generated M2 are bound to earlier source and cannot certify this repair.
-Prepare and independently check the actual protected M1, promote its
-generated-only M2, wait for that exact main Verify, recheck main, then rerun
-preflight and the read-only policy observation. Do not start census until the
-fresh policy observation has returned completed with its source-bound receipt.
+is now merged as a source-only M1 change, with all required PR checks green. No
+Auth Bridge prepared-closure refresh is needed; the code change belongs to the
+sealed operation bundle, which must be regenerated by a fresh prepare/check of
+the exact protected M1. The prior native candidate and generated M2 are bound to
+earlier source and cannot certify this repair. Resolve current `main`, prepare
+and independently check that exact source, promote its generated-only M2, wait
+for that exact push Verify, then rerun preflight and the read-only policy
+observation. Do not start census until the fresh observation has returned a
+completed source-bound receipt.
 Keep scheduled automation paused, do not create Desktop files, and do not
 request or generate another recovery key. 0.4 remains unshipped.

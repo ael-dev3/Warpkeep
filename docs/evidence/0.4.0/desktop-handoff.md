@@ -1,13 +1,14 @@
 # Warpkeep 0.4 credential-free workspace handoff
 
-Status: **interim development handoff**. Protected main is generated-only M2
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; push Verify `35766416370` and
-read-only preflight `35772760378` passed. The exact-M2 read-only G001 policy
+Status: **interim development handoff**. The previously verified protected main
+was generated-only M2 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; its push
+Verify and read-only preflight passed. The exact-M2 read-only G001 policy
 observation `35772933637` failed at the authenticated operation step because an
-older-source receipt occupied the active slot. Source-only PR #337 carries the
-recovery fix; read its current checks in GitHub before merging. After merge,
-prepare/check that exact M1 and promote its generated-only M2 before retrying
-the policy operation. This document makes source, setup and evidence routes
+older-source receipt occupied the active slot. Source-only recovery PR #337 is
+merged through protection with required checks green. The earlier M1 candidate
+predates the fix; resolve current protected `main`, wait for its push Verify,
+then prepare/check that exact M1 and promote its generated-only M2 before
+retrying the policy operation. This document makes source, setup and evidence routes
 reproducible without distributing credentials or private player data. It is not
 a deployment attestation or final release package. The existing Desktop
 `Warpkeep - Full Project Handoff.md` remains a reference; this tracked file is

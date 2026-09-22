@@ -2,18 +2,18 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current source checkpoint — 22 September 2026
+## Current source checkpoint — 23 September 2026
 
-Protected main is generated-only M2 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`.
-PR Verify `35760703184`, CodeQL `35760703269`, push-to-main Verify
-`35766416370`, and read-only preflight `35772760378` passed. Authenticated
-read-only G001 policy observation `35772933637` failed closed on a valid
-older-source receipt in the fixed no-clobber slot. It submitted no mutation;
-no player/census data was read. PR #337 carries the source-only receipt
-recovery; required branch checks must pass before merge, followed by fresh
-exact-source M1 preparation/check and generated-only M2 promotion. Existing
-native preparation/check and M2 export evidence are private and do not grant
-deployment authority.
+The previously verified protected main was generated-only M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its PR Verify, CodeQL,
+push-to-main Verify and read-only preflight passed. Authenticated read-only G001
+policy observation `35772933637` failed closed on a valid older-source receipt
+in the fixed no-clobber slot. It submitted no mutation; no player/census data
+was read. Source-only recovery PR #337 is now merged and all required PR checks
+passed. The earlier native candidate predates that merge. Resolve live protected
+`main`, wait for its push Verify, then freshly prepare/check that exact M1 and
+promote its generated-only M2 before retrying. Existing native preparation/check
+and M2 export evidence are private and do not grant deployment authority.
 
 ## Resumption audit — 18 September 2026
 

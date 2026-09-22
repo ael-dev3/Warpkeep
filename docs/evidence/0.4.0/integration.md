@@ -1,22 +1,23 @@
 # 0.4.0 integration evidence
 
-The current protected integration remains generated-only M2
+The previously verified protected integration was generated-only M2
 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`, merged by PR #336 from signed
-source M1 `0afb5099890428b95fd493f8c25b844364a7a4db`. PR Verify `35760703184`,
-CodeQL `35760703269`, push-to-main Verify `35766416370`, and read-only preflight
-`35772760378` passed. The later authenticated read-only G001 policy observation
-`35772933637` failed closed because a valid older-source receipt occupied the
-fixed no-clobber slot. `mutationSubmitted:false`; no player/census data was
-read and no deployment or realm mutation occurred.
+source M1 `0afb5099890428b95fd493f8c25b844364a7a4db`. Its PR Verify, CodeQL,
+push-to-main Verify and read-only preflight passed. The later authenticated
+read-only G001 policy observation `35772933637` failed closed because a valid
+older-source receipt occupied the fixed no-clobber slot. `mutationSubmitted:false`;
+no player/census data was read and no deployment or realm mutation occurred.
 
-PR #337 (`codex/docs-m2-quality-refresh`) carries the source-only M1 repair: it
-adopts an exact current-source receipt on retry and preserves an older valid
-receipt before reusing the slot. The branch is based on M2 and is not release
-source yet. Merge only after all required checks pass; then prepare and
-independently check that exact protected M1 and promote its generated-only M2
-before retrying the authenticated observation. Native preparation, provider
-deployment, recovery activation, live realm mutation, owner play and
-physical-device acceptance remain unproven.
+Source-only recovery PR #337 is now merged through protection; all required PR
+contexts, hosted full Linux Verify and SpacetimeDB integration passed. It adopts
+an exact current-source receipt on retry and preserves an older valid receipt
+before reusing the slot. The earlier M1 preparation candidate predates this
+merge and cannot certify it. Resolve the live protected `main`, wait for its
+push Verify, then prepare and independently check that exact M1 and promote its
+generated-only M2 before retrying the authenticated observation. Native
+preparation of the merged source, provider deployment, recovery activation,
+live realm mutation, owner play and physical-device acceptance remain
+unproven.
 
 ## Placement and workflow review — 2026-09-12
 

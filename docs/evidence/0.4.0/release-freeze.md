@@ -2,16 +2,17 @@
 
 Status: **0.4 source and protected rails are merged; final release freeze remains open**.
 
-The exact protected source is generated-only M2
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. PR Verify `35760703184`, CodeQL
-`35760703269`, push-to-main Verify `35766416370`, and read-only preflight
-`35772760378` passed. Authenticated read-only policy observation
-`35772933637` failed closed on an older-source receipt occupying the fixed
-no-clobber slot; it submitted no mutation and read no player/census data. PR
-#337 carries the source-only repair. Required checks, merge, exact M1
-prepare/check, and a generated-only M2 promotion are the next source-family
-gates before retrying that observation. Earlier native preparation/check and
-M2 export remain source-bound evidence, not final freeze authority.
+The previously verified protected source was generated-only M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its PR Verify, CodeQL,
+push-to-main Verify and read-only preflight passed. Authenticated read-only
+policy observation `35772933637` failed closed on an older-source receipt
+occupying the fixed no-clobber slot; it submitted no mutation and read no
+player/census data. Source-only recovery PR #337 is merged through protection
+with required checks green. The earlier M1 preparation/check and M2 export are
+source-bound to an earlier state; resolve current protected `main`, wait for
+its push Verify, then freshly prepare/check that M1 and promote its
+generated-only M2 before retrying the observation. Earlier native evidence
+remains source-bound, not final freeze authority.
 `finalReleasePrepared:false` remains explicit. Provider/private authority,
 G001 preservation, sealed G002 denial, PTR owner play, physical-device
 acceptance, hosting and recovery/readback are still open. Keep sync automation
