@@ -201,7 +201,9 @@ it('collects one two-pass attempt with independent fresh policy reads, original 
 });
 it.each(['late', 'unstable', 'caller', 'policy'])('keeps incomplete evidence unselected and closes the session after %s', async mode => {
   const test = await sequence(mode);
-  await expect(test.running).rejects.toThrow();
+  if (mode === 'caller') await expect(test.running).rejects.toMatchObject({ message: 'G001_LINUX_CENSUS_COLLECTION_FAILED',
+    diagnostic: 'g001-admitted-identity' });
+  else await expect(test.running).rejects.toThrow();
   expect(test.retained).toEqual(mode === 'policy' ? [] : ['first']);
   expect(test.session.close).toHaveBeenCalledTimes(1);
 });

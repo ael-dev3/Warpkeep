@@ -16,9 +16,10 @@ schema and source binding validated locally without printing or copying player
 records. The run uploaded no artifact and submitted no provider mutation. Keep
 the retained private attempt intact; do not publish, delete or reuse its data.
 
-PR #332 (`codex/0.4-g001-census-diagnostics`) maps post-collection identity
-changes and invalid cross-domain sample reconciliation to the existing
-privacy-safe diagnostics. It does not change gameplay or relax a census check.
+PR #332 (`codex/0.4-g001-census-diagnostics`) maps within-sample and
+between-sample caller-identity changes, plus invalid cross-domain sample
+reconciliation, to the existing privacy-safe diagnostics. It does not change
+gameplay or relax a census check.
 Resolve its latest checks and merge only through normal protections. Because the
 operator is a compiler input, then repeat the source M1 → native prepare/check →
 generated-only M2 sequence, wait for exact-M2 Verify, and run exact-source

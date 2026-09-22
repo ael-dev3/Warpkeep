@@ -252,7 +252,7 @@ async function collect(scope: Scope, secret: string, dependencies: Dependencies)
     await session.invalidate();
     await observe();
     const second = await dependencies.collectSample(session, scope, 'second');
-    if (first.callerIdentity !== second.callerIdentity) fail();
+    if (first.callerIdentity !== second.callerIdentity) fail('g001-admitted-identity');
     validateGenesis001LinuxCensusPair(first.record, second.record, scope.sourceCommit);
     dependencies.retainSample(scope, 'second', second.record);
     const consumedAt = stamp(dependencies.now);
