@@ -25,17 +25,17 @@ the native stderr parser. A signed source checkpoint is committed locally; its
 exact outgoing scan against M3 found no leaks. On pinned Node `v22.22.3`, the three
 focused suites passed 128 tests with 44 platform skips, and `tsc -b` passed.
 Gitleaks 8.30.1's scanner regression passed 48 positive fixtures and 95 negative
-fixtures; local targets in all five updated Markdown files exist. Source-only
-M1 is open as [PR #335](https://github.com/ael-dev3/Warpkeep/pull/335); inspect
-its live required checks and merge only through the protected route. The
+fixtures; local targets in all five updated Markdown files exist. The source-only
+repair is tracked by [PR #335](https://github.com/ael-dev3/Warpkeep/pull/335);
+resolve its latest required checks and merge only through the protected route. The
 candidate-bound `verify:sealed-launch` check returned
 `SEALED_LAUNCH_CHECKOUT_INVALID` from this source-only branch, which is not the
 bound prepared candidate; rerun it on the exact prepared M2 rather than treating
 this branch result as release verification.
 
-After PR #335 passes the current required checks and merges as source M1, prepare
-and independently check its exact merged native family and promote generated-
-only M2. On that exact M2, wait for push-to-main Verify and CodeQL, run preflight,
+Once PR #335 has passed the current required checks and merged as source M1,
+prepare and independently check its exact merged native family and promote
+generated-only M2. On that exact M2, wait for push-to-main Verify and CodeQL, run preflight,
 then policy observation. Only if policy observation succeeds should a fresh
 census attempt be started with a new run identity. Never infer the category
 from M3's generic result or reuse `8bfa7ebd` operations as authority for a new
