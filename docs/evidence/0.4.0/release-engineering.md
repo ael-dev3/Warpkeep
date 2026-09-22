@@ -13,7 +13,12 @@ physical-device acceptance and final deployment remain open. Each dated section
 below retains its original source and scope; green protected CI does not certify
 production.
 
-## Current M2 generated-family and preflight evidence — 2026-09-20
+The latest M3 policy-observation failure and its active diagnostics repair are
+tracked in the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
+Older M1/M2 generated-family and operator records below are historical evidence,
+not current release authority.
+
+## Historical generated-family and preflight evidence — 2026-09-20
 
 M1 source `e42aa15ae907e8914de47149cb0ee0b4b6f20145` was prepared and
 independently checked under the native `warpkeep` authority. Both runs converged
@@ -1701,17 +1706,22 @@ The source family therefore must be regenerated after this change is committed.
 The earlier native candidate built from `772d3a4` cannot attest these later bytes.
 Do not carry forward its generated hashes or relabel its source commit.
 
-### Next operating producer
+### Historical persistence gap — resolved in the current source
 
-The G001 policy observation lane already authenticates its frozen child envelope,
-source/bootstrap coordinates, cleanup result and exact policy observation, but
-its persistence adapter remains unavailable. Connect that authenticated result
-to the existing private record writer for the fixed policy-observation member.
-Lost-acknowledgment adoption must reopen and validate the matching durable
-record; lifecycle completion alone cannot replace missing evidence or justify
-replaying an effect. The workflow Verify reader, live transport adapters,
-remaining realm receipt captures and canonical recovery inputs remain separate
-unfinished callers.
+The older review above recorded a missing persistence adapter. That is no longer
+the current source state: `sealed-realms-production-g001-lane-entry.mjs` now
+captures the policy-observation receipt into the fixed private activation member
+and immediately reopens and verifies the source-bound record; its retained-state
+reader also validates the same receipt. See `captureG001ActivationRecord`,
+`reopenPolicyObservationRecord` and `verifyGenesis001LinuxPolicyReceipt` before
+diagnosing persistence again. This local/source capability does not prove that a
+new live observation completed. The latest M3 policy run failed with generic
+`g001-observation` because the child discarded its typed error code; the active
+source-only repair and exact-source next steps are in the
+[execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
+
+The workflow Verify reader, other live transport adapters, remaining realm
+receipt captures and canonical recovery inputs remain separate unfinished paths.
 
 ## Complete generated source at `f558bd5` — 2026-09-08
 

@@ -191,6 +191,17 @@ describe('opaque policy preparation and final descriptor boundary', () => {
       diagnostic: 'g001-admitted-enumeration' });
     expect(fixture.cleanup).toBe(1); expect(() => fstatSync(fixture.fd!)).toThrow();
   });
+  it.each([
+    'g001-policy-state', 'g001-policy-procedure', 'g001-policy-transport',
+    'g001-policy-credential', 'g001-policy-authority',
+  ] as const)('retains the fixed policy diagnostic %s through the native boundary', async diagnostic => {
+    fixture.childStderr = `node: warning: runner notice\nG001_LINUX_POLICY_NATIVE_FAILED:${diagnostic}\n`;
+    const handle = await prepareFixedLinuxG001PolicyObservation(fixture.workflowSecret);
+    await expect(executeFixedLinuxG001PolicyObservation(handle, fixture.source as never)).rejects.toMatchObject({
+      diagnostic,
+    });
+    expect(fixture.cleanup).toBe(1); expect(() => fstatSync(fixture.fd!)).toThrow();
+  });
   it('refuses evidence that expires during expensive attestation before opening the credential', async () => {
     const handle = await prepareFixedLinuxG001PolicyObservation(fixture.workflowSecret); fixture.advanceDuringAttestation = true;
     await expect(executeFixedLinuxG001PolicyObservation(handle, fixture.source as never)).rejects.toMatchObject({ diagnostic: 'g001-authority' });

@@ -1,17 +1,58 @@
 import { closeSync } from 'node:fs';
 import { isBuiltin, registerHooks } from 'node:module';
+import { types } from 'node:util';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { attestPolicyHost, attestPolicySource, policyFail, policyOwnedRun, readPolicyRequest } from './genesis001-linux-policy-boundary.mjs';
 
-const ADMITTED_DIAGNOSTICS = new Set([
+const ADMITTED_CENSUS_DIAGNOSTICS = new Set([
   'g001-admitted-identity', 'g001-admitted-aggregate', 'g001-admitted-enumeration',
   'g001-admitted-status', 'g001-admitted-reconciliation',
 ]);
-function nativeDiagnostic(error) {
-  const value = error && typeof error === 'object' ? error.diagnostic : undefined;
-  return typeof value === 'string' && ADMITTED_DIAGNOSTICS.has(value) ? value : undefined;
+const POLICY_DIAGNOSTICS_BY_CODE = new Map([
+  ['GENESIS_001_POLICY_OBSERVATION_LIVE_POLICY_INVALID', 'g001-policy-state'],
+  ['GREATER_REALM_PRODUCTION_STATUS_PROCEDURE_UNAVAILABLE', 'g001-policy-procedure'],
+  ['GREATER_REALM_PRODUCTION_TRANSPORT_UNAVAILABLE', 'g001-policy-transport'],
+  ['GREATER_REALM_PRODUCTION_TRANSPORT_SESSION_CLOSED', 'g001-policy-transport'],
+  ['GREATER_REALM_PRODUCTION_TRANSPORT_CLOCK_INVALID', 'g001-policy-transport'],
+  ['GREATER_REALM_PRODUCTION_CONTINGENCY_TOKEN_EXPIRED', 'g001-policy-transport'],
+  ['GENESIS_001_POLICY_OBSERVATION_SECRET_AUTHORITY_AMBIGUOUS', 'g001-policy-credential'],
+  ['GENESIS_001_POLICY_OBSERVATION_SECRET_AUTHORITY_UNAVAILABLE', 'g001-policy-credential'],
+  ['GENESIS_001_POLICY_OBSERVATION_SECRET_DESCRIPTOR_CHANGED', 'g001-policy-credential'],
+  ['GENESIS_001_POLICY_OBSERVATION_SECRET_DESCRIPTOR_INVALID', 'g001-policy-credential'],
+  ['GREATER_REALM_PRODUCTION_ADMIN_SECRET_CONTROL_CHARACTER_REJECTED', 'g001-policy-credential'],
+  ['GREATER_REALM_PRODUCTION_ADMIN_SECRET_ENCODING_INVALID', 'g001-policy-credential'],
+  ['GREATER_REALM_PRODUCTION_ADMIN_SECRET_FILE_CHANGED', 'g001-policy-credential'],
+  ['GREATER_REALM_PRODUCTION_ADMIN_SECRET_FILE_INVALID', 'g001-policy-credential'],
+  ['GREATER_REALM_PRODUCTION_ADMIN_SECRET_LENGTH_INVALID', 'g001-policy-credential'],
+  ['GREATER_REALM_PRODUCTION_ADMIN_SECRET_STDIN_REQUIRED', 'g001-policy-credential'],
+  ['GENESIS_001_POLICY_OBSERVATION_ARGUMENTS_INVALID', 'g001-policy-authority'],
+  ['GENESIS_001_POLICY_OBSERVATION_INPUT_INVALID', 'g001-policy-authority'],
+  ['GENESIS_001_POLICY_OBSERVATION_NATIVE_PROFILE_INVALID', 'g001-policy-authority'],
+  ['GENESIS_001_POLICY_OBSERVATION_SOURCE_INVALID', 'g001-policy-authority'],
+  ['GENESIS_001_POLICY_OBSERVATION_TRUSTED_BOOTSTRAP_REQUIRED', 'g001-policy-authority'],
+  ['GENESIS_001_POLICY_OBSERVATION_TEST_DEPENDENCY_FORBIDDEN', 'g001-policy-authority'],
+  ['GREATER_REALM_PRODUCTION_TOKEN_BUDGET_TEST_DEPENDENCY_REQUIRED', 'g001-policy-authority'],
+  ['GENESIS_001_POLICY_OBSERVATION_TIMESTAMP_INVALID', 'g001-receipt'],
+  ['GREATER_REALM_PRODUCTION_TRANSPORT_TARGET_OVERRIDE_REJECTED', 'g001-policy-authority'],
+  ['GREATER_REALM_PRODUCTION_TRANSPORT_WIRE_NAME_INVALID', 'g001-policy-authority'],
+]);
+
+/** Exposes only fixed categories; original messages, causes and fields never leave this process. */
+export function projectG001PolicyObservationDiagnostic(error) {
+  if (error === null || typeof error !== 'object' || types.isProxy(error)) return undefined;
+  let fields;
+  try { fields = Object.getOwnPropertyDescriptors(error); } catch { return undefined; }
+  const code = fields.code;
+  if (code !== undefined && 'value' in code && typeof code.value === 'string') {
+    const policyDiagnostic = POLICY_DIAGNOSTICS_BY_CODE.get(code.value);
+    if (policyDiagnostic !== undefined) return policyDiagnostic;
+  }
+  const diagnostic = fields.diagnostic;
+  return diagnostic !== undefined && 'value' in diagnostic
+    && typeof diagnostic.value === 'string' && ADMITTED_CENSUS_DIAGNOSTICS.has(diagnostic.value)
+    ? diagnostic.value : undefined;
 }
 
 /** This process has no selectable operator, module URL, target, or secret path. */
@@ -75,7 +116,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     process.stderr.write('G001_LINUX_POLICY_NATIVE_FAILED\n'); process.exitCode = 1; }
   if (request) runFixedLinuxG001PolicyChild(request).then(result => process.stdout.write(`${JSON.stringify(result)}\n`))
     .catch(error => {
-      const diagnostic = nativeDiagnostic(error);
+      const diagnostic = projectG001PolicyObservationDiagnostic(error);
       process.stderr.write(`G001_LINUX_POLICY_NATIVE_FAILED${diagnostic === undefined ? '' : `:${diagnostic}`}\n`);
       process.exitCode = 1;
     });

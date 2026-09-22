@@ -40,9 +40,11 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The 0.4 foundation is integrated; 0.4 has not shipped.** The exact M2 source
-passed required CI, protected preflight and policy observation, but its latest
-G001 census did not complete. No 0.4 provider mutation or deployment is claimed.
+**The 0.4 foundation is integrated; 0.4 has not shipped.** Exact main M3
+`8bfa7ebd` passed Verify and CodeQL, and its protected preflight succeeded.
+Its policy observation failed with a generic diagnostic that did not reveal the
+cause; census was not dispatched on M3. The current source repair adds bounded,
+privacy-safe cause categories. No 0.4 deployment is established.
 The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) and
 [release checklist](docs/operations/0.4.0-release-checklist.md) bind each result
 to its source and record the next verified action. The gameplay core, keep
