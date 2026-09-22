@@ -2628,15 +2628,25 @@ native observation. The workflow expression supplied
 `admin-token` file, while census already used the protected secret through a
 short-lived descriptor. No new App key or persistent runner file is needed.
 
-The local repair aligns both read-only G001 operations: the fixed workflow passes
-the existing secret only to the native execution step; ingress scrubs its
-environment entry; the native reader validates it, waits for refreshed authority,
-creates the descriptor-backed file inside the operation's private root, and
-cleans that root. The infrastructure and Linux runbooks now give the exact
-recovery route for this diagnostic. Focused workflow/native suites pass 74 tests
-with 38 POSIX-only skips; the policy-ingress evidence case passes, and
-`npm run typecheck` passes. The compiled native-boundary test currently exceeds
-the Windows Vitest worker heap even at an 8 GB cap, so it has no assertion result;
-recheck it in the source-bound Linux/CI path. The repair is still local and must
-follow the source-only M1, exact-source native prepare/check, generated-only M2,
-main Verify and preflight sequence before another protected observation.
+The repair aligns both read-only G001 operations: the fixed workflow passes the
+existing secret only to the native execution step; ingress scrubs its environment
+entry; the native reader validates it, waits for refreshed authority, creates
+the descriptor-backed file inside the operation's private root, and cleans that
+root. The infrastructure and Linux runbooks give the exact recovery route for
+this diagnostic. It is published as source-only [PR #330](https://github.com/ael-dev3/Warpkeep/pull/330).
+
+At PR head `bd8e54853aa4d286892c6367e79cb79f81685a9d`, pinned Linux Node 22.22.3
+passed the prepared-policy closure and checked-in sealed-launch verifiers. The
+focused Linux workflow/native suites passed 112/112, the ingress evidence suite
+passed 5/5, the compiled native credential-boundary regression passed 1/1, and
+the Windows TypeScript build passed. Windows Vitest's compiled-boundary worker
+exceeded its heap limit; the same test passed on the pinned Linux path. These
+results validate the repair, but do not replace hosted checks on the final PR
+head or the exact-main native M1 prepare/check. Continue through normal protected
+M1 integration, native preparation and independent check, generated-only M2,
+main Verify and preflight, then rerun the read-only policy observation/census.
+An absent recovery signer does not block these G001 read-only observations and
+is not a reason to request or generate another key. Signer and gateway work is
+separate and uses the existing retained signing material for operations that
+actually require it. 0.4 is not shipped; provider deployment, retained-state
+readback and live acceptance gates remain open.
