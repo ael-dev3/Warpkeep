@@ -45,12 +45,17 @@ Protected `main` is the signed generated-only M2 merge
 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its Verify run
 [35760703184](https://github.com/ael-dev3/Warpkeep/actions/runs/35760703184) and
 CodeQL run [35760703269](https://github.com/ael-dev3/Warpkeep/actions/runs/35760703269)
-passed. A protected read-only preflight is running as
-[35766896480](https://github.com/ael-dev3/Warpkeep/actions/runs/35766896480);
-read its terminal result before any later operation. No provider-backed 0.4
-deployment is established yet. Connected owner play, provider deployment and
-recovery, G001 preservation, physical-device acceptance, measured performance
-and the final release freeze still need current evidence.
+passed. The exact-main Verify run
+[35766416370](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
+is still running its Linux and SpacetimeDB integration jobs. The initial
+read-only preflight
+[35766896480](https://github.com/ael-dev3/Warpkeep/actions/runs/35766896480)
+failed closed at the workflow gate because that Verify run had not yet passed;
+no provider operation started. After Verify succeeds, rerun the preflight for
+this exact source before any later operation. No provider-backed 0.4 deployment
+is established yet. Connected owner play, provider deployment and recovery,
+G001 preservation, physical-device acceptance, measured performance and the
+final release freeze still need current evidence.
 The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) and
 [release checklist](docs/operations/0.4.0-release-checklist.md) bind each result
 to its source and record the next verified action. The gameplay core, keep
@@ -58,6 +63,10 @@ presentation, session renewal and release/recovery tools are in the repo.
 Connected owner play, provider-backed deployment, visual/device acceptance and
 the complete operating path still need current evidence before the live site can
 move beyond Genesis.
+
+The documentation refresh is under review in PR #337. Auto-merge is disabled
+until the exact-M2 protected operation sequence finishes: merging any commit to
+`main` first would change the source identity required by those operations.
 
 | Realm | Purpose |
 | --- | --- |

@@ -9,10 +9,13 @@ closed at the workflow gate because that run was still in progress, without
 entering a provider operation.
 
 Native M1 preparation/check and generated-only M2 export converged on the
-source-bound family recorded in the current handoff. Windows and native WSL are
-clean and equal to the merged SHA. No provider deployment, recovery activation,
-live realm mutation, owner play or physical-device acceptance is inferred from
-source CI, generated integration or an early preflight attempt.
+source-bound family recorded in the current handoff. The Windows review checkout
+is on the documentation-refresh PR #337 branch based on M2; native WSL remains
+clean at exact M2 as the source-pinned operation input. They are intentionally
+not at the same commit. PR #337 auto-merge remains disabled until the exact-M2
+protected operation sequence finishes. No provider deployment, recovery
+activation, live realm mutation, owner play or physical-device acceptance is
+inferred from source CI, generated integration or an early preflight attempt.
 
 ## Placement and workflow review — 2026-09-12
 

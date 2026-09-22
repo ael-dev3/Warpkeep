@@ -24,18 +24,24 @@ remains explicit, so this is preparation evidence rather than a deployment grant
 The generated-only M2 export re-read all 102 outputs and changed exactly 11
 tracked paths. Its staged tree is `ba968e91bed6890a9742a4e52466c65b4cbc3b81` and
 patch SHA-256 is `d488bee60f633b87aad31f09b5c2e703d0ccc88ad72b263c569599929eed023d`.
-Windows and native `WarpkeepRunner:/home/warpkeep/Warpkeep-0.4` are synchronized
-to this exact SHA. No new Desktop file was created and scheduled sync automation
-remains paused.
+The Windows working checkout is on the documentation-refresh branch for PR #337,
+based on M2; the native `WarpkeepRunner:/home/warpkeep/Warpkeep-0.4` checkout
+remains clean at exact M2 as the retained native operation input. They are not
+byte-for-byte synchronized. PR #337 auto-merge is disabled until the exact-M2
+protected operation sequence finishes, because merging first changes the source
+identity required by those operations. No new Desktop file was created and
+scheduled sync automation remains paused.
 
 PR Verify run [35760703184](https://github.com/ael-dev3/Warpkeep/actions/runs/35760703184)
 and CodeQL run [35760703269](https://github.com/ael-dev3/Warpkeep/actions/runs/35760703269)
-passed for M2. Verify passed Linux build/typecheck/tests and all release,
-auth-bridge, recovery, native-contract and SpacetimeDB module gates. The exact-main
-protected read-only preflight is run
-[35766896480](https://github.com/ael-dev3/Warpkeep/actions/runs/35766896480); read
-its terminal result before any later operation. Do not reuse older M3 operation
-records as M2 authority.
+passed for M2. The exact-main Verify run
+[35766416370](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
+is still running its Linux and SpacetimeDB integration jobs; auth-bridge,
+recovery and native-contract have passed. The first exact-main read-only
+preflight [35766896480](https://github.com/ael-dev3/Warpkeep/actions/runs/35766896480)
+failed closed at the workflow gate because Verify had not yet passed, and no
+provider operation started. Do not reuse older M3 operation records as M2
+authority.
 
 0.4 source and generated integration are complete for this checkpoint, but the
 release is not called live or shipped. Provider deployment and recovery, G001
@@ -45,10 +51,11 @@ A skipped Pages classifier or successful source CI run does not establish a live
 deployment. Continue from this exact `main` SHA, use the existing private WSL
 preparation root, and keep the no-new-Desktop-file rule.
 
-The next operation is the terminal read-only preflight result, followed by a
-fresh exact-M2 policy observation only if preflight succeeds. Start a new census
-attempt only after policy observation succeeds; retain every incomplete private
-attempt and never synthesize receipts or request another recovery key. Use the
+The next step is to wait for exact-main Verify. If it succeeds, rerun the
+read-only preflight for this exact M2 SHA. Only after that succeeds, dispatch a
+fresh exact-M2 policy observation. Start a new census attempt only after policy
+observation succeeds; retain every incomplete private attempt and never
+synthesize receipts or request another recovery key. Use the
 [release checklist](../../operations/0.4.0-release-checklist.md),
 [access guide](../../operations/0.4.0-infra-access.md) and
 [source synchronization procedure](../../operations/0.4.0-development-sync.md)

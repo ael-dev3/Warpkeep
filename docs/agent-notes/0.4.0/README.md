@@ -11,8 +11,12 @@ The [execution handoff](execution-handoff.md) is the single dated record of
 protected main, active development, terminal CI receipts and Pages
 classification. Exact protected main is M2
 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; its source Verify and CodeQL are
-green, and a read-only preflight is currently in flight. Resolve live refs there
-before continuing; this index does not duplicate moving operation results.
+green for the PR merge, while exact-main Verify run `35766416370` is still
+running its Linux and SpacetimeDB integration jobs. The first exact-main
+read-only preflight `35766896480` failed closed at the workflow gate because
+Verify had not yet passed; no provider operation started. Once Verify succeeds,
+rerun preflight for this exact SHA. Resolve live refs before continuing; this
+index does not duplicate moving operation results.
 Source CI and the Pages classifier do not establish provider deployment, owner
 play or device acceptance.
 

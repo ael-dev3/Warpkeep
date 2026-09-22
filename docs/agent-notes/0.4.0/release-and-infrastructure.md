@@ -12,23 +12,29 @@ At this checkpoint, protected `main` is the signed generated-only M2 merge
 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a` (tree
 `ba968e91bed6890a9742a4e52466c65b4cbc3b81`) with source M1
 `0afb5099890428b95fd493f8c25b844364a7a4db` as its sole parent. PR #336,
-Verify `35760703184` and CodeQL `35760703269` are complete and green. The
-current exact-main read-only preflight is run `35766896480`; inspect its terminal
-result before dispatching another operation. The M1 native preparation/check and
-M2 generated export are source-bound and retained privately, with
-`finalReleasePrepared:false`.
+Verify `35760703184` and CodeQL `35760703269` are complete and green. Exact-main
+Verify `35766416370` is still running its Linux and SpacetimeDB integration
+jobs. The first read-only preflight `35766896480` failed closed at the workflow
+gate because Verify had not passed; no provider operation started. After Verify
+succeeds, rerun the exact-M2 preflight before any later operation. The M1 native
+preparation/check and M2 generated export are source-bound and retained
+privately, with `finalReleasePrepared:false`.
 
 The M2 generated family changed 11 tracked output paths after re-reading 102
 candidate outputs. Its family, closure, scanner and patch digests are recorded
-in the execution handoff and release checklist. Windows and native WSL source
-are synchronized to the exact merged SHA. Scheduled automation remains paused;
-no Desktop output was created. No additional recovery key is required for the
-supported read-only path.
+in the execution handoff and release checklist. The Windows checkout is on the
+documentation PR #337 branch based on M2; native WSL remains clean at exact M2
+as the source-pinned operation input. Those checkouts intentionally differ.
+Auto-merge is disabled on PR #337 until the exact-M2 protected operation
+sequence finishes, because moving `main` first would invalidate its source pin.
+Scheduled automation remains paused; no Desktop output was created. No
+additional recovery key is required for the supported read-only path.
 
 ### Remaining delivery work, in dependency order
 
-Read the terminal preflight result. If it succeeds, run a fresh exact-M2
-`g001-policy-observe`; only after that succeeds may a new census attempt start.
+Wait for exact-main Verify. If it succeeds, rerun the exact-M2 read-only
+preflight. If that succeeds, run a fresh exact-M2 `g001-policy-observe`; only
+after that succeeds may a new census attempt start.
 Then continue with prepared bridge/signer observation, G001 preservation and
 sealed-realm readback, deployment/recovery, owner-only PTR play, device and
 performance acceptance, and the final release freeze. A green source CI run,
