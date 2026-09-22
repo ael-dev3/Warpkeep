@@ -1,22 +1,19 @@
 # Warpkeep 0.4 recovery evidence
 
-## Current checkpoint supersession — 20 September 2026
+## Current checkpoint supersession — 22 September 2026
 
-The active protected runtime source family is M2 at
-`f2167fab3c43307e3796c8efbfec6a5c449cb07f`. Main Verify `35476063706`, CodeQL
-`35476063612` and exact-source preflight `35478504320` passed. Native prepare/check
-converged on the family, closure and scanner hashes recorded in the execution
-handoff; `finalReleasePrepared:false` remains explicit. Pages `35478469951`
-classified only and skipped deployment/recovery/live verification.
+The active protected runtime source family is generated-only M2 at
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. PR Verify `35760703184` and CodeQL
+`35760703269` passed; push-to-main Verify `35766416370` is the authoritative
+main gate. Preflight dispatch `35766896480` failed closed at the workflow gate
+because that push Verify was still running, before any provider or realm
+mutation. Rerun preflight only after the push Verify reaches terminal success.
+Native preparation/check and export evidence remain source-bound with
+`finalReleasePrepared:false`; no live deployment or recovery is established.
 
-The follow-up protected read-only probes were intentionally run once each after
-preflight. G001 policy `35478595766`, PTR state `35467179746`, activation
-inspection `35467228823`, G002 update inspection `35467287821` and PTR update
-inspection `35467324123` failed closed before any provider or realm mutation.
-G001 current-state `35467146636` reached the workflow's explicit unwired guard.
-These are current evidence of missing/unusable operation-specific private
-producers or retained state; historical recovery rehearsals below do not
-supersede them. Keep sync automation paused and create no Desktop files.
+Earlier operation failures below remain historical and must not be reused as
+current-source authority. Keep sync automation paused, preserve private
+attempts and create no Desktop files.
 
 ## Historical accepted-main M2 context — 13 September 2026
 

@@ -2,6 +2,16 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Current source checkpoint — 22 September 2026
+
+Protected main is generated-only M2 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`
+with green PR Verify `35760703184` and CodeQL `35760703269`. Push-to-main Verify
+`35766416370` must reach terminal success before a protected operation is
+authoritative. Preflight `35766896480` failed closed at the workflow gate while
+that Verify was still running; no provider operation was entered. Native M1
+preparation/check and M2 export evidence are retained privately and are not a
+deployment grant.
+
 ## Resumption audit — 18 September 2026
 
 Use the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) for the

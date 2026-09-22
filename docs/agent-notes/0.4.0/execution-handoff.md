@@ -2,50 +2,57 @@
 
 ## Current checkpoint — 22 September 2026
 
-Exact current main/source M3 is `8bfa7ebd4a951156aa73b28962405300f09201bc`; the
-maintained Windows checkout and `origin/main` were equal and clean before this
-repair branch was created. Main Verify `35734417515` and CodeQL `35734417288`
-passed on M3. Protected read-only preflight `35740875921` succeeded on that SHA.
-Policy observation `35741004205` failed at generic `g001-observation`. That
-child version suppressed typed operator errors, so the failure
-does not establish missing credentials, a policy mismatch or a transport cause.
-No census was dispatched for M3. The older incomplete private census attempt
-remains untouched and must not be reused.
+Exact protected `main` is the signed generated-only M2 merge
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a` with tree
+`ba968e91bed6890a9742a4e52466c65b4cbc3b81`. It is the sole child of signed
+source M1 `0afb5099890428b95fd493f8c25b844364a7a4db`; GitHub reports the merge
+commit signature as valid. PR [#336](https://github.com/ael-dev3/Warpkeep/pull/336)
+merged the authenticated native generated family after its exact candidate
+re-read and byte comparison.
 
-The protected Pages classifier run `35740829270` succeeded, but its build,
-deployment and live-verification jobs were skipped. This is not a deployment;
-0.4 remains unshipped. The exact M3 observation, unlike M2 run `35706296044`, is
-the current read-only result and must govern the next sequence.
+The M1 native preparation and independent check were byte-identical. Their
+evidence is retained under the existing private root: candidate
+`release-workspace-67d70d7dfae385ef2aa6bf97b44be758`, transaction
+`74a0a691577e48d23bbdddf99847ae1a`, journal SHA-256
+`045cc00f4d2494eff4190129380c6397b704a6da67e8bbaf44d6651efa2162da`, family
+SHA-256 `33e7c3f6058cbfdfaa7ed53979bbc7c2d76c95c1a60c3cc59924638d5e61b4b9`,
+closure SHA-256 `eabb23ab208b773966bb194c947fa9a5a2c4cf6e62d58aa4697c9a0e325aea91`,
+and scanner SHA-256 `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+The run checked 3,257 source/candidate files and 102 outputs; `finalReleasePrepared:false`
+remains explicit, so this is preparation evidence rather than a deployment grant.
 
-Active source-only repair branch: `codex/0.4-safe-g001-policy-diagnostics`,
-based on exact M3. It maps only fixed typed failures to safe policy categories,
-preserves the generic fallback, and closes the child → native → public-preflight
-allowlist chain. Focused tests exposed and corrected a second propagation gap in
-the native stderr parser. A signed source checkpoint is committed locally; its
-exact outgoing scan against M3 found no leaks. On pinned Node `v22.22.3`, the three
-focused suites passed 128 tests with 44 platform skips, and `tsc -b` passed.
-Gitleaks 8.30.1's scanner regression passed 48 positive fixtures and 95 negative
-fixtures; local targets in all five updated Markdown files exist. The source-only
-repair is tracked by [PR #335](https://github.com/ael-dev3/Warpkeep/pull/335);
-resolve its latest required checks and merge only through the protected route. The
-candidate-bound `verify:sealed-launch` check returned
-`SEALED_LAUNCH_CHECKOUT_INVALID` from this source-only branch, which is not the
-bound prepared candidate; rerun it on the exact prepared M2 rather than treating
-this branch result as release verification.
+The generated-only M2 export re-read all 102 outputs and changed exactly 11
+tracked paths. Its staged tree is `ba968e91bed6890a9742a4e52466c65b4cbc3b81` and
+patch SHA-256 is `d488bee60f633b87aad31f09b5c2e703d0ccc88ad72b263c569599929eed023d`.
+Windows and native `WarpkeepRunner:/home/warpkeep/Warpkeep-0.4` are synchronized
+to this exact SHA. No new Desktop file was created and scheduled sync automation
+remains paused.
 
-Once PR #335 has passed the current required checks and merged as source M1,
-prepare and independently check its exact merged native family and promote
-generated-only M2. On that exact M2, wait for push-to-main Verify and CodeQL, run preflight,
-then policy observation. Only if policy observation succeeds should a fresh
-census attempt be started with a new run identity. Never infer the category
-from M3's generic result or reuse `8bfa7ebd` operations as authority for a new
-source.
+PR Verify run [35760703184](https://github.com/ael-dev3/Warpkeep/actions/runs/35760703184)
+and CodeQL run [35760703269](https://github.com/ael-dev3/Warpkeep/actions/runs/35760703269)
+passed for M2. Verify passed Linux build/typecheck/tests and all release,
+auth-bridge, recovery, native-contract and SpacetimeDB module gates. The exact-main
+protected read-only preflight is run
+[35766896480](https://github.com/ael-dev3/Warpkeep/actions/runs/35766896480); read
+its terminal result before any later operation. Do not reuse older M3 operation
+records as M2 authority.
 
-PR #332 is already in the M3 source: it classifies census identity drift and
-sample reconciliation without exposing records. No additional recovery key is
-needed. Keep scheduled sync automation paused, make no new Desktop files, and
-use this handoff plus the [release checklist](../../operations/0.4.0-release-checklist.md)
-as the current route. Resolve live `main`, branch and PR heads before each step.
+0.4 source and generated integration are complete for this checkpoint, but the
+release is not called live or shipped. Provider deployment and recovery, G001
+preservation/readback, owner-only PTR play, physical mobile/device acceptance,
+measured performance budgets and final release freeze still need current evidence.
+A skipped Pages classifier or successful source CI run does not establish a live
+deployment. Continue from this exact `main` SHA, use the existing private WSL
+preparation root, and keep the no-new-Desktop-file rule.
+
+The next operation is the terminal read-only preflight result, followed by a
+fresh exact-M2 policy observation only if preflight succeeds. Start a new census
+attempt only after policy observation succeeds; retain every incomplete private
+attempt and never synthesize receipts or request another recovery key. Use the
+[release checklist](../../operations/0.4.0-release-checklist.md),
+[access guide](../../operations/0.4.0-infra-access.md) and
+[source synchronization procedure](../../operations/0.4.0-development-sync.md)
+as the current route. Resolve live refs before every operation.
 
 ## Reliability follow-up — 21 September 2026 (historical)
 

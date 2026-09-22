@@ -40,11 +40,17 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The 0.4 foundation is integrated; 0.4 has not shipped.** Exact main M3
-`8bfa7ebd` passed Verify and CodeQL, and its protected preflight succeeded.
-Its policy observation failed with a generic diagnostic that did not reveal the
-cause; census was not dispatched on M3. The current source repair adds bounded,
-privacy-safe cause categories. No 0.4 deployment is established.
+**The 0.4 source and generated foundation are integrated; 0.4 has not shipped.**
+Protected `main` is the signed generated-only M2 merge
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its Verify run
+[35760703184](https://github.com/ael-dev3/Warpkeep/actions/runs/35760703184) and
+CodeQL run [35760703269](https://github.com/ael-dev3/Warpkeep/actions/runs/35760703269)
+passed. A protected read-only preflight is running as
+[35766896480](https://github.com/ael-dev3/Warpkeep/actions/runs/35766896480);
+read its terminal result before any later operation. No provider-backed 0.4
+deployment is established yet. Connected owner play, provider deployment and
+recovery, G001 preservation, physical-device acceptance, measured performance
+and the final release freeze still need current evidence.
 The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) and
 [release checklist](docs/operations/0.4.0-release-checklist.md) bind each result
 to its source and record the next verified action. The gameplay core, keep

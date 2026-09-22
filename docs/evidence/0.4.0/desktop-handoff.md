@@ -1,6 +1,10 @@
 # Warpkeep 0.4 credential-free workspace handoff
 
-Status: **interim development handoff**. This document makes the current
+Status: **interim development handoff**. Protected main is generated-only M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; PR Verify `35760703184` and
+CodeQL `35760703269` passed. Push-to-main Verify `35766416370` is the
+authoritative main gate and an early preflight `35766896480` failed closed
+while that run was still in progress. This document makes the current
 source, setup and evidence routes reproducible without distributing credentials
 or private player data. It is not a deployment attestation or a final release
 package. The existing Desktop `Warpkeep - Full Project Handoff.md` remains a

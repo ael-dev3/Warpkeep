@@ -8,10 +8,13 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 ## Current working state
 
 The [execution handoff](execution-handoff.md) is the single dated record of
-protected main, the active development branch, terminal CI receipts and Pages
-classification. Resolve live refs there before continuing; this index does not
-duplicate moving SHAs. 0.4 is unshipped. Source CI and the Pages classifier do
-not establish provider deployment, owner play or device acceptance.
+protected main, active development, terminal CI receipts and Pages
+classification. Exact protected main is M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; its source Verify and CodeQL are
+green, and a read-only preflight is currently in flight. Resolve live refs there
+before continuing; this index does not duplicate moving operation results.
+Source CI and the Pages classifier do not establish provider deployment, owner
+play or device acceptance.
 
 The Keep04 gather → choose → build → benefit → return foundation, readable
 expedition/return feedback, first-journey cue and mobile visual foundation are

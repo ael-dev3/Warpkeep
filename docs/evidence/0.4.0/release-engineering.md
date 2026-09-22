@@ -13,10 +13,14 @@ physical-device acceptance and final deployment remain open. Each dated section
 below retains its original source and scope; green protected CI does not certify
 production.
 
-The latest M3 policy-observation failure and its active diagnostics repair are
-tracked in the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
-Older M1/M2 generated-family and operator records below are historical evidence,
-not current release authority.
+The current protected source is generated-only M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; PR Verify `35760703184` and CodeQL
+`35760703269` passed for its generated promotion. The exact push-to-main Verify
+run `35766416370` is the authoritative main gate; read its terminal result
+before any protected operation. An early preflight dispatch `35766896480`
+failed closed at the workflow gate because that push Verify was still running;
+it did not enter a provider operation. Older M1/M2 generated-family and operator
+records below remain historical evidence, not current release authority.
 
 ## Historical generated-family and preflight evidence — 2026-09-20
 

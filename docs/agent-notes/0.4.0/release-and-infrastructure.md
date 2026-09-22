@@ -8,28 +8,31 @@ owns the acceptance gates. Resolve both against GitHub before acting; dated
 evidence below is scoped to its recorded source and must not be reused as current
 authority.
 
-At this checkpoint, protected main is M3
-`8bfa7ebd4a951156aa73b28962405300f09201bc`. Main Verify `35734417515`, CodeQL
-`35734417288`, and protected preflight `35740875921` passed. Policy observation
-`35741004205` failed with generic `g001-observation`; the child hid the typed
-operator error, so that result does not establish a credential, policy, or
-provider defect. Census was not dispatched on M3. The current source-only
-diagnostic repair is PR #335; its exact head and live required checks are in the
-execution handoff. Do not use the former PR #332 checkpoint as current work.
+At this checkpoint, protected `main` is the signed generated-only M2 merge
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a` (tree
+`ba968e91bed6890a9742a4e52466c65b4cbc3b81`) with source M1
+`0afb5099890428b95fd493f8c25b844364a7a4db` as its sole parent. PR #336,
+Verify `35760703184` and CodeQL `35760703269` are complete and green. The
+current exact-main read-only preflight is run `35766896480`; inspect its terminal
+result before dispatching another operation. The M1 native preparation/check and
+M2 generated export are source-bound and retained privately, with
+`finalReleasePrepared:false`.
 
-The M3 Pages classifier `35740829270` skipped build, deployment, and live
-verification. That is not a deployment; the 0.4 release remains unshipped. No
-additional recovery key is required for the supported read-only path.
+The M2 generated family changed 11 tracked output paths after re-reading 102
+candidate outputs. Its family, closure, scanner and patch digests are recorded
+in the execution handoff and release checklist. Windows and native WSL source
+are synchronized to the exact merged SHA. Scheduled automation remains paused;
+no Desktop output was created. No additional recovery key is required for the
+supported read-only path.
 
 ### Remaining delivery work, in dependency order
 
-Merge and verify PR #335 through normal protections, prepare and independently
-check its exact protected-M1 native family, and promote only the derived outputs
-through generated-only M2. Verify M2, rerun preflight and policy observation, and
-start a fresh census only after policy observation succeeds. Then continue with
-prepared bridge/signer work, preservation and sealed-realm readback, deployment,
-recovery, owner play, and device/performance acceptance. Keep scheduled
-automation paused and create no Desktop output.
+Read the terminal preflight result. If it succeeds, run a fresh exact-M2
+`g001-policy-observe`; only after that succeeds may a new census attempt start.
+Then continue with prepared bridge/signer observation, G001 preservation and
+sealed-realm readback, deployment/recovery, owner-only PTR play, device and
+performance acceptance, and the final release freeze. A green source CI run,
+preflight or Pages classifier alone does not establish a live release.
 
 ## Historical source checkpoint — 2026-09-12
 
