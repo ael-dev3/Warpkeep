@@ -40,13 +40,16 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The 0.4 foundation is implemented; live acceptance remains open.** The
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) records the
-accepted source, completed checks and successful read-only preflight. The
-gameplay core, new keep presentation, session renewal and
-release/recovery tools are in the repo. Connected owner play, provider-backed
-deployment, visual/device acceptance and the complete operating path require
-their own current evidence before the live site can move beyond Genesis.
+**The 0.4 foundation is integrated; 0.4 has not shipped.** The exact M2 source
+passed required CI, protected preflight and policy observation, but its latest
+G001 census did not complete. No 0.4 provider mutation or deployment is claimed.
+The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) and
+[release checklist](docs/operations/0.4.0-release-checklist.md) bind each result
+to its source and record the next verified action. The gameplay core, keep
+presentation, session renewal and release/recovery tools are in the repo.
+Connected owner play, provider-backed deployment, visual/device acceptance and
+the complete operating path still need current evidence before the live site can
+move beyond Genesis.
 
 | Realm | Purpose |
 | --- | --- |
@@ -63,8 +66,9 @@ future exploration, cooperation and strategy without promising unfinished featur
 
 `main` contains the integrated 0.4 development source. The running game remains
 at a different release stage; 0.4 delivery is unfinished. Follow the
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md), current refs and
-open pull requests for active work.
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) for the live
+checkpoint and next action, then inspect any open pull requests for their exact
+source and check status.
 
 For a fresh independent checkout, use Git, Node 22 (22.13 or newer within that
 major) and npm 10.9.8:

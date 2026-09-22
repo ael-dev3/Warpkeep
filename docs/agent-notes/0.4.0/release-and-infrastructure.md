@@ -1,37 +1,32 @@
 # Release engineering, CI and infrastructure audit
 
-## Current source and access checkpoint — 20 September 2026
+## Current source and access checkpoint — 22 September 2026
 
 The [execution handoff](execution-handoff.md) owns the moving protected source
-and receipts. The last operationally verified source is
-`5870717bdb41d00f8b67039022640e03a675d84a`; resolve live main before dispatch.
-PRs #309 and #310 are merged; main Verify `35494158124` and CodeQL
-`35494158121` passed. The exact protected preflight `35496632288` passed and
-returned `{"operation":"preflight","status":"preflight-inspected"}`.
-0.4 remains unshipped.
+and operation receipts. The latest checked main is M2
+`ea327f965fa015f4980d85801c0cf194129b4f93`; PR #330 supplied its source-only M1
+and PR #331 promoted the generated-only family through normal protections.
+Main Verify `35701085839` and CodeQL `35701085915` passed on that exact source.
+Protected preflight `35706139447` and read-only policy observation `35706296044`
+passed. Census `35706634110` failed at `g001-observation` after a private
+applicant snapshot was written, before a complete first sample. No private data
+was uploaded and no provider mutation was submitted.
 
-The native Linux authority passed source-bound preparation and M2 preflight.
-The subsequent shipping audit found a concrete G001 materializer dependency-path
-bug, now corrected on the development branch. Its Linux builder installs below
-`spacetimedb/genesis002/node_modules`; the operator had looked in the parent module.
-It also found that `g001-current-state` calls the legacy Darwin admission monitor
-and is unsupported on Linux despite the earlier outer-route wiring. The workflow
-now lists implemented Linux operations; use `g001-freeze-census` for native evidence.
+PR #332 adds safe labels for late identity and sample-reconciliation failures.
+After its normal merge, rebuild and independently check the exact M1 native
+family, promote its outputs through a generated-only M2, and repeat exact-main
+Verify/preflight before policy observation and census. The Pages run on M2
+classified the source but skipped build, deployment and live verification. The
+published frontend remains the previously verified 0.3.43 baseline; 0.4 is not
+shipped. No additional recovery key is needed for these read-only operations.
 
-The installed Actions checkout's `gc.auto=0` also failed production Git-context
-validation. The reviewed repair accepts only absence or one canonical zero and
-passed the real native regression. Its operator refreeze is bound to published
-`0cdf7449`, retained by `source-history/warpkeep-0.4-pr312-0cdf74495ef5`. Every
-non-helper G001 adoption path and the other three pinned helpers remain unchanged.
+### Confirmed delivery work, in dependency order
 
-Read-only census run `35499384780` failed at the workflow phase before the repair.
-Fresh provider reads confirm publisher login and realm identities, the existing
-B0 bridge, and the absent recovery signer. Do not classify these agent-owned
-build/deployment tasks as missing owner permission. The execution handoff records
-the next source preparation, bridge transition and disabled signer setup sequence.
-Private retained evidence and owner/device acceptance remain open; their precise
-human dependencies must be established through the supported caller. Keep sync
-automation paused and create no Desktop files.
+Merge and verify the census diagnostic repair, refresh its native M1/M2 family,
+then rerun the protected read-only operations. Only after a complete genuine
+census should the project proceed to prepared bridge/signer work, preservation
+and sealed-realm readback, deployment, recovery, owner play and device/performance
+acceptance. Keep scheduled automation paused and create no Desktop output.
 
 ### Confirmed delivery work, in dependency order
 
