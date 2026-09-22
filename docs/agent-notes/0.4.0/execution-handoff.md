@@ -2750,3 +2750,53 @@ was enabled using squash, and GitHub restarted required checks for signed head
 `060a3c7c5f190fbee029ea09df2d0cce0a7c3ce1`. The final workflow runs and merge
 state must be rechecked before proceeding to M1 preparation; these notes do not
 claim that PR #330 has merged or that 0.4 has shipped.
+
+## 22 September 2026 — exact-M2 policy receipt recovery
+
+Protected `main` is still exact M2 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`.
+Its push Verify run [`35766416370`](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
+and read-only preflight [`35772760378`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772760378)
+both completed successfully. The next exact-M2 `g001-policy-observe` dispatch,
+[`35772933637`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772933637),
+failed in `operate_readonly` at “Attest runtime and execute authenticated
+operation.” The operation is read-only; no census or deployment followed.
+
+Supported private-state inspection found one active fixed G001 policy receipt
+whose recorded source predates M2. Its receipt reports
+`mutationSubmitted: false`; no applicant or player records were read or copied.
+The Linux producer is fixed and source-bound but previously attempted a fresh
+read-only observation before writing that receipt to the same no-clobber path.
+The existing record then rejected capture and the dispatcher hid the precise
+private-state error behind the generic lane label. The exact run likely reached
+the read-only operator before capture failed; the action result does not expose
+enough detail to claim that as directly observed. This failure did not authorize
+or start census, deployment, or any write operation.
+
+The repair under review makes both supported G001 paths handle the record by
+source: validate and adopt an exact current-source receipt on retry; preserve an
+older valid receipt byte-for-byte under a private source-keyed history path
+before freeing the active slot; reject malformed records and conflicting
+history without deleting the original. The frozen-envelope path also accepts
+its bounded retained lifecycle inventory, rejects duplicate run IDs, and keeps
+incomplete or ambiguous state fail-closed. Only fixed safe diagnostic labels
+cross the dispatcher boundary. Focused Windows dispatcher tests pass
+`89 passed, 1 skipped`; TypeScript passes. The broad Windows Vitest run was
+stopped after it reported platform-sensitive private-mode/inode failures,
+10-second process-fixture timeouts, and clean-checkout/closure mismatches while
+the source was intentionally uncommitted and its prepared closure was stale.
+That run is not a full-suite pass; use the hosted Linux checks on the published
+source checkpoint for the supported integration gate. The checked-in sealed
+launch verifier also currently rejects the source change until its documented
+closure refresh is derived. This is not yet a merged or deployed fix.
+
+PR #337 is now the source-only M1 repair/checkpoint as well as the current
+handoff refresh. Finish the complete suite and source review, commit/push the
+source, derive only the documented source closure from that exact committed
+checkpoint, then pass protected M1 checks and merge normally. The prior native
+candidate and generated M2 are bound to earlier source and cannot certify this
+repair. Prepare and independently check the actual protected M1, promote its
+generated-only M2, wait for that exact main Verify, recheck main, then rerun
+preflight and the read-only policy observation. Do not start census until the
+fresh policy observation has returned completed with its source-bound receipt.
+Keep scheduled automation paused, do not create Desktop files, and do not
+request or generate another recovery key. 0.4 remains unshipped.

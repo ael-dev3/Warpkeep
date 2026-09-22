@@ -1,4 +1,4 @@
-import { linuxG001PolicyExecution } from './fixtures/linuxG001PolicyReceipt';
+import { linuxG001PolicyExecution, linuxG001PolicyReceipt } from './fixtures/linuxG001PolicyReceipt';
 import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 
@@ -29,6 +29,9 @@ vi.mock('../scripts/genesis001-linux-policy-native.mjs', () => ({
 import {
   authenticateSealedRealmsProductionSourceAuthority,
 } from '../scripts/sealed-realms-production-source-authority.mjs';
+import {
+  createGenesis001LinuxPolicyReceipt,
+} from '../scripts/genesis001-linux-policy-receipt.mjs';
 import {
   collectGenesis001AdmittedPlayerCensus,
 } from '../scripts/genesis001-admitted-player-census.mjs';
@@ -217,20 +220,28 @@ function bootstrapPolicyObservationReceipt(input: Readonly<{
   };
 }
 
-function completedPolicyTerminal(home: string, runId: string) {
+function completedPolicyTerminal(home: string, runId: string, input: Readonly<{
+  sourceCommit?: string;
+  moduleTree?: string;
+  bootstrapBlob?: string;
+  bootstrapSha256?: string;
+  command?: string;
+}> = {}) {
   const directory = join(home, '.warpkeep', 'private', 'production-admin-v1', 'bootstrap-run-lifecycle-v1');
   mkdirSync(directory, { recursive: true, mode: 0o700 });
-  mkdirSync(join(directory, '..', 'bootstrap-runs-v1'), { mode: 0o700 });
+  mkdirSync(join(directory, '..', 'bootstrap-runs-v1'), { recursive: true, mode: 0o700 });
   const path = join(directory, `${runId}-terminal.json`);
   const argumentHash = createHash('sha256');
   updateLengthFramed(argumentHash, 'domain', 'warpkeep-production-launch-arguments-v1');
-  updateLengthFramed(argumentHash, 'command', 'g001-policy-observe');
+  const command = input.command ?? 'g001-policy-observe';
+  updateLengthFramed(argumentHash, 'command', command);
   const finalRecord = {
     schemaVersion: 1, profile: 'warpkeep-greater-realm-production-launch-lifecycle-v1',
     runId, ordinal: 7, phase: 'complete', previousRecordSha256: '1'.repeat(64),
-    pid: 1234, processStartIdentity: 'fixture-process-identity', protectedMain: SOURCE,
-    moduleTree: MODULE_TREE, bootstrapBlob: BOOTSTRAP_BLOB, bootstrapSha256: BOOTSTRAP_SHA256,
-    command: 'g001-policy-observe', commandArgumentsSha256: argumentHash.digest('hex'),
+    pid: 1234, processStartIdentity: 'fixture-process-identity', protectedMain: input.sourceCommit ?? SOURCE,
+    moduleTree: input.moduleTree ?? MODULE_TREE, bootstrapBlob: input.bootstrapBlob ?? BOOTSTRAP_BLOB,
+    bootstrapSha256: input.bootstrapSha256 ?? BOOTSTRAP_SHA256,
+    command, commandArgumentsSha256: argumentHash.digest('hex'),
     runDev: '1', runIno: '42', launchRecordSha256: '2'.repeat(64),
     containedChildPid: null, containedChildProcessStartIdentity: null, containedChildPgid: null,
     containmentConfirmationSha256: null, cleanupConfirmationSha256: 'e'.repeat(64),
@@ -245,6 +256,31 @@ function completedPolicyTerminal(home: string, runId: string) {
   };
   persist();
   return { path, terminal, persist };
+}
+
+function policyActivationRecord(
+  sourceCommit: string,
+  receipt: Readonly<Record<string, unknown>>,
+  sourceAuthorityDigest = '9'.repeat(64),
+) {
+  const body = Buffer.from(`${JSON.stringify(receipt)}\n`);
+  const bodyDigest = createHash('sha256').update(body).digest('hex');
+  body.fill(0);
+  return Buffer.from(`${JSON.stringify({
+    schemaVersion: 1,
+    profile: 'warpkeep-sealed-realms-activation-record-v1',
+    member: 'g001PolicyObservationBootstrapReceipt',
+    preparationSourceCommit: sourceCommit,
+    sourceCommit,
+    operation: 'g001-policy-observe',
+    sourceAuthorityDigest,
+    bodyDigest,
+    receipt,
+    semanticDigest: createHash('sha256').update([
+      'warpkeep.sealed-realms.activation-record.v1', 'g001PolicyObservationBootstrapReceipt',
+      sourceCommit, sourceCommit, 'g001-policy-observe', sourceAuthorityDigest, bodyDigest, '',
+    ].join('\n')).digest('hex'),
+  })}\n`);
 }
 
 function completedPolicyDetail(runId: string) {
@@ -1025,6 +1061,110 @@ describe('sealed-realms production dispatcher', () => {
     }
   });
 
+  it('archives a verified prior-source receipt and continues past retained lifecycle tombstones', async () => {
+    const local = censusPrivateState();
+    const oldSource = '6'.repeat(40);
+    const oldTree = '5'.repeat(40);
+    const oldBlob = '4'.repeat(40);
+    const oldBootstrapSha = '3'.repeat(64);
+    const policyRunId = `run-${'a'.repeat(32)}`;
+    const unrelatedRunId = `run-${'b'.repeat(32)}`;
+    const oldReceipt = bootstrapPolicyObservationReceipt({
+      sourceCommit: oldSource, tree: oldTree, blob: oldBlob, sha256: oldBootstrapSha,
+    });
+    const oldRecordBytes = policyActivationRecord(oldSource, oldReceipt);
+    local.state.write({ root: 'runtime', relativePath: POLICY_RECORD_PATH, bytes: oldRecordBytes });
+    oldRecordBytes.fill(0);
+    completedPolicyTerminal(local.home, policyRunId, {
+      sourceCommit: oldSource, moduleTree: oldTree, bootstrapBlob: oldBlob,
+      bootstrapSha256: oldBootstrapSha,
+    });
+    completedPolicyTerminal(local.home, unrelatedRunId, {
+      sourceCommit: '7'.repeat(40), command: 'ptr-state-inspect',
+    });
+    const runner = vi.fn(async (request: { args: readonly string[] }) => {
+      const command = request.args.at(-1);
+      if (command === 'launch-run-inspect') return {
+        status: 0,
+        stdout: `${JSON.stringify({
+          profile: 'warpkeep-greater-realm-production-launch-lifecycle-v1',
+          runs: [
+            lifecycleSummary(policyRunId, { authorityPhase: 'complete', runState: 'absent' }),
+            lifecycleSummary(unrelatedRunId, { authorityPhase: 'complete', runState: 'absent' }),
+          ],
+        })}\n`,
+        stderr: '',
+      };
+      if (command === 'g001-policy-observe') return {
+        status: 0, stdout: `${JSON.stringify(bootstrapPolicyObservationReceipt())}\n`, stderr: '',
+      };
+      throw Error('unexpected lifecycle invocation');
+    });
+    const lane = g001PolicyLane({
+      launchAuthority: g001LaunchAuthority({ privateState: local.state }),
+      runEnvelopeChild: runner,
+    });
+    const original = globalThis.WebSocket;
+    Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
+    try {
+      await expect(runProtectedG001(lane, 'g001-policy-observe', g001PolicyAuthority(), '6201'))
+        .resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
+      expect(runner.mock.calls.map(([request]) => request.args.at(-1)))
+        .toEqual(['launch-run-inspect', 'g001-policy-observe']);
+      const historyPath = `activation-evidence/records-history/g001-policy-observation-bootstrap-receipt-${oldSource}.json`;
+      const archived = local.state.read({ root: 'runtime', relativePath: historyPath });
+      const current = local.state.read({ root: 'runtime', relativePath: POLICY_RECORD_PATH });
+      try {
+        expect(archived.toString('utf8')).toContain(`"sourceCommit":"${oldSource}"`);
+        expect(JSON.parse(current.toString('utf8')).sourceCommit).toBe(SOURCE);
+        expect(local.state.list({ root: 'runtime', relativeDirectory: 'activation-evidence/records' }))
+          .toEqual(['g001-policy-observation-bootstrap-receipt.json']);
+      } finally { archived.fill(0); current.fill(0); }
+    } finally {
+      Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: original });
+      local.cleanup();
+    }
+  });
+
+  it('preserves a stale fixed receipt when its source history archive conflicts', async () => {
+    const local = censusPrivateState();
+    const oldSource = '6'.repeat(40);
+    const policyRunId = `run-${'a'.repeat(32)}`;
+    const oldRecordBytes = policyActivationRecord(oldSource, linuxG001PolicyReceipt(policyObservationReceipt(oldSource)));
+    local.state.write({ root: 'runtime', relativePath: POLICY_RECORD_PATH, bytes: oldRecordBytes });
+    completedPolicyTerminal(local.home, policyRunId, { sourceCommit: oldSource });
+    const historyPath = `activation-evidence/records-history/g001-policy-observation-bootstrap-receipt-${oldSource}.json`;
+    local.state.write({ root: 'runtime', relativePath: historyPath, bytes: Buffer.from('conflicting archive\n') });
+    const runner = vi.fn(async () => ({
+      status: 0,
+      stdout: `${JSON.stringify({
+        profile: 'warpkeep-greater-realm-production-launch-lifecycle-v1',
+        runs: [lifecycleSummary(policyRunId, { authorityPhase: 'complete', runState: 'absent' })],
+      })}\n`,
+      stderr: '',
+    }));
+    const lane = g001PolicyLane({
+      launchAuthority: g001LaunchAuthority({ privateState: local.state }),
+      runEnvelopeChild: runner,
+    });
+    const original = globalThis.WebSocket;
+    Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
+    try {
+      await expect(runProtectedG001(lane, 'g001-policy-observe', g001PolicyAuthority(), '6202')).rejects.toThrow();
+      expect(runner).toHaveBeenCalledOnce();
+      const retained = local.state.read({ root: 'runtime', relativePath: POLICY_RECORD_PATH });
+      const archived = local.state.read({ root: 'runtime', relativePath: historyPath });
+      try {
+        expect(retained.equals(oldRecordBytes)).toBe(true);
+        expect(archived.toString('utf8')).toBe('conflicting archive\n');
+      } finally { retained.fill(0); archived.fill(0); }
+    } finally {
+      oldRecordBytes.fill(0);
+      Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: original });
+      local.cleanup();
+    }
+  });
+
   it('rejects receipt-shaped launch facts and opens neither secret nor raw Git before WebSocket exists', async () => {
     expect(() => createSealedRealmsProductionG001LaunchAuthority({
       readReceipt: () => ({
@@ -1121,7 +1261,7 @@ describe('sealed-realms production dispatcher', () => {
     try {
       await expect(runProtectedG001(
         lane, 'g001-policy-observe', g001PolicyAuthority(), '6009',
-      )).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+      )).rejects.toMatchObject({ message: 'G001_LINUX_POLICY_NATIVE_FAILED', diagnostic: 'g001-policy-state' });
       expect(runner).toHaveBeenCalledTimes(1);
       expect(() => local.state.read({ root: 'runtime', relativePath: POLICY_RECORD_PATH })).toThrow();
     } finally {
@@ -1269,7 +1409,9 @@ describe('sealed-realms production dispatcher', () => {
       Object.defineProperty(globalThis, 'WebSocket', { configurable: true, value: function WebSocket() {} });
       try {
         const initial = runProtectedG001(firstLane, 'g001-policy-observe', g001PolicyAuthority(), '6012');
-        if (scenario === 'lost-acknowledgment') await expect(initial).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
+        if (scenario === 'lost-acknowledgment') await expect(initial).rejects.toMatchObject({
+          message: 'G001_LINUX_POLICY_NATIVE_FAILED', diagnostic: 'g001-receipt',
+        });
         else await expect(initial).resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
         expect(firstRunner).toHaveBeenCalledTimes(2);
         const recordPath = join(sealedRealmsPrivateBase(local.home),
@@ -1338,9 +1480,16 @@ describe('sealed-realms production dispatcher', () => {
         const resumed = runProtectedG001(resumedLane, 'g001-policy-observe', g001PolicyAuthority(), '6013');
         if (scenario === 'adopted' || scenario === 'lost-acknowledgment') {
           await expect(resumed).resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
-        } else await expect(resumed).rejects.toMatchObject({ code: 'SEALED_REALMS_DISPATCH_LANE_FAILED' });
-        expect(runner).toHaveBeenCalledTimes(['no-lifecycle', 'pending-lifecycle', 'blocked-lifecycle',
-          'nonterminal-owner', 'partial-terminal'].includes(scenario) ? 1 : 2);
+        } else await expect(resumed).rejects.toMatchObject({
+          message: 'G001_LINUX_POLICY_NATIVE_FAILED',
+          diagnostic: expect.stringMatching(/^g001-(?:policy-state|receipt)$/u),
+        });
+        const oneReadOnlyInspection = ['no-lifecycle', 'pending-lifecycle', 'blocked-lifecycle',
+          'nonterminal-owner', 'partial-terminal', 'authority', 'producer-source', 'operation',
+          'cleanup-state', 'player-access', 'body', 'semantic', 'noncanonical', 'terminal-missing',
+          'terminal-run', 'terminal-source', 'terminal-command', 'terminal-arguments',
+          'terminal-extra', 'terminal-malformed', 'terminal-digest'].includes(scenario);
+        expect(runner).toHaveBeenCalledTimes(oneReadOnlyInspection ? 1 : 2);
         expect(runner.mock.calls[0]?.[0].args.at(-1)).toBe('launch-run-inspect');
         for (const [request] of runner.mock.calls) expect(request.args.at(-1) === 'launch-run-inspect'
           || (request.args.at(-2) === 'launch-run-inspect' && request.args.at(-1) === runId)).toBe(true);
@@ -2114,5 +2263,83 @@ describe.sequential('Linux policy dispatch with explicit native-result fixture',
       expect(envelope).not.toHaveBeenCalled();
       expect(nativePolicyFixture.execute).toHaveBeenCalledExactlyOnceWith(nativePolicyFixture.preparation, nativePolicyFixture.evidence);
     } finally { Object.defineProperty(process, 'platform', platform); local.cleanup(); }
+  });
+
+  it('archives a valid older-source fixed receipt before the Linux producer writes the current source', async () => {
+    const local = censusPrivateState();
+    const oldSource = '6'.repeat(40);
+    const oldRecordBytes = policyActivationRecord(oldSource,
+      linuxG001PolicyReceipt(policyObservationReceipt(oldSource)));
+    local.state.write({ root: 'runtime', relativePath: POLICY_RECORD_PATH, bytes: oldRecordBytes });
+    const native = linuxG001PolicyExecution(policyObservationReceipt());
+    const operatorBytes = Buffer.from('reviewed fixture operator');
+    native.operatorSha256 = createHash('sha256').update(operatorBytes).digest('hex');
+    nativePolicyFixture.execute.mockReset().mockResolvedValue(native);
+    const launchAuthority = g001LaunchAuthority({ privateState: local.state, readRawGit: args => {
+      if (args[0] === 'rev-parse') return `${native.sourceTree}\n`;
+      if (args[0] === 'ls-tree') return `100644 blob ${native.operatorBlob}\tscripts/genesis001-policy-observation-receipt.mjs\0`;
+      if (args[0] === 'cat-file') return operatorBytes;
+      throw Error('unexpected Git fixture request');
+    } });
+    const lane = g001PolicyLane({ launchAuthority, runEnvelopeChild: vi.fn(async () => {
+      throw Error('Linux must not invoke the bootstrap envelope');
+    }), linuxPolicyPreparation: nativePolicyFixture.preparation, linuxPolicyEvidence: nativePolicyFixture.evidence });
+    const dispatcher = await protectedG001Dispatcher(lane, 'g001-policy-observe', g001PolicyAuthority(), local.state, '6902');
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    try {
+      await expect(dispatcher.dispatch({ operation: 'g001-policy-observe', workflowInputSha: SOURCE }))
+        .resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
+      expect(nativePolicyFixture.execute).toHaveBeenCalledExactlyOnceWith(
+        nativePolicyFixture.preparation, nativePolicyFixture.evidence,
+      );
+      const historyPath = `activation-evidence/records-history/g001-policy-observation-bootstrap-receipt-${oldSource}.json`;
+      const archived = local.state.read({ root: 'runtime', relativePath: historyPath });
+      const current = local.state.read({ root: 'runtime', relativePath: POLICY_RECORD_PATH });
+      try {
+        expect(archived.equals(oldRecordBytes)).toBe(true);
+        expect(JSON.parse(current.toString('utf8')).sourceCommit).toBe(SOURCE);
+      } finally { archived.fill(0); current.fill(0); }
+    } finally {
+      Object.defineProperty(process, 'platform', platform);
+      oldRecordBytes.fill(0);
+      operatorBytes.fill(0);
+      local.cleanup();
+    }
+  });
+
+  it('adopts a verified current-source Linux receipt on retry without repeating observation', async () => {
+    const local = censusPrivateState();
+    const authority = g001PolicyAuthority();
+    const operatorBytes = Buffer.from('reviewed fixture operator');
+    const execution = linuxG001PolicyExecution(policyObservationReceipt());
+    execution.operatorSha256 = createHash('sha256').update(operatorBytes).digest('hex');
+    const receipt = createGenesis001LinuxPolicyReceipt(execution, SOURCE);
+    const currentRecord = policyActivationRecord(SOURCE,
+      receipt, authority.authorityDigest);
+    local.state.write({ root: 'runtime', relativePath: POLICY_RECORD_PATH, bytes: currentRecord });
+    nativePolicyFixture.execute.mockReset();
+    const launchAuthority = g001LaunchAuthority({ privateState: local.state, readRawGit: args => {
+      if (args[0] === 'rev-parse') return `${execution.sourceTree}\n`;
+      if (args[0] === 'ls-tree') return `100644 blob ${execution.operatorBlob}\tscripts/genesis001-policy-observation-receipt.mjs\0`;
+      if (args[0] === 'cat-file') return operatorBytes;
+      throw Error('unexpected Git fixture request');
+    } });
+    const lane = g001PolicyLane({ launchAuthority,
+      runEnvelopeChild: vi.fn(async () => { throw Error('Linux must not invoke the bootstrap envelope'); }),
+      linuxPolicyPreparation: nativePolicyFixture.preparation, linuxPolicyEvidence: nativePolicyFixture.evidence });
+    const dispatcher = await protectedG001Dispatcher(lane, 'g001-policy-observe', authority, local.state, '6903');
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    try {
+      await expect(dispatcher.dispatch({ operation: 'g001-policy-observe', workflowInputSha: SOURCE }))
+        .resolves.toEqual({ operation: 'g001-policy-observe', status: 'completed' });
+      expect(nativePolicyFixture.execute).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(process, 'platform', platform);
+      currentRecord.fill(0);
+      operatorBytes.fill(0);
+      local.cleanup();
+    }
   });
 });
