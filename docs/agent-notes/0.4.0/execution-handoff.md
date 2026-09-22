@@ -2,35 +2,50 @@
 
 ## Current checkpoint — 22 September 2026
 
-The latest protected operation source is M2
-`ea327f965fa015f4980d85801c0cf194129b4f93`. Source-only PR #330 merged as M1
-`3c3c9a8195dd4511c52274b0ac34fb6acdb19416`; generated-only PR #331 merged as
-M2 through the normal signed-commit and required-check protections. Exact-M2
-Verify `35701085839`, CodeQL `35701085915`, and protected preflight `35706139447`
-passed. Read-only policy observation `35706296044` also passed.
+Exact current main/source M3 is `8bfa7ebd4a951156aa73b28962405300f09201bc`; the
+maintained Windows checkout and `origin/main` were equal and clean before this
+repair branch was created. Main Verify `35734417515` and CodeQL `35734417288`
+passed on M3. Protected read-only preflight `35740875921` succeeded on that SHA.
+Policy observation `35741004205` failed at generic `g001-observation`. That
+child version suppressed typed operator errors, so the failure
+does not establish missing credentials, a policy mismatch or a transport cause.
+No census was dispatched for M3. The older incomplete private census attempt
+remains untouched and must not be reused.
 
-Read-only census `35706634110` failed at `g001-observation`. Inspection of the
-owner-only runner directory found one private applicant snapshot and its proof,
-but no complete first sample, second sample or completed census. The proof's
-schema and source binding validated locally without printing or copying player
-records. The run uploaded no artifact and submitted no provider mutation. Keep
-the retained private attempt intact; do not publish, delete or reuse its data.
+The protected Pages classifier run `35740829270` succeeded, but its build,
+deployment and live-verification jobs were skipped. This is not a deployment;
+0.4 remains unshipped. The exact M3 observation, unlike M2 run `35706296044`, is
+the current read-only result and must govern the next sequence.
 
-PR #332 (`codex/0.4-g001-census-diagnostics`) maps within-sample and
-between-sample caller-identity changes, plus invalid cross-domain sample
-reconciliation, to the existing privacy-safe diagnostics. It does not change
-gameplay or relax a census check.
-Resolve its latest checks and merge only through normal protections. Because the
-operator is a compiler input, then repeat the source M1 → native prepare/check →
-generated-only M2 sequence, wait for exact-M2 Verify, and run exact-source
-preflight, policy observation and a new census. Do not reuse `ea327f96` operation
-results as authority for the next source. Pages classified the M2 successfully
-but skipped build, deploy and live verification; 0.4 remains unshipped.
+Active source-only repair branch: `codex/0.4-safe-g001-policy-diagnostics`,
+based on exact M3. It maps only fixed typed failures to safe policy categories,
+preserves the generic fallback, and closes the child → native → public-preflight
+allowlist chain. Focused tests exposed and corrected a second propagation gap in
+the native stderr parser. A signed source checkpoint is committed locally; its
+exact outgoing scan against M3 found no leaks. On pinned Node `v22.22.3`, the three
+focused suites passed 128 tests with 44 platform skips, and `tsc -b` passed.
+Gitleaks 8.30.1's scanner regression passed 48 positive fixtures and 95 negative
+fixtures; local targets in all five updated Markdown files exist. The source-only
+repair is tracked by [PR #335](https://github.com/ael-dev3/Warpkeep/pull/335);
+resolve its latest required checks and merge only through the protected route. The
+candidate-bound `verify:sealed-launch` check returned
+`SEALED_LAUNCH_CHECKOUT_INVALID` from this source-only branch, which is not the
+bound prepared candidate; rerun it on the exact prepared M2 rather than treating
+this branch result as release verification.
 
-No additional recovery key is needed for these read-only steps. Keep scheduled
-sync automation paused, make no new Desktop files, and use this handoff plus the
-[release checklist](../../operations/0.4.0-release-checklist.md) as the current
-route. Resolve live `main` and the PR head before each operation.
+Once PR #335 has passed the current required checks and merged as source M1,
+prepare and independently check its exact merged native family and promote
+generated-only M2. On that exact M2, wait for push-to-main Verify and CodeQL, run preflight,
+then policy observation. Only if policy observation succeeds should a fresh
+census attempt be started with a new run identity. Never infer the category
+from M3's generic result or reuse `8bfa7ebd` operations as authority for a new
+source.
+
+PR #332 is already in the M3 source: it classifies census identity drift and
+sample reconciliation without exposing records. No additional recovery key is
+needed. Keep scheduled sync automation paused, make no new Desktop files, and
+use this handoff plus the [release checklist](../../operations/0.4.0-release-checklist.md)
+as the current route. Resolve live `main`, branch and PR heads before each step.
 
 ## Reliability follow-up — 21 September 2026 (historical)
 

@@ -22,19 +22,30 @@ const BOOTSTRAP = Object.freeze([MATERIALIZER, CHILD, 'scripts/genesis001-linux-
   'scripts/genesis001-linux-policy-boundary.mjs', 'scripts/local-binding-runtime-process.mjs',
   'scripts/local-binding-bounded-file.mjs', 'scripts/local-binding-runtime-core.mjs',
   'scripts/local-binding-native-ts-hooks.mjs']);
-const NATIVE_FAILURE_MARKER = /^G001_LINUX_POLICY_NATIVE_FAILED(?::(g001-admitted-(?:identity|aggregate|enumeration|status|reconciliation)))?$/u;
+const NATIVE_FAILURE_MARKER = /^G001_LINUX_POLICY_NATIVE_FAILED(?::(g001-(?:admitted-(?:identity|aggregate|enumeration|status|reconciliation)|observation|receipt|policy-(?:state|procedure|transport|credential|authority))))?$/u;
 const ADMITTED_DIAGNOSTICS = new Set([
   'g001-admitted-identity', 'g001-admitted-aggregate', 'g001-admitted-enumeration',
   'g001-admitted-status', 'g001-admitted-reconciliation',
+  'g001-observation', 'g001-receipt',
+  'g001-policy-state', 'g001-policy-procedure', 'g001-policy-transport',
+  'g001-policy-credential', 'g001-policy-authority',
 ]);
 
 // Runtime warnings may reach stderr beside the child marker. Extract only the
 // allowlisted marker and never propagate surrounding stderr into evidence.
 function nativeFailureDiagnostic(stderr) {
-  const matches = [...stderr.matchAll(/(?:^|\r?\n)(G001_LINUX_POLICY_NATIVE_FAILED(?::g001-admitted-(?:identity|aggregate|enumeration|status|reconciliation))?)(?=\r?\n|$)/gu)];
+  const matches = [...stderr.matchAll(/(?:^|\r?\n)(G001_LINUX_POLICY_NATIVE_FAILED(?::g001-(?:admitted-(?:identity|aggregate|enumeration|status|reconciliation)|observation|receipt|policy-(?:state|procedure|transport|credential|authority)))?)(?=\r?\n|$)/gu)];
   if (matches.length !== 1) return undefined;
   const parsed = NATIVE_FAILURE_MARKER.exec(matches[0][1]);
   return parsed === null ? undefined : parsed[1] ?? 'g001-observation';
+}
+function nativeErrorDiagnostic(error) {
+  if (error === null || typeof error !== 'object' || types.isProxy(error)) return undefined;
+  try {
+    const field = Object.getOwnPropertyDescriptor(error, 'diagnostic');
+    return field !== undefined && 'value' in field && typeof field.value === 'string'
+      ? field.value : undefined;
+  } catch { return undefined; }
 }
 let active = false;
 let pending;
@@ -321,8 +332,7 @@ async function execute(handle, evidence, kind) {
     closeSync(secretFd); secretFd = undefined;
     if (observed.stderr !== '') {
       const childDiagnostic = nativeFailureDiagnostic(observed.stderr);
-      if (childDiagnostic !== undefined) policyFail(childDiagnostic);
-      policyFail();
+      policyFail(childDiagnostic ?? 'g001-observation');
     }
     const receipt = canonicalResult(observed.stdout, kind === 'census' ? 4 * 1024 * 1024 : 32768);
     sameOperation(state);
@@ -353,7 +363,7 @@ async function execute(handle, evidence, kind) {
       attemptId: runId, githubRunId, githubRunAttempt, receiptDigest: complete.receiptDigest,
       completedAt: complete.completedAt, mutationSubmitted: false });
   } catch (error) {
-    const childDiagnostic = error && typeof error === 'object' ? error.diagnostic : undefined;
+    const childDiagnostic = nativeErrorDiagnostic(error);
     policyFail(typeof childDiagnostic === 'string' && ADMITTED_DIAGNOSTICS.has(childDiagnostic)
       ? childDiagnostic : diagnostic);
   }
