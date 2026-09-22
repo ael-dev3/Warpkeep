@@ -3,12 +3,14 @@
 ## Current checkpoint supersession — 22 September 2026
 
 The active protected runtime source family is generated-only M2 at
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. PR Verify `35760703184` and CodeQL
-`35760703269` passed; push-to-main Verify `35766416370` is the authoritative
-main gate. Preflight dispatch `35766896480` failed closed at the workflow gate
-because that push Verify was still running, before any provider or realm
-mutation. Rerun preflight only after the push Verify reaches terminal success.
-Native preparation/check and export evidence remain source-bound with
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. PR Verify `35760703184`, CodeQL
+`35760703269`, push-to-main Verify `35766416370`, and read-only preflight
+`35772760378` passed. The subsequent authenticated read-only G001 policy
+observation `35772933637` failed closed because an older-source receipt occupied
+the fixed no-clobber slot. It submitted no mutation and read no player/census
+data. PR #337 contains the source-only recovery; after required checks and
+merge, prepare/check the exact protected M1 and promote the generated-only M2
+before retrying. Retained native evidence is source-bound and
 `finalReleasePrepared:false`; no live deployment or recovery is established.
 
 Earlier operation failures below remain historical and must not be reused as

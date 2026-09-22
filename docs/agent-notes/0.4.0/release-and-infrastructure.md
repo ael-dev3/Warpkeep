@@ -8,37 +8,38 @@ owns the acceptance gates. Resolve both against GitHub before acting; dated
 evidence below is scoped to its recorded source and must not be reused as current
 authority.
 
-At this checkpoint, protected `main` is the signed generated-only M2 merge
+At this checkpoint, protected `main` is signed generated-only M2
 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a` (tree
 `ba968e91bed6890a9742a4e52466c65b4cbc3b81`) with source M1
 `0afb5099890428b95fd493f8c25b844364a7a4db` as its sole parent. PR #336,
-Verify `35760703184` and CodeQL `35760703269` are complete and green. Exact-main
-Verify `35766416370` is still running its Linux and SpacetimeDB integration
-jobs. The first read-only preflight `35766896480` failed closed at the workflow
-gate because Verify had not passed; no provider operation started. After Verify
-succeeds, rerun the exact-M2 preflight before any later operation. The M1 native
-preparation/check and M2 generated export are source-bound and retained
-privately, with `finalReleasePrepared:false`.
+exact-main Verify `35766416370` and CodeQL `35760703269` passed. Read-only
+preflight `35772760378` passed on M2. The subsequent read-only policy
+observation `35772933637` failed closed during authenticated operation because
+an older-source receipt occupied the fixed active slot; no census or deployment
+followed.
 
-The M2 generated family changed 11 tracked output paths after re-reading 102
-candidate outputs. Its family, closure, scanner and patch digests are recorded
-in the execution handoff and release checklist. The Windows checkout is on the
-documentation PR #337 branch based on M2; native WSL remains clean at exact M2
-as the source-pinned operation input. Those checkouts intentionally differ.
-Auto-merge is disabled on PR #337 until the exact-M2 protected operation
-sequence finishes, because moving `main` first would invalidate its source pin.
-Scheduled automation remains paused; no Desktop output was created. No
-additional recovery key is required for the supported read-only path.
+Source-only PR #337 implements retry adoption and byte-preserving stale-receipt
+archival. Its focused Linux, Windows and type checks passed; its current hosted
+required-check state must be resolved from GitHub before merge. The prepared
+Auth Bridge closure is unchanged and verified at 1,258 members. The earlier M1
+native preparation/check and M2 export remain bound to their original source,
+with `finalReleasePrepared:false`; they cannot certify this repair. Treat local
+full-suite results and any earlier PR status as historical until matched to the
+exact live PR head.
 
 ### Remaining delivery work, in dependency order
 
-Wait for exact-main Verify. If it succeeds, rerun the exact-M2 read-only
-preflight. If that succeeds, run a fresh exact-M2 `g001-policy-observe`; only
-after that succeeds may a new census attempt start.
-Then continue with prepared bridge/signer observation, G001 preservation and
-sealed-realm readback, deployment/recovery, owner-only PTR play, device and
-performance acceptance, and the final release freeze. A green source CI run,
-preflight or Pages classifier alone does not establish a live release.
+Merge source-only M1 through normal protections after every required check passes.
+Verify the signed merge, synchronize the idle native checkout to that exact main,
+then perform the complete native prepare and independent check. Promote only that
+authenticated generated family as generated-only M2. Wait for its exact
+push-to-main Verify and recheck the source before preflight and a new read-only
+policy observation. Census can start only after that observation completes with
+its source-bound receipt. Then continue with prepared bridge/signer observation,
+G001 preservation and sealed-realm readback, deployment/recovery, owner-only PTR
+play, device and performance acceptance, and final release freeze. A green
+source CI run, preflight or Pages classifier alone does not establish a live
+release.
 
 ## Historical source checkpoint — 2026-09-12
 

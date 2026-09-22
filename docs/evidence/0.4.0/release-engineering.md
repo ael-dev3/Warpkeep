@@ -14,13 +14,15 @@ below retains its original source and scope; green protected CI does not certify
 production.
 
 The current protected source is generated-only M2
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; PR Verify `35760703184` and CodeQL
-`35760703269` passed for its generated promotion. The exact push-to-main Verify
-run `35766416370` is the authoritative main gate; read its terminal result
-before any protected operation. An early preflight dispatch `35766896480`
-failed closed at the workflow gate because that push Verify was still running;
-it did not enter a provider operation. Older M1/M2 generated-family and operator
-records below remain historical evidence, not current release authority.
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; PR Verify `35760703184`, CodeQL
+`35760703269`, push-to-main Verify `35766416370`, and read-only preflight
+`35772760378` passed. Authenticated read-only G001 policy observation
+`35772933637` failed closed on a valid older-source receipt in the fixed
+no-clobber slot (`mutationSubmitted:false`; no player/census data read). PR #337
+contains the source-only recovery and must pass required checks before merge;
+then prepare/check the exact protected M1 and promote its generated-only M2
+before retrying. Older generated-family and operator records below remain
+historical evidence, not current release authority.
 
 ## Historical generated-family and preflight evidence — 2026-09-20
 

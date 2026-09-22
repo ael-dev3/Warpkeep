@@ -1,21 +1,22 @@
 # 0.4.0 integration evidence
 
-The current protected integration is generated-only M2
+The current protected integration remains generated-only M2
 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`, merged by PR #336 from signed
-source M1 `0afb5099890428b95fd493f8c25b844364a7a4db`. PR Verify `35760703184`
-and CodeQL `35760703269` passed. Push-to-main Verify `35766416370` is the
-authoritative main gate; the first preflight dispatch `35766896480` failed
-closed at the workflow gate because that run was still in progress, without
-entering a provider operation.
+source M1 `0afb5099890428b95fd493f8c25b844364a7a4db`. PR Verify `35760703184`,
+CodeQL `35760703269`, push-to-main Verify `35766416370`, and read-only preflight
+`35772760378` passed. The later authenticated read-only G001 policy observation
+`35772933637` failed closed because a valid older-source receipt occupied the
+fixed no-clobber slot. `mutationSubmitted:false`; no player/census data was
+read and no deployment or realm mutation occurred.
 
-Native M1 preparation/check and generated-only M2 export converged on the
-source-bound family recorded in the current handoff. The Windows review checkout
-is on the documentation-refresh PR #337 branch based on M2; native WSL remains
-clean at exact M2 as the source-pinned operation input. They are intentionally
-not at the same commit. PR #337 auto-merge remains disabled until the exact-M2
-protected operation sequence finishes. No provider deployment, recovery
-activation, live realm mutation, owner play or physical-device acceptance is
-inferred from source CI, generated integration or an early preflight attempt.
+PR #337 (`codex/docs-m2-quality-refresh`) carries the source-only M1 repair: it
+adopts an exact current-source receipt on retry and preserves an older valid
+receipt before reusing the slot. The branch is based on M2 and is not release
+source yet. Merge only after all required checks pass; then prepare and
+independently check that exact protected M1 and promote its generated-only M2
+before retrying the authenticated observation. Native preparation, provider
+deployment, recovery activation, live realm mutation, owner play and
+physical-device acceptance remain unproven.
 
 ## Placement and workflow review — 2026-09-12
 

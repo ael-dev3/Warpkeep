@@ -226,6 +226,19 @@ types and build scripts separately. Auth bridge and recovery services likewise
 own separate scripts/lockfiles. Inspect each package's actual commands before
 running; do not assume root checks transitively verify every package or `.mjs` file.
 
+For a CI-equivalent Linux root run, reproduce the setup in
+[`verify.yml`](../../.github/workflows/verify.yml) before interpreting failures:
+use the pinned root npm install and frozen SpacetimeDB workspace install, expose
+the hash-pinned SpacetimeDB 2.6.1 CLI as `SPACETIME_BIN`, and stage the exact
+112,086-byte `yaml@2.9.0` archive at `.git/yaml-2.9.0.tgz` with the SHA-256
+recorded in that workflow. The archive is a disposable local test input; verify
+its hash before use and remove that exact file after testing. Without these
+inputs, the PTR compiler tests fail on missing commands or dependency paths, the
+toolchain test reports package tampering, and the YAML tests fail with `ENOENT`.
+Mirror the workflow's two bounded Vitest phases for the full suite. After any
+setup failure, rerun the affected tests with these inputs before deciding that
+source code is defective.
+
 Run service checks from the service directory using its own installed test runner.
 Invoking root Vitest against a service with a separate dependency tree can load
 two Vitest instances and fail before test discovery. Keep cross-service tests in

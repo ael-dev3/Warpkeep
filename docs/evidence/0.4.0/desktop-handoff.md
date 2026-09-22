@@ -1,15 +1,18 @@
 # Warpkeep 0.4 credential-free workspace handoff
 
 Status: **interim development handoff**. Protected main is generated-only M2
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; PR Verify `35760703184` and
-CodeQL `35760703269` passed. Push-to-main Verify `35766416370` is the
-authoritative main gate and an early preflight `35766896480` failed closed
-while that run was still in progress. This document makes the current
-source, setup and evidence routes reproducible without distributing credentials
-or private player data. It is not a deployment attestation or a final release
-package. The existing Desktop `Warpkeep - Full Project Handoff.md` remains a
-reference; this tracked file is the compact delivery index. Its historical
-filename is retained for link compatibility, not as a Desktop output instruction.
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; push Verify `35766416370` and
+read-only preflight `35772760378` passed. The exact-M2 read-only G001 policy
+observation `35772933637` failed at the authenticated operation step because an
+older-source receipt occupied the active slot. Source-only PR #337 carries the
+recovery fix; read its current checks in GitHub before merging. After merge,
+prepare/check that exact M1 and promote its generated-only M2 before retrying
+the policy operation. This document makes source, setup and evidence routes
+reproducible without distributing credentials or private player data. It is not
+a deployment attestation or final release package. The existing Desktop
+`Warpkeep - Full Project Handoff.md` remains a reference; this tracked file is
+the compact delivery index. Its historical filename is retained for link
+compatibility, not as a Desktop output instruction.
 
 The owner's September 11 direction supersedes the former Desktop delivery
 requirement. Keep routine notes in the repository and create the final package

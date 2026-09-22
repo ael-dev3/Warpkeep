@@ -40,22 +40,21 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The 0.4 source and generated foundation are integrated; 0.4 has not shipped.**
-Protected `main` is the signed generated-only M2 merge
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its Verify run
-[35760703184](https://github.com/ael-dev3/Warpkeep/actions/runs/35760703184) and
-CodeQL run [35760703269](https://github.com/ael-dev3/Warpkeep/actions/runs/35760703269)
-passed. The exact-main Verify run
+**The gameplay foundation and previous generated M2 are integrated; 0.4 has not shipped.**
+Protected `main` is signed M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its exact push Verify
 [35766416370](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
-is still running its Linux and SpacetimeDB integration jobs. The initial
-read-only preflight
-[35766896480](https://github.com/ael-dev3/Warpkeep/actions/runs/35766896480)
-failed closed at the workflow gate because that Verify run had not yet passed;
-no provider operation started. After Verify succeeds, rerun the preflight for
-this exact source before any later operation. No provider-backed 0.4 deployment
-is established yet. Connected owner play, provider deployment and recovery,
-G001 preservation, physical-device acceptance, measured performance and the
-final release freeze still need current evidence.
+and read-only preflight [35772760378](https://github.com/ael-dev3/Warpkeep/actions/runs/35772760378)
+passed. The following read-only G001 policy observation
+[35772933637](https://github.com/ael-dev3/Warpkeep/actions/runs/35772933637)
+failed at the authenticated operation step because a valid older-source receipt
+occupied the fixed active slot. It did not continue to census or deployment.
+Source-only recovery PR [#337](https://github.com/ael-dev3/Warpkeep/pull/337)
+adds safe retry adoption and preserves older receipts before reusing that slot.
+After the fix merges as M1, the exact protected source needs a fresh native
+prepare/check and generated-only M2 before another protected operation. Live
+provider deployment, preservation/readback, owner play, device acceptance,
+measured performance and final release freeze still need evidence.
 The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) and
 [release checklist](docs/operations/0.4.0-release-checklist.md) bind each result
 to its source and record the next verified action. The gameplay core, keep
@@ -64,9 +63,10 @@ Connected owner play, provider-backed deployment, visual/device acceptance and
 the complete operating path still need current evidence before the live site can
 move beyond Genesis.
 
-The documentation refresh is under review in PR #337. Auto-merge is disabled
-until the exact-M2 protected operation sequence finishes: merging any commit to
-`main` first would change the source identity required by those operations.
+PR #337 is the source-only M1 recovery step. Its current checks and merge state
+are tracked on GitHub; after merge, regenerate and independently check the
+operation family from that exact M1, promote its generated-only M2 through normal
+protections, and only then resume protected operations.
 
 | Realm | Purpose |
 | --- | --- |
