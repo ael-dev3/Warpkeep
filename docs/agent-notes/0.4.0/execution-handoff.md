@@ -2616,3 +2616,76 @@ operation is claimed. B0 and the legacy
 prepared caller still require their separate Darwin-to-Linux migration, and the
 owner PTR journey, physical-device checks, protected deployment and signed-history
 merge remain open.
+
+## 22 September 2026 — policy observation secret wiring
+
+Protected main was `e309d897299d1b3f3984ab62ebf00950b0de93b4` at the latest
+read-only policy dispatch. [Run `35680568053` (#69)](https://github.com/ael-dev3/Warpkeep/actions/runs/35680568053), job `106596442275`, reached
+the fixed G001 operation and failed at `g001-credential-descriptor`, before the
+native observation. The workflow expression supplied
+`WARPKEEP_PRODUCTION_ADMIN_TOKEN` to census and activation steps, but omitted
+`g001-policy-observe`. The old policy reader also expected a runner-persistent
+`admin-token` file, while census already used the protected secret through a
+short-lived descriptor. No new App key or persistent runner file is needed.
+
+The repair aligns both read-only G001 operations: the fixed workflow passes the
+existing secret only to the native execution step; ingress scrubs its environment
+entry; the native reader validates it, waits for refreshed authority, creates
+the descriptor-backed file inside the operation's private root, and cleans that
+root. The infrastructure and Linux runbooks give the exact recovery route for
+this diagnostic. It is published as source-only [PR #330](https://github.com/ael-dev3/Warpkeep/pull/330).
+
+At PR head `bd8e54853aa4d286892c6367e79cb79f81685a9d`, pinned Linux Node 22.22.3
+passed the prepared-policy closure and checked-in sealed-launch verifiers. The
+focused Linux workflow/native suites passed 112/112, the ingress evidence suite
+passed 5/5, the compiled native credential-boundary regression passed 1/1, and
+the Windows TypeScript build passed. Windows Vitest's compiled-boundary worker
+exceeded its heap limit; the same test passed on the pinned Linux path. These
+results validate the repair, but do not replace hosted checks on the final PR
+head or the exact-main native M1 prepare/check. Continue through normal protected
+M1 integration, native preparation and independent check, generated-only M2,
+main Verify and preflight, then rerun the read-only policy observation/census.
+An absent recovery signer does not block these G001 read-only observations and
+is not a reason to request or generate another key. Signer and gateway work is
+separate and uses the existing retained signing material for operations that
+actually require it. 0.4 is not shipped; provider deployment, retained-state
+readback and live acceptance gates remain open.
+
+## 22 September 2026 — protected commit signing recovery
+
+PR #330 (`codex/g001-policy-observe-secret-wiring`) was blocked by GitHub with
+the explicit message “Commits must have verified signatures,” despite all
+required checks passing on its earlier head. Protected `main` requires signed
+commits, linear history and strict status checks, with squash as the only merge
+method. The previously documented uncertainty about signatures was resolved by
+this direct rejection; see the [infrastructure access guide](../../operations/0.4.0-infra-access.md#protected-commit-signing).
+
+The repair used the already registered GitHub SSH signing key, whose public
+fingerprint is `SHA256:H0mdBKhWdc4xPiVS6gGE49lZUOTEhXMqB0q1SK1Ofec`. The matching
+private key was already available on the maintained Windows host at
+`C:\Users\heyas\.ssh\warpkeep_signing`; no recovery GitHub App key or new SSH
+key was created. Never copy key material into the repository, notes, terminal
+logs or chat. If the existing signer is not available, stop and ask the owner
+to restore access to that same signer; do not weaken branch rules or use an
+administrative merge bypass.
+
+For a future protected PR with unsigned commits, first confirm the live `main`
+protection, PR head and exact blocking message with `gh`. Verify that the
+existing private key is available and its `.pub` fingerprint matches the
+account's registered **signing** key. Re-sign only the PR branch, based on the
+current `origin/main`, with SSH commit signing enabled; do not rewrite `main` or
+unrelated history. Record the old tip and tree before rewriting, then confirm the
+new tip has the same tree, the patch series is preserved, and GitHub reports
+every rewritten commit as verified. Push the rewritten PR branch with an
+explicit `--force-with-lease` against the old remote tip. Run the repository's
+pinned secret scan over the outgoing history, then wait for all required checks
+on the exact new head. When eligible, use the existing normal squash
+auto-merge. Do not infer that green checks override signature requirements.
+
+For PR #330, the four replacement commits were all verified by GitHub; old and
+new PR-tip trees both equal `a81c1658e60094db426420b95e3f554e7399f967`. The
+pinned Gitleaks scan of the four-commit outgoing history was clean. Auto-merge
+was enabled using squash, and GitHub restarted required checks for signed head
+`060a3c7c5f190fbee029ea09df2d0cce0a7c3ce1`. The final workflow runs and merge
+state must be rechecked before proceeding to M1 preparation; these notes do not
+claim that PR #330 has merged or that 0.4 has shipped.

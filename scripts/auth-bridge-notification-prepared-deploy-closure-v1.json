@@ -605,12 +605,12 @@
     {
       "path": "scripts/genesis001-linux-policy-native.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b973dd7d30f122f39576390c695f269e1b7638eb7ce043bd921b4c2fde005bb3"
+      "sha256": "edde2a2a89de8d740ef631e67080e8de2b1b68c4c83e786204b699712a62fd45"
     },
     {
       "path": "scripts/genesis001-linux-policy-native.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7f67736eec89df41187856fe70958f41cca14f6b04e2e654ab23106e6d612dd2"
+      "sha256": "777a892de5bde72cf6721200c869d4fbcc1586115c06fee381be0f26b6b3d274"
     },
     {
       "path": "scripts/genesis001-linux-policy-receipt.d.mts",

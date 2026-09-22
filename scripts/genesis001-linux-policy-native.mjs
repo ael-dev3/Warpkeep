@@ -141,15 +141,21 @@ export function disposeFixedLinuxG001PolicyObservation(handle) {
   if (pending === handle) pending = undefined;
 }
 
-/** Builds and attests without opening a credential. Workflow refresh must follow this boundary. */
-export async function prepareFixedLinuxG001PolicyObservation() {
-  if (arguments.length !== 0) policyFail();
-  return prepare('policy');
-}
-export async function prepareFixedLinuxG001CensusObservation(adminSecret) {
+function validateAdminSecret(adminSecret) {
   if (arguments.length !== 1 || typeof adminSecret !== 'string'
     || Buffer.byteLength(adminSecret, 'utf8') < 32 || Buffer.byteLength(adminSecret, 'utf8') > 512
     || /[\u0000-\u0020\u007f]/u.test(adminSecret)) policyFail('g001-credential');
+  return adminSecret;
+}
+/** Builds and attests before placing the protected workflow credential in the
+ * operation's private root. Workflow refresh must follow this boundary. */
+export async function prepareFixedLinuxG001PolicyObservation(adminSecret) {
+  if (arguments.length !== 1) policyFail();
+  return prepare('policy', validateAdminSecret(adminSecret));
+}
+export async function prepareFixedLinuxG001CensusObservation(adminSecret) {
+  if (arguments.length !== 1) policyFail();
+  validateAdminSecret(adminSecret);
   return prepare('census', adminSecret);
 }
 async function prepare(kind, adminSecret) {
@@ -277,24 +283,23 @@ async function execute(handle, evidence, kind) {
       policyPrivateAncestors(attempts);
       mkdirSync(attemptRoot, { mode: 0o700 }); policyPrivateAncestors(attemptRoot);
     }
-    const secretRoot = kind === 'census' ? operationRoot : G001_POLICY_ROOT;
+    const secretRoot = operationRoot;
     const parents = capturePrivateParents(secretRoot);
     const secretPath = join(secretRoot, 'admin-token');
     diagnostic = 'g001-authority';
     verifySealedRealmsProductionWorkflowEvidence(evidence, source.sourceCommit);
     diagnostic = 'g001-credential-descriptor';
-    if (kind === 'census') {
-      // The ingress copied and scrubbed the existing protected workflow secret.
-      // Only the credential-free build has run so far. This one owned file is
-      // created after refreshed authority, never retained with census evidence.
-      const secret = Buffer.from(state.adminSecret, 'utf8');
-      state.adminSecret = undefined;
-      let writable;
-      try {
-        writable = openSync(secretPath, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0), 0o600);
-        writeFileSync(writable, secret); fsyncSync(writable);
-      } finally { secret.fill(0); if (writable !== undefined) closeSync(writable); }
-    }
+    // Both read-only observations use the existing protected workflow secret.
+    // Only the credential-free build has run so far. Create one owned file
+    // after refreshed authority, then remove the entire operation root during
+    // cleanup; never depend on or leave a persistent runner token file.
+    const secret = Buffer.from(state.adminSecret, 'utf8');
+    state.adminSecret = undefined;
+    let writable;
+    try {
+      writable = openSync(secretPath, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0), 0o600);
+      writeFileSync(writable, secret); fsyncSync(writable);
+    } finally { secret.fill(0); if (writable !== undefined) closeSync(writable); }
     const before = secretStatus(secretPath);
     secretFd = openSync(secretPath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
     if (JSON.stringify(secretStatus(secretPath, secretFd)) !== JSON.stringify(before)

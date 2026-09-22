@@ -649,8 +649,10 @@ describe.sequential('actual workflow composition with fixed Verify transport', (
 });
 
 describe.sequential('Linux materialization before fresh workflow authority', () => {
+  const adminSecret = 'synthetic-workflow-admin-credential-000000';
   it.each(['fresh', 'revoked-verify', 'source-change', 'constructor-failure', 'run-refresh-failure'])('disposes opaque preparation after %s', async scenario => {
     const f = fixture(false, true); vi.stubEnv('WARPKEEP_OPERATION', 'g001-policy-observe');
+    vi.stubEnv('WARPKEEP_PRODUCTION_ADMIN_TOKEN', adminSecret);
     const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
     Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
     let clock = 1000;
@@ -658,7 +660,8 @@ describe.sequential('Linux materialization before fresh workflow authority', () 
     const handle = Object.freeze({}); policyNativeFixture.handles.add(handle);
     policyNativeFixture.execute.mockReset().mockRejectedValue(Error('native fixture session refused'));
     policyNativeFixture.dispose.mockReset().mockResolvedValue(undefined);
-    policyNativeFixture.prepare.mockReset().mockImplementation(async () => {
+    policyNativeFixture.prepare.mockReset().mockImplementation(async (secret: string) => {
+      expect(secret).toBe(adminSecret); expect(process.env.WARPKEEP_PRODUCTION_ADMIN_TOKEN).toBeUndefined();
       clock += 120000;
       if (scenario === 'revoked-verify') f.runs.get(f.commit)![0].conclusion = 'failure';
       if (scenario === 'source-change') git(f.root, ['commit', '--quiet', '--allow-empty', '-m', 'source changed during preparation']);
@@ -682,7 +685,7 @@ describe.sequential('Linux materialization before fresh workflow authority', () 
         if (scenario === 'run-refresh-failure') f.runs.get(f.commit)![0].conclusion = 'failure';
         await expect(module.runSealedRealmsProductionG001Operation({ runtime: value, operation: 'g001-policy-observe', workflowInputSha: f.commit })).rejects.toThrow();
       }
-      expect(policyNativeFixture.prepare).toHaveBeenCalledTimes(1);
+      expect(policyNativeFixture.prepare).toHaveBeenCalledExactlyOnceWith(adminSecret);
       expect(policyNativeFixture.dispose).toHaveBeenCalledExactlyOnceWith(handle);
       // Fresh construction passes the actual opaque evidence scope to the fixed
       // native boundary; all stale/failed paths stop before that boundary.
@@ -693,16 +696,22 @@ describe.sequential('Linux materialization before fresh workflow authority', () 
 
 it('shares the genuine evidence WeakMap with the compiled native credential boundary', async () => {
   const f = fixture(); vi.stubEnv('WARPKEEP_OPERATION', 'g001-policy-observe');
+  const adminSecret = 'synthetic-workflow-admin-credential-000000';
   const source = { sourceCommit: f.commit, sourceTree: 'b'.repeat(40), operatorBlob: 'c'.repeat(40), operatorSha256: 'd'.repeat(64) };
   const built = { bundleSha256: 'e'.repeat(64), bundleBytes: 1, sourceClosureSha256: 'f'.repeat(64), dependencyClosureSha256: '1'.repeat(64) };
   let opened = 0, sessions = 0, clock = 1000, expireAtAttestation = false;
+  let operationRoot: string | undefined, materializedSecret: string | undefined;
+  const openedPaths: string[] = [];
   const now = vi.spyOn(performance, 'now').mockImplementation(() => clock);
   const nativeFixtures = {
     attest: () => source,
     closure: () => { if (expireAtAttestation) clock += 120000; },
     cleanup: (_root: string, runId: string) => ({ outcome: 'cleaned', runId, namespaceInventorySha256: '2'.repeat(64) }),
-    run: async (_node: string, args: string[]) => {
-      if (args.some(arg => arg.endsWith('materializer.mjs'))) return { stdout: JSON.stringify(built) + '\n', stderr: '' };
+    run: async (_node: string, args: string[], options: any) => {
+      if (args.some(arg => arg.endsWith('materializer.mjs'))) {
+        operationRoot = JSON.parse(options.fd3).operationRoot;
+        return { stdout: JSON.stringify(built) + '\n', stderr: '' };
+      }
       sessions += 1; return { stdout: JSON.stringify({ sourceCommit: f.commit, mutationSubmitted: false }) + '\n', stderr: '' };
     },
   };
@@ -734,20 +743,26 @@ it('shares the genuine evidence WeakMap with the compiled native credential boun
     const exports: any = {}, module = { exports };
     const require = (name: string) => name === 'node:warpkeep-identity-fixture' ? nativeFixtures
       : name === 'node:child_process' ? { ...actualRequire(name), execFileSync }
-      : name === 'node:fs' ? { ...actualRequire(name), existsSync: () => true, mkdirSync: () => {}, lstatSync: () => status, fstatSync: () => status, realpathSync: (path: string) => path, openSync: () => { opened += 1; return 88; }, closeSync: () => {} }
+      : name === 'node:fs' ? { ...actualRequire(name), existsSync: () => true, mkdirSync: () => {}, lstatSync: () => status, fstatSync: () => status, realpathSync: (path: string) => path,
+        openSync: (path: string) => { opened += 1; openedPaths.push(path); return 88; },
+        writeFileSync: (_fd: number, bytes: Uint8Array) => { materializedSecret = Buffer.from(bytes).toString('utf8'); },
+        fsyncSync: () => {}, closeSync: () => {} }
       : actualRequire(name);
     new Function('require', 'module', 'exports', result.outputFiles[0].text)(require, module, exports);
     const compiled = module.exports;
     const evidence = await compiled.createScope({ workflowInputSha: f.commit });
-    const handle = await compiled.prepare();
+    const handle = await compiled.prepare(adminSecret);
     await expect(compiled.execute(handle, evidence)).resolves.toMatchObject({ profile: 'warpkeep-g001-linux-policy-execution-v1' });
-    expect(opened).toBe(1); expect(sessions).toBe(1);
-    const expired = await compiled.prepare(); expireAtAttestation = true;
+    expect(opened).toBe(2); expect(sessions).toBe(1);
+    expect(operationRoot).toBeDefined();
+    expect(openedPaths).toEqual([join(operationRoot!, 'admin-token'), join(operationRoot!, 'admin-token')]);
+    expect(materializedSecret).toBe(adminSecret);
+    const expired = await compiled.prepare(adminSecret); expireAtAttestation = true;
     await expect(compiled.execute(expired, evidence)).rejects.toThrow('G001_LINUX_POLICY_NATIVE_FAILED');
-    expect(opened).toBe(1); expect(sessions).toBe(1);
+    expect(opened).toBe(2); expect(sessions).toBe(1);
     expireAtAttestation = false;
-    const forged = await compiled.prepare();
+    const forged = await compiled.prepare(adminSecret);
     await expect(compiled.execute(forged, Object.freeze({}))).rejects.toThrow('G001_LINUX_POLICY_NATIVE_FAILED');
-    expect(opened).toBe(1); expect(sessions).toBe(1);
+    expect(opened).toBe(2); expect(sessions).toBe(1);
   } finally { now.mockRestore(); }
 }, 60000);

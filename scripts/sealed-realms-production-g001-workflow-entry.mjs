@@ -257,13 +257,14 @@ export async function createSealedRealmsProductionG001WorkflowRuntime(input) {
       runtimes.set(runtime, Object.freeze({ operation, workflowInputSha, evidence, linuxPolicyPreparation }));
       return runtime;
     }
-    adminSecret = undefined;
     if (operation === 'g001-policy-observe' && process.platform === 'linux') {
-      linuxPolicyPreparation = await prepareFixedLinuxG001PolicyObservation();
+      linuxPolicyPreparation = await prepareFixedLinuxG001PolicyObservation(adminSecret);
+      adminSecret = undefined;
       // Materialization can outlive the evidence TTL. Refresh actual Verify and
       // current source before issuing a permit or touching the secret descriptor.
       await refreshSealedRealmsProductionWorkflowEvidence(evidence);
     }
+    adminSecret = undefined;
     runtimes.set(runtime, Object.freeze({
       operation,
       workflowInputSha,

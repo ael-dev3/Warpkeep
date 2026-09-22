@@ -157,10 +157,14 @@ re-establish genuine publisher access without recreating the existing PTR.
 Protected main requires signatures, linear history and strict required checks;
 only squash merges are enabled. PR #228 was `MERGEABLE` but `BLOCKED` with Linux
 and SpacetimeDB checks running, and was zero commits behind main. Main itself is
-a verified GitHub-authored single-parent squash. These observations do not prove
-that a missing local signing key independently prevents normal protected squash.
-Recheck terminal CI and actual merge eligibility; do not change protections or
-rewrite development history based only on that earlier assumption.
+a verified GitHub-authored single-parent squash. At that checkpoint, no direct
+signature rejection had been observed. This conclusion was superseded on
+2026-09-22 when PR #330 was explicitly blocked by GitHub with “Commits must have
+verified signatures.” Follow the signed-commit recovery procedure in the
+[execution handoff](execution-handoff.md#22-september-2026--protected-commit-signing-recovery)
+and [infrastructure access guide](../../operations/0.4.0-infra-access.md#protected-commit-signing).
+Keep branch protections intact; wait for terminal checks on the exact signed PR
+head and let the configured squash auto-merge proceed.
 
 The next operating evidence is a protected Linux `preflight` after reviewed
 source promotion, successful main CI and generated-family installation. The
