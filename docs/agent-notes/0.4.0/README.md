@@ -8,15 +8,16 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 ## Current working state
 
 The [execution handoff](execution-handoff.md) is the single dated record of
-protected main, active source, CI receipts and operation results. Exact protected
-main is generated-only M2 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; its push
-Verify `35766416370` and read-only preflight `35772760378` passed. The following
-read-only G001 policy observation `35772933637` failed because a valid
-older-source receipt occupied the active slot. Source-only PR #337 carries the
-retry-safe recovery. Read its live checks before merging; then prepare/check the
-exact M1, promote its generated-only M2, and repeat preflight and policy
-observation on that source. Source CI and Pages classification do not establish
-provider deployment, owner play or device acceptance.
+protected main, active source, CI receipts and operation results. The exact-M2
+push Verify `35766416370` and read-only preflight `35772760378` passed. The
+following read-only G001 policy observation `35772933637` failed because a valid
+older-source receipt occupied the active slot. Source-only recovery PR #337 is
+now merged through protection; all required PR checks passed. Resolve the exact
+current protected `main` SHA and its push Verify before release work. Run a
+fresh native prepare/check for that source, promote its generated-only M2, then
+repeat preflight and policy observation only on the verified M2. Source CI and
+Pages classification do not establish provider deployment, owner play or device
+acceptance.
 
 The Keep04 gather → choose → build → benefit → return foundation, readable
 expedition/return feedback, first-journey cue and mobile visual foundation are

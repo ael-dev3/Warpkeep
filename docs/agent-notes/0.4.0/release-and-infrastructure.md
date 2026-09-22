@@ -8,38 +8,34 @@ owns the acceptance gates. Resolve both against GitHub before acting; dated
 evidence below is scoped to its recorded source and must not be reused as current
 authority.
 
-At this checkpoint, protected `main` is signed generated-only M2
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a` (tree
-`ba968e91bed6890a9742a4e52466c65b4cbc3b81`) with source M1
-`0afb5099890428b95fd493f8c25b844364a7a4db` as its sole parent. PR #336,
-exact-main Verify `35766416370` and CodeQL `35760703269` passed. Read-only
-preflight `35772760378` passed on M2. The subsequent read-only policy
-observation `35772933637` failed closed during authenticated operation because
-an older-source receipt occupied the fixed active slot; no census or deployment
-followed.
+At this checkpoint, generated-only M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a` was the protected main source. Its
+push Verify `35766416370`, CodeQL `35760703269` and read-only preflight
+`35772760378` passed. The subsequent policy observation `35772933637` failed
+closed during the authenticated read-only operation because an older-source
+receipt occupied the fixed active slot; no census or deployment followed.
 
-Source-only PR #337 implements retry adoption and byte-preserving stale-receipt
-archival. Its focused Linux, Windows and type checks passed; its current hosted
-required-check state must be resolved from GitHub before merge. The prepared
-Auth Bridge closure is unchanged and verified at 1,258 members. The earlier M1
-native preparation/check and M2 export remain bound to their original source,
-with `finalReleasePrepared:false`; they cannot certify this repair. Treat local
-full-suite results and any earlier PR status as historical until matched to the
-exact live PR head.
+Source-only recovery PR #337 is now merged through protection. Its retry-adoption
+and byte-preserving archival repair passed every required PR check, including
+full Linux Verify, SpacetimeDB module integration, Auth Bridge, analysis and
+CodeQL. The prepared Auth Bridge closure is unchanged and verified at 1,258
+members. The previous native M1 preparation/check and generated-only M2 export
+remain bound to their earlier source with `finalReleasePrepared:false`; they
+cannot certify the merged recovery fix.
 
 ### Remaining delivery work, in dependency order
 
-Merge source-only M1 through normal protections after every required check passes.
-Verify the signed merge, synchronize the idle native checkout to that exact main,
-then perform the complete native prepare and independent check. Promote only that
-authenticated generated family as generated-only M2. Wait for its exact
-push-to-main Verify and recheck the source before preflight and a new read-only
-policy observation. Census can start only after that observation completes with
-its source-bound receipt. Then continue with prepared bridge/signer observation,
-G001 preservation and sealed-realm readback, deployment/recovery, owner-only PTR
-play, device and performance acceptance, and final release freeze. A green
-source CI run, preflight or Pages classifier alone does not establish a live
-release.
+Resolve the exact live protected `main` and confirm its push Verify before any
+protected operation. Synchronize the idle native checkout to that clean source,
+then run a fresh complete prepare and independent check. Promote only the
+authenticated generated family as generated-only M2. After its merge, wait for
+the exact push-to-main Verify and recheck the source before preflight and a new
+read-only policy observation. Census can start only after that observation
+completes with its source-bound receipt. Then continue with prepared
+bridge/signer observation, G001 preservation and sealed-realm readback,
+deployment/recovery, owner-only PTR play, device and performance acceptance, and
+final release freeze. A green source CI run, preflight or Pages classifier alone
+does not establish a live release.
 
 ## Historical source checkpoint — 2026-09-12
 

@@ -2,15 +2,16 @@
 
 ## Current checkpoint supersession — 22 September 2026
 
-The active protected runtime source family is generated-only M2 at
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. PR Verify `35760703184`, CodeQL
-`35760703269`, push-to-main Verify `35766416370`, and read-only preflight
-`35772760378` passed. The subsequent authenticated read-only G001 policy
-observation `35772933637` failed closed because an older-source receipt occupied
-the fixed no-clobber slot. It submitted no mutation and read no player/census
-data. PR #337 contains the source-only recovery; after required checks and
-merge, prepare/check the exact protected M1 and promote the generated-only M2
-before retrying. Retained native evidence is source-bound and
+The previously verified protected runtime source family was generated-only M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its PR Verify, CodeQL,
+push-to-main Verify and read-only preflight passed. The subsequent authenticated
+read-only G001 policy observation `35772933637` failed closed because an
+older-source receipt occupied the fixed no-clobber slot. It submitted no
+mutation and read no player/census data. Source-only recovery PR #337 is now
+merged through protection with all required PR checks green. The earlier native
+candidate predates that merge; resolve live protected `main`, wait for its push
+Verify, then freshly prepare/check the exact M1 and promote its generated-only
+M2 before retrying. Retained native evidence remains source-bound and
 `finalReleasePrepared:false`; no live deployment or recovery is established.
 
 Earlier operation failures below remain historical and must not be reused as
