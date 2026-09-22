@@ -43,7 +43,8 @@ vi.mock('../scripts/greater-realm-production-transport', async original => {
   };
 });
 import { collectGenesis001LinuxAdmittedCensus, executeGenesis001LinuxCensusForTesting,
-  executeGenesis001LinuxCensusFromDescriptor, parseGenesis001LinuxCensusFidSql } from '../scripts/genesis001-linux-census-operator';
+  executeGenesis001LinuxCensusFromDescriptor, parseGenesis001LinuxCensusFidSql,
+  reconcileGenesis001LinuxCensusSample } from '../scripts/genesis001-linux-census-operator';
 import { collectGenesis001AdmittedPlayerCensus } from '../scripts/genesis001-admitted-player-census.mjs';
 import { createGenesis001LinuxCensusSample } from '../scripts/genesis001-linux-census-attempt.mjs';
 import { GENESIS_001_DATABASE_IDENTITY, GENESIS_001_FREEZE_RELEASE_NONCE, GENESIS_001_SOURCE_BASELINE_COMMIT,
@@ -122,6 +123,22 @@ it('requires successful administrator aggregate authentication before querying a
   await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', fetcher))
     .rejects.toMatchObject({ diagnostic: 'g001-admitted-aggregate' });
   expect(fetcher).not.toHaveBeenCalled();
+});
+it('reports a safe reconciliation diagnostic for invalid cross-domain samples', async () => {
+  const admitted = await collectGenesis001AdmittedPlayerCensus({ preparationSourceCommit: SOURCE,
+    observedAt: '2026-09-19T00:00:00.000Z',
+    readAggregates: () => ({ allowedFids: '1', enabledAllowedFids: '1' }),
+    queryPreferred: () => ({ outcome: 'exact-query-supported', output: Buffer.from('fid\tenabled\tauth_epoch\n17\ttrue\t1\n') }),
+    randomBytes: () => Buffer.alloc(32, 0x31) });
+  const proof = { schemaVersion: 1, profile: 'warpkeep-genesis-001-census-export-private-proof-v1',
+    realmId: 'GENESIS_001', releaseVersion: '0.3.43', sourceCommit: SOURCE,
+    privateCensusReference: { count: 0, size: 7, sha256: createHash('sha256').update('private').digest('hex'),
+      pathBasename: 'warpkeep-access-request-census-20260919T000000Z.txt' },
+    privateBlindingNonceHex: admitted.nonceHex };
+  const applicant = { ...proof, opaqueProofDigest: genesis001CensusOpaqueProofDigest(proof) };
+  expect(() => reconcileGenesis001LinuxCensusSample({ applicant, admitted }, SOURCE))
+    .toThrow(expect.objectContaining({ message: 'G001_LINUX_CENSUS_COLLECTION_FAILED',
+      diagnostic: 'g001-admitted-reconciliation' }));
 });
 it.each(['missing', 'disabled', 'count-change', 'status-error'] as const)('rejects incomplete admission evidence: %s', async mode => {
   const db = connection();
