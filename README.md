@@ -40,11 +40,21 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The 0.4 foundation is integrated; 0.4 has not shipped.** Exact main M3
-`8bfa7ebd` passed Verify and CodeQL, and its protected preflight succeeded.
-Its policy observation failed with a generic diagnostic that did not reveal the
-cause; census was not dispatched on M3. The current source repair adds bounded,
-privacy-safe cause categories. No 0.4 deployment is established.
+**The gameplay foundation and previous generated M2 are integrated; 0.4 has not shipped.**
+Protected `main` is signed M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its exact push Verify
+[35766416370](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
+and read-only preflight [35772760378](https://github.com/ael-dev3/Warpkeep/actions/runs/35772760378)
+passed. The following read-only G001 policy observation
+[35772933637](https://github.com/ael-dev3/Warpkeep/actions/runs/35772933637)
+failed at the authenticated operation step because a valid older-source receipt
+occupied the fixed active slot. It did not continue to census or deployment.
+Source-only recovery PR [#337](https://github.com/ael-dev3/Warpkeep/pull/337)
+adds safe retry adoption and preserves older receipts before reusing that slot.
+After the fix merges as M1, the exact protected source needs a fresh native
+prepare/check and generated-only M2 before another protected operation. Live
+provider deployment, preservation/readback, owner play, device acceptance,
+measured performance and final release freeze still need evidence.
 The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) and
 [release checklist](docs/operations/0.4.0-release-checklist.md) bind each result
 to its source and record the next verified action. The gameplay core, keep
@@ -52,6 +62,11 @@ presentation, session renewal and release/recovery tools are in the repo.
 Connected owner play, provider-backed deployment, visual/device acceptance and
 the complete operating path still need current evidence before the live site can
 move beyond Genesis.
+
+PR #337 is the source-only M1 recovery step. Its current checks and merge state
+are tracked on GitHub; after merge, regenerate and independently check the
+operation family from that exact M1, promote its generated-only M2 through normal
+protections, and only then resume protected operations.
 
 | Realm | Purpose |
 | --- | --- |

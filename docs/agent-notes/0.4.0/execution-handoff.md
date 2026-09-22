@@ -2,51 +2,70 @@
 
 ## Current checkpoint — 22 September 2026
 
-Exact current main/source M3 is `8bfa7ebd4a951156aa73b28962405300f09201bc`; the
-maintained Windows checkout and `origin/main` were equal and clean before this
-repair branch was created. Main Verify `35734417515` and CodeQL `35734417288`
-passed on M3. Protected read-only preflight `35740875921` succeeded on that SHA.
-Policy observation `35741004205` failed at generic `g001-observation`. That
-child version suppressed typed operator errors, so the failure
-does not establish missing credentials, a policy mismatch or a transport cause.
-No census was dispatched for M3. The older incomplete private census attempt
-remains untouched and must not be reused.
+Protected `main` remains the signed generated-only M2 merge
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`, tree
+`ba968e91bed6890a9742a4e52466c65b4cbc3b81`. PR [#336](https://github.com/ael-dev3/Warpkeep/pull/336)
+integrated source M1 `0afb5099890428b95fd493f8c25b844364a7a4db` and its
+authenticated generated family. Exact-main push Verify
+[`35766416370`](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
+and read-only preflight
+[`35772760378`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772760378)
+passed. The next exact-M2 `g001-policy-observe` run
+[`35772933637`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772933637)
+failed at the authenticated operation step. Supported private-state inspection
+found a valid older-source receipt at the no-clobber active path. It was a
+read-only operation: no census, deployment or player-data read followed.
 
-The protected Pages classifier run `35740829270` succeeded, but its build,
-deployment and live-verification jobs were skipped. This is not a deployment;
-0.4 remains unshipped. The exact M3 observation, unlike M2 run `35706296044`, is
-the current read-only result and must govern the next sequence.
+Source-only PR [#337](https://github.com/ael-dev3/Warpkeep/pull/337) fixes the
+receipt recovery path. It adopts an exact current-source receipt on retry,
+archives an older valid receipt byte-for-byte before reusing the active slot,
+and preserves the original if history conflicts. The frozen-envelope path also
+accepts bounded retained lifecycle tombstones while rejecting duplicates,
+incomplete state and ambiguous authority. Read the live PR head and required
+job state before merging.
 
-Active source-only repair branch: `codex/0.4-safe-g001-policy-diagnostics`,
-based on exact M3. It maps only fixed typed failures to safe policy categories,
-preserves the generic fallback, and closes the child → native → public-preflight
-allowlist chain. Focused tests exposed and corrected a second propagation gap in
-the native stderr parser. A signed source checkpoint is committed locally; its
-exact outgoing scan against M3 found no leaks. On pinned Node `v22.22.3`, the three
-focused suites passed 128 tests with 44 platform skips, and `tsc -b` passed.
-Gitleaks 8.30.1's scanner regression passed 48 positive fixtures and 95 negative
-fixtures; local targets in all five updated Markdown files exist. The source-only
-repair is tracked by [PR #335](https://github.com/ael-dev3/Warpkeep/pull/335);
-resolve its latest required checks and merge only through the protected route. The
-candidate-bound `verify:sealed-launch` check returned
-`SEALED_LAUNCH_CHECKOUT_INVALID` from this source-only branch, which is not the
-bound prepared candidate; rerun it on the exact prepared M2 rather than treating
-this branch result as release verification.
+Verification on the code checkpoint published in PR #337:
 
-Once PR #335 has passed the current required checks and merged as source M1,
-prepare and independently check its exact merged native family and promote
-generated-only M2. On that exact M2, wait for push-to-main Verify and CodeQL, run preflight,
-then policy observation. Only if policy observation succeeds should a fresh
-census attempt be started with a new run identity. Never infer the category
-from M3's generic result or reuse `8bfa7ebd` operations as authority for a new
-source.
+- The Windows dispatcher suite passed 89 tests with one platform skip; TypeScript
+  and clean-tree `verify:sealed-launch` passed.
+- Pinned Linux bundle, dispatch and recovery tests passed 48/48. The Auth Bridge
+  prepared-deploy closure verifier passed unchanged at 1,258 members, manifest
+  SHA-256 `eabb23ab208b773966bb194c947fa9a5a2c4cf6e62d58aa4697c9a0e325aea91`.
+- The local full-root Linux sweep reported 12,327 passing tests and 14 failures
+  caused by missing CI setup: root/workspace dependencies, the pinned CLI and
+  the exact offline YAML test input. All 34 tests in the four affected suites
+  passed after matching those prerequisites. The full suite was not rerun with
+  corrected setup; hosted required Verify is the full-suite gate.
 
-PR #332 is already in the M3 source: it classifies census identity drift and
-sample reconciliation without exposing records. No additional recovery key is
-needed. Keep scheduled sync automation paused, make no new Desktop files, and
-use this handoff plus the [release checklist](../../operations/0.4.0-release-checklist.md)
-as the current route. Resolve live `main`, branch and PR heads before each step.
+The previous native M1 preparation and independent check were byte-identical.
+Their source-bound evidence is retained under the existing private root:
+candidate `release-workspace-67d70d7dfae385ef2aa6bf97b44be758`, family
+SHA-256 `33e7c3f6058cbfdfaa7ed53979bbc7c2d76c95c1a60c3cc59924638d5e61b4b9`,
+prepared-deploy closure SHA-256
+`eabb23ab208b773966bb194c947fa9a5a2c4cf6e62d58aa4697c9a0e325aea91`, scanner
+SHA-256 `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`,
+3,257 source/candidate files and 102 outputs. The generated-only M2 export
+re-read all 102 outputs and changed 11 tracked paths. `finalReleasePrepared:false`
+remains explicit; these earlier records do not certify PR #337 or grant deployment.
 
+After PR #337's current required checks pass, merge the source-only M1 through
+normal protections. Verify the signed merge, synchronize the idle native checkout
+to that exact main commit, and run the full native prepare plus independent check.
+Promote only its authenticated generated family as generated-only M2. After that
+M2 merges, wait for its exact push Verify, recheck `main`, then run preflight and
+a fresh read-only policy observation. Start census only after that observation
+completes with a source-bound receipt. Do not reuse the failed M2 attempt or
+previous candidate as authority.
+
+0.4 is not live or shipped. Provider deployment and recovery, G001 preservation
+and readback, owner-only PTR play, physical-device acceptance, measured
+performance budgets and final release freeze still need current evidence. Keep
+scheduled sync automation paused, create no Desktop siblings or backups, retain
+private attempts, and use the existing recovery/bootstrap path; no additional
+GitHub App key is needed. Use the [release checklist](../../operations/0.4.0-release-checklist.md),
+[access guide](../../operations/0.4.0-infra-access.md) and
+[source synchronization procedure](../../operations/0.4.0-development-sync.md)
+as the current route. Resolve live refs before every operation.
 ## Reliability follow-up — 21 September 2026 (historical)
 
 The owner requested prevention of repeat blockers and maintenance only, with no
@@ -2736,3 +2755,54 @@ was enabled using squash, and GitHub restarted required checks for signed head
 `060a3c7c5f190fbee029ea09df2d0cce0a7c3ce1`. The final workflow runs and merge
 state must be rechecked before proceeding to M1 preparation; these notes do not
 claim that PR #330 has merged or that 0.4 has shipped.
+
+## 22 September 2026 — exact-M2 policy receipt recovery
+
+Protected `main` is still exact M2 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`.
+Its push Verify run [`35766416370`](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
+and read-only preflight [`35772760378`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772760378)
+both completed successfully. The next exact-M2 `g001-policy-observe` dispatch,
+[`35772933637`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772933637),
+failed in `operate_readonly` at “Attest runtime and execute authenticated
+operation.” The operation is read-only; no census or deployment followed.
+
+Supported private-state inspection found one active fixed G001 policy receipt
+whose recorded source predates M2. Its receipt reports
+`mutationSubmitted: false`; no applicant or player records were read or copied.
+The Linux producer is fixed and source-bound but previously attempted a fresh
+read-only observation before writing that receipt to the same no-clobber path.
+The existing record then rejected capture and the dispatcher hid the precise
+private-state error behind the generic lane label. The exact run likely reached
+the read-only operator before capture failed; the action result does not expose
+enough detail to claim that as directly observed. This failure did not authorize
+or start census, deployment, or any write operation.
+
+The repair under review makes both supported G001 paths handle the record by
+source: validate and adopt an exact current-source receipt on retry; preserve an
+older valid receipt byte-for-byte under a private source-keyed history path
+before freeing the active slot; reject malformed records and conflicting
+history without deleting the original. The frozen-envelope path also accepts
+its bounded retained lifecycle inventory, rejects duplicate run IDs, and keeps
+incomplete or ambiguous state fail-closed. Only fixed safe diagnostic labels
+cross the dispatcher boundary. Focused Windows dispatcher tests passed
+`89 passed, 1 skipped`; TypeScript and clean-tree `verify:sealed-launch` passed.
+The Auth Bridge prepared-deploy closure verifier passed unchanged at 1,258
+members. The initial Windows full sweep was stopped after platform-sensitive
+private-mode/inode failures, fixture timeouts and dirty-checkout closure checks;
+it is not a full-suite pass. A later WSL full sweep passed 12,327 tests but had
+14 setup failures; all 34 tests in the four affected suites passed after the
+exact CI prerequisites were installed. The full suite was not rerun locally
+with corrected setup, so the hosted Linux check is the full-suite gate. This
+remains a source-only, unmerged and undeployed fix.
+
+PR #337 is the source-only M1 repair and handoff update. Its live required checks
+must pass before normal merge. No Auth Bridge prepared-closure refresh is needed;
+the source change belongs to the sealed operation bundle, which must be generated
+by the exact protected-M1 prepare/check after merge. The prior native candidate
+and generated M2 are bound to earlier source and cannot certify this repair.
+Prepare and independently check the actual protected M1, promote its
+generated-only M2, wait for that exact main Verify, recheck main, then rerun
+preflight and the read-only policy observation. Do not start census until the
+fresh policy observation has returned completed with its source-bound receipt.
+Keep scheduled automation paused, do not create Desktop files, and do not
+request or generate another recovery key. 0.4 remains unshipped.

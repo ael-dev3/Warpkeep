@@ -58,6 +58,7 @@ const ENVELOPE_PATH = 'docs/operations/genesis-001-policy-observation-launch-env
 const POLICY_ACTIVATION_MEMBER = 'g001PolicyObservationBootstrapReceipt';
 const POLICY_ACTIVATION_BASENAME = 'g001-policy-observation-bootstrap-receipt.json';
 const POLICY_ACTIVATION_PATH = `activation-evidence/records/${POLICY_ACTIVATION_BASENAME}`;
+const POLICY_ACTIVATION_HISTORY_DIRECTORY = 'activation-evidence/records-history';
 const DISPATCHER_NODE = Object.freeze({
   path: '/private/var/db/warpkeep/runtime/node-v22.22.3-darwin-arm64/bin/node',
   version: 'v22.22.3',
@@ -1278,6 +1279,7 @@ async function runFixedLinuxPolicyObservation(authority, launchAuthority, prepar
   const sourceCommit = sourceCommitFromSealedRealmsProductionAuthority(authority);
   const capability = launchAuthorities.get(launchAuthority);
   if (capability === undefined) fail('SEALED_REALMS_G001_LAUNCH_AUTHORITY_INVALID');
+  const { privateState } = capability;
   const readSource = async () => {
     const tree = exactRawGitCommit(await rawGitText(capability.readRawGit,
       ['rev-parse', '--verify', `${sourceCommit}^{tree}`]));
@@ -1289,6 +1291,30 @@ async function runFixedLinuxPolicyObservation(authority, launchAuthority, prepar
     try { return Object.freeze({ tree, blob: match[1], sha256: digestBytes(bytes) }); }
     finally { bytes.fill(0); }
   };
+  if (privateState.exists({ root: 'runtime', relativePath: POLICY_ACTIVATION_PATH })) {
+    let capturedBytes;
+    try {
+      capturedBytes = privateState.read({ root: 'runtime', relativePath: POLICY_ACTIVATION_PATH });
+      const captured = parsePolicyActivationRecord(capturedBytes);
+      if (captured.sourceCommit === sourceCommit) {
+        if (captured.sourceAuthorityDigest !== authority.authorityDigest) {
+          fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+        }
+        const observation = captured.receipt.profile === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE
+          ? verifyGenesis001LinuxPolicyReceipt(captured.receipt, sourceCommit)
+          : undefined;
+        if (observation !== undefined) {
+          const current = await readSource();
+          if (observation.moduleTreeId !== current.tree
+            || observation.operatorBlob !== current.blob || observation.operatorSha256 !== current.sha256) {
+            fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+          }
+        }
+        return Object.freeze({ outcome: 'adopted' });
+      }
+      archiveStalePolicyActivationRecord(privateState, capturedBytes, captured);
+    } finally { capturedBytes?.fill(0); }
+  }
   const before = await readSource();
   const receipt = createGenesis001LinuxPolicyReceipt(await executeFixedLinuxG001PolicyObservation(preparation, evidence), sourceCommit);
   const after = await readSource();
@@ -1297,7 +1323,7 @@ async function runFixedLinuxPolicyObservation(authority, launchAuthority, prepar
     fail('SEALED_REALMS_G001_LAUNCH_AUTHORITY_INVALID');
   }
   captureG001ActivationRecord(capability, authority, receipt);
-  reopenPolicyObservationRecord(capability.privateState, authority, receipt, receipt.cleanup.runId);
+  reopenPolicyObservationRecord(privateState, authority, receipt, receipt.cleanup.runId);
 }
 
 // Only the fixed producer owns capture and reopening. Neither dispatch input nor
@@ -1380,9 +1406,173 @@ function parseLifecycleInventory(output) {
   const value = exactCanonicalJsonOutput(output, ['profile', 'runs'], 'SEALED_REALMS_G001_LIFECYCLE_INVALID');
   if (
     value.profile !== LIFECYCLE_PROFILE || !Array.isArray(value.runs)
-    || value.runs.length > 1
+    || value.runs.length > 1_024
   ) fail('SEALED_REALMS_G001_LIFECYCLE_INVALID');
-  return Object.freeze(value.runs.map(exactLifecycleSummary));
+  const runs = value.runs.map(exactLifecycleSummary);
+  if (new Set(runs.map(run => run.runId)).size !== runs.length) {
+    fail('SEALED_REALMS_G001_LIFECYCLE_INVALID');
+  }
+  return Object.freeze(runs);
+}
+
+function g001PolicyLaunchArgumentsDigest() {
+  const hash = createHash('sha256');
+  updateLengthFramed(hash, 'domain', 'warpkeep-production-launch-arguments-v1');
+  updateLengthFramed(hash, 'command', 'g001-policy-observe');
+  return hash.digest('hex');
+}
+
+// Completed lifecycle tombstones are deliberately retained across source
+// promotions. Read their fixed private representation to distinguish an old
+// completed operation from the one receipt this source may adopt.
+function readPolicyLifecycleTerminal(privateState, runId) {
+  let bytes;
+  let recordBytes;
+  try {
+    bytes = privateState.readG001PolicyTerminal(runId);
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const terminal = exactCanonicalJsonOutput(source, [
+      'schemaVersion', 'profile', 'runId', 'finalLifecycleRecordSha256', 'finalLifecycleRecord',
+    ].sort(), 'SEALED_REALMS_G001_LIFECYCLE_INVALID');
+    const record = exactObject(terminal.finalLifecycleRecord, [
+      'schemaVersion', 'profile', 'runId', 'ordinal', 'phase', 'previousRecordSha256',
+      'pid', 'processStartIdentity', 'protectedMain', 'moduleTree', 'bootstrapBlob',
+      'bootstrapSha256', 'command', 'commandArgumentsSha256', 'runDev', 'runIno',
+      'launchRecordSha256', 'containedChildPid', 'containedChildProcessStartIdentity',
+      'containedChildPgid', 'containmentConfirmationSha256', 'cleanupConfirmationSha256',
+      'cleanupTreeInventorySha256', 'cleanupReason',
+    ].sort(), 'SEALED_REALMS_G001_LIFECYCLE_INVALID');
+    recordBytes = Buffer.from(`${JSON.stringify(record)}\n`);
+    const sha256 = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
+    const commit = value => typeof value === 'string' && /^[a-f0-9]{40}$/u.test(value);
+    const decimal = value => typeof value === 'string' && /^(0|[1-9][0-9]*)$/u.test(value);
+    const childAbsent = record.containedChildPid === null
+      && record.containedChildProcessStartIdentity === null && record.containedChildPgid === null
+      && record.containmentConfirmationSha256 === null;
+    const childPresent = Number.isSafeInteger(record.containedChildPid) && record.containedChildPid > 1
+      && typeof record.containedChildProcessStartIdentity === 'string'
+      && /^[\u0020-\u007e]{1,160}$/u.test(record.containedChildProcessStartIdentity)
+      && record.containedChildPgid === record.containedChildPid
+      && sha256(record.containmentConfirmationSha256);
+    if (terminal.schemaVersion !== 1 || terminal.profile !== 'warpkeep-greater-realm-production-launch-terminal-v1'
+      || terminal.runId !== runId || record.runId !== runId
+      || terminal.finalLifecycleRecordSha256 !== createHash('sha256').update(recordBytes).digest('hex')
+      || record.schemaVersion !== 1 || record.profile !== LIFECYCLE_PROFILE || record.phase !== 'complete'
+      || !Number.isSafeInteger(record.ordinal) || record.ordinal < 2 || record.ordinal > 99_999_999
+      || !sha256(record.previousRecordSha256) || !Number.isSafeInteger(record.pid) || record.pid < 1
+      || typeof record.processStartIdentity !== 'string' || !/^[\u0020-\u007e]{8,160}$/u.test(record.processStartIdentity)
+      || !commit(record.protectedMain) || !commit(record.moduleTree) || !commit(record.bootstrapBlob)
+      || !sha256(record.bootstrapSha256) || !/^[a-z0-9][a-z0-9-]{0,95}$/u.test(record.command)
+      || !sha256(record.commandArgumentsSha256) || !decimal(record.runDev) || !decimal(record.runIno)
+      || !sha256(record.launchRecordSha256) || !(childAbsent || childPresent)
+      || !sha256(record.cleanupConfirmationSha256) || !sha256(record.cleanupTreeInventorySha256)
+      || !['completed-current-owner', 'confirmed-dead-owner'].includes(record.cleanupReason)) {
+      fail('SEALED_REALMS_G001_LIFECYCLE_INVALID');
+    }
+    return Object.freeze({
+      runId,
+      sourceCommit: record.protectedMain,
+      moduleTree: record.moduleTree,
+      bootstrapBlob: record.bootstrapBlob,
+      bootstrapSha256: record.bootstrapSha256,
+      command: record.command,
+      commandArgumentsSha256: record.commandArgumentsSha256,
+      containedChildPid: record.containedChildPid,
+      containmentConfirmationSha256: record.containmentConfirmationSha256,
+      cleanupConfirmationSha256: record.cleanupConfirmationSha256,
+      cleanupTreeInventorySha256: record.cleanupTreeInventorySha256,
+      cleanupReason: record.cleanupReason,
+    });
+  } catch (error) {
+    if (error?.code === 'SEALED_REALMS_G001_LIFECYCLE_INVALID') throw error;
+    fail('SEALED_REALMS_G001_LIFECYCLE_INVALID');
+  } finally { bytes?.fill(0); recordBytes?.fill(0); }
+}
+
+function isCompletedLifecycleSummary(summary) {
+  return summary.authorityPhase === 'complete' && summary.runState === 'absent'
+    && summary.ownerState === 'terminal' && summary.childState === 'absent'
+    && summary.processGroupState === 'absent' && summary.authorityPublication === 'installed'
+    && summary.launchPublication === 'absent' && summary.launchPhase === null
+    && summary.blockers.length === 0 && summary.containmentEligible === false
+    && summary.repairableLaunchTemporaryCount === 0 && summary.repairablePartialAuthorityCount === 0;
+}
+
+function parsePolicyActivationRecord(bytes) {
+  let body;
+  try {
+    const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    const record = exactCanonicalJsonOutput(source, [
+      'schemaVersion', 'profile', 'member', 'preparationSourceCommit', 'sourceCommit',
+      'operation', 'sourceAuthorityDigest', 'bodyDigest', 'receipt', 'semanticDigest',
+    ], 'SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+    const sha256 = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
+    const commit = value => typeof value === 'string' && /^[a-f0-9]{40}$/u.test(value);
+    if (record.schemaVersion !== 1 || record.profile !== 'warpkeep-sealed-realms-activation-record-v1'
+      || record.member !== POLICY_ACTIVATION_MEMBER || !commit(record.preparationSourceCommit)
+      || record.preparationSourceCommit !== record.sourceCommit || record.operation !== 'g001-policy-observe'
+      || !sha256(record.sourceAuthorityDigest) || !sha256(record.bodyDigest) || !sha256(record.semanticDigest)) {
+      fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+    }
+    body = Buffer.from(`${JSON.stringify(record.receipt)}\n`);
+    if (record.bodyDigest !== createHash('sha256').update(body).digest('hex')
+      || record.semanticDigest !== createHash('sha256').update([
+        'warpkeep.sealed-realms.activation-record.v1', POLICY_ACTIVATION_MEMBER,
+        record.sourceCommit, record.sourceCommit, record.operation, record.sourceAuthorityDigest, record.bodyDigest, '',
+      ].join('\n')).digest('hex')) fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+    if (record.receipt?.profile === GENESIS_001_LINUX_POLICY_RECEIPT_PROFILE) {
+      verifyGenesis001LinuxPolicyReceipt(record.receipt, record.sourceCommit);
+    } else {
+      const receipt = record.receipt;
+      if (receipt === null || typeof receipt !== 'object' || Array.isArray(receipt)) {
+        fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+      }
+      exactObject(receipt, [
+        'profile', 'protectedCommit', 'moduleTreeId', 'bootstrapBlob', 'bootstrapSha256',
+        'moduleArchiveCount', 'command', 'launchCleanup', 'policyObservationReceipt',
+        'policyObservationReceiptLinkSha256',
+      ], 'SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+      exactObject(receipt.launchCleanup, [
+        'outcome', 'runId', 'cleanupConfirmationSha256', 'treeInventorySha256',
+      ], 'SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+      exactPolicyObservationReceipt(receipt.policyObservationReceipt, record.sourceCommit);
+      if (receipt.profile !== 'warpkeep-greater-realm-production-bootstrap-v1'
+        || receipt.protectedCommit !== record.sourceCommit
+        || !/^[a-f0-9]{40}$/u.test(receipt.moduleTreeId)
+        || !/^[a-f0-9]{40}$/u.test(receipt.bootstrapBlob)
+        || !sha256(receipt.bootstrapSha256) || receipt.moduleArchiveCount !== 16
+        || receipt.command !== 'g001-policy-observe' || receipt.launchCleanup.outcome !== 'cleaned'
+        || !RUN_ID.test(receipt.launchCleanup.runId)
+        || !sha256(receipt.launchCleanup.cleanupConfirmationSha256)
+        || !sha256(receipt.launchCleanup.treeInventorySha256)
+        || receipt.policyObservationReceiptLinkSha256 !== bootstrapObservationLinkDigest(receipt)) {
+        fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+      }
+    }
+    return record;
+  } catch (error) {
+    if (error?.code === 'SEALED_REALMS_G001_POLICY_RECORD_INVALID') throw error;
+    fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+  } finally { body?.fill(0); }
+}
+
+function archiveStalePolicyActivationRecord(privateState, recordBytes, record) {
+  const historyPath = `${POLICY_ACTIVATION_HISTORY_DIRECTORY}/${POLICY_ACTIVATION_BASENAME.replace(/\.json$/u, '')}-${record.sourceCommit}.json`;
+  try {
+    if (privateState.exists({ root: 'runtime', relativePath: historyPath })) {
+      const archived = privateState.read({ root: 'runtime', relativePath: historyPath });
+      try {
+        if (!archived.equals(recordBytes)) fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+      } finally { archived.fill(0); }
+    } else {
+      privateState.write({ root: 'runtime', relativePath: historyPath, bytes: recordBytes });
+    }
+    // Copy first and remove only after the exact prior bytes are durably
+    // retained. A retry verifies the archive before finishing this move.
+    privateState.remove({ root: 'runtime', relativePath: POLICY_ACTIVATION_PATH });
+  } catch {
+    fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+  }
 }
 
 function parseLifecycleDetail(output, runId, terminalSummary) {
@@ -1436,50 +1626,18 @@ function parseLifecycleDetail(output, runId, terminalSummary) {
 // The frozen inspect authenticates its lifecycle chain; this fixed read binds
 // the source and original cleanup inventory that its public summary omits.
 function reopenPolicyTerminal(privateState, receipt, detail) {
-  let bytes;
-  let finalBytes;
-  try {
-    bytes = privateState.readG001PolicyTerminal(detail.runId);
-    const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-    const terminal = exactCanonicalJsonOutput(source, [
-      'schemaVersion', 'profile', 'runId', 'finalLifecycleRecordSha256', 'finalLifecycleRecord',
-    ].sort(), 'SEALED_REALMS_G001_POLICY_RECORD_INVALID');
-    const record = exactObject(terminal.finalLifecycleRecord, [
-      'schemaVersion', 'profile', 'runId', 'ordinal', 'phase', 'previousRecordSha256',
-      'pid', 'processStartIdentity', 'protectedMain', 'moduleTree', 'bootstrapBlob',
-      'bootstrapSha256', 'command', 'commandArgumentsSha256', 'runDev', 'runIno',
-      'launchRecordSha256', 'containedChildPid', 'containedChildProcessStartIdentity',
-      'containedChildPgid', 'containmentConfirmationSha256', 'cleanupConfirmationSha256',
-      'cleanupTreeInventorySha256', 'cleanupReason',
-    ].sort(), 'SEALED_REALMS_G001_POLICY_RECORD_INVALID');
-    finalBytes = Buffer.from(`${JSON.stringify(record)}\n`);
-    const argumentsHash = createHash('sha256');
-    updateLengthFramed(argumentsHash, 'domain', 'warpkeep-production-launch-arguments-v1');
-    updateLengthFramed(argumentsHash, 'command', 'g001-policy-observe');
-    const sha256 = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
-    const decimal = value => typeof value === 'string' && /^(0|[1-9][0-9]*)$/u.test(value);
-    if (terminal.schemaVersion !== 1 || terminal.profile !== 'warpkeep-greater-realm-production-launch-terminal-v1'
-      || terminal.runId !== detail.runId || record.runId !== detail.runId
-      || terminal.finalLifecycleRecordSha256 !== createHash('sha256').update(finalBytes).digest('hex')
-      || record.schemaVersion !== 1 || record.profile !== LIFECYCLE_PROFILE || record.phase !== 'complete'
-      || !Number.isSafeInteger(record.ordinal) || record.ordinal < 2 || record.ordinal > 99_999_999
-      || !sha256(record.previousRecordSha256) || !Number.isSafeInteger(record.pid) || record.pid < 1
-      || typeof record.processStartIdentity !== 'string' || !/^[\u0020-\u007e]{8,160}$/u.test(record.processStartIdentity)
-      || record.protectedMain !== receipt.protectedMain || record.moduleTree !== receipt.moduleTree
-      || record.bootstrapBlob !== receipt.bootstrapBlob || record.bootstrapSha256 !== receipt.bootstrapSha256
-      || record.command !== 'g001-policy-observe' || record.commandArgumentsSha256 !== argumentsHash.digest('hex')
-      || !decimal(record.runDev) || !decimal(record.runIno) || !sha256(record.launchRecordSha256)
-      || record.containedChildPid !== null || record.containedChildProcessStartIdentity !== null
-      || record.containedChildPgid !== null || record.containmentConfirmationSha256 !== null
-      || record.cleanupReason !== 'completed-current-owner'
-      || !sha256(record.cleanupConfirmationSha256) || !sha256(record.cleanupTreeInventorySha256)
-      || record.cleanupConfirmationSha256 !== detail.confirmationDigest) {
-      fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
-    }
-    return Object.freeze({ cleanupConfirmationSha256: record.cleanupConfirmationSha256,
-      cleanupTreeInventorySha256: record.cleanupTreeInventorySha256 });
-  } catch { fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID'); }
-  finally { bytes?.fill(0); finalBytes?.fill(0); }
+  const terminal = readPolicyLifecycleTerminal(privateState, detail.runId);
+  if (terminal.command !== 'g001-policy-observe'
+    || terminal.commandArgumentsSha256 !== g001PolicyLaunchArgumentsDigest()
+    || terminal.sourceCommit !== receipt.protectedMain || terminal.moduleTree !== receipt.moduleTree
+    || terminal.bootstrapBlob !== receipt.bootstrapBlob || terminal.bootstrapSha256 !== receipt.bootstrapSha256
+    || terminal.containedChildPid !== null || terminal.containmentConfirmationSha256 !== null
+    || terminal.cleanupReason !== 'completed-current-owner'
+    || terminal.cleanupConfirmationSha256 !== detail.confirmationDigest) {
+    fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+  }
+  return Object.freeze({ cleanupConfirmationSha256: terminal.cleanupConfirmationSha256,
+    cleanupTreeInventorySha256: terminal.cleanupTreeInventorySha256 });
 }
 
 function parseLifecycleCleanup(output, runId, confirmationDigest) {
@@ -1520,31 +1678,76 @@ async function runAuthenticatedFrozenEnvelope({
     ]),
     shell: false,
     env: EMPTY_ENVIRONMENT,
-  }, 'SEALED_REALMS_G001_ENVELOPE_UNAVAILABLE');
+  }, 'SEALED_REALMS_G001_ENVELOPE_UNAVAILABLE', false,
+  command === 'launch-run-inspect' ? 1_048_576 : 64 * 1_024);
   const existing = parseLifecycleInventory(await invoke('launch-run-inspect'));
-  const captured = privateState.list({ root: 'runtime', relativeDirectory: 'activation-evidence/records' })
-    .includes(POLICY_ACTIVATION_BASENAME);
-  if (existing.length === 1) {
-    const summary = existing[0];
-    if (summary.authorityPhase === 'complete' && summary.runState === 'absent') {
-      if (!captured || summary.blockers.length !== 0 || summary.childState !== 'absent'
-        || summary.processGroupState !== 'absent' || summary.ownerState !== 'terminal'
-        || summary.authorityPublication !== 'installed' || summary.launchPublication !== 'absent'
-        || summary.launchPhase !== null || summary.containmentEligible !== false
-        || summary.repairableLaunchTemporaryCount !== 0 || summary.repairablePartialAuthorityCount !== 0) {
+  const completedPolicies = [];
+  const incomplete = [];
+  for (const summary of existing) {
+    if (!isCompletedLifecycleSummary(summary)) {
+      incomplete.push(summary);
+      continue;
+    }
+    const terminal = readPolicyLifecycleTerminal(privateState, summary.runId);
+    if (terminal.command === 'g001-policy-observe') {
+      if (terminal.commandArgumentsSha256 !== g001PolicyLaunchArgumentsDigest()) {
         fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
       }
+      completedPolicies.push(Object.freeze({ summary, terminal }));
+    }
+  }
+  const captured = privateState.list({ root: 'runtime', relativeDirectory: 'activation-evidence/records' })
+    .includes(POLICY_ACTIVATION_BASENAME);
+  let capturedBytes;
+  let capturedRecord;
+  try {
+    if (captured) {
+      capturedBytes = privateState.read({ root: 'runtime', relativePath: POLICY_ACTIVATION_PATH });
+      capturedRecord = parsePolicyActivationRecord(capturedBytes);
+    }
+    const currentPolicies = completedPolicies.filter(item => item.terminal.sourceCommit === sourceCommit);
+    if (currentPolicies.length > 1 || (currentPolicies.length === 1 && incomplete.length > 0)) {
+      fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+    }
+    if (currentPolicies.length === 1) {
+      if (!capturedRecord || capturedRecord.sourceCommit !== sourceCommit
+        || capturedRecord.sourceAuthorityDigest !== authority.authorityDigest) {
+        fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+      }
+      const { summary, terminal: existingTerminal } = currentPolicies[0];
       const detail = parseLifecycleDetail(await invoke('launch-run-inspect', [summary.runId]), summary.runId, summary);
       const terminal = reopenPolicyTerminal(privateState, receipt, detail);
+      if (terminal.cleanupConfirmationSha256 !== existingTerminal.cleanupConfirmationSha256
+        || terminal.cleanupTreeInventorySha256 !== existingTerminal.cleanupTreeInventorySha256) {
+        fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+      }
       reopenPolicyObservationRecord(privateState, authority, receipt, summary.runId, terminal);
       return Object.freeze({ outcome: 'adopted' });
     }
-    if (captured) fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
-    const detail = parseLifecycleDetail(await invoke('launch-run-inspect', [summary.runId]), summary.runId);
-    await invoke('launch-run-cleanup', [summary.runId, detail.confirmationDigest])
-      .then(output => parseLifecycleCleanup(output, summary.runId, detail.confirmationDigest));
-  }
-  if (captured) fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+    if (capturedRecord) {
+      if (capturedRecord.sourceCommit === sourceCommit) {
+        fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+      }
+      if (incomplete.length > 0) {
+        fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+      }
+      archiveStalePolicyActivationRecord(privateState, capturedBytes, capturedRecord);
+      capturedBytes.fill(0);
+      capturedBytes = undefined;
+      capturedRecord = undefined;
+    }
+    if (incomplete.length > 0) {
+      if (capturedRecord) fail('SEALED_REALMS_G001_POLICY_RECORD_INVALID');
+      for (const summary of incomplete) {
+        const detail = parseLifecycleDetail(await invoke('launch-run-inspect', [summary.runId]), summary.runId);
+        if (!detail.deletionEligible || !detail.cleanupEligible) {
+          fail('SEALED_REALMS_G001_LIFECYCLE_INVALID');
+        }
+        await invoke('launch-run-cleanup', [summary.runId, detail.confirmationDigest])
+          .then(output => parseLifecycleCleanup(output, summary.runId, detail.confirmationDigest));
+      }
+    }
+  } finally { capturedBytes?.fill(0); }
   const output = await invoke('g001-policy-observe');
   const observation = exactPolicyObservation(output, receipt);
   captureG001ActivationRecord({ privateState }, authority, observation);
@@ -1552,12 +1755,12 @@ async function runAuthenticatedFrozenEnvelope({
   return Object.freeze({ outcome: 'observed' });
 }
 
-function childResult(value, code, allowMissingLaunchService = false) {
+function childResult(value, code, allowMissingLaunchService = false, maximumStdoutBytes = 64 * 1_024) {
   exactObject(value, ['status', 'stdout', 'stderr'], code);
   if (
     !Number.isSafeInteger(value.status)
     || typeof value.stdout !== 'string' || typeof value.stderr !== 'string'
-    || Buffer.byteLength(value.stdout, 'utf8') > 64 * 1_024
+    || Buffer.byteLength(value.stdout, 'utf8') > maximumStdoutBytes
     || Buffer.byteLength(value.stderr, 'utf8') > 8 * 1_024
   ) fail(code);
   if (value.status === 0 && value.stderr === '') return value.stdout;
@@ -1629,12 +1832,12 @@ function sameFixedFile(left, right) {
   ].every(key => left.identity[key] === right.identity[key]);
 }
 
-async function exactChild(runChild, request, code, allowMissingLaunchService = false) {
+async function exactChild(runChild, request, code, allowMissingLaunchService = false, maximumStdoutBytes = 64 * 1_024) {
   let result;
   try { result = await runChild(Object.freeze(request)); } catch {
     fail(code);
   }
-  return childResult(result, code, allowMissingLaunchService);
+  return childResult(result, code, allowMissingLaunchService, maximumStdoutBytes);
 }
 
 /**
@@ -2160,13 +2363,19 @@ export function createSealedRealmsProductionG001Dispatcher(input) {
         ({ invocation, operation } = createInvocation(prepared, lane));
         result = await consumeInvocation(invocation, prepared, lane);
       } catch (error) {
-        if (operation === 'g001-policy-observe' && process.platform === 'linux'
+        if (operation === 'g001-policy-observe'
           && !isProxy(error) && error !== null && typeof error === 'object') {
           const fields = Object.getOwnPropertyDescriptors(error);
-          if (fields.message?.value === 'G001_LINUX_POLICY_NATIVE_FAILED') {
+          if (process.platform === 'linux' && fields.message?.value === 'G001_LINUX_POLICY_NATIVE_FAILED') {
             // Recreate only the native boundary's fixed diagnostic. Its error
             // text, private cause, getters and arbitrary fields never escape.
             policyFail(fields.diagnostic?.value);
+          }
+          if (fields.code?.value === 'SEALED_REALMS_G001_POLICY_RECORD_INVALID') {
+            policyFail('g001-receipt');
+          }
+          if (fields.code?.value === 'SEALED_REALMS_G001_LIFECYCLE_INVALID') {
+            policyFail('g001-policy-state');
           }
         }
         rejectSealedRealmsProductionLaneFailure(error);

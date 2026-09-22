@@ -96,6 +96,13 @@ Follow [the development workflow](docs/engineering/development-workflow.md) and
   Services own their own checks. Root `tsc --noEmit` alone does not traverse this
   repository's referenced projects. Use package build-mode types or explicit
   app and Vite-config noEmit checks. Confirm selected tests and exit codes.
+- Before a full Linux root Vitest run, mirror the setup in
+  `.github/workflows/verify.yml`: install root dependencies with the pinned
+  npm, install `spacetimedb/` dependencies from its frozen pnpm lock, provide
+  the hash-pinned SpacetimeDB 2.6.1 CLI through `SPACETIME_BIN`, and stage the
+  exact offline YAML archive used by `localBindingYamlManifest.test.ts`. Missing
+  archive, CLI, or locked package trees produce misleading test failures; fix
+  the environment and rerun those tests before classifying them as source bugs.
 - For visual changes, inspect rendered views, progression, loading/failure,
   background/resume and cleanup. Distinguish fixtures, emulation, actual devices
   and authenticated owner play. Measure the agreed workloads before claiming

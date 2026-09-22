@@ -13,10 +13,16 @@ physical-device acceptance and final deployment remain open. Each dated section
 below retains its original source and scope; green protected CI does not certify
 production.
 
-The latest M3 policy-observation failure and its active diagnostics repair are
-tracked in the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
-Older M1/M2 generated-family and operator records below are historical evidence,
-not current release authority.
+The current protected source is generated-only M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; PR Verify `35760703184`, CodeQL
+`35760703269`, push-to-main Verify `35766416370`, and read-only preflight
+`35772760378` passed. Authenticated read-only G001 policy observation
+`35772933637` failed closed on a valid older-source receipt in the fixed
+no-clobber slot (`mutationSubmitted:false`; no player/census data read). PR #337
+contains the source-only recovery and must pass required checks before merge;
+then prepare/check the exact protected M1 and promote its generated-only M2
+before retrying. Older generated-family and operator records below remain
+historical evidence, not current release authority.
 
 ## Historical generated-family and preflight evidence — 2026-09-20
 

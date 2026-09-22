@@ -2,15 +2,16 @@
 
 Status: **0.4 source and protected rails are merged; final release freeze remains open**.
 
-The exact protected source is `5870717bdb41d00f8b67039022640e03a675d84a`.
-Main Verify `35494158124`, CodeQL `35494158121` and exact preflight
-`35496632288` passed. Preflight returned
-`{"operation":"preflight","status":"preflight-inspected"}` and performed
-no provider or realm mutation. The M1 native preparation/check converged on
-family `311a2cdbf2f749f852dc473e11d77a3f71e03bbc7b44666fce9807c67dec6b20`,
-closure `77c41fa2f1b275e8759323f2aaad2210aafafc10ae4ca22644a181568b7bb434`,
-and scanner manifest
-`edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+The exact protected source is generated-only M2
+`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. PR Verify `35760703184`, CodeQL
+`35760703269`, push-to-main Verify `35766416370`, and read-only preflight
+`35772760378` passed. Authenticated read-only policy observation
+`35772933637` failed closed on an older-source receipt occupying the fixed
+no-clobber slot; it submitted no mutation and read no player/census data. PR
+#337 carries the source-only repair. Required checks, merge, exact M1
+prepare/check, and a generated-only M2 promotion are the next source-family
+gates before retrying that observation. Earlier native preparation/check and
+M2 export remain source-bound evidence, not final freeze authority.
 `finalReleasePrepared:false` remains explicit. Provider/private authority,
 G001 preservation, sealed G002 denial, PTR owner play, physical-device
 acceptance, hosting and recovery/readback are still open. Keep sync automation
