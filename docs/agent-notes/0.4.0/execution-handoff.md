@@ -2650,3 +2650,42 @@ is not a reason to request or generate another key. Signer and gateway work is
 separate and uses the existing retained signing material for operations that
 actually require it. 0.4 is not shipped; provider deployment, retained-state
 readback and live acceptance gates remain open.
+
+## 22 September 2026 — protected commit signing recovery
+
+PR #330 (`codex/g001-policy-observe-secret-wiring`) was blocked by GitHub with
+the explicit message “Commits must have verified signatures,” despite all
+required checks passing on its earlier head. Protected `main` requires signed
+commits, linear history and strict status checks, with squash as the only merge
+method. The previously documented uncertainty about signatures was resolved by
+this direct rejection; see the [infrastructure access guide](../../operations/0.4.0-infra-access.md#protected-commit-signing).
+
+The repair used the already registered GitHub SSH signing key, whose public
+fingerprint is `SHA256:H0mdBKhWdc4xPiVS6gGE49lZUOTEhXMqB0q1SK1Ofec`. The matching
+private key was already available on the maintained Windows host at
+`C:\Users\heyas\.ssh\warpkeep_signing`; no recovery GitHub App key or new SSH
+key was created. Never copy key material into the repository, notes, terminal
+logs or chat. If the existing signer is not available, stop and ask the owner
+to restore access to that same signer; do not weaken branch rules or use an
+administrative merge bypass.
+
+For a future protected PR with unsigned commits, first confirm the live `main`
+protection, PR head and exact blocking message with `gh`. Verify that the
+existing private key is available and its `.pub` fingerprint matches the
+account's registered **signing** key. Re-sign only the PR branch, based on the
+current `origin/main`, with SSH commit signing enabled; do not rewrite `main` or
+unrelated history. Record the old tip and tree before rewriting, then confirm the
+new tip has the same tree, the patch series is preserved, and GitHub reports
+every rewritten commit as verified. Push the rewritten PR branch with an
+explicit `--force-with-lease` against the old remote tip. Run the repository's
+pinned secret scan over the outgoing history, then wait for all required checks
+on the exact new head. When eligible, use the existing normal squash
+auto-merge. Do not infer that green checks override signature requirements.
+
+For PR #330, the four replacement commits were all verified by GitHub; old and
+new PR-tip trees both equal `a81c1658e60094db426420b95e3f554e7399f967`. The
+pinned Gitleaks scan of the four-commit outgoing history was clean. Auto-merge
+was enabled using squash, and GitHub restarted required checks for signed head
+`060a3c7c5f190fbee029ea09df2d0cce0a7c3ce1`. The final workflow runs and merge
+state must be rechecked before proceeding to M1 preparation; these notes do not
+claim that PR #330 has merged or that 0.4 has shipped.
