@@ -1,40 +1,35 @@
 # Release engineering, CI and infrastructure audit
 
-## Current source and access checkpoint — 22 September 2026
+## Operational checkpoint — 22 September 2026
 
-The [execution handoff](execution-handoff.md) owns the moving protected source
-and operation receipts. The latest checked main is M2
-`ea327f965fa015f4980d85801c0cf194129b4f93`; PR #330 supplied its source-only M1
-and PR #331 promoted the generated-only family through normal protections.
-Main Verify `35701085839` and CodeQL `35701085915` passed on that exact source.
-Protected preflight `35706139447` and read-only policy observation `35706296044`
-passed. Census `35706634110` failed at `g001-observation` after a private
-applicant snapshot was written, before a complete first sample. No private data
-was uploaded and no provider mutation was submitted.
+The [execution handoff](execution-handoff.md) owns the moving protected source,
+working branch, and terminal operation receipts. The [release checklist](../../operations/0.4.0-release-checklist.md)
+owns the acceptance gates. Resolve both against GitHub before acting; dated
+evidence below is scoped to its recorded source and must not be reused as current
+authority.
 
-PR #332 adds safe labels for late identity and sample-reconciliation failures.
-After its normal merge, rebuild and independently check the exact M1 native
-family, promote its outputs through a generated-only M2, and repeat exact-main
-Verify/preflight before policy observation and census. The Pages run on M2
-classified the source but skipped build, deployment and live verification. The
-published frontend remains the previously verified 0.3.43 baseline; 0.4 is not
-shipped. No additional recovery key is needed for these read-only operations.
+At this checkpoint, protected main is M3
+`8bfa7ebd4a951156aa73b28962405300f09201bc`. Main Verify `35734417515`, CodeQL
+`35734417288`, and protected preflight `35740875921` passed. Policy observation
+`35741004205` failed with generic `g001-observation`; the child hid the typed
+operator error, so that result does not establish a credential, policy, or
+provider defect. Census was not dispatched on M3. The current source-only
+diagnostic repair is PR #335; its exact head and live required checks are in the
+execution handoff. Do not use the former PR #332 checkpoint as current work.
 
-### Confirmed delivery work, in dependency order
+The M2 Pages classifier `35740829270` skipped build, deployment, and live
+verification. That is not a deployment; the 0.4 release remains unshipped. No
+additional recovery key is required for the supported read-only path.
 
-Merge and verify the census diagnostic repair, refresh its native M1/M2 family,
-then rerun the protected read-only operations. Only after a complete genuine
-census should the project proceed to prepared bridge/signer work, preservation
-and sealed-realm readback, deployment, recovery, owner play and device/performance
-acceptance. Keep scheduled automation paused and create no Desktop output.
+### Remaining delivery work, in dependency order
 
-### Confirmed delivery work, in dependency order
-
-The source repair and generated family are now integrated. The remaining work
-is provider-backed acceptance: populate/re-attest the private producers, run the
-supported read-only inspections, then complete preserved-state deployment,
-recovery/readback, owner play and device/performance gates. No recurring task or
-fresh Desktop package is needed.
+Merge and verify PR #335 through normal protections, prepare and independently
+check its exact protected-M1 native family, and promote only the derived outputs
+through generated-only M2. Verify M2, rerun preflight and policy observation, and
+start a fresh census only after policy observation succeeds. Then continue with
+prepared bridge/signer work, preservation and sealed-realm readback, deployment,
+recovery, owner play, and device/performance acceptance. Keep scheduled
+automation paused and create no Desktop output.
 
 ## Historical source checkpoint — 2026-09-12
 
