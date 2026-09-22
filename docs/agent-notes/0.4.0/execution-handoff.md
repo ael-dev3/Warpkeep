@@ -2759,9 +2759,10 @@ was enabled using squash, and GitHub restarted required checks for signed head
 state must be rechecked before proceeding to M1 preparation; these notes do not
 claim that PR #330 has merged or that 0.4 has shipped.
 
-## 22 September 2026 — exact-M2 policy receipt recovery
+## 22 September 2026 — historical exact-M2 policy receipt recovery
 
-Protected `main` is still exact M2 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`.
+At the time of this observation, before source-only recovery PR #337 merged,
+protected `main` was exact M2 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`.
 Its push Verify run [`35766416370`](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
 and read-only preflight [`35772760378`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772760378)
 both completed successfully. The next exact-M2 `g001-policy-observe` dispatch,
