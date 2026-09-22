@@ -25,7 +25,7 @@ export function readFixedLinuxG001ActivationCensusEvidence(capability: FixedLinu
   input: Readonly<{ sourceAuthority: SealedRealmsProductionSourceAuthority;
     workflowPermit: SealedRealmsProductionWorkflowPermit;
   }>): ReturnType<typeof import('./genesis001-linux-census-attempt.mjs').readFixedLinuxG001CensusAttempt>;
-export function prepareFixedLinuxG001PolicyObservation(): Promise<FixedLinuxG001PolicyPreparation>;
+export function prepareFixedLinuxG001PolicyObservation(adminSecret: string): Promise<FixedLinuxG001PolicyPreparation>;
 export function assertFixedLinuxG001PolicyPreparation(handle: FixedLinuxG001PolicyPreparation): void;
 export function disposeFixedLinuxG001PolicyObservation(handle: FixedLinuxG001PolicyPreparation | FixedLinuxG001CensusPreparation): void;
 export function executeFixedLinuxG001PolicyObservation(handle: FixedLinuxG001PolicyPreparation, evidence: SealedRealmsProductionWorkflowEvidence): Promise<Readonly<{

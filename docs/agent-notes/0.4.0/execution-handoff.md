@@ -2616,3 +2616,27 @@ operation is claimed. B0 and the legacy
 prepared caller still require their separate Darwin-to-Linux migration, and the
 owner PTR journey, physical-device checks, protected deployment and signed-history
 merge remain open.
+
+## 22 September 2026 — policy observation secret wiring
+
+Protected main was `e309d897299d1b3f3984ab62ebf00950b0de93b4` at the latest
+read-only policy dispatch. [Run `35680568053` (#69)](https://github.com/ael-dev3/Warpkeep/actions/runs/35680568053), job `106596442275`, reached
+the fixed G001 operation and failed at `g001-credential-descriptor`, before the
+native observation. The workflow expression supplied
+`WARPKEEP_PRODUCTION_ADMIN_TOKEN` to census and activation steps, but omitted
+`g001-policy-observe`. The old policy reader also expected a runner-persistent
+`admin-token` file, while census already used the protected secret through a
+short-lived descriptor. No new App key or persistent runner file is needed.
+
+The local repair aligns both read-only G001 operations: the fixed workflow passes
+the existing secret only to the native execution step; ingress scrubs its
+environment entry; the native reader validates it, waits for refreshed authority,
+creates the descriptor-backed file inside the operation's private root, and
+cleans that root. The infrastructure and Linux runbooks now give the exact
+recovery route for this diagnostic. Focused workflow/native suites pass 74 tests
+with 38 POSIX-only skips; the policy-ingress evidence case passes, and
+`npm run typecheck` passes. The compiled native-boundary test currently exceeds
+the Windows Vitest worker heap even at an 8 GB cap, so it has no assertion result;
+recheck it in the source-bound Linux/CI path. The repair is still local and must
+follow the source-only M1, exact-source native prepare/check, generated-only M2,
+main Verify and preflight sequence before another protected observation.

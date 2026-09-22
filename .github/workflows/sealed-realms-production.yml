@@ -173,7 +173,7 @@ jobs:
           WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_ACCOUNT_ID || '' }}
           WARPKEEP_AUTH_BRIDGE_ZONE_ID: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_ZONE_ID || '' }}
           WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN: ${{ startsWith(inputs.operation, 'activation-evidence-') && secrets.WARPKEEP_AUTH_BRIDGE_CLOUDFLARE_API_TOKEN || '' }}
-          WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ (startsWith(inputs.operation, 'activation-evidence-') || inputs.operation == 'g001-freeze-census') && secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN || '' }}
+          WARPKEEP_PRODUCTION_ADMIN_TOKEN: ${{ (startsWith(inputs.operation, 'activation-evidence-') || inputs.operation == 'g001-policy-observe' || inputs.operation == 'g001-freeze-census') && secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN || '' }}
           WARPKEEP_PTR_SPACETIMEDB_DATABASE: ${{ startsWith(inputs.operation, 'activation-evidence-') && vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE || '' }}
           WARPKEEP_G001_CENSUS_ATTEMPT: ${{ startsWith(inputs.operation, 'activation-evidence-') && inputs.g001_census_attempt || '' }}
         shell: /bin/bash --noprofile --norc -p -e -o pipefail {0}

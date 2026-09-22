@@ -228,7 +228,7 @@ describe('sealed-realms production workflow authority', () => {
       expect(execute.env).toEqual({ WARPKEEP_SOURCE_COMMIT: '${{ inputs.source_commit }}',
         GITHUB_TOKEN: '${{ github.token }}', ...credentials,
         ...(name === 'operate_readonly' ? { WARPKEEP_PRODUCTION_ADMIN_TOKEN:
-          "${{ (startsWith(inputs.operation, 'activation-evidence-') || inputs.operation == 'g001-freeze-census') && secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN || '' }}" } : {}) });
+          "${{ (startsWith(inputs.operation, 'activation-evidence-') || inputs.operation == 'g001-policy-observe' || inputs.operation == 'g001-freeze-census') && secrets.WARPKEEP_PRODUCTION_ADMIN_TOKEN || '' }}" } : {}) });
       for (const step of job.steps.filter(step => step !== execute)) {
         for (const key of providerNames) expect(step.env ?? {}).not.toHaveProperty(key);
       }
