@@ -17,7 +17,7 @@ provider defect. Census was not dispatched on M3. The current source-only
 diagnostic repair is PR #335; its exact head and live required checks are in the
 execution handoff. Do not use the former PR #332 checkpoint as current work.
 
-The M2 Pages classifier `35740829270` skipped build, deployment, and live
+The M3 Pages classifier `35740829270` skipped build, deployment, and live
 verification. That is not a deployment; the 0.4 release remains unshipped. No
 additional recovery key is required for the supported read-only path.
 
