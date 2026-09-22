@@ -324,8 +324,7 @@ async function execute(handle, evidence, kind) {
     closeSync(secretFd); secretFd = undefined;
     if (observed.stderr !== '') {
       const childDiagnostic = nativeFailureDiagnostic(observed.stderr);
-      if (childDiagnostic !== undefined) policyFail(childDiagnostic);
-      policyFail();
+      policyFail(childDiagnostic ?? 'g001-observation');
     }
     const receipt = canonicalResult(observed.stdout, kind === 'census' ? 4 * 1024 * 1024 : 32768);
     sameOperation(state);

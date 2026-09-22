@@ -193,12 +193,20 @@ describe('opaque policy preparation and final descriptor boundary', () => {
   });
   it.each([
     'g001-policy-state', 'g001-policy-procedure', 'g001-policy-transport',
-    'g001-policy-credential', 'g001-policy-authority',
+    'g001-policy-credential', 'g001-policy-authority', 'g001-receipt',
   ] as const)('retains the fixed policy diagnostic %s through the native boundary', async diagnostic => {
     fixture.childStderr = `node: warning: runner notice\nG001_LINUX_POLICY_NATIVE_FAILED:${diagnostic}\n`;
     const handle = await prepareFixedLinuxG001PolicyObservation(fixture.workflowSecret);
     await expect(executeFixedLinuxG001PolicyObservation(handle, fixture.source as never)).rejects.toMatchObject({
       diagnostic,
+    });
+    expect(fixture.cleanup).toBe(1); expect(() => fstatSync(fixture.fd!)).toThrow();
+  });
+  it('collapses an unrecognized child marker to the generic observation category', async () => {
+    fixture.childStderr = 'node: warning: runner notice\nG001_LINUX_POLICY_NATIVE_FAILED:private-provider-detail\n';
+    const handle = await prepareFixedLinuxG001PolicyObservation(fixture.workflowSecret);
+    await expect(executeFixedLinuxG001PolicyObservation(handle, fixture.source as never)).rejects.toMatchObject({
+      diagnostic: 'g001-observation',
     });
     expect(fixture.cleanup).toBe(1); expect(() => fstatSync(fixture.fd!)).toThrow();
   });
