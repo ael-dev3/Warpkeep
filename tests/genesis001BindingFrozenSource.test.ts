@@ -198,6 +198,7 @@ describe('Genesis 001 authenticated frozen-source materialization', () => {
         expect(existsSync(missing.destination)).toBe(true);
       }
     },
+    LINUX_SOURCE_MATERIALIZATION_TIMEOUT_MS,
   );
 
   it.skipIf(process.platform !== 'linux')(
