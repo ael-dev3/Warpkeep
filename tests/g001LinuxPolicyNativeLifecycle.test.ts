@@ -8,7 +8,8 @@ const fixture = vi.hoisted(() => {
   const home = `${root}${sep}home`, privateRoot = `${home}${sep}private`;
   return { root, home, privateRoot, operationRoot: undefined as string | undefined,
     workflowSecret: 'synthetic-workflow-admin-credential-000000', opened: 0, cleanup: 0, calls: [] as string[], fd: undefined as number | undefined,
-    clock: 0, advanceDuringAttestation: false, sourceChanged: false, childFailed: false, childStderr: undefined as string | undefined, secretChanged: false,
+    clock: 0, advanceDuringAttestation: false, sourceChanged: false, childFailed: false,
+    childThrown: undefined as unknown, childStderr: undefined as string | undefined, secretChanged: false,
     censusMismatch: false, retainedChanged: false, complete: undefined as any,
     authority: { mode: 'S', operation: 'activation-evidence-inspect' }, permit: Object.freeze({}),
     refreshes: 0, liveAttestations: 0, failAttestation: 0, revoked: false,
@@ -115,6 +116,7 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
     fixture.calls.push('observe'); fixture.fd = options.inheritedFd4;
     expect(Number.isInteger(fixture.fd)).toBe(true);
     if (fixture.childFailed) throw Error('child failed');
+    if (fixture.childThrown !== undefined) throw fixture.childThrown;
     if (fixture.childStderr !== undefined) return { stdout: '', stderr: fixture.childStderr };
     const request = JSON.parse(options.fd3);
     fixture.operationRoot = request.operationRoot;
@@ -143,7 +145,8 @@ describe('opaque policy preparation and final descriptor boundary', () => {
   beforeEach(() => {
     fixture.clock = 0; fixture.advanceDuringAttestation = false; fixture.opened = 0; fixture.cleanup = 0; fixture.calls = []; fixture.fd = undefined;
     fixture.operationRoot = undefined;
-    fixture.sourceChanged = false; fixture.childFailed = false; fixture.childStderr = undefined; fixture.secretChanged = false;
+    fixture.sourceChanged = false; fixture.childFailed = false; fixture.childThrown = undefined;
+    fixture.childStderr = undefined; fixture.secretChanged = false;
     fixture.censusMismatch = false; fixture.retainedChanged = false;
     fixture.complete = undefined; fixture.refreshes = 0; fixture.liveAttestations = 0; fixture.failAttestation = 0;
     fixture.revoked = false; fixture.afterCollection = undefined; fixture.changeRetainedDigest = false;
@@ -209,6 +212,23 @@ describe('opaque policy preparation and final descriptor boundary', () => {
       diagnostic: 'g001-observation',
     });
     expect(fixture.cleanup).toBe(1); expect(() => fstatSync(fixture.fd!)).toThrow();
+  });
+  it.each(['accessor', 'proxy'] as const)('does not invoke %s traps on a failed child error', async kind => {
+    let invoked = false;
+    fixture.childThrown = kind === 'accessor'
+      ? Object.defineProperty(new Error('private'), 'diagnostic', {
+        get() { invoked = true; throw Error('private'); },
+      })
+      : new Proxy(Error('private'), {
+        get() { invoked = true; throw Error('private'); },
+        getOwnPropertyDescriptor() { invoked = true; throw Error('private'); },
+      });
+    const handle = await prepareFixedLinuxG001PolicyObservation(fixture.workflowSecret);
+    await expect(executeFixedLinuxG001PolicyObservation(handle, fixture.source as never)).rejects.toMatchObject({
+      diagnostic: 'g001-observation',
+    });
+    expect(invoked).toBe(false); expect(fixture.cleanup).toBe(1);
+    expect(() => fstatSync(fixture.fd!)).toThrow();
   });
   it('refuses evidence that expires during expensive attestation before opening the credential', async () => {
     const handle = await prepareFixedLinuxG001PolicyObservation(fixture.workflowSecret); fixture.advanceDuringAttestation = true;

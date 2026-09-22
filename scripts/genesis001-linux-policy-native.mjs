@@ -39,6 +39,14 @@ function nativeFailureDiagnostic(stderr) {
   const parsed = NATIVE_FAILURE_MARKER.exec(matches[0][1]);
   return parsed === null ? undefined : parsed[1] ?? 'g001-observation';
 }
+function nativeErrorDiagnostic(error) {
+  if (error === null || typeof error !== 'object' || types.isProxy(error)) return undefined;
+  try {
+    const field = Object.getOwnPropertyDescriptor(error, 'diagnostic');
+    return field !== undefined && 'value' in field && typeof field.value === 'string'
+      ? field.value : undefined;
+  } catch { return undefined; }
+}
 let active = false;
 let pending;
 const preparations = new WeakMap();
@@ -355,7 +363,7 @@ async function execute(handle, evidence, kind) {
       attemptId: runId, githubRunId, githubRunAttempt, receiptDigest: complete.receiptDigest,
       completedAt: complete.completedAt, mutationSubmitted: false });
   } catch (error) {
-    const childDiagnostic = error && typeof error === 'object' ? error.diagnostic : undefined;
+    const childDiagnostic = nativeErrorDiagnostic(error);
     policyFail(typeof childDiagnostic === 'string' && ADMITTED_DIAGNOSTICS.has(childDiagnostic)
       ? childDiagnostic : diagnostic);
   }

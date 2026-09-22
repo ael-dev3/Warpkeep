@@ -23,7 +23,7 @@ preserves the generic fallback, and closes the child → native → public-prefl
 allowlist chain. Focused tests exposed and corrected a second propagation gap in
 the native stderr parser. A signed source checkpoint is committed locally; its
 exact outgoing scan against M3 found no leaks. On pinned Node `v22.22.3`, the three
-focused suites passed 126 tests with 44 platform skips, and `tsc -b` passed.
+focused suites passed 128 tests with 44 platform skips, and `tsc -b` passed.
 Gitleaks 8.30.1's scanner regression passed 48 positive fixtures and 95 negative
 fixtures; local targets in all five updated Markdown files exist. Source-only
 M1 is open as [PR #335](https://github.com/ael-dev3/Warpkeep/pull/335); inspect
