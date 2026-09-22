@@ -700,13 +700,18 @@ it('shares the genuine evidence WeakMap with the compiled native credential boun
   const source = { sourceCommit: f.commit, sourceTree: 'b'.repeat(40), operatorBlob: 'c'.repeat(40), operatorSha256: 'd'.repeat(64) };
   const built = { bundleSha256: 'e'.repeat(64), bundleBytes: 1, sourceClosureSha256: 'f'.repeat(64), dependencyClosureSha256: '1'.repeat(64) };
   let opened = 0, sessions = 0, clock = 1000, expireAtAttestation = false;
+  let operationRoot: string | undefined, materializedSecret: string | undefined;
+  const openedPaths: string[] = [];
   const now = vi.spyOn(performance, 'now').mockImplementation(() => clock);
   const nativeFixtures = {
     attest: () => source,
     closure: () => { if (expireAtAttestation) clock += 120000; },
     cleanup: (_root: string, runId: string) => ({ outcome: 'cleaned', runId, namespaceInventorySha256: '2'.repeat(64) }),
-    run: async (_node: string, args: string[]) => {
-      if (args.some(arg => arg.endsWith('materializer.mjs'))) return { stdout: JSON.stringify(built) + '\n', stderr: '' };
+    run: async (_node: string, args: string[], options: any) => {
+      if (args.some(arg => arg.endsWith('materializer.mjs'))) {
+        operationRoot = JSON.parse(options.fd3).operationRoot;
+        return { stdout: JSON.stringify(built) + '\n', stderr: '' };
+      }
       sessions += 1; return { stdout: JSON.stringify({ sourceCommit: f.commit, mutationSubmitted: false }) + '\n', stderr: '' };
     },
   };
@@ -738,20 +743,26 @@ it('shares the genuine evidence WeakMap with the compiled native credential boun
     const exports: any = {}, module = { exports };
     const require = (name: string) => name === 'node:warpkeep-identity-fixture' ? nativeFixtures
       : name === 'node:child_process' ? { ...actualRequire(name), execFileSync }
-      : name === 'node:fs' ? { ...actualRequire(name), existsSync: () => true, mkdirSync: () => {}, lstatSync: () => status, fstatSync: () => status, realpathSync: (path: string) => path, openSync: () => { opened += 1; return 88; }, closeSync: () => {} }
+      : name === 'node:fs' ? { ...actualRequire(name), existsSync: () => true, mkdirSync: () => {}, lstatSync: () => status, fstatSync: () => status, realpathSync: (path: string) => path,
+        openSync: (path: string) => { opened += 1; openedPaths.push(path); return 88; },
+        writeFileSync: (_fd: number, bytes: Uint8Array) => { materializedSecret = Buffer.from(bytes).toString('utf8'); },
+        fsyncSync: () => {}, closeSync: () => {} }
       : actualRequire(name);
     new Function('require', 'module', 'exports', result.outputFiles[0].text)(require, module, exports);
     const compiled = module.exports;
     const evidence = await compiled.createScope({ workflowInputSha: f.commit });
     const handle = await compiled.prepare(adminSecret);
     await expect(compiled.execute(handle, evidence)).resolves.toMatchObject({ profile: 'warpkeep-g001-linux-policy-execution-v1' });
-    expect(opened).toBe(1); expect(sessions).toBe(1);
+    expect(opened).toBe(2); expect(sessions).toBe(1);
+    expect(operationRoot).toBeDefined();
+    expect(openedPaths).toEqual([join(operationRoot!, 'admin-token'), join(operationRoot!, 'admin-token')]);
+    expect(materializedSecret).toBe(adminSecret);
     const expired = await compiled.prepare(adminSecret); expireAtAttestation = true;
     await expect(compiled.execute(expired, evidence)).rejects.toThrow('G001_LINUX_POLICY_NATIVE_FAILED');
-    expect(opened).toBe(1); expect(sessions).toBe(1);
+    expect(opened).toBe(2); expect(sessions).toBe(1);
     expireAtAttestation = false;
     const forged = await compiled.prepare(adminSecret);
     await expect(compiled.execute(forged, Object.freeze({}))).rejects.toThrow('G001_LINUX_POLICY_NATIVE_FAILED');
-    expect(opened).toBe(1); expect(sessions).toBe(1);
+    expect(opened).toBe(2); expect(sessions).toBe(1);
   } finally { now.mockRestore(); }
 }, 60000);
