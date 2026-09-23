@@ -2,7 +2,36 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current source checkpoint — 23 September 2026
+## Current exact-M1 native prepare/check — 23 September 2026
+
+Protected main `a4852b15902e5486496c17db20440532725f4170` (tree
+`157c038cd99b5a53671e52920e4c433566f8bea7`) passed main CodeQL 35847251540
+and exact push Verify 35847251543. After rechecking that live `main` had not
+moved, the dedicated `WarpkeepRunner` Linux checkout was clean at that exact
+source and its native `prepare` and independent rebuilding `check` both passed.
+
+Both runs converged on candidate
+`release-workspace-a83a78af7909ded6553b4a7a2a47d652`, source tree
+`157c038cd99b5a53671e52920e4c433566f8bea7`, transaction
+`cd9b21f404d7bd040fd29e20fba93802`, journal SHA-256
+`da549ff1dc6b0c9a723fe40468e2396209bf34cdb0665f099d21e0da4dd9ce41`, family
+SHA-256 `b1f13dce7efdaed1631d2dceee714d45c6e91ebdc94fc643ef302fc99135c199`,
+closure-manifest SHA-256
+`9ccd739d553fc24df0e5d2a954c90cb6227b3586703fc2a8b6718c6ce27e9172`, and
+scanner-manifest SHA-256
+`edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`.
+Each checked 3,257 source/candidate files, 102 generated outputs, 3,155
+preserved source files, 624 compiled bundle inputs and 7 recovery inputs. The
+candidate root is `/home/warpkeep/.warpkeep/release-preparation-v1/runs/release-workspace-a83a78af7909ded6553b4a7a2a47d652/candidate`.
+Its preparation metadata remains in the existing owner-private run store. No
+source was deployed or changed; `finalReleasePrepared:false` is explicit.
+
+PR #343 contains a client-side construction-progress improvement and is under
+required checks. If it merges, this candidate remains valid evidence for
+`a4852b15` only; repeat verification and native prepare/check for the new exact
+main before M2 promotion. This is not deployment evidence.
+
+## Superseded source checkpoint — 23 September 2026
 
 The previously verified protected main was generated-only M2
 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its PR Verify, CodeQL,

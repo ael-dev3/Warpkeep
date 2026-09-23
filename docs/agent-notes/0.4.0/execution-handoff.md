@@ -10,8 +10,15 @@ CodeQL checks passed. Main CodeQL
 [35847251540](https://github.com/ael-dev3/Warpkeep/actions/runs/35847251540)
 passed. Exact-main push Verify
 [35847251543](https://github.com/ael-dev3/Warpkeep/actions/runs/35847251543)
-is still running its Linux test and SpacetimeDB module jobs; auth bridge,
-recovery and native-contract jobs have passed.
+completed successfully at 11:06:45 UTC with all six jobs passing. A fresh
+recheck confirmed `main` remained at `a4852b15902e5486496c17db20440532725f4170`.
+Native `prepare` and the independent rebuilding `check` both passed from that
+exact source and converged on candidate
+`release-workspace-a83a78af7909ded6553b4a7a2a47d652`. Their source tree,
+transaction, journal, family, closure and scanner digests and all verification
+counts matched. `finalReleasePrepared:false` is expected; this is preparation
+evidence, not a deployment or release grant. The full native result is recorded
+in [local operations evidence](../../evidence/0.4.0/local-operations.md).
 
 On the preceding protected M2 source, read-only [preflight 35838038883](https://github.com/ael-dev3/Warpkeep/actions/runs/35838038883) passed.
 Policy observation [35838198101](https://github.com/ael-dev3/Warpkeep/actions/runs/35838198101) first failed generically; after provider-health
@@ -31,14 +38,15 @@ no production-state change was submitted.
 PR #342 adds fixed, privacy-safe stage diagnostics for unexpected errors in the
 native census sample lifecycle. It does not change collection, gameplay,
 provider policy or successful receipts. Its required hosted checks passed; an
-independent Windows run of the four affected diagnostic suites passed 175 tests
-with 44 platform-specific skips. Wait for exact-main Verify 35847251543 to
-finish, then recheck that `main` is still the recorded SHA. Run a fresh native
-prepare and independent check for this exact merged source, promote only its
-authenticated generated family as generated-only M2, and verify that M2 on
-protected main before repeating preflight and policy observation. Do not retry
-the incomplete census attempt; a new census needs a new run identity and fresh
-exact-source policy evidence.
+with 44 platform-specific skips. PR #343 now also contains a client-side
+construction-progress readout and its visual evidence; wait for its required
+checks before promoting M2. If it merges, re-resolve the new protected `main`,
+wait for that exact source's push Verify/CodeQL, and repeat native prepare/check
+for that source. Do not reuse the `a4852b15` candidate under a different source
+identity. Then promote only the authenticated generated family as generated-only
+M2 and verify it on protected `main` before repeating preflight and policy
+observation. Do not retry the incomplete census attempt; a new census needs a
+new run identity and fresh exact-source policy evidence.
 
 0.4 is not shipped. Provider deployment and recovery, accepted G001
 preservation/readback, sealed G002 and owner-only PTR evidence, actual-owner
