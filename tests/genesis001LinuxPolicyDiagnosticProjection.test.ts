@@ -69,6 +69,11 @@ describe('G001 policy failure projection', () => {
     expect(projectG001PolicyObservationDiagnostic(Object.assign(Error('private'), {
       diagnostic: 'g001-policy-state',
     }))).toBeUndefined();
+    for (const diagnostic of ['g001-census-directory', 'g001-applicant-collection', 'g001-applicant-export', 'g001-applicant-proof',
+      'g001-admitted-collection', 'g001-session-finalize']) {
+      expect(projectG001PolicyObservationDiagnostic(Object.assign(Error('private'), { diagnostic })))
+        .toBe(diagnostic);
+    }
   });
 
   it('does not invoke error getters or proxy traps while projecting a failure', () => {

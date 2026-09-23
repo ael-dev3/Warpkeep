@@ -44,13 +44,31 @@ vi.mock('../scripts/greater-realm-production-transport', async original => {
 });
 import { collectGenesis001LinuxAdmittedCensus, executeGenesis001LinuxCensusForTesting,
   executeGenesis001LinuxCensusFromDescriptor, parseGenesis001LinuxCensusFidSql,
-  reconcileGenesis001LinuxCensusSample } from '../scripts/genesis001-linux-census-operator';
+  projectGenesis001LinuxCensusStageDiagnostic, reconcileGenesis001LinuxCensusSample } from '../scripts/genesis001-linux-census-operator';
 import { collectGenesis001AdmittedPlayerCensus } from '../scripts/genesis001-admitted-player-census.mjs';
 import { createGenesis001LinuxCensusSample } from '../scripts/genesis001-linux-census-attempt.mjs';
 import { GENESIS_001_DATABASE_IDENTITY, GENESIS_001_FREEZE_RELEASE_NONCE, GENESIS_001_SOURCE_BASELINE_COMMIT,
   genesis001CensusOpaqueProofDigest } from '../scripts/genesis001-sealed-launch-adoption.mjs';
 
 const SOURCE = 'a'.repeat(40), CALLER = '8'.repeat(64);
+it.each([
+  ['sample-directory', 'g001-census-directory'],
+  ['applicant-collection', 'g001-applicant-collection'], ['applicant-export', 'g001-applicant-export'],
+  ['applicant-proof', 'g001-applicant-proof'], ['admitted-collection', 'g001-admitted-collection'],
+  ['session-finalize', 'g001-session-finalize'],
+])('projects an untyped census error at the fixed %s stage', (stage, expected) => {
+  const sentinel = 'PRIVATE_APPLICANT_OR_PROVIDER_DETAIL';
+  expect(projectGenesis001LinuxCensusStageDiagnostic(Error(sentinel), stage)).toBe(expected);
+  expect(expected).not.toContain(sentinel);
+});
+it('preserves existing fixed diagnostics and ignores arbitrary stages and error getters', () => {
+  expect(projectGenesis001LinuxCensusStageDiagnostic(Object.assign(Error('private'), {
+    diagnostic: 'g001-admitted-enumeration',
+  }), 'applicant-proof')).toBe('g001-admitted-enumeration');
+  expect(projectGenesis001LinuxCensusStageDiagnostic(Error('private'), 'unknown')).toBeUndefined();
+  const error = Object.defineProperty({}, 'diagnostic', { get: () => { throw Error('private'); } });
+  expect(projectGenesis001LinuxCensusStageDiagnostic(error, 'admitted-collection')).toBe('g001-admitted-collection');
+});
 const SQL_URL = `https://maincloud.spacetimedb.com/v1/database/${GENESIS_001_DATABASE_IDENTITY}/sql?confirmed=true`;
 it.each(['accepted', 'rejected', 'mismatched'])('checks fixed source before descriptor census transport: %s', async sourceState => {
   const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;

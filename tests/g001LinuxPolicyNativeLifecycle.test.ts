@@ -186,14 +186,18 @@ describe('opaque policy preparation and final descriptor boundary', () => {
       diagnostic: mode === 'childFailed' ? 'g001-observation' : 'g001-receipt' });
     expect(fixture.cleanup).toBe(1); expect(() => fstatSync(fixture.fd!)).toThrow();
   });
-  it('retains an allowlisted admitted diagnostic when runner stderr adds warning noise', async () => {
-    vi.stubEnv('WARPKEEP_OPERATION', 'g001-freeze-census'); vi.stubEnv('GITHUB_RUN_ID', '1234'); vi.stubEnv('GITHUB_RUN_ATTEMPT', '1');
-    fixture.childStderr = 'node: warning: runner notice\nG001_LINUX_POLICY_NATIVE_FAILED:g001-admitted-enumeration\n';
-    const handle = await prepareFixedLinuxG001CensusObservation(fixture.workflowSecret);
-    await expect(executeFixedLinuxG001CensusObservation(handle, fixture.source as never)).rejects.toMatchObject({
-      diagnostic: 'g001-admitted-enumeration' });
-    expect(fixture.cleanup).toBe(1); expect(() => fstatSync(fixture.fd!)).toThrow();
-  });
+  it.each(['g001-admitted-enumeration', 'g001-census-directory', 'g001-applicant-collection',
+    'g001-applicant-export', 'g001-applicant-proof', 'g001-admitted-collection', 'g001-session-finalize'] as const)(
+    'retains the allowlisted census diagnostic %s when runner stderr adds warning noise', async diagnostic => {
+      vi.stubEnv('WARPKEEP_OPERATION', 'g001-freeze-census');
+      vi.stubEnv('GITHUB_RUN_ID', '1234'); vi.stubEnv('GITHUB_RUN_ATTEMPT', '1');
+      fixture.childStderr = 'node: warning: runner notice\nG001_LINUX_POLICY_NATIVE_FAILED:'
+        + diagnostic + '\n';
+      const handle = await prepareFixedLinuxG001CensusObservation(fixture.workflowSecret);
+      await expect(executeFixedLinuxG001CensusObservation(handle, fixture.source as never)).rejects.toMatchObject({
+        diagnostic });
+      expect(fixture.cleanup).toBe(1); expect(() => fstatSync(fixture.fd!)).toThrow();
+    });
   it.each([
     'g001-policy-state', 'g001-policy-procedure', 'g001-policy-transport',
     'g001-policy-credential', 'g001-policy-authority', 'g001-policy-budget', 'g001-receipt',

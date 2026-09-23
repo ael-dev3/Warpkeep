@@ -2,74 +2,50 @@
 
 ## Current checkpoint — 23 September 2026
 
-Before source-only PR #337 merged, the previously protected generated-only M2
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a` passed its exact-main push Verify
-[`35766416370`](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
-and read-only preflight
-[`35772760378`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772760378)
-passed. The following exact-M2 `g001-policy-observe` run
-[`35772933637`](https://github.com/ael-dev3/Warpkeep/actions/runs/35772933637)
-failed at the authenticated operation step because a valid older-source receipt
-occupied the no-clobber active path. Supported private-state inspection found no
-submitted mutation; no census, deployment or player-data read followed.
+Generated-only M2 [PR #341](https://github.com/ael-dev3/Warpkeep/pull/341) is
+merged through protected squash as signed commit
+[39a164fc689e967f038a6265421add219aeb8bf9](https://github.com/ael-dev3/Warpkeep/commit/39a164fc689e967f038a6265421add219aeb8bf9)
+(tree 6d5661d69bb04e342238651ca457967607dac41f). Its exact-main push
+[Verify 35832913352](https://github.com/ael-dev3/Warpkeep/actions/runs/35832913352)
+and [CodeQL 35832913351](https://github.com/ael-dev3/Warpkeep/actions/runs/35832913351) passed. The maintained Linux checkout
+was synchronized to this commit and was clean before the current source-only
+diagnostic repair branch.
 
-Source-only recovery PR [#337](https://github.com/ael-dev3/Warpkeep/pull/337)
-is merged through the protected squash path. It adopts a valid current-source
-receipt on retry, archives an older valid receipt byte-for-byte before reusing
-the active slot, and preserves the original if history conflicts. The
-frozen-envelope path validates bounded retained lifecycle history, rejects
-duplicate run IDs, and adopts only an exact completed current-source observation.
-Incomplete or ambiguous state still fails closed.
+On this exact protected source, read-only [preflight 35838038883](https://github.com/ael-dev3/Warpkeep/actions/runs/35838038883) passed.
+Policy observation [35838198101](https://github.com/ael-dev3/Warpkeep/actions/runs/35838198101) first failed generically; after provider-health
+checks and token-budget reconciliation, fresh exact-source observation
+[35839561405](https://github.com/ael-dev3/Warpkeep/actions/runs/35839561405) completed successfully. Rechecking live main confirmed it had
+not moved.
 
-Verification on the published PR #337 source head:
+The following fresh g001-freeze-census [operation 35839901590](https://github.com/ael-dev3/Warpkeep/actions/runs/35839901590) failed closed
+at the authenticated operation with the generic g001-observation label.
+Supported bounded private-directory metadata showed an incomplete owner-only
+attempt with first-sample applicant export/proof files, but no retained
+validated first sample, second sample or complete receipt. The attempt remains
+untouched and is not a census baseline. Do not retry against it or read, copy,
+post or select its applicant data. The operation has no provider-mutation path;
+no production-state change was submitted.
 
-- The Windows dispatcher suite passed 89 tests with one platform skip; TypeScript
-  and clean-tree `verify:sealed-launch` passed.
-- Pinned Linux bundle, dispatch and recovery tests passed 48/48. The Auth Bridge
-  prepared-deploy closure verifier passed unchanged at 1,258 members, manifest
-  SHA-256 `eabb23ab208b773966bb194c947fa9a5a2c4cf6e62d58aa4697c9a0e325aea91`.
-- The local full-root Linux sweep reported 12,327 passing tests and 14 failures
-  caused by missing CI setup: root/workspace dependencies, the pinned CLI and
-  the exact offline YAML test input. All 34 tests in the four affected suites
-  passed after matching those prerequisites. The full suite was not rerun with
-  corrected setup, but the hosted full Linux Verify passed the exact PR head,
-  including tests, typecheck, builds, Pages variants, dependency audit and
-  release-source inventory.
-- All required PR contexts passed on the signed source head: Verify, Auth Bridge,
-  SpacetimeDB module integration, analysis and CodeQL. The native-contract and
-  release-recovery jobs also passed.
+A source-only repair is in progress to retain fixed, privacy-safe stage
+diagnostics for unexpected errors in the native census sample lifecycle. It
+does not change collection, gameplay, provider policy or successful receipts.
+On native Linux, the focused G001 census/diagnostic/native-boundary/closure
+suites passed 197 tests with 44 deliberate platform skips; TypeScript project
+build passed. The repair still needs source PR review and required hosted checks,
+then a fresh exact-M1 prepare/check and generated-only M2 promotion before any
+new protected census attempt.
 
-The previous native M1 preparation and independent check were byte-identical.
-Their source-bound evidence is retained under the existing private root:
-candidate `release-workspace-67d70d7dfae385ef2aa6bf97b44be758`, family
-SHA-256 `33e7c3f6058cbfdfaa7ed53979bbc7c2d76c95c1a60c3cc59924638d5e61b4b9`,
-prepared-deploy closure SHA-256
-`eabb23ab208b773966bb194c947fa9a5a2c4cf6e62d58aa4697c9a0e325aea91`, scanner
-SHA-256 `edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71`,
-3,257 source/candidate files and 102 outputs. The generated-only M2 export
-re-read all 102 outputs and changed 11 tracked paths. `finalReleasePrepared:false`
-remains explicit; those records belong to earlier source and cannot certify the
-merged recovery fix or grant deployment.
-
-Resolve the exact current protected `main` and terminal push Verify after the
-source/handoff checkpoint is integrated. Synchronize the idle native checkout
-to that exact clean commit, run a fresh full native prepare and independent check,
-and retain the new source-bound handle and digests. Promote only its authenticated
-generated family as generated-only M2. After that M2 merges, wait for its exact
-push Verify, recheck `main`, then run preflight and a fresh read-only policy
-observation. Start census only after that observation completes with its
-source-bound receipt. Do not reuse the failed M2 attempt or the earlier candidate
-as authority.
-
-0.4 is not live or shipped. Provider deployment and recovery, G001 preservation
-and readback, owner-only PTR play, physical-device acceptance, measured
-performance budgets and final release freeze still need current evidence. Keep
-scheduled sync automation paused, create no Desktop siblings or backups, retain
-private attempts, and use the existing recovery/bootstrap path; no additional
-GitHub App key is needed. Use the [release checklist](../../operations/0.4.0-release-checklist.md),
+0.4 is not shipped. Provider deployment and recovery, accepted G001
+preservation/readback, sealed G002 and owner-only PTR evidence, actual-owner
+gameplay, physical-device and measured performance acceptance, final release
+freeze, live hosting verification and final workspace delivery remain open.
+Keep scheduled sync automation paused, create no Desktop artifacts or backups,
+retain private attempts, and use the existing recovery/bootstrap path; no
+additional GitHub App key is needed. Use the [release checklist](../../operations/0.4.0-release-checklist.md),
 [access guide](../../operations/0.4.0-infra-access.md) and
-[source synchronization procedure](../../operations/0.4.0-development-sync.md)
-as the current route. Resolve live refs before every operation.
+[source synchronization procedure](../../operations/0.4.0-development-sync.md) as the
+current route. Resolve live refs before each operation.
+
 ## Reliability follow-up — 21 September 2026 (historical)
 
 The owner requested prevention of repeat blockers and maintenance only, with no
