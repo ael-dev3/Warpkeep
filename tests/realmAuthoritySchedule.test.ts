@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   formatRealmRemainingDuration,
-  localRealmNowMicros
+  localRealmNowMicros,
+  realmIntervalProgressPercent
 } from '../src/components/realm/realmAuthoritySchedule';
 
 describe('Realm authority schedule', () => {
@@ -29,5 +30,19 @@ describe('Realm authority schedule', () => {
     expect(formatRealmRemainingDuration(now + 1n, undefined)).toBeUndefined();
     expect(localRealmNowMicros(Number.NaN)).toBeUndefined();
     expect(localRealmNowMicros(Number.MAX_SAFE_INTEGER + 1)).toBeUndefined();
+  });
+
+  it('projects honest percentage progress and waits for Realm confirmation at the deadline', () => {
+    const startedAt = 1_000n;
+    const completesAt = 11_000n;
+
+    expect(realmIntervalProgressPercent(startedAt, completesAt, 0n)).toBe(0);
+    expect(realmIntervalProgressPercent(startedAt, completesAt, 1_100n)).toBe(1);
+    expect(realmIntervalProgressPercent(startedAt, completesAt, 6_000n)).toBe(50);
+    expect(realmIntervalProgressPercent(startedAt, completesAt, 10_900n)).toBe(99);
+    expect(realmIntervalProgressPercent(startedAt, completesAt, completesAt)).toBe(99);
+    expect(realmIntervalProgressPercent(startedAt, completesAt, completesAt + 1n)).toBe(99);
+    expect(realmIntervalProgressPercent(startedAt, completesAt, undefined)).toBeUndefined();
+    expect(realmIntervalProgressPercent(startedAt, startedAt, 1_000n)).toBeUndefined();
   });
 });

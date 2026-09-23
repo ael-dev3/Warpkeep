@@ -1,4 +1,8 @@
 import { estimatedTime04 } from './Keep04WorkerPanel';
+import {
+  localRealmNowMicros,
+  realmIntervalProgressPercent,
+} from '../realm/realmAuthoritySchedule';
 
 export type ConstructionProgress04 = Readonly<{
   percent: number;
@@ -12,14 +16,11 @@ export type ConstructionProgress04 = Readonly<{
  */
 export function constructionProgress04(startedAtMicros: bigint, completesAtMicros: bigint, nowMs: number): ConstructionProgress04 {
   const remaining = estimatedTime04(completesAtMicros, nowMs);
-  if (!Number.isFinite(nowMs)) return Object.freeze({ percent: 0, remaining, label: '0% complete · Awaiting Realm confirmation' });
-  const nowMicros = BigInt(Math.max(0, Math.trunc(nowMs))) * 1_000n;
-  const total = completesAtMicros - startedAtMicros;
-  const percent = total <= 0n || nowMicros <= startedAtMicros
-    ? 0
-    : nowMicros >= completesAtMicros
-      ? 99
-      : Number(((nowMicros - startedAtMicros) * 100n) / total);
+  const percent = realmIntervalProgressPercent(
+    startedAtMicros,
+    completesAtMicros,
+    localRealmNowMicros(nowMs),
+  ) ?? 0;
   const label = remaining === 'Awaiting Realm update'
     ? `${percent}% complete · Awaiting Realm confirmation`
     : `${percent}% complete · ${remaining} remaining`;

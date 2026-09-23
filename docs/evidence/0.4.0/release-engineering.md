@@ -13,18 +13,26 @@ physical-device acceptance and final deployment remain open. Each dated section
 below retains its original source and scope; green protected CI does not certify
 production.
 
-The previously verified protected source was generated-only M2
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`; its PR Verify, CodeQL,
-push-to-main Verify and read-only preflight passed. Authenticated read-only G001
-policy observation `35772933637` failed closed on a valid older-source receipt
-in the fixed no-clobber slot (`mutationSubmitted:false`; no player/census data
-read). Source-only recovery PR #337 is merged through protection, with required
-PR checks, hosted full Linux Verify and SpacetimeDB integration green. The
-earlier native candidate predates that merge; resolve the live protected `main`
-and wait for its push Verify, then freshly prepare/check that exact M1 and
-promote its generated-only M2 before retrying. Older generated-family and
-operator records below remain historical evidence, not current release
-authority.
+The preceding protected M2 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a` passed
+its PR Verify, CodeQL, push-to-main Verify, preflight and read-only policy
+observation `35839561405`. Census `35839901590` later failed closed with an
+incomplete first-sample attempt; it remains preserved and is not a baseline.
+
+The current source-only repair PR #342 is signed protected main
+`a4852b15902e5486496c17db20440532725f4170`. Main CodeQL 35847251540 and exact
+push Verify 35847251543 passed. Fresh native prepare and independent check for
+that exact source matched candidate `release-workspace-a83a78af7909ded6553b4a7a2a47d652`,
+family `b1f13dce7efdaed1631d2dceee714d45c6e91ebdc94fc643ef302fc99135c199`,
+closure `9ccd739d553fc24df0e5d2a954c90cb6227b3586703fc2a8b6718c6ce27e9172`,
+transaction `cd9b21f404d7bd040fd29e20fba93802` and identical journal/scanner
+digests. `finalReleasePrepared:false` remains explicit.
+
+PR #343 now contains a client-side construction-progress improvement and
+remains under required checks. If it merges, repeat exact-main Verify/CodeQL and
+native preparation/check from that new source before generated-only M2. These
+results remain source-bound and do not authorize deployment. Live provider
+deployment, recovery, G001 preservation, sealed G002 denial, owner PTR journey,
+physical-device acceptance and final hosting remain open.
 
 ## Historical generated-family and preflight evidence — 2026-09-20
 

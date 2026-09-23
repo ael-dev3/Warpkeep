@@ -76,7 +76,7 @@ function delay(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 }
 
-function runtimeValue(result) {
+function runtimeValue(result, context = 'scenario') {
   const candidate = result?.result;
   if (
     !candidate
@@ -84,7 +84,19 @@ function runtimeValue(result) {
     || candidate.type !== 'object'
     || !Object.hasOwn(candidate, 'value')
     || result.exceptionDetails !== undefined
-  ) throw new Error('Inner Keep QA browser returned invalid aggregate evidence.');
+  ) {
+    const exception = result?.exceptionDetails?.exception;
+    const exceptionName = typeof exception?.className === 'string'
+      ? exception.className
+      : 'unknown';
+    const exceptionMessage = typeof exception?.description === 'string'
+      ? exception.description.slice(0, 160)
+      : 'no serializable value';
+    throw new Error(
+      `Inner Keep QA browser returned invalid aggregate evidence for ${context}.`,
+      { cause: new Error(`${exceptionName}: ${exceptionMessage}`) },
+    );
+  }
   return candidate.value;
 }
 
@@ -239,7 +251,64 @@ async function readEvidence(session, probeCase) {
     expression: evidenceExpression(probeCase.scenario.level),
     returnByValue: true,
   }, CDP_TIMEOUT_MILLISECONDS);
-  return runtimeValue(result);
+  return runtimeValue(result, probeCase.id);
+}
+
+async function assertConstructionProgressIsVisible(session, probeCase) {
+  const basisPoints = probeCase.scenario.progressBasisPoints;
+  if (basisPoints === null) return;
+  if (probeCase.scenario.state === 'builder-busy') {
+    const result = await session.command('Runtime.evaluate', {
+      expression: `({
+        value: document.querySelector('.inner-keep-builder__progress')?.textContent?.trim() ?? null
+      })`,
+      returnByValue: true,
+    }, CDP_TIMEOUT_MILLISECONDS);
+    if (runtimeValue(result, probeCase.id)?.value !== `${Math.floor(basisPoints / 100)}% COMPLETE`) {
+      throw new Error('Inner Keep busy-builder progress summary was not rendered.');
+    }
+    return;
+  }
+  if (probeCase.scenario.state !== 'constructing') return;
+  const result = await session.command('Runtime.evaluate', {
+    expression: `(() => {
+      const progress = document.querySelector('.inner-keep-active-project [role="progressbar"]');
+      const builderProgress = document.querySelector('.inner-keep-builder__progress');
+      const rectangle = progress?.getBoundingClientRect();
+      return {
+        accessibleLabel: progress?.getAttribute('aria-label') ?? null,
+        accessibleValueText: progress?.getAttribute('aria-valuetext') ?? null,
+        builderText: builderProgress?.textContent?.trim() ?? null,
+        progressText: progress?.parentElement?.querySelector('span:not([aria-hidden="true"])')
+          ?.textContent?.trim() ?? null,
+        visible: rectangle !== undefined && rectangle.width > 0 && rectangle.height > 0
+          && rectangle.bottom > 0 && rectangle.top < window.innerHeight,
+        value: progress?.getAttribute('aria-valuenow') ?? null,
+      };
+    })()`,
+    returnByValue: true,
+  }, CDP_TIMEOUT_MILLISECONDS);
+  const evidence = runtimeValue(result);
+  const percent = Number(evidence.value);
+  const expectedPercent = Math.min(99, Math.floor(basisPoints / 100));
+  if (evidence.accessibleLabel !== 'City Mill construction progress') {
+    throw new Error('Inner Keep construction progress label was missing or invalid.');
+  }
+  if (!Number.isInteger(percent) || Math.abs(percent - expectedPercent) > 1) {
+    throw new Error('Inner Keep construction progress percentage did not match Realm timing.');
+  }
+  if (evidence.accessibleValueText !== `${percent}% complete`) {
+    throw new Error('Inner Keep construction progress value text was invalid.');
+  }
+  if (evidence.progressText !== `${percent}% complete`) {
+    throw new Error('Inner Keep construction progress label was not visibly rendered.');
+  }
+  if (evidence.builderText !== `${percent}% COMPLETE`) {
+    throw new Error('Inner Keep builder progress summary was not rendered.');
+  }
+  if (evidence.visible !== true) {
+    throw new Error('Inner Keep construction progress was outside the visible viewport.');
+  }
 }
 
 async function waitForEvidence(session, probeCase, phase = 'steady') {
@@ -711,6 +780,7 @@ export async function runInnerKeepBrowserProbe(options = {}) {
     for (const probeCase of cases) {
       await navigateCase(devtools, probeCase);
       const evidence = await waitForEvidence(devtools, probeCase);
+      await assertConstructionProgressIsVisible(devtools, probeCase);
       if (SCREENSHOT_CASES.has(probeCase.id)) {
         await captureVerifiedScenarioScreenshot(devtools, probeCase);
       }

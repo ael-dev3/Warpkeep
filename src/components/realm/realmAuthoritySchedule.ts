@@ -11,6 +11,30 @@ export function localRealmNowMicros(nowMillis = Date.now()) {
 }
 
 /**
+ * Estimates visible progress between Realm-owned timestamps without ever
+ * presenting an unfinished project as 100% complete. Completion still comes
+ * only from the authoritative building state.
+ */
+export function realmIntervalProgressPercent(
+  startedAtMicros: bigint | undefined,
+  completesAtMicros: bigint | undefined,
+  nowMicros: bigint | undefined,
+) {
+  if (
+    startedAtMicros === undefined
+    || completesAtMicros === undefined
+    || nowMicros === undefined
+    || startedAtMicros < 0n
+    || completesAtMicros <= startedAtMicros
+    || nowMicros < 0n
+  ) return undefined;
+  if (nowMicros <= startedAtMicros) return 0;
+  if (nowMicros >= completesAtMicros) return 99;
+  return Number(((nowMicros - startedAtMicros) * 100n)
+    / (completesAtMicros - startedAtMicros));
+}
+
+/**
  * Formats a validated authority deadline as time remaining. Positive
  * durations round up to the next minute so the interface never presents a
  * live assignment as having zero minutes left.
