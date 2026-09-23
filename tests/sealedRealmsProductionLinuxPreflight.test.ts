@@ -63,7 +63,8 @@ it('the executable returns one bounded public input failure without echoing argu
 it.each(['g001-credential', 'g001-host', 'g001-source', 'g001-closure', 'g001-private-root',
   'g001-materialization', 'g001-prepared-verification', 'g001-authority', 'g001-credential-descriptor',
   'g001-observation', 'g001-receipt', 'g001-cleanup', 'g001-policy-state', 'g001-policy-procedure',
-  'g001-policy-transport', 'g001-policy-credential', 'g001-policy-authority'] as const)(
+  'g001-policy-transport', 'g001-policy-credential', 'g001-policy-authority',
+  'g001-policy-budget'] as const)(
   'projects only the fixed native diagnostic %s through the public failure contract', diagnostic => {
     let nativeError: Error & { diagnostic?: string };
     try { policyFail(diagnostic); } catch (error) { nativeError = error as typeof nativeError; }

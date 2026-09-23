@@ -48,6 +48,17 @@ export function projectG001PolicyObservationDiagnostic(error) {
   if (code !== undefined && 'value' in code && typeof code.value === 'string') {
     const policyDiagnostic = POLICY_DIAGNOSTICS_BY_CODE.get(code.value);
     if (policyDiagnostic !== undefined) return policyDiagnostic;
+    // The policy observer releases its owner-scoped token-budget reservation
+    // during session cleanup. Project that typed local-state failure without
+    // exposing ledger errors, reservation ids, or provider details.
+    if (code.value.startsWith('PRODUCTION_ADMIN_TOKEN_')) return 'g001-policy-budget';
+  }
+  const message = fields.message;
+  let prototype;
+  try { prototype = Object.getPrototypeOf(error); } catch { return undefined; }
+  if (prototype === AggregateError.prototype
+    && message?.value === 'PRODUCTION_ADMIN_TOKEN_LEDGER_MULTIPLE_FAILURES') {
+    return 'g001-policy-budget';
   }
   const diagnostic = fields.diagnostic;
   return diagnostic !== undefined && 'value' in diagnostic

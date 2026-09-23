@@ -10,7 +10,7 @@ export type G001LinuxPolicyDiagnostic = 'g001-credential' | 'g001-host' | 'g001-
   | 'g001-private-root' | 'g001-materialization' | 'g001-prepared-verification' | 'g001-authority'
   | 'g001-credential-descriptor' | 'g001-observation' | 'g001-receipt' | 'g001-cleanup'
   | 'g001-policy-state' | 'g001-policy-procedure' | 'g001-policy-transport'
-  | 'g001-policy-credential' | 'g001-policy-authority';
+  | 'g001-policy-credential' | 'g001-policy-authority' | 'g001-policy-budget';
 export function policyFail(diagnostic?: G001LinuxPolicyDiagnostic): never;
 export function policyPrivateAncestors(path: string): void;
 export function policyDirectory(path: string, mode?: number): Readonly<Record<string, string>>;
