@@ -31,7 +31,7 @@ const DIAGNOSTICS = new Set(['g001-credential', 'g001-host', 'g001-source', 'g00
 for (const diagnostic of ['g001-admitted-identity', 'g001-admitted-aggregate',
   'g001-admitted-enumeration', 'g001-admitted-status', 'g001-admitted-reconciliation',
   'g001-policy-state', 'g001-policy-procedure', 'g001-policy-transport',
-  'g001-policy-credential', 'g001-policy-authority']) {
+  'g001-policy-credential', 'g001-policy-authority', 'g001-policy-budget']) {
   DIAGNOSTICS.add(diagnostic);
 }
 export function policyFail(diagnostic) {

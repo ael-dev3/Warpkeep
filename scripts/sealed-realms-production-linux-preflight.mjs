@@ -53,7 +53,7 @@ const G001_DIAGNOSTICS = new Set(['g001-credential', 'g001-host', 'g001-source',
 for (const diagnostic of ['g001-admitted-identity', 'g001-admitted-aggregate',
   'g001-admitted-enumeration', 'g001-admitted-status', 'g001-admitted-reconciliation',
   'g001-policy-state', 'g001-policy-procedure', 'g001-policy-transport',
-  'g001-policy-credential', 'g001-policy-authority']) {
+  'g001-policy-credential', 'g001-policy-authority', 'g001-policy-budget']) {
   G001_DIAGNOSTICS.add(diagnostic);
 }
 const forbiddenEnvironment = /^(?:NODE_|ESBUILD_|TS_NODE_|BUN_|LD_|DYLD_|GIT_(?!HUB)|BASH_ENV$|ENV$|OPENSSL_CONF$|SSL_CERT_|PYTHONPATH$|VITEST$)/u;
