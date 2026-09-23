@@ -37,8 +37,10 @@ no production-state change was submitted.
 
 PR #342 adds fixed, privacy-safe stage diagnostics for unexpected errors in the
 native census sample lifecycle. It does not change collection, gameplay,
-provider policy or successful receipts. Its required hosted checks passed; an
-with 44 platform-specific skips. PR #343 now also contains a client-side
+provider policy or successful receipts. Its required hosted checks passed. The
+focused native Linux census, diagnostic, native-boundary and closure suites
+passed 197 tests with 44 platform-specific skips, and the TypeScript project
+build passed. PR #343 now also contains a client-side
 construction-progress readout and its visual evidence; wait for its required
 checks before promoting M2. If it merges, re-resolve the new protected `main`,
 wait for that exact source's push Verify/CodeQL, and repeat native prepare/check
