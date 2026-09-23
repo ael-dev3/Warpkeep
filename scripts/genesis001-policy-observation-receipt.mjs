@@ -238,6 +238,7 @@ async function observePolicy(input, dependencies, readSecret) {
   let session;
   let receipt;
   let failure;
+  const clearAdminSecret = () => { adminSecret = ''; };
   try {
     const attestedSource = dependencies.attestProtectedMain(input.repositoryRoot);
     if (attestedSource !== input.sourceCommit) {
@@ -248,7 +249,7 @@ async function observePolicy(input, dependencies, readSecret) {
     adminSecret = readSecret();
     stage = 'session';
     session = dependencies.createSession({ adminSecret });
-    adminSecret = '';
+    clearAdminSecret();
 
     stage = 'refresh';
     await session.invalidate();
@@ -271,7 +272,7 @@ async function observePolicy(input, dependencies, readSecret) {
   } catch (error) {
     failure = stageFailure(error, stage);
   } finally {
-    adminSecret = '';
+    clearAdminSecret();
     if (session !== undefined) {
       try {
         await session.close();
