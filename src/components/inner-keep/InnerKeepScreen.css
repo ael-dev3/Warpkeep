@@ -677,6 +677,11 @@
   font-variant-numeric: tabular-nums;
 }
 
+.inner-keep-builder small.inner-keep-builder__progress {
+  color: #d8e8a6;
+  font-variant-numeric: tabular-nums;
+}
+
 .inner-keep-panel {
   position: fixed;
   z-index: 45;
@@ -1006,6 +1011,37 @@
   color: var(--inner-gold);
   font-variant-numeric: tabular-nums;
   text-align: center;
+}
+
+.inner-keep-active-project__progress {
+  display: grid;
+  gap: 0.32rem;
+  color: var(--inner-muted);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.inner-keep-active-project__progress [role="progressbar"] {
+  height: 0.58rem;
+  overflow: hidden;
+  border: 1px solid rgb(225 190 105 / 34%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+}
+
+.inner-keep-active-project__progress [role="progressbar"] span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #9bbd7d, var(--inner-gold));
+  transition: width 0.3s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inner-keep-active-project__progress [role="progressbar"] span {
+    transition: none;
+  }
 }
 
 @media (min-width: 900px) and (min-height: 620px) {

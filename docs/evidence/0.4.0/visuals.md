@@ -1,5 +1,22 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## 2026-09-23 construction progress readout
+
+The selected active-build panel showed its Realm completion deadline but no
+progress percentage, even though construction already had authoritative start
+and completion timestamps. The existing Builder control now shows the same
+time-derived percentage, and the selected active project exposes a visible,
+accessible progress bar. Both use the shared schedule calculation; progress is
+bounded at 99% until Realm reports the building complete, so elapsed local time
+cannot claim authoritative completion. Reduced-motion preferences suppress the
+bar-width transition.
+
+The focused UI/schedule suites pass 23 tests, application typechecking passes,
+and the local browser probe passes all 18 synthetic scenarios, including its
+responsive geometry cases. A 390×844 synthetic construction view visibly shows
+the 50% bar and text. This does not establish authenticated owner gameplay,
+physical-phone acceptance or final performance measurements.
+
 ## September 18 maintenance comparison
 
 The maintenance follow-up in PR #299 was reviewed in the real local Keep04 QA

@@ -37,7 +37,11 @@ import {
   INNER_KEEP_FREE_PLACEMENT_POLICY,
 } from './innerKeepFreePlacementPolicy';
 import { emitWarpkeepSfx } from '../audio/sfxEvents';
-import { useRealmRemainingDuration } from '../realm/realmAuthoritySchedule';
+import {
+  localRealmNowMicros,
+  realmIntervalProgressPercent,
+  useRealmRemainingDuration,
+} from '../realm/realmAuthoritySchedule';
 import { formatCompactRealmResourceQuantity } from '../realm/realmResourcePresentation';
 import './InnerKeepScreen.css';
 
@@ -339,6 +343,17 @@ export function InnerKeepScreen({
       ? presentation.builder.completesAtMicros
       : undefined,
   );
+  const builderProgressPercent = activeBuilding
+    ? realmIntervalProgressPercent(
+      activeBuilding.startedAtMicros,
+      activeBuilding.completesAtMicros,
+      localRealmNowMicros(),
+    )
+    : undefined;
+  const selectedConstructionProgressPercent = selectedBuilding?.phase === 'constructing'
+    && activeBuilding?.buildingKey === selectedBuilding.buildingKey
+    ? builderProgressPercent
+    : undefined;
 
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
@@ -656,9 +671,16 @@ export function InnerKeepScreen({
               entry.buildingKind === busyBuilder?.buildingKind
             ))?.label ?? 'Construction'} · Building Level ${presentation.builder.targetLevel}`}</strong>
           {presentation.builder.state === 'busy' ? (
-            <time dateTime={dateTimeForMicros(presentation.builder.completesAtMicros)}>
-              {builderRemaining ?? 'Awaiting Realm update'}
-            </time>
+            <>
+              <time dateTime={dateTimeForMicros(presentation.builder.completesAtMicros)}>
+                {builderRemaining ?? 'Awaiting Realm update'}
+              </time>
+              {builderProgressPercent !== undefined ? (
+                <small className="inner-keep-builder__progress">
+                  {builderProgressPercent}% COMPLETE
+                </small>
+              ) : null}
+            </>
           ) : null}
         </span>
       </button>
@@ -837,6 +859,24 @@ export function InnerKeepScreen({
             {selectedBuilding.phase === 'constructing' ? (
               <section className="inner-keep-active-project">
                 <SmokeWorksite />
+                {selectedConstructionProgressPercent !== undefined ? (
+                  <div className="inner-keep-active-project__progress">
+                    <div
+                      aria-label={`${selectedEntry.label} construction progress`}
+                      aria-valuemax={100}
+                      aria-valuemin={0}
+                      aria-valuenow={selectedConstructionProgressPercent}
+                      aria-valuetext={`${selectedConstructionProgressPercent}% complete`}
+                      role="progressbar"
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{ width: `${selectedConstructionProgressPercent}%` }}
+                      />
+                    </div>
+                    <span>{selectedConstructionProgressPercent}% complete</span>
+                  </div>
+                ) : null}
                 <strong>Building Level {selectedBuilding.targetLevel}</strong>
                 {selectedBuilding.completesAtMicros !== undefined ? (
                   <time dateTime={dateTimeForMicros(selectedBuilding.completesAtMicros)}>

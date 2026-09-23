@@ -424,9 +424,14 @@ describe('InnerKeepScreen free placement', () => {
   });
 
   it('shows construction dressing without finished art or another active command', () => {
+    const durationMicros = 86_400_000_000n;
+    const nowMicros = BigInt(Date.now()) * 1_000n;
+    const startedAtMicros = nowMicros - durationMicros / 2n;
     const building = createInnerKeepTestBuilding({
       buildingKind: 'city-mill',
-      phase: 'constructing'
+      phase: 'constructing',
+      startedAtMicros,
+      completesAtMicros: startedAtMicros + durationMicros,
     });
     const presentation = createInnerKeepPresentation({
       buildings: [building],
@@ -447,6 +452,17 @@ describe('InnerKeepScreen free placement', () => {
 
     expect(screen.getByText('CONSTRUCTION IN PROGRESS')).toBeVisible();
     expect(document.querySelector('.inner-keep-worksite')).not.toBeNull();
+    const progress = screen.getByRole('progressbar', {
+      name: 'City Mill construction progress',
+    });
+    expect(progress).toHaveAttribute('aria-valuenow', '50');
+    expect(progress).toHaveAttribute('aria-valuetext', '50% complete');
+    expect(screen.getByText('50% complete')).toBeVisible();
+    expect(screen.getByRole('button', { name: /50% COMPLETE/i })).toBeVisible();
+    const remainingLabels = screen.getAllByText(/remaining/);
+    expect(remainingLabels).toHaveLength(2);
+    for (const label of remainingLabels) expect(label).toHaveAttribute('datetime');
+    expect(screen.queryByText('100% complete')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /UPGRADE TO LEVEL/i })).toBeNull();
     expect(screen.getByRole('button', { name: /BUILDER OCCUPIED/i })).toBeVisible();
   });
