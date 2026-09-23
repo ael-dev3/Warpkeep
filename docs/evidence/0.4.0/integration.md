@@ -1,6 +1,8 @@
 # 0.4.0 integration evidence
 
-The previously verified protected integration was generated-only M2
+## Historical integration checkpoint — 22 September 2026 (superseded)
+
+The protected integration at this checkpoint was generated-only M2
 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`, merged by PR #336 from signed
 source M1 `0afb5099890428b95fd493f8c25b844364a7a4db`. Its PR Verify, CodeQL,
 push-to-main Verify and read-only preflight passed. The later authenticated
@@ -8,16 +10,16 @@ read-only G001 policy observation `35772933637` failed closed because a valid
 older-source receipt occupied the fixed no-clobber slot. `mutationSubmitted:false`;
 no player/census data was read and no deployment or realm mutation occurred.
 
-Source-only recovery PR #337 is now merged through protection; all required PR
+Source-only recovery PR #337 subsequently merged through protection; all required PR
 contexts, hosted full Linux Verify and SpacetimeDB integration passed. It adopts
 an exact current-source receipt on retry and preserves an older valid receipt
 before reusing the slot. The earlier M1 preparation candidate predates this
-merge and cannot certify it. Resolve the live protected `main`, wait for its
-push Verify, then prepare and independently check that exact M1 and promote its
-generated-only M2 before retrying the authenticated observation. Native
-preparation of the merged source, provider deployment, recovery activation,
-live realm mutation, owner play and physical-device acceptance remain
-unproven.
+merge and cannot certify it. Later PR #344 advanced protected main to M2
+`e22fca5c`. Its Verify, CodeQL and preflight passed, while two fresh policy
+observations failed with the generic G001 label. PR #345 now carries the
+privacy-safe diagnostic repair. The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+owns the current source and next operations; do not use this historical
+checkpoint as current-source or deployment authority.
 
 ## Placement and workflow review — 2026-09-12
 

@@ -2,17 +2,18 @@
 
 ## Current checkpoint supersession — 23 September 2026
 
-The previously verified protected runtime source family was generated-only M2
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its PR Verify, CodeQL,
-push-to-main Verify and read-only preflight passed. The subsequent authenticated
-read-only G001 policy observation `35772933637` failed closed because an
-older-source receipt occupied the fixed no-clobber slot. It submitted no
-mutation and read no player/census data. Source-only recovery PR #337 is now
-merged through protection with all required PR checks green. The earlier native
-candidate predates that merge; resolve live protected `main`, wait for its push
-Verify, then freshly prepare/check the exact M1 and promote its generated-only
-M2 before retrying. Retained native evidence remains source-bound and
-`finalReleasePrepared:false`; no live deployment or recovery is established.
+Current protected runtime source is generated-only M2
+`e22fca5c395748eb517214952aaf797d0f9d9738`. Exact-main Verify, CodeQL and
+read-only preflight passed. Two authenticated read-only G001 policy observations
+failed with the generic diagnostic; neither started census or submitted a
+mutation. [PR #345](https://github.com/ael-dev3/Warpkeep/pull/345) adds safe
+stage diagnostics and awaits hosted checks. After it merges, prepare and
+independently check the exact new M1, promote its complete generated-only M2,
+then repeat exact-M2 verification, preflight and policy observation. The
+[execution handoff](../../agent-notes/0.4.0/execution-handoff.md) records the
+exact current run identities and transition. Historical native evidence remains
+source-bound and `finalReleasePrepared:false`; no live deployment or recovery
+is established.
 
 Earlier operation failures below remain historical and must not be reused as
 current-source authority. Keep sync automation paused, preserve private

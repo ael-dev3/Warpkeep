@@ -8,16 +8,15 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 ## Current working state
 
 The [execution handoff](execution-handoff.md) is the single dated record of
-protected main, active source, CI receipts and operation results. The preceding
-generated-only M2 push Verify `35766416370` and read-only preflight
-`35772760378` passed. The
-following read-only G001 policy observation `35772933637` failed because a valid
-older-source receipt occupied the active slot. Source-only recovery PR #337 is
-now merged through protection; all required PR checks passed. Resolve the exact
-current protected `main` SHA and its push Verify before release work. Run a
-fresh native prepare/check for that source, promote its generated-only M2, then
-repeat preflight and policy observation only on the verified M2. Source CI and
-Pages classification do not establish provider deployment, owner play or device
+protected main, active source, CI receipts and operation results. Current
+protected main is generated-only M2 `e22fca5c`; exact-main Verify, CodeQL and
+read-only preflight passed. Two read-only G001 policy observations failed with
+the generic safe label, without starting census or provider mutation. [PR #345](https://github.com/ael-dev3/Warpkeep/pull/345)
+adds stage-specific safe diagnostics; its local Linux checks passed and hosted
+checks are pending. After it merges, resolve the exact new main, repeat
+Verify/CodeQL and native prepare/check, promote and verify its generated-only
+M2, then rerun preflight and policy observation. Source CI and Pages
+classification do not establish provider deployment, owner play or device
 acceptance.
 
 The Keep04 gather → choose → build → benefit → return foundation, readable

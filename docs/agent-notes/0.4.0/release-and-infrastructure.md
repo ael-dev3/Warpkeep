@@ -8,35 +8,30 @@ owns the acceptance gates. Resolve both against GitHub before acting; dated
 evidence below is scoped to its recorded source and must not be reused as current
 authority.
 
-Immediately before source-only recovery PR #337 merged, protected main was
-generated-only M2
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its
-push Verify `35766416370`, CodeQL `35760703269` and read-only preflight
-`35772760378` passed. The subsequent policy observation `35772933637` failed
-closed during the authenticated read-only operation because an older-source
-receipt occupied the fixed active slot; no census or deployment followed.
-
-Source-only recovery PR #337 is now merged through protection. Its retry-adoption
-and byte-preserving archival repair passed every required PR check, including
-full Linux Verify, SpacetimeDB module integration, Auth Bridge, analysis and
-CodeQL. The prepared Auth Bridge closure is unchanged and verified at 1,258
-members. The previous native M1 preparation/check and generated-only M2 export
-remain bound to their earlier source with `finalReleasePrepared:false`; they
-cannot certify the merged recovery fix.
+Current protected main is generated-only M2
+`e22fca5c395748eb517214952aaf797d0f9d9738`. Its exact-main Verify attempt 2,
+CodeQL and read-only preflight passed. Two subsequent read-only G001 policy
+observations failed with the generic diagnostic; no census or provider mutation
+followed. [PR #345](https://github.com/ael-dev3/Warpkeep/pull/345) adds safe
+stage diagnostics to the policy observer and awaits hosted checks. The [execution
+handoff](execution-handoff.md) owns the exact run links and current source
+sequence. Historical preparation and generated-family evidence remains bound
+to its recorded input; it does not certify a later source or grant deployment.
 
 ### Remaining delivery work, in dependency order
 
-Resolve the exact live protected `main` and confirm its push Verify before any
-protected operation. Synchronize the idle native checkout to that clean source,
-then run a fresh complete prepare and independent check. Promote only the
-authenticated generated family as generated-only M2. After its merge, wait for
-the exact push-to-main Verify and recheck the source before preflight and a new
-read-only policy observation. Census can start only after that observation
-completes with its source-bound receipt. Then continue with prepared
-bridge/signer observation, G001 preservation and sealed-realm readback,
-deployment/recovery, owner-only PTR play, device and performance acceptance, and
-final release freeze. A green source CI run, preflight or Pages classifier alone
-does not establish a live release.
+After PR #345 passes protection and merges, resolve its exact protected main
+SHA and require that commit's Verify and CodeQL. Synchronize the idle native
+checkout, then run a fresh complete prepare and independent check for that M1.
+Promote only the authenticated complete family as generated-only M2. After M2
+merges, require its exact-main Verify/CodeQL, then rerun preflight and the
+read-only policy observation. Census can start only after the observation
+completes with a source-bound receipt and a new run identity; do not reuse the
+incomplete earlier attempt. Then continue with prepared bridge/signer
+observation, G001 preservation and sealed-realm readback, deployment/recovery,
+owner-only PTR play, device and performance acceptance, and final release
+freeze. A green source CI run, preflight or Pages classifier alone does not
+establish a live release.
 
 ## Historical source checkpoint — 2026-09-12
 

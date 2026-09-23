@@ -241,7 +241,7 @@ describe('Genesis 001 protected live-policy observation', () => {
     }
   });
 
-  it('propagates live inspection failure while always closing the session', async () => {
+  it('projects unknown live inspection failures without exposing private errors', async () => {
     const fixture = observationFixture();
     fixture.inspect.mockRejectedValueOnce(new Error('network-private-detail'));
 
@@ -250,9 +250,43 @@ describe('Genesis 001 protected live-policy observation', () => {
       adminSecretPath: ADMIN_SECRET_PATH,
       repositoryRoot: resolve('/private/protected-main'),
       testOnlyDependencies: fixture.dependencies as never,
-    })).rejects.toThrow('network-private-detail');
+    })).rejects.toMatchObject({
+      code: 'GENESIS_001_POLICY_OBSERVATION_INSPECTION_FAILED',
+      message: 'GENESIS_001_POLICY_OBSERVATION_INSPECTION_FAILED',
+    });
     expect(fixture.close).toHaveBeenCalledOnce();
     expect(fixture.events.at(-1)).toBe('close');
+  });
+
+  it('projects an unknown close failure as cleanup without exposing private errors', async () => {
+    const fixture = observationFixture();
+    fixture.close.mockRejectedValueOnce(new Error('private-cleanup-detail'));
+
+    await expect(executeGenesis001PolicyObservation({
+      sourceCommit: SOURCE_COMMIT,
+      adminSecretPath: ADMIN_SECRET_PATH,
+      repositoryRoot: resolve('/private/protected-main'),
+      testOnlyDependencies: fixture.dependencies as never,
+    })).rejects.toMatchObject({
+      code: 'GENESIS_001_POLICY_OBSERVATION_SESSION_CLEANUP_FAILED',
+      message: 'GENESIS_001_POLICY_OBSERVATION_SESSION_CLEANUP_FAILED',
+    });
+  });
+
+  it('preserves the observation failure when session cleanup also fails', async () => {
+    const fixture = observationFixture();
+    fixture.inspect.mockRejectedValueOnce(new Error('network-private-detail'));
+    fixture.close.mockRejectedValueOnce(new Error('private-cleanup-detail'));
+
+    await expect(executeGenesis001PolicyObservation({
+      sourceCommit: SOURCE_COMMIT,
+      adminSecretPath: ADMIN_SECRET_PATH,
+      repositoryRoot: resolve('/private/protected-main'),
+      testOnlyDependencies: fixture.dependencies as never,
+    })).rejects.toMatchObject({
+      code: 'GENESIS_001_POLICY_OBSERVATION_INSPECTION_FAILED',
+      message: 'GENESIS_001_POLICY_OBSERVATION_INSPECTION_FAILED',
+    });
   });
 
   it('closes a created session when refresh fails before inspection', async () => {
@@ -264,7 +298,10 @@ describe('Genesis 001 protected live-policy observation', () => {
       adminSecretPath: ADMIN_SECRET_PATH,
       repositoryRoot: resolve('/private/protected-main'),
       testOnlyDependencies: fixture.dependencies as never,
-    })).rejects.toThrow('refresh-unavailable');
+    })).rejects.toMatchObject({
+      code: 'GENESIS_001_POLICY_OBSERVATION_REFRESH_FAILED',
+      message: 'GENESIS_001_POLICY_OBSERVATION_REFRESH_FAILED',
+    });
     expect(fixture.inspect).not.toHaveBeenCalled();
     expect(fixture.close).toHaveBeenCalledOnce();
   });

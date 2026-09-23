@@ -1,18 +1,17 @@
 # 0.4 release freeze evidence
 
-Status: **0.4 source and protected rails are merged; final release freeze remains open**.
+Status: **0.4 is not shipped; final release freeze remains open**.
 
-The previously verified protected source was generated-only M2
-`8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its PR Verify, CodeQL,
-push-to-main Verify and read-only preflight passed. Authenticated read-only
-policy observation `35772933637` failed closed on an older-source receipt
-occupying the fixed no-clobber slot; it submitted no mutation and read no
-player/census data. Source-only recovery PR #337 is merged through protection
-with required checks green. The earlier M1 preparation/check and M2 export are
-source-bound to an earlier state; resolve current protected `main`, wait for
-its push Verify, then freshly prepare/check that M1 and promote its
-generated-only M2 before retrying the observation. Earlier native evidence
-remains source-bound, not final freeze authority.
+Current protected source is generated-only M2
+[`e22fca5c395748eb517214952aaf797d0f9d9738`](https://github.com/ael-dev3/Warpkeep/commit/e22fca5c395748eb517214952aaf797d0f9d9738).
+Exact-main Verify, CodeQL and read-only preflight passed. Two read-only policy
+observations failed with the generic G001 label; [PR #345](https://github.com/ael-dev3/Warpkeep/pull/345)
+adds safe stage diagnostics and awaits hosted checks. The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+records exact run identities and the required source-specific M1 prepare/check,
+generated-only M2, and fresh-observation sequence. Earlier native evidence and
+generated families remain bound to their recorded inputs; none certify this
+maintenance source or grant deployment authority.
+
 `finalReleasePrepared:false` remains explicit. Provider/private authority,
 G001 preservation, sealed G002 denial, PTR owner play, physical-device
 acceptance, hosting and recovery/readback are still open. Keep sync automation

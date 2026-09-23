@@ -585,17 +585,17 @@
     {
       "path": "scripts/genesis001-linux-policy-boundary.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "bcccbb1d539e59f03ce1cc17f35e5f9fb99d122beb5360adffa68c022c6400f6"
+      "sha256": "0d29579eeab74ef58a512f4ec2871660527cd70e1facefaa718eca5627500731"
     },
     {
       "path": "scripts/genesis001-linux-policy-boundary.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ed964f54db8998c82b539e92ce9a807bf14d6deb5e7732f589e24b51a2224a48"
+      "sha256": "f7abe9082ab1c6d70842612bcc318ec03a8f13d9f55a836758fb488f2ee13bb2"
     },
     {
       "path": "scripts/genesis001-linux-policy-child.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ed89d757784d697c66185751ec8625f241cee42acc1b70ba306100588e85f9c4"
+      "sha256": "b2ee82223ebf1cf92a5df6450189ddbc577caae4ecbf7758f413606255f08306"
     },
     {
       "path": "scripts/genesis001-linux-policy-materializer.mjs",
@@ -610,7 +610,7 @@
     {
       "path": "scripts/genesis001-linux-policy-native.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c4ab02cd23f828c1c96166ca71cd4ee0cb141593073d2f0bcd26276ac0201279"
+      "sha256": "a6d7381a13090fe5296a38375b97773cec2dda57ba9e262f142b8732031a3cd7"
     },
     {
       "path": "scripts/genesis001-linux-policy-receipt.d.mts",
@@ -630,7 +630,7 @@
     {
       "path": "scripts/genesis001-policy-observation-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "148cbeb227b4675a75a6ec067648876b79349b88e8a9c5d9f76ee34c71ab1285"
+      "sha256": "3ffe54723726de4616c3c7de5a477182da9261e24a41f245fab278ac058cc4af"
     },
     {
       "path": "scripts/genesis001-sealed-launch-adoption.d.mts",
@@ -1965,7 +1965,7 @@
     {
       "path": "scripts/sealed-realms-production-linux-preflight.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c409b16444c68b65d6923405d81f9a76ad1d76868f6b84e90e0d1cd4f36a4e0c"
+      "sha256": "b080c007538457769261d6898582f9ac905a0300d8b50274c0c4470c26fe351b"
     },
     {
       "path": "scripts/sealed-realms-production-private-state.d.mts",
@@ -2165,7 +2165,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d958d61cc4820d3664a86f668327692e5458e8df5f67fb21b35ca7bcf6321466"
+      "sha256": "eb660df8de99dd84a5e5221507c93a094790ddeb3901842e42d763adb8cc9406"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",

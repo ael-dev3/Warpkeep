@@ -147,7 +147,10 @@ it('closes the session after inspection failure without closing reused FD4 again
   fixture.reject = true;
   await expect(
     executeGenesis001PolicyObservationFromDescriptor(input()),
-  ).rejects.toThrow('inspection refused');
+  ).rejects.toMatchObject({
+    code: 'GENESIS_001_POLICY_OBSERVATION_INSPECTION_FAILED',
+    message: 'GENESIS_001_POLICY_OBSERVATION_INSPECTION_FAILED',
+  });
   expect(fixture.events.slice(-1)).toEqual(['close-session']);
   expect(fixture.events.filter((event) => event === 'close-fd')).toHaveLength(
     1,
