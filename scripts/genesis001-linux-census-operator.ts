@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { closeSync, fstatSync, mkdirSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
+import { types } from 'node:util';
 import { setGlobalLogLevel } from 'spacetimedb';
 import type { DbConnection } from '../src/spacetime/module_bindings';
 import { collectAccessRequestCensus, GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST,
@@ -22,13 +23,39 @@ import { attestPolicySource, G001_POLICY_ROOT, policyPrivateAncestors } from './
 import { createGenesis001LinuxCensusSample, validateGenesis001LinuxCensusPair,
   retainGenesis001LinuxCensusRecord } from './genesis001-linux-census-attempt.mjs';
 
-const ADMITTED_DIAGNOSTICS = new Set([
+const CENSUS_DIAGNOSTICS = new Set([
   'g001-admitted-identity', 'g001-admitted-aggregate', 'g001-admitted-enumeration',
   'g001-admitted-status', 'g001-admitted-reconciliation',
+  'g001-census-directory', 'g001-applicant-collection', 'g001-applicant-export', 'g001-applicant-proof',
+  'g001-admitted-collection', 'g001-session-finalize',
 ]);
+const CENSUS_STAGE_DIAGNOSTICS = Object.freeze({
+  'sample-directory': 'g001-census-directory',
+  'applicant-collection': 'g001-applicant-collection',
+  'applicant-export': 'g001-applicant-export',
+  'applicant-proof': 'g001-applicant-proof',
+  'admitted-collection': 'g001-admitted-collection',
+  'sample-reconciliation': 'g001-admitted-reconciliation',
+  'session-finalize': 'g001-session-finalize',
+});
+function existingCensusDiagnostic(error: unknown): string | undefined {
+  if (error === null || typeof error !== 'object' || types.isProxy(error)) return undefined;
+  try {
+    const field = Object.getOwnPropertyDescriptor(error, 'diagnostic');
+    return field !== undefined && 'value' in field && typeof field.value === 'string'
+      && CENSUS_DIAGNOSTICS.has(field.value) ? field.value : undefined;
+  } catch { return undefined; }
+}
+/** Projects only fixed stage names and previously admitted census diagnostics. */
+export function projectGenesis001LinuxCensusStageDiagnostic(error: unknown, stage: string): string | undefined {
+  const existing = existingCensusDiagnostic(error);
+  if (existing !== undefined) return existing;
+  return Object.hasOwn(CENSUS_STAGE_DIAGNOSTICS, stage)
+    ? CENSUS_STAGE_DIAGNOSTICS[stage as keyof typeof CENSUS_STAGE_DIAGNOSTICS] : undefined;
+}
 function fail(diagnostic?: string): never {
   const error = Error('G001_LINUX_CENSUS_COLLECTION_FAILED');
-  if (diagnostic !== undefined && ADMITTED_DIAGNOSTICS.has(diagnostic)) {
+  if (diagnostic !== undefined && CENSUS_DIAGNOSTICS.has(diagnostic)) {
     Object.defineProperty(error, 'diagnostic', { value: diagnostic, enumerable: false });
   }
   throw error;
@@ -197,24 +224,39 @@ type Dependencies = Readonly<{ now: () => Date; wait: (ms: number) => Promise<vo
 
 async function sample(session: Session, scope: Scope, kind: 'first' | 'second') {
   const directory = join(G001_POLICY_ROOT, 'attempts', scope.attemptId, kind);
-  policyPrivateAncestors(join(G001_POLICY_ROOT, 'attempts', scope.attemptId));
-  mkdirSync(directory, { mode: 0o700 }); policyPrivateAncestors(directory);
-  return session.withConnection(async connection => {
-    const callerIdentity = identity(connection);
-    const census = await collectAccessRequestCensus(connection, GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST);
-    const exported = writeAccessRequestCensusExport({ censusDirectory: directory, referenceDirectory: directory,
-      census, at: new Date() });
-    const proof = executeGenesis001CensusPrivacySafeReceipt({ sourceCommit: scope.sourceCommit,
-      censusPath: join(directory, exported.privateCensusBasename),
-      exporterReceiptPath: join(directory, exported.privateExporterReferenceBasename), privateReceiptDirectory: directory });
-    const bytes = readLocalBindingBoundedFile(join(directory, proof.privateReceiptBasename), {
-      maximumBytes: 8192, expectedUid: 1000, expectedMode: 0o600 }).body;
-    let applicant;
-    try { applicant = JSON.parse(bytes.toString('utf8')); } finally { bytes.fill(0); }
-    const admitted = await collectGenesis001LinuxAdmittedCensus(connection, scope.sourceCommit, new Date().toISOString());
-    if (identity(connection) !== callerIdentity) fail('g001-admitted-identity');
-    return { callerIdentity, record: reconcileGenesis001LinuxCensusSample({ applicant, admitted }, scope.sourceCommit) };
-  });
+  let stage = 'sample-directory';
+  try {
+    policyPrivateAncestors(join(G001_POLICY_ROOT, 'attempts', scope.attemptId));
+    mkdirSync(directory, { mode: 0o700 }); policyPrivateAncestors(directory);
+    stage = 'applicant-collection';
+    return await session.withConnection(async connection => {
+      let callerIdentity: string;
+      try { callerIdentity = identity(connection); } catch { fail('g001-admitted-identity'); }
+      const census = await collectAccessRequestCensus(connection, GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST);
+      stage = 'applicant-export';
+      const exported = writeAccessRequestCensusExport({ censusDirectory: directory, referenceDirectory: directory,
+        census, at: new Date() });
+      stage = 'applicant-proof';
+      const proof = executeGenesis001CensusPrivacySafeReceipt({ sourceCommit: scope.sourceCommit,
+        censusPath: join(directory, exported.privateCensusBasename),
+        exporterReceiptPath: join(directory, exported.privateExporterReferenceBasename), privateReceiptDirectory: directory });
+      const bytes = readLocalBindingBoundedFile(join(directory, proof.privateReceiptBasename), {
+        maximumBytes: 8192, expectedUid: 1000, expectedMode: 0o600 }).body;
+      let applicant;
+      try { applicant = JSON.parse(bytes.toString('utf8')); } finally { bytes.fill(0); }
+      stage = 'admitted-collection';
+      const admitted = await collectGenesis001LinuxAdmittedCensus(connection, scope.sourceCommit, new Date().toISOString());
+      if (identity(connection) !== callerIdentity) fail('g001-admitted-identity');
+      stage = 'sample-reconciliation';
+      const record = reconcileGenesis001LinuxCensusSample({ applicant, admitted }, scope.sourceCommit);
+      stage = 'session-finalize';
+      return { callerIdentity, record };
+    });
+  } catch (error) {
+    const diagnostic = projectGenesis001LinuxCensusStageDiagnostic(error, stage);
+    if (diagnostic !== undefined) fail(diagnostic);
+    throw error;
+  }
 }
 
 const production: Dependencies = Object.freeze({ now: () => new Date(), wait: async ms => { await delay(ms); },
