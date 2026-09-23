@@ -40,6 +40,33 @@ const POLICY_KEYS = Object.freeze([
   'sourceBaselineCommit',
   'freezeReleaseNonce',
 ]);
+const POLICY_OBSERVATION_STAGE_CODES = Object.freeze({
+  source: 'GENESIS_001_POLICY_OBSERVATION_SOURCE_EXECUTION_FAILED',
+  credential: 'GENESIS_001_POLICY_OBSERVATION_CREDENTIAL_READ_FAILED',
+  session: 'GENESIS_001_POLICY_OBSERVATION_SESSION_SETUP_FAILED',
+  refresh: 'GENESIS_001_POLICY_OBSERVATION_REFRESH_FAILED',
+  inspection: 'GENESIS_001_POLICY_OBSERVATION_INSPECTION_FAILED',
+  policy: 'GENESIS_001_POLICY_OBSERVATION_POLICY_VALIDATION_FAILED',
+  receipt: 'GENESIS_001_POLICY_OBSERVATION_RECEIPT_BUILD_FAILED',
+});
+const POLICY_OBSERVATION_CLEANUP_CODE =
+  'GENESIS_001_POLICY_OBSERVATION_SESSION_CLEANUP_FAILED';
+const PRESERVED_POLICY_OBSERVATION_CODES = new Set([
+  'GREATER_REALM_PRODUCTION_STATUS_PROCEDURE_UNAVAILABLE',
+  'GREATER_REALM_PRODUCTION_TRANSPORT_UNAVAILABLE',
+  'GREATER_REALM_PRODUCTION_TRANSPORT_SESSION_CLOSED',
+  'GREATER_REALM_PRODUCTION_TRANSPORT_CLOCK_INVALID',
+  'GREATER_REALM_PRODUCTION_CONTINGENCY_TOKEN_EXPIRED',
+  'GREATER_REALM_PRODUCTION_ADMIN_SECRET_CONTROL_CHARACTER_REJECTED',
+  'GREATER_REALM_PRODUCTION_ADMIN_SECRET_ENCODING_INVALID',
+  'GREATER_REALM_PRODUCTION_ADMIN_SECRET_FILE_CHANGED',
+  'GREATER_REALM_PRODUCTION_ADMIN_SECRET_FILE_INVALID',
+  'GREATER_REALM_PRODUCTION_ADMIN_SECRET_LENGTH_INVALID',
+  'GREATER_REALM_PRODUCTION_ADMIN_SECRET_STDIN_REQUIRED',
+  'GREATER_REALM_PRODUCTION_TOKEN_BUDGET_TEST_DEPENDENCY_REQUIRED',
+  'GREATER_REALM_PRODUCTION_TRANSPORT_TARGET_OVERRIDE_REJECTED',
+  'GREATER_REALM_PRODUCTION_TRANSPORT_WIRE_NAME_INVALID',
+]);
 
 export const GENESIS_001_POLICY_OBSERVATION_PROCEDURE =
   'genesis_001_access_policy_v1';
@@ -54,6 +81,26 @@ export class Genesis001PolicyObservationError extends Error {
 
 function fail(code) {
   throw new Genesis001PolicyObservationError(code);
+}
+
+function preservesPolicyError(error) {
+  if (error !== null && typeof error === 'object' && !types.isProxy(error)) {
+    if (error instanceof Genesis001PolicyObservationError) return true;
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(error, 'code');
+      if (descriptor !== undefined && 'value' in descriptor
+        && typeof descriptor.value === 'string'
+        && (descriptor.value.startsWith('PRODUCTION_ADMIN_TOKEN_')
+          || PRESERVED_POLICY_OBSERVATION_CODES.has(descriptor.value))) return true;
+    } catch { /* Unknown errors stay inside this process. */ }
+  }
+  return false;
+}
+
+function stageFailure(error, stage) {
+  return preservesPolicyError(error)
+    ? error
+    : new Genesis001PolicyObservationError(POLICY_OBSERVATION_STAGE_CODES[stage]);
 }
 
 function competingSecretAuthority(key) {
@@ -186,24 +233,31 @@ export async function executeGenesis001PolicyObservation(input) {
 }
 
 async function observePolicy(input, dependencies, readSecret) {
-  const attestedSource = dependencies.attestProtectedMain(input.repositoryRoot);
-  if (attestedSource !== input.sourceCommit) {
-    fail('GENESIS_001_POLICY_OBSERVATION_SOURCE_INVALID');
-  }
-
-  let adminSecret = readSecret();
+  let stage = 'source';
+  let adminSecret;
   let session;
+  let receipt;
+  let failure;
   try {
+    const attestedSource = dependencies.attestProtectedMain(input.repositoryRoot);
+    if (attestedSource !== input.sourceCommit) {
+      fail('GENESIS_001_POLICY_OBSERVATION_SOURCE_INVALID');
+    }
+
+    stage = 'credential';
+    adminSecret = readSecret();
+    stage = 'session';
     session = dependencies.createSession({ adminSecret });
-  } finally {
     adminSecret = '';
-  }
-  try {
+
+    stage = 'refresh';
     await session.invalidate();
-    const policy = exactClosedPolicy(
-      await session.inspect('genesis_001_access_policy_v1'),
-    );
-    return Object.freeze({
+    stage = 'inspection';
+    const rawPolicy = await session.inspect('genesis_001_access_policy_v1');
+    stage = 'policy';
+    const policy = exactClosedPolicy(rawPolicy);
+    stage = 'receipt';
+    receipt = Object.freeze({
       schemaVersion: 1,
       profile: GENESIS_001_LIVE_POLICY_OBSERVATION_PROFILE,
       sourceCommit: input.sourceCommit,
@@ -214,9 +268,24 @@ async function observePolicy(input, dependencies, readSecret) {
       policy,
       policyReceiptDigest: genesis001PolicyReceiptDigest(policy),
     });
+  } catch (error) {
+    failure = stageFailure(error, stage);
   } finally {
-    await session.close();
+    adminSecret = '';
+    if (session !== undefined) {
+      try {
+        await session.close();
+      } catch (error) {
+        if (failure === undefined) {
+          failure = preservesPolicyError(error)
+            ? error
+            : new Genesis001PolicyObservationError(POLICY_OBSERVATION_CLEANUP_CODE);
+        }
+      }
+    }
   }
+  if (failure !== undefined) throw failure;
+  return receipt;
 }
 
 /** Fixed native child boundary. Descriptor ownership transfers on valid input. */

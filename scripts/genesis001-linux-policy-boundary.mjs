@@ -33,7 +33,8 @@ for (const diagnostic of ['g001-admitted-identity', 'g001-admitted-aggregate',
   'g001-census-directory', 'g001-applicant-collection', 'g001-applicant-export', 'g001-applicant-proof',
   'g001-admitted-collection', 'g001-session-finalize',
   'g001-policy-state', 'g001-policy-procedure', 'g001-policy-transport',
-  'g001-policy-credential', 'g001-policy-authority', 'g001-policy-budget']) {
+  'g001-policy-credential', 'g001-policy-authority', 'g001-policy-budget',
+  'g001-policy-inspect', 'g001-policy-cleanup']) {
   DIAGNOSTICS.add(diagnostic);
 }
 export function policyFail(diagnostic) {
