@@ -2,16 +2,18 @@
 
 ## Current checkpoint — 23 September 2026
 
-Generated-only M2 [PR #341](https://github.com/ael-dev3/Warpkeep/pull/341) is
-merged through protected squash as signed commit
-[39a164fc689e967f038a6265421add219aeb8bf9](https://github.com/ael-dev3/Warpkeep/commit/39a164fc689e967f038a6265421add219aeb8bf9)
-(tree 6d5661d69bb04e342238651ca457967607dac41f). Its exact-main push
-[Verify 35832913352](https://github.com/ael-dev3/Warpkeep/actions/runs/35832913352)
-and [CodeQL 35832913351](https://github.com/ael-dev3/Warpkeep/actions/runs/35832913351) passed. The maintained Linux checkout
-was synchronized to this commit and was clean before the current source-only
-diagnostic repair branch.
+The census diagnostic repair in [PR #342](https://github.com/ael-dev3/Warpkeep/pull/342)
+merged through protected squash as verified commit
+[a4852b15902e5486496c17db20440532725f4170](https://github.com/ael-dev3/Warpkeep/commit/a4852b15902e5486496c17db20440532725f4170)
+(tree `157c038cd99b5a53671e52920e4c433566f8bea7`). Its required PR Verify and
+CodeQL checks passed. Main CodeQL
+[35847251540](https://github.com/ael-dev3/Warpkeep/actions/runs/35847251540)
+passed. Exact-main push Verify
+[35847251543](https://github.com/ael-dev3/Warpkeep/actions/runs/35847251543)
+is still running its Linux test and SpacetimeDB module jobs; auth bridge,
+recovery and native-contract jobs have passed.
 
-On this exact protected source, read-only [preflight 35838038883](https://github.com/ael-dev3/Warpkeep/actions/runs/35838038883) passed.
+On the preceding protected M2 source, read-only [preflight 35838038883](https://github.com/ael-dev3/Warpkeep/actions/runs/35838038883) passed.
 Policy observation [35838198101](https://github.com/ael-dev3/Warpkeep/actions/runs/35838198101) first failed generically; after provider-health
 checks and token-budget reconciliation, fresh exact-source observation
 [35839561405](https://github.com/ael-dev3/Warpkeep/actions/runs/35839561405) completed successfully. Rechecking live main confirmed it had
@@ -26,14 +28,17 @@ untouched and is not a census baseline. Do not retry against it or read, copy,
 post or select its applicant data. The operation has no provider-mutation path;
 no production-state change was submitted.
 
-A source-only repair is in progress to retain fixed, privacy-safe stage
-diagnostics for unexpected errors in the native census sample lifecycle. It
-does not change collection, gameplay, provider policy or successful receipts.
-On native Linux, the focused G001 census/diagnostic/native-boundary/closure
-suites passed 197 tests with 44 deliberate platform skips; TypeScript project
-build passed. The repair still needs source PR review and required hosted checks,
-then a fresh exact-M1 prepare/check and generated-only M2 promotion before any
-new protected census attempt.
+PR #342 adds fixed, privacy-safe stage diagnostics for unexpected errors in the
+native census sample lifecycle. It does not change collection, gameplay,
+provider policy or successful receipts. Its required hosted checks passed; an
+independent Windows run of the four affected diagnostic suites passed 175 tests
+with 44 platform-specific skips. Wait for exact-main Verify 35847251543 to
+finish, then recheck that `main` is still the recorded SHA. Run a fresh native
+prepare and independent check for this exact merged source, promote only its
+authenticated generated family as generated-only M2, and verify that M2 on
+protected main before repeating preflight and policy observation. Do not retry
+the incomplete census attempt; a new census needs a new run identity and fresh
+exact-source policy evidence.
 
 0.4 is not shipped. Provider deployment and recovery, accepted G001
 preservation/readback, sealed G002 and owner-only PTR evidence, actual-owner
