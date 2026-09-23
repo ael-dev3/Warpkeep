@@ -2,7 +2,18 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current exact-M1 native prepare/check — 23 September 2026
+## Current exact-M2 operation checkpoint — 23 September 2026
+
+Protected generated-only M2 is `e22fca5c395748eb517214952aaf797d0f9d9738`.
+Its exact-main Verify attempt 2, CodeQL and read-only preflight passed. The
+read-only G001 policy observer then failed with the generic `g001-observation`
+diagnostic twice on that source; no census or provider mutation followed.
+[PR #345](https://github.com/ael-dev3/Warpkeep/pull/345) adds safe stage
+diagnostics to identify the failing internal step. Its local focused tests and
+TypeScript build passed; hosted checks are pending. The current operation
+sequence and exact run links are in the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
+
+## Prior exact-M1 native prepare/check — 23 September 2026 (superseded)
 
 Protected main `a4852b15902e5486496c17db20440532725f4170` (tree
 `157c038cd99b5a53671e52920e4c433566f8bea7`) passed main CodeQL 35847251540
@@ -26,23 +37,23 @@ candidate root is `/home/warpkeep/.warpkeep/release-preparation-v1/runs/release-
 Its preparation metadata remains in the existing owner-private run store. No
 source was deployed or changed; `finalReleasePrepared:false` is explicit.
 
-PR #343 contains a client-side construction-progress improvement and is under
-required checks. If it merges, this candidate remains valid evidence for
-`a4852b15` only; repeat verification and native prepare/check for the new exact
-main before M2 promotion. This is not deployment evidence.
+PR #344 later advanced protected main to the current generated-only M2. This
+candidate remains valid only for `a4852b15`; it is not native preparation
+evidence for the current source and is not deployment evidence.
 
-## Superseded source checkpoint — 23 September 2026
+## Historical M2 checkpoint — 22 September 2026 (superseded)
 
 The previously verified protected main was generated-only M2
 `8b4fa5ee08048878fa88973f3cd72900a1a1b84a`. Its PR Verify, CodeQL,
 push-to-main Verify and read-only preflight passed. Authenticated read-only G001
 policy observation `35772933637` failed closed on a valid older-source receipt
 in the fixed no-clobber slot. It submitted no mutation; no player/census data
-was read. Source-only recovery PR #337 is now merged and all required PR checks
-passed. The earlier native candidate predates that merge. Resolve live protected
-`main`, wait for its push Verify, then freshly prepare/check that exact M1 and
-promote its generated-only M2 before retrying. Existing native preparation/check
-and M2 export evidence are private and do not grant deployment authority.
+was read. Source-only recovery PR #337 then merged and all required PR checks
+passed. Later PRs #341–#344 superseded this source and its next-step sequence.
+The [current execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+owns the active M2, failed policy runs, and next source-specific preparation.
+Existing native preparation/check and M2 export evidence are private and do not
+grant deployment authority.
 
 ## Resumption audit — 18 September 2026
 

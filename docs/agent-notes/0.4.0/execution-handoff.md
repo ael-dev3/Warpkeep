@@ -2,53 +2,40 @@
 
 ## Current checkpoint — 23 September 2026
 
-The census diagnostic repair in [PR #342](https://github.com/ael-dev3/Warpkeep/pull/342)
-merged through protected squash as verified commit
-[a4852b15902e5486496c17db20440532725f4170](https://github.com/ael-dev3/Warpkeep/commit/a4852b15902e5486496c17db20440532725f4170)
-(tree `157c038cd99b5a53671e52920e4c433566f8bea7`). Its required PR Verify and
-CodeQL checks passed. Main CodeQL
-[35847251540](https://github.com/ael-dev3/Warpkeep/actions/runs/35847251540)
-passed. Exact-main push Verify
-[35847251543](https://github.com/ael-dev3/Warpkeep/actions/runs/35847251543)
-completed successfully at 11:06:45 UTC with all six jobs passing. A fresh
-recheck confirmed `main` remained at `a4852b15902e5486496c17db20440532725f4170`.
-Native `prepare` and the independent rebuilding `check` both passed from that
-exact source and converged on candidate
-`release-workspace-a83a78af7909ded6553b4a7a2a47d652`. Their source tree,
-transaction, journal, family, closure and scanner digests and all verification
-counts matched. `finalReleasePrepared:false` is expected; this is preparation
-evidence, not a deployment or release grant. The full native result is recorded
-in [local operations evidence](../../evidence/0.4.0/local-operations.md).
+Protected `main` is generated-only M2 commit
+[`e22fca5c395748eb517214952aaf797d0f9d9738`](https://github.com/ael-dev3/Warpkeep/commit/e22fca5c395748eb517214952aaf797d0f9d9738)
+(tree `9e64ff49fc327f6401dc9f54c69cd5e9ee7019a`), merged through [PR #344](https://github.com/ael-dev3/Warpkeep/pull/344).
+Its exact-main Verify [run 35884318384, attempt 2](https://github.com/ael-dev3/Warpkeep/actions/runs/35884318384)
+and CodeQL [run 35884318451](https://github.com/ael-dev3/Warpkeep/actions/runs/35884318451)
+passed. Read-only production preflight [35897563967](https://github.com/ael-dev3/Warpkeep/actions/runs/35897563967)
+also passed from that exact source.
 
-On the preceding protected M2 source, read-only [preflight 35838038883](https://github.com/ael-dev3/Warpkeep/actions/runs/35838038883) passed.
-Policy observation [35838198101](https://github.com/ael-dev3/Warpkeep/actions/runs/35838198101) first failed generically; after provider-health
-checks and token-budget reconciliation, fresh exact-source observation
-[35839561405](https://github.com/ael-dev3/Warpkeep/actions/runs/35839561405) completed successfully. Rechecking live main confirmed it had
-not moved.
+G001 policy observation then failed closed with the generic `g001-observation`
+diagnostic on [run 35897689932](https://github.com/ael-dev3/Warpkeep/actions/runs/35897689932)
+and again on [run 35898356373](https://github.com/ael-dev3/Warpkeep/actions/runs/35898356373),
+both bound to the same M2. The underlying failing stage is not established. No
+census or provider mutation followed. Keep the older incomplete census attempt
+35839901590 untouched; it is not a baseline and must not be reused or inspected
+for applicant data.
 
-The following fresh g001-freeze-census [operation 35839901590](https://github.com/ael-dev3/Warpkeep/actions/runs/35839901590) failed closed
-at the authenticated operation with the generic g001-observation label.
-Supported bounded private-directory metadata showed an incomplete owner-only
-attempt with first-sample applicant export/proof files, but no retained
-validated first sample, second sample or complete receipt. The attempt remains
-untouched and is not a census baseline. Do not retry against it or read, copy,
-post or select its applicant data. The operation has no provider-mutation path;
-no production-state change was submitted.
+[PR #345](https://github.com/ael-dev3/Warpkeep/pull/345) adds fixed,
+privacy-safe stage diagnostics to the existing G001 policy observer and native
+boundary. It preserves known transport/budget categories, closes an opened
+session on every path, and keeps cleanup failure separate from the primary
+failure. It does not change policy reads, successful receipts, gameplay or
+provider behavior, and it does not yet establish the production cause. Pinned
+Linux Node 22.22.3 verification passed 201 tests across seven focused suites;
+44 guarded cases were skipped by their platform conditions. The project TypeScript
+build passed. Required hosted checks for PR #345 are pending.
 
-PR #342 adds fixed, privacy-safe stage diagnostics for unexpected errors in the
-native census sample lifecycle. It does not change collection, gameplay,
-provider policy or successful receipts. Its required hosted checks passed. The
-focused native Linux census, diagnostic, native-boundary and closure suites
-passed 197 tests with 44 platform-specific skips, and the TypeScript project
-build passed. PR #343 now also contains a client-side
-construction-progress readout and its visual evidence; wait for its required
-checks before promoting M2. If it merges, re-resolve the new protected `main`,
-wait for that exact source's push Verify/CodeQL, and repeat native prepare/check
-for that source. Do not reuse the `a4852b15` candidate under a different source
-identity. Then promote only the authenticated generated family as generated-only
-M2 and verify it on protected `main` before repeating preflight and policy
-observation. Do not retry the incomplete census attempt; a new census needs a
-new run identity and fresh exact-source policy evidence.
+After PR #345 passes protection and merges, resolve its exact signed main SHA,
+wait for that SHA's Verify and CodeQL, then run native `prepare` and independent
+`check` for that exact M1 source. Promote only the resulting authenticated,
+complete generated family as M2. On that exact M2, require main Verify/CodeQL,
+then run preflight and a fresh read-only G001 policy observation. Use its safe
+stage result to diagnose the current blocker. Start census only after a completed
+fresh observation and with a new run identity; retain the earlier incomplete
+attempt unchanged.
 
 0.4 is not shipped. Provider deployment and recovery, accepted G001
 preservation/readback, sealed G002 and owner-only PTR evidence, actual-owner
