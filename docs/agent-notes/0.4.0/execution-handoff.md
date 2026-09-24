@@ -1,6 +1,44 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 24 September 2026
+## Current checkpoint — 24 September 2026, 11:30 UTC
+
+Protected `main` is M4 [`260f8a7a2b87d618a6a837a4fb480f1ee65a5bbb`](https://github.com/ael-dev3/Warpkeep/commit/260f8a7a2b87d618a6a837a4fb480f1ee65a5bbb),
+tree `7469c69e4742217667b265dc35b70f495240b0f9`, merged through PR #350.
+Exact-main Verify `35984587229`, CodeQL `35984587328` and preflight
+`35990115518` passed. PTR update inspection `35990190731` failed at workflow
+authority; PTR state inspection `35992596131` failed during its read-only
+operation. Both expose only generic bounded phases; neither establishes live
+realm state. Preserve their private attempt records. No gameplay database write
+was requested by either inspection.
+
+The supported prepared-bridge deploy `35993390680` stopped before its first
+Cloudflare write at `AUTH_BRIDGE_PREPARED_TOOLCHAIN_DIGEST_MISMATCH`. The exact
+M4 Actions checkout passed source checks; frozen Linux dependency installation
+passed lockfile policy. The pinned Node 22.22.3 toolchain candidate was
+repeatable, with the same lockfile digest, package counts and byte totals as its
+manifest. Only the resolver-namespace and installed-tree digests were stale.
+The regenerated Linux toolchain manifest is the sole source edit on branch
+`fix/prepared-bridge-linux-toolchain-manifest`; source-closure derivation,
+review and protected M1/M2 integration remain. Do not retry the failed M4 run.
+
+The selected production Cloudflare account still has `warpkeep-auth-bridge`, but
+read-only inventory returned Worker-not-found for both
+`warpkeep-release-recovery-signer` and `warpkeep-release-recovery-gateway`.
+The existing PTR target is to be preserved and updated through the existing
+realm path. Initial 0.4 needs real owner access to PTR; public admissions and
+admission realms are not a shipping requirement. Do not create another PTR
+database or ask for a GitHub App PEM/new recovery key.
+
+Next: finish and review the manifest/closure M1, merge it with required checks,
+run native prepare and independent check on that exact M1, then promote its
+generated-only M2. On exact M2, require Verify, CodeQL and preflight; rerun the
+prepared preserving bridge deployment, then deploy the disabled preparation
+signer and gateway with the existing signing and RPC material. Re-establish
+signed PTR state, perform the supported preserved-realm update/adoption, and
+complete owner, mobile and performance acceptance before claiming 0.4 shipped.
+Keep scheduled tasks paused and create no Desktop artifacts.
+
+## Prior checkpoint — 24 September 2026 (superseded by the readbacks above)
 
 Protected `main` is generated-only M2 commit
 [`5f5b36813f31d37436feb83573d882105ec0c83f`](https://github.com/ael-dev3/Warpkeep/commit/5f5b36813f31d37436feb83573d882105ec0c83f)

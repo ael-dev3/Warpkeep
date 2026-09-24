@@ -390,7 +390,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "bcc41d30dbb00ecd612a1fdb5fe87b5e047d8cc777d0af9fc360b40e06bc1de2"
+      "sha256": "68e05292c7162b982781e2eb673e6e39ed8ddbb99b4f3aa61f7507d3dc7c144b"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain.d.mts",
