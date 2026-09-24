@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 24 September 2026, 22:31 UTC
+## Current checkpoint — 24 September 2026, 22:34 UTC
 
 Protected `main` is generated-only M2 [`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`](https://github.com/ael-dev3/Warpkeep/commit/b7d729b0e8a58cf43870d0baafdf8d8da508fc99),
 merged through PR #354. Exact-main Verify [run 36053702873](https://github.com/ael-dev3/Warpkeep/actions/runs/36053702873),
@@ -30,7 +30,9 @@ sealed-launch verifier passed on `c75f22ee` in preparation phase with
 deployment disabled and no release identities. Windows and WSL checkouts are
 clean and synchronized at this branch head. Require fresh protected checks on
 the PR's final documentation head; do not rely on a prior run or merge before
-all final checks are green.
+all final checks are green. The local preparation runbook now points back to
+this checkpoint and labels earlier preparation evidence as superseded by the
+current G001 repair.
 
 After PR #355 merges, verify its signed main commit and tree, synchronize the
 clean WSL ext4 operating checkout to that exact M1, and run native `prepare`
