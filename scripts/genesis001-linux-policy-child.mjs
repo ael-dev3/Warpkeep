@@ -48,6 +48,22 @@ const POLICY_DIAGNOSTICS_BY_CODE = new Map([
   ['GREATER_REALM_PRODUCTION_TRANSPORT_TARGET_OVERRIDE_REJECTED', 'g001-policy-authority'],
   ['GREATER_REALM_PRODUCTION_TRANSPORT_WIRE_NAME_INVALID', 'g001-policy-authority'],
 ]);
+const ADMIN_TOKEN_BUDGET_DIAGNOSTICS_BY_CODE = new Map([
+  ['PRODUCTION_ADMIN_TOKEN_BUDGET_EXHAUSTED', 'g001-policy-budget-capacity'],
+  ['PRODUCTION_ADMIN_TOKEN_CLOCK_INVALID', 'g001-policy-budget-clock'],
+  ['PRODUCTION_ADMIN_TOKEN_CLOCK_ROLLBACK', 'g001-policy-budget-clock'],
+  ['PRODUCTION_ADMIN_TOKEN_RESERVATION_INVALID', 'g001-policy-budget-reservation'],
+  ['PRODUCTION_ADMIN_TOKEN_LEDGER_BUSY', 'g001-policy-budget-lock'],
+  ['PRODUCTION_ADMIN_TOKEN_LEDGER_LOCK_CLEANUP_FAILED', 'g001-policy-budget-lock'],
+  ['PRODUCTION_ADMIN_TOKEN_LEDGER_LOCK_FAILED', 'g001-policy-budget-lock'],
+  ['PRODUCTION_ADMIN_TOKEN_LEDGER_LOCK_INVALID', 'g001-policy-budget-lock'],
+  ['PRODUCTION_ADMIN_TOKEN_LEDGER_LOCK_RECOVERY_FAILED', 'g001-policy-budget-lock'],
+  ['PRODUCTION_ADMIN_TOKEN_LEDGER_LOCK_REPLACED', 'g001-policy-budget-lock'],
+  ['PRODUCTION_ADMIN_TOKEN_LEDGER_INTERRUPTED_BEFORE_MUTATION', 'g001-policy-budget-interrupted'],
+  ['PRODUCTION_ADMIN_TOKEN_LEDGER_DIRECTORY_INVALID', 'g001-policy-budget-ledger'],
+  ['PRODUCTION_ADMIN_TOKEN_LEDGER_INVALID', 'g001-policy-budget-ledger'],
+  ['PRODUCTION_ADMIN_TOKEN_LEDGER_WRITE_FAILED', 'g001-policy-budget-ledger'],
+]);
 
 /** Exposes only fixed categories; original messages, causes and fields never leave this process. */
 export function projectG001PolicyObservationDiagnostic(error) {
@@ -59,8 +75,10 @@ export function projectG001PolicyObservationDiagnostic(error) {
     const policyDiagnostic = POLICY_DIAGNOSTICS_BY_CODE.get(code.value);
     if (policyDiagnostic !== undefined) return policyDiagnostic;
     // The policy observer releases its owner-scoped token-budget reservation
-    // during session cleanup. Project that typed local-state failure without
-    // exposing ledger errors, reservation ids, or provider details.
+    // during session cleanup. Keep the fixed category useful for recovery
+    // without exposing ledger errors, reservation ids, or provider details.
+    const budgetDiagnostic = ADMIN_TOKEN_BUDGET_DIAGNOSTICS_BY_CODE.get(code.value);
+    if (budgetDiagnostic !== undefined) return budgetDiagnostic;
     if (code.value.startsWith('PRODUCTION_ADMIN_TOKEN_')) return 'g001-policy-budget';
   }
   const message = fields.message;
@@ -68,7 +86,7 @@ export function projectG001PolicyObservationDiagnostic(error) {
   try { prototype = Object.getPrototypeOf(error); } catch { return undefined; }
   if (prototype === AggregateError.prototype
     && message?.value === 'PRODUCTION_ADMIN_TOKEN_LEDGER_MULTIPLE_FAILURES') {
-    return 'g001-policy-budget';
+    return 'g001-policy-budget-combined';
   }
   const diagnostic = fields.diagnostic;
   return diagnostic !== undefined && 'value' in diagnostic

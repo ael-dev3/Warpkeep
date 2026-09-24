@@ -56,6 +56,9 @@ for (const diagnostic of ['g001-admitted-identity', 'g001-admitted-aggregate',
   'g001-admitted-collection', 'g001-session-finalize',
   'g001-policy-state', 'g001-policy-procedure', 'g001-policy-transport',
   'g001-policy-credential', 'g001-policy-authority', 'g001-policy-budget',
+  'g001-policy-budget-capacity', 'g001-policy-budget-clock', 'g001-policy-budget-reservation',
+  'g001-policy-budget-lock', 'g001-policy-budget-ledger', 'g001-policy-budget-interrupted',
+  'g001-policy-budget-combined',
   'g001-policy-inspect', 'g001-policy-cleanup']) {
   G001_DIAGNOSTICS.add(diagnostic);
 }
