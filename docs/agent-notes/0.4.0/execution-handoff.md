@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 24 September 2026, 21:57 UTC
+## Current checkpoint — 24 September 2026, 22:31 UTC
 
 Protected `main` is generated-only M2 [`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`](https://github.com/ael-dev3/Warpkeep/commit/b7d729b0e8a58cf43870d0baafdf8d8da508fc99),
 merged through PR #354. Exact-main Verify [run 36053702873](https://github.com/ael-dev3/Warpkeep/actions/runs/36053702873),
@@ -17,11 +17,20 @@ Do not retry this M2 again.
 Source M1 repair [PR #355](https://github.com/ael-dev3/Warpkeep/pull/355) is on
 `fix/g001-budget-diagnostics`. It retains fixed privacy-safe token-budget
 failure categories across the child and native boundaries and updates the
-recovery guide. Focused Linux regressions passed 375 tests across 8 files (44
-provider-only tests skipped). The complete M1 closure was re-derived in both
-checkouts and verified. This handoff refresh is included in the source PR, so
-require every protected check to pass on its final head; do not rely on a prior
-run or merge before the final checks are green.
+recovery guide. The latest source commit classifies SIGINT/SIGTERM ledger
+interruptions as the existing fixed `interrupted` category; the diagnostic
+projection regression passes 52/52 on Windows and pinned WSL Node 22. The
+focused Linux batch also passed 375 tests across 8 files (44 provider-only
+tests skipped). On source checkpoint `9d70b0d2`, native WSL freshly derived
+the complete 1,258-member M1 closure, and a separate process reproduced all 16
+outputs byte-for-byte and passed the closure policy check. Its manifest digest
+is `a7dc7d017465bcc958e05bffd0a76b471823dd1b3b90d5b91f7b634370bf870b`.
+Generated closure commit `c75f22ee` includes that family. The clean checked-in
+sealed-launch verifier passed on `c75f22ee` in preparation phase with
+deployment disabled and no release identities. Windows and WSL checkouts are
+clean and synchronized at this branch head. Require fresh protected checks on
+the PR's final documentation head; do not rely on a prior run or merge before
+all final checks are green.
 
 After PR #355 merges, verify its signed main commit and tree, synchronize the
 clean WSL ext4 operating checkout to that exact M1, and run native `prepare`
@@ -837,7 +846,7 @@ all 16 outputs, with manifest `da2c2ab1beeb99e24d8abdff28122e74b74efccaca2c6a128
 Independent static-source and current-documentation reviews passed; the handoff
 now distinguishes completed source work from pending provider setup.
 
-### Shipping estimate and next critical work
+### Historical shipping estimate and next work at that checkpoint
 
 Planning estimate: **5–10 focused working days once operation-specific private
 authority is usable**, including native family integration, provider/recovery
@@ -846,7 +855,7 @@ allowance, not a promised calendar date; it excludes unknown waits for retained
 private records or owner/device availability. A significant acceptance failure
 would require re-estimation. Source/test counts are not a completion percentage.
 
-Next: finish source-only PR #301 checks and merge M1. Its reviewed source closure
+At that checkpoint, next: finish source-only PR #301 checks and merge M1. Its reviewed source closure
 is derived; the initial signer repair is already merged. Prepare
 and independently check the family from its actual M1, promote M2 and wait for
 that main Verify. Then use supported read-only inspections to identify each
