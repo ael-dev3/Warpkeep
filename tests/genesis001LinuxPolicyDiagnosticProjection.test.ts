@@ -52,6 +52,8 @@ const projectedFailures = [
   [productionAdminTokenBudgetCode('LEDGER', 'INVALID'), 'g001-policy-budget-ledger'],
   [productionAdminTokenBudgetCode('LEDGER', 'WRITE', 'FAILED'), 'g001-policy-budget-ledger'],
   [productionAdminTokenBudgetCode('LEDGER', 'INTERRUPTED', 'BEFORE', 'MUTATION'), 'g001-policy-budget-interrupted'],
+  [productionAdminTokenBudgetCode('LEDGER', 'INTERRUPTED', 'SIGINT'), 'g001-policy-budget-interrupted'],
+  [productionAdminTokenBudgetCode('LEDGER', 'INTERRUPTED', 'SIGTERM'), 'g001-policy-budget-interrupted'],
   [productionAdminTokenBudgetCode('FUTURE', 'PRIVATE', 'DETAIL'), 'g001-policy-budget'],
   ['GENESIS_001_POLICY_OBSERVATION_TIMESTAMP_INVALID', 'g001-receipt'],
 ] as const;
