@@ -3,47 +3,50 @@
 ## Current checkpoint — 24 September 2026
 
 Protected `main` is generated-only M2 commit
-[`080d91aa7038b4b570f949b76e0a5db241dda61e`](https://github.com/ael-dev3/Warpkeep/commit/080d91aa7038b4b570f949b76e0a5db241dda61e)
-(tree `412b5484a5a01238f1bbdb894a93581ddf313893`), promoted from source M1
-`977ff8fbbd15c7a074c255ac47c93d6b53185ce1` through [PR #346](https://github.com/ael-dev3/Warpkeep/pull/346).
-Exact-main Verify [run 35929407612, attempt 2](https://github.com/ael-dev3/Warpkeep/actions/runs/35929407612)
-and CodeQL [run 35929407659](https://github.com/ael-dev3/Warpkeep/actions/runs/35929407659)
-passed. Read-only preflight [run 35937859210](https://github.com/ael-dev3/Warpkeep/actions/runs/35937859210)
-also passed from that exact source.
+[`5f5b36813f31d37436feb83573d882105ec0c83f`](https://github.com/ael-dev3/Warpkeep/commit/5f5b36813f31d37436feb83573d882105ec0c83f)
+(tree `7e974ae138b528c620c10617fcd065d06dc4a8f8`), promoted from source M1
+`255e3332fa8cedbcbd7c2bd959fd6ffd345c2876` through [PR #348](https://github.com/ael-dev3/Warpkeep/pull/348).
+GitHub reports the squash commit signature as verified. Exact-main Verify
+[run 35957030936](https://github.com/ael-dev3/Warpkeep/actions/runs/35957030936)
+and CodeQL [run 35957030943](https://github.com/ael-dev3/Warpkeep/actions/runs/35957030943)
+passed. Read-only preflight [run 35961074540](https://github.com/ael-dev3/Warpkeep/actions/runs/35961074540)
+and fresh G001 policy observation
+[run 35961181929](https://github.com/ael-dev3/Warpkeep/actions/runs/35961181929)
+also passed from this exact source.
 
-The fresh read-only G001 policy observation [run 35937948183](https://github.com/ael-dev3/Warpkeep/actions/runs/35937948183)
-failed closed with `g001-observation`. Source review found why the stage stayed
-generic: the bounded child runner rejects every nonzero exit and discards its
-captured stderr before the policy caller can project the child's fixed,
-allowlisted diagnostic. The actual child stage remains unknown; do not infer a
-bad credential, live policy or provider state from this result. The operation
-is read-only. No census or provider mutation followed. Keep incomplete census
-attempt `35839901590` untouched; it is not a baseline and must not be reused or
-inspected for applicant data.
+The subsequent read-only G001 freeze census
+[run 35961418087](https://github.com/ael-dev3/Warpkeep/actions/runs/35961418087)
+failed in `operate_readonly` with safe diagnostic `g001-admitted-collection`.
+Every mutation lane was skipped; no provider mutation or downstream census work
+followed. This is not a completed receipt. Leave this private attempt and all
+historical attempts unchanged; never inspect, copy, or reuse applicant data.
+The failure does not establish the underlying provider or admitted-player cause.
 
-Source-only follow-up is being reviewed on branch
-[`fix/g001-preserve-contained-child-diagnostics`](https://github.com/ael-dev3/Warpkeep/tree/fix/g001-preserve-contained-child-diagnostics).
-It allows an explicitly opted-in caller to receive a nonzero status only after
-the child process group is contained, then maps only the exact safe marker;
-spawn, timeout, signal, output-limit and surviving-descendant failures still
-fail closed. Pinned Linux typecheck and 378 focused tests passed (one guarded
-skip). The prepared closure independently re-derived to 1,258 members and the
-same digest `0609ca4e5a923d550c6219968a088ddd67dee9418c809d063ebec2aaf494ab4f`
-across fresh processes and both local checkouts; its 16 derived files were
-installed from the owning generator. Checked-in sealed-launch verification
-must be rerun from a clean committed checkout.
+Source review found that the shared serialized transport boundary normalized
+an already-allowlisted G001 callback diagnostic into a generic transport error
+before the census stage projector could retain it. The actual stage inside
+admitted collection remains unknown. A narrow source repair is in progress on
+`fix/g001-preserve-census-diagnostic`: it preserves only the existing fixed
+diagnostic across the generic boundary error while retaining failed-connection
+invalidation and private-message redaction. On the Windows host, the focused
+G001 suites passed 101 tests, the related serialized-session tests passed 2,
+and TypeScript build-mode typecheck passed. These local checks do not identify
+the underlying census cause and are not hosted acceptance. The repair and
+current notes must pass review and protected CI before another operational run.
 
-After this source-only repair passes protection and merges, resolve its exact
-signed main SHA, wait for that SHA's Verify and CodeQL, then run native `prepare` and independent
-`check` for that exact M1 source. Promote only the resulting authenticated,
-complete generated family as M2. On that exact M2, require main Verify/CodeQL,
-then run preflight and a fresh read-only G001 policy observation. Continue
-through its stage-specific recovery path if it returns a fixed diagnostic.
-Start census only after a successful fresh observation and with a new run
-identity; retain the earlier incomplete attempt unchanged.
+Put the scoped source-and-note repair through a signed PR from exact M2, require
+hosted protection checks, and merge only the reviewed head. On its resulting
+exact main SHA, require Verify and CodeQL, then run native `prepare`
+and independent `check` for that M1 source. Promote only the authenticated,
+complete generated family. On the resulting M2, require exact-main Verify and
+CodeQL, then run preflight and a fresh read-only G001 policy observation. Start
+a **new** census attempt only after that observation succeeds; do not retry or
+reuse run `35961418087`. If census still fails, use only its fixed stage
+diagnostic to repair source and repeat the signed, protected source/generated
+sequence before another run.
 
-0.4 is not shipped. Provider deployment and recovery, accepted G001
-preservation/readback, sealed G002 and owner-only PTR evidence, actual-owner
+0.4 is not shipped. Accepted G001 preservation/readback, sealed G002 and
+owner-only PTR evidence, provider deployment and recovery, actual-owner
 gameplay, physical-device and measured performance acceptance, final release
 freeze, live hosting verification and final workspace delivery remain open.
 Keep scheduled sync automation paused, create no Desktop artifacts or backups,

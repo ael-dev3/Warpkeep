@@ -15,7 +15,8 @@ import { executeGenesis001CensusPrivacySafeReceipt } from './genesis001-census-p
 import { GENESIS_001_DATABASE_IDENTITY, GENESIS_001_LIVE_POLICY_OBSERVATION_PROFILE,
   genesis001PolicyReceiptDigest } from './genesis001-sealed-launch-adoption.mjs';
 import { createGreaterRealmAdminTransportSession, GREATER_REALM_PRODUCTION_TRANSPORT_TARGET,
-  readGreaterRealmProductionAdminSecret } from './greater-realm-production-transport';
+  GreaterRealmProductionTransportError, readGreaterRealmProductionAdminSecret }
+  from './greater-realm-production-transport';
 import { withOperationTimeout } from './production-admin-connection';
 import { parseWorkflowEvidenceJson } from './sealed-realms-production-workflow-evidence-json.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
@@ -222,6 +223,25 @@ type Dependencies = Readonly<{ now: () => Date; wait: (ms: number) => Promise<vo
   collectSample: (session: Session, scope: Scope, sample: 'first' | 'second') => Promise<any>;
   retainSample: (scope: Scope, sample: 'first' | 'second', value: unknown) => void }>;
 
+/** Preserve only census diagnostics already reduced to the fixed allowlist.
+ * The transport still invalidates the failed connection before rethrowing this
+ * generic boundary error, while callers retain the safe stage discriminator. */
+export async function withGenesis001LinuxCensusConnection<T>(
+  session: Session,
+  operation: (connection: DbConnection) => Promise<T>,
+): Promise<T> {
+  return session.withConnection(async connection => {
+    try { return await operation(connection); }
+    catch (error) {
+      const diagnostic = existingCensusDiagnostic(error);
+      if (diagnostic === undefined) throw error;
+      const boundary = new GreaterRealmProductionTransportError('G001_LINUX_CENSUS_COLLECTION_FAILED');
+      Object.defineProperty(boundary, 'diagnostic', { value: diagnostic, enumerable: false });
+      throw boundary;
+    }
+  });
+}
+
 async function sample(session: Session, scope: Scope, kind: 'first' | 'second') {
   const directory = join(G001_POLICY_ROOT, 'attempts', scope.attemptId, kind);
   let stage = 'sample-directory';
@@ -229,7 +249,7 @@ async function sample(session: Session, scope: Scope, kind: 'first' | 'second') 
     policyPrivateAncestors(join(G001_POLICY_ROOT, 'attempts', scope.attemptId));
     mkdirSync(directory, { mode: 0o700 }); policyPrivateAncestors(directory);
     stage = 'applicant-collection';
-    return await session.withConnection(async connection => {
+    return await withGenesis001LinuxCensusConnection(session, async connection => {
       let callerIdentity: string;
       try { callerIdentity = identity(connection); } catch { fail('g001-admitted-identity'); }
       const census = await collectAccessRequestCensus(connection, GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST);

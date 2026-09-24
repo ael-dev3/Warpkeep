@@ -44,11 +44,14 @@ vi.mock('../scripts/greater-realm-production-transport', async original => {
 });
 import { collectGenesis001LinuxAdmittedCensus, executeGenesis001LinuxCensusForTesting,
   executeGenesis001LinuxCensusFromDescriptor, parseGenesis001LinuxCensusFidSql,
-  projectGenesis001LinuxCensusStageDiagnostic, reconcileGenesis001LinuxCensusSample } from '../scripts/genesis001-linux-census-operator';
+  projectGenesis001LinuxCensusStageDiagnostic, reconcileGenesis001LinuxCensusSample,
+  withGenesis001LinuxCensusConnection } from '../scripts/genesis001-linux-census-operator';
 import { collectGenesis001AdmittedPlayerCensus } from '../scripts/genesis001-admitted-player-census.mjs';
 import { createGenesis001LinuxCensusSample } from '../scripts/genesis001-linux-census-attempt.mjs';
 import { GENESIS_001_DATABASE_IDENTITY, GENESIS_001_FREEZE_RELEASE_NONCE, GENESIS_001_SOURCE_BASELINE_COMMIT,
   genesis001CensusOpaqueProofDigest } from '../scripts/genesis001-sealed-launch-adoption.mjs';
+import { createGreaterRealmAdminTransportSession, GreaterRealmProductionTransportError }
+  from '../scripts/greater-realm-production-transport';
 
 const SOURCE = 'a'.repeat(40), CALLER = '8'.repeat(64);
 it.each([
@@ -68,6 +71,40 @@ it('preserves existing fixed diagnostics and ignores arbitrary stages and error 
   expect(projectGenesis001LinuxCensusStageDiagnostic(Error('private'), 'unknown')).toBeUndefined();
   const error = Object.defineProperty({}, 'diagnostic', { get: () => { throw Error('private'); } });
   expect(projectGenesis001LinuxCensusStageDiagnostic(error, 'admitted-collection')).toBe('g001-admitted-collection');
+});
+it('preserves only an allowlisted census diagnostic through transport invalidation', async () => {
+  const disconnect = vi.fn();
+  const session = createGreaterRealmAdminTransportSession({
+    adminSecret: 's'.repeat(40),
+    requestToken: vi.fn(async () => `aaa.${'b'.repeat(24)}.ccc`) as never,
+    connectDatabase: vi.fn(async () => ({
+      isDisconnectRequested: false,
+      disconnect,
+      procedures: {},
+      reducers: {},
+    })) as never,
+    tokenBudget: Object.freeze({
+      reserve: async (slots: number) => ({ reservationId: 'a'.repeat(32), remaining: slots }),
+      ensure: async (reservationId: string, minimumRemaining: number) => ({ reservationId, remaining: minimumRemaining }),
+      release: async (reservationId: string) => ({ reservationId, released: 0 }),
+    }),
+    readTrustedTime: async () => Date.now(),
+  });
+  const failure = Error('PRIVATE_APPLICANT_OR_PROVIDER_DETAIL');
+  Object.defineProperty(failure, 'diagnostic', { value: 'g001-admitted-enumeration', enumerable: false });
+  try {
+    await expect(withGenesis001LinuxCensusConnection(session, async () => { throw failure; }))
+      .rejects.toSatisfy((error: unknown) => {
+        expect(error).toBeInstanceOf(GreaterRealmProductionTransportError);
+        expect(projectGenesis001LinuxCensusStageDiagnostic(error, 'admitted-collection'))
+          .toBe('g001-admitted-enumeration');
+        expect((error as Error).message).not.toContain('PRIVATE_APPLICANT_OR_PROVIDER_DETAIL');
+        return true;
+      });
+    expect(disconnect).toHaveBeenCalledOnce();
+  } finally {
+    await session.close();
+  }
 });
 const SQL_URL = `https://maincloud.spacetimedb.com/v1/database/${GENESIS_001_DATABASE_IDENTITY}/sql?confirmed=true`;
 it.each(['accepted', 'rejected', 'mismatched'])('checks fixed source before descriptor census transport: %s', async sourceState => {
