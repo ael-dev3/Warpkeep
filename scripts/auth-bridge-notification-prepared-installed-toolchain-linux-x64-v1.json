@@ -35,7 +35,7 @@
   "resolverNamespaceDirectoryCount": 7,
   "resolverNamespaceFileCount": 8,
   "resolverNamespaceSymbolicLinkCount": 11,
-  "resolverNamespaceSha256": "4c0260b9a342e91186fecaedb16e15e2fa03c99a345b754653eae392b3ec6678",
+  "resolverNamespaceSha256": "4c92ff4f1e1a6830f2fd43e521bf90f11805eaaec9feb5531cb0b60c2e96f29a",
   "normalizedShimFileCount": 31,
   "entryCount": 18141,
   "directoryCount": 1529,
@@ -43,5 +43,5 @@
   "symbolicLinkCount": 239,
   "executableFileCount": 64,
   "totalFileBytes": 324376726,
-  "treeSha256": "83c29000c0fe5a80966d81851eea8172ca18f384f302e2ff47092df47fc94ee1"
+  "treeSha256": "c994526856eb225735fa645fcfd6756bdc6c90d8a416c69268a9b4d57a326375"
 }
