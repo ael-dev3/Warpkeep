@@ -570,7 +570,7 @@
     {
       "path": "scripts/genesis001-linux-census-operator.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "40c5642ce18f5b85fa21e604aa8f5d94c9188de32e4bacaa1fbf32cb21be240f"
+      "sha256": "4f02e80143d7308d1e765fb567dd2c87097290731e4d414fd14f0a2ca3272006"
     },
     {
       "path": "scripts/genesis001-linux-freeze-receipt.d.mts",
@@ -1735,7 +1735,7 @@
     {
       "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cf18b3c159aa3e18d4159e2c0b2426759a16b39937696a3ee214489a9904484a"
+      "sha256": "047fd23eeca9e46bfc1ae91435d05282456fa5ee66258e7c0f8d8972758fd29f"
     },
     {
       "path": "scripts/recovery-workflow-check-deployment.d.mts",
@@ -1925,7 +1925,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "03c5c7535251784124e9cad1661e314ffc2c6c8484d193b0b9a4da0792572663"
+      "sha256": "480bc842ad2f5e0078594ffaee2dda590d1c85207cf209948d6783c54ddd3df8"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
