@@ -405,7 +405,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-linux-runner.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "41e5403df8a87c1da8b28a2a7270da161c90d14ed0b1487e953dc20ab8df0a78"
+      "sha256": "364ec3f730b4e1c5e2ed1996c507e131343ad71b6d5549d51488b8add9958039"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json",
