@@ -1,6 +1,48 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 24 September 2026, 11:30 UTC
+## Current checkpoint — 24 September 2026, 21:57 UTC
+
+Protected `main` is generated-only M2 [`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`](https://github.com/ael-dev3/Warpkeep/commit/b7d729b0e8a58cf43870d0baafdf8d8da508fc99),
+merged through PR #354. Exact-main Verify [run 36053702873](https://github.com/ael-dev3/Warpkeep/actions/runs/36053702873),
+CodeQL [run 36053702845](https://github.com/ael-dev3/Warpkeep/actions/runs/36053702845) and
+read-only preflight [run 36059961456](https://github.com/ael-dev3/Warpkeep/actions/runs/36059961456)
+passed. Read-only G001 policy observations [run 36060050219](https://github.com/ael-dev3/Warpkeep/actions/runs/36060050219)
+and [run 36060910719](https://github.com/ael-dev3/Warpkeep/actions/runs/36060910719)
+both failed closed with `g001-policy-budget`. The bounded token-budget inspector
+succeeded, reconciled the expired reservation and reported available capacity;
+one controlled exact-source retry returned the same generic diagnostic. Neither
+observation produced a verified receipt. No census or provider mutation followed.
+Do not retry this M2 again.
+
+Source M1 repair [PR #355](https://github.com/ael-dev3/Warpkeep/pull/355) is on
+`fix/g001-budget-diagnostics`. It retains fixed privacy-safe token-budget
+failure categories across the child and native boundaries and updates the
+recovery guide. Focused Linux regressions passed 375 tests across 8 files (44
+provider-only tests skipped). The complete M1 closure was re-derived in both
+checkouts and verified. This handoff refresh is included in the source PR, so
+require every protected check to pass on its final head; do not rely on a prior
+run or merge before the final checks are green.
+
+After PR #355 merges, verify its signed main commit and tree, synchronize the
+clean WSL ext4 operating checkout to that exact M1, and run native `prepare`
+plus independent `check`. Promote only that authenticated generated family in
+a generated-only M2. On exact M2, wait for push-to-main Verify and CodeQL, then
+run protected preflight and one fresh read-only G001 policy observation. Follow
+any returned fixed subcategory in the [access guide](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths);
+do not inspect raw ledger state, hand-edit files, or count a failed run as a
+receipt. Do not run protected operations against interim M1.
+
+Initial 0.4 still requires the existing PTR target to become genuinely
+accessible to its owner; public admissions and admission realms are not
+required. Deployment, G001 preservation/readback, sealed G002 evidence, actual
+owner journey, mobile and measured performance acceptance, release freeze and
+final delivery remain open. Keep scheduled automations paused, create no
+Desktop artifacts, preserve private attempts, and use existing credentials and
+recovery material only; do not generate another GitHub App or recovery key.
+
+---
+
+## Historical checkpoint — 24 September 2026, 11:30 UTC (superseded above)
 
 Protected `main` is M4 [`260f8a7a2b87d618a6a837a4fb480f1ee65a5bbb`](https://github.com/ael-dev3/Warpkeep/commit/260f8a7a2b87d618a6a837a4fb480f1ee65a5bbb),
 tree `7469c69e4742217667b265dc35b70f495240b0f9`, merged through PR #350.
@@ -1879,7 +1921,7 @@ unpassed for this checkout even though the server runtime, focused
 source/security suite (89/89), typecheck and CLI attestation suite pass. Do not
 claim the full browser journey until a fresh run records it.
 
-## Current native artifact execution — September 9
+## Historical native artifact execution — September 9
 
 The pinned WarpkeepRunner Ubuntu 24.04 guest executed the preceding native source
 head `206c03683c9039b513b878d7b0d3c6770eda2626` (source tree

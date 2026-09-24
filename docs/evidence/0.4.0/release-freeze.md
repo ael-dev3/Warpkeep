@@ -3,14 +3,16 @@
 Status: **0.4 is not shipped; final release freeze remains open**.
 
 Current protected source is generated-only M2
-[`e22fca5c395748eb517214952aaf797d0f9d9738`](https://github.com/ael-dev3/Warpkeep/commit/e22fca5c395748eb517214952aaf797d0f9d9738).
+[`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`](https://github.com/ael-dev3/Warpkeep/commit/b7d729b0e8a58cf43870d0baafdf8d8da508fc99).
 Exact-main Verify, CodeQL and read-only preflight passed. Two read-only policy
-observations failed with the generic G001 label; [PR #345](https://github.com/ael-dev3/Warpkeep/pull/345)
-adds safe stage diagnostics and awaits hosted checks. The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
-records exact run identities and the required source-specific M1 prepare/check,
-generated-only M2, and fresh-observation sequence. Earlier native evidence and
-generated families remain bound to their recorded inputs; none certify this
-maintenance source or grant deployment authority.
+observations returned `g001-policy-budget` after safe inspection and lease
+reconciliation; neither produced a verified receipt. Source M1
+[PR #355](https://github.com/ael-dev3/Warpkeep/pull/355) adds fixed safe
+categories and updated recovery notes; require all protected checks to pass on
+its final head. The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+records exact run identities and the required M1 prepare/check, generated-only
+M2 and fresh-observation sequence. Earlier native evidence and generated families
+remain bound to their recorded inputs; none grant deployment authority.
 
 `finalReleasePrepared:false` remains explicit. Provider/private authority,
 G001 preservation, sealed G002 denial, PTR owner play, physical-device

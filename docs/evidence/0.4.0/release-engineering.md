@@ -8,14 +8,19 @@ do not use an old passing run or Pages classification as a release grant for a
 later source. 0.4 remains unshipped.
 
 The current protected source is generated-only M2
-[`e22fca5c395748eb517214952aaf797d0f9d9738`](https://github.com/ael-dev3/Warpkeep/commit/e22fca5c395748eb517214952aaf797d0f9d9738),
-merged through PR #344. Its exact-main Verify, CodeQL and read-only preflight
-passed. Two read-only G001 policy observations on that M2 failed with the same
-generic safe label; the cause remains unknown. PR #345 adds stage-specific safe
-diagnostics and is under hosted checks. See the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+[`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`](https://github.com/ael-dev3/Warpkeep/commit/b7d729b0e8a58cf43870d0baafdf8d8da508fc99),
+merged through PR #354. Its exact-main Verify, CodeQL and read-only preflight
+passed. Two fresh policy observations failed closed with `g001-policy-budget`;
+safe inspection reconciled the expired reservation, but the controlled retry
+returned the same category. No verified receipt, census or provider mutation
+followed. Source M1 [PR #355](https://github.com/ael-dev3/Warpkeep/pull/355)
+adds fixed safe budget categories and updates the operation recovery path.
+Focused Linux tests passed 375 cases (44 provider-only skipped). This release-note
+refresh is included in the source PR; its protected checks must pass on the final
+head. See the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
 and [live delivery status](../../operations/0.4.0-live-delivery-status.md) for
-the current source, exact run receipts and next sequence. Do not use an earlier
-candidate as authority for this source.
+current source and required M1 preparation, M2 and read-only recovery steps. No
+earlier candidate grants authority for the current source.
 
 The local/source rails are healthy, but private activation and owner authority,
 real deployment, recovery/readback, G001 preservation, sealed G002 denial,
@@ -1302,7 +1307,7 @@ source and committed as `b8a6c5ab`; the native closure verifier now reports
 1,195 members verified. This is preparation and closure evidence, not a
 release grant, provider deployment or owner acceptance.
 
-## Current assembled-artifact execution — 2026-09-09
+## Historical assembled-artifact execution — 2026-09-09
 
 The pinned WarpkeepRunner Ubuntu 24.04 guest executed the current native
 materializer and child worker from source `206c03683c9039b513b878d7b0d3c6770eda2626`
@@ -1720,10 +1725,10 @@ and immediately reopens and verifies the source-bound record; its retained-state
 reader also validates the same receipt. See `captureG001ActivationRecord`,
 `reopenPolicyObservationRecord` and `verifyGenesis001LinuxPolicyReceipt` before
 diagnosing persistence again. This local/source capability does not prove that a
-new live observation completed. The latest M3 policy run failed with generic
-`g001-observation` because the child discarded its typed error code; the active
-source-only repair and exact-source next steps are in the
-[execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
+new live observation completed. The cited M3 `g001-observation` failure is
+historical and superseded. Current M2 policy failures and source M1 PR #355
+are recorded in the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md);
+do not reuse the old run as current authority.
 
 The workflow Verify reader, other live transport adapters, remaining realm
 receipt captures and canonical recovery inputs remain separate unfinished paths.
@@ -2018,7 +2023,7 @@ caller/workflow changes. No server economy, automatic dispatch or live owner
 evidence was introduced.
 
 
-## Current-source preparation and existing-target protocol — 2026-09-08
+## Historical source preparation and existing-target protocol — 2026-09-08
 
 Native `prepare` and the independent rebuilding `check` both exited 0 for
 `1e90b2e4a67208c5ea70fd8589ec56ddacee2226`, source tree
