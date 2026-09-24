@@ -19,6 +19,11 @@ export function runLocalBindingBoundedProcess(executable, args, options) {
       return;
     }
     const containProcessGroup = options.containProcessGroup === true && process.platform !== 'win32';
+    const allowNonzeroExit = options.allowNonzeroExit === true;
+    if (allowNonzeroExit && !containProcessGroup) {
+      reject(new LocalBindingRuntimeProcessError('LOCAL_BINDING_RUNTIME_PROCESS_EXIT_STATUS_REQUIRES_CONTAINMENT'));
+      return;
+    }
     const child = spawn(executable, args, {
       cwd: options.cwd, env: options.env, shell: false,
       detached: containProcessGroup,
@@ -35,16 +40,23 @@ export function runLocalBindingBoundedProcess(executable, args, options) {
     let terminationDeadline;
     let unexpectedSurvivor = false;
     let killError;
-    const finish = error => {
+    const finish = (error, exitStatus) => {
       if (settled) return;
       settled = true;
       clearTimeout(operationTimer);
       clearTimeout(terminationTimer);
       if (error) reject(error);
-      else resolvePromise({
-        stdout: Buffer.concat(output.stdout).toString('utf8'),
-        stderr: Buffer.concat(output.stderr).toString('utf8'),
-      });
+      else {
+        const result = {
+          stdout: Buffer.concat(output.stdout).toString('utf8'),
+          stderr: Buffer.concat(output.stderr).toString('utf8'),
+        };
+        if (allowNonzeroExit) {
+          result.exitCode = exitStatus.code;
+          result.signal = exitStatus.signal;
+        }
+        resolvePromise(result);
+      }
     };
     const ownedProcessExists = () => {
       if (!Number.isSafeInteger(child.pid) || child.pid < 2) return false;
@@ -106,16 +118,20 @@ export function runLocalBindingBoundedProcess(executable, args, options) {
     const closed = (code, signal) => {
       if (settled) return;
       clearTimeout(operationTimer);
+      const canReturnNonzeroExit = allowNonzeroExit && code !== 0 && code !== null
+        && signal === null && fd3Complete && requestedError === undefined;
       const error = requestedError ?? ((code !== 0 || signal !== null || !fd3Complete)
+        && !canReturnNonzeroExit
         ? new LocalBindingRuntimeProcessError('LOCAL_BINDING_RUNTIME_PROCESS_FAILED')
         : undefined);
+      const exitStatus = { code, signal };
       if (terminationDeadline !== undefined) {
         requestedError ??= error;
         pollTermination();
         return;
       }
       if (!containProcessGroup) {
-        finish(error);
+        finish(error, exitStatus);
         return;
       }
       let alive;
@@ -124,7 +140,7 @@ export function runLocalBindingBoundedProcess(executable, args, options) {
         return;
       }
       if (alive) beginTermination(error, error === undefined);
-      else finish(error);
+      else finish(error, exitStatus);
     };
     for (const name of ['stdout', 'stderr']) child[name].on('data', chunk => {
       output[`${name}Bytes`] += chunk.length;

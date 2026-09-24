@@ -159,8 +159,9 @@ export function runLocalBindingBoundedProcess(
     timeout: number;
     maxOutput: number;
     containProcessGroup?: boolean;
+    allowNonzeroExit?: boolean;
   }>,
-): Promise<Readonly<{ stdout: string; stderr: string }>>;
+): Promise<Readonly<{ stdout: string; stderr: string; exitCode?: number | null; signal?: string | null }>>;
 
 export function verifyLocalBindingBootstrapSource(source: Readonly<{
   root: string;

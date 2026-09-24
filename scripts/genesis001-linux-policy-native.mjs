@@ -326,13 +326,17 @@ async function execute(handle, evidence, kind) {
       fd3: JSON.stringify({ runId, operationRoot, source, bundleSha256: built.bundleSha256, bundleBytes: built.bundleBytes,
         ...(kind === 'census' ? { kind, githubRunId, githubRunAttempt } : {}) }),
       inheritedFd4: secretFd, containProcessGroup: true, timeout: kind === 'census' ? 600000 : 180000,
-      maxOutput: kind === 'census' ? 4 * 1024 * 1024 : 32768,
+      maxOutput: kind === 'census' ? 4 * 1024 * 1024 : 32768, allowNonzeroExit: true,
     });
     diagnostic = 'g001-receipt';
     if (JSON.stringify(secretStatus(secretPath, secretFd)) !== JSON.stringify(before)
       || JSON.stringify(secretStatus(secretPath)) !== JSON.stringify(before)
       || JSON.stringify(capturePrivateParents(secretRoot)) !== JSON.stringify(parents)) policyFail();
     closeSync(secretFd); secretFd = undefined;
+    if (observed.exitCode !== undefined && (observed.exitCode !== 0 || observed.signal !== null)) {
+      const childDiagnostic = nativeFailureDiagnostic(observed.stderr);
+      policyFail(childDiagnostic ?? 'g001-observation');
+    }
     if (observed.stderr !== '') {
       const childDiagnostic = nativeFailureDiagnostic(observed.stderr);
       policyFail(childDiagnostic ?? 'g001-observation');
