@@ -41,8 +41,20 @@ const projectedFailures = [
   ['GREATER_REALM_PRODUCTION_TOKEN_BUDGET_TEST_DEPENDENCY_REQUIRED', 'g001-policy-authority'],
   ['GREATER_REALM_PRODUCTION_TRANSPORT_TARGET_OVERRIDE_REJECTED', 'g001-policy-authority'],
   ['GREATER_REALM_PRODUCTION_TRANSPORT_WIRE_NAME_INVALID', 'g001-policy-authority'],
-  [productionAdminTokenBudgetCode('LEDGER', 'LOCK', 'CLEANUP', 'FAILED'), 'g001-policy-budget'],
-  [productionAdminTokenBudgetCode('BUDGET', 'EXHAUSTED'), 'g001-policy-budget'],
+  [productionAdminTokenBudgetCode('LEDGER', 'LOCK', 'CLEANUP', 'FAILED'), 'g001-policy-budget-lock'],
+  [productionAdminTokenBudgetCode('LEDGER', 'BUSY'), 'g001-policy-budget-lock'],
+  [productionAdminTokenBudgetCode('LEDGER', 'LOCK', 'RECOVERY', 'FAILED'), 'g001-policy-budget-lock'],
+  [productionAdminTokenBudgetCode('BUDGET', 'EXHAUSTED'), 'g001-policy-budget-capacity'],
+  [productionAdminTokenBudgetCode('CLOCK', 'INVALID'), 'g001-policy-budget-clock'],
+  [productionAdminTokenBudgetCode('CLOCK', 'ROLLBACK'), 'g001-policy-budget-clock'],
+  [productionAdminTokenBudgetCode('RESERVATION', 'INVALID'), 'g001-policy-budget-reservation'],
+  [productionAdminTokenBudgetCode('LEDGER', 'DIRECTORY', 'INVALID'), 'g001-policy-budget-ledger'],
+  [productionAdminTokenBudgetCode('LEDGER', 'INVALID'), 'g001-policy-budget-ledger'],
+  [productionAdminTokenBudgetCode('LEDGER', 'WRITE', 'FAILED'), 'g001-policy-budget-ledger'],
+  [productionAdminTokenBudgetCode('LEDGER', 'INTERRUPTED', 'BEFORE', 'MUTATION'), 'g001-policy-budget-interrupted'],
+  [productionAdminTokenBudgetCode('LEDGER', 'INTERRUPTED', 'SIGINT'), 'g001-policy-budget-interrupted'],
+  [productionAdminTokenBudgetCode('LEDGER', 'INTERRUPTED', 'SIGTERM'), 'g001-policy-budget-interrupted'],
+  [productionAdminTokenBudgetCode('FUTURE', 'PRIVATE', 'DETAIL'), 'g001-policy-budget'],
   ['GENESIS_001_POLICY_OBSERVATION_TIMESTAMP_INVALID', 'g001-receipt'],
 ] as const;
 
@@ -57,7 +69,7 @@ describe('G001 policy failure projection', () => {
   it('projects combined token-budget interruption without exposing its causes', () => {
     const error = new AggregateError([Error('private cause')],
       productionAdminTokenBudgetCode('LEDGER', 'MULTIPLE', 'FAILURES'));
-    expect(projectG001PolicyObservationDiagnostic(error)).toBe('g001-policy-budget');
+    expect(projectG001PolicyObservationDiagnostic(error)).toBe('g001-policy-budget-combined');
   });
 
   it('discards errors whose prototype cannot be inspected', () => {

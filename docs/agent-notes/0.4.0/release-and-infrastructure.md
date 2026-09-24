@@ -1,6 +1,6 @@
 # Release engineering, CI and infrastructure audit
 
-## Operational checkpoint — 24 September 2026
+## Operational checkpoint — 25 September 2026
 
 The [execution handoff](execution-handoff.md) owns the moving protected source,
 working branch, and terminal operation receipts. The [release checklist](../../operations/0.4.0-release-checklist.md)
@@ -9,34 +9,36 @@ evidence below is scoped to its recorded source and must not be reused as curren
 authority.
 
 Current protected main is generated-only M2
-`5f5b36813f31d37436feb83573d882105ec0c83f`, promoted through merged [PR #348](https://github.com/ael-dev3/Warpkeep/pull/348).
-Exact-main Verify, CodeQL, read-only preflight and fresh G001 policy observation
-passed. Freeze census [run 35961418087](https://github.com/ael-dev3/Warpkeep/actions/runs/35961418087)
-failed at `g001-admitted-collection`; every mutation job was skipped. The safe
-result does not reveal the underlying admitted-collection cause. Source review
-identified a shared transport boundary that discarded the census caller's
-allowlisted stage diagnostic. A narrow repair is under source review on
-`fix/g001-preserve-census-diagnostic`; focused local G001 tests and typecheck
-pass, while hosted CI and operational confirmation remain outstanding. Preserve
-the failed attempt unchanged and do not reuse it. The [execution handoff](execution-handoff.md)
-owns exact run links and next operations. Historical preparation and generated
-family evidence remains bound to its recorded input; it does not certify a later
-source or grant deployment.
+[`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`](https://github.com/ael-dev3/Warpkeep/commit/b7d729b0e8a58cf43870d0baafdf8d8da508fc99),
+merged through PR #354. Exact-main Verify, CodeQL and read-only preflight passed.
+Policy runs 36060050219 and 36060910719 both failed closed with
+`g001-policy-budget`. Bounded inspection reconciled the expired reservation and
+reported capacity; the controlled retry returned the same generic category.
+Neither run produced a verified receipt, census or provider mutation. Do not
+retry this M2.
+
+Source M1 [PR #355](https://github.com/ael-dev3/Warpkeep/pull/355) adds
+privacy-safe token-budget categories and current recovery paths. Focused Linux
+tests passed 375 cases across 8 files, with provider-only cases skipped. This
+release-note refresh is included in the PR; require every protected check to
+pass on its final head. The [execution handoff](execution-handoff.md) owns
+current run links and the next protected operation. Historical preparation and
+generated-family evidence remains bound to its input and grants no later
+deployment authority.
 
 ### Remaining delivery work, in dependency order
 
-Publish and merge the reviewed source-and-note repair from exact M2 through
-protected PR checks. Resolve its signed main SHA and require that commit's
-Verify and CodeQL. Synchronize the idle native checkout, then run fresh complete
-prepare and independent check for that M1. Promote only the authenticated,
-complete generated family as M2. After its merge, require exact-main Verify and
-CodeQL, then rerun preflight and the fresh read-only policy observation. Census
-can start only after that observation succeeds, using a new run identity; never
-reuse the failed run `35961418087`. Then continue with prepared bridge/signer
-observation, G001 preservation and sealed-realm readback, deployment/recovery,
-owner-only PTR play, device and performance acceptance, and final release
-freeze. A green source CI run, preflight or Pages classifier alone does not
-establish a live release.
+Complete the required checks on PR #355 and merge the source M1 through protection.
+Verify its exact signed main commit and tree, then run native `prepare` and
+independent `check` from the clean WSL ext4 checkout. Promote only that
+authenticated family through generated-only M2. After M2 merges, require exact
+push-to-main Verify and CodeQL, then run preflight and one fresh read-only policy
+observation. Follow a fixed diagnostic category through the access guide; proceed
+only on a verified receipt. Any new census uses a new run identity. Then complete
+the prepared bridge and signer/gateway path, G001 preservation/readback, sealed
+G002 evidence, existing owner-only PTR play, mobile and performance acceptance,
+and final release freeze. Green source CI or preflight alone does not establish
+a live release.
 
 ## Historical source checkpoint — 2026-09-12
 

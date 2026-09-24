@@ -2,16 +2,24 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current exact-M2 operation checkpoint — 23 September 2026
+## Current exact-M2 operation checkpoint — 25 September 2026
 
-Protected generated-only M2 is `e22fca5c395748eb517214952aaf797d0f9d9738`.
-Its exact-main Verify attempt 2, CodeQL and read-only preflight passed. The
-read-only G001 policy observer then failed with the generic `g001-observation`
-diagnostic twice on that source; no census or provider mutation followed.
-[PR #345](https://github.com/ael-dev3/Warpkeep/pull/345) adds safe stage
-diagnostics to identify the failing internal step. Its local focused tests and
-TypeScript build passed; hosted checks are pending. The current operation
-sequence and exact run links are in the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
+Protected generated-only M2 is
+[`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`](https://github.com/ael-dev3/Warpkeep/commit/b7d729b0e8a58cf43870d0baafdf8d8da508fc99).
+Its exact-main Verify, CodeQL and read-only preflight passed. Policy runs
+[36060050219](https://github.com/ael-dev3/Warpkeep/actions/runs/36060050219) and
+[36060910719](https://github.com/ael-dev3/Warpkeep/actions/runs/36060910719)
+failed with `g001-policy-budget`; the bounded inspector reconciled the expired
+reservation, but the controlled retry produced the same result. Neither run
+produced a verified receipt, census or provider mutation.
+
+Source M1 [PR #355](https://github.com/ael-dev3/Warpkeep/pull/355) adds fixed,
+privacy-safe budget diagnostics and carries the refreshed closure. Focused
+Linux tests passed (375 passed, 44 provider-only skipped). The release-note
+refresh is included in PR #355; require all protected checks to pass on its
+final head. Then prepare and independently check the exact protected M1, and
+promote its generated-only M2. Current run links and next steps are in the
+[execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
 ## Prior exact-M1 native prepare/check — 23 September 2026 (superseded)
 
@@ -214,7 +222,7 @@ It does not establish GitHub protected workflow completion, recovery-service
 deployment/readback, live Cloudflare or SpacetimeDB authority, owner admission,
 physical-device performance, or final release approval.
 
-## Current-head connected rerun — 2026-09-10
+## Historical connected rerun — 2026-09-10
 
 Against synchronized head `5b9ba9657d6e66319f41aabd396faf2a6c947b29`,
 `npm run qa:fullstack:local` passed. The run covered the title-gateway
@@ -330,7 +338,7 @@ failures still fail closed. The rerun completed all 18 synthetic Inner Keep
 cases and removed its disposable profile. This changes QA teardown reliability
 only; it is not phone performance, owner gameplay or live-release evidence.
 
-## Current local execution checkpoint — 2026-09-09
+## Historical local execution checkpoint — 2026-09-09
 
 The Windows/GitHub source head and the dedicated Linux checkout now match
 `206c03683c9039b513b878d7b0d3c6770eda2626` with source tree

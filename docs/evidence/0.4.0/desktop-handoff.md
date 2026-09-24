@@ -2,14 +2,16 @@
 
 Status: **interim development handoff**. The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
 owns current protected source and operation results. Current main is generated-
-only M2 `e22fca5c`; its Verify, CodeQL and preflight passed, while two read-only
-G001 policy observations failed with a generic diagnostic. PR #345 adds safe
-stage diagnostics and is under hosted checks. This document makes source, setup
-and evidence routes reproducible without distributing credentials or private
-player data. It is not a deployment attestation or final release package. The
-existing Desktop `Warpkeep - Full Project Handoff.md` remains a reference; this
-tracked file is the compact delivery index. Its historical filename is retained
-for link compatibility, not as a Desktop output instruction.
+only M2 `b7d729b0`; its Verify, CodeQL and preflight passed. Two read-only G001
+policy observations failed with `g001-policy-budget`; neither produced a verified
+receipt. Source M1 PR #355 adds fixed safe budget categories and refreshed
+release notes. Focused Linux tests passed on the code checkpoint; all required
+protected checks must pass on the final PR head. This document makes source,
+setup and evidence routes reproducible without distributing credentials or private player
+data. It is not a deployment attestation or final release package. The existing
+Desktop `Warpkeep - Full Project Handoff.md` remains a reference; this tracked
+file is the compact delivery index. Its historical filename is retained for
+link compatibility, not as a Desktop output instruction.
 
 The owner's September 11 direction supersedes the former Desktop delivery
 requirement. Keep routine notes in the repository and create the final package

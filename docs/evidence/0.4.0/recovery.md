@@ -1,17 +1,19 @@
 # Warpkeep 0.4 recovery evidence
 
-## Current checkpoint supersession — 23 September 2026
+## Current checkpoint supersession — 25 September 2026
 
 Current protected runtime source is generated-only M2
-`e22fca5c395748eb517214952aaf797d0f9d9738`. Exact-main Verify, CodeQL and
-read-only preflight passed. Two authenticated read-only G001 policy observations
-failed with the generic diagnostic; neither started census or submitted a
-mutation. [PR #345](https://github.com/ael-dev3/Warpkeep/pull/345) adds safe
-stage diagnostics and awaits hosted checks. After it merges, prepare and
-independently check the exact new M1, promote its complete generated-only M2,
-then repeat exact-M2 verification, preflight and policy observation. The
-[execution handoff](../../agent-notes/0.4.0/execution-handoff.md) records the
-exact current run identities and transition. Historical native evidence remains
+`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`. Exact-main Verify, CodeQL and
+read-only preflight passed. Two policy observations failed with
+`g001-policy-budget` after bounded inspection and lease reconciliation; neither
+produced a verified receipt or started census or mutation. Do not retry this
+M2. Source M1 [PR #355](https://github.com/ael-dev3/Warpkeep/pull/355) adds
+fixed safe diagnostics; its Linux and SpacetimeDB checks must finish before
+merge. Then prepare/check exact M1, promote generated-only M2, and resume
+read-only operations only on the exact verified M2.
+
+The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) records
+the exact run identities and next transition. Historical native evidence remains
 source-bound and `finalReleasePrepared:false`; no live deployment or recovery
 is established.
 
