@@ -8,6 +8,9 @@ import { parse } from 'yaml';
 const workflowPath = '.github/workflows/notification-bridge-prepared-linux.yml';
 const manifestPath =
   'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json';
+const installedToolchainManifestPath =
+  'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json';
+const runnerPath = 'scripts/auth-bridge-notification-prepared-linux-runner.mjs';
 
 describe('prepared Linux production workflow', () => {
   it('parses every production shell step before credentials or provider work', () => {
@@ -96,6 +99,27 @@ describe('prepared Linux production workflow', () => {
       .digest('hex');
     expect(manifestSha).toBe(
       '346661bf89426db64f2911b6b0e7d3f5abf0d717d067b0b6c81602e6c570519a',
+    );
+  });
+
+  it('binds the workflow and runner to the installed Linux manifest bytes', () => {
+    const workflow = parse(readFileSync(workflowPath, 'utf8')) as {
+      jobs: Record<string, { env: Record<string, string> }>;
+    };
+    const manifestSha = createHash('sha256')
+      .update(readFileSync(installedToolchainManifestPath))
+      .digest('hex');
+    const runner = readFileSync(runnerPath, 'utf8');
+
+    expect(workflow.jobs['notification-bridge-prepared-linux'].env
+      .WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256)
+      .toBe(manifestSha);
+    expect(runner).toContain('const LINUX_TOOLCHAIN_MANIFEST =');
+    expect(runner).toContain(
+      "!== sha256File(resolve(repositoryRoot, LINUX_TOOLCHAIN_MANIFEST))",
+    );
+    expect(runner).not.toContain(
+      'bcc41d30dbb00ecd612a1fdb5fe87b5e047d8cc777d0af9fc360b40e06bc1de2',
     );
   });
 });

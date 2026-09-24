@@ -42,6 +42,8 @@ const PNPM_ARCHIVE_SHA256 =
   'deafa7ec98a1218b6a047289b92fbe2395c1e22d3495bb711653013218ee15ee';
 const EXPECTED_PNPM_MANIFEST_SHA256 =
   '346661bf89426db64f2911b6b0e7d3f5abf0d717d067b0b6c81602e6c570519a';
+const LINUX_TOOLCHAIN_MANIFEST =
+  'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json';
 
 function fail(code) {
   const error = new Error(code);
@@ -201,7 +203,7 @@ async function main() {
     || manifest.archiveSha256 !== PNPM_ARCHIVE_SHA256
   ) fail('AUTH_BRIDGE_PREPARED_LINUX_RUNNER_MANIFEST_INVALID');
   if (requireString('WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256')
-      !== 'bcc41d30dbb00ecd612a1fdb5fe87b5e047d8cc777d0af9fc360b40e06bc1de2'
+      !== sha256File(resolve(repositoryRoot, LINUX_TOOLCHAIN_MANIFEST))
     || !SHA256.test(EXPECTED_PNPM_MANIFEST_SHA256)
     || sha256File(manifestPath) !== EXPECTED_PNPM_MANIFEST_SHA256) {
     fail('AUTH_BRIDGE_PREPARED_LINUX_RUNNER_MANIFEST_PIN_INVALID');
