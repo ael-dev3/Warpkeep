@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "profile": "warpkeep-recovery-bundle-preparation-linux-x64-v1",
-  "sourceCommit": "977ff8fbbd15c7a074c255ac47c93d6b53185ce1",
-  "sourceTree": "e23028a1f557582fb6914123356d702a5bc1eb22",
+  "sourceCommit": "255e3332fa8cedbcbd7c2bd959fd6ffd345c2876",
+  "sourceTree": "8947a7c9331ec6680ba7c3c82013544687951f95",
   "bundle": {
     "path": "services/release-recovery/scripts/prepare-recovery-workflow-claim.bundle.mjs",
     "byteLength": 50620,
