@@ -114,10 +114,11 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
         sourceClosureSha256: '2'.repeat(64), dependencyClosureSha256: '3'.repeat(64) }) + '\n', stderr: '' };
     }
     fixture.calls.push('observe'); fixture.fd = options.inheritedFd4;
+    expect(options.allowNonzeroExit).toBe(true);
     expect(Number.isInteger(fixture.fd)).toBe(true);
     if (fixture.childFailed) throw Error('child failed');
     if (fixture.childThrown !== undefined) throw fixture.childThrown;
-    if (fixture.childStderr !== undefined) return { stdout: '', stderr: fixture.childStderr };
+    if (fixture.childStderr !== undefined) return { stdout: '', stderr: fixture.childStderr, exitCode: 1, signal: null };
     const request = JSON.parse(options.fd3);
     fixture.operationRoot = request.operationRoot;
     expect(readFileSync(options.inheritedFd4, 'utf8')).toBe(fixture.workflowSecret);
@@ -130,7 +131,8 @@ vi.mock('../scripts/local-binding-runtime-process.mjs', async () => {
         repositoryRoot: process.cwd(), attemptId: request.runId, githubRunId: fixture.censusMismatch ? '999' : request.githubRunId,
         githubRunAttempt: request.githubRunAttempt, first: {}, second: {} }) + '\n', stderr: '' };
     }
-    return { stdout: JSON.stringify({ sourceCommit: fixture.source.sourceCommit, mutationSubmitted: false }) + '\n', stderr: '' };
+    return { stdout: JSON.stringify({ sourceCommit: fixture.source.sourceCommit, mutationSubmitted: false }) + '\n',
+      stderr: '', exitCode: 0, signal: null };
   } };
 });
 import { existsSync, fstatSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';

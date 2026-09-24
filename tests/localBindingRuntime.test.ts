@@ -653,6 +653,17 @@ describe('fixed local PTR binding runtime', () => {
     })).resolves.toEqual({ stdout: 'ok', stderr: '' });
   });
 
+  it.skipIf(process.platform !== 'linux')('returns a contained nonzero child status only when explicitly requested', async () => {
+    await expect(runLocalBindingBoundedProcess(process.execPath, [processFixture, 'nonzero'], {
+      cwd: repositoryRoot, env: { PATH: process.env.PATH }, maxOutput: 1024, timeout: 1_000,
+      containProcessGroup: true, allowNonzeroExit: true,
+    })).resolves.toEqual({ stdout: '', stderr: 'controlled failure', exitCode: 7, signal: null });
+    await expect(runLocalBindingBoundedProcess(process.execPath, [processFixture, 'nonzero'], {
+      cwd: repositoryRoot, env: { PATH: process.env.PATH }, maxOutput: 1024, timeout: 1_000,
+      allowNonzeroExit: true,
+    })).rejects.toMatchObject({ code: 'LOCAL_BINDING_RUNTIME_PROCESS_EXIT_STATUS_REQUIRES_CONTAINMENT' });
+  });
+
   it.each([false, true])(
     'independently bounds failed termination when a child never closes (group=%s)', async containProcessGroup => {
       vi.useFakeTimers();
@@ -704,11 +715,12 @@ describe('fixed local PTR binding runtime', () => {
   );
 
   it.skipIf(process.platform !== 'linux').each([
-    ['timeout-descendant', 150, 'LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT'],
-    ['failure-descendant', 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED'],
-    ['success-descendant', 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED'],
+    ['timeout-descendant', 150, 'LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT', false],
+    ['failure-descendant', 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_FAILED', false],
+    ['failure-descendant', 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED', true],
+    ['success-descendant', 1_000, 'LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED', false],
   ] as const)(
-    'settles process-group scenario %s only after its live descendant is gone', async (scenario, timeout, code) => {
+    'settles process-group scenario %s only after its live descendant is gone', async (scenario, timeout, code, allowNonzeroExit) => {
       const root = mkdtempSync(join(tmpdir(), 'warpkeep-process-group-timeout-'));
       const pidPath = join(root, 'pids.json');
       const evidencePath = join(root, 'proof', 'retained-evidence');
@@ -723,7 +735,7 @@ describe('fixed local PTR binding runtime', () => {
         const pending = runLocalBindingBoundedProcess(
           process.execPath, [processFixture, scenario, pidPath, evidencePath], {
             cwd: root, env: { PATH: process.env.PATH }, maxOutput: 1024, timeout,
-            containProcessGroup: true,
+            containProcessGroup: true, allowNonzeroExit,
           },
         );
         // Observe rejection before waiting for the child to publish its PIDs.

@@ -14,5 +14,7 @@ export function runLocalBindingBoundedProcess(
     timeout: number;
     maxOutput: number;
     containProcessGroup?: boolean;
+    /** Return a cleanly contained nonzero exit as bounded output and status instead of rejecting. */
+    allowNonzeroExit?: boolean;
   }>,
-): Promise<Readonly<{ stdout: string; stderr: string }>>;
+): Promise<Readonly<{ stdout: string; stderr: string; exitCode?: number | null; signal?: string | null }>>;

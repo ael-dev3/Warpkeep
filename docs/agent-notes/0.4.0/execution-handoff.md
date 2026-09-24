@@ -1,41 +1,46 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 23 September 2026
+## Current checkpoint — 24 September 2026
 
 Protected `main` is generated-only M2 commit
-[`e22fca5c395748eb517214952aaf797d0f9d9738`](https://github.com/ael-dev3/Warpkeep/commit/e22fca5c395748eb517214952aaf797d0f9d9738)
-(tree `9e64ff49fc327f6401dc9f54c69cd5e9ee7019a`), merged through [PR #344](https://github.com/ael-dev3/Warpkeep/pull/344).
-Its exact-main Verify [run 35884318384, attempt 2](https://github.com/ael-dev3/Warpkeep/actions/runs/35884318384)
-and CodeQL [run 35884318451](https://github.com/ael-dev3/Warpkeep/actions/runs/35884318451)
-passed. Read-only production preflight [35897563967](https://github.com/ael-dev3/Warpkeep/actions/runs/35897563967)
+[`080d91aa7038b4b570f949b76e0a5db241dda61e`](https://github.com/ael-dev3/Warpkeep/commit/080d91aa7038b4b570f949b76e0a5db241dda61e)
+(tree `412b5484a5a01238f1bbdb894a93581ddf313893`), promoted from source M1
+`977ff8fbbd15c7a074c255ac47c93d6b53185ce1` through [PR #346](https://github.com/ael-dev3/Warpkeep/pull/346).
+Exact-main Verify [run 35929407612, attempt 2](https://github.com/ael-dev3/Warpkeep/actions/runs/35929407612)
+and CodeQL [run 35929407659](https://github.com/ael-dev3/Warpkeep/actions/runs/35929407659)
+passed. Read-only preflight [run 35937859210](https://github.com/ael-dev3/Warpkeep/actions/runs/35937859210)
 also passed from that exact source.
 
-G001 policy observation then failed closed with the generic `g001-observation`
-diagnostic on [run 35897689932](https://github.com/ael-dev3/Warpkeep/actions/runs/35897689932)
-and again on [run 35898356373](https://github.com/ael-dev3/Warpkeep/actions/runs/35898356373),
-both bound to the same M2. The underlying failing stage is not established. No
-census or provider mutation followed. Keep the older incomplete census attempt
-35839901590 untouched; it is not a baseline and must not be reused or inspected
-for applicant data.
+The fresh read-only G001 policy observation [run 35937948183](https://github.com/ael-dev3/Warpkeep/actions/runs/35937948183)
+failed closed with `g001-observation`. Source review found why the stage stayed
+generic: the bounded child runner rejects every nonzero exit and discards its
+captured stderr before the policy caller can project the child's fixed,
+allowlisted diagnostic. The actual child stage remains unknown; do not infer a
+bad credential, live policy or provider state from this result. The operation
+is read-only. No census or provider mutation followed. Keep incomplete census
+attempt `35839901590` untouched; it is not a baseline and must not be reused or
+inspected for applicant data.
 
-[PR #345](https://github.com/ael-dev3/Warpkeep/pull/345) adds fixed,
-privacy-safe stage diagnostics to the existing G001 policy observer and native
-boundary. It preserves known transport/budget categories, closes an opened
-session on every path, and keeps cleanup failure separate from the primary
-failure. It does not change policy reads, successful receipts, gameplay or
-provider behavior, and it does not yet establish the production cause. Pinned
-Linux Node 22.22.3 verification passed 201 tests across seven focused suites;
-44 guarded cases were skipped by their platform conditions. The project TypeScript
-build passed. Required hosted checks for PR #345 are pending.
+Source-only follow-up is being reviewed on branch
+[`fix/g001-preserve-contained-child-diagnostics`](https://github.com/ael-dev3/Warpkeep/tree/fix/g001-preserve-contained-child-diagnostics).
+It allows an explicitly opted-in caller to receive a nonzero status only after
+the child process group is contained, then maps only the exact safe marker;
+spawn, timeout, signal, output-limit and surviving-descendant failures still
+fail closed. Pinned Linux typecheck and 378 focused tests passed (one guarded
+skip). The prepared closure independently re-derived to 1,258 members and the
+same digest `0609ca4e5a923d550c6219968a088ddd67dee9418c809d063ebec2aaf494ab4f`
+across fresh processes and both local checkouts; its 16 derived files were
+installed from the owning generator. Checked-in sealed-launch verification
+must be rerun from a clean committed checkout.
 
-After PR #345 passes protection and merges, resolve its exact signed main SHA,
-wait for that SHA's Verify and CodeQL, then run native `prepare` and independent
+After this source-only repair passes protection and merges, resolve its exact
+signed main SHA, wait for that SHA's Verify and CodeQL, then run native `prepare` and independent
 `check` for that exact M1 source. Promote only the resulting authenticated,
 complete generated family as M2. On that exact M2, require main Verify/CodeQL,
-then run preflight and a fresh read-only G001 policy observation. Use its safe
-stage result to diagnose the current blocker. Start census only after a completed
-fresh observation and with a new run identity; retain the earlier incomplete
-attempt unchanged.
+then run preflight and a fresh read-only G001 policy observation. Continue
+through its stage-specific recovery path if it returns a fixed diagnostic.
+Start census only after a successful fresh observation and with a new run
+identity; retain the earlier incomplete attempt unchanged.
 
 0.4 is not shipped. Provider deployment and recovery, accepted G001
 preservation/readback, sealed G002 and owner-only PTR evidence, actual-owner
