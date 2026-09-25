@@ -505,12 +505,12 @@
     {
       "path": "scripts/genesis001-admitted-player-census.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a5527f2d75b6ec07840ebaaf1624a34f12f46c31b2cf12ed34fa9296b0fcabc4"
+      "sha256": "2df7e522a2c7d4042749b12fc7ba40860165c160a71846381b97cb2bb1fd604e"
     },
     {
       "path": "scripts/genesis001-admitted-player-census.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1a0bbd0717d9d19094c9e898c9a4c41613670e947fb9d876a3b04179d0719dc5"
+      "sha256": "c806cd4fa036eb9815399d499fdb33c444d64deeeb7b9cf9352f3fd022bd2fcb"
     },
     {
       "path": "scripts/genesis001-binding-frozen-source.d.mts",
@@ -570,7 +570,7 @@
     {
       "path": "scripts/genesis001-linux-census-operator.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "224da1972d8f2219787284bcb8c3aff9bb1cbc230599f1952e1ae0ca1703aa2e"
+      "sha256": "5614db6e76c2efd884cca714b55cc018d334bb67a7d5a434ead4102ca1277bf8"
     },
     {
       "path": "scripts/genesis001-linux-freeze-receipt.d.mts",
@@ -1735,7 +1735,7 @@
     {
       "path": "scripts/recovery-workflow-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "09f31e54b61caf0dfffe60cc967dd8d9acac820bf5e80937ac14f619d9d54e1c"
+      "sha256": "b9afebaaadba932522c44e5c70186b849f851b76dfa9677959b6fa2fc043c464"
     },
     {
       "path": "scripts/recovery-workflow-check-deployment.d.mts",
@@ -1925,7 +1925,7 @@
     {
       "path": "scripts/sealed-realms-production-bundle-manifest-v1.json",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "59f41251694cc9b7bda2be0d17fa4ec357a8b2a77707a53dfa41cf729140ffa9"
+      "sha256": "a9646b0b195b6d895364da52ff1dbe11a3b3ddfff27a805efba4b9034a097140"
     },
     {
       "path": "scripts/sealed-realms-production-continuation.d.mts",
@@ -2160,12 +2160,12 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b53e751f8e715f69985449342b77c381e709bbf01b9352945b861e54166f4d51"
+      "sha256": "f37944f8de1bf108f00661bed5d3f495d2c7da9711132926a8279c3e1ff128cc"
     },
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e90990d50d2a0f213881fcaf3a53aaf8b6a0d2d3fb1280b0a1235e5af23d7717"
+      "sha256": "9aa10a730c81855b2b95545a45b4b06468cfc762a816d61ab43bdae8c75a2aad"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
