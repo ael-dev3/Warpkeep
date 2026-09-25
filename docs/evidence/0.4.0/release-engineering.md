@@ -8,16 +8,16 @@ do not use an old passing run or Pages classification as a release grant for a
 later source. 0.4 remains unshipped.
 
 The current protected source is generated-only M2
-[`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`](https://github.com/ael-dev3/Warpkeep/commit/b7d729b0e8a58cf43870d0baafdf8d8da508fc99),
-merged through PR #354. Its exact-main Verify, CodeQL and read-only preflight
-passed. Two fresh policy observations failed closed with `g001-policy-budget`;
-safe inspection reconciled the expired reservation, but the controlled retry
-returned the same category. No verified receipt, census or provider mutation
-followed. Source M1 [PR #355](https://github.com/ael-dev3/Warpkeep/pull/355)
-adds fixed safe budget categories and updates the operation recovery path.
-Focused Linux tests passed 375 cases (44 provider-only skipped). This release-note
-refresh is included in the source PR; its protected checks must pass on the final
-head. See the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+[`edb37f4081de1b989a5137627494c1a2575411bb`](https://github.com/ael-dev3/Warpkeep/commit/edb37f4081de1b989a5137627494c1a2575411bb),
+merged through PR #356. Exact-main Verify, CodeQL, read-only preflight and
+policy observation passed. Census runs 36087746335 and 36088300562 failed
+closed with `g001-policy-budget-reservation`; neither produced a receipt or
+provider mutation. Source M1
+[PR #357](https://github.com/ael-dev3/Warpkeep/pull/357) implements the
+read-only session path while preserving reserved write capacity. The pinned
+Linux build and 14 focused files passed (419 passed, 1 skipped). Protected
+checks must pass on the final PR head before exact-M1 prepare/check and
+generated-only M2 promotion. See the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
 and [live delivery status](../../operations/0.4.0-live-delivery-status.md) for
 current source and required M1 preparation, M2 and read-only recovery steps. No
 earlier candidate grants authority for the current source.
@@ -1726,7 +1726,7 @@ reader also validates the same receipt. See `captureG001ActivationRecord`,
 `reopenPolicyObservationRecord` and `verifyGenesis001LinuxPolicyReceipt` before
 diagnosing persistence again. This local/source capability does not prove that a
 new live observation completed. The cited M3 `g001-observation` failure is
-historical and superseded. Current M2 policy failures and source M1 PR #355
+historical and superseded. Current M2 census failures and source M1 PR #357
 are recorded in the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md);
 do not reuse the old run as current authority.
 

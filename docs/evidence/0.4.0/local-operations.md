@@ -5,20 +5,18 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 ## Current exact-M2 operation checkpoint — 25 September 2026
 
 Protected generated-only M2 is
-[`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`](https://github.com/ael-dev3/Warpkeep/commit/b7d729b0e8a58cf43870d0baafdf8d8da508fc99).
-Its exact-main Verify, CodeQL and read-only preflight passed. Policy runs
-[36060050219](https://github.com/ael-dev3/Warpkeep/actions/runs/36060050219) and
-[36060910719](https://github.com/ael-dev3/Warpkeep/actions/runs/36060910719)
-failed with `g001-policy-budget`; the bounded inspector reconciled the expired
-reservation, but the controlled retry produced the same result. Neither run
-produced a verified receipt, census or provider mutation.
+[`edb37f4081de1b989a5137627494c1a2575411bb`](https://github.com/ael-dev3/Warpkeep/commit/edb37f4081de1b989a5137627494c1a2575411bb).
+Its exact-main Verify, CodeQL, read-only preflight and policy observation
+passed. G001 census runs 36087746335 and 36088300562 failed closed with
+`g001-policy-budget-reservation`; neither produced a receipt or provider
+mutation. Preserve both attempts and do not retry this M2.
 
-Source M1 [PR #355](https://github.com/ael-dev3/Warpkeep/pull/355) adds fixed,
-privacy-safe budget diagnostics and carries the refreshed closure. Focused
-Linux tests passed (375 passed, 44 provider-only skipped). The release-note
-refresh is included in PR #355; require all protected checks to pass on its
-final head. Then prepare and independently check the exact protected M1, and
-promote its generated-only M2. Current run links and next steps are in the
+Source M1 [PR #357](https://github.com/ael-dev3/Warpkeep/pull/357) repairs
+read-only token budgeting while preserving reserved capacity for write-capable
+sessions. The pinned Linux build and 14 focused files passed (419 passed,
+1 skipped); its required protected checks must pass on the final PR head. Then
+prepare and independently check the exact protected M1, and promote its
+generated-only M2. Current run links and next steps are in the
 [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
 ## Prior exact-M1 native prepare/check — 23 September 2026 (superseded)

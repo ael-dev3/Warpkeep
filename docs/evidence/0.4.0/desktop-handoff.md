@@ -2,11 +2,12 @@
 
 Status: **interim development handoff**. The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
 owns current protected source and operation results. Current main is generated-
-only M2 `b7d729b0`; its Verify, CodeQL and preflight passed. Two read-only G001
-policy observations failed with `g001-policy-budget`; neither produced a verified
-receipt. Source M1 PR #355 adds fixed safe budget categories and refreshed
-release notes. Focused Linux tests passed on the code checkpoint; all required
-protected checks must pass on the final PR head. This document makes source,
+only M2 `edb37f40`; its Verify, CodeQL, preflight and policy observation passed.
+Two read-only G001 census attempts failed closed without receipts or provider
+mutation. Source M1 [PR #357](https://github.com/ael-dev3/Warpkeep/pull/357)
+repairs read-only token budgeting; use its live page for the current head and
+protected-check status. The pinned Linux build and focused suite passed on the
+tested source. This document makes source,
 setup and evidence routes reproducible without distributing credentials or private player
 data. It is not a deployment attestation or final release package. The existing
 Desktop `Warpkeep - Full Project Handoff.md` remains a reference; this tracked

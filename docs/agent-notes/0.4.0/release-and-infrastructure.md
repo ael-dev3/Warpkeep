@@ -9,26 +9,26 @@ evidence below is scoped to its recorded source and must not be reused as curren
 authority.
 
 Current protected main is generated-only M2
-[`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`](https://github.com/ael-dev3/Warpkeep/commit/b7d729b0e8a58cf43870d0baafdf8d8da508fc99),
-merged through PR #354. Exact-main Verify, CodeQL and read-only preflight passed.
-Policy runs 36060050219 and 36060910719 both failed closed with
-`g001-policy-budget`. Bounded inspection reconciled the expired reservation and
-reported capacity; the controlled retry returned the same generic category.
-Neither run produced a verified receipt, census or provider mutation. Do not
-retry this M2.
+[`edb37f4081de1b989a5137627494c1a2575411bb`](https://github.com/ael-dev3/Warpkeep/commit/edb37f4081de1b989a5137627494c1a2575411bb),
+merged through PR #356. Exact-main Verify, CodeQL, read-only preflight and G001
+policy observation passed. Census runs 36087746335 and 36088300562 failed
+closed with `g001-policy-budget-reservation`; bounded inspection after lease
+expiry showed all six attempts available. Neither run produced a receipt or
+provider mutation. Preserve both attempts and do not retry this M2.
 
-Source M1 [PR #355](https://github.com/ael-dev3/Warpkeep/pull/355) adds
-privacy-safe token-budget categories and current recovery paths. Focused Linux
-tests passed 375 cases across 8 files, with provider-only cases skipped. This
-release-note refresh is included in the PR; require every protected check to
-pass on its final head. The [execution handoff](execution-handoff.md) owns
-current run links and the next protected operation. Historical preparation and
-generated-family evidence remains bound to its input and grants no later
-deployment authority.
+The read-only source repair is in M1
+[PR #357](https://github.com/ael-dev3/Warpkeep/pull/357). It counts each token
+request against the shared atomic cap without reserving write capacity, hides
+reducers and blocks submission only in explicitly read-only sessions. The
+pinned Linux build passed; 14 focused files passed 419 tests with 1 skipped.
+The PR has auto-merge enabled after required checks. Prepare/check its exact
+protected M1 merge, promote that family through generated-only M2, then require
+exact-M2 Verify/CodeQL, preflight, a fresh policy observation and one new census
+identity. The [execution handoff](execution-handoff.md) owns current run links.
 
 ### Remaining delivery work, in dependency order
 
-Complete the required checks on PR #355 and merge the source M1 through protection.
+Complete the required checks on PR #357 and merge the source M1 through protection.
 Verify its exact signed main commit and tree, then run native `prepare` and
 independent `check` from the clean WSL ext4 checkout. Promote only that
 authenticated family through generated-only M2. After M2 merges, require exact
