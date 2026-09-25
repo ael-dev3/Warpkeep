@@ -9,7 +9,7 @@ export const GENESIS_001_ADMITTED_PLAYER_CENSUS_PREFERRED_SQL =
 export const GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_SQL =
   'SELECT fid FROM player_v2';
 export const GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE =
-  'admin_get_access_request_admission_status_v1';
+  'admin_get_access_request_reset_status_v1';
 export const GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_ROWS = 4_096;
 export const GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_QUERY_OUTPUT_BYTES =
   1_024 * 1_024;

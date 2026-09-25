@@ -3,48 +3,48 @@
 ## Current checkpoint — 25 September 2026
 
 Protected `main` is generated-only M2
-[`edb37f4081de1b989a5137627494c1a2575411bb`](https://github.com/ael-dev3/Warpkeep/commit/edb37f4081de1b989a5137627494c1a2575411bb),
-merged through PR #356. Exact-main Verify [run 36083455887](https://github.com/ael-dev3/Warpkeep/actions/runs/36083455887),
-CodeQL [run 36083455901](https://github.com/ael-dev3/Warpkeep/actions/runs/36083455901),
-read-only preflight [run 36087438767](https://github.com/ael-dev3/Warpkeep/actions/runs/36087438767),
-and read-only G001 policy observation [run 36087515747](https://github.com/ael-dev3/Warpkeep/actions/runs/36087515747)
-passed on that exact source.
+[`b409b3ae2f5a542a6c94252c228d610874fc27f2`](https://github.com/ael-dev3/Warpkeep/commit/b409b3ae2f5a542a6c94252c228d610874fc27f2),
+merged through PR #358. Exact-main Verify [run 36110631965](https://github.com/ael-dev3/Warpkeep/actions/runs/36110631965),
+CodeQL [run 36110632070](https://github.com/ael-dev3/Warpkeep/actions/runs/36110632070),
+read-only preflight [run 36115717524](https://github.com/ael-dev3/Warpkeep/actions/runs/36115717524),
+and G001 policy observation [run 36115817569](https://github.com/ael-dev3/Warpkeep/actions/runs/36115817569)
+passed on that exact source. Pages classification succeeded at [run 36115643742](https://github.com/ael-dev3/Warpkeep/actions/runs/36115643742),
+but intentionally skipped deployment because the sealed activation manifest still has `pagesDeploymentApproved: false`.
 
-G001 census runs [36087746335](https://github.com/ael-dev3/Warpkeep/actions/runs/36087746335)
-and [36088300562](https://github.com/ael-dev3/Warpkeep/actions/runs/36088300562)
-failed closed with `g001-policy-budget-reservation`. After each lease expired,
-the bounded inspector reconciled only dead-owner state and showed zero attempts,
-zero reservations and all six slots available. The documented retry failed the
-same way. Preserve both private attempts; neither produced a completed
-source-bound receipt, and no provider mutation followed. Do not retry this M2
-or inspect raw ledger/census files.
+The fresh G001 census [run 36116125925](https://github.com/ael-dev3/Warpkeep/actions/runs/36116125925)
+failed closed at `G001-ADMITTED-STATUS`. It produced no completed census receipt
+and performed no provider mutation. Preserve the attempt; do not inspect raw
+applicant/census data or retry it. A schema-metadata-only inspection identified
+the exact mismatch: the live G001 target does not export
+`admin_get_access_request_admission_status_v1`, while it does export the existing
+read-only `admin_get_access_request_reset_status_v1`. Both have the same fixed
+five-field status contract. The active source-only repair is branch
+`fix/g001-census-live-status-procedure` at signed commit
+`2fd0a290603320ae0c302996091b1a6bbd7c6725`; it makes the fallback census use
+the existing typed reset-status procedure and its strict projection, and
+updates the focused tests and sealed-launch source checks. This does not alter
+G001 or weaken privacy, schema, or mutation boundaries.
 
-The repair is in source-only M1 [PR #357](https://github.com/ael-dev3/Warpkeep/pull/357),
-branch `fix/g001-readonly-token-budget`; check the live PR for its current head
-and required-check state. Fixed read-only G001 sessions
-record each actual token request atomically against the shared six-attempt
-window, expose only identity/token/procedures/disconnect state to connection
-callbacks, and reject submit/postflight calls. Write-capable sessions keep
-reserved postflight capacity. The pinned Linux TypeScript build passed, and the
-14-file focused suite passed 419 tests with 1 skipped. Native WSL independently
-derived and byte-compared all 16 closure outputs on this source (1,258 members;
-`0f8c74cb3654120545925029902ec7f10b56d77a69e302f6330b451e24fb4b4a`), the
-closure policy check passed, and the clean checked-in sealed-launch verifier
-passed. The transport refreeze pin uses reviewed commit
-`bca5596defd9816930dd9af2431bfa6aec0f1735`. PR #357 has auto-merge enabled;
-its final required checks must pass before it merges. After exact protected M1
-merges, run native
-`prepare` plus independent `check`, promote only that authenticated family in
-generated-only M2, then require exact-M2 Verify/CodeQL, preflight, policy
-observation and one new census run identity. Never use interim M1 for
-production operations.
+The three focused suites pass (288 tests), TypeScript build-mode checks pass,
+and the production asset checks/build pass. The clean checked-in sealed-launch
+verifier also passes on exact commit `2fd0a290` and reports the expected
+preparation profile (`pagesDeploymentApproved: false`, with no release realm
+identities or PTR activation). Vite still reports a 747 KiB minified map-screen
+chunk; keep that visible for the separate mobile payload acceptance and do not
+silence the warning. These code checks apply to exact signed source commit
+`2fd0a290603320ae0c302996091b1a6bbd7c6725`.
 
-The direct-attempt mode retains the atomic shared token cap; the write-capable
-transport keeps reservation/reconciliation guarantees. Static sealed-launch
-checks now require read-only mode on both G001 entry points. If the reservation
-diagnostic recurs on the new exact M2, preserve the run, inspect bounded counts
-after lease expiry and stop instead of retrying that source. The [access guide](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths)
-contains the recovery steps.
+The current Windows checkout is on that repair branch from exact `origin/main`.
+Open a signed protected M1 PR; after it merges, prepare and
+independently check that exact M1 in pinned WSL, promote only its authenticated
+generated family in generated-only M2, and require exact-M2 Verify/CodeQL plus
+fresh preflight and policy observation before one new census identity. Never
+run production observations on interim M1.
+
+Earlier budget-reservation failures on M2 `edb37f40` are superseded by the
+read-only transport repair and its successful exact-main policy observation;
+do not reuse or retry those attempts. See the [known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths)
+for the live status-procedure mismatch and its verification sequence.
 
 Initial 0.4 still requires owner access to the existing PTR target. Public
 admissions and admission realms are not required. Deployment, accepted G001

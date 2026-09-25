@@ -3192,12 +3192,13 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
   const code = 'SEALED_LAUNCH_G001_ADMITTED_PLAYER_CENSUS_BOUNDARY_INVALID';
   const source = sources.genesis001AdmittedPlayerCensusSource;
   const declaration = sources.genesis001AdmittedPlayerCensusDeclaration;
+  const operator = sources.genesis001LinuxCensusOperatorSource;
   for (const token of [
     "'warpkeep-genesis-001-admitted-player-census-private-proof-v1'",
     `'${GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE}'`,
     "'SELECT fid, enabled, auth_epoch FROM allowed_fid'",
     "'SELECT fid FROM player_v2'",
-    "'admin_get_access_request_admission_status_v1'",
+    "'admin_get_access_request_reset_status_v1'",
     "'warpkeep.genesis-001.admitted-player-census.normalized-set.v1\\n'",
     "'warpkeep.genesis-001.admitted-player-census.raw-evidence.v1\\n'",
     "'warpkeep.genesis-001.admitted-player-census.private-proof.v1\\n'",
@@ -3259,6 +3260,11 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
   ]) {
     if (!source.includes(token)) fail(code);
   }
+  if (!operator.includes('projectAccessRequestResetStatus')
+    || !operator.includes('connection.procedures.adminGetAccessRequestResetStatusV1({ fid: BigInt(fid) })')) {
+    fail(code);
+  }
+  requireAbsent(operator, ['adminGetAccessRequestAdmissionStatusV1'], code);
   if (
     source.match(/^import /gmu)?.length !== 1
     || !source.startsWith("import { createHash } from 'node:crypto';\n")
@@ -3410,7 +3416,7 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
     "'warpkeep.genesis-001.admitted-player-census.private-proof.v1\\n'",
     "'SELECT fid, enabled, auth_epoch FROM allowed_fid'",
     "'SELECT fid FROM player_v2'",
-    "'admin_get_access_request_admission_status_v1'",
+    "'admin_get_access_request_reset_status_v1'",
     'GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_ROWS: 4096;',
     'GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_QUERY_OUTPUT_BYTES: 1048576;',
     'GENESIS_001_ADMITTED_PLAYER_CENSUS_MINIMUM_STABLE_SEPARATION_MS: 60000;',

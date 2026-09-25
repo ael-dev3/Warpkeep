@@ -6,7 +6,7 @@ import { types } from 'node:util';
 import { setGlobalLogLevel } from 'spacetimedb';
 import type { DbConnection } from '../src/spacetime/module_bindings';
 import { collectAccessRequestCensus, GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST,
-  projectAccessRequestAdmissionStatus, writeAccessRequestCensusExport } from './hermes-admin';
+  projectAccessRequestResetStatus, writeAccessRequestCensusExport } from './hermes-admin';
 import { collectGenesis001AdmittedPlayerCensus,
   GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_SQL,
   GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE,
@@ -186,8 +186,8 @@ export async function collectGenesis001LinuxAdmittedCensus(connection: DbConnect
     readAdmissionStatus: async (procedure, fid) => {
       if (procedure !== GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE) fail('g001-admitted-status');
       try {
-        const status = projectAccessRequestAdmissionStatus(await withOperationTimeout(
-          connection.procedures.adminGetAccessRequestAdmissionStatusV1({ fid: BigInt(fid) })));
+        const status = projectAccessRequestResetStatus(await withOperationTimeout(
+          connection.procedures.adminGetAccessRequestResetStatusV1({ fid: BigInt(fid) })));
         if (identity(connection) !== caller) fail('g001-admitted-identity');
         return status;
       } catch (error) {

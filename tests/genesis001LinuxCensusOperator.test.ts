@@ -140,7 +140,7 @@ function connection() {
   return { identity: { toHexString: () => CALLER }, token: 'synthetic-admin-jwt', isDisconnectRequested: false,
     procedures: {
       adminGetAlphaStatusV3: vi.fn(async () => ({ allowedFids: 1n, enabledAllowedFids: 1n })),
-      adminGetAccessRequestAdmissionStatusV1: vi.fn(async () => ({ admissionState: 'enabled', authEpoch: 1,
+      adminGetAccessRequestResetStatusV1: vi.fn(async () => ({ admissionState: 'enabled', authEpoch: 1,
         requestState: 'not_requested', requestCycle: undefined, requestedAtMicros: undefined })),
     }, reducers: new Proxy({}, { get() { throw Error('no reducer may be read'); } }) };
 }
@@ -151,7 +151,7 @@ it('uses only exact public SQL with the authenticated connection JWT and authori
   expect(fetcher.mock.calls[0]).toEqual([SQL_URL, expect.objectContaining({ method: 'POST', body: 'SELECT fid FROM player_v2',
     redirect: 'error', credentials: 'omit', headers: expect.objectContaining({ authorization: 'Bearer synthetic-admin-jwt' }) })]);
   expect(db.procedures.adminGetAlphaStatusV3).toHaveBeenCalledTimes(2);
-  expect(db.procedures.adminGetAccessRequestAdmissionStatusV1).toHaveBeenCalledExactlyOnceWith({ fid: 17n });
+  expect(db.procedures.adminGetAccessRequestResetStatusV1).toHaveBeenCalledExactlyOnceWith({ fid: 17n });
   expect(result.collectionMethod).toBe('fallback-player-v2-status-v1');
   expect(result.entries).toEqual([{ fid: '17', authEpoch: '1' }]);
 });
@@ -170,7 +170,7 @@ it.each(['authentication', 'network', 'schema', 'redirect', 'identity', 'token']
     await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', fetcher as never))
       .rejects.toMatchObject({ diagnostic: 'g001-admitted-enumeration' });
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(db.procedures.adminGetAccessRequestAdmissionStatusV1).not.toHaveBeenCalled();
+    expect(db.procedures.adminGetAccessRequestResetStatusV1).not.toHaveBeenCalled();
   });
 it('requires successful administrator aggregate authentication before querying any table', async () => {
   const db = connection(), fetcher = vi.fn();
@@ -197,11 +197,11 @@ it('reports a safe reconciliation diagnostic for invalid cross-domain samples', 
 });
 it.each(['missing', 'disabled', 'count-change', 'status-error'] as const)('rejects incomplete admission evidence: %s', async mode => {
   const db = connection();
-  if (mode === 'missing' || mode === 'disabled') db.procedures.adminGetAccessRequestAdmissionStatusV1.mockResolvedValueOnce({
+  if (mode === 'missing' || mode === 'disabled') db.procedures.adminGetAccessRequestResetStatusV1.mockResolvedValueOnce({
     admissionState: mode, authEpoch: mode === 'missing' ? 0 : 1, requestState: 'not_requested', requestCycle: undefined, requestedAtMicros: undefined });
   if (mode === 'count-change') db.procedures.adminGetAlphaStatusV3.mockResolvedValueOnce({ allowedFids: 1n, enabledAllowedFids: 1n })
     .mockResolvedValueOnce({ allowedFids: 2n, enabledAllowedFids: 2n });
-  if (mode === 'status-error') db.procedures.adminGetAccessRequestAdmissionStatusV1.mockRejectedValueOnce(Error('status failed'));
+  if (mode === 'status-error') db.procedures.adminGetAccessRequestResetStatusV1.mockRejectedValueOnce(Error('status failed'));
   await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', vi.fn(async () => response()) as never))
     .rejects.toMatchObject({ diagnostic: mode === 'count-change' ? 'g001-admitted-reconciliation' :
       mode === 'status-error' || mode === 'missing' || mode === 'disabled' ? 'g001-admitted-status' : 'g001-admitted-reconciliation' });

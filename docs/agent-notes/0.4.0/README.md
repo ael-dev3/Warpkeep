@@ -9,16 +9,18 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 The [execution handoff](execution-handoff.md) is the single dated record of
 protected main, active source, CI receipts and operation results. Current
-protected main is generated-only M2 `5f5b3681` (PR #348); exact-main Verify,
-CodeQL, read-only preflight and a fresh G001 policy observation passed. The next
-read-only G001 census failed safely at `g001-admitted-collection`; all mutation
-lanes were skipped. A focused source repair is in progress on
-`fix/g001-preserve-census-diagnostic`, with local G001 tests and typecheck
-passing. Its cause remains unknown until a new successful census or a more
-specific fixed diagnostic. Complete signed protected review, then follow the
-M1/generated-family M2 sequence. Do not reuse the failed attempt. Source CI and
-Pages classification do not establish provider deployment, owner play or device
-acceptance.
+protected main is generated-only M2 `b409b3ae` (PR #358); exact-main Verify,
+CodeQL, fresh read-only preflight and G001 policy observation passed. The
+subsequent census failed safely at `G001-ADMITTED-STATUS`. Schema metadata
+confirmed that the live target lacks the called admission-status procedure but
+exposes the existing typed reset-status procedure with the same fixed status
+contract. A source-only caller/test/verifier repair is in progress on
+`fix/g001-census-live-status-procedure` at signed checkpoint `2fd0a290`;
+288 focused tests, build-mode typechecks, the production asset/build checks and
+the clean sealed-launch verifier pass. Preserve the failed attempt and do not
+inspect census rows or retry it. Follow the exact-source M1/generated-family M2
+sequence in the handoff. Pages classification does not establish deployment,
+owner play or device acceptance.
 
 The Keep04 gather → choose → build → benefit → return foundation, readable
 expedition/return feedback, first-journey cue and mobile visual foundation are
