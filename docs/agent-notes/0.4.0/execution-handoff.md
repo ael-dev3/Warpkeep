@@ -2,14 +2,18 @@
 
 ## Current checkpoint — 25 September 2026
 
-Protected `main` is generated-only M2
-[`b409b3ae2f5a542a6c94252c228d610874fc27f2`](https://github.com/ael-dev3/Warpkeep/commit/b409b3ae2f5a542a6c94252c228d610874fc27f2),
-merged through PR #358. Exact-main Verify [run 36110631965](https://github.com/ael-dev3/Warpkeep/actions/runs/36110631965),
-CodeQL [run 36110632070](https://github.com/ael-dev3/Warpkeep/actions/runs/36110632070),
-read-only preflight [run 36115717524](https://github.com/ael-dev3/Warpkeep/actions/runs/36115717524),
-and G001 policy observation [run 36115817569](https://github.com/ael-dev3/Warpkeep/actions/runs/36115817569)
-passed on that exact source. Pages classification succeeded at [run 36115643742](https://github.com/ael-dev3/Warpkeep/actions/runs/36115643742),
-but intentionally skipped deployment because the sealed activation manifest still has `pagesDeploymentApproved: false`.
+Protected `main` is source-only M1
+[`0853a0ba9f3af6d633507b4c9a2b8390aa2d14d4`](https://github.com/ael-dev3/Warpkeep/commit/0853a0ba9f3af6d633507b4c9a2b8390aa2d14d4),
+merged through PR #359. GitHub verified the protected commit signature and
+tree `6cbb83c17606a9314440821ad61a33f9a5ad969f`. PR Verify
+[run 36118113124](https://github.com/ael-dev3/Warpkeep/actions/runs/36118113124)
+and CodeQL [run 36118113177](https://github.com/ael-dev3/Warpkeep/actions/runs/36118113177)
+passed, including the full Linux suite, both Pages builds, module/binding
+verification and connected relocation/population rehearsals. The exact-main
+push Verify [run 36121961295](https://github.com/ael-dev3/Warpkeep/actions/runs/36121961295)
+and CodeQL [run 36121961299](https://github.com/ael-dev3/Warpkeep/actions/runs/36121961299)
+were still running when this checkpoint was written. No preflight, policy
+observation or census has run on `0853a0ba`.
 
 The fresh G001 census [run 36116125925](https://github.com/ael-dev3/Warpkeep/actions/runs/36116125925)
 failed closed at `G001-ADMITTED-STATUS`. It produced no completed census receipt
@@ -34,12 +38,16 @@ chunk; keep that visible for the separate mobile payload acceptance and do not
 silence the warning. These code checks apply to exact signed source commit
 `2fd0a290603320ae0c302996091b1a6bbd7c6725`.
 
-The current Windows checkout is on that repair branch from exact `origin/main`.
-Open a signed protected M1 PR; after it merges, prepare and
-independently check that exact M1 in pinned WSL, promote only its authenticated
-generated family in generated-only M2, and require exact-M2 Verify/CodeQL plus
-fresh preflight and policy observation before one new census identity. Never
-run production observations on interim M1.
+Before native preparation, re-read GitHub `main` and require successful
+push-to-main Verify and CodeQL for its exact current SHA. The runs recorded for
+`0853a0ba` do not cover a later commit. Inspect the corresponding Pages
+classification; its deployment skip remains expected while
+`pagesDeploymentApproved: false`. Synchronize a clean native WSL checkout to
+that exact signed main, then run `local-release-assembler.mjs prepare` and
+independent `check` against it. Promote only its authenticated generated family
+in generated-only M2, require exact-M2 Verify/CodeQL, then run fresh preflight,
+policy observation and one new census identity. Never run production
+observations on interim M1 or reuse failed census run 36116125925.
 
 Earlier budget-reservation failures on M2 `edb37f40` are superseded by the
 read-only transport repair and its successful exact-main policy observation;

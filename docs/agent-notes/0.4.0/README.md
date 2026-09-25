@@ -9,18 +9,15 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 The [execution handoff](execution-handoff.md) is the single dated record of
 protected main, active source, CI receipts and operation results. Current
-protected main is generated-only M2 `b409b3ae` (PR #358); exact-main Verify,
-CodeQL, fresh read-only preflight and G001 policy observation passed. The
-subsequent census failed safely at `G001-ADMITTED-STATUS`. Schema metadata
-confirmed that the live target lacks the called admission-status procedure but
-exposes the existing typed reset-status procedure with the same fixed status
-contract. A source-only caller/test/verifier repair is in progress on
-`fix/g001-census-live-status-procedure` at signed checkpoint `2fd0a290`;
-288 focused tests, build-mode typechecks, the production asset/build checks and
-the clean sealed-launch verifier pass. Preserve the failed attempt and do not
-inspect census rows or retry it. Follow the exact-source M1/generated-family M2
-sequence in the handoff. Pages classification does not establish deployment,
-owner play or device acceptance.
+protected main is source-only M1 `0853a0ba` (PR #359), with GitHub-verified
+signature and green PR Verify/CodeQL checks. It repairs the census status
+procedure mismatch. Exact-main Verify and CodeQL were running at this
+checkpoint; no preflight, policy observation or census had run on this source.
+Before preparation, recheck the live main SHA and require its own green
+Verify/CodeQL results. Then prepare/check exact M1, promote its generated-only
+M2, and resume protected observations on exact verified M2. Preserve the failed
+census attempt and do not retry it. Pages classification does not establish
+deployment, owner play or device acceptance.
 
 The Keep04 gather → choose → build → benefit → return foundation, readable
 expedition/return feedback, first-journey cue and mobile visual foundation are
