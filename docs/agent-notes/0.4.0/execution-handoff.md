@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 25 September 2026, 03:18 UTC
+## Current checkpoint — 25 September 2026, 03:28 UTC
 
 Protected `main` is generated-only M2
 [`edb37f4081de1b989a5137627494c1a2575411bb`](https://github.com/ael-dev3/Warpkeep/commit/edb37f4081de1b989a5137627494c1a2575411bb),
@@ -19,18 +19,23 @@ same way. Preserve both private attempts; neither produced a completed
 source-bound receipt, and no provider mutation followed. Do not retry this M2
 or inspect raw ledger/census files.
 
-The repair is underway on `fix/g001-readonly-token-budget`. Fixed read-only G001
-sessions record each actual token request atomically against the shared
-six-attempt window, expose only identity/token/procedures/disconnect state to
-connection callbacks, and reject submit/postflight calls. Write-capable sessions
-keep reserved postflight capacity. Pinned Linux TypeScript build and the
-transport/census/policy suites pass (93 tests). Next: commit the repair and
-recovery-note updates, derive the complete source-pin/deployment closure on
-that exact source, independently compare all generated outputs, then push the
-source-only M1 PR for required checks. After exact protected M1 merges, run
-native `prepare` plus independent `check`, promote only that authenticated
-family in generated-only M2, then require exact-M2 Verify/CodeQL, preflight,
-policy observation and one new census run identity. Never use interim M1 for
+The repair is on `fix/g001-readonly-token-budget`, head
+`5615a019a71411f69fc3ff5506da113c9454556c`. Fixed read-only G001 sessions
+record each actual token request atomically against the shared six-attempt
+window, expose only identity/token/procedures/disconnect state to connection
+callbacks, and reject submit/postflight calls. Write-capable sessions keep
+reserved postflight capacity. Pinned Linux TypeScript build and the
+transport/census/policy suites pass (93 tests); sealed-launch and closure
+regressions pass 227 tests. On this committed source, native WSL independently
+derived and byte-compared all 16 closure outputs (1,258 members;
+`0f8c74cb3654120545925029902ec7f10b56d77a69e302f6330b451e24fb4b4a`), the
+closure policy check passed, and the clean checked-in sealed-launch verifier
+passed. The transport refreeze pin uses reviewed commit
+`bca5596defd9816930dd9af2431bfa6aec0f1735`. Next, open the source-only M1 PR
+and require all protected checks. After exact protected M1 merges, run native
+`prepare` plus independent `check`, promote only that authenticated family in
+generated-only M2, then require exact-M2 Verify/CodeQL, preflight, policy
+observation and one new census run identity. Never use interim M1 for
 production operations.
 
 The direct-attempt mode retains the atomic shared token cap; the write-capable
