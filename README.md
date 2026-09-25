@@ -40,14 +40,14 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The gameplay foundation is integrated; 0.4 has not shipped.** Current source,
-verified release evidence and the next action are recorded in the dated
+**The gameplay foundation is integrated; 0.4 has not shipped.** The sealed
+operation workflow repair has merged through protected PR #362. It removes a
+redundant post-checkout environment rejection while retaining the pre-checkout
+runner gates and final Node environment scrub. The current source, exact checks
+and next release action are recorded in the dated
 [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md); earlier
-checkpoints there are historical. A source-only workflow repair is in review to
-remove an intermittent post-checkout environment rejection while retaining the
-pre-checkout runner gate and final environment scrub. Protected operations
-remain gated until the repair is signed, merged, prepared and independently
-checked, then promoted as generated-only M2 with exact-source Verify and CodeQL.
+checkpoints there are historical. Native preparation, generated-only M2,
+provider work and owner acceptance still remain before release.
 
 Provider deployment, accepted G001 preservation/readback, sealed G002 evidence,
 owner PTR play, mobile and measured-performance acceptance, and final release

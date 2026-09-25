@@ -1,55 +1,60 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 25 September 2026, 14:00 UTC
+## Current checkpoint — 25 September 2026, 15:20 UTC
 
 Protected `main` is source-only M1
-[`7a598435e2df66692a70cfe21a5b2a7531beeda3`](https://github.com/ael-dev3/Warpkeep/commit/7a598435e2df66692a70cfe21a5b2a7531beeda3),
-tree `22dfa28f965c83f6dedf1f02067891211504f880`. Exact-main Verify
-[run 36137208953](https://github.com/ael-dev3/Warpkeep/actions/runs/36137208953),
-CodeQL [run 36137208947](https://github.com/ael-dev3/Warpkeep/actions/runs/36137208947),
-Pages classification [run 36143029237](https://github.com/ael-dev3/Warpkeep/actions/runs/36143029237)
-and protected preflight
-[run 36143079800](https://github.com/ael-dev3/Warpkeep/actions/runs/36143079800)
-passed for that exact source. Pages correctly skipped deployment while its
-approval input is false.
+[`4cd17383de6962ce521e8d61e3c63605dbe4efc0`](https://github.com/ael-dev3/Warpkeep/commit/4cd17383de6962ce521e8d61e3c63605dbe4efc0),
+tree `e2dc6f9dab4d5d292b64396140419acce2d949dc`, merged through PR
+[#362](https://github.com/ael-dev3/Warpkeep/pull/362). GitHub reports the
+protected merge signature as valid. PR Verify
+[run 36146960783](https://github.com/ael-dev3/Warpkeep/actions/runs/36146960783)
+and CodeQL [run 36146960627](https://github.com/ael-dev3/Warpkeep/actions/runs/36146960627)
+passed. Verify covered the full Linux tests/build, Auth Bridge and recovery
+contracts, native production contracts, SpacetimeDB module/bindings and both
+connected Greater Realm rehearsals. The exact-main push Verify
+[run 36153303660](https://github.com/ael-dev3/Warpkeep/actions/runs/36153303660)
+and CodeQL [run 36153303661](https://github.com/ael-dev3/Warpkeep/actions/runs/36153303661)
+are running for `4cd17383`; require their success before native preparation.
 
-The read-only G001 policy observation first hit
+The triggering read-only G001 policy attempt first hit
 `SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID` in run
 [36143161024](https://github.com/ael-dev3/Warpkeep/actions/runs/36143161024).
 A targeted same-source retry
 [36143814712](https://github.com/ael-dev3/Warpkeep/actions/runs/36143814712)
-completed. G001 census run
+completed. Census run
 [36144181281](https://github.com/ael-dev3/Warpkeep/actions/runs/36144181281)
-then failed closed with `g001-policy-transport`, so it produced no validated
-census receipt. Preserve that attempt; do not inspect private census rows or
-reuse its identity. The supported public Auth Bridge health endpoint returned
-HTTP 200, and a fresh exact-source read-only policy observation
+failed closed with `g001-policy-transport`; no validated census receipt was
+created. The supported public Auth Bridge health endpoint returned HTTP 200,
+and a fresh exact-source read-only policy observation
 [36144753078](https://github.com/ael-dev3/Warpkeep/actions/runs/36144753078)
-completed. One new census attempt
+completed. Census retry
 [36145018339](https://github.com/ael-dev3/Warpkeep/actions/runs/36145018339)
-failed before the operator at the same ambient marker.
+failed before the operator at the same ambient marker. Preserve all attempts;
+do not inspect private census rows or reuse either census identity.
 
-The active source repair is on `fix/sealed-post-checkout-environment`, based on
-this protected M1. It removes only the duplicate ambient-variable rejection
-inside the post-checkout execution steps; all five initial runner gates and the
-last-moment environment allowlist scrub remain. Git uses a clean explicit
-environment and absolute tools. Focused tests are being added for both retained
-runner rejection and removal of injected variables before fixed Node starts,
-including safe handling of `BASH_ENV`. The repair must pass the focused workflow
-suite and repository checks, then merge as a signed protected M1. Keep native
-WSL pinned to `7a598435` until then. After merge, prepare and independently
-check that exact protected M1, promote only its authenticated generated family
-as generated-only M2, and require exact-M2 Verify/CodeQL before preflight,
-read-only policy observation and a single fresh census identity. Follow the
-[known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths)
-for the retained initial gate, post-checkout scrub and exact-source verification.
+PR #362 removes the duplicate ambient-variable rejection from the five
+post-checkout operation steps. It retains all five pre-checkout runner gates,
+fixed absolute Git tools with `env -i`, and the last-moment explicit environment
+allowlist before Node. Focused pinned WSL Node 22.22.3 tests passed 53/53; the
+PR's full Linux, module, native-contract, Auth Bridge, recovery and CodeQL gates
+also passed. No protected operation or census was repeated by this repair. The
+Windows development checkout is synchronized to `4cd17383`; native WSL remains
+clean and pinned at `7a598435` until exact-main checks pass.
 
-Initial 0.4 still requires deployment, accepted G001 preservation/readback,
-sealed G002 evidence, an actual owner PTR journey, mobile and measured
-performance acceptance, release freeze and final delivery. Owner PTR access is
-mandatory; public admissions/live servers are not. Keep scheduled automations
-paused, create no Desktop artifacts, preserve private attempts and use existing
-credentials/recovery material only. 0.4 is not shipped.
+After exact-main Verify/CodeQL pass, fast-forward the clean native WSL checkout
+to that exact signed M1, then run `local-release-assembler.mjs prepare` and an
+independent `check`. Promote only the authenticated generated family as
+generated-only M2. Require exact-M2 Verify/CodeQL before protected preflight,
+read-only policy observation and one new census identity. Do not run protected
+operations on interim M1. Use the [known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths)
+if a fixed safe diagnostic returns.
+
+Initial 0.4 remains unshipped. It still requires provider deployment, accepted
+G001 preservation/readback, sealed G002 evidence, actual owner PTR play, mobile
+and measured-performance acceptance, release freeze and final delivery. Owner
+PTR access is mandatory; public admissions/live servers are not. Keep scheduled
+automations paused, create no Desktop artifacts, preserve private attempts and
+use existing credentials/recovery material only.
 ---
 
 ## Historical checkpoint — 24 September 2026, 22:34 UTC (superseded above)

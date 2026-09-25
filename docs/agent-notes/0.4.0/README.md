@@ -10,14 +10,13 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 The [execution handoff](execution-handoff.md) is the single dated record of
 protected main, active source, CI receipts and operation results. Read its latest
 checkpoint before acting; older checkpoints below it are historical evidence.
-The current source-only repair is being reviewed on
-`fix/sealed-post-checkout-environment`: it removes a redundant post-checkout
-runner-environment rejection while retaining the initial runner gate and the
-final Node environment scrub. Do not run protected operations on this branch.
-After signed protected M1 and its exact-main checks pass, native prepare/check,
-generated-only M2, exact-M2 Verify/CodeQL and fresh protected observations are
-required. Prior census attempts remain preserved and are not reusable. Pages
-classification does not establish deployment, owner play or device acceptance.
+The post-checkout environment repair merged through protected PR #362. It keeps
+all initial runner gates and the final Node environment scrub. The exact-main
+Verify and CodeQL results determine when native prepare/check can start; then
+promote only generated-only M2 and resume protected observations on exact
+verified source. Preserve failed census attempts and never reuse their
+identities. Pages classification does not establish deployment, owner play or
+device acceptance.
 
 The Keep04 gather → choose → build → benefit → return foundation, readable
 expedition/return feedback, first-journey cue and mobile visual foundation are
