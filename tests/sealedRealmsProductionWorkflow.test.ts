@@ -172,7 +172,7 @@ describe('sealed-realms production workflow authority', () => {
   });
 
   it('requires installed account and private state without provisioning authority', () => {
-    for (const jobName of ['operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
+    for (const jobName of ['operate_readonly', 'operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
       const guard = jobStep(jobName, guardName).run!;
       for (const required of ["test \"$RUNNER_OS\" = 'Linux'", "test \"$RUNNER_ARCH\" = 'X64'",
         "test \"$RUNNER_NAME\" = 'warpkeep-wsl-production-01'", "test \"$(/usr/bin/id -u)\" = '1000'",
@@ -187,7 +187,7 @@ describe('sealed-realms production workflow authority', () => {
   });
 
   it('attests fixed runtime bytes and immutable bootstrap source before calling preflight', () => {
-    for (const jobName of ['operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
+    for (const jobName of ['operate_readonly', 'operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
       const execute = jobStep(jobName, executeName).run!;
       for (const required of [
         'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2',
@@ -267,16 +267,55 @@ describe('sealed-realms production workflow authority', () => {
     }
   });
 
-  it.runIf(process.platform === 'linux')('ignores an actual ambient startup script before rejecting its presence', () => {
+  it.runIf(process.platform === 'linux')('rejects ambient runner overrides before checkout authority is accepted', () => {
     const directory = mkdtempSync(join(tmpdir(), 'sealed-workflow-startup-'));
     try {
       const startup = join(directory, 'startup.sh');
       const sentinel = join(directory, 'must-not-exist');
       writeFileSync(startup, 'printf executed > "$WARPKEEP_STARTUP_SENTINEL"\n');
-      for (const jobName of ['operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
+      for (const jobName of ['operate_readonly', 'operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
         const result = runShell(jobStep(jobName, guardName).run!, { BASH_ENV: startup, WARPKEEP_STARTUP_SENTINEL: sentinel });
         expect(result.status).toBe(1); expect(result.stdout).toBe('');
         expect(result.stderr).toBe('SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID\n');
+        expect(existsSync(sentinel)).toBe(false);
+      }
+    } finally { rmSync(directory, { recursive: true, force: true }); }
+  });
+
+  it.runIf(process.platform === 'linux')('clears transient post-checkout overrides before fixed Node starts', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sealed-workflow-post-checkout-'));
+    try {
+      const startup = join(directory, 'startup.sh');
+      const sentinel = join(directory, 'must-not-exist');
+      writeFileSync(startup, 'printf executed > "$WARPKEEP_STARTUP_SENTINEL"\n');
+      const overrideNames = ['NODE_OPTIONS', 'NODE_PATH', 'GIT_CONFIG_COUNT', 'GIT_OBJECT_DIRECTORY',
+        'BASH_ENV', 'OPENSSL_CONF', 'SSL_CERT_FILE', 'PYTHONPATH', 'VITEST'];
+      writeFileSync(join(directory, 'node'), `#!/bin/sh
+set -eu
+for key in ${overrideNames.join(' ')} WARPKEEP_UNRELATED; do
+  if printenv "$key" >/dev/null; then
+    printf 'unexpected environment key: %s\\n' "$key" >&2
+    exit 1
+  fi
+done
+test "$1" = scripts/sealed-realms-production-linux-preflight.mjs
+test -n "$GITHUB_TOKEN"
+printf '%s\\n' transient-overrides-cleared
+`, { mode: 0o700 });
+
+      for (const jobName of ['operate_readonly', 'operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
+        const execute = jobStep(jobName, executeName).run!;
+        expect(execute).not.toContain('SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID');
+        const transport = execute.slice(execute.lastIndexOf('while IFS= read -r key; do'));
+        const result = runShell('set -eu\nsource_node="$WARPKEEP_FIXTURE_BIN/node"\n' + transport, {
+          WARPKEEP_FIXTURE_BIN: directory, WARPKEEP_SOURCE_COMMIT: 'a'.repeat(40), GITHUB_SHA: 'a'.repeat(40),
+          WARPKEEP_OPERATION: 'activation-evidence-inspect', GITHUB_TOKEN: 'fixture-token',
+          BASH_ENV: startup, WARPKEEP_STARTUP_SENTINEL: sentinel,
+          ...Object.fromEntries(overrideNames.filter(key => key !== 'BASH_ENV').map(key => [key, 'fixture-override'])),
+          WARPKEEP_UNRELATED: 'fixture-unrelated',
+        });
+        expect(result.error).toBeUndefined(); expect(result.status).toBe(0);
+        expect(result.stderr).toBe(''); expect(result.stdout).toBe('transient-overrides-cleared\n');
         expect(existsSync(sentinel)).toBe(false);
       }
     } finally { rmSync(directory, { recursive: true, force: true }); }
@@ -398,13 +437,11 @@ printf '%s\\n' ptr-fixed-argument-transport-ok
     'ESBUILD_BINARY_PATH', 'TS_NODE_PROJECT', 'BUN_OPTIONS', 'LD_PRELOAD', 'DYLD_INSERT_LIBRARIES',
     'GIT_CONFIG_COUNT', 'GIT_OBJECT_DIRECTORY', 'GIT_REPLACE_REF_BASE', 'BASH_ENV', 'ENV', 'OPENSSL_CONF',
     'SSL_CERT_FILE', 'PYTHONPATH', 'VITEST'])(
-    'rejects even empty exported %s before any host, source or Node work', key => {
-      for (const jobName of ['operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
-        for (const name of [guardName, executeName]) {
-          const result = runShell(jobStep(jobName, name).run!, { [key]: '' });
-          expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stdout).toBe('');
-          expect(result.stderr).toBe('SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID\n');
-        }
+    'rejects even empty exported %s at each pre-checkout runner gate', key => {
+      for (const jobName of ['operate_readonly', 'operate', 'operate_ptr', 'operate_g002', 'observe_ptr']) {
+        const result = runShell(jobStep(jobName, guardName).run!, { [key]: '' });
+        expect(result.error).toBeUndefined(); expect(result.status).toBe(1); expect(result.stdout).toBe('');
+        expect(result.stderr).toBe('SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID\n');
       }
     },
   );

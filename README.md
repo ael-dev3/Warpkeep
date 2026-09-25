@@ -40,37 +40,20 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The gameplay foundation is integrated; 0.4 has not shipped.**
-The preceding generated-only M2 push Verify
-[35766416370](https://github.com/ael-dev3/Warpkeep/actions/runs/35766416370)
-and read-only preflight
-[35772760378](https://github.com/ael-dev3/Warpkeep/actions/runs/35772760378)
-passed. The following read-only G001 policy observation
-[35772933637](https://github.com/ael-dev3/Warpkeep/actions/runs/35772933637)
-failed at the authenticated operation step because a valid older-source receipt
-occupied the fixed active slot. It did not continue to census or deployment.
-Source-only recovery PR [#337](https://github.com/ael-dev3/Warpkeep/pull/337)
-is merged through protection. It adopts valid current-source receipts on retry
-and preserves older receipts before reusing the fixed slot; all required PR
-checks passed, including the full Linux test/build gate and SpacetimeDB module
-integration. Resolve the exact live protected `main` and its push Verify before
-each release step. Run fresh native prepare/check on that protected M1, then
-promote its generated-only M2 before retrying preflight and policy observation.
-Provider deployment, preservation/readback, owner play, device acceptance,
-measured performance and final release freeze still need evidence.
-The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) and
-[release checklist](docs/operations/0.4.0-release-checklist.md) bind each result
-to its source and record the next verified action. The gameplay core, keep
-presentation, session renewal and release/recovery tools are in the repo.
-Connected owner play, provider-backed deployment, visual/device acceptance and
-the complete operating path still need current evidence before the live site can
-move beyond Genesis.
+**The gameplay foundation is integrated; 0.4 has not shipped.** Current source,
+verified release evidence and the next action are recorded in the dated
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md); earlier
+checkpoints there are historical. A source-only workflow repair is in review to
+remove an intermittent post-checkout environment rejection while retaining the
+pre-checkout runner gate and final environment scrub. Protected operations
+remain gated until the repair is signed, merged, prepared and independently
+checked, then promoted as generated-only M2 with exact-source Verify and CodeQL.
 
-PR #337 delivered the source-only M1 recovery. Before preparing, resolve the
-current protected `main` SHA and verify that exact source; prior native
-candidates belong to earlier source and cannot replace a fresh prepare/check.
-Promote only the authenticated generated family as generated-only M2, then wait
-for its exact push Verify before resuming protected operations.
+Provider deployment, accepted G001 preservation/readback, sealed G002 evidence,
+owner PTR play, mobile and measured-performance acceptance, and final release
+freeze still need current evidence. The owner PTR is mandatory for the initial
+0.4 ship; live admissions servers are not. The [release checklist](docs/operations/0.4.0-release-checklist.md)
+tracks the evidence required to make that distinction concrete.
 
 | Realm | Purpose |
 | --- | --- |
