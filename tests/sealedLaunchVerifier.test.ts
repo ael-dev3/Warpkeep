@@ -103,6 +103,8 @@ function checkedInSources() {
       source('scripts/genesis001-sealed-launch-adoption.mjs'),
     genesis001PolicyObservationReceiptSource:
       source('scripts/genesis001-policy-observation-receipt.mjs'),
+    genesis001LinuxCensusOperatorSource:
+      source('scripts/genesis001-linux-census-operator.ts'),
     genesis001PolicyObservationLaunchEnvelopeSource:
       source('docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt'),
     genesis001LegacyGreaterRealmProductionSealSource:
@@ -2790,7 +2792,7 @@ export function createPtrAtlasImportTransport(`,
 
   it('accepts the reviewed operator-helper refreeze while retaining the historical G001 projection', () => {
     const operatorRefreezeCommit =
-      '0cdf74495ef5024f262f893d8c900ce157e80ae2';
+      'bca5596defd9816930dd9af2431bfa6aec0f1735';
     const operatorRefreezePaths = [
       'scripts/greater-realm-production-provenance.ts',
       'scripts/greater-realm-production-transport.ts',

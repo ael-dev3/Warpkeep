@@ -200,7 +200,7 @@ function exactTimestamp(value) {
 const PRODUCTION_DEPENDENCIES = Object.freeze({
   attestProtectedMain: attestGreaterRealmProductionProtectedMain,
   readAdminSecretFile: readGreaterRealmProductionAdminSecretFile,
-  createSession: createGreaterRealmAdminTransportSession,
+  createSession: ({ adminSecret }) => createGreaterRealmAdminTransportSession({ adminSecret, readOnly: true }),
   now: () => new Date(),
 });
 

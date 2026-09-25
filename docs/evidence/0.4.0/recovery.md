@@ -3,14 +3,14 @@
 ## Current checkpoint supersession — 25 September 2026
 
 Current protected runtime source is generated-only M2
-`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`. Exact-main Verify, CodeQL and
-read-only preflight passed. Two policy observations failed with
-`g001-policy-budget` after bounded inspection and lease reconciliation; neither
-produced a verified receipt or started census or mutation. Do not retry this
-M2. Source M1 [PR #355](https://github.com/ael-dev3/Warpkeep/pull/355) adds
-fixed safe diagnostics; its Linux and SpacetimeDB checks must finish before
-merge. Then prepare/check exact M1, promote generated-only M2, and resume
-read-only operations only on the exact verified M2.
+`edb37f4081de1b989a5137627494c1a2575411bb`. Exact-main Verify, CodeQL,
+read-only preflight and G001 policy observation passed. Census attempts
+36087746335 and 36088300562 failed closed with
+`g001-policy-budget-reservation` without receipt or provider mutation. Do not
+retry this M2. Source M1 [PR #357](https://github.com/ael-dev3/Warpkeep/pull/357)
+fixes read-only attempt accounting and session capabilities; required protected
+checks must pass before exact-M1 preparation, generated-only M2 promotion, and
+read-only operations on the exact verified M2.
 
 The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) records
 the exact run identities and next transition. Historical native evidence remains

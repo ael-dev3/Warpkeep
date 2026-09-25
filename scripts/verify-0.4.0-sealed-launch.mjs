@@ -46,7 +46,7 @@ const SEALED_REALMS_SOURCE_AUTHORITY_DECLARATION_SHA256 =
 const GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_SOURCE_SHA256 =
   'be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a';
 const GENESIS_001_POLICY_OBSERVATION_SOURCE_SHA256 =
-  '3ffe54723726de4616c3c7de5a477182da9261e24a41f245fab278ac058cc4af';
+  'd73326f5e6ad2a23e916670619464d9191965588e5cda9369e59ac63a52e68f2';
 const GENESIS_001_ADMISSION_MONITOR_CURRENT_STATE_SOURCE_SHA256 =
   '50776faaeb1ccd0c7357e6058ed90ac5a4ad5ad043444126089bdd45d1fd4560';
 const GENESIS_001_SEALED_LAUNCH_ADOPTION_SOURCE_SHA256 =
@@ -152,7 +152,7 @@ export const GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS = Object.freeze([
 // the current 0.4 source. A later helper change must move this checkpoint and
 // be reviewed as a new source refreeze; it cannot silently widen the exception.
 const GENESIS_001_OPERATOR_REFREEZE_SOURCE_COMMIT =
-  '0cdf74495ef5024f262f893d8c900ce157e80ae2';
+  'bca5596defd9816930dd9af2431bfa6aec0f1735';
 const GENESIS_001_OPERATOR_REFREEZE_PROJECTION_PATHS = Object.freeze([
   'scripts/greater-realm-production-provenance.ts',
   'scripts/greater-realm-production-transport.ts',
@@ -213,6 +213,8 @@ export const SEALED_LAUNCH_SOURCE_PATHS = Object.freeze({
     'scripts/genesis001-sealed-launch-adoption.mjs',
   genesis001PolicyObservationReceiptSource:
     'scripts/genesis001-policy-observation-receipt.mjs',
+  genesis001LinuxCensusOperatorSource:
+    'scripts/genesis001-linux-census-operator.ts',
   genesis001PolicyObservationLaunchEnvelopeSource:
     'docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt',
   genesis001LegacyGreaterRealmProductionSealSource:
@@ -907,6 +909,7 @@ function verifyGenesis001SealedLaunchAdoption(sources) {
     'attestGreaterRealmProductionProtectedMain',
     'readGreaterRealmProductionAdminSecretFile',
     'createGreaterRealmAdminTransportSession',
+    'createSession: ({ adminSecret }) => createGreaterRealmAdminTransportSession({ adminSecret, readOnly: true }),',
     "key.startsWith('WARPKEEP_ADMIN_TOKEN_SECRET')",
     "key.startsWith('WKGR_PRODUCTION_NOTIFICATION_SECRET')",
     'for (const key of TRUSTED_BOOTSTRAP_BINDINGS) delete environment[key];',
@@ -937,6 +940,9 @@ function verifyGenesis001SealedLaunchAdoption(sources) {
     token,
     'SEALED_LAUNCH_G001_POLICY_OBSERVATION_INVALID',
   );
+  if (!sources.genesis001LinuxCensusOperatorSource.includes(
+    'createSession: adminSecret => createGreaterRealmAdminTransportSession({ adminSecret, readOnly: true }),',
+  )) fail('SEALED_LAUNCH_G001_CENSUS_OPERATOR_INVALID');
   requireAbsent(
     sources.genesis001PolicyObservationReceiptSource,
     [

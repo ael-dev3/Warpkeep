@@ -35,7 +35,7 @@ vi.mock('../scripts/greater-realm-production-transport', async original => {
     },
     createGreaterRealmAdminTransportSession: (...args: Parameters<typeof actual.createGreaterRealmAdminTransportSession>) => {
       if (!descriptorFixture.active) return actual.createGreaterRealmAdminTransportSession(...args);
-      expect(args).toEqual([{ adminSecret: 's'.repeat(40) }]); descriptorFixture.calls.push('create-session');
+      expect(args).toEqual([{ adminSecret: 's'.repeat(40), readOnly: true }]); descriptorFixture.calls.push('create-session');
       return { invalidate: async () => {},
         inspect: async () => { descriptorFixture.calls.push('observe'); throw Error('synthetic transport boundary'); },
         close: async () => { descriptorFixture.calls.push('close-session'); } };
