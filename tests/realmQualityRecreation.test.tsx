@@ -54,6 +54,7 @@ const mocked = vi.hoisted(() => {
       phase: 'probing' | 'loading' | 'ready' | 'recovering';
       message: string;
     }) => void;
+    onRendererContextRestored?: () => void;
     onCastlePresentationTelemetry?: (telemetry: {
       presentedModelCount: number;
       presentedLandscapeBaseCount: number;
@@ -1460,6 +1461,45 @@ describe('live realm quality recreation', () => {
     expect(realm.dataset.rendererDeadlineKind).toBe('scene-rebuild');
     act(() => vi.advanceTimersByTime(1));
     expect(mocked.createRealmScene).toHaveBeenCalledTimes(3);
+  });
+
+  it('restores the camera attestation captured at the context-loss event', () => {
+    installWebGlProbe();
+    const snapshot = createCanonicalGenesisSnapshot(CANONICAL_TEST_FID);
+    render(
+      <RealmMapScreen
+        identity={IDENTITY}
+        snapshot={snapshot}
+        onRequestReturn={vi.fn()}
+        qualityOverride="balanced"
+      />
+    );
+    const realm = screen.getByRole('main', { name: 'Hegemony realm' });
+    const initialOptions = mocked.createRealmScene.mock.calls[0]![0];
+    const cameraAtContextLoss = Object.freeze({ marker: 'camera-at-context-loss' });
+    const cameraAfterRestore = Object.freeze({ marker: 'camera-after-restore' });
+    mocked.handles[0]!.getCameraAttestation
+      .mockReturnValueOnce(cameraAtContextLoss)
+      .mockReturnValue(cameraAfterRestore);
+    act(() => initialOptions.onCastlesReady?.(1));
+
+    act(() => initialOptions.onRendererFailure?.({
+      code: 'context-lost',
+      retryable: true,
+      phase: 'ready',
+      message: 'Synthetic active context loss.'
+    }));
+    expect(realm.dataset.rendererState).toBe('recovering');
+    expect(mocked.handles[0]!.getCameraAttestation).toHaveBeenCalledOnce();
+
+    act(() => initialOptions.onRendererContextRestored?.());
+    expect(mocked.createRealmScene).toHaveBeenCalledTimes(2);
+    const recoveryOptions = mocked.createRealmScene.mock.calls[1]![0];
+    act(() => recoveryOptions.onCastlesReady?.(1));
+
+    expect(mocked.handles[1]!.restoreCameraAttestation)
+      .toHaveBeenCalledExactlyOnceWith(cameraAtContextLoss);
+    expect(mocked.handles[0]!.getCameraAttestation).toHaveBeenCalledOnce();
   });
 
   it('retains a healthy scene when candidate activation rendering fails', () => {

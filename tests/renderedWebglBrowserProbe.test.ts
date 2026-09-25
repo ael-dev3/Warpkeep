@@ -1008,6 +1008,12 @@ describe('rendered WebGL headless browser probe contract', () => {
     });
     expect(evaluation?.[2]).toBe(60_000);
     const expression = String(evaluation?.[1]?.expression);
+    expect(expression).toContain(
+      'rendererStable,\n        overviewLane,\n        workerRecordCorrect'
+    );
+    expect(expression).toContain('const settledPassivePresence = presentationForKey(');
+    expect(expression).toContain("overviewLane = 'presence';");
+    expect(expression).toContain("overviewLane === 'presence'\n              || subtreePrivacyBounded(overviewPanel)");
     expect(expression).toContain('gold:genesis-001-tier1-gold-03');
     expect(expression).toContain('gold:genesis-001-tier1-gold-11');
     expect(expression).toContain('navigateToOccupiedSite(target)');

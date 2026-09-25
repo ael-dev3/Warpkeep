@@ -8066,7 +8066,23 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         if (overviewLane === 'control' && settledControl instanceof HTMLButtonElement) {
           overviewPresence = settledControl;
         } else if (overviewLane === 'control') {
-          overviewPresence = undefined;
+          const settledPassivePresence = presentationForKey(
+            '.realm-resource-occupant-presence',
+            overviewTargetKey
+          );
+          if (
+            settledPassivePresence instanceof HTMLElement
+            && settledPassivePresence.getAttribute('data-projected-visible') === 'true'
+            && visible(settledPassivePresence)
+            && settledPassivePresence.querySelector(
+              'canvas[data-profile-image-state="ready"]'
+            ) instanceof HTMLCanvasElement
+          ) {
+            overviewLane = 'presence';
+            overviewPresence = settledPassivePresence;
+          } else {
+            overviewPresence = undefined;
+          }
         } else {
           overviewPresence = presentationForKey(
             '.realm-resource-occupant-presence',
@@ -8275,7 +8291,10 @@ export async function applyRenderedWebglResourceOccupantInteraction(
           compactOverviewCullingValid
           || (
             overviewPresencePrivacyBounded
-            && subtreePrivacyBounded(overviewPanel)
+            && (
+              overviewLane === 'presence'
+              || subtreePrivacyBounded(overviewPanel)
+            )
           )
         );
       const duringRenderer = rendererSnapshot();
@@ -8381,7 +8400,8 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         publicRecordCorrect,
         publicRecordOpened,
         rendererStable,
-        workerRecordCorrect
+        overviewLane,
+        workerRecordCorrect,
       };
     })()`,
     awaitPromise: true,
