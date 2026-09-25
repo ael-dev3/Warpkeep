@@ -1,67 +1,55 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 25 September 2026
+## Current checkpoint — 25 September 2026, 14:00 UTC
 
 Protected `main` is source-only M1
-[`0853a0ba9f3af6d633507b4c9a2b8390aa2d14d4`](https://github.com/ael-dev3/Warpkeep/commit/0853a0ba9f3af6d633507b4c9a2b8390aa2d14d4),
-merged through PR #359. GitHub verified the protected commit signature and
-tree `6cbb83c17606a9314440821ad61a33f9a5ad969f`. PR Verify
-[run 36118113124](https://github.com/ael-dev3/Warpkeep/actions/runs/36118113124)
-and CodeQL [run 36118113177](https://github.com/ael-dev3/Warpkeep/actions/runs/36118113177)
-passed, including the full Linux suite, both Pages builds, module/binding
-verification and connected relocation/population rehearsals. The exact-main
-push Verify [run 36121961295](https://github.com/ael-dev3/Warpkeep/actions/runs/36121961295)
-and CodeQL [run 36121961299](https://github.com/ael-dev3/Warpkeep/actions/runs/36121961299)
-were still running when this checkpoint was written. No preflight, policy
-observation or census has run on `0853a0ba`.
+[`7a598435e2df66692a70cfe21a5b2a7531beeda3`](https://github.com/ael-dev3/Warpkeep/commit/7a598435e2df66692a70cfe21a5b2a7531beeda3),
+tree `22dfa28f965c83f6dedf1f02067891211504f880`. Exact-main Verify
+[run 36137208953](https://github.com/ael-dev3/Warpkeep/actions/runs/36137208953),
+CodeQL [run 36137208947](https://github.com/ael-dev3/Warpkeep/actions/runs/36137208947),
+Pages classification [run 36143029237](https://github.com/ael-dev3/Warpkeep/actions/runs/36143029237)
+and protected preflight
+[run 36143079800](https://github.com/ael-dev3/Warpkeep/actions/runs/36143079800)
+passed for that exact source. Pages correctly skipped deployment while its
+approval input is false.
 
-The fresh G001 census [run 36116125925](https://github.com/ael-dev3/Warpkeep/actions/runs/36116125925)
-failed closed at `G001-ADMITTED-STATUS`. It produced no completed census receipt
-and performed no provider mutation. Preserve the attempt; do not inspect raw
-applicant/census data or retry it. A schema-metadata-only inspection identified
-the exact mismatch: the live G001 target does not export
-`admin_get_access_request_admission_status_v1`, while it does export the existing
-read-only `admin_get_access_request_reset_status_v1`. Both have the same fixed
-five-field status contract. The active source-only repair is branch
-`fix/g001-census-live-status-procedure` at signed commit
-`2fd0a290603320ae0c302996091b1a6bbd7c6725`; it makes the fallback census use
-the existing typed reset-status procedure and its strict projection, and
-updates the focused tests and sealed-launch source checks. This does not alter
-G001 or weaken privacy, schema, or mutation boundaries.
+The read-only G001 policy observation first hit
+`SEALED_REALMS_LINUX_AMBIENT_OVERRIDE_INVALID` in run
+[36143161024](https://github.com/ael-dev3/Warpkeep/actions/runs/36143161024).
+A targeted same-source retry
+[36143814712](https://github.com/ael-dev3/Warpkeep/actions/runs/36143814712)
+completed. G001 census run
+[36144181281](https://github.com/ael-dev3/Warpkeep/actions/runs/36144181281)
+then failed closed with `g001-policy-transport`, so it produced no validated
+census receipt. Preserve that attempt; do not inspect private census rows or
+reuse its identity. The supported public Auth Bridge health endpoint returned
+HTTP 200, and a fresh exact-source read-only policy observation
+[36144753078](https://github.com/ael-dev3/Warpkeep/actions/runs/36144753078)
+completed. One new census attempt
+[36145018339](https://github.com/ael-dev3/Warpkeep/actions/runs/36145018339)
+failed before the operator at the same ambient marker.
 
-The three focused suites pass (288 tests), TypeScript build-mode checks pass,
-and the production asset checks/build pass. The clean checked-in sealed-launch
-verifier also passes on exact commit `2fd0a290` and reports the expected
-preparation profile (`pagesDeploymentApproved: false`, with no release realm
-identities or PTR activation). Vite still reports a 747 KiB minified map-screen
-chunk; keep that visible for the separate mobile payload acceptance and do not
-silence the warning. These code checks apply to exact signed source commit
-`2fd0a290603320ae0c302996091b1a6bbd7c6725`.
+The active source repair is on `fix/sealed-post-checkout-environment`, based on
+this protected M1. It removes only the duplicate ambient-variable rejection
+inside the post-checkout execution steps; all five initial runner gates and the
+last-moment environment allowlist scrub remain. Git uses a clean explicit
+environment and absolute tools. Focused tests are being added for both retained
+runner rejection and removal of injected variables before fixed Node starts,
+including safe handling of `BASH_ENV`. The repair must pass the focused workflow
+suite and repository checks, then merge as a signed protected M1. Keep native
+WSL pinned to `7a598435` until then. After merge, prepare and independently
+check that exact protected M1, promote only its authenticated generated family
+as generated-only M2, and require exact-M2 Verify/CodeQL before preflight,
+read-only policy observation and a single fresh census identity. Follow the
+[known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths)
+for the retained initial gate, post-checkout scrub and exact-source verification.
 
-Before native preparation, re-read GitHub `main` and require successful
-push-to-main Verify and CodeQL for its exact current SHA. The runs recorded for
-`0853a0ba` do not cover a later commit. Inspect the corresponding Pages
-classification; its deployment skip remains expected while
-`pagesDeploymentApproved: false`. Synchronize a clean native WSL checkout to
-that exact signed main, then run `local-release-assembler.mjs prepare` and
-independent `check` against it. Promote only its authenticated generated family
-in generated-only M2, require exact-M2 Verify/CodeQL, then run fresh preflight,
-policy observation and one new census identity. Never run production
-observations on interim M1 or reuse failed census run 36116125925.
-
-Earlier budget-reservation failures on M2 `edb37f40` are superseded by the
-read-only transport repair and its successful exact-main policy observation;
-do not reuse or retry those attempts. See the [known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths)
-for the live status-procedure mismatch and its verification sequence.
-
-Initial 0.4 still requires owner access to the existing PTR target. Public
-admissions and admission realms are not required. Deployment, accepted G001
-preservation/readback, sealed G002 evidence, actual owner PTR journey, mobile
-and measured performance acceptance, release freeze and final delivery remain
-open. Keep scheduled automations paused, create no Desktop artifacts, preserve
-private attempts and use existing credentials/recovery material only; no
-additional GitHub App or recovery key is needed.
-
+Initial 0.4 still requires deployment, accepted G001 preservation/readback,
+sealed G002 evidence, an actual owner PTR journey, mobile and measured
+performance acceptance, release freeze and final delivery. Owner PTR access is
+mandatory; public admissions/live servers are not. Keep scheduled automations
+paused, create no Desktop artifacts, preserve private attempts and use existing
+credentials/recovery material only. 0.4 is not shipped.
 ---
 
 ## Historical checkpoint — 24 September 2026, 22:34 UTC (superseded above)

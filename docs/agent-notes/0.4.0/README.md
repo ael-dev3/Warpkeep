@@ -8,16 +8,16 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 ## Current working state
 
 The [execution handoff](execution-handoff.md) is the single dated record of
-protected main, active source, CI receipts and operation results. Current
-protected main is source-only M1 `0853a0ba` (PR #359), with GitHub-verified
-signature and green PR Verify/CodeQL checks. It repairs the census status
-procedure mismatch. Exact-main Verify and CodeQL were running at this
-checkpoint; no preflight, policy observation or census had run on this source.
-Before preparation, recheck the live main SHA and require its own green
-Verify/CodeQL results. Then prepare/check exact M1, promote its generated-only
-M2, and resume protected observations on exact verified M2. Preserve the failed
-census attempt and do not retry it. Pages classification does not establish
-deployment, owner play or device acceptance.
+protected main, active source, CI receipts and operation results. Read its latest
+checkpoint before acting; older checkpoints below it are historical evidence.
+The current source-only repair is being reviewed on
+`fix/sealed-post-checkout-environment`: it removes a redundant post-checkout
+runner-environment rejection while retaining the initial runner gate and the
+final Node environment scrub. Do not run protected operations on this branch.
+After signed protected M1 and its exact-main checks pass, native prepare/check,
+generated-only M2, exact-M2 Verify/CodeQL and fresh protected observations are
+required. Prior census attempts remain preserved and are not reusable. Pages
+classification does not establish deployment, owner play or device acceptance.
 
 The Keep04 gather → choose → build → benefit → return foundation, readable
 expedition/return feedback, first-journey cue and mobile visual foundation are
