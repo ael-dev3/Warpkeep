@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "profile": "warpkeep-spacetime-binding-final-preparation-linux-x64-v1",
-  "sourceCommit": "812eb244af8c3a5ef5f43e8f0487085e06628862",
-  "sourceTree": "467dac14f03fbe6a18700dedb1179fcfe78a9eaa",
+  "sourceCommit": "0853a0ba9f3af6d633507b4c9a2b8390aa2d14d4",
+  "sourceTree": "6cbb83c17606a9314440821ad61a33f9a5ad969f",
   "bundles": [
     {
       "lane": "activation",
       "path": "scripts/sealed-realms-production-activation-lane.bundle.mjs",
       "byteLength": 1204642,
       "sha256": "91cdb1a88931476f24a9b0cc6bfe8a720024e755c27e40d21c174ee773750251",
-      "sourceClosureDigest": "687582367ca90271ad14f16eaf690acb96c3af0f8c0fbeb3867b6598144c1f8d",
+      "sourceClosureDigest": "2f9cf2dcdc58ecc9920d86fec2fd4b5bf4680cf90872e8d8cc82a0af99b69434",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -538,8 +538,8 @@
         },
         {
           "path": "scripts/genesis001-admitted-player-census.mjs",
-          "byteLength": 21630,
-          "sha256": "1a0bbd0717d9d19094c9e898c9a4c41613670e947fb9d876a3b04179d0719dc5"
+          "byteLength": 21626,
+          "sha256": "c806cd4fa036eb9815399d499fdb33c444d64deeeb7b9cf9352f3fd022bd2fcb"
         },
         {
           "path": "scripts/genesis001-binding-frozen-source.mjs",
@@ -1015,7 +1015,7 @@
       "path": "scripts/sealed-realms-production-g001-lane.bundle.mjs",
       "byteLength": 366278,
       "sha256": "40173ea1c6a12dca3d519203768951c39af9d974116fef3497d595be202b6376",
-      "sourceClosureDigest": "c9f22673870b88e59887d642654ba3df723f6bf4db82bfac2e564a24e11f02a1",
+      "sourceClosureDigest": "1761af56092d339d6dc531c3e3d17050775a95779a81d03cdcc33fc2f211c0d4",
       "graphManifest": [
         {
           "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
@@ -1029,8 +1029,8 @@
         },
         {
           "path": "scripts/genesis001-admitted-player-census.mjs",
-          "byteLength": 21630,
-          "sha256": "1a0bbd0717d9d19094c9e898c9a4c41613670e947fb9d876a3b04179d0719dc5"
+          "byteLength": 21626,
+          "sha256": "c806cd4fa036eb9815399d499fdb33c444d64deeeb7b9cf9352f3fd022bd2fcb"
         },
         {
           "path": "scripts/genesis001-linux-census-attempt.mjs",
@@ -1170,7 +1170,7 @@
       "path": "scripts/sealed-realms-production-g002-lane.bundle.mjs",
       "byteLength": 1140051,
       "sha256": "3bbf869a3267b591f7bba017290407a3abc5d18f3b585241cf5b26a4ea7fe03b",
-      "sourceClosureDigest": "76816949823499734a0ed5a3dd5d39ec538a44e453821b26e8da959263ff5b49",
+      "sourceClosureDigest": "aced0e09f74650a0e259720d998da297dd167de930fafd0ea8a103716f49a84a",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -1699,8 +1699,8 @@
         },
         {
           "path": "scripts/genesis001-admitted-player-census.mjs",
-          "byteLength": 21630,
-          "sha256": "1a0bbd0717d9d19094c9e898c9a4c41613670e947fb9d876a3b04179d0719dc5"
+          "byteLength": 21626,
+          "sha256": "c806cd4fa036eb9815399d499fdb33c444d64deeeb7b9cf9352f3fd022bd2fcb"
         },
         {
           "path": "scripts/genesis001-binding-frozen-source.mjs",
@@ -2190,7 +2190,7 @@
       "path": "scripts/sealed-realms-production-ptr-lane.bundle.mjs",
       "byteLength": 1137617,
       "sha256": "38f796fddec8d0af13aa417e5ab600ef8aaf79eb4be7e668e69bbbae0e28d9f6",
-      "sourceClosureDigest": "0dc4a8d21aa661b8b85d2a42c787bc80bdc7ec7c903f9d5355cbc5674b9ba903",
+      "sourceClosureDigest": "21550ea6dea389b5f767214c3be4e239bc64af8ea2af3699825ec933ada65b88",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -2719,8 +2719,8 @@
         },
         {
           "path": "scripts/genesis001-admitted-player-census.mjs",
-          "byteLength": 21630,
-          "sha256": "1a0bbd0717d9d19094c9e898c9a4c41613670e947fb9d876a3b04179d0719dc5"
+          "byteLength": 21626,
+          "sha256": "c806cd4fa036eb9815399d499fdb33c444d64deeeb7b9cf9352f3fd022bd2fcb"
         },
         {
           "path": "scripts/genesis001-binding-frozen-source.mjs",
