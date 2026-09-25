@@ -280,7 +280,7 @@ async function sample(session: Session, scope: Scope, kind: 'first' | 'second') 
 }
 
 const production: Dependencies = Object.freeze({ now: () => new Date(), wait: async ms => { await delay(ms); },
-  createSession: adminSecret => createGreaterRealmAdminTransportSession({ adminSecret }),
+  createSession: adminSecret => createGreaterRealmAdminTransportSession({ adminSecret, readOnly: true }),
   // The protected workflow checks out the selected main commit in detached
   // state. Recheck that exact fixed Linux source, including origin/main and
   // this census operator, without requiring a local branch named main.

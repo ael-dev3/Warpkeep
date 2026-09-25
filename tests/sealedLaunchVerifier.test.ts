@@ -103,6 +103,8 @@ function checkedInSources() {
       source('scripts/genesis001-sealed-launch-adoption.mjs'),
     genesis001PolicyObservationReceiptSource:
       source('scripts/genesis001-policy-observation-receipt.mjs'),
+    genesis001LinuxCensusOperatorSource:
+      source('scripts/genesis001-linux-census-operator.ts'),
     genesis001PolicyObservationLaunchEnvelopeSource:
       source('docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt'),
     genesis001LegacyGreaterRealmProductionSealSource:

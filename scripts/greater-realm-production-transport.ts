@@ -179,6 +179,18 @@ function disconnect(connection: DbConnection | undefined): void {
   try { connection.disconnect(); } catch { /* Preserve the bounded generic result. */ }
 }
 
+/** Give fixed read-only operators only the connection surface needed to inspect. */
+function readOnlyConnection(connection: DbConnection): DbConnection {
+  const view = Object.create(null) as DbConnection;
+  Object.defineProperties(view, {
+    identity: { enumerable: true, get: () => connection.identity },
+    procedures: { enumerable: true, get: () => connection.procedures },
+    token: { enumerable: true, get: () => connection.token },
+    isDisconnectRequested: { enumerable: true, get: () => connection.isDisconnectRequested },
+  });
+  return Object.freeze(view) as unknown as DbConnection;
+}
+
 type DynamicConnection = DbConnection & Readonly<{
   procedures: Readonly<Record<string, (arguments_: unknown) => Promise<unknown>>>;
   reducers: Readonly<Record<string, (arguments_: unknown) => Promise<void>>>;
@@ -239,6 +251,8 @@ const productionTokenBudget: GreaterRealmProductionTokenBudget = Object.freeze({
 
 export function createGreaterRealmAdminTransportSession(input: Readonly<{
   adminSecret: string;
+  /** Permit only inspections and account each token atomically, without write reserves. */
+  readOnly?: true;
   target?: typeof GREATER_REALM_PRODUCTION_TRANSPORT_TARGET;
   requestToken?: typeof requestAdminToken;
   connectDatabase?: typeof connect;
@@ -251,6 +265,10 @@ export function createGreaterRealmAdminTransportSession(input: Readonly<{
     || new TextEncoder().encode(input.adminSecret).byteLength < MIN_SECRET_BYTES
     || new TextEncoder().encode(input.adminSecret).byteLength > MAX_SECRET_BYTES
   ) fail('GREATER_REALM_PRODUCTION_ADMIN_SECRET_LENGTH_INVALID');
+  if (input.readOnly !== undefined && input.readOnly !== true) {
+    fail('GREATER_REALM_PRODUCTION_TRANSPORT_MODE_INVALID');
+  }
+  const readOnly = input.readOnly === true;
   const target = input.target ?? GREATER_REALM_PRODUCTION_TRANSPORT_TARGET;
   if (
     target.uri !== GREATER_REALM_PRODUCTION_TRANSPORT_TARGET.uri
@@ -330,11 +348,12 @@ export function createGreaterRealmAdminTransportSession(input: Readonly<{
     if (!Number.isSafeInteger(trustedNowMs) || trustedNowMs < 0) {
       fail('GREATER_REALM_PRODUCTION_TRANSPORT_CLOCK_INVALID');
     }
-    const reservationId = await ensureReservation(
-      tokenReservationId === undefined ? 2 : 1,
-      trustedNowMs,
-    );
-    tokenReservationRemaining = Math.max(0, tokenReservationRemaining - 1);
+    const reservationId = readOnly
+      ? undefined
+      : await ensureReservation(tokenReservationId === undefined ? 2 : 1, trustedNowMs);
+    if (reservationId !== undefined) {
+      tokenReservationRemaining = Math.max(0, tokenReservationRemaining - 1);
+    }
     const mintedAt = now();
     if (!Number.isFinite(mintedAt) || mintedAt < 0) {
       fail('GREATER_REALM_PRODUCTION_TRANSPORT_CLOCK_INVALID');
@@ -343,7 +362,7 @@ export function createGreaterRealmAdminTransportSession(input: Readonly<{
       target.bridge,
       adminSecret!,
       undefined,
-      { reservationId, trustedNowMs },
+      { ...(reservationId === undefined ? {} : { reservationId }), trustedNowMs },
     );
     return Object.freeze({ token: freshToken, mintedAt });
   };
@@ -393,6 +412,7 @@ export function createGreaterRealmAdminTransportSession(input: Readonly<{
   };
 
   const prepareSubmission = async (): Promise<void> => {
+    if (readOnly) fail('GREATER_REALM_PRODUCTION_READ_ONLY_SESSION');
     await currentConnection();
     const currentTime = now();
     if (!Number.isFinite(currentTime) || currentTime < 0) {
@@ -472,6 +492,11 @@ export function createGreaterRealmAdminTransportSession(input: Readonly<{
       return withOperationTimeout(procedure({}));
     }),
     submit: (reducerWireName, arguments_, assertCanStartWrite) => {
+      if (readOnly) {
+        return Promise.reject(new GreaterRealmProductionTransportError(
+          'GREATER_REALM_PRODUCTION_READ_ONLY_SESSION',
+        ));
+      }
       if (typeof assertCanStartWrite !== 'function') {
         return Promise.reject(new GreaterRealmProductionTransportError(
           'GREATER_REALM_PRODUCTION_WRITE_CONTROL_REQUIRED',
@@ -532,9 +557,10 @@ export function createGreaterRealmAdminTransportSession(input: Readonly<{
         }
       }, error => permitRejected && error === permitError);
     },
-    withConnection: <T>(operation: (connection: DbConnection) => Promise<T>) => (
-      serialized(async () => operation(await currentConnection()))
-    ),
+    withConnection: <T>(operation: (connection: DbConnection) => Promise<T>) => serialized(async () => {
+      const activeConnection = await currentConnection();
+      return operation(readOnly ? readOnlyConnection(activeConnection) : activeConnection);
+    }),
     prepareSubmission: () => serialized(prepareSubmission),
     invalidate: () => serialized(async () => invalidate()),
     close,

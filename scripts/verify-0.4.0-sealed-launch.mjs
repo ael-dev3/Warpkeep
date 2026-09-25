@@ -213,6 +213,8 @@ export const SEALED_LAUNCH_SOURCE_PATHS = Object.freeze({
     'scripts/genesis001-sealed-launch-adoption.mjs',
   genesis001PolicyObservationReceiptSource:
     'scripts/genesis001-policy-observation-receipt.mjs',
+  genesis001LinuxCensusOperatorSource:
+    'scripts/genesis001-linux-census-operator.ts',
   genesis001PolicyObservationLaunchEnvelopeSource:
     'docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt',
   genesis001LegacyGreaterRealmProductionSealSource:
@@ -907,6 +909,7 @@ function verifyGenesis001SealedLaunchAdoption(sources) {
     'attestGreaterRealmProductionProtectedMain',
     'readGreaterRealmProductionAdminSecretFile',
     'createGreaterRealmAdminTransportSession',
+    'createSession: ({ adminSecret }) => createGreaterRealmAdminTransportSession({ adminSecret, readOnly: true }),',
     "key.startsWith('WARPKEEP_ADMIN_TOKEN_SECRET')",
     "key.startsWith('WKGR_PRODUCTION_NOTIFICATION_SECRET')",
     'for (const key of TRUSTED_BOOTSTRAP_BINDINGS) delete environment[key];',
@@ -937,6 +940,9 @@ function verifyGenesis001SealedLaunchAdoption(sources) {
     token,
     'SEALED_LAUNCH_G001_POLICY_OBSERVATION_INVALID',
   );
+  if (!sources.genesis001LinuxCensusOperatorSource.includes(
+    'createSession: adminSecret => createGreaterRealmAdminTransportSession({ adminSecret, readOnly: true }),',
+  )) fail('SEALED_LAUNCH_G001_CENSUS_OPERATOR_INVALID');
   requireAbsent(
     sources.genesis001PolicyObservationReceiptSource,
     [

@@ -1,6 +1,56 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 24 September 2026, 22:34 UTC
+## Current checkpoint — 25 September 2026, 03:18 UTC
+
+Protected `main` is generated-only M2
+[`edb37f4081de1b989a5137627494c1a2575411bb`](https://github.com/ael-dev3/Warpkeep/commit/edb37f4081de1b989a5137627494c1a2575411bb),
+merged through PR #356. Exact-main Verify [run 36083455887](https://github.com/ael-dev3/Warpkeep/actions/runs/36083455887),
+CodeQL [run 36083455901](https://github.com/ael-dev3/Warpkeep/actions/runs/36083455901),
+read-only preflight [run 36087438767](https://github.com/ael-dev3/Warpkeep/actions/runs/36087438767),
+and read-only G001 policy observation [run 36087515747](https://github.com/ael-dev3/Warpkeep/actions/runs/36087515747)
+passed on that exact source.
+
+G001 census runs [36087746335](https://github.com/ael-dev3/Warpkeep/actions/runs/36087746335)
+and [36088300562](https://github.com/ael-dev3/Warpkeep/actions/runs/36088300562)
+failed closed with `g001-policy-budget-reservation`. After each lease expired,
+the bounded inspector reconciled only dead-owner state and showed zero attempts,
+zero reservations and all six slots available. The documented retry failed the
+same way. Preserve both private attempts; neither produced a completed
+source-bound receipt, and no provider mutation followed. Do not retry this M2
+or inspect raw ledger/census files.
+
+The repair is underway on `fix/g001-readonly-token-budget`. Fixed read-only G001
+sessions record each actual token request atomically against the shared
+six-attempt window, expose only identity/token/procedures/disconnect state to
+connection callbacks, and reject submit/postflight calls. Write-capable sessions
+keep reserved postflight capacity. Pinned Linux TypeScript build and the
+transport/census/policy suites pass (93 tests). Next: commit the repair and
+recovery-note updates, derive the complete source-pin/deployment closure on
+that exact source, independently compare all generated outputs, then push the
+source-only M1 PR for required checks. After exact protected M1 merges, run
+native `prepare` plus independent `check`, promote only that authenticated
+family in generated-only M2, then require exact-M2 Verify/CodeQL, preflight,
+policy observation and one new census run identity. Never use interim M1 for
+production operations.
+
+The direct-attempt mode retains the atomic shared token cap; the write-capable
+transport keeps reservation/reconciliation guarantees. Static sealed-launch
+checks now require read-only mode on both G001 entry points. If the reservation
+diagnostic recurs on the new exact M2, preserve the run, inspect bounded counts
+after lease expiry and stop instead of retrying that source. The [access guide](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths)
+contains the recovery steps.
+
+Initial 0.4 still requires owner access to the existing PTR target. Public
+admissions and admission realms are not required. Deployment, accepted G001
+preservation/readback, sealed G002 evidence, actual owner PTR journey, mobile
+and measured performance acceptance, release freeze and final delivery remain
+open. Keep scheduled automations paused, create no Desktop artifacts, preserve
+private attempts and use existing credentials/recovery material only; no
+additional GitHub App or recovery key is needed.
+
+---
+
+## Historical checkpoint — 24 September 2026, 22:34 UTC (superseded above)
 
 Protected `main` is generated-only M2 [`b7d729b0e8a58cf43870d0baafdf8d8da508fc99`](https://github.com/ael-dev3/Warpkeep/commit/b7d729b0e8a58cf43870d0baafdf8d8da508fc99),
 merged through PR #354. Exact-main Verify [run 36053702873](https://github.com/ael-dev3/Warpkeep/actions/runs/36053702873),

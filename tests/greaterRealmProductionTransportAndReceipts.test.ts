@@ -40,6 +40,10 @@ import {
   readGreaterRealmProductionAdminSecret,
   requireGreaterRealmProductionTransportTarget,
 } from '../scripts/greater-realm-production-transport';
+import {
+  inspectProductionAdminTokenBudget,
+  recordProductionAdminTokenAttempt,
+} from '../scripts/production-admin-token-budget.mjs';
 import { runGreaterRealmTrustedGit } from '../scripts/atlas/greater-realm-git';
 import {
   cleanupGreaterRealmProductionCommitMaterialization,
@@ -953,6 +957,82 @@ describe('Greater Realm atlas/module source ancestry', () => {
 });
 
 describe('Greater Realm fresh administrator transport', () => {
+  it('accounts repeated read-only refreshes directly and never exposes a write path', async () => {
+    const stateDirectory = temporaryDirectory('warpkeep-g001-readonly-budget-');
+    let trustedNowMs = Date.now();
+    const initialTrustedNowMs = trustedNowMs;
+    const tokenBudget = {
+      reserve: vi.fn(async () => ({ reservationId: 'a'.repeat(32), remaining: 2 })),
+      ensure: vi.fn(async (reservationId: string) => ({ reservationId, remaining: 2 })),
+      release: vi.fn(async (reservationId: string) => ({ reservationId, released: 2 })),
+    };
+    const requestToken = vi.fn(async (
+      _bridge: string,
+      _secret: string,
+      _fetchImpl: typeof fetch | undefined,
+      budget: Readonly<{ reservationId?: string; trustedNowMs?: number }>,
+    ) => {
+      await recordProductionAdminTokenAttempt({
+        stateDirectory,
+        now: () => budget.trustedNowMs ?? trustedNowMs,
+        ...(budget.reservationId === undefined ? {} : { reservationId: budget.reservationId }),
+      });
+      return `aaa.${'b'.repeat(24)}.ccc`;
+    });
+    const status = vi.fn(async () => ({ state: 'ready' }));
+    const reducer = vi.fn(async () => undefined);
+    const disconnect = vi.fn();
+    const session = createGreaterRealmAdminTransportSession({
+      adminSecret: 's'.repeat(32),
+      readOnly: true,
+      requestToken: requestToken as never,
+      connectDatabase: (async () => ({
+        identity: { toHexString: () => '8'.repeat(64) },
+        token: 'read-only-test-jwt',
+        isDisconnectRequested: false,
+        disconnect,
+        procedures: { testStatusV1: status },
+        reducers: { writeThing: reducer },
+      })) as never,
+      tokenBudget,
+      readTrustedTime: async () => trustedNowMs,
+      now: () => trustedNowMs,
+    });
+
+    await expect(session.inspect('test_status_v1')).resolves.toEqual({ state: 'ready' });
+    await session.withConnection(async connection => {
+      expect(Reflect.get(connection.procedures, 'testStatusV1')).toBe(status);
+      expect(connection.token).toBe('read-only-test-jwt');
+      expect(connection.reducers).toBeUndefined();
+    });
+    trustedNowMs += 60_001;
+    await session.invalidate();
+    await expect(session.inspect('test_status_v1')).resolves.toEqual({ state: 'ready' });
+    await expect(session.prepareSubmission()).rejects.toMatchObject({
+      code: 'GREATER_REALM_PRODUCTION_READ_ONLY_SESSION',
+    });
+    await expect(session.submit('write_thing', {}, () => undefined)).rejects.toMatchObject({
+      code: 'GREATER_REALM_PRODUCTION_READ_ONLY_SESSION',
+    });
+    await session.close();
+
+    expect(requestToken).toHaveBeenCalledTimes(2);
+    expect(requestToken.mock.calls.map(call => call[3])).toEqual([
+      { trustedNowMs: initialTrustedNowMs },
+      { trustedNowMs },
+    ]);
+    expect(tokenBudget.reserve).not.toHaveBeenCalled();
+    expect(tokenBudget.ensure).not.toHaveBeenCalled();
+    expect(tokenBudget.release).not.toHaveBeenCalled();
+    expect(reducer).not.toHaveBeenCalled();
+    await expect(inspectProductionAdminTokenBudget({ stateDirectory, now: () => trustedNowMs })).resolves.toMatchObject({
+      attempts: 2,
+      reserved: 0,
+      reservations: 0,
+      remaining: 4,
+    });
+  });
+
   it('reuses one serialized session across a complete import call budget', async () => {
     const requestToken = vi.fn(async () => `aaa.${'b'.repeat(24)}.ccc`);
     const procedure = vi.fn(async () => ({ state: 'ready' }));
