@@ -19,18 +19,23 @@ the exact mismatch: the live G001 target does not export
 `admin_get_access_request_admission_status_v1`, while it does export the existing
 read-only `admin_get_access_request_reset_status_v1`. Both have the same fixed
 five-field status contract. The active source-only repair is branch
-`fix/g001-census-live-status-procedure`; it makes the fallback census use the
-existing typed reset-status procedure and its strict projection, and updates
-the focused tests and sealed-launch source checks. This does not alter G001 or
-weaken privacy, schema, or mutation boundaries.
+`fix/g001-census-live-status-procedure` at signed commit
+`2fd0a290603320ae0c302996091b1a6bbd7c6725`; it makes the fallback census use
+the existing typed reset-status procedure and its strict projection, and
+updates the focused tests and sealed-launch source checks. This does not alter
+G001 or weaken privacy, schema, or mutation boundaries.
+
+The three focused suites pass (288 tests), TypeScript build-mode checks pass,
+and the production asset checks/build pass. The clean checked-in sealed-launch
+verifier also passes on exact commit `2fd0a290` and reports the expected
+preparation profile (`pagesDeploymentApproved: false`, with no release realm
+identities or PTR activation). Vite still reports a 747 KiB minified map-screen
+chunk; keep that visible for the separate mobile payload acceptance and do not
+silence the warning. These code checks apply to exact signed source commit
+`2fd0a290603320ae0c302996091b1a6bbd7c6725`.
 
 The current Windows checkout is on that repair branch from exact `origin/main`.
-The three focused suites pass (288 tests), TypeScript build-mode checks pass,
-and the production asset checks/build pass. Vite still reports a 747 KiB
-minified map-screen chunk; keep that visible for the separate mobile payload
-acceptance and do not silence the warning. The clean checked-in sealed-launch
-verifier must run on the exact committed source. Publish this source checkpoint
-and open a signed protected M1 PR; after it merges, prepare and
+Open a signed protected M1 PR; after it merges, prepare and
 independently check that exact M1 in pinned WSL, promote only its authenticated
 generated family in generated-only M2, and require exact-M2 Verify/CodeQL plus
 fresh preflight and policy observation before one new census identity. Never

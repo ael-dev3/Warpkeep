@@ -15,7 +15,9 @@ subsequent census failed safely at `G001-ADMITTED-STATUS`. Schema metadata
 confirmed that the live target lacks the called admission-status procedure but
 exposes the existing typed reset-status procedure with the same fixed status
 contract. A source-only caller/test/verifier repair is in progress on
-`fix/g001-census-live-status-procedure`; preserve the failed attempt and do not
+`fix/g001-census-live-status-procedure` at signed checkpoint `2fd0a290`;
+288 focused tests, build-mode typechecks, the production asset/build checks and
+the clean sealed-launch verifier pass. Preserve the failed attempt and do not
 inspect census rows or retry it. Follow the exact-source M1/generated-family M2
 sequence in the handoff. Pages classification does not establish deployment,
 owner play or device acceptance.
