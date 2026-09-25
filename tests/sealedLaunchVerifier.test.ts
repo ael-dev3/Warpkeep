@@ -2792,7 +2792,7 @@ export function createPtrAtlasImportTransport(`,
 
   it('accepts the reviewed operator-helper refreeze while retaining the historical G001 projection', () => {
     const operatorRefreezeCommit =
-      '0cdf74495ef5024f262f893d8c900ce157e80ae2';
+      'bca5596defd9816930dd9af2431bfa6aec0f1735';
     const operatorRefreezePaths = [
       'scripts/greater-realm-production-provenance.ts',
       'scripts/greater-realm-production-transport.ts',
