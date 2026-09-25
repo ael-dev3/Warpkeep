@@ -117,7 +117,7 @@ describe('Genesis 001 admitted-player census preferred evidence', () => {
       'SELECT fid FROM player_v2',
     );
     expect(GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE).toBe(
-      'admin_get_access_request_admission_status_v1',
+      'admin_get_access_request_reset_status_v1',
     );
     expect(GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_ROWS).toBe(4_096);
     expect(GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_QUERY_OUTPUT_BYTES)

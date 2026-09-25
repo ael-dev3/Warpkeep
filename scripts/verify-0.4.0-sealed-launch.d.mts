@@ -24,6 +24,7 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(
   sources: Readonly<{
     genesis001AdmittedPlayerCensusSource: string;
     genesis001AdmittedPlayerCensusDeclaration: string;
+    genesis001LinuxCensusOperatorSource: string;
   }>,
 ): void;
 

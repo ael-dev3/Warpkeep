@@ -3279,6 +3279,7 @@ export function createPtrAtlasImportTransport(`,
     for (const field of [
       'genesis001AdmittedPlayerCensusSource',
       'genesis001AdmittedPlayerCensusDeclaration',
+      'genesis001LinuxCensusOperatorSource',
     ] as const) {
       expect(() => verifyGenesis001AdmittedPlayerCensusBoundary({
         ...valid,
@@ -3286,6 +3287,17 @@ export function createPtrAtlasImportTransport(`,
       }))
         .toThrow();
     }
+
+    expect(valid.genesis001LinuxCensusOperatorSource)
+      .toContain('adminGetAccessRequestResetStatusV1');
+    expect(() => verifyGenesis001AdmittedPlayerCensusBoundary({
+      ...valid,
+      genesis001LinuxCensusOperatorSource:
+        valid.genesis001LinuxCensusOperatorSource.replace(
+          'adminGetAccessRequestResetStatusV1',
+          'adminGetAccessRequestAdmissionStatusV1',
+        ),
+    })).toThrow();
 
     const sourceMutations = [
       [
@@ -3314,7 +3326,7 @@ export function createPtrAtlasImportTransport(`,
       ],
       ['SELECT fid FROM player_v2', 'SELECT fid FROM allowed_fid'],
       [
-        'admin_get_access_request_admission_status_v1',
+        'admin_get_access_request_reset_status_v1',
         'admin_get_fid_auth_epoch',
       ],
       ['= 4_096;', '= 4_097;'],
