@@ -58,16 +58,21 @@ it.each([
   ['sample-directory', 'g001-census-directory'],
   ['applicant-collection', 'g001-applicant-collection'], ['applicant-export', 'g001-applicant-export'],
   ['applicant-proof', 'g001-applicant-proof'], ['admitted-collection', 'g001-admitted-collection'],
+  ['sample-reconciliation', 'g001-census-cross-proof'],
   ['session-finalize', 'g001-session-finalize'],
 ])('projects an untyped census error at the fixed %s stage', (stage, expected) => {
   const sentinel = 'PRIVATE_APPLICANT_OR_PROVIDER_DETAIL';
   expect(projectGenesis001LinuxCensusStageDiagnostic(Error(sentinel), stage)).toBe(expected);
   expect(expected).not.toContain(sentinel);
 });
-it('preserves existing fixed diagnostics and ignores arbitrary stages and error getters', () => {
+it('preserves owned fixed diagnostics and ignores forged diagnostics, arbitrary stages and error getters', () => {
+  let owned: unknown;
+  try { reconcileGenesis001LinuxCensusSample({ applicant: null, admitted: null }, SOURCE); }
+  catch (error) { owned = error; }
+  expect(projectGenesis001LinuxCensusStageDiagnostic(owned, 'applicant-proof')).toBe('g001-census-cross-proof');
   expect(projectGenesis001LinuxCensusStageDiagnostic(Object.assign(Error('private'), {
     diagnostic: 'g001-admitted-enumeration',
-  }), 'applicant-proof')).toBe('g001-admitted-enumeration');
+  }), 'applicant-proof')).toBe('g001-applicant-proof');
   expect(projectGenesis001LinuxCensusStageDiagnostic(Error('private'), 'unknown')).toBeUndefined();
   const error = Object.defineProperty({}, 'diagnostic', { get: () => { throw Error('private'); } });
   expect(projectGenesis001LinuxCensusStageDiagnostic(error, 'admitted-collection')).toBe('g001-admitted-collection');
@@ -90,15 +95,16 @@ it('preserves only an allowlisted census diagnostic through transport invalidati
     }),
     readTrustedTime: async () => Date.now(),
   });
-  const failure = Error('PRIVATE_APPLICANT_OR_PROVIDER_DETAIL');
-  Object.defineProperty(failure, 'diagnostic', { value: 'g001-admitted-enumeration', enumerable: false });
+  let failure: unknown;
+  try { reconcileGenesis001LinuxCensusSample({ applicant: null, admitted: null }, SOURCE); }
+  catch (error) { failure = error; }
   try {
     await expect(withGenesis001LinuxCensusConnection(session, async () => { throw failure; }))
       .rejects.toSatisfy((error: unknown) => {
         expect(error).toBeInstanceOf(GreaterRealmProductionTransportError);
         expect(projectGenesis001LinuxCensusStageDiagnostic(error, 'admitted-collection'))
-          .toBe('g001-admitted-enumeration');
-        expect((error as Error).message).not.toContain('PRIVATE_APPLICANT_OR_PROVIDER_DETAIL');
+          .toBe('g001-census-cross-proof');
+        expect((error as Error).message).toBe('G001_LINUX_CENSUS_COLLECTION_FAILED');
         return true;
       });
     expect(disconnect).toHaveBeenCalledOnce();
@@ -179,6 +185,15 @@ it('requires successful administrator aggregate authentication before querying a
     .rejects.toMatchObject({ diagnostic: 'g001-admitted-aggregate' });
   expect(fetcher).not.toHaveBeenCalled();
 });
+it('does not trust a provider error carrying a forged allowlisted diagnostic', async () => {
+  const db = connection(), fetcher = vi.fn();
+  db.procedures.adminGetAlphaStatusV3.mockRejectedValueOnce(Object.assign(Error('PRIVATE_PROVIDER_DETAIL'), {
+    diagnostic: 'g001-census-cross-proof',
+  }));
+  await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', fetcher))
+    .rejects.toMatchObject({ message: 'G001_LINUX_CENSUS_COLLECTION_FAILED', diagnostic: 'g001-admitted-aggregate' });
+  expect(fetcher).not.toHaveBeenCalled();
+});
 it('reports a safe reconciliation diagnostic for invalid cross-domain samples', async () => {
   const admitted = await collectGenesis001AdmittedPlayerCensus({ preparationSourceCommit: SOURCE,
     observedAt: '2026-09-19T00:00:00.000Z',
@@ -193,7 +208,19 @@ it('reports a safe reconciliation diagnostic for invalid cross-domain samples', 
   const applicant = { ...proof, opaqueProofDigest: genesis001CensusOpaqueProofDigest(proof) };
   expect(() => reconcileGenesis001LinuxCensusSample({ applicant, admitted }, SOURCE))
     .toThrow(expect.objectContaining({ message: 'G001_LINUX_CENSUS_COLLECTION_FAILED',
-      diagnostic: 'g001-admitted-reconciliation' }));
+      diagnostic: 'g001-census-cross-proof' }));
+});
+it.each([
+  ['empty', 0n, 0n, 'g001-admitted-aggregate-empty'],
+  ['disabled', 2n, 1n, 'g001-admitted-aggregate-disabled'],
+  ['invalid', 4097n, 4097n, 'g001-admitted-aggregate-invalid'],
+  ['contradictory', 0n, 1n, 'g001-admitted-aggregate-invalid'],
+] as const)('reports fixed %s aggregate state without enumerating FIDs', async (_kind, allowedFids, enabledAllowedFids, diagnostic) => {
+  const db = connection(), fetcher = vi.fn();
+  db.procedures.adminGetAlphaStatusV3.mockResolvedValueOnce({ allowedFids, enabledAllowedFids });
+  await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', fetcher))
+    .rejects.toMatchObject({ message: 'G001_LINUX_CENSUS_COLLECTION_FAILED', diagnostic });
+  expect(fetcher).not.toHaveBeenCalled();
 });
 it.each(['missing', 'disabled', 'count-change', 'status-error'] as const)('rejects incomplete admission evidence: %s', async mode => {
   const db = connection();
@@ -203,8 +230,13 @@ it.each(['missing', 'disabled', 'count-change', 'status-error'] as const)('rejec
     .mockResolvedValueOnce({ allowedFids: 2n, enabledAllowedFids: 2n });
   if (mode === 'status-error') db.procedures.adminGetAccessRequestResetStatusV1.mockRejectedValueOnce(Error('status failed'));
   await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', vi.fn(async () => response()) as never))
-    .rejects.toMatchObject({ diagnostic: mode === 'count-change' ? 'g001-admitted-reconciliation' :
-      mode === 'status-error' || mode === 'missing' || mode === 'disabled' ? 'g001-admitted-status' : 'g001-admitted-reconciliation' });
+    .rejects.toMatchObject({ diagnostic: mode === 'count-change' ? 'g001-admitted-aggregate-mismatch' : 'g001-admitted-status' });
+});
+it('separates a stable aggregate from an enumerated set mismatch', async () => {
+  const db = connection();
+  db.procedures.adminGetAlphaStatusV3.mockResolvedValue({ allowedFids: 2n, enabledAllowedFids: 2n });
+  await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z',
+    vi.fn(async () => response()) as never)).rejects.toMatchObject({ diagnostic: 'g001-admitted-aggregate-mismatch' });
 });
 it('validates exact SQL schema, duplicate keys, safe FIDs and zero mutation statistics', () => {
   expect(Buffer.from(parseGenesis001LinuxCensusFidSql(Buffer.from(JSON.stringify(sql([[9007199254740991], [17]]))))).toString())

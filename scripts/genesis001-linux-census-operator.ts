@@ -7,9 +7,10 @@ import { setGlobalLogLevel } from 'spacetimedb';
 import type { DbConnection } from '../src/spacetime/module_bindings';
 import { collectAccessRequestCensus, GENESIS_001_ADMISSION_FREEZE_ATTESTATION_DIGEST,
   projectAccessRequestResetStatus, writeAccessRequestCensusExport } from './hermes-admin';
-import { collectGenesis001AdmittedPlayerCensus,
+import { collectGenesis001AdmittedPlayerCensus, Genesis001AdmittedPlayerCensusError,
   GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_SQL,
   GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE,
+  GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_ROWS,
   GENESIS_001_ADMITTED_PLAYER_CENSUS_PREFERRED_SQL } from './genesis001-admitted-player-census.mjs';
 import { executeGenesis001CensusPrivacySafeReceipt } from './genesis001-census-privacy-safe-receipt.mjs';
 import { GENESIS_001_DATABASE_IDENTITY, GENESIS_001_LIVE_POLICY_OBSERVATION_PROFILE,
@@ -26,7 +27,9 @@ import { createGenesis001LinuxCensusSample, validateGenesis001LinuxCensusPair,
 
 const CENSUS_DIAGNOSTICS = new Set([
   'g001-admitted-identity', 'g001-admitted-aggregate', 'g001-admitted-enumeration',
-  'g001-admitted-status', 'g001-admitted-reconciliation',
+  'g001-admitted-aggregate-empty', 'g001-admitted-aggregate-disabled',
+  'g001-admitted-aggregate-invalid', 'g001-admitted-aggregate-mismatch',
+  'g001-admitted-status', 'g001-admitted-reconciliation', 'g001-census-cross-proof',
   'g001-census-directory', 'g001-applicant-collection', 'g001-applicant-export', 'g001-applicant-proof',
   'g001-admitted-collection', 'g001-session-finalize',
 ]);
@@ -36,11 +39,13 @@ const CENSUS_STAGE_DIAGNOSTICS = Object.freeze({
   'applicant-export': 'g001-applicant-export',
   'applicant-proof': 'g001-applicant-proof',
   'admitted-collection': 'g001-admitted-collection',
-  'sample-reconciliation': 'g001-admitted-reconciliation',
+  'sample-reconciliation': 'g001-census-cross-proof',
   'session-finalize': 'g001-session-finalize',
 });
+const OWN_CENSUS_FAILURES = new WeakSet<Error>();
 function existingCensusDiagnostic(error: unknown): string | undefined {
-  if (error === null || typeof error !== 'object' || types.isProxy(error)) return undefined;
+  if (error === null || typeof error !== 'object' || types.isProxy(error)
+    || !(error instanceof Error) || !OWN_CENSUS_FAILURES.has(error)) return undefined;
   try {
     const field = Object.getOwnPropertyDescriptor(error, 'diagnostic');
     return field !== undefined && 'value' in field && typeof field.value === 'string'
@@ -56,6 +61,7 @@ export function projectGenesis001LinuxCensusStageDiagnostic(error: unknown, stag
 }
 function fail(diagnostic?: string): never {
   const error = Error('G001_LINUX_CENSUS_COLLECTION_FAILED');
+  OWN_CENSUS_FAILURES.add(error);
   if (diagnostic !== undefined && CENSUS_DIAGNOSTICS.has(diagnostic)) {
     Object.defineProperty(error, 'diagnostic', { value: diagnostic, enumerable: false });
   }
@@ -165,9 +171,15 @@ export async function collectGenesis001LinuxAdmittedCensus(connection: DbConnect
         const status = await withOperationTimeout(connection.procedures.adminGetAlphaStatusV3({}));
         if (identity(connection) !== caller || typeof status.allowedFids !== 'bigint'
           || typeof status.enabledAllowedFids !== 'bigint') fail('g001-admitted-aggregate');
+        // Reveal only the fixed state class; never project either live count.
+        if (status.allowedFids === 0n && status.enabledAllowedFids === 0n) fail('g001-admitted-aggregate-empty');
+        if (status.allowedFids > 0n && status.allowedFids <= BigInt(GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_ROWS)
+          && status.enabledAllowedFids >= 0n && status.enabledAllowedFids < status.allowedFids) {
+          fail('g001-admitted-aggregate-disabled');
+        }
         return { allowedFids: status.allowedFids.toString(), enabledAllowedFids: status.enabledAllowedFids.toString() };
       } catch (error) {
-        if (error instanceof Error && (error as Error & { diagnostic?: string }).diagnostic !== undefined) throw error;
+        if (existingCensusDiagnostic(error) !== undefined) throw error;
         fail('g001-admitted-aggregate');
       }
     },
@@ -179,7 +191,7 @@ export async function collectGenesis001LinuxAdmittedCensus(connection: DbConnect
       if (sql !== GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_SQL) fail('g001-admitted-enumeration');
       try { return await fixedFidQuery(connection, fetcher); }
       catch (error) {
-        if (error instanceof Error && (error as Error & { diagnostic?: string }).diagnostic !== undefined) throw error;
+        if (existingCensusDiagnostic(error) !== undefined) throw error;
         fail('g001-admitted-enumeration');
       }
     },
@@ -191,7 +203,7 @@ export async function collectGenesis001LinuxAdmittedCensus(connection: DbConnect
         if (identity(connection) !== caller) fail('g001-admitted-identity');
         return status;
       } catch (error) {
-        if (error instanceof Error && (error as Error & { diagnostic?: string }).diagnostic !== undefined) throw error;
+        if (existingCensusDiagnostic(error) !== undefined) throw error;
         fail('g001-admitted-status');
       }
     }, randomBytes,
@@ -199,20 +211,23 @@ export async function collectGenesis001LinuxAdmittedCensus(connection: DbConnect
     if (identity(connection) !== caller) fail('g001-admitted-identity');
     return result;
   } catch (error) {
-    if (error instanceof Error && (error as Error & { diagnostic?: string }).diagnostic !== undefined) throw error;
-    const code = error instanceof Error ? error.message : '';
-    if (code.includes('AGGREGATE')) fail('g001-admitted-reconciliation');
-    if (code.includes('FALLBACK')) fail('g001-admitted-status');
+    if (existingCensusDiagnostic(error) !== undefined) throw error;
+    // Match only exact collector codes; provider exception text is untrusted.
+    const code = error instanceof Genesis001AdmittedPlayerCensusError ? error.code : undefined;
+    if (code === 'GENESIS_001_ADMITTED_PLAYER_CENSUS_AGGREGATE_INVALID') fail('g001-admitted-aggregate-invalid');
+    if (code === 'GENESIS_001_ADMITTED_PLAYER_CENSUS_AGGREGATE_MISMATCH') fail('g001-admitted-aggregate-mismatch');
+    if (code === 'GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_STATUS_INVALID'
+      || code === 'GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_ADMISSION_INVALID') fail('g001-admitted-status');
     fail('g001-admitted-reconciliation');
   }
 }
 
 /** Keep a failed cross-domain sample check actionable without exposing either
- * private receipt. The public diagnostic names only the reconciliation gate. */
+ * private receipt. The public diagnostic names only the cross-proof gate. */
 export function reconcileGenesis001LinuxCensusSample(input: { applicant: unknown; admitted: unknown },
   sourceCommit: string) {
   try { return createGenesis001LinuxCensusSample(input, sourceCommit); }
-  catch { fail('g001-admitted-reconciliation'); }
+  catch { fail('g001-census-cross-proof'); }
 }
 
 type Session = ReturnType<typeof createGreaterRealmAdminTransportSession>;
@@ -237,6 +252,7 @@ export async function withGenesis001LinuxCensusConnection<T>(
       if (diagnostic === undefined) throw error;
       const boundary = new GreaterRealmProductionTransportError('G001_LINUX_CENSUS_COLLECTION_FAILED');
       Object.defineProperty(boundary, 'diagnostic', { value: diagnostic, enumerable: false });
+      OWN_CENSUS_FAILURES.add(boundary);
       throw boundary;
     }
   });

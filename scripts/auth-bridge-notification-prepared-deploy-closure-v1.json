@@ -570,7 +570,7 @@
     {
       "path": "scripts/genesis001-linux-census-operator.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5614db6e76c2efd884cca714b55cc018d334bb67a7d5a434ead4102ca1277bf8"
+      "sha256": "58d95a58badd8e88f94589dc0a24e759e28e51f3a395bfad09dd7de4eba985e9"
     },
     {
       "path": "scripts/genesis001-linux-freeze-receipt.d.mts",
@@ -585,17 +585,17 @@
     {
       "path": "scripts/genesis001-linux-policy-boundary.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "fd8f31c2f7aaef86b00916bfa1e32e327b3f0fbeeb27c5556481e443282c49be"
+      "sha256": "bd8a3edecc1d7897230b8fac1489b4b1df20b080df142eab570a6b78f51054f4"
     },
     {
       "path": "scripts/genesis001-linux-policy-boundary.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "059683b25f3216b728099ede8a060dac11725533e342f43824bbb949b275bfaf"
+      "sha256": "fb0fb5879fab934a5f5e704ac4e5e51c7212df42ccd619cef0d091b900b81246"
     },
     {
       "path": "scripts/genesis001-linux-policy-child.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "114d94c2c993dd5117027f95e0fd3cdf0bcd943a53e782b22dc23a5de215ba85"
+      "sha256": "14a019e45fb729e037957b8311dffbcd03cc75b1507a31e86d52805990677b62"
     },
     {
       "path": "scripts/genesis001-linux-policy-materializer.mjs",
@@ -610,7 +610,7 @@
     {
       "path": "scripts/genesis001-linux-policy-native.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "102b9a2e62e073409241c052d0ccc939ad0c98945eae1b6fe01b67cfaf90f6a1"
+      "sha256": "9b2f4a0c3c82b75a540414c81e9bc7866b58221e389e7ee6068aa20f2b920c4a"
     },
     {
       "path": "scripts/genesis001-linux-policy-receipt.d.mts",
@@ -1965,7 +1965,7 @@
     {
       "path": "scripts/sealed-realms-production-linux-preflight.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0723f33ee8267c696c69fea43c432c44bdd8bc3249942b82f50626e4a8bc1c5f"
+      "sha256": "c46272094c8a489b5f362301a30fe6502ed5eb6db3781a3570d7690eb5d5e0d5"
     },
     {
       "path": "scripts/sealed-realms-production-private-state.d.mts",
