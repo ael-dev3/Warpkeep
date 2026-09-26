@@ -510,7 +510,7 @@
     {
       "path": "scripts/genesis001-admitted-player-census.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c806cd4fa036eb9815399d499fdb33c444d64deeeb7b9cf9352f3fd022bd2fcb"
+      "sha256": "f00f2b21932b584606134c23838d4d5338a5dbe6f3b350fa1c878b514de76736"
     },
     {
       "path": "scripts/genesis001-binding-frozen-source.d.mts",
@@ -570,7 +570,7 @@
     {
       "path": "scripts/genesis001-linux-census-operator.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "58d95a58badd8e88f94589dc0a24e759e28e51f3a395bfad09dd7de4eba985e9"
+      "sha256": "2e5e1435711f2bc51b09dcc3d96cd051f5dc95b5de8eb537b421f49bb7f0e446"
     },
     {
       "path": "scripts/genesis001-linux-freeze-receipt.d.mts",
@@ -585,17 +585,17 @@
     {
       "path": "scripts/genesis001-linux-policy-boundary.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "bd8a3edecc1d7897230b8fac1489b4b1df20b080df142eab570a6b78f51054f4"
+      "sha256": "6840d08d7efbea90a6438a08d20f9e8997b4790596519496ab5aa9bfc288dd0b"
     },
     {
       "path": "scripts/genesis001-linux-policy-boundary.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "fb0fb5879fab934a5f5e704ac4e5e51c7212df42ccd619cef0d091b900b81246"
+      "sha256": "6fa134f98f8b45cc0c6274d3a1073fe546bb81b74a078e2dae9f2297d838ef60"
     },
     {
       "path": "scripts/genesis001-linux-policy-child.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "14a019e45fb729e037957b8311dffbcd03cc75b1507a31e86d52805990677b62"
+      "sha256": "d6c694cf56914e3f564a11a0b44354354927de1efc9312775d78c28c640f63ad"
     },
     {
       "path": "scripts/genesis001-linux-policy-materializer.mjs",
@@ -610,7 +610,7 @@
     {
       "path": "scripts/genesis001-linux-policy-native.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9b2f4a0c3c82b75a540414c81e9bc7866b58221e389e7ee6068aa20f2b920c4a"
+      "sha256": "98c5870d9421a8cefb6ccb5cabbce01f27df3d45bd1a3f7f8ba4a9476549fcbd"
     },
     {
       "path": "scripts/genesis001-linux-policy-receipt.d.mts",
@@ -1965,7 +1965,7 @@
     {
       "path": "scripts/sealed-realms-production-linux-preflight.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c46272094c8a489b5f362301a30fe6502ed5eb6db3781a3570d7690eb5d5e0d5"
+      "sha256": "65467c8686edbf2024feacb67c84d720c49f7c3c6142d71e489665ac8bf5919c"
     },
     {
       "path": "scripts/sealed-realms-production-private-state.d.mts",
