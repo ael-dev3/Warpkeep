@@ -1299,6 +1299,18 @@ describe('rendered WebGL headless browser probe contract', () => {
     await expect(applyRenderedWebglActiveWorkerInteraction({
       command: activeCommand
     })).resolves.toEqual(activeEvidence);
+    const diagnosticCommand = vi.fn(async () => ({
+      result: {
+        type: 'object',
+        value: {
+          ...activeEvidence,
+          localDiagnostics: { resourceSearchApplied: true }
+        }
+      }
+    }));
+    await expect(applyRenderedWebglActiveWorkerInteraction({
+      command: diagnosticCommand
+    })).resolves.toEqual(activeEvidence);
     const activeEvaluation = activeCommand.mock.calls.find(([method]) => (
       method === 'Runtime.evaluate'
     ));
@@ -1320,6 +1332,11 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(activeExpression).toContain(
       '[data-resource-kind="gold"][data-resource-state="occupied"]'
     );
+    expect(activeExpression).toContain(
+      "nativeValueSetter.call(searchInput, 'occupied')"
+    );
+    expect(activeExpression).toContain('resourceSectionExpanded');
+    expect(activeExpression).toContain('occupiedGoldButtons.length === 2');
     expect(activeExpression).toContain(
       "navigator.querySelector('.realm-cell-navigator__jump') === null"
     );

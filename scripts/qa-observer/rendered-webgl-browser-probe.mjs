@@ -8711,13 +8711,14 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
       const commandBounds = commandCenter instanceof HTMLElement
         ? commandCenter.getBoundingClientRect()
         : undefined;
-      const mobileBoundsSafe = innerWidth === 390
-        && innerHeight === 844
-        && commandBounds !== undefined
+      const commandBoundsSafe = commandBounds !== undefined
         && commandBounds.left >= -1
         && commandBounds.top >= -1
         && commandBounds.right <= innerWidth + 1
-        && commandBounds.bottom <= innerHeight + 1
+        && commandBounds.bottom <= innerHeight + 1;
+      const mobileBoundsSafe = innerWidth === 390
+        && innerHeight === 844
+        && commandBoundsSafe
         && document.documentElement.scrollWidth <= innerWidth + 1;
       const back = commandCenter?.querySelector(
         'button[aria-label="Back to Realm menu"]'
@@ -8740,16 +8741,41 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
       const navigatorReady = await waitFor(() => visible(
         document.querySelector('.realm-cell-navigator__dialog')
       ));
-      const navigator = document.querySelector('.realm-cell-navigator__dialog');
-      const semanticResourceButton = [...(navigator?.querySelectorAll(
+      let navigator = document.querySelector('.realm-cell-navigator__dialog');
+      const searchInput = navigator?.querySelector('input[type="search"]');
+      const nativeValueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype, 'value'
+      )?.set;
+      let resourceSearchApplied = false;
+      if (searchInput instanceof HTMLInputElement
+        && visible(searchInput)
+        && typeof nativeValueSetter === 'function') {
+        searchInput.focus({ preventScroll: true });
+        nativeValueSetter.call(searchInput, 'occupied');
+        resourceSearchApplied = searchInput.dispatchEvent(new InputEvent(
+          'input', { bubbles: true, inputType: 'insertText', data: 'occupied' }
+        )) && searchInput.value === 'occupied';
+      }
+      const resourceSectionExpanded = resourceSearchApplied && await waitFor(() => (
+        document.querySelector(
+          '.realm-cell-navigator__dialog [data-realm-explore-section="resources"]'
+        )
+          ?.getAttribute('aria-expanded') === 'true'
+      ));
+      navigator = document.querySelector('.realm-cell-navigator__dialog');
+      const resourceMoreAvailable = navigator?.querySelector(
+        '.realm-cell-navigator__resources .realm-cell-navigator__section-more'
+      ) instanceof HTMLButtonElement;
+      const occupiedGoldButtons = [...(navigator?.querySelectorAll(
         '.realm-cell-navigator__resource-site'
           + '[data-resource-kind="gold"][data-resource-state="occupied"]'
-      ) ?? [])].find((button) => (
+      ) ?? [])].filter((button) => (
         button instanceof HTMLButtonElement
         && !button.disabled
         && (button.getAttribute('aria-label') ?? '').trim().length > 0
         && visible(button)
       ));
+      const semanticResourceButton = occupiedGoldButtons[0];
       if (semanticResourceButton instanceof HTMLButtonElement) {
         semanticResourceButton.scrollIntoView({
           behavior: 'instant',
@@ -8772,6 +8798,9 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
         : '';
       const semanticResourceNavigationSafe = navigatorReady
         && navigator instanceof HTMLElement
+        && resourceSearchApplied
+        && resourceSectionExpanded
+        && occupiedGoldButtons.length === 2
         && navigator.querySelector('.realm-cell-navigator__jump') === null
         && semanticResourceButton instanceof HTMLButtonElement
         && semanticResourceBounds !== undefined
@@ -8841,8 +8870,7 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
       const privacyNodes = [commandCenter, semanticInspector].filter((node) => (
         node instanceof HTMLElement
       ));
-      const privacyBounded = privacyNodes.length === 2
-        && privacyNodes.every((root) => (
+      const privacyAttributesSafe = privacyNodes.every((root) => (
           [root, ...root.querySelectorAll('*')].every((element) => (
             [...element.attributes].every((attribute) => (
               !/(?:^|[-_:])(?:fid|wallet|token|proof|auth|request)(?:$|[-_:])/i
@@ -8851,6 +8879,8 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
             ))
           ))
         ));
+      const privacyBounded = privacyNodes.length === 2
+        && privacyAttributesSafe;
       const semanticInspectorClose = semanticInspector?.querySelector(
         '.gold-mine-inspection__dismiss'
       );
@@ -8906,7 +8936,31 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
         ownerRosterExact,
         privacyBounded,
         rendererContextRecovered,
-        rendererStable: rendererContextRecovered && rendererHealthy()
+        rendererStable: rendererContextRecovered && rendererHealthy(),
+        ...(${process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1'} ? {
+          localDiagnostics: {
+            commandBoundsSafe,
+            viewportWidth: innerWidth,
+            viewportHeight: innerHeight,
+            documentScrollWidth: document.documentElement.scrollWidth,
+            commandLeft: commandBounds?.left ?? null,
+            commandTop: commandBounds?.top ?? null,
+            commandRight: commandBounds?.right ?? null,
+            commandBottom: commandBounds?.bottom ?? null,
+            navigatorReady,
+            resourceSearchApplied,
+            resourceSectionExpanded,
+            resourceMoreAvailable,
+            occupiedGoldSiteCountExact: occupiedGoldButtons.length === 2,
+            semanticResourceButtonFound: semanticResourceButton instanceof HTMLButtonElement,
+            semanticResourceNavigationSafe,
+            semanticInspectorReady,
+            semanticForeignRecordReady,
+            privacyNodesPresent: privacyNodes.length === 2,
+            privacyAttributesSafe,
+            semanticNavigationSettled,
+          }
+        } : {})
       };
     })()`,
     awaitPromise: true,
@@ -8915,7 +8969,44 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
   if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
     throw new Error('Rendered WebGL active Worker evaluation failed.');
   }
-  return evaluation.result.value;
+  const raw = evaluation.result.value;
+  if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
+    const keys = [
+      'commandBoundsSafe',
+      'navigatorReady',
+      'resourceSearchApplied',
+      'resourceSectionExpanded',
+      'resourceMoreAvailable',
+      'occupiedGoldSiteCountExact',
+      'semanticResourceButtonFound',
+      'semanticResourceNavigationSafe',
+      'semanticInspectorReady',
+      'semanticForeignRecordReady',
+      'privacyNodesPresent',
+      'privacyAttributesSafe',
+      'semanticNavigationSettled',
+    ];
+    const diagnostics = raw?.localDiagnostics;
+    const bounded = Object.fromEntries(keys.map((key) => [
+      key, diagnostics?.[key] === true,
+    ]));
+    const boundedNumber = (value) => Number.isFinite(value)
+      && value >= -10_000 && value <= 10_000
+      ? Math.round(value) : null;
+    for (const key of [
+      'viewportWidth', 'viewportHeight', 'documentScrollWidth',
+      'commandLeft', 'commandTop', 'commandRight', 'commandBottom',
+    ]) bounded[key] = boundedNumber(diagnostics?.[key]);
+    process.stderr.write(
+      `Local synthetic active Worker stage booleans: ${JSON.stringify(bounded)}\n`
+    );
+  }
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const evidence = { ...raw };
+    delete evidence.localDiagnostics;
+    return evidence;
+  }
+  return raw;
 }
 
 export async function applyRenderedWebglActiveWorkerReconnectInteraction(session) {

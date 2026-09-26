@@ -124,6 +124,13 @@
   animation-name: realm-surface-content-replace;
 }
 
+/* This panel fills the compact viewport. Sliding its outer shell exposes a
+   clipped edge during navigation, so keep the shell in place while it fades. */
+.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
+  .worker-command-center {
+  animation-name: realm-surface-content-replace;
+}
+
 .realm-map-screen[data-realm-surface-depth]:not([data-realm-surface-depth="0"])
   :is(
     .realm-map-screen__canvas,

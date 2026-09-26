@@ -167,6 +167,18 @@ describe('shared Warpkeep surface system', () => {
     expect(combined).not.toMatch(/animation[^;]*filter/);
   });
 
+  it('keeps the full-viewport Worker panel inside mobile bounds during navigation', () => {
+    const map = css('src/components/realm/RealmMapScreen.css');
+    const selector = '.realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]\n  .worker-command-center {';
+    const workerPanelMotion = firstBlock(map, selector);
+
+    expect(map.indexOf(selector)).toBeGreaterThan(
+      map.indexOf('.realm-map-screen[data-realm-surface-motion="replace"]')
+    );
+    expect(workerPanelMotion).toContain('animation-name: realm-surface-content-replace;');
+    expect(workerPanelMotion).not.toContain('transform:');
+  });
+
   it('keeps persistent player chrome visually unboxed until the profile menu opens', () => {
     const source = css('src/components/realm/RealmPlayerChrome.css');
     const profileTrigger = firstBlock(source, '.realm-profile-trigger {');
