@@ -194,6 +194,7 @@ export async function inspectSealedRealmsProductionBridgeProvider(options) {
   const contract = authBridgeNotificationPreparedVersionContract({
     accountId: config.accountId, zoneId: config.zoneId,
     sourceCommit: state.sourceCommit, sourceDigest: first.upload.sourceDigest,
+    recoveryObserver: first.upload.recoveryObserver === true,
     beforeModes: {
       bridgeSourceCommit: AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
       publicAuthEnabled: first.receipt.publicAuthEnabledBefore,

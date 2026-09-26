@@ -76,7 +76,7 @@ function environment() {
   };
 }
 
-function fixture() {
+function fixture(recoveryObserver = false) {
   const temporaryRoot = realpathSync(tmpdir());
   const home = mkdtempSync(join(temporaryRoot, 'warpkeep-bridge-provider-'));
   cleanups.push(() => {
@@ -113,7 +113,8 @@ function fixture() {
       predecessorDigest: null, runId: '42', runAttempt: 1,
       completedAt: '2026-09-12T09:00:00.000Z', sourceCommit: SOURCE, workerVersionId: VERSION },
     upload: { sourceCommit: SOURCE, workerVersionId: VERSION, sourceDigest: SOURCE_DIGEST,
-      uploadRecordDigest: '4'.repeat(64), completedJournalHeadDigest: '3'.repeat(64), journalHeadDigest: '3'.repeat(64) },
+      uploadRecordDigest: '4'.repeat(64), completedJournalHeadDigest: '3'.repeat(64), journalHeadDigest: '3'.repeat(64),
+      ...(recoveryObserver ? { recoveryObserver: true } : {}) },
     source: { workerVersionId: VERSION, bridgeSourceCommit: SOURCE, sourceDigest: SOURCE_DIGEST,
       ptrDatabaseIdentity: PTR, oldestObservedAt: NOW.toISOString(), inspectedAt: NOW.toISOString() },
     live: { deploymentId: DEPLOYMENT, workerVersionId: VERSION, bridgeSourceCommit: SOURCE,
@@ -158,6 +159,7 @@ const consume = (f: Fixture, provider: Provider, observation: Awaited<ReturnType
 function httpFixture(f: Fixture) {
   const contract = authBridgeNotificationPreparedVersionContract({ accountId: ACCOUNT, zoneId: ZONE,
     sourceCommit: SOURCE, sourceDigest: SOURCE_DIGEST,
+    recoveryObserver: f.upload.recoveryObserver === true,
     beforeModes: { bridgeSourceCommit: AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
       publicAuthEnabled: true, accessExpectedFidRequired: false },
   }) as unknown as { variables: Record<string, string>; secretBindingNames: string[] };
@@ -509,8 +511,8 @@ describe('sealed bridge shared observation authority', () => {
     },
   );
 
-  it('creates the first durable authority from shared provider facts without a previous chain', async () => {
-    const f = fixture(); const { provider, fetchImpl } = httpFixture(f);
+  it.each([false, true])('creates the first durable authority from observer=%s provider facts', async recoveryObserver => {
+    const f = fixture(recoveryObserver); const { provider, fetchImpl } = httpFixture(f);
     expect(f.privateState.list({ root: 'runtime', relativeDirectory: 'bridge' })).toEqual([]);
     const state = createSealedRealmsProductionAuthBridgeState(f.bridgeOptions(provider) as never);
     await expect(state.establish()).resolves.toEqual({ ready: true });
@@ -529,6 +531,31 @@ describe('sealed bridge shared observation authority', () => {
     expect(fetchImpl.mock.calls.some(([url]) => String(url).includes('/content/v2?'))).toBe(true);
     expect(fetchImpl.mock.calls.some(([url]) => String(url).endsWith('/v1/admin/config-attestation'))).toBe(true);
     expect(f.inspectSource).not.toHaveBeenCalled(); expect(f.inspectLive).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['missing RPC secret', 'RELEASE_RECOVERY_RPC_SECRET', null],
+    ['wrong G002 identity', 'GENESIS_002_SPACETIMEDB_DATABASE', 'f'.repeat(64)],
+    ['wrong source', 'RELEASE_RECOVERY_BRIDGE_SOURCE_COMMIT', 'f'.repeat(40)],
+    ['wrong epoch', 'RELEASE_RECOVERY_BRIDGE_CONFIG_EPOCH', '2'],
+  ] as const)('rejects observer %s through the real HTTP parser', async (_kind, bindingName, replacement) => {
+    const f = fixture(true); const http = httpFixture(f);
+    http.state.version.resources.bindings = replacement === null
+      ? http.state.version.resources.bindings.filter(binding => binding.name !== bindingName)
+      : http.state.version.resources.bindings.map(binding => binding.name === bindingName
+        ? { ...binding, text: replacement } : binding);
+    await expect(inspect(f, http.provider)).rejects.toThrow('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_BINDING_MISMATCH');
+    expect(f.privateState.list({ root: 'runtime', relativeDirectory: 'bridge' })).toEqual([]);
+    expect(http.fetchImpl.mock.calls.some(([url]) => String(url).endsWith('/v1/admin/config-attestation'))).toBe(false);
+  });
+
+  it('rejects observer marker drift between the source and final authority reads', async () => {
+    const f = fixture(true); const provider = f.provider();
+    f.resolveUpload.mockImplementation(async () => ({ ...f.upload,
+      ...(f.resolveUpload.mock.calls.length > 1 ? { recoveryObserver: false } : {}) }));
+    await expect(inspect(f, provider)).rejects.toThrow('AUTHORITY_DRIFT');
+    expect(f.inspectSource).toHaveBeenCalledOnce();
+    expect(f.inspectLive).toHaveBeenCalledOnce();
   });
 
   it.each([

@@ -1910,7 +1910,7 @@
     {
       "path": "scripts/sealed-realms-production-bridge-provider.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "40fdb0a1228940e68569b0f958f3c5b70756a06241aad8eb9a962099341a4a04"
+      "sha256": "2bddbe67badf187b88f4c1c61dd75057e2e4e83d93e81f3aa489c78c909e58b0"
     },
     {
       "path": "scripts/sealed-realms-production-bundle-engine.d.mts",

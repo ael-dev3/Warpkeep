@@ -2,41 +2,44 @@
 
 ## Current checkpoint — 26 September 2026
 
-Protected `main` is generated-only M2
-[`66fb09347e10da0d3c9185e54e41eb5b76b7d96b`](https://github.com/ael-dev3/Warpkeep/commit/66fb09347e10da0d3c9185e54e41eb5b76b7d96b),
-merged through [PR #364](https://github.com/ael-dev3/Warpkeep/pull/364).
-Its exact-main [Verify run 36171308852](https://github.com/ael-dev3/Warpkeep/actions/runs/36171308852)
-and [CodeQL run 36171308764](https://github.com/ael-dev3/Warpkeep/actions/runs/36171308764)
-passed. [PR #365](https://github.com/ael-dev3/Warpkeep/pull/365) is the next
-source-only M1 for renderer recovery and local rendered QA. An earlier signed
-[`28a393dcfe63686d69e42ac53701d6bd92a7bccb`](https://github.com/ael-dev3/Warpkeep/commit/28a393dcfe63686d69e42ac53701d6bd92a7bccb)
-checkpoint includes the independently reproduced and policy-checked 16-file
-prepared source-closure family. The later QA corrections isolate core cases
-from emergency-tier state and strengthen transition visual evidence. Recheck
-the closure on the exact final committed source and require all checks on that
-PR head. Passing checks on `28a393dc` do not validate later edits. The branch
-is not a protected release input until reviewed, checked and merged.
+Protected `main` is source-only M1
+[`6abc80b99ca4f9d5eb2d7d41941b32187fe5a872`](https://github.com/ael-dev3/Warpkeep/commit/6abc80b99ca4f9d5eb2d7d41941b32187fe5a872),
+merged through [PR #365](https://github.com/ael-dev3/Warpkeep/pull/365).
+All final-head PR checks passed; GitHub verified the protected merge signature,
+and its tree equals the reviewed signed source tree. Its exact-main
+[Verify run 36239803041](https://github.com/ael-dev3/Warpkeep/actions/runs/36239803041)
+and [CodeQL run 36239803103](https://github.com/ael-dev3/Warpkeep/actions/runs/36239803103)
+are the exact-main gates; CodeQL passed and Verify was still running at this
+checkpoint. Windows and native WSL checkouts were clean at that merge.
+The full local rendered WebGL matrix passed on the reviewed source, including
+real Worker locomotion, mobile touch, journey, occupancy and castle LOD.
 
-No protected G001 operation has run on `66fb0934`. The most recent census
+Review of the next release readback found that the prepared bridge uploads an
+observer-enabled Worker, but the production bridge provider reconstructed its
+source contract with the legacy observer-disabled default. The narrow correction
+derives that mode from the authenticated upload record and tests both variants
+through the real HTTP parser. Integrate this source-only correction through
+normal protected review, refresh its complete prepared source closure, and use
+the resulting protected M1 for native preparation. The current `6abc80b9`
+source is an intermediate checkpoint, not the final compiler input.
+
+No protected G001 operation has run on `6abc80b9`. The most recent census
 [run 36145018339](https://github.com/ael-dev3/Warpkeep/actions/runs/36145018339)
-failed closed on older `7a598435` without a validated baseline receipt. Do not
-reuse that identity or interpret its old ambient marker as a current credential
-blocker. The [Pages run 36177192717](https://github.com/ael-dev3/Warpkeep/actions/runs/36177192717)
+failed closed on older `7a598435` before its operator, with a generic workflow
+phase and no validated baseline receipt. Its bounded result does not identify a
+precise subcause; do not reuse that identity or infer a credential blocker.
+The [Pages run 36177192717](https://github.com/ael-dev3/Warpkeep/actions/runs/36177192717)
 classified successfully, but every build/deploy/live-verification job was
 skipped because the sealed G002 release gate is unmet; no PTR deployment is
 claimed. The production runner is online; no new GitHub App key is required.
 
-The complete local rendered WebGL matrix passed after isolating the core
-visual tier and strengthening the transition visual gate, including real
-Worker locomotion evidence, mobile touch profiles, journey, occupancy and
-castle LOD. This is local evidence, not live PTR acceptance. Before PR #365
-merges, confirm the closure against its exact final committed source, require
-final-head checks and retain the reviewed PR history as documented in the
+The rendered matrix is local evidence, not live PTR acceptance. After the
+bridge-provider correction merges, verify its signed exact-main M1, reviewed
+tree and push Verify/CodeQL. On a clean idle native WSL checkout, prepare and
+independently check the authenticated output family from that exact M1.
+Promote only the complete generated family through protected M2 and require
+its exact-main Verify/CodeQL. Follow the
 [native preparation guide](../../operations/0.4.0-local-release-preparation.md#source-only-m1-before-native-release-preparation).
-After PR #365 merges, verify its signed exact-main M1 and push Verify/CodeQL.
-On a clean idle native WSL checkout, prepare and independently check the
-authenticated output family from that exact M1. Promote only the complete
-generated family through protected M2 and require its exact-main Verify/CodeQL.
 Only then run fresh protected preflight, G001 policy observation and one new
 census identity in order. A successful census must supply a validated baseline
 before any preservation or deployment mutation. Follow the
@@ -81,7 +84,8 @@ and a fresh exact-source read-only policy observation
 [36144753078](https://github.com/ael-dev3/Warpkeep/actions/runs/36144753078)
 completed. Census retry
 [36145018339](https://github.com/ael-dev3/Warpkeep/actions/runs/36145018339)
-failed before the operator at the same ambient marker. Preserve all attempts;
+failed before the operator in the Node workflow phase; its bounded result does
+not identify the underlying stage. Preserve all attempts;
 do not inspect private census rows or reuse either census identity.
 
 PR #362 removes the duplicate ambient-variable rejection from the five
@@ -1344,12 +1348,13 @@ the retired prepared-keep branch. Use
 the current live PR head for the latest source; a development push is not a
 release or a pass for checks still running.
 
-The next service integration needs a guarded successor to the existing
-notification-prepared bridge deployer. That historical adapter can install PTR
-and canary settings but cannot supply the recovery observer bindings. Preserve
-its authenticated predecessor, public modes and existing secrets; install the
-observer configuration, disabled private signer and secretless gateway in that
-order. The existing recovery key, RPC secret and census pepper must be reused.
+At this historical checkpoint, the bridge deployer could install PTR and canary
+settings but not recovery observer bindings. Later source added the observer to
+the same preserving prepared upload; the current Linux caller supplies both
+managed observer secrets. Do not create another bridge successor from this old
+note. After the accepted prepared upload, deploy the disabled private signer
+and secretless gateway in that order using the existing recovery key and RPC
+secret. The bridge also reuses the existing census pepper.
 Full bootstrap verification still lacks the local canary owner carrier. A bounded
 metadata/provenance audit found no retained authenticated owner record from which
 to reconstruct it. The public Mini App association and expected-FID boolean serve
