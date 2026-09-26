@@ -294,7 +294,7 @@ export type RenderedWebglWorkerLocomotionEvidence = Readonly<{
   emergencyQuality: 'none';
   fallbackCount: 0;
   fixtureSelected: true;
-  modelCount: 3;
+  modelCount: 3 | 4;
   movementPixels: Readonly<{
     outbound: number;
     returning: number;
@@ -315,13 +315,22 @@ export type RenderedWebglWorkerLocomotionEvidence = Readonly<{
   }>[];
   viewportHeight: 1080 | 900 | 375 | 844;
   viewportWidth: 1920 | 1440 | 667 | 390;
-  visibleProjectionCount: 1 | 2;
+  visibleProjectionCount: 1 | 2 | 3;
   wheelDrivenCount: number;
 }>;
 
 export function parseRenderedWebglWorkerLocomotionEvidence(
   value: unknown
 ): RenderedWebglWorkerLocomotionEvidence;
+
+/** QA-only execution seam; counts validated cases even without a callback. */
+export function runRenderedWebglWorkerLocomotionEvidenceCases(
+  cases: readonly RenderedWebglWorkerLocomotionProbeCase[],
+  runCase: (
+    probeCase: RenderedWebglWorkerLocomotionProbeCase
+  ) => Promise<unknown>,
+  onEvidence?: (evidence: RenderedWebglWorkerLocomotionEvidence) => void
+): Promise<number>;
 
 export function applyRenderedWebglWorkerLocomotionInteraction(
   session: RenderedWebglCastleCanvasPointerSession,

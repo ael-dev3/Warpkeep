@@ -322,6 +322,7 @@ const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
 const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPEC_BY_ID = new Map(
   RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS.map((spec) => [spec.id, spec])
 );
+const WORKER_LOCOMOTION_LOCAL_DIAGNOSTICS = new WeakMap();
 export const RENDERED_WEBGL_QA_CASE_COUNT = 15;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT = 312;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_PRESENCES = 400;
@@ -9310,53 +9311,101 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
           canvas.getAttribute('data-realm-camera-state-token') ?? ''
         )
       );
+      const visibleSurface = (element) => {
+        if (!(element instanceof HTMLElement)
+          || !['dialog', 'region'].includes(element.getAttribute('role'))) return false;
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0
+          && bounds.width > 0
+          && bounds.height > 0;
+      };
+      const surfacesClosed = () => (
+        document.querySelector('.worker-inspection') === null
+        && document.querySelector('.worker-command-center') === null
+        && document.querySelector('.realm-profile-menu__panel') === null
+      );
+      const emptyLocateGates = () => ({
+        triggerReady: false,
+        workersControlReady: false,
+        rosterReady: false,
+        workerButtonReady: false,
+        locateReady: false,
+        surfacesClosed: false,
+        cameraSettled: false,
+        projectionVisible: false,
+      });
+      const locateGates = {
+        outbound: emptyLocateGates(),
+        returning: emptyLocateGates(),
+      };
       const closeWorkerSurfaces = async () => {
+        if (await waitFor(surfacesClosed, 250)) return true;
         const workerBack = document.querySelector(
           '.worker-inspection__dismiss[aria-label="Back to workers"]'
         );
         if (workerBack instanceof HTMLButtonElement) workerBack.click();
-        await waitFor(() => document.querySelector(
-          '.worker-command-center[role="dialog"]'
-        ) instanceof HTMLElement, 2_000);
+        if (!await waitFor(() => surfacesClosed() || visibleSurface(
+          document.querySelector('.worker-command-center')
+        ), 2_000)) return false;
+        if (surfacesClosed()) return true;
         const menuBack = document.querySelector(
           '.worker-command-center button[aria-label="Back to Realm menu"]'
         );
         if (menuBack instanceof HTMLButtonElement) menuBack.click();
-        await waitFor(() => document.querySelector(
-          '.realm-profile-menu__panel[role="dialog"]'
-        ) instanceof HTMLElement, 2_000);
+        if (!await waitFor(() => surfacesClosed() || visibleSurface(
+          document.querySelector('.realm-profile-menu__panel')
+        ), 2_000)) return false;
+        if (surfacesClosed()) return true;
         const menuClose = document.querySelector(
           '.realm-profile-menu__panel button[aria-label="Close Realm menu"]'
         );
         if (menuClose instanceof HTMLButtonElement) menuClose.click();
-        return waitFor(() => (
-          document.querySelector('.worker-inspection') === null
-          && document.querySelector('.worker-command-center') === null
-          && document.querySelector('.realm-profile-menu__panel') === null
-        ), 2_000);
+        return waitFor(surfacesClosed, 2_000);
       };
       const locateMovingWorker = async (target) => {
+        const gates = locateGates[target.phase];
         const profileTrigger = document.querySelector('.realm-profile-trigger');
         if (!(profileTrigger instanceof HTMLButtonElement)) return false;
+        gates.triggerReady = true;
         profileTrigger.click();
         const workersReady = await waitFor(() => (
           document.querySelector(
-            '.realm-profile-menu__worker-actions button[aria-haspopup="dialog"]'
+            '.realm-profile-menu__worker-actions '
+              + 'button[data-realm-focus-key="commands:workers"]'
+              + '[aria-controls="realm-worker-command-center"]'
           ) instanceof HTMLButtonElement
         ), 2_000);
         if (!workersReady) return false;
         const workersButton = document.querySelector(
-          '.realm-profile-menu__worker-actions button[aria-haspopup="dialog"]'
+          '.realm-profile-menu__worker-actions '
+            + 'button[data-realm-focus-key="commands:workers"]'
+            + '[aria-controls="realm-worker-command-center"]'
         );
         if (!(workersButton instanceof HTMLButtonElement) || workersButton.disabled) {
           return false;
         }
+        workersButton.scrollIntoView({ behavior: 'instant', block: 'center' });
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        const workerButtonBounds = workersButton.getBoundingClientRect();
+        if (!visibleSurface(document.querySelector('.realm-profile-menu__panel'))
+          || workerButtonBounds.width <= 0
+          || workerButtonBounds.height <= 0
+          || workerButtonBounds.right <= 0
+          || workerButtonBounds.bottom <= 0
+          || workerButtonBounds.left >= innerWidth
+          || workerButtonBounds.top >= innerHeight) return false;
+        gates.workersControlReady = true;
         workersButton.click();
         const rosterReady = await waitFor(() => (
-          document.querySelector('.worker-command-center__worker')
+          visibleSurface(document.querySelector('.worker-command-center'))
+          && document.querySelector('.worker-command-center__worker')
             instanceof HTMLButtonElement
         ), 2_000);
         if (!rosterReady) return false;
+        gates.rosterReady = true;
         const workerButton = [...document.querySelectorAll(
           '.worker-command-center__worker'
         )].find((button) => (
@@ -9368,6 +9417,7 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
         if (!(workerButton instanceof HTMLButtonElement) || workerButton.disabled) {
           return false;
         }
+        gates.workerButtonReady = true;
         workerButton.click();
         const locateReady = await waitFor(() => (
           document.querySelector('.worker-inspection__locate')
@@ -9378,14 +9428,20 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
         if (!(locateButton instanceof HTMLButtonElement) || locateButton.disabled) {
           return false;
         }
+        gates.locateReady = true;
         locateButton.click();
         const surfacesClosed = await closeWorkerSurfaces();
+        gates.surfacesClosed = surfacesClosed;
         const settled = surfacesClosed && await waitFor(() => (
           cameraSettled()
           && visibleRootProjections().some(
             ({ phase }) => phase === target.phase
           )
         ), 5_000);
+        gates.cameraSettled = cameraSettled();
+        gates.projectionVisible = visibleRootProjections().some(
+          ({ phase }) => phase === target.phase
+        );
         return settled
           ? canvas.getAttribute('data-realm-camera-state-token')
           : false;
@@ -9558,7 +9614,25 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
         viewportHeight: innerHeight,
         viewportWidth: innerWidth,
         visibleProjectionCount: finalRoots.length,
-        wheelDrivenCount: counts.wheelDrivenCount
+        wheelDrivenCount: counts.wheelDrivenCount,
+        ...(${process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1'} ? {
+          localDiagnostics: {
+            rendererHealthy: rendererHealthy(),
+            fixtureSelected: fixtureSelected(),
+            motionPreferenceMatches: matchMedia('(prefers-reduced-motion: reduce)')
+              .matches === expected.reducedMotion,
+            viewportExact: innerWidth === expected.viewportWidth
+              && innerHeight === expected.viewportHeight,
+            countsExact: exactCountsReady(),
+            compactChromeMode: map?.dataset.realmChromeMode === 'compact-web',
+            assetTimingEntryPresent: approvedAssetLoaded(),
+            baseReadinessSatisfied,
+            phaseReadinessSatisfied,
+            regionalSelectionStable,
+            outbound: locateGates.outbound,
+            returning: locateGates.returning,
+          }
+        } : {})
       };
     })()`,
     awaitPromise: true,
@@ -9567,7 +9641,18 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
   if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
     throw new Error('Rendered WebGL Worker locomotion evaluation failed.');
   }
-  return evaluation.result.value;
+  const raw = evaluation.result.value;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const evidence = { ...raw };
+    delete evidence.localDiagnostics;
+    if (raw.localDiagnostics) {
+      WORKER_LOCOMOTION_LOCAL_DIAGNOSTICS.set(
+        evidence, raw.localDiagnostics
+      );
+    }
+    return evidence;
+  }
+  return raw;
 }
 
 export async function applyRenderedWebglOccupancyStressInteraction(session) {
@@ -9888,11 +9973,15 @@ async function runRenderedWorkerLocomotionCase(session, probeCase, state) {
   });
   state.workerAssetPath = probeCase.workerLocomotion.assetPath;
   state.workerAssetRequestIds.clear();
+  state.workerAssetRequestRecords.clear();
   state.workerAssetRequestEvidence = {
     requested: false,
     failed: false,
     responseStatus: null,
     completed: false,
+    servedFromCache: false,
+    responseFromDiskCache: false,
+    responseFromServiceWorker: false,
   };
   const emergencyQualityReset = await session.command(
     'Page.addScriptToEvaluateOnNewDocument',
@@ -9921,29 +10010,53 @@ async function runRenderedWorkerLocomotionCase(session, probeCase, state) {
     await applyRenderedWebglWorkerLocomotionInteraction(session, probeCase);
   // Resource Timing can omit the GLB entry. The exact-path CDP
   // request/response/completion proves the load independently.
-  const assetNetworkVerified = state.workerAssetRequestEvidence.requested
-    && state.workerAssetRequestEvidence.responseStatus === 200
-    && state.workerAssetRequestEvidence.completed
-    && !state.workerAssetRequestEvidence.failed;
+  const assetNetworkVerified = [...state.workerAssetRequestRecords.values()]
+    .some((request) => request.responseStatus === 200
+      && request.completed && !request.failed);
   const attestedEvidence = {
     ...rawEvidence,
     approvedAssetLoaded: rawEvidence?.approvedAssetLoaded === true
       || assetNetworkVerified,
   };
-  let evidence;
-  try {
-    evidence = parseRenderedWebglWorkerLocomotionEvidence(attestedEvidence);
-  } catch (error) {
-    if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
-      process.stderr.write(
-        `Local synthetic Worker locomotion evidence: ${JSON.stringify({
-          evidence: rawEvidence,
-          assetRequest: state.workerAssetRequestEvidence,
-        })}\n`
-      );
-    }
-    throw error;
+  if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
+    const rawGates = WORKER_LOCOMOTION_LOCAL_DIAGNOSTICS.get(rawEvidence);
+    const gateKeys = [
+      'rendererHealthy', 'fixtureSelected', 'motionPreferenceMatches',
+      'viewportExact', 'countsExact', 'compactChromeMode',
+      'assetTimingEntryPresent', 'baseReadinessSatisfied',
+      'phaseReadinessSatisfied', 'regionalSelectionStable',
+    ];
+    const locateKeys = [
+      'triggerReady', 'workersControlReady', 'rosterReady',
+      'workerButtonReady', 'locateReady', 'surfacesClosed',
+      'cameraSettled', 'projectionVisible',
+    ];
+    const flags = (value, keys) => Object.fromEntries(keys.map((key) => [
+      key, value?.[key] === true,
+    ]));
+    const stages = flags(rawGates, gateKeys);
+    stages.outbound = flags(rawGates?.outbound, locateKeys);
+    stages.returning = flags(rawGates?.returning, locateKeys);
+    process.stderr.write(
+      `Local synthetic Worker readiness: ${JSON.stringify({
+        caseId: probeCase.id,
+        asset: {
+          timingEntry: rawEvidence?.approvedAssetLoaded === true,
+          exactCompleted200: assetNetworkVerified,
+          requestCount: Math.min(state.workerAssetRequestRecords.size, 10),
+          ...state.workerAssetRequestEvidence,
+        },
+        counts: {
+          animated: rawEvidence?.animatedCount,
+          model: rawEvidence?.modelCount,
+          wheelDriven: rawEvidence?.wheelDrivenCount,
+        },
+        readinessSatisfied: rawEvidence?.readinessSatisfied === true,
+        stages,
+      })}\n`
+    );
   }
+  const evidence = parseRenderedWebglWorkerLocomotionEvidence(attestedEvidence);
   const finalVisual = await captureRenderedCasePixels(
     session,
     probeCase.viewport,
@@ -9968,6 +10081,42 @@ async function runRenderedWorkerLocomotionCase(session, probeCase, state) {
     throw new Error('Rendered WebGL Worker locomotion left the local QA boundary.');
   }
   return evidence;
+}
+
+/** Counts only completed, validated Worker evidence; a missing observer must
+ * never suppress the browser case itself. This QA seam is also exercised with
+ * a fake case executor in the focused contract test.
+ */
+export async function runRenderedWebglWorkerLocomotionEvidenceCases(
+  cases,
+  runCase,
+  onEvidence,
+) {
+  if (!Array.isArray(cases)
+    || typeof runCase !== 'function'
+    || (onEvidence !== undefined && typeof onEvidence !== 'function')
+    || new Set(cases.map((probeCase) => probeCase?.id)).size !== cases.length
+  ) throw new TypeError('Invalid rendered Worker locomotion execution lane.');
+  for (const probeCase of cases) workerLocomotionSpecForProbeCase(probeCase);
+  let completed = 0;
+  for (const probeCase of cases) {
+    try {
+      const evidence = parseRenderedWebglWorkerLocomotionEvidence(
+        await runCase(probeCase)
+      );
+      if (evidence.caseId !== probeCase.id) {
+        throw new Error('Rendered Worker locomotion case evidence ID mismatched.');
+      }
+      onEvidence?.(evidence);
+      completed += 1;
+    } catch (error) {
+      throw new Error(
+        `Rendered WebGL Worker locomotion case ${probeCase.id} failed.`,
+        { cause: error }
+      );
+    }
+  }
+  return completed;
 }
 
 async function runRenderedMobileTouchCase(session, probeCase, state) {
@@ -10161,12 +10310,11 @@ async function runRenderedCase(
     }), state);
     await captureRenderedCasePixels(session, probeCase.viewport);
     if (RENDERED_WEBGL_QA_QUALITY_METRIC_CASE_IDS.has(probeCase.id)) {
-      onQualityMetrics?.(
-        await waitForStableRenderedWebglQualityMetrics(
-          session,
-          probeCase.expectedQuality
-        )
+      const metrics = await waitForStableRenderedWebglQualityMetrics(
+        session,
+        probeCase.expectedQuality
       );
+      onQualityMetrics?.(metrics);
     }
     // desktop-high still owns the established keyboard lane. Restore its
     // untouched overview before exercising that independent contract.
@@ -10775,6 +10923,7 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
       workerAssetPath: '',
       workerAssetRequestEvidence: null,
       workerAssetRequestIds: new Set(),
+      workerAssetRequestRecords: new Map(),
       loopbackOrigin,
       allowedUrls: new Set([
         ...cases.map((probeCase) => probeCase.url),
@@ -10991,12 +11140,29 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
               state.workerAssetRequestEvidence.requested = true;
               if (typeof params?.requestId === 'string') {
                 state.workerAssetRequestIds.add(params.requestId);
+                state.workerAssetRequestRecords.set(params.requestId, {
+                  responseStatus: null,
+                  completed: false,
+                  failed: false,
+                  servedFromCache: false,
+                  responseFromDiskCache: false,
+                  responseFromServiceWorker: false,
+                });
               }
             }
           } catch {
             state.violation = 'network-url';
           }
         }
+        return;
+      }
+      if (
+        method === 'Network.requestServedFromCache'
+        && typeof params?.requestId === 'string'
+        && state.workerAssetRequestIds.has(params.requestId)
+      ) {
+        state.workerAssetRequestEvidence.servedFromCache = true;
+        state.workerAssetRequestRecords.get(params.requestId).servedFromCache = true;
         return;
       }
       if (
@@ -11007,7 +11173,15 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
         const status = params?.response?.status;
         if (Number.isSafeInteger(status) && status >= 100 && status <= 599) {
           state.workerAssetRequestEvidence.responseStatus = status;
+          state.workerAssetRequestRecords.get(params.requestId).responseStatus = status;
         }
+        const fromDiskCache = params?.response?.fromDiskCache === true;
+        const fromServiceWorker = params?.response?.fromServiceWorker === true;
+        state.workerAssetRequestEvidence.responseFromDiskCache ||= fromDiskCache;
+        state.workerAssetRequestEvidence.responseFromServiceWorker ||= fromServiceWorker;
+        const request = state.workerAssetRequestRecords.get(params.requestId);
+        request.responseFromDiskCache = fromDiskCache;
+        request.responseFromServiceWorker = fromServiceWorker;
         return;
       }
       if (
@@ -11016,6 +11190,7 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
         && state.workerAssetRequestIds.has(params.requestId)
       ) {
         state.workerAssetRequestEvidence.failed = true;
+        state.workerAssetRequestRecords.get(params.requestId).failed = true;
         state.workerAssetRequestIds.delete(params.requestId);
         return;
       }
@@ -11025,6 +11200,7 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
         && state.workerAssetRequestIds.has(params.requestId)
       ) {
         state.workerAssetRequestEvidence.completed = true;
+        state.workerAssetRequestRecords.get(params.requestId).completed = true;
         state.workerAssetRequestIds.delete(params.requestId);
         return;
       }
@@ -11061,6 +11237,15 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
     });
     const isolatedLane = mobileTouchOnly || workerLocomotionOnly
       || activeWorkerOnly || postVisualOnly;
+    const completed = {
+      rendered: 0,
+      mobileTouch: 0,
+      workerLocomotion: 0,
+      activeWorker: 0,
+      occupancy: 0,
+      journey: 0,
+      castleLod: 0,
+    };
     for (const probeCase of isolatedLane ? [] : cases) {
       try {
         await runRenderedCase(
@@ -11071,6 +11256,7 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
           northernReachProbe,
           regionalClimateProbe
         );
+        completed.rendered += 1;
       } catch (error) {
         throw new Error(`Rendered WebGL case ${probeCase.id} failed.`, { cause: error });
       }
@@ -11098,6 +11284,7 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
           mobileTouchCase,
           state
         );
+        completed.mobileTouch += 1;
       } catch (error) {
         throw new Error(
           `Rendered mobile map gesture case ${mobileTouchCase.id} failed.`,
@@ -11105,30 +11292,22 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
         );
       }
     }
-    for (const workerLocomotionCase of workerLocomotionOnly
+    const workerLocomotionCasesInSession = workerLocomotionOnly
       ? workerLocomotionCasesToRun
       : options[SKIP_WORKER_LOCOMOTION_IN_SESSION] || mobileTouchOnly
         || activeWorkerOnly || postVisualOnly
-        ? [] : workerLocomotionCases) {
-      try {
-        onWorkerLocomotionEvidence?.(
-          await runRenderedWorkerLocomotionCase(
-            devtools,
-            workerLocomotionCase,
-            state
-          )
-        );
-      } catch (error) {
-        throw new Error(
-          `Rendered WebGL Worker locomotion case ${workerLocomotionCase.id} failed.`,
-          { cause: error }
-        );
-      }
-    }
+        ? [] : workerLocomotionCases;
+    completed.workerLocomotion =
+      await runRenderedWebglWorkerLocomotionEvidenceCases(
+        workerLocomotionCasesInSession,
+        (probeCase) => runRenderedWorkerLocomotionCase(devtools, probeCase, state),
+        onWorkerLocomotionEvidence,
+      );
     if (activeWorkerOnly
       || (!isolatedLane && !options[SKIP_ACTIVE_WORKER_IN_SESSION])) {
       try {
         await runRenderedActiveWorkerCase(devtools, activeWorkerCase, state);
+        completed.activeWorker += 1;
       } catch (error) {
         throw new Error('Rendered WebGL active generic Worker case failed.', {
           cause: error,
@@ -11139,6 +11318,7 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
       || (!isolatedLane && !options[SKIP_POST_VISUAL_IN_SESSION])) {
       try {
         await runRenderedOccupancyStressCase(devtools, occupancyStressCase, state);
+        completed.occupancy += 1;
       } catch (error) {
         throw new Error('Rendered WebGL all-node occupancy stress case failed.', {
           cause: error,
@@ -11158,6 +11338,7 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
       if (journeyCaseCount !== REVIEWED_JOURNEY_CASE_COUNT) {
         throw new Error('Synthetic journey browser case count mismatched.');
       }
+      completed.journey = journeyCaseCount;
     }
     if (postVisualLane === 'castle-lod'
       || (!isolatedLane && !options[SKIP_POST_VISUAL_IN_SESSION])) {
@@ -11167,6 +11348,7 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
           state,
         });
         onCastleLodVisualEvidence?.(castleLodVisualEvidence);
+        completed.castleLod += 1;
       } catch (error) {
         throw new Error('Local castle LOD visual evidence lane failed.', { cause: error });
       }
@@ -11174,12 +11356,17 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
     if (state.violation) {
       throw new Error(`Headless browser left the local QA boundary: ${state.violation}.`);
     }
-    if (mobileTouchOnly) return mobileTouchCasesToRun.length;
-    if (workerLocomotionOnly) return workerLocomotionCasesToRun.length;
-    if (activeWorkerOnly) return 1;
-    if (postVisualOnly) return postVisualLane === 'journey'
-      ? journeyCaseCount : 1;
-    return RENDERED_WEBGL_QA_CASE_COUNT;
+    if (mobileTouchOnly) return completed.mobileTouch;
+    if (workerLocomotionOnly) return completed.workerLocomotion;
+    if (activeWorkerOnly) return completed.activeWorker;
+    if (postVisualOnly) return postVisualLane === 'occupancy'
+      ? completed.occupancy
+      : postVisualLane === 'journey'
+        ? completed.journey : completed.castleLod;
+    if (completed.rendered !== RENDERED_WEBGL_QA_CASE_COUNT) {
+      throw new Error('Rendered WebGL core case count mismatched.');
+    }
+    return completed.rendered;
   } finally {
     await cleanupRenderedWebglProbeResources({
       castleLodVisualSource,

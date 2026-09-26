@@ -73,6 +73,7 @@ import {
   renderedWebglWorkerLocomotionProbeCase,
   renderedWebglWorkerLocomotionProbeCases,
   runRenderedWebglBrowserProbe,
+  runRenderedWebglWorkerLocomotionEvidenceCases,
   selectBlankPageTarget,
   spawnHeadlessChromeProbe,
   terminateHeadlessChromeProcessGroup
@@ -1496,6 +1497,45 @@ describe('rendered WebGL headless browser probe contract', () => {
       } as const;
     };
     const evidence = cases.map(evidenceFor);
+    const executedCaseIds: string[] = [];
+    await expect(runRenderedWebglWorkerLocomotionEvidenceCases(
+      [cases[1]!],
+      async (probeCase) => {
+        executedCaseIds.push(probeCase.id);
+        return evidenceFor(probeCase);
+      }
+    )).resolves.toBe(1);
+    expect(executedCaseIds).toEqual(['desktop-balanced-worker-locomotion']);
+    const northernEvidence: Array<{
+      caseId: string;
+      modelCount: number;
+      visibleProjectionCount: number;
+    }> = [];
+    await expect(runRenderedWebglWorkerLocomotionEvidenceCases(
+      [cases[4]!],
+      async (probeCase) => ({
+        ...evidenceFor(probeCase),
+        visibleProjectionCount: 3
+      }),
+      (validated) => northernEvidence.push({
+        caseId: validated.caseId,
+        modelCount: validated.modelCount,
+        visibleProjectionCount: validated.visibleProjectionCount
+      })
+    )).resolves.toBe(1);
+    expect(northernEvidence).toEqual([{
+      caseId: 'desktop-balanced-northern-worker-locomotion',
+      modelCount: 4,
+      visibleProjectionCount: 3
+    }]);
+    await expect(runRenderedWebglWorkerLocomotionEvidenceCases(
+      [cases[1]!],
+      async () => evidenceFor(cases[0]!)
+    )).rejects.toThrow(/desktop-balanced-worker-locomotion failed/i);
+    await expect(runRenderedWebglWorkerLocomotionEvidenceCases(
+      [cases[1]!],
+      async () => { throw new Error('case did not run'); }
+    )).rejects.toThrow(/desktop-balanced-worker-locomotion failed/i);
 
     expect(cases.map((probeCase) => ({
       id: probeCase.id,
@@ -1735,8 +1775,16 @@ describe('rendered WebGL headless browser probe contract', () => {
       'const phaseSamplingStartedAt = performance.now();'
     ));
     expect(expression).toContain(
-      ".realm-profile-menu__worker-actions button[aria-haspopup=\"dialog\"]"
+      'button[data-realm-focus-key="commands:workers"]'
     );
+    expect(expression).toContain(
+      '[aria-controls="realm-worker-command-center"]'
+    );
+    expect(expression).toContain("['dialog', 'region']");
+    expect(expression).toContain('if (await waitFor(surfacesClosed, 250)) return true;');
+    expect(expression).toContain('localDiagnostics: {');
+    expect(expression).not.toContain('.worker-command-center[role="dialog"]');
+    expect(expression).not.toContain('.realm-profile-menu__panel[role="dialog"]');
     expect(expression).toContain('.worker-command-center__worker');
     expect(expression).toContain('.worker-inspection__locate');
     expect(expression).toContain(
@@ -1806,7 +1854,10 @@ describe('rendered WebGL headless browser probe contract', () => {
       'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
     ), 'utf8');
     expect(source).toContain(
-      'for (const workerLocomotionCase of workerLocomotionOnly'
+      'const workerLocomotionCasesInSession = workerLocomotionOnly'
+    );
+    expect(source).toContain(
+      'await runRenderedWebglWorkerLocomotionEvidenceCases('
     );
     expect(source).toContain(
       'for (const mobileTouchCase of options[SKIP_MOBILE_TOUCH_IN_SESSION]'
