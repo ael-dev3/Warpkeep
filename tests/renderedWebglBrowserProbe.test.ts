@@ -4,6 +4,7 @@ import { PassThrough } from 'node:stream';
 import { deflateSync } from 'node:zlib';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { runInNewContext } from 'node:vm';
 
 import {
   analyzeRenderedWebglPngScreenshot,
@@ -25,6 +26,7 @@ import {
   applyRenderedWebglSfxInteraction,
   applyRenderedWebglWaterOverviewInteraction,
   applyRenderedWebglWaterRecordJourney,
+  assertRenderedWebglFreshCoreBaseline,
   attestHeadlessChromeCodeSignature,
   closeRenderedWebglLoopbackServer,
   cleanupRenderedWebglProbeResources,
@@ -67,6 +69,7 @@ import {
   renderedWebglLabelDisplacementClassificationValid,
   renderedWebglActiveWorkerProbeCase,
   renderedWebglBrowserProbeCases,
+  renderedWebglCoreEmergencyResetScript,
   renderedWebglOccupancyStressProbeCase,
   renderedWebglTerrainShaderFallbackProbeCase,
   renderedWebglTerrainShaderFallbackVitePlugin,
@@ -2993,6 +2996,39 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(isAllowedRenderedWebglPageUrl('data:text/plain,fixture', origin)).toBe(false);
   });
 
+  it('clears an inherited emergency tier only in the exact loopback case document', () => {
+    const origin = 'http://127.0.0.1:41733';
+    const source = renderedWebglCoreEmergencyResetScript(origin);
+    const key = 'warpkeep.realm.renderer.emergency-quality.v1';
+    const values = new Map([[key, 'reduced']]);
+    const storage = {
+      getItem: (name: string) => values.get(name) ?? null,
+      removeItem: (name: string) => values.delete(name),
+    };
+    runInNewContext(source, {
+      location: { origin: 'https://warpkeep.com' },
+      sessionStorage: storage,
+    });
+    expect(values.get(key)).toBe('reduced');
+    runInNewContext(source, {
+      location: { origin },
+      sessionStorage: storage,
+    });
+    expect(values.has(key)).toBe(false);
+    values.set(key, 'reduced');
+    expect(() => runInNewContext(source, {
+      location: { origin },
+      sessionStorage: {
+        getItem: storage.getItem,
+        removeItem: () => undefined,
+      },
+    })).toThrow(/reset failed/i);
+    expect(values.get(key)).toBe('reduced');
+    expect(() => renderedWebglCoreEmergencyResetScript(
+      'https://warpkeep.com'
+    )).toThrow(/loopback origin/i);
+  });
+
   it('attests exact ready DOM state and fails closed on fallback, mismatch, or excess data', () => {
     const expected = renderedWebglBrowserProbeCases(41_733)
       .find((probeCase) => probeCase.id === 'desktop-invalid-fallback')!;
@@ -3213,6 +3249,10 @@ describe('rendered WebGL headless browser probe contract', () => {
       mapRenderer: 'fallback'
     }, expected)).toThrow(/DOM/i);
     expect(() => parseRenderedWebglBrowserDom({ ...ready, quality: 'high' }, expected)).toThrow(/DOM/i);
+    expect(assertRenderedWebglFreshCoreBaseline(ready, expected)).toMatchObject({
+      effectiveQuality: 'balanced',
+      emergencyQuality: 'none',
+    });
     const recoveredReducedQualityReady = {
       ...ready,
       emergencyQuality: 'reduced',
@@ -3233,6 +3273,10 @@ describe('rendered WebGL headless browser probe contract', () => {
       emergencyQuality: 'reduced',
       realmVegetationSelectedProfile: 'reduced'
     });
+    expect(() => assertRenderedWebglFreshCoreBaseline(
+      recoveredReducedQualityReady,
+      expected
+    )).toThrow(/inherited an emergency quality tier/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...recoveredReducedQualityReady,
       emergencyQuality: 'none'
@@ -4772,6 +4816,53 @@ describe('rendered WebGL headless browser probe contract', () => {
       warmLowGreenSamples: 60,
       warmSpatialBuckets: [20, 10, 2, 15, 10, 3, 0, 0, 0]
     })).toThrow(/Sunscoured South/i);
+
+    const balancedShortTransitionEvidence = {
+      ...transitionEvidence,
+      compositionBucket: 5,
+      emergencyQuality: 'none',
+      material: [
+        'genesis-001-southern-desert-presentation-v1',
+        'one-band',
+        true,
+        false
+      ],
+      quality: 'balanced'
+    } as const;
+    expect(parseRegionalClimateRenderedEvidence(
+      balancedShortTransitionEvidence,
+      {
+        quality: 'balanced',
+        recover: false,
+        region: 'transition',
+        viewport: { width: 667, height: 375 }
+      }
+    )).toEqual(balancedShortTransitionEvidence);
+    const balancedShortTransitionVisual = {
+      ...transitionVisual,
+      coolHighAlbedoSamples: 175,
+      coolSpatialBuckets: [0, 0, 0, 1, 3, 20, 28, 57, 66],
+      warmLowGreenSamples: 191,
+      warmSpatialBuckets: [30, 56, 3, 52, 48, 0, 2, 0, 0]
+    } as const;
+    expect(() => assertRegionalClimateRenderedVisual(
+      balancedShortTransitionEvidence,
+      balancedShortTransitionVisual
+    )).not.toThrow();
+    expect(() => assertRegionalClimateRenderedVisual(
+      balancedShortTransitionEvidence,
+      {
+        ...balancedShortTransitionVisual,
+        warmSpatialBuckets: [0, 0, 0, 0, 0, 63, 40, 40, 48]
+      }
+    )).toThrow(/Sunscoured South/i);
+    expect(() => assertRegionalClimateRenderedVisual(
+      balancedShortTransitionEvidence,
+      {
+        ...balancedShortTransitionVisual,
+        coolSpatialBuckets: [56, 56, 0, 0, 0, 0, 21, 21, 21]
+      }
+    )).toThrow(/Sunscoured South/i);
 
     const transitionTarget =
       SUNSCOURED_SOUTH_RENDERED_TARGET_MANIFEST.transition;

@@ -11,13 +11,13 @@ const BYTE_LIMIT = Object.freeze({
   reduced: 0.25 * 1_024 * 1_024,
 });
 const TRANSITION_MINIMUM_FRAME_SAND_SAMPLES = 64;
-const TRANSITION_MINIMUM_COMPOSED_SAND_SAMPLES = 1;
 const DEEP_MINIMUM_FRAME_SAND_SAMPLES = 64;
 const DEEP_MINIMUM_COMPOSED_SAND_SAMPLES = 4;
 // A deep-south frame intentionally retains ocean along its outer edge. Demand
 // a clear warm majority without making one antialiased sample decide the lane.
 const DEEP_MINIMUM_SAND_DOMINANCE_SAMPLES = 24;
 const WATER_EDGE_MINIMUM_FRAME_SAND_SAMPLES = 8;
+const WATER_EDGE_MINIMUM_COMPOSED_SAND_SAMPLES = 1;
 const OVERVIEW_MINIMUM_CLIMATE_SAMPLES = 3;
 const OVERVIEW_MINIMUM_SPATIAL_DIFFERENCE = 6;
 const MAXIMUM_CLIPPED_BLACK_SAMPLES = 1;
@@ -285,6 +285,15 @@ export function assertRegionalClimateRenderedVisual(evidence, visual) {
   const targetComposedSand = visual?.warmSpatialBuckets?.[
     evidence?.compositionBucket
   ];
+  // A strategy view can clamp a near-edge selected cell away from the safe
+  // viewport center. Its transition is established by substantial warm land
+  // above distinct cool water, not one quality-sensitive center-grid sample.
+  const transitionUpperMiddleWarm = Array.isArray(visual?.warmSpatialBuckets)
+    ? visual.warmSpatialBuckets.slice(0, 6).reduce((sum, count) => sum + count, 0)
+    : 0;
+  const transitionLowerCool = Array.isArray(visual?.coolSpatialBuckets)
+    ? visual.coolSpatialBuckets.slice(6, 9).reduce((sum, count) => sum + count, 0)
+    : 0;
   const spatialDifference = Array.isArray(visual?.coolSpatialBuckets)
     && Array.isArray(visual?.warmSpatialBuckets)
     ? visual.coolSpatialBuckets.reduce(
@@ -309,7 +318,8 @@ export function assertRegionalClimateRenderedVisual(evidence, visual) {
     || (evidence?.region === 'transition' && (
       warm < TRANSITION_MINIMUM_FRAME_SAND_SAMPLES
       || warm * 2 < cool
-      || targetComposedSand < TRANSITION_MINIMUM_COMPOSED_SAND_SAMPLES
+      || transitionUpperMiddleWarm < TRANSITION_MINIMUM_FRAME_SAND_SAMPLES
+      || transitionLowerCool < TRANSITION_MINIMUM_FRAME_SAND_SAMPLES
     ))
     || (evidence?.region === 'deep' && (
       warm < DEEP_MINIMUM_FRAME_SAND_SAMPLES
@@ -318,7 +328,7 @@ export function assertRegionalClimateRenderedVisual(evidence, visual) {
     ))
     || (evidence?.region === 'water-edge' && (
       warm < WATER_EDGE_MINIMUM_FRAME_SAND_SAMPLES
-      || targetComposedSand < TRANSITION_MINIMUM_COMPOSED_SAND_SAMPLES
+      || targetComposedSand < WATER_EDGE_MINIMUM_COMPOSED_SAND_SAMPLES
     ))
     || !Number.isSafeInteger(visual.clippedBlackSamples)
     || visual.clippedBlackSamples < 0

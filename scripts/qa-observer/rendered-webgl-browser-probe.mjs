@@ -3081,6 +3081,19 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   });
 }
 
+/** A new visual case must start at its requested tier. The ordinary DOM
+ * parser also accepts the lower tier reached within a deliberate recovery
+ * case, so this separate gate keeps that allowance out of fresh baselines.
+ */
+export function assertRenderedWebglFreshCoreBaseline(value, expected) {
+  const observation = parseRenderedWebglBrowserDom(value, expected);
+  if (
+    observation.emergencyQuality !== 'none'
+    || observation.effectiveQuality !== expected.expectedQuality
+  ) throw new TypeError('Fresh rendered WebGL case inherited an emergency quality tier.');
+  return observation;
+}
+
 /**
  * Reuse the complete rendered DOM contract, then require the camera-local
  * ecology to be materially present. This is deliberately separate from the
@@ -4027,7 +4040,9 @@ export function renderedWebglTerrainShaderFallbackVitePlugin() {
     transform(source, id) {
       const normalizeModulePath = (value) => value
         .replace(/\\/gu, '/')
-        .replace(/^\/@fs\//u, '')
+        // Vite's /@fs prefix wraps an absolute path. Keep the leading slash
+        // for POSIX paths; the drive-prefix rule below handles Windows.
+        .replace(/^\/@fs(?=\/)/u, '')
         .replace(/^\/([A-Za-z]:\/)/u, '$1');
       const sourceId = typeof id === 'string'
         ? normalizeModulePath(id.split('?', 1)[0])
@@ -9891,6 +9906,29 @@ export async function applyRenderedWebglOccupancyStressInteraction(session) {
   return parseRenderedWebglOccupancyStressEvidence(evaluation.result.value);
 }
 
+export function renderedWebglCoreEmergencyResetScript(loopbackOrigin) {
+  let origin;
+  try {
+    origin = new URL(loopbackOrigin);
+  } catch {
+    throw new TypeError('Invalid rendered WebGL loopback origin.');
+  }
+  if (
+    origin.protocol !== 'http:'
+    || origin.hostname !== '127.0.0.1'
+    || !origin.port
+    || origin.origin !== loopbackOrigin
+  ) throw new TypeError('Invalid rendered WebGL loopback origin.');
+  return `(() => {
+    if (location.origin !== ${JSON.stringify(loopbackOrigin)}) return;
+    const key = 'warpkeep.realm.renderer.emergency-quality.v1';
+    sessionStorage.removeItem(key);
+    if (sessionStorage.getItem(key) !== null) {
+      throw new Error('Rendered WebGL emergency quality reset failed.');
+    }
+  })();`;
+}
+
 async function navigateRenderedWebglCase(session, url, state) {
   const previousLoadEventCount = state.loadedPageEventCount;
   const navigation = await session.command('Page.navigate', { url });
@@ -10249,7 +10287,8 @@ async function runRenderedCase(
   state,
   onQualityMetrics,
   northernReachProbe,
-  regionalClimateProbe
+  regionalClimateProbe,
+  firstCoreCase
 ) {
   await session.command('Emulation.setDeviceMetricsOverride', {
     width: probeCase.viewport.width,
@@ -10268,9 +10307,33 @@ async function runRenderedCase(
         : 'no-preference',
     }],
   });
-  await navigateRenderedWebglCase(session, probeCase.url, state);
   const baseline = Object.freeze({ ...probeCase, interaction: 'default' });
-  await waitForAcceptedRenderedDom(session, baseline, state);
+  // A deliberate context-loss case retains its lower emergency tier for the
+  // current tab. Reset only at the next case boundary, before the new Realm
+  // reads sessionStorage. Passing through blank also prevents a same-URL
+  // navigation from accepting the previous case's still-ready document. The
+  // first case already starts in the attested blank target.
+  if (!firstCoreCase) {
+    await navigateRenderedWebglCase(session, 'about:blank', state);
+  }
+  const emergencyReset = await session.command(
+    'Page.addScriptToEvaluateOnNewDocument',
+    { source: renderedWebglCoreEmergencyResetScript(state.loopbackOrigin) }
+  );
+  if (typeof emergencyReset?.identifier !== 'string') {
+    throw new Error('Rendered WebGL core case quality isolation was unavailable.');
+  }
+  try {
+    await navigateRenderedWebglCase(session, probeCase.url, state);
+    const baselineObservation = await waitForAcceptedRenderedDom(
+      session, baseline, state
+    );
+    assertRenderedWebglFreshCoreBaseline(baselineObservation, baseline);
+  } finally {
+    await session.command('Page.removeScriptToEvaluateOnNewDocument', {
+      identifier: emergencyReset.identifier,
+    });
+  }
   await captureRenderedCasePixels(session, probeCase.viewport);
   if (RENDERED_WEBGL_QA_RESOURCE_OCCUPANT_CASE_IDS.has(probeCase.id)) {
     await applyRenderedWebglResourceOccupantInteraction(
@@ -11254,7 +11317,8 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
           state,
           onQualityMetrics,
           northernReachProbe,
-          regionalClimateProbe
+          regionalClimateProbe,
+          completed.rendered === 0
         );
         completed.rendered += 1;
       } catch (error) {

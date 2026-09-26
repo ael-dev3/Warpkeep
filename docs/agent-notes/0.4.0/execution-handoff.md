@@ -8,10 +8,14 @@ merged through [PR #364](https://github.com/ael-dev3/Warpkeep/pull/364).
 Its exact-main [Verify run 36171308852](https://github.com/ael-dev3/Warpkeep/actions/runs/36171308852)
 and [CodeQL run 36171308764](https://github.com/ael-dev3/Warpkeep/actions/runs/36171308764)
 passed. [PR #365](https://github.com/ael-dev3/Warpkeep/pull/365) is the next
-source-only M1 for renderer recovery and local rendered QA. Use its live final
-head and required checks; passing checks on an earlier head do not validate
-later edits. The branch is not a protected release input until its final head
-is reviewed, checked and merged.
+source-only M1 for renderer recovery and local rendered QA. An earlier signed
+[`28a393dcfe63686d69e42ac53701d6bd92a7bccb`](https://github.com/ael-dev3/Warpkeep/commit/28a393dcfe63686d69e42ac53701d6bd92a7bccb)
+checkpoint includes the independently reproduced and policy-checked 16-file
+prepared source-closure family. The later QA corrections isolate core cases
+from emergency-tier state and strengthen transition visual evidence. Recheck
+the closure on the exact final committed source and require all checks on that
+PR head. Passing checks on `28a393dc` do not validate later edits. The branch
+is not a protected release input until reviewed, checked and merged.
 
 No protected G001 operation has run on `66fb0934`. The most recent census
 [run 36145018339](https://github.com/ael-dev3/Warpkeep/actions/runs/36145018339)
@@ -22,15 +26,14 @@ classified successfully, but every build/deploy/live-verification job was
 skipped because the sealed G002 release gate is unmet; no PTR deployment is
 claimed. The production runner is online; no new GitHub App key is required.
 
-Before PR #365 merges, publish its reviewed source checkpoint, derive and
-independently reproduce the 16-file prepared source-closure family from that
-exact committed source, install only changed derived files, verify closure
-policy and retain the reviewed PR history as documented in the
+The complete local rendered WebGL matrix passed after isolating the core
+visual tier and strengthening the transition visual gate, including real
+Worker locomotion evidence, mobile touch profiles, journey, occupancy and
+castle LOD. This is local evidence, not live PTR acceptance. Before PR #365
+merges, confirm the closure against its exact final committed source, require
+final-head checks and retain the reviewed PR history as documented in the
 [native preparation guide](../../operations/0.4.0-local-release-preparation.md#source-only-m1-before-native-release-preparation).
-The existing closure manifest still pins the pre-PR Realm Map source; PR checks
-on the earlier head do not fix that source mismatch. Require final-head checks
-after closure integration. After PR #365 merges, verify its signed exact-main
-M1 and push Verify/CodeQL.
+After PR #365 merges, verify its signed exact-main M1 and push Verify/CodeQL.
 On a clean idle native WSL checkout, prepare and independently check the
 authenticated output family from that exact M1. Promote only the complete
 generated family through protected M2 and require its exact-main Verify/CodeQL.

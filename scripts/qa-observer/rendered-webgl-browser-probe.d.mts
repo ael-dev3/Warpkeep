@@ -431,6 +431,8 @@ export class DevtoolsPipeSession {
 
 export function isAllowedRenderedWebglPageUrl(value: unknown, loopbackOrigin: string): boolean;
 
+export function renderedWebglCoreEmergencyResetScript(loopbackOrigin: string): string;
+
 export function parseRenderedWebglBrowserDom(
   value: unknown,
   expected: RenderedWebglBrowserProbeCase
@@ -440,6 +442,8 @@ export function parseRenderedWebglBrowserDom(
   renderer: 'webgl';
   presentationMode: RenderedWebglBrowserProbePresentationMode;
   quality: RenderedWebglBrowserProbeQuality;
+  effectiveQuality: RenderedWebglBrowserProbeQuality;
+  emergencyQuality: 'none' | RenderedWebglBrowserProbeQuality;
   castleCount: 100;
   readyAfterMilliseconds: number;
   environmentLighting: 'procedural';
@@ -502,6 +506,11 @@ export function parseRenderedWebglBrowserDom(
   labelPlacedCount: number;
   labelUnplacedCount: number;
 }>;
+
+export function assertRenderedWebglFreshCoreBaseline(
+  value: unknown,
+  expected: RenderedWebglBrowserProbeCase
+): ReturnType<typeof parseRenderedWebglBrowserDom>;
 
 export function parseRenderedWebglActiveForestDom(
   value: unknown,
