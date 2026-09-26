@@ -58,8 +58,9 @@ describe('rendered mobile map gesture probe', () => {
     })).toThrow(/mobile map gesture evidence/i);
   });
 
-  it('replays one-finger pan, two-contact pinch, and stationary touch selection', async () => {
+  it('delivers one-finger pan, two-contact pinch, and stationary tap through CDP', async () => {
     const runtimeResults = [
+      { type: 'boolean', value: true },
       { type: 'object', value: { x: 160, y: 320 } },
       { type: 'boolean', value: true },
       {
@@ -70,7 +71,12 @@ describe('rendered mobile map gesture probe', () => {
         }
       },
       { type: 'boolean', value: true },
+      { type: 'object', value: { changed: true } },
       { type: 'object', value: { x: 190, y: 350 } },
+      { type: 'object', value: {
+        activationCount: 1,
+        trustedActivationCount: 1
+      } },
       { type: 'object', value: COMPLETE_EVIDENCE }
     ];
     const command = vi.fn(async (
@@ -94,29 +100,87 @@ describe('rendered mobile map gesture probe', () => {
       method === 'Input.dispatchTouchEvent'
     ));
     expect(touchCalls.map(([, params]) => params?.type)).toEqual([
-      'touchStart',
-      'touchMove',
-      'touchEnd',
-      'touchStart',
-      'touchMove',
-      'touchEnd',
-      'touchStart',
-      'touchEnd'
+      'touchStart', 'touchMove', 'touchMove', 'touchMove', 'touchMove', 'touchEnd',
+      'touchStart', 'touchMove', 'touchMove', 'touchMove', 'touchMove', 'touchEnd',
+      'touchStart', 'touchEnd'
     ]);
-    expect(touchCalls[3]?.[1]?.touchPoints).toHaveLength(2);
-    expect(touchCalls[4]?.[1]?.touchPoints).toHaveLength(2);
+    expect(touchCalls[0]?.[1]?.touchPoints).toEqual([
+      expect.objectContaining({ id: 61, x: 160, y: 320 })
+    ]);
+    expect(touchCalls[4]?.[1]?.touchPoints).toEqual([
+      expect.objectContaining({ id: 61, x: 224, y: 344 })
+    ]);
+    expect(touchCalls[6]?.[1]?.touchPoints).toHaveLength(2);
+    expect(touchCalls[10]?.[1]?.touchPoints).toHaveLength(2);
+    expect(touchCalls[12]?.[1]?.touchPoints).toEqual([
+      expect.objectContaining({ id: 81, x: 190, y: 350 })
+    ]);
+    expect(touchCalls.filter(([, params]) => params?.type === 'touchEnd')
+      .every(([, params]) => Array.isArray(params?.touchPoints)
+        && params.touchPoints.length === 0)).toBe(true);
     const runtimeExpressions = command.mock.calls
       .filter(([method]) => method === 'Runtime.evaluate')
       .map(([, params]) => String(params?.expression ?? ''));
-    expect(runtimeExpressions[0]).toContain(
+    expect(runtimeExpressions[1]).toContain(
       "fixtureControl.className = 'realm-resource-occupant-marker'"
     );
-    expect(runtimeExpressions[0]).toContain(
+    expect(runtimeExpressions[1]).toContain(
       'fixtureControl.dataset.renderedMobileTouchFixture'
     );
+    expect(runtimeExpressions[1]).toContain('fixtureControl.contains(document.elementFromPoint(');
+    expect(runtimeExpressions[1]).toContain('event.isTrusted');
+    expect(runtimeExpressions.at(-1)).toContain('state.touchPointerDownCount >= 4');
+    expect(runtimeExpressions.at(-1)).toContain('state.untrustedInputCount === 0');
     expect(runtimeExpressions.at(-1)).toContain(
       'state.fixtureActivationCount === 1'
     );
+    expect(runtimeExpressions.join('\n')).not.toMatch(
+      /new (?:PointerEvent|MouseEvent)|\.dispatchEvent\(/
+    );
+    expect(runtimeResults).toHaveLength(0);
+  });
+
+  it('retries a two-contact pinch in the opposite direction at a zoom limit', async () => {
+    const runtimeResults = [
+      { type: 'boolean', value: true },
+      { type: 'object', value: { x: 160, y: 320 } },
+      { type: 'boolean', value: true },
+      { type: 'object', value: {
+        primary: { x: 170, y: 330 },
+        secondary: { x: 310, y: 520 }
+      } },
+      { type: 'boolean', value: true },
+      { type: 'object', value: { changed: false } },
+      { type: 'boolean', value: true },
+      { type: 'object', value: { changed: true } },
+      { type: 'object', value: { x: 190, y: 350 } },
+      { type: 'object', value: {
+        activationCount: 1,
+        trustedActivationCount: 1
+      } },
+      { type: 'object', value: COMPLETE_EVIDENCE }
+    ];
+    const command = vi.fn(async (
+      method: string,
+      _params?: Readonly<Record<string, unknown>>
+    ) => method === 'Runtime.evaluate'
+      ? { result: runtimeResults.shift() }
+      : {});
+
+    await expect(applyRenderedMobileMapGestureInteraction(
+      { command },
+      renderedMobileMapGestureProbeCases(41_733)[0]!
+    )).resolves.toEqual(COMPLETE_EVIDENCE);
+
+    const touches = command.mock.calls.filter(([method]) => (
+      method === 'Input.dispatchTouchEvent'
+    ));
+    expect(touches.filter(([, params]) => params?.type === 'touchStart')
+      .map(([, params]) => Array.isArray(params?.touchPoints)
+        ? params.touchPoints.length
+        : null)).toEqual([1, 2, 2, 1]);
+    expect(touches.filter(([, params]) => params?.type === 'touchEnd'))
+      .toHaveLength(4);
     expect(runtimeResults).toHaveLength(0);
   });
 });

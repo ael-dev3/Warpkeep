@@ -22,6 +22,14 @@ import {
 /** Re-exported for terrain math consumers; the visual contract lives in one spec module. */
 export const hegemonyLowlandsSurfaceSpec = hegemonyLowlandsSpec.surface;
 
+// The global relief field is a weighted combination of signed unit signals.
+// Cell detail is another weighted combination of signed unit signals, with an
+// elevation multiplier no larger than 1.14. Placements blend between two
+// heights inside this same envelope, so this bound is stable across mesh LOD.
+export const GENESIS_LOWLANDS_MAX_ABSOLUTE_TERRAIN_HEIGHT =
+  hegemonyLowlandsSurfaceSpec.globalReliefAmplitude
+  + hegemonyLowlandsSurfaceSpec.localReliefAmplitude * 1.14;
+
 function finite(value: number, fallback = 0) {
   return Number.isFinite(value) ? value : fallback;
 }

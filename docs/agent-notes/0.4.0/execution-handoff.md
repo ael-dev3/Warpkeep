@@ -1,6 +1,55 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 25 September 2026, 15:20 UTC
+## Current checkpoint — 26 September 2026
+
+Protected `main` is generated-only M2
+[`66fb09347e10da0d3c9185e54e41eb5b76b7d96b`](https://github.com/ael-dev3/Warpkeep/commit/66fb09347e10da0d3c9185e54e41eb5b76b7d96b),
+merged through [PR #364](https://github.com/ael-dev3/Warpkeep/pull/364).
+Its exact-main [Verify run 36171308852](https://github.com/ael-dev3/Warpkeep/actions/runs/36171308852)
+and [CodeQL run 36171308764](https://github.com/ael-dev3/Warpkeep/actions/runs/36171308764)
+passed. [PR #365](https://github.com/ael-dev3/Warpkeep/pull/365) is the next
+source-only M1 for renderer recovery and local rendered QA. Use its live final
+head and required checks; passing checks on an earlier head do not validate
+later edits. The branch is not a protected release input until its final head
+is reviewed, checked and merged.
+
+No protected G001 operation has run on `66fb0934`. The most recent census
+[run 36145018339](https://github.com/ael-dev3/Warpkeep/actions/runs/36145018339)
+failed closed on older `7a598435` without a validated baseline receipt. Do not
+reuse that identity or interpret its old ambient marker as a current credential
+blocker. The [Pages run 36177192717](https://github.com/ael-dev3/Warpkeep/actions/runs/36177192717)
+classified successfully, but every build/deploy/live-verification job was
+skipped because the sealed G002 release gate is unmet; no PTR deployment is
+claimed. The production runner is online; no new GitHub App key is required.
+
+Before PR #365 merges, publish its reviewed source checkpoint, derive and
+independently reproduce the 16-file prepared source-closure family from that
+exact committed source, install only changed derived files, verify closure
+policy and retain the reviewed PR history as documented in the
+[native preparation guide](../../operations/0.4.0-local-release-preparation.md#source-only-m1-before-native-release-preparation).
+The existing closure manifest still pins the pre-PR Realm Map source; PR checks
+on the earlier head do not fix that source mismatch. Require final-head checks
+after closure integration. After PR #365 merges, verify its signed exact-main
+M1 and push Verify/CodeQL.
+On a clean idle native WSL checkout, prepare and independently check the
+authenticated output family from that exact M1. Promote only the complete
+generated family through protected M2 and require its exact-main Verify/CodeQL.
+Only then run fresh protected preflight, G001 policy observation and one new
+census identity in order. A successful census must supply a validated baseline
+before any preservation or deployment mutation. Follow the
+[known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths)
+for any fixed safe diagnostic; retain all private attempts.
+
+0.4 remains unshipped. Provider bridge/recovery operation, G001
+preservation/readback, sealed G002, actual owner PTR journey, physical-device
+and measured-performance acceptance, release freeze and delivery remain open.
+PTR owner access is mandatory; public admissions are not. Keep scheduled
+automations paused, create no Desktop artifacts, and publish each reviewed
+development checkpoint with a signed commit and verified GitHub SHA.
+
+---
+
+## Historical checkpoint — 25 September 2026, 15:20 UTC (superseded above)
 
 Protected `main` is source-only M1
 [`4cd17383de6962ce521e8d61e3c63605dbe4efc0`](https://github.com/ael-dev3/Warpkeep/commit/4cd17383de6962ce521e8d61e3c63605dbe4efc0),

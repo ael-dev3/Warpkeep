@@ -112,6 +112,7 @@ import {
 } from './realmCastleInstanceLayer';
 import {
   createRealmCameraController,
+  stableRealmCameraBounds,
   DEFAULT_REALM_CAMERA_SPEC,
   type RealmCameraControllerState,
   type RealmCameraComposition,
@@ -3889,8 +3890,11 @@ function initializeRealmScene(
       hexDistance(cell.coord, { q: 0, r: 0 }) <= REALM_STRATEGIC_OVERVIEW_RADIUS
     ))
   } as const;
+  const cameraBounds = stableRealmCameraBounds(
+    activeWaterNavigationEnvelope?.bounds ?? terrainData.bounds
+  );
   const cameraController = createRealmCameraController({
-    bounds: activeWaterNavigationEnvelope?.bounds ?? terrainData.bounds,
+    bounds: cameraBounds,
     navigationBoundary: activeWaterNavigationEnvelope
       ? {
         maximumCenterHexRadius: activeWaterNavigationEnvelope.maximumCenterHexRadius,

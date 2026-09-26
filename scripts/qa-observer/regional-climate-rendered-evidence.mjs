@@ -4,6 +4,7 @@ const RELIEF = Object.freeze({
   balanced: 'one-band',
   reduced: 'none',
 });
+const QUALITY_RANK = Object.freeze({ high: 2, balanced: 1, reduced: 0 });
 const BYTE_LIMIT = Object.freeze({
   high: 0.5 * 1_024 * 1_024,
   balanced: 0.35 * 1_024 * 1_024,
@@ -136,6 +137,7 @@ export function parseRegionalClimateRenderedEvidence(value, expected) {
     'climate',
     'compositionBucket',
     'coverage',
+    'emergencyQuality',
     'material',
     'quality',
     'recovered',
@@ -172,6 +174,14 @@ export function parseRegionalClimateRenderedEvidence(value, expected) {
   const [overlapCells, overlapVertices] = value.separation ?? [];
   const quality = expected?.quality;
   const recover = expected?.recover;
+  const emergencyQualityValid = value.emergencyQuality === 'none'
+    || Object.hasOwn(QUALITY_RANK, value.emergencyQuality);
+  const effectiveQuality = emergencyQualityValid
+    && value.emergencyQuality !== 'none'
+    && Object.hasOwn(QUALITY_RANK, quality)
+    && QUALITY_RANK[value.emergencyQuality] < QUALITY_RANK[quality]
+    ? value.emergencyQuality
+    : quality;
   const region = expected?.region;
   const shaderFallback = expected?.shaderFallback ?? false;
   const band = region === 'overview'
@@ -184,13 +194,15 @@ export function parseRegionalClimateRenderedEvidence(value, expected) {
     || actual.some((key, index) => key !== keys[index])
     || value.climate !== 'south'
     || !Object.hasOwn(RELIEF, quality)
+    || !Object.hasOwn(RELIEF, effectiveQuality)
+    || !emergencyQualityValid
     || !REGIONS.has(region)
     || typeof recover !== 'boolean'
     || typeof shaderFallback !== 'boolean'
     || (recover && region !== 'deep')
     || !Number.isSafeInteger(expected?.viewport?.width)
     || !Number.isSafeInteger(expected?.viewport?.height)
-    || value.quality !== quality
+    || value.quality !== effectiveQuality
     || value.region !== region
     || value.band !== band
     || !Number.isSafeInteger(value.compositionBucket)
@@ -245,11 +257,11 @@ export function parseRegionalClimateRenderedEvidence(value, expected) {
     || mean <= 0
     || !Number.isSafeInteger(bytes)
     || bytes < 1
-    || bytes > BYTE_LIMIT[quality]
+    || bytes > BYTE_LIMIT[effectiveQuality]
     || !Array.isArray(value.material)
     || value.material.length !== 4
     || revision !== 'genesis-001-southern-desert-presentation-v1'
-    || relief !== RELIEF[quality]
+    || relief !== RELIEF[effectiveQuality]
     || enhanced !== !shaderFallback
     || fallback !== shaderFallback
     || !Array.isArray(value.separation)
@@ -344,6 +356,7 @@ export function assertRegionalClimateRepeatedReducedMotionEvidence(
     'band',
     'climate',
     'compositionBucket',
+    'emergencyQuality',
     'material',
     'quality',
     'recovered',
@@ -528,22 +541,42 @@ export async function applyRegionalClimateRenderedEvidence(session, options) {
         ?'':targets[region].q+','+targets[region].r;
       if(region!=='overview'
         &&root.dataset.realmSelectedCellKey!==selectedTargetKey)return null;
+      // Recovery can lower graphics quality, changing mesh buffers, vegetation
+      // counts, and sand retention derived from mesh normals. Compare only the
+      // quality-independent field and cell-center census here; the observation
+      // below validates the rebuilt sand retention against its climate bounds.
       const signature=()=>[
         root.dataset.southernDesertFieldRevision,
-        root.dataset.sandAttributeBytes,
+        root.dataset.desertSampledPlayableLandCellCenterCount,
+        root.dataset.desertInnerRadiusLeakCount,
+        root.dataset.desertNorthernLeakCount,
         root.dataset.snowFieldRevision,
-        root.dataset.snowAttributeBytes,
-        root.dataset.terrainTriangleCount,
-        root.dataset.waterLayoutVersion,
-        root.dataset.grassDrawCalls,
-        root.dataset.forestDecorativeDrawCalls,
-        root.dataset.sharedForestTreeCount
+        root.dataset.snowPreRetentionCellCountAbove015,
+        root.dataset.snowPreRetentionDeepCellCountAbove075,
+        root.dataset.snowPreRetentionCoverageRatio,
+        root.dataset.snowPreRetentionDeepCoverageRatio,
+        root.dataset.snowInnerRadiusLeakCount,
+        root.dataset.snowSouthernLeakCount
       ].join('|');
       const cameraToken=()=>canvas()?.dataset.realmCameraStateToken??'';
       const before=signature(),beforeCameraToken=cameraToken();
       let recovered=false;
       if(!/^[0-9a-f]{24}$/.test(beforeCameraToken))return null;
       if(recover){
+        const beforeEffectiveQuality=root.dataset.rendererEffectiveQuality;
+        const beforeEmergencyQuality=root.dataset.rendererEmergencyQuality;
+        const storedEmergencyQuality=()=>{
+          try{return sessionStorage.getItem(
+            'warpkeep.realm.renderer.emergency-quality.v1')??'none';}
+          catch{return 'unavailable';}
+        };
+        const lowerQuality=beforeEffectiveQuality==='high'?'balanced'
+          :beforeEffectiveQuality==='balanced'?'reduced':undefined;
+        const expectedEmergencyQuality=lowerQuality??beforeEmergencyQuality;
+        const expectedEffectiveQuality=lowerQuality??beforeEffectiveQuality;
+        if(!['high','balanced','reduced'].includes(beforeEffectiveQuality)
+          ||!['none','high','balanced','reduced'].includes(beforeEmergencyQuality)
+          ||storedEmergencyQuality()!==beforeEmergencyQuality)return null;
         const generation=Number(root.dataset.rendererGeneration);
         const context=canvas()?.getContext('webgl2')??canvas()?.getContext('webgl');
         const controller=context?.getExtension('WEBGL_lose_context');
@@ -551,13 +584,19 @@ export async function applyRegionalClimateRenderedEvidence(session, options) {
         controller.loseContext();
         const recovering=await wait(()=>root.dataset.rendererState==='recovering'
           &&root.dataset.rendererFailure==='context-lost');
+        const tierStagedAtLoss=recovering
+          &&storedEmergencyQuality()===expectedEmergencyQuality
+          &&root.dataset.rendererEffectiveQuality===beforeEffectiveQuality
+          &&root.dataset.rendererEmergencyQuality===beforeEmergencyQuality;
         if(recovering){
           await new Promise(resolve=>setTimeout(resolve,64));
           controller.restoreContext();
         }
-        recovered=recovering&&await wait(()=>root.dataset.rendererState==='ready'
+        recovered=tierStagedAtLoss&&await wait(()=>root.dataset.rendererState==='ready'
           &&root.dataset.rendererFailure==='none'
           &&Number(root.dataset.rendererGeneration)>generation
+          &&root.dataset.rendererEmergencyQuality===expectedEmergencyQuality
+          &&root.dataset.rendererEffectiveQuality===expectedEffectiveQuality
           &&canvas()?.dataset.realmCameraSettled==='true'
           &&signature()===before&&cameraToken()===beforeCameraToken
           &&root.dataset.realmSelectedCellKey===selectedTargetKey);
@@ -589,7 +628,8 @@ export async function applyRegionalClimateRenderedEvidence(session, options) {
           root.dataset.sandFineReliefMode,
           root.dataset.sandShaderEnhanced==='true',
           root.dataset.sandShaderFallbackActive==='true'],
-        quality:overlay.dataset.quality,
+        emergencyQuality:root.dataset.rendererEmergencyQuality,
+        quality:root.dataset.rendererEffectiveQuality,
         recovered,
         recoveryExercised:recover,
         region,

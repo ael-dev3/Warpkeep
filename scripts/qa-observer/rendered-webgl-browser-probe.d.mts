@@ -290,6 +290,8 @@ export type RenderedWebglWorkerLocomotionEvidence = Readonly<{
   animatedCount: number;
   assetProfile: 'high' | 'balanced' | 'compact';
   caseId: RenderedWebglWorkerLocomotionProbeCase['id'];
+  effectiveQuality: RenderedWebglBrowserProbeQuality;
+  emergencyQuality: 'none';
   fallbackCount: 0;
   fixtureSelected: true;
   modelCount: 3;
@@ -1009,10 +1011,20 @@ export type RenderedWebglCastleLodVisualBoundary = Readonly<{
 }>;
 
 export function runRenderedWebglBrowserProbe(options?: Readonly<{
+  mobileTouchOnly?: boolean;
+  mobileTouchCaseId?: 'iphone-chromium-emulation' | 'android-chromium-emulation';
+  workerLocomotionOnly?: boolean;
+  workerLocomotionCaseId?:
+    | 'full-hd-high-worker-locomotion'
+    | 'desktop-balanced-worker-locomotion'
+    | 'short-landscape-reduced-worker-locomotion'
+    | 'mobile-reduced-motion-worker-locomotion'
+    | 'desktop-balanced-northern-worker-locomotion'
+    | 'desktop-balanced-southern-worker-locomotion';
   onCastleLodVisualBoundary?: (boundary: RenderedWebglCastleLodVisualBoundary) => void;
   onCastleLodVisualEvidence?: (evidence: RenderedWebglCastleLodVisualEvidence) => void;
   onQualityMetrics?: (metrics: RenderedWebglQualityMetrics) => void;
   onWorkerLocomotionEvidence?: (
     evidence: RenderedWebglWorkerLocomotionEvidence
   ) => void;
-}>): Promise<14>;
+}>): Promise<number>;

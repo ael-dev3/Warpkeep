@@ -449,13 +449,15 @@ describe('rendered WebGL local QA fixture', () => {
       .toEqual(['outbound', 'gathering']);
     expect(realm.workerProjection.ownedWorkers[0]).toMatchObject({
       startedAtMicros: nowMicros - 30_000_000n,
-      arrivesAtMicros: nowMicros + 90_000_000n
+      arrivesAtMicros: nowMicros + 330_000_000n
     });
     expect(realm.workerProjection.ownedWorkers[1]).toMatchObject({
       returnStartedAtMicros: nowMicros - 75_000_000n,
-      returnsAtMicros: nowMicros + 45_000_000n,
+      returnsAtMicros: nowMicros + 285_000_000n,
       returnStartProgressBasisPoints: 10_000
     });
+    expect(realm.workerProjection.ownedWorkers[1].returnsAtMicros)
+      .toBeGreaterThan(nowMicros + 240_000_000n);
     expect(realm.workerRoster.observedAtMicros).toBe(nowMicros);
     expect(realm.workerResourceState.pending).toEqual({
       food: 0n,
@@ -506,6 +508,8 @@ describe('rendered WebGL local QA fixture', () => {
       returnStartProgressBasisPoints: 10_000
     });
     expect(gathering?.routeSteps).toBe(27);
+    expect(gathering?.gatheringEndsAtMicros)
+      .toBeGreaterThan(nowMicros + 240_000_000n);
     expect(idle?.routeSteps).toBeUndefined();
     expect(realm.snapshot.workerOccupations).toHaveLength(2);
     expect((realm.snapshot.workerWorkers ?? []).filter((worker) => (
@@ -558,6 +562,8 @@ describe('rendered WebGL local QA fixture', () => {
       returnStartProgressBasisPoints: 10_000
     });
     expect(gathering?.routeSteps).toBe(27);
+    expect(gathering?.gatheringEndsAtMicros)
+      .toBeGreaterThan(nowMicros + 240_000_000n);
     expect(idle?.routeSteps).toBeUndefined();
     expect(realm.snapshot.workerOccupations).toHaveLength(2);
     expect((realm.snapshot.workerWorkers ?? []).filter((worker) => (

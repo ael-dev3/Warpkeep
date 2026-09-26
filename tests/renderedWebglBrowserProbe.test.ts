@@ -72,6 +72,7 @@ import {
   renderedWebglTerrainShaderFallbackVitePlugin,
   renderedWebglWorkerLocomotionProbeCase,
   renderedWebglWorkerLocomotionProbeCases,
+  runRenderedWebglBrowserProbe,
   selectBlankPageTarget,
   spawnHeadlessChromeProbe,
   terminateHeadlessChromeProcessGroup
@@ -338,6 +339,35 @@ async function attachedFakeChromePipe(
 }
 
 describe('rendered WebGL headless browser probe contract', () => {
+  it('rejects invalid mobile-only filtering before allocating browser resources', async () => {
+    await expect(runRenderedWebglBrowserProbe({
+      mobileTouchOnly: 'true'
+    } as never))
+      .rejects.toThrow(/mobile touch-only option/i);
+    await expect(runRenderedWebglBrowserProbe({
+      mobileTouchCaseId: 'unreviewed-mobile-device'
+    } as never))
+      .rejects.toThrow(/mobile touch case identifier/i);
+    await expect(runRenderedWebglBrowserProbe({
+      workerLocomotionOnly: 'true'
+    } as never))
+      .rejects.toThrow(/worker locomotion-only option/i);
+    await expect(runRenderedWebglBrowserProbe({
+      workerLocomotionCaseId: 'unreviewed-worker'
+    } as never))
+      .rejects.toThrow(/worker locomotion case identifier/i);
+    await expect(runRenderedWebglBrowserProbe({
+      mobileTouchOnly: true,
+      workerLocomotionOnly: true
+    })).rejects.toThrow(/isolation options conflict/i);
+    await expect(runRenderedWebglBrowserProbe({
+      mobileTouchCaseId: 'iphone-chromium-emulation'
+    })).rejects.toThrow(/mobile isolation/i);
+    await expect(runRenderedWebglBrowserProbe({
+      workerLocomotionCaseId: 'full-hd-high-worker-locomotion'
+    })).rejects.toThrow(/worker isolation/i);
+  });
+
   it('keeps opt-in local failure causes bounded and redacted', () => {
     const error = new Error(
       'Rendered case failed at wss://127.0.0.1:4173/private '
@@ -628,6 +658,15 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
     expect(transformed?.code.match(/REALM_TERRAIN_SHADER_QA_FORCED_FALLBACK/g))
       .toHaveLength(1);
+    const slashNormalizedSourcePath = sourcePath.replace(/\\/gu, '/');
+    expect(plugin.transform(
+      source,
+      `${slashNormalizedSourcePath}?v=normalized`
+    )).toEqual(transformed);
+    expect(plugin.transform(
+      source,
+      `/@fs/${slashNormalizedSourcePath.replace(/^\/+/, '')}?v=fs`
+    )).toEqual(transformed);
     expect(plugin.transform(
       source,
       resolve(process.cwd(), 'src/components/realm/createRealmGrassMaterial.ts')
@@ -1018,7 +1057,10 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toContain('gold:genesis-001-tier1-gold-11');
     expect(expression).toContain('navigateToOccupiedSite(target)');
     expect(expression).toContain(
-      "'.realm-cell-navigator__resource-site'"
+      "'.realm-cell-navigator__resources .realm-cell-navigator__resource-site'"
+    );
+    expect(expression).toContain(
+      "'[data-realm-explore-section=\"resources\"]'"
     );
     expect(expression).toContain(
       "button.getAttribute('data-resource-state') === 'occupied'"
@@ -1414,6 +1456,8 @@ describe('rendered WebGL headless browser probe contract', () => {
         animatedCount: probeCase.workerLocomotion.expectedAnimatedCount,
         assetProfile: probeCase.workerLocomotion.assetProfile,
         caseId: probeCase.id,
+        effectiveQuality: probeCase.expectedQuality,
+        emergencyQuality: 'none' as const,
         fallbackCount: 0,
         fixtureSelected: true,
         modelCount: probeCase.workerLocomotion.expectedModelCount,
@@ -1551,6 +1595,14 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(() => parseRenderedWebglWorkerLocomotionEvidence({
       ...balancedEvidence,
       readinessSatisfied: false
+    })).toThrow(/locomotion evidence/i);
+    expect(() => parseRenderedWebglWorkerLocomotionEvidence({
+      ...balancedEvidence,
+      effectiveQuality: 'reduced'
+    })).toThrow(/locomotion evidence/i);
+    expect(() => parseRenderedWebglWorkerLocomotionEvidence({
+      ...balancedEvidence,
+      emergencyQuality: 'reduced'
     })).toThrow(/locomotion evidence/i);
     expect(() => parseRenderedWebglWorkerLocomotionEvidence({
       ...balancedEvidence,
@@ -1737,7 +1789,16 @@ describe('rendered WebGL headless browser probe contract', () => {
       'scripts/qa-observer/rendered-webgl-browser-probe.mjs'
     ), 'utf8');
     expect(source).toContain(
-      'for (const workerLocomotionCase of workerLocomotionCases)'
+      'for (const workerLocomotionCase of workerLocomotionOnly'
+    );
+    expect(source).toContain(
+      'for (const mobileTouchCase of options[SKIP_MOBILE_TOUCH_IN_SESSION]'
+    );
+    expect(source).toContain(
+      "await session.command('Emulation.clearDeviceMetricsOverride')"
+    );
+    expect(source).toContain(
+      "await session.command('Emulation.setTouchEmulationEnabled'"
     );
     expect(source).toContain(
       '...workerLocomotionCases.map((probeCase) => probeCase.url)'
@@ -1885,11 +1946,22 @@ describe('rendered WebGL headless browser probe contract', () => {
     );
   });
 
-  // This fixture deliberately asserts canonical macOS/POSIX profile normalization.
-  it.skipIf(process.platform === 'win32')('accepts only bounded stale Three.js deletion warnings during controlled recovery', () => {
+  it('accepts only bounded stale Three.js deletion warnings during controlled recovery', () => {
     const origin = 'http://127.0.0.1:41733';
-    const profile = '/private/tmp/warpkeep-webgl-qa-exact';
-    const sourceUrl = `${origin}/@fs${profile}/vite-cache/deps/`
+    const profile = process.platform === 'win32'
+      ? 'C:\\private\\tmp\\warp keep%qa'
+      : '/private/tmp/warp keep%qa';
+    const profileUrlPath = profile
+      .replace(/\\/gu, '/')
+      .replace(/^\/+/, '')
+      .split('/')
+      .map((segment, index) => (
+        index === 0 && /^[A-Za-z]:$/u.test(segment)
+          ? segment
+          : encodeURIComponent(segment)
+      ))
+      .join('/');
+    const sourceUrl = `${origin}/@fs/${profileUrlPath}/vite-cache/deps/`
       + 'three.module-CAG8sl-8.js?v=20fde660';
     const baseEntry = {
       level: 'warning',
@@ -1922,7 +1994,9 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(controlledRendererRecoveryWarningKind({
       ...baseEntry,
       text: 'WebGL: INVALID_OPERATION: delete: object does not belong to this context'
-    }, origin, '/private/tmp/another-profile')).toBeNull();
+      }, origin, process.platform === 'win32'
+        ? 'C:\\private\\tmp\\another-profile'
+        : '/private/tmp/another-profile')).toBeNull();
     expect(controlledRendererRecoveryWarningKind({
       ...baseEntry,
       text: 'WebGL: INVALID_OPERATION: delete: object does not belong to this context'
@@ -2852,6 +2926,8 @@ describe('rendered WebGL headless browser probe contract', () => {
       rootRealmCameraPresentationBand: 'overview',
       canvasRealmCameraPresentationBand: 'overview',
       quality: 'balanced',
+      emergencyQuality: 'none',
+      effectiveQuality: 'balanced',
       castleCount: 100,
       readyAfterMilliseconds: 2_412,
       environmentLighting: 'procedural',
@@ -3054,6 +3130,35 @@ describe('rendered WebGL headless browser probe contract', () => {
       mapRenderer: 'fallback'
     }, expected)).toThrow(/DOM/i);
     expect(() => parseRenderedWebglBrowserDom({ ...ready, quality: 'high' }, expected)).toThrow(/DOM/i);
+    const recoveredReducedQualityReady = {
+      ...ready,
+      emergencyQuality: 'reduced',
+      effectiveQuality: 'reduced',
+      realmVegetationSelectedProfile: 'reduced',
+      forestDecorativeCacheLimit: 512,
+      grassCacheLimit: 512,
+      wildflowerInstanceBudget: 0,
+      semanticTerrainFeatureCount: 610,
+      totalTerrainDetailInstanceCount: 3_000
+    };
+    expect(parseRenderedWebglBrowserDom(
+      recoveredReducedQualityReady,
+      expected
+    )).toMatchObject({
+      quality: 'balanced',
+      effectiveQuality: 'reduced',
+      emergencyQuality: 'reduced',
+      realmVegetationSelectedProfile: 'reduced'
+    });
+    expect(() => parseRenderedWebglBrowserDom({
+      ...recoveredReducedQualityReady,
+      emergencyQuality: 'none'
+    }, expected)).toThrow(/effective-quality-emergency-ceiling/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...recoveredReducedQualityReady,
+      effectiveQuality: 'reduced',
+      emergencyQuality: 'balanced'
+    }, expected)).toThrow(/effective-quality-emergency-ceiling/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...ready,
       realmVegetationMaxAttributes: '16'
@@ -3536,6 +3641,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         ...ready,
         href: qualityCase.url,
         quality,
+        effectiveQuality: quality,
         realmVegetationSelectedProfile: quality,
         rootRealmCameraMode: 'keep',
         canvasRealmCameraMode: 'keep',
@@ -3865,6 +3971,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       ...ready,
       href: inspectorCase.url,
       quality: inspectorCase.expectedQuality,
+      effectiveQuality: inspectorCase.expectedQuality,
       realmVegetationSelectedProfile: inspectorCase.expectedQuality,
       viewportWidth: inspectorCase.viewport.width,
       viewportHeight: inspectorCase.viewport.height,
@@ -3949,6 +4056,25 @@ describe('rendered WebGL headless browser probe contract', () => {
       exploreResourceKindCount: 4,
       exploreResourceSiteCount: 312
     });
+    expect(() => parseRenderedWebglBrowserDom({
+      ...exploreOnly,
+      exploreCastleCount: 96,
+      exploreAccessibleCastleCount: 96,
+      exploreResourceSiteCount: 96,
+      exploreAccessibleResourceSiteCount: 96,
+      exploreAvailableResourceSiteCount: 89
+    }, {
+      ...exploreOnlyCase,
+      minimumLabelCount: 0
+    })).toThrow(/explore-castle-coverage/i);
+    expect(() => parseRenderedWebglBrowserDom({
+      ...exploreOnly,
+      exploreCastleCount: 101,
+      exploreAccessibleCastleCount: 101
+    }, {
+      ...exploreOnlyCase,
+      minimumLabelCount: 0
+    })).toThrow(/explore-castle-coverage/i);
     expect(() => parseRenderedWebglBrowserDom({
       ...exploreOnly,
       exploreCoordinateJumpCount: 0
@@ -4036,11 +4162,12 @@ describe('rendered WebGL headless browser probe contract', () => {
       coverage: [2_400, 1_000, 0.26, 0.12, 0, 0],
       material: [
         'genesis-001-northern-snow-presentation-v1',
-        'one-band',
+        'none',
         true,
         false
       ],
-      quality: 'balanced',
+      emergencyQuality: 'reduced',
+      quality: 'reduced',
       recovered: true,
       recoveryExercised: true,
       region: 'deep',
@@ -4065,6 +4192,21 @@ describe('rendered WebGL headless browser probe contract', () => {
       region: 'deep',
       viewport: { width: 1_440, height: 900 }
     })).toEqual(evidence);
+    expect(() => parseNorthernReachRenderedEvidence({
+      ...evidence,
+      quality: 'balanced',
+      material: [
+        'genesis-001-northern-snow-presentation-v1',
+        'one-band',
+        true,
+        false
+      ]
+    }, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toThrow(/Northern Reach/i);
     expect(() => parseNorthernReachRenderedEvidence({
       ...evidence,
       q: 4
@@ -4116,6 +4258,14 @@ describe('rendered WebGL headless browser probe contract', () => {
 
     const ordinaryEvidence = {
       ...evidence,
+      emergencyQuality: 'none',
+      material: [
+        'genesis-001-northern-snow-presentation-v1',
+        'one-band',
+        true,
+        false
+      ],
+      quality: 'balanced',
       recovered: false,
       recoveryExercised: false
     } as const;
@@ -4145,8 +4295,18 @@ describe('rendered WebGL headless browser probe contract', () => {
     })).toEqual(transitionEvidence);
     expect(() => assertNorthernReachRenderedVisual(
       transitionEvidence,
-      deepVisual
+      {
+        ...deepVisual,
+        coolSpatialBuckets: [8, 0, 0, 0, 0, 0, 0, 0, 0]
+      }
     )).not.toThrow();
+    expect(() => assertNorthernReachRenderedVisual(
+      transitionEvidence,
+      {
+        ...deepVisual,
+        coolSpatialBuckets: [0, 0, 0, 0, 0, 0, 8, 0, 0]
+      }
+    )).toThrow(/visual aggregate/i);
     expect(() => assertNorthernReachRenderedVisual(transitionEvidence, {
       ...deepVisual,
       coolHighAlbedoSamples: 1,
@@ -4192,6 +4352,7 @@ describe('rendered WebGL headless browser probe contract', () => {
         true,
         false
       ],
+      emergencyQuality: 'reduced',
       quality: 'reduced'
     } as const;
     const frameSignature = {
@@ -4350,11 +4511,26 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(expression).toContain("getExtension('WEBGL_lose_context')");
     expect(expression).toContain("let recovered=false");
     expect(expression).toContain("recoveryExercised:recover");
+    expect(expression).toContain('quality:root.dataset.rendererEffectiveQuality');
+    expect(expression).toContain(
+      'emergencyQuality:root.dataset.rendererEmergencyQuality'
+    );
     expect(expression).toContain("number('snowSouthernLeakCount')");
     expect(expression).toContain(
       'root.dataset.realmSelectedCellKey===selectedTargetKey'
     );
     expect(expression).toContain('cameraToken()===beforeCameraToken');
+    expect(expression).toContain(
+      "sessionStorage.getItem(\n            'warpkeep.realm.renderer.emergency-quality.v1')"
+    );
+    expect(expression).toContain("beforeEffectiveQuality==='balanced'?'reduced'");
+    expect(expression).toContain('const tierStagedAtLoss=recovering');
+    expect(expression).toContain(
+      'storedEmergencyQuality()===expectedEmergencyQuality'
+    );
+    expect(expression).toContain(
+      'root.dataset.rendererEffectiveQuality===expectedEffectiveQuality'
+    );
     expect(expression).not.toContain('return target');
 
     const ordinaryCommand = vi.fn(async () => ({
@@ -4376,11 +4552,12 @@ describe('rendered WebGL headless browser probe contract', () => {
       coverage: [2_400, 1_000, 0.25, 1_000 / 9_600, 0, 0],
       material: [
         'genesis-001-southern-desert-presentation-v1',
-        'one-band',
+        'none',
         true,
         false
       ],
-      quality: 'balanced',
+      emergencyQuality: 'reduced',
+      quality: 'reduced',
       recovered: true,
       recoveryExercised: true,
       region: 'deep',
@@ -4410,7 +4587,7 @@ describe('rendered WebGL headless browser probe contract', () => {
       ...evidence,
       material: [
         'genesis-001-southern-desert-presentation-v1',
-        'one-band',
+        'none',
         false,
         true
       ]
@@ -4423,6 +4600,15 @@ describe('rendered WebGL headless browser probe contract', () => {
       viewport: { width: 1_440, height: 900 }
     })).toEqual(fallbackEvidence);
     expect(() => parseRegionalClimateRenderedEvidence(fallbackEvidence, {
+      quality: 'balanced',
+      recover: true,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toThrow(/Sunscoured South/i);
+    expect(() => parseRegionalClimateRenderedEvidence({
+      ...evidence,
+      quality: 'balanced'
+    }, {
       quality: 'balanced',
       recover: true,
       region: 'deep',
@@ -4563,6 +4749,12 @@ describe('rendered WebGL headless browser probe contract', () => {
       recovered: false,
       recoveryExercised: false
     } as const;
+    expect(parseRegionalClimateRenderedEvidence(reducedEvidence, {
+      quality: 'balanced',
+      recover: false,
+      region: 'deep',
+      viewport: { width: 1_440, height: 900 }
+    })).toEqual(reducedEvidence);
     const signature = {
       cameraMode: 'keep',
       cameraPresentationBand: 'close',
@@ -4634,6 +4826,31 @@ describe('rendered WebGL headless browser probe contract', () => {
       'root.dataset.realmSelectedCellKey===selectedTargetKey'
     );
     expect(expression).toContain('cameraToken()===beforeCameraToken');
+    expect(expression).toContain(
+      "sessionStorage.getItem(\n            'warpkeep.realm.renderer.emergency-quality.v1')"
+    );
+    expect(expression).toContain("beforeEffectiveQuality==='balanced'?'reduced'");
+    expect(expression).toContain('const tierStagedAtLoss=recovering');
+    expect(expression).toContain(
+      'storedEmergencyQuality()===expectedEmergencyQuality'
+    );
+    expect(expression).toContain(
+      'root.dataset.rendererEffectiveQuality===expectedEffectiveQuality'
+    );
+    const recoverySignature = expression.match(
+      /const signature=\(\)=>\[([\s\S]*?)\]\.join\('\|'\)/
+    )?.[1];
+    expect(recoverySignature).toContain('root.dataset.southernDesertFieldRevision');
+    expect(recoverySignature).toContain(
+      'root.dataset.desertSampledPlayableLandCellCenterCount'
+    );
+    expect(recoverySignature).toContain('root.dataset.snowPreRetentionCellCountAbove015');
+    expect(recoverySignature).not.toMatch(
+      /(?:AttributeBytes|terrainTriangleCount|(?:grass|forestDecorative)DrawCalls|sharedForestTreeCount|desertClimateCellCountAbove015|desertPlayableCoverageRatio)/
+    );
+    expect(expression).toContain(
+      'emergencyQuality:root.dataset.rendererEmergencyQuality'
+    );
     expect(expression).not.toContain('for(const tile of CANONICAL_WORLD_TILES)');
 
     const source = readFileSync(resolve(
