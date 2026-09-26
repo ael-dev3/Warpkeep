@@ -230,13 +230,16 @@ it.each(['missing', 'disabled', 'count-change', 'status-error'] as const)('rejec
     .mockResolvedValueOnce({ allowedFids: 2n, enabledAllowedFids: 2n });
   if (mode === 'status-error') db.procedures.adminGetAccessRequestResetStatusV1.mockRejectedValueOnce(Error('status failed'));
   await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', vi.fn(async () => response()) as never))
-    .rejects.toMatchObject({ diagnostic: mode === 'count-change' ? 'g001-admitted-aggregate-mismatch' : 'g001-admitted-status' });
+    .rejects.toMatchObject({ message: 'G001_LINUX_CENSUS_COLLECTION_FAILED',
+      diagnostic: mode === 'count-change' ? 'g001-admitted-aggregate-drift' : 'g001-admitted-status' });
 });
 it('separates a stable aggregate from an enumerated set mismatch', async () => {
   const db = connection();
   db.procedures.adminGetAlphaStatusV3.mockResolvedValue({ allowedFids: 2n, enabledAllowedFids: 2n });
   await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z',
-    vi.fn(async () => response()) as never)).rejects.toMatchObject({ diagnostic: 'g001-admitted-aggregate-mismatch' });
+    vi.fn(async () => response()) as never)).rejects.toMatchObject({
+      message: 'G001_LINUX_CENSUS_COLLECTION_FAILED', diagnostic: 'g001-admitted-set-mismatch',
+    });
 });
 it('validates exact SQL schema, duplicate keys, safe FIDs and zero mutation statistics', () => {
   expect(Buffer.from(parseGenesis001LinuxCensusFidSql(Buffer.from(JSON.stringify(sql([[9007199254740991], [17]]))))).toString())

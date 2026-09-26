@@ -188,7 +188,8 @@ describe('opaque policy preparation and final descriptor boundary', () => {
       diagnostic: mode === 'childFailed' ? 'g001-observation' : 'g001-receipt' });
     expect(fixture.cleanup).toBe(1); expect(() => fstatSync(fixture.fd!)).toThrow();
   });
-  it.each(['g001-admitted-enumeration', 'g001-census-directory', 'g001-applicant-collection',
+  it.each(['g001-admitted-enumeration', 'g001-admitted-aggregate-drift', 'g001-admitted-set-mismatch',
+    'g001-census-directory', 'g001-applicant-collection',
     'g001-applicant-export', 'g001-applicant-proof', 'g001-admitted-collection', 'g001-session-finalize'] as const)(
     'retains the allowlisted census diagnostic %s when runner stderr adds warning noise', async diagnostic => {
       vi.stubEnv('WARPKEEP_OPERATION', 'g001-freeze-census');

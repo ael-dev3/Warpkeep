@@ -465,10 +465,12 @@ export async function collectGenesis001AdmittedPlayerCensus(input) {
     rawEvidenceDigest = rawDigest(enumeration.rawEvidenceBytes, statuses);
   }
   const afterAggregate = exactAggregate(await input.readAggregates());
-  if (
-    JSON.stringify(beforeAggregate) !== JSON.stringify(afterAggregate)
-    || BigInt(beforeAggregate.allowedFids) !== BigInt(entries.length)
-  ) fail('GENESIS_001_ADMITTED_PLAYER_CENSUS_AGGREGATE_MISMATCH');
+  if (JSON.stringify(beforeAggregate) !== JSON.stringify(afterAggregate)) {
+    fail('GENESIS_001_ADMITTED_PLAYER_CENSUS_AGGREGATE_DRIFT');
+  }
+  if (BigInt(beforeAggregate.allowedFids) !== BigInt(entries.length)) {
+    fail('GENESIS_001_ADMITTED_PLAYER_CENSUS_SET_MISMATCH');
+  }
   const proof = Object.freeze({
     schemaVersion: 1,
     profile: GENESIS_001_ADMITTED_PLAYER_CENSUS_PRIVATE_PROFILE,

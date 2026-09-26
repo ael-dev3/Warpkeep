@@ -236,6 +236,19 @@ describe('Genesis 001 admitted-player census preferred evidence', () => {
   });
 
   it.each([
+    ['changed aggregate', aggregate('3'), aggregate('4'),
+      'GENESIS_001_ADMITTED_PLAYER_CENSUS_AGGREGATE_DRIFT'],
+    ['stable set-size mismatch', aggregate('4'), aggregate('4'),
+      'GENESIS_001_ADMITTED_PLAYER_CENSUS_SET_MISMATCH'],
+    ['drift takes precedence over a concurrent set-size mismatch', aggregate('4'), aggregate('5'),
+      'GENESIS_001_ADMITTED_PLAYER_CENSUS_AGGREGATE_DRIFT'],
+  ] as const)('classifies %s without accepting an incomplete census', async (_case, before, after, code) => {
+    await expect(receipt({
+      readAggregates: vi.fn().mockResolvedValueOnce(before).mockResolvedValueOnce(after),
+    })).rejects.toMatchObject({ code, message: code });
+  });
+
+  it.each([
     [{ allowedFids: 3, enabledAllowedFids: '3' }],
     [{ allowedFids: '03', enabledAllowedFids: '03' }],
     [{ allowedFids: '4097', enabledAllowedFids: '4097' }],

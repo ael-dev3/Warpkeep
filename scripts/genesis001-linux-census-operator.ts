@@ -28,7 +28,7 @@ import { createGenesis001LinuxCensusSample, validateGenesis001LinuxCensusPair,
 const CENSUS_DIAGNOSTICS = new Set([
   'g001-admitted-identity', 'g001-admitted-aggregate', 'g001-admitted-enumeration',
   'g001-admitted-aggregate-empty', 'g001-admitted-aggregate-disabled',
-  'g001-admitted-aggregate-invalid', 'g001-admitted-aggregate-mismatch',
+  'g001-admitted-aggregate-invalid', 'g001-admitted-aggregate-drift', 'g001-admitted-set-mismatch',
   'g001-admitted-status', 'g001-admitted-reconciliation', 'g001-census-cross-proof',
   'g001-census-directory', 'g001-applicant-collection', 'g001-applicant-export', 'g001-applicant-proof',
   'g001-admitted-collection', 'g001-session-finalize',
@@ -215,7 +215,8 @@ export async function collectGenesis001LinuxAdmittedCensus(connection: DbConnect
     // Match only exact collector codes; provider exception text is untrusted.
     const code = error instanceof Genesis001AdmittedPlayerCensusError ? error.code : undefined;
     if (code === 'GENESIS_001_ADMITTED_PLAYER_CENSUS_AGGREGATE_INVALID') fail('g001-admitted-aggregate-invalid');
-    if (code === 'GENESIS_001_ADMITTED_PLAYER_CENSUS_AGGREGATE_MISMATCH') fail('g001-admitted-aggregate-mismatch');
+    if (code === 'GENESIS_001_ADMITTED_PLAYER_CENSUS_AGGREGATE_DRIFT') fail('g001-admitted-aggregate-drift');
+    if (code === 'GENESIS_001_ADMITTED_PLAYER_CENSUS_SET_MISMATCH') fail('g001-admitted-set-mismatch');
     if (code === 'GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_STATUS_INVALID'
       || code === 'GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_ADMISSION_INVALID') fail('g001-admitted-status');
     fail('g001-admitted-reconciliation');
