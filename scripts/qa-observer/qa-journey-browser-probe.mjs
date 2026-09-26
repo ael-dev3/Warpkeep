@@ -14,7 +14,7 @@ const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
 
 export const QA_JOURNEY_BROWSER_DIRECT_CASE_COUNT = 22;
 export const QA_JOURNEY_BROWSER_RESPONSIVE_CASE_COUNT = 2;
-export const QA_JOURNEY_BROWSER_FLOW_STAGE_COUNT = 15;
+export const QA_JOURNEY_BROWSER_FLOW_STAGE_COUNT = 16;
 
 export function isAllowedQaJourneyResourceUrl(value) {
   return value === QA_UNSCANNABLE_QR_DATA_URL;
@@ -240,6 +240,20 @@ export function parseQaJourneyDirectObservation(value, expected) {
 }
 
 const READ_FLOW_STATE_EXPRESSION = `(() => {
+  const visibleWithinViewport = (element) => {
+    if (!(element instanceof HTMLElement)) return false;
+    const style = getComputedStyle(element);
+    const bounds = element.getBoundingClientRect();
+    return style.display !== 'none'
+      && style.visibility !== 'hidden'
+      && Number(style.opacity || '1') > 0
+      && bounds.width > 0
+      && bounds.height > 0
+      && bounds.left >= 0
+      && bounds.top >= 0
+      && bounds.right <= window.innerWidth
+      && bounds.bottom <= window.innerHeight;
+  };
   const buttons = [...document.querySelectorAll('button')];
   const exactButtonCount = (text) => buttons.filter((button) => (
     (button.textContent ?? '').trim() === text
@@ -264,6 +278,13 @@ const READ_FLOW_STATE_EXPRESSION = `(() => {
   const qr = auth?.querySelector('img[alt="Sign in with Farcaster QR code"]');
   const qrSource = qr?.getAttribute('src') ?? '';
   const root = document.querySelector('.qa-journey');
+  const realmChoice = document.querySelector('.realm-choice-selector');
+  const selectedRealmChoices = realmChoice
+    ? [...realmChoice.querySelectorAll('button[role="radio"][aria-checked="true"]')]
+    : [];
+  const realmChoiceContinue = realmChoice?.querySelector(
+    '.realm-choice-selector__action--primary'
+  );
   return {
     admittedHeadingCount: exactHeadingCount('HEGEMONY RECORD VERIFIED'),
     authExternalLinkCount: auth
@@ -305,6 +326,23 @@ const READ_FLOW_STATE_EXPRESSION = `(() => {
           : node instanceof Element && !node.classList.contains('realm-castle-avatar')
       )).length, 0),
     qrSafe: qr ? qrSource === ${JSON.stringify(QA_UNSCANNABLE_QR_DATA_URL)} : false,
+    realmChoiceCount: document.querySelectorAll('.realm-choice-selector').length,
+    realmChoiceVisibleCount: visibleWithinViewport(realmChoice) ? 1 : 0,
+    realmChoiceHeadingVisibleCount: realmChoice
+      ? [...realmChoice.querySelectorAll('h1,h2,h3,h4,h5,h6')].filter((heading) => (
+          (heading.textContent ?? '').trim() === 'CHOOSE YOUR REALM'
+          && visibleWithinViewport(heading)
+        )).length
+      : 0,
+    realmChoiceSelectedCount: selectedRealmChoices.length,
+    realmChoiceSelectedGenesis001Count: selectedRealmChoices.filter((choice) => (
+      choice.getAttribute('data-realm') === 'genesis-001'
+      && visibleWithinViewport(choice)
+    )).length,
+    realmChoiceContinueReadyCount: realmChoiceContinue instanceof HTMLButtonElement
+      && !realmChoiceContinue.disabled
+      && (realmChoiceContinue.textContent ?? '').trim() === 'ENTER SELECTED REALM'
+      && visibleWithinViewport(realmChoiceContinue) ? 1 : 0,
     realmMainCount: document.querySelectorAll('main[aria-label="Hegemony realm"]').length,
     realmMenuExploreCommandCount: [...document.querySelectorAll(
       '.realm-profile-menu__panel nav button strong'
@@ -335,11 +373,19 @@ const READ_FLOW_STATE_EXPRESSION = `(() => {
 const FLOW_STAGE_CONTRACT = Object.freeze({
   menu: Object.freeze({
     authPhase: 'absent', continuationKind: 'absent', enterRealmButtonCount: 1,
-    navigationCount: 1, rootScenario: 'journey', termsCount: 0,
+    navigationCount: 1, realmChoiceCount: 0, rootScenario: 'journey', termsCount: 0,
+  }),
+  'realm-choice': Object.freeze({
+    authPhase: 'absent', continuationKind: 'absent', enterRealmButtonCount: 0,
+    navigationCount: 0, realmChoiceCount: 1, realmChoiceVisibleCount: 1,
+    realmChoiceHeadingVisibleCount: 1, realmChoiceSelectedCount: 1,
+    realmChoiceSelectedGenesis001Count: 1, realmChoiceContinueReadyCount: 1,
+    rootScenario: 'journey', termsCount: 0,
   }),
   'initial-terms': Object.freeze({
     authPhase: 'absent', continuationDisabled: true, continuationKind: 'sign-in',
-    navigationCount: 1, rootScenario: 'journey', termsAcceptanceUnchecked: true, termsCount: 1,
+    navigationCount: 0, realmChoiceCount: 1, rootScenario: 'journey',
+    termsAcceptanceUnchecked: true, termsCount: 1,
   }),
   creating: Object.freeze({ authPhase: 'creating-channel', rootScenario: 'journey', termsCount: 0 }),
   awaiting: Object.freeze({
@@ -357,7 +403,7 @@ const FLOW_STAGE_CONTRACT = Object.freeze({
   }),
   'final-terms': Object.freeze({
     authPhase: 'authenticated', continuationDisabled: true, continuationKind: 'realm',
-    rootScenario: 'journey', termsAcceptanceUnchecked: true, termsCount: 1,
+    realmChoiceCount: 0, rootScenario: 'journey', termsAcceptanceUnchecked: true, termsCount: 1,
   }),
   realm: Object.freeze({
     directExploreControlCount: 0, exploreDialogCount: 0,
@@ -448,6 +494,12 @@ export function parseQaJourneyFlowObservation(value, stage, expectedHref) {
     'profileTriggerCount',
     'profileTriggerTextBearingCount',
     'qrSafe',
+    'realmChoiceCount',
+    'realmChoiceVisibleCount',
+    'realmChoiceHeadingVisibleCount',
+    'realmChoiceSelectedCount',
+    'realmChoiceSelectedGenesis001Count',
+    'realmChoiceContinueReadyCount',
     'realmMainCount',
     'realmMenuExploreCommandCount',
     'realmMenuMainMenuCommandCount',
@@ -925,7 +977,9 @@ async function activateTermsAcceptance(session) {
 
 async function runManualAdmissionCheckPresentation(session, probeCase, state) {
   await setViewport(session, MOBILE_VIEWPORT);
-  await session.command('Page.navigate', { url: probeCase.url });
+  // The direct-case loop has already loaded this exact scenario. Navigating
+  // to the same URL again can make the readiness check accept the old DOM
+  // while Chrome is still replacing it with the new document.
   await waitForDirectObservation(session, {
     ...probeCase,
     viewport: MOBILE_VIEWPORT,
@@ -938,6 +992,18 @@ async function runManualAdmissionCheckPresentation(session, probeCase, state) {
       ));
       if (buttons.length !== 1) return { accepted: false };
       for (let index = 0; index < 20; index += 1) buttons[0].click();
+      return { accepted: true };
+    })()`,
+    returnByValue: true,
+  });
+  const accepted = !activation?.exceptionDetails && activation?.result?.value?.accepted === true;
+  let immediate;
+  const checkingDeadline = Date.now() + 240;
+  // React may commit a discrete click after the current Runtime.evaluate task.
+  // Observe that commit before the fixture's 320 ms synthetic check settles.
+  do {
+    const observation = await session.command('Runtime.evaluate', {
+      expression: `(() => {
       const checking = document.querySelector('[data-admission-check-phase="checking"]');
       const checkingButton = [...document.querySelectorAll('button')].find((button) => (
         (button.textContent ?? '').trim() === 'CHECKING ADMISSION…'
@@ -945,7 +1011,6 @@ async function runManualAdmissionCheckPresentation(session, probeCase, state) {
       const panel = document.querySelector('.farcaster-auth-panel');
       const scrollOwner = document.querySelector('.warpkeep-menu-auth-rail');
       return {
-        accepted: true,
         checking: Boolean(checking),
         disabled: checkingButton instanceof HTMLButtonElement && checkingButton.disabled,
         documentWidth: document.documentElement.scrollWidth,
@@ -954,20 +1019,33 @@ async function runManualAdmissionCheckPresentation(session, probeCase, state) {
         panelOverflowY: panel ? getComputedStyle(panel).overflowY : '',
         scrollOwnerOverflowY: scrollOwner ? getComputedStyle(scrollOwner).overflowY : '',
       };
-    })()`,
-    returnByValue: true,
-  });
-  const immediate = activation?.result?.value;
-  if (
-    activation?.exceptionDetails
-    || immediate?.accepted !== true
-    || immediate?.checking !== true
-    || immediate?.disabled !== true
-    || immediate?.documentWidth !== MOBILE_VIEWPORT.width
-    || immediate?.flights !== '1'
-    || ['auto', 'scroll'].includes(immediate?.panelOverflowY)
-    || !['auto', 'scroll'].includes(immediate?.scrollOwnerOverflowY)
-  ) throw new Error('Journey manual admission check did not lock one responsive flight.');
+      })()`,
+      returnByValue: true,
+    });
+    immediate = observation?.exceptionDetails ? undefined : observation?.result?.value;
+    if (
+      accepted
+      && immediate?.checking === true
+      && immediate?.disabled === true
+      && immediate?.documentWidth === MOBILE_VIEWPORT.width
+      && immediate?.flights === '1'
+      && !['auto', 'scroll'].includes(immediate?.panelOverflowY)
+      && ['auto', 'scroll'].includes(immediate?.scrollOwnerOverflowY)
+    ) break;
+    if (!accepted || Date.now() >= checkingDeadline) {
+      // Only fixed-category booleans survive; no DOM text or session data.
+      throw new Error(`Journey manual admission check did not lock one responsive flight: ${JSON.stringify({
+        accepted,
+        checking: immediate?.checking === true,
+        disabled: immediate?.disabled === true,
+        viewportWidth: immediate?.documentWidth === MOBILE_VIEWPORT.width,
+        oneFlight: immediate?.flights === '1',
+        panelScrollOwner: ['auto', 'scroll'].includes(immediate?.panelOverflowY),
+        railScrollOwner: ['auto', 'scroll'].includes(immediate?.scrollOwnerOverflowY),
+      })}.`);
+    }
+    await delay(20);
+  } while (true);
 
   const deadline = Date.now() + STAGE_TIMEOUT_MILLISECONDS;
   while (Date.now() < deadline) {
@@ -1032,6 +1110,12 @@ async function runFullJourney(session, href, realmHref, state) {
   await runDesktopMenuSurfaces(session, href, state);
 
   await activateExactControl(session, 'button', 'ENTER REALM');
+  await waitForFlowStage(session, 'realm-choice', href, state);
+  await activateExactControl(
+    session,
+    '.realm-choice-selector__action--primary',
+    'ENTER SELECTED REALM'
+  );
   await waitForFlowStage(session, 'initial-terms', href, state);
   await activateTermsAcceptance(session);
   await activateExactControl(session, '[role="dialog"] button', 'CONTINUE TO SIGN-IN');

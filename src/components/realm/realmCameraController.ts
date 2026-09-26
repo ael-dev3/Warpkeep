@@ -1,10 +1,24 @@
 import * as THREE from 'three';
 
 import { hexKey, worldToNearestAxial } from '../../game/map/hexCoordinates';
+import { GENESIS_LOWLANDS_MAX_ABSOLUTE_TERRAIN_HEIGHT } from '../../game/map/terrainHeight';
 import type { TerrainBounds } from './createTerrainGeometry';
 
 export type RealmCameraMode = 'realm' | 'approach' | 'keep';
 export type RealmCameraPresentationBand = 'overview' | 'strategy' | 'close';
+
+/**
+ * Mesh bounds sample different terrain vertices at each graphics tier. Use
+ * the authored relief envelope for camera framing so a renderer downshift
+ * cannot subtly move the retained camera pose.
+ */
+export function stableRealmCameraBounds(bounds: TerrainBounds): TerrainBounds {
+  return Object.freeze({
+    ...bounds,
+    minY: -GENESIS_LOWLANDS_MAX_ABSOLUTE_TERRAIN_HEIGHT,
+    maxY: GENESIS_LOWLANDS_MAX_ABSOLUTE_TERRAIN_HEIGHT
+  });
+}
 
 export function realmCameraPresentationBand(
   mode: RealmCameraMode

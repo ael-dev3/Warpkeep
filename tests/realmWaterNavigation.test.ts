@@ -79,7 +79,8 @@ describe('persistent Water camera envelope', () => {
     expect(source).toContain('cells: options.waterCells');
     expect(source).not.toContain("filter((cell) => cell.regime !== 'lake')");
     expect(source).toContain('const activeWaterNavigationEnvelope = waterLayer');
-    expect(source).toContain('bounds: activeWaterNavigationEnvelope?.bounds ?? terrainData.bounds');
+    expect(source).toMatch(/const cameraBounds = stableRealmCameraBounds\(\s*activeWaterNavigationEnvelope\?\.bounds \?\? terrainData\.bounds\s*\);/);
+    expect(source).toContain('bounds: cameraBounds,');
     expect(source).toContain('maximumCenterHexRadius: activeWaterNavigationEnvelope.maximumCenterHexRadius');
     expect(source).toContain('hexSize: activeWaterNavigationEnvelope.hexSize');
     expect(source).toContain('blockedCenterCellKeys: activeWaterNavigationEnvelope.blockedCenterCellKeys');

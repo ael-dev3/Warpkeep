@@ -109,7 +109,18 @@ async function evaluateObject(session, expression, message) {
   if (
     evaluation?.exceptionDetails
     || evaluation?.result?.type !== 'object'
-  ) throw new Error(message);
+  ) {
+    const exceptionDescription = evaluation?.exceptionDetails?.exception?.description;
+    const safeException = typeof exceptionDescription === 'string'
+      ? exceptionDescription.split('\n', 1)[0].slice(0, 240)
+      : '';
+    const resultType = typeof evaluation?.result?.type === 'string'
+      ? evaluation.result.type
+      : 'missing';
+    throw new Error(
+      `${message} (result=${resultType}${safeException ? `, ${safeException}` : ''}).`
+    );
+  }
   return evaluation.result.value;
 }
 
@@ -153,17 +164,39 @@ function touchPoint(id, point) {
   };
 }
 
-async function dispatchTouchSequence(session, points) {
+async function dispatchTouchGesture(session, start, moves = []) {
   await session.command('Input.dispatchTouchEvent', {
     type: 'touchStart',
-    touchPoints: points,
+    touchPoints: start,
   });
+  try {
+    for (const touchPoints of moves) {
+      await session.command('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints,
+      });
+      // Let the browser deliver each change and the renderer consume a frame.
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  } finally {
+    await session.command('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+  }
+}
+
+function between(start, end, fraction) {
+  return {
+    x: start.x + (end.x - start.x) * fraction,
+    y: start.y + (end.y - start.y) * fraction,
+  };
 }
 
 /**
- * Exercises real CDP touch input under mobile device emulation. All identity
- * and camera coordinates remain page-local; only aggregate booleans cross the
- * synthetic QA boundary.
+ * Exercises the game's mobile input path with browser-delivered CDP touch
+ * events. Chromium emulation does not establish physical-device acceptance.
+ * Coordinates remain page-local; only aggregate booleans cross the QA boundary.
  */
 export async function applyRenderedMobileMapGestureInteraction(
   session,
@@ -186,6 +219,7 @@ export async function applyRenderedMobileMapGestureInteraction(
     || probeCase.deviceScaleFactor > 4
   ) throw new TypeError('Invalid rendered mobile touch profile.');
 
+  await waitForCameraSettled(session);
   const panStart = pointerTarget(await evaluateObject(
     session,
     `(() => {
@@ -224,19 +258,55 @@ export async function applyRenderedMobileMapGestureInteraction(
         'Synthetic mobile resource touch target'
       );
       Object.assign(fixtureControl.style, {
-        left: '58%',
         opacity: '1',
         pointerEvents: 'auto',
-        top: '48%',
         transform: 'none',
         visibility: 'visible',
         zIndex: '99',
       });
-      fixtureControl.addEventListener('click', () => {
+      fixtureControl.addEventListener('click', (event) => {
         const state = globalThis.__warpkeepRenderedMobileTouch;
-        if (state) state.fixtureActivationCount += 1;
+        if (!state) return;
+        state.fixtureActivationCount += 1;
+        if (event.isTrusted) state.trustedFixtureActivationCount += 1;
       });
       fixtureHost.append(fixtureControl);
+      const hostBounds = fixtureHost.getBoundingClientRect();
+      const panOffsets = [
+        [0.58, 0.48],
+        [0.42, 0.55],
+        [0.62, 0.62],
+        [0.35, 0.4],
+      ];
+      let panTarget = null;
+      for (const [x, y] of panOffsets) {
+        fixtureControl.style.left = Math.round(hostBounds.width * x) + 'px';
+        fixtureControl.style.top = Math.round(hostBounds.height * y) + 'px';
+        const bounds = fixtureControl.getBoundingClientRect();
+        const center = {
+          x: bounds.left + bounds.width * 0.5,
+          y: bounds.top + bounds.height * 0.5,
+        };
+        const end = document.elementFromPoint(center.x + 64, center.y + 24);
+        const usable = center.x >= 32
+          && center.x + 64 <= innerWidth - 32
+          && center.y >= 48
+          && center.y + 24 <= innerHeight - 48
+          && fixtureControl.contains(document.elementFromPoint(
+            center.x,
+            center.y
+          ))
+          && end instanceof Element
+          && root.contains(end);
+        if (usable) {
+          panTarget = center;
+          break;
+        }
+      }
+      if (!panTarget) {
+        fixtureControl.remove();
+        return null;
+      }
       const visibleWorldControls = [...document.querySelectorAll(
         '.realm-castle-label, .realm-worker-presence-marker, '
           + '.realm-resource-occupant-marker'
@@ -255,13 +325,13 @@ export async function applyRenderedMobileMapGestureInteraction(
       });
       const primaryControl = fixtureControl;
       if (!(primaryControl instanceof HTMLElement)) return null;
-      const bounds = primaryControl.getBoundingClientRect();
       const primaryControlKind = primaryControl.matches(
         '.realm-worker-presence-marker'
       ) ? 'worker' : 'resource';
       globalThis.__warpkeepRenderedMobileTouch = {
         canvas,
         fixtureActivationCount: 0,
+        trustedFixtureActivationCount: 0,
         fixtureControl,
         initialCameraToken: canvas.getAttribute(
           'data-realm-camera-state-token'
@@ -273,6 +343,15 @@ export async function applyRenderedMobileMapGestureInteraction(
           'data-realm-scene-creation-count'
         ),
         panControlKind: primaryControlKind,
+        pinchMoveCount: 0,
+        pinchPhaseObserved: false,
+        touchPointerDownCount: 0,
+        touchPointerMoveCount: 0,
+        touchPointerUpCount: 0,
+        trustedTouchStartCount: 0,
+        trustedTouchMoveCount: 0,
+        trustedTouchEndCount: 0,
+        untrustedInputCount: 0,
         root,
         worldControlsOwnTouch:
           getComputedStyle(canvas).touchAction === 'none'
@@ -281,26 +360,52 @@ export async function applyRenderedMobileMapGestureInteraction(
             getComputedStyle(control).touchAction === 'none'
           )),
       };
+      const observeTouchPointer = (event) => {
+        const state = globalThis.__warpkeepRenderedMobileTouch;
+        if (!state) return;
+        if (event.pointerType !== 'touch') return;
+        if (!event.isTrusted) state.untrustedInputCount += 1;
+        if (event.type === 'pointerdown') state.touchPointerDownCount += 1;
+        if (event.type === 'pointermove') state.touchPointerMoveCount += 1;
+        if (event.type === 'pointerup') state.touchPointerUpCount += 1;
+        if (state.root.getAttribute('data-camera-interacting') === 'pinching') {
+          state.pinchPhaseObserved = true;
+          if (event.type === 'pointermove') state.pinchMoveCount += 1;
+        }
+      };
+      globalThis.__warpkeepRenderedMobileTouch.pointerObserver =
+        observeTouchPointer;
+      const observeTouch = (event) => {
+        const state = globalThis.__warpkeepRenderedMobileTouch;
+        if (!state) return;
+        if (!event.isTrusted) state.untrustedInputCount += 1;
+        if (event.type === 'touchstart') state.trustedTouchStartCount += 1;
+        if (event.type === 'touchmove') state.trustedTouchMoveCount += 1;
+        if (event.type === 'touchend') state.trustedTouchEndCount += 1;
+      };
+      globalThis.__warpkeepRenderedMobileTouch.touchObserver = observeTouch;
+      for (const eventType of ['pointerdown', 'pointermove', 'pointerup']) {
+        window.addEventListener(eventType, observeTouchPointer, true);
+      }
+      for (const eventType of ['touchstart', 'touchmove', 'touchend']) {
+        window.addEventListener(eventType, observeTouch, true);
+      }
       return {
-        x: Math.round((bounds.left + bounds.width * 0.5) * 100) / 100,
-        y: Math.round((bounds.top + bounds.height * 0.5) * 100) / 100,
+        x: Math.round(panTarget.x * 100) / 100,
+        y: Math.round(panTarget.y * 100) / 100,
       };
     })()`,
     'Rendered mobile pan target evaluation failed.'
   ));
 
-  await dispatchTouchSequence(session, [touchPoint(61, panStart)]);
-  await session.command('Input.dispatchTouchEvent', {
-    type: 'touchMove',
-    touchPoints: [touchPoint(61, {
-      x: panStart.x + 34,
-      y: panStart.y + 14,
-    })],
-  });
-  await session.command('Input.dispatchTouchEvent', {
-    type: 'touchEnd',
-    touchPoints: [],
-  });
+  await dispatchTouchGesture(
+    session,
+    [touchPoint(61, panStart)],
+    [0.25, 0.5, 0.75, 1].map((fraction) => [touchPoint(61, {
+      x: panStart.x + 64 * fraction,
+      y: panStart.y + 24 * fraction,
+    })])
+  );
   await waitForCameraSettled(session);
 
   const pinchTargets = exactRecord(await evaluateObject(
@@ -309,34 +414,6 @@ export async function applyRenderedMobileMapGestureInteraction(
       const state = globalThis.__warpkeepRenderedMobileTouch;
       if (!state) return null;
       state.panActivationSuppressed = state.fixtureActivationCount === 0;
-      const controls = [...document.querySelectorAll(
-        '[data-rendered-mobile-touch-fixture="true"]'
-      )].filter((control) => {
-        const style = getComputedStyle(control);
-        const bounds = control.getBoundingClientRect();
-        const x = bounds.left + bounds.width * 0.5;
-        const y = bounds.top + bounds.height * 0.5;
-        return style.display !== 'none'
-          && style.visibility !== 'hidden'
-          && Number(style.opacity || '1') > 0
-          && bounds.width >= 32
-          && bounds.height >= 32
-          && x >= 32
-          && x <= innerWidth - 32
-          && y >= 48
-          && y <= innerHeight - 48
-          && control.contains(document.elementFromPoint(x, y));
-      });
-      const primaryControl = controls[0];
-      if (!(primaryControl instanceof HTMLElement)) return null;
-      const bounds = primaryControl.getBoundingClientRect();
-      const primary = {
-        x: bounds.left + bounds.width * 0.5,
-        y: bounds.top + bounds.height * 0.5,
-      };
-      state.pinchControlKind = primaryControl.matches(
-        '.realm-worker-presence-marker'
-      ) ? 'worker' : 'resource';
       const canvasBounds = state.canvas.getBoundingClientRect();
       const candidates = [
         [0.78, 0.32],
@@ -344,15 +421,42 @@ export async function applyRenderedMobileMapGestureInteraction(
         [0.78, 0.68],
         [0.22, 0.32],
         [0.5, 0.72],
+        [0.35, 0.48],
+        [0.65, 0.48],
+        [0.35, 0.62],
+        [0.65, 0.62],
       ].map(([x, y]) => ({
         x: canvasBounds.left + canvasBounds.width * x,
         y: canvasBounds.top + canvasBounds.height * y,
       }));
-      const secondary = candidates.find((point) => (
-        document.elementFromPoint(point.x, point.y) === state.canvas
-        && Math.hypot(point.x - primary.x, point.y - primary.y) >= 96
-      ));
-      if (!secondary) return null;
+      let pair = null;
+      for (const primary of candidates) {
+        if (document.elementFromPoint(primary.x, primary.y) !== state.canvas) {
+          continue;
+        }
+        for (const secondary of candidates) {
+          if (secondary === primary
+            || document.elementFromPoint(secondary.x, secondary.y)
+              !== state.canvas) continue;
+          const distance = Math.hypot(
+            secondary.x - primary.x,
+            secondary.y - primary.y
+          );
+          if (distance < 96) continue;
+          const dx = (secondary.x - primary.x) / distance * 26;
+          const dy = (secondary.y - primary.y) / distance * 26;
+          if (document.elementFromPoint(primary.x - dx, primary.y - dy)
+              === state.canvas
+            && document.elementFromPoint(secondary.x + dx, secondary.y + dy)
+              === state.canvas) {
+            pair = { primary, secondary };
+            break;
+          }
+        }
+        if (pair) break;
+      }
+      if (!pair) return null;
+      state.pinchControlKind = 'canvas';
       state.panMoved = state.canvas.getAttribute(
         'data-realm-camera-state-token'
       ) !== state.initialCameraToken;
@@ -361,12 +465,12 @@ export async function applyRenderedMobileMapGestureInteraction(
       ));
       return {
         primary: {
-          x: Math.round(primary.x * 100) / 100,
-          y: Math.round(primary.y * 100) / 100,
+          x: Math.round(pair.primary.x * 100) / 100,
+          y: Math.round(pair.primary.y * 100) / 100,
         },
         secondary: {
-          x: Math.round(secondary.x * 100) / 100,
-          y: Math.round(secondary.y * 100) / 100,
+          x: Math.round(pair.secondary.x * 100) / 100,
+          y: Math.round(pair.secondary.y * 100) / 100,
         },
       };
     })()`,
@@ -393,28 +497,81 @@ export async function applyRenderedMobileMapGestureInteraction(
     y: secondary.y + unitY * 26,
   };
 
-  await dispatchTouchSequence(session, [
-    touchPoint(71, primary),
-    touchPoint(72, secondary),
-  ]);
-  await session.command('Input.dispatchTouchEvent', {
-    type: 'touchMove',
-    touchPoints: [
-      touchPoint(71, expandedPrimary),
-      touchPoint(72, expandedSecondary),
-    ],
-  });
-  await session.command('Input.dispatchTouchEvent', {
-    type: 'touchEnd',
-    touchPoints: [],
-  });
+  await dispatchTouchGesture(
+    session,
+    [touchPoint(71, primary), touchPoint(72, secondary)],
+    [0.25, 0.5, 0.75, 1].map((fraction) => [
+      touchPoint(71, between(primary, expandedPrimary, fraction)),
+      touchPoint(72, between(secondary, expandedSecondary, fraction)),
+    ])
+  );
   await waitForCameraSettled(session);
+  const expandedPinchState = exactRecord(await evaluateObject(
+    session,
+    `(() => {
+      const state = globalThis.__warpkeepRenderedMobileTouch;
+      const currentZoom = Number(state?.canvas?.getAttribute(
+        'data-realm-camera-current-zoom'
+      ));
+      const changed = !!state
+        && Number.isFinite(currentZoom)
+        && Number.isFinite(state.zoomBeforePinch)
+        && Math.abs(currentZoom - state.zoomBeforePinch) >= 0.000001;
+      if (state) state.expandedPinchChanged = changed;
+      return { changed };
+    })()`,
+    'Rendered mobile pinch result evaluation failed.'
+  ));
+  if (!exactKeys(expandedPinchState, ['changed'])
+    || typeof expandedPinchState.changed !== 'boolean') {
+    throw new TypeError('Invalid rendered mobile pinch result.');
+  }
+  if (!expandedPinchState.changed) {
+    // The initial camera may already sit at a zoom limit. Exercise the
+    // opposite two-pointer direction before concluding the gesture has no effect.
+    await dispatchTouchGesture(
+      session,
+      [touchPoint(73, expandedPrimary), touchPoint(74, expandedSecondary)],
+      [0.25, 0.5, 0.75, 1].map((fraction) => [
+        touchPoint(73, between(expandedPrimary, primary, fraction)),
+        touchPoint(74, between(expandedSecondary, secondary, fraction)),
+      ])
+    );
+    await waitForCameraSettled(session);
+    const reversePinchState = exactRecord(await evaluateObject(
+      session,
+      `(() => {
+        const state = globalThis.__warpkeepRenderedMobileTouch;
+        const currentZoom = Number(state?.canvas?.getAttribute(
+          'data-realm-camera-current-zoom'
+        ));
+        const changed = !!state
+          && Number.isFinite(currentZoom)
+          && Number.isFinite(state.zoomBeforePinch)
+          && Math.abs(currentZoom - state.zoomBeforePinch) >= 0.000001;
+        if (state) state.reversePinchChanged = changed;
+        return { changed };
+      })()`,
+      'Rendered mobile reverse pinch result evaluation failed.'
+    ));
+    if (!exactKeys(reversePinchState, ['changed'])
+      || typeof reversePinchState.changed !== 'boolean') {
+      throw new TypeError('Invalid rendered mobile reverse pinch result.');
+    }
+  }
 
   const tapTarget = pointerTarget(await evaluateObject(
     session,
     `(() => {
       const state = globalThis.__warpkeepRenderedMobileTouch;
       if (!state) return null;
+      const zoomAfterPinch = Number(state.canvas.getAttribute(
+        'data-realm-camera-current-zoom'
+      ));
+      state.reversePinchChanged = !state.expandedPinchChanged
+        && Number.isFinite(zoomAfterPinch)
+        && Number.isFinite(state.zoomBeforePinch)
+        && Math.abs(zoomAfterPinch - state.zoomBeforePinch) >= 0.000001;
       state.pinchActivationSuppressed = state.fixtureActivationCount === 0;
       const controls = [...document.querySelectorAll(
         '[data-rendered-mobile-touch-fixture="true"]'
@@ -447,11 +604,35 @@ export async function applyRenderedMobileMapGestureInteraction(
     })()`,
     'Rendered mobile tap target evaluation failed.'
   ));
-  await dispatchTouchSequence(session, [touchPoint(81, tapTarget)]);
-  await session.command('Input.dispatchTouchEvent', {
-    type: 'touchEnd',
-    touchPoints: [],
-  });
+  await dispatchTouchGesture(session, [touchPoint(81, tapTarget)]);
+  const tapActivation = exactRecord(await evaluateObject(
+    session,
+    `(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      const state = globalThis.__warpkeepRenderedMobileTouch;
+      if (!state) return null;
+      return {
+        activationCount: Number.isSafeInteger(state?.fixtureActivationCount)
+          ? state.fixtureActivationCount
+          : -1,
+        trustedActivationCount: Number.isSafeInteger(
+          state?.trustedFixtureActivationCount
+        ) ? state.trustedFixtureActivationCount : -1,
+      };
+    })()`,
+    'Rendered mobile tap activation failed.'
+  ));
+  if (!exactKeys(tapActivation, [
+    'activationCount',
+    'trustedActivationCount',
+  ])
+    || !Number.isSafeInteger(tapActivation.activationCount)
+    || tapActivation.activationCount !== 1
+    || tapActivation.trustedActivationCount !== 1) {
+    throw new TypeError(
+      `Invalid rendered mobile tap activation (${JSON.stringify(tapActivation)}).`
+    );
+  }
 
   const evidence = await evaluateObject(
     session,
@@ -480,12 +661,14 @@ export async function applyRenderedMobileMapGestureInteraction(
           && !state.root.hasAttribute('data-camera-interacting'),
         nonCastleControlExercised:
           ['resource', 'worker'].includes(state.panControlKind)
-          && ['resource', 'worker'].includes(state.pinchControlKind)
+          && state.pinchControlKind === 'canvas'
           && ['resource', 'worker'].includes(state.tapControlKind),
         panMoved: state.panMoved === true,
         pinchZoomed: Number.isFinite(currentZoom)
           && Number.isFinite(state.zoomBeforePinch)
-          && Math.abs(currentZoom - state.zoomBeforePinch) >= 0.000001,
+          && Math.abs(currentZoom - state.zoomBeforePinch) >= 0.000001
+          && state.pinchPhaseObserved === true
+          && state.pinchMoveCount >= 1,
         rendererStable:
           state.root.getAttribute('data-renderer-state') === 'ready'
           && state.root.getAttribute('data-renderer-failure') === 'none'
@@ -495,10 +678,18 @@ export async function applyRenderedMobileMapGestureInteraction(
             === state.initialSceneCreationCount,
         selectionTapped:
           state.tapControlKind === 'resource'
-          && state.fixtureActivationCount === 1,
+          && state.fixtureActivationCount === 1
+          && state.trustedFixtureActivationCount === 1,
         touchEnvironmentReady:
           navigator.maxTouchPoints >= 2
-          && 'ontouchstart' in window,
+          && 'ontouchstart' in window
+          && state.touchPointerDownCount >= 4
+          && state.touchPointerMoveCount >= 2
+          && state.touchPointerUpCount >= 4
+          && state.trustedTouchStartCount >= 3
+          && state.trustedTouchMoveCount >= 2
+          && state.trustedTouchEndCount >= 3
+          && state.untrustedInputCount === 0,
         viewportExact:
           innerWidth === ${viewport.width}
           && innerHeight === ${viewport.height}
@@ -510,11 +701,54 @@ export async function applyRenderedMobileMapGestureInteraction(
           && state.pinchActivationSuppressed === true,
         worldControlsOwnTouch: state.worldControlsOwnTouch === true,
       };
+      if (!result.pinchZoomed) {
+        result.pinchDiagnostics = {
+          expandedPinchChanged: state.expandedPinchChanged === true,
+          pinchMoveCount: state.pinchMoveCount,
+          pinchPhaseObserved: state.pinchPhaseObserved === true,
+          reversePinchChanged: state.reversePinchChanged === true,
+          touchPointerDownCount: state.touchPointerDownCount,
+          touchPointerMoveCount: state.touchPointerMoveCount,
+          touchPointerUpCount: state.touchPointerUpCount,
+          trustedTouchStartCount: state.trustedTouchStartCount,
+          trustedTouchMoveCount: state.trustedTouchMoveCount,
+          trustedTouchEndCount: state.trustedTouchEndCount,
+          untrustedInputCount: state.untrustedInputCount,
+          maxTouchPoints: navigator.maxTouchPoints,
+          touchApiPresent: 'ontouchstart' in window,
+          documentHasFocus: document.hasFocus(),
+          documentVisible: document.visibilityState === 'visible',
+          viewportExact: innerWidth === ${viewport.width}
+            && innerHeight === ${viewport.height}
+            && Math.abs(devicePixelRatio - ${
+              probeCase.deviceScaleFactor
+            }) <= 0.001,
+        };
+      }
+      for (const eventType of ['pointerdown', 'pointermove', 'pointerup']) {
+        window.removeEventListener(
+          eventType,
+          state.pointerObserver,
+          true
+        );
+      }
+      for (const eventType of ['touchstart', 'touchmove', 'touchend']) {
+        window.removeEventListener(eventType, state.touchObserver, true);
+      }
       state.fixtureControl.remove();
       delete globalThis.__warpkeepRenderedMobileTouch;
       return result;
     })()`,
     'Rendered mobile gesture evidence evaluation failed.'
+  );
+  if (
+    evidence?.pinchZoomed === false
+    && evidence?.pinchDiagnostics
+    && typeof evidence.pinchDiagnostics === 'object'
+  ) throw new Error(
+    `Rendered mobile pinch did not change camera zoom (${JSON.stringify(
+      evidence.pinchDiagnostics
+    )}).`
   );
   return parseRenderedMobileMapGestureEvidence(evidence);
 }

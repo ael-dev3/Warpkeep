@@ -4075,12 +4075,12 @@
     {
       "path": "src/components/realm/RealmMapScreen.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "455846c10e3a3ceb6dbf2694d4e280f270e7db9bb82e805df30e5186c77ef258"
+      "sha256": "c99d0533db7f319e146a124cb068bad530eac857cb4ce47c17a65c6078f3499f"
     },
     {
       "path": "src/components/realm/RealmMapScreen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0746a93020fd0e12f942f4b7d9965dfc5072a97d300b1d5c778ec45e7059b93b"
+      "sha256": "3c91a6edd45d4a42f50ef78735c851202f7a09d90d3d401c6f00efc0c8280b77"
     },
     {
       "path": "src/components/realm/RealmNodeWorkerDispatch.css",
@@ -4260,7 +4260,7 @@
     {
       "path": "src/components/realm/createRealmScene.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "fe4031a7f35cafc2b10582f05845ce684d33630e75a9eb78def2b4c1e08613ca"
+      "sha256": "36e7aff5a14bbdf5daa5f717cb86fc75c281d9b413b197216e9a0302789e4b25"
     },
     {
       "path": "src/components/realm/createRealmTerrainFeatures.ts",
@@ -4375,7 +4375,7 @@
     {
       "path": "src/components/realm/realmCameraController.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "931a6ba3625a6456cdb7af40af08544b45a756b6dd623e396714a872d9bc9e93"
+      "sha256": "ec319fe398c3db6018e713b728c60f155ed47ed4935eba906365b6449774bda7"
     },
     {
       "path": "src/components/realm/realmCastleInstanceLayer.ts",
@@ -5045,7 +5045,7 @@
     {
       "path": "src/game/map/terrainHeight.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e246840d110c74ea181e4b72d1a461525ff4590e4f53c8873bcb6cf12f4dabb7"
+      "sha256": "3da1d4f9a52348ce2a5d7c1d63f5bedae3a6dfaa6087a0369b5b55eb4e87e2b0"
     },
     {
       "path": "src/game/map/terrainPlacements.ts",

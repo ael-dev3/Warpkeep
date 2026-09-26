@@ -577,11 +577,14 @@ export function createRenderedWebglQaActiveWorkerRealm(): RenderedWebglQaActiveW
 export function createRenderedWebglQaWorkerLocomotionRealm(
   nowMicros = BigInt(Date.now()) * 1_000n
 ): RenderedWebglQaActiveWorkerRealm {
-  if (typeof nowMicros !== 'bigint' || nowMicros < 315_000_000n) {
+  // Keep every observed phase active across renderer readiness, the browser
+  // probe's own readiness wait, and subsequent camera/animation sampling.
+  const phaseDuration = 360_000_000n;
+  if (typeof nowMicros !== 'bigint'
+    || nowMicros < 75_000_000n + phaseDuration * 2n) {
     throw new TypeError('Invalid rendered WebGL Worker locomotion clock.');
   }
   const ownCastleId = RENDERED_WEBGL_QA_OCCUPANT_CASTLE_ID - 1;
-  const phaseDuration = 120_000_000n;
   const outboundStart = nowMicros - 30_000_000n;
   const returningStart = nowMicros - 75_000_000n;
   const returningAssignmentStart = returningStart - phaseDuration * 2n;
@@ -699,7 +702,9 @@ function createRenderedWebglQaRegionalWorkerLocomotionRealm(
     nowMicros - foreignTravelDuration * 1_200n / 10_000n;
   const foreignAssignmentStart =
     foreignReturningStart - foreignTravelDuration * 2n;
-  const gatheringDuration = 120_000_000n;
+  // Regional travel legs are naturally long, but the gathering leg also needs
+  // to survive the browser's full bounded readiness and sampling window.
+  const gatheringDuration = 360_000_000n;
   const gatheringAssignmentStart =
     nowMicros - gatheringDuration - 30_000_000n;
   const assignments = new Map<string, ActiveWorkerAssignment>([

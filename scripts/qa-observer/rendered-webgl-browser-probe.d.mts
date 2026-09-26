@@ -290,9 +290,11 @@ export type RenderedWebglWorkerLocomotionEvidence = Readonly<{
   animatedCount: number;
   assetProfile: 'high' | 'balanced' | 'compact';
   caseId: RenderedWebglWorkerLocomotionProbeCase['id'];
+  effectiveQuality: RenderedWebglBrowserProbeQuality;
+  emergencyQuality: 'none';
   fallbackCount: 0;
   fixtureSelected: true;
-  modelCount: 3;
+  modelCount: 3 | 4;
   movementPixels: Readonly<{
     outbound: number;
     returning: number;
@@ -313,13 +315,22 @@ export type RenderedWebglWorkerLocomotionEvidence = Readonly<{
   }>[];
   viewportHeight: 1080 | 900 | 375 | 844;
   viewportWidth: 1920 | 1440 | 667 | 390;
-  visibleProjectionCount: 1 | 2;
+  visibleProjectionCount: 1 | 2 | 3;
   wheelDrivenCount: number;
 }>;
 
 export function parseRenderedWebglWorkerLocomotionEvidence(
   value: unknown
 ): RenderedWebglWorkerLocomotionEvidence;
+
+/** QA-only execution seam; counts validated cases even without a callback. */
+export function runRenderedWebglWorkerLocomotionEvidenceCases(
+  cases: readonly RenderedWebglWorkerLocomotionProbeCase[],
+  runCase: (
+    probeCase: RenderedWebglWorkerLocomotionProbeCase
+  ) => Promise<unknown>,
+  onEvidence?: (evidence: RenderedWebglWorkerLocomotionEvidence) => void
+): Promise<number>;
 
 export function applyRenderedWebglWorkerLocomotionInteraction(
   session: RenderedWebglCastleCanvasPointerSession,
@@ -420,6 +431,8 @@ export class DevtoolsPipeSession {
 
 export function isAllowedRenderedWebglPageUrl(value: unknown, loopbackOrigin: string): boolean;
 
+export function renderedWebglCoreEmergencyResetScript(loopbackOrigin: string): string;
+
 export function parseRenderedWebglBrowserDom(
   value: unknown,
   expected: RenderedWebglBrowserProbeCase
@@ -429,6 +442,8 @@ export function parseRenderedWebglBrowserDom(
   renderer: 'webgl';
   presentationMode: RenderedWebglBrowserProbePresentationMode;
   quality: RenderedWebglBrowserProbeQuality;
+  effectiveQuality: RenderedWebglBrowserProbeQuality;
+  emergencyQuality: 'none' | RenderedWebglBrowserProbeQuality;
   castleCount: 100;
   readyAfterMilliseconds: number;
   environmentLighting: 'procedural';
@@ -491,6 +506,11 @@ export function parseRenderedWebglBrowserDom(
   labelPlacedCount: number;
   labelUnplacedCount: number;
 }>;
+
+export function assertRenderedWebglFreshCoreBaseline(
+  value: unknown,
+  expected: RenderedWebglBrowserProbeCase
+): ReturnType<typeof parseRenderedWebglBrowserDom>;
 
 export function parseRenderedWebglActiveForestDom(
   value: unknown,
@@ -1009,10 +1029,20 @@ export type RenderedWebglCastleLodVisualBoundary = Readonly<{
 }>;
 
 export function runRenderedWebglBrowserProbe(options?: Readonly<{
+  mobileTouchOnly?: boolean;
+  mobileTouchCaseId?: 'iphone-chromium-emulation' | 'android-chromium-emulation';
+  workerLocomotionOnly?: boolean;
+  workerLocomotionCaseId?:
+    | 'full-hd-high-worker-locomotion'
+    | 'desktop-balanced-worker-locomotion'
+    | 'short-landscape-reduced-worker-locomotion'
+    | 'mobile-reduced-motion-worker-locomotion'
+    | 'desktop-balanced-northern-worker-locomotion'
+    | 'desktop-balanced-southern-worker-locomotion';
   onCastleLodVisualBoundary?: (boundary: RenderedWebglCastleLodVisualBoundary) => void;
   onCastleLodVisualEvidence?: (evidence: RenderedWebglCastleLodVisualEvidence) => void;
   onQualityMetrics?: (metrics: RenderedWebglQualityMetrics) => void;
   onWorkerLocomotionEvidence?: (
     evidence: RenderedWebglWorkerLocomotionEvidence
   ) => void;
-}>): Promise<14>;
+}>): Promise<number>;

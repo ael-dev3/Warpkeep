@@ -8,6 +8,7 @@ import {
   pointyHexCorners,
   sampleContinuousTerrainPresentation
 } from '../src/components/realm/createTerrainGeometry';
+import { stableRealmCameraBounds } from '../src/components/realm/realmCameraController';
 import { generateRealmTerrainMap } from '../src/game/map/generateTerrainMap';
 import {
   axialToWorld,
@@ -52,6 +53,36 @@ function geometryDigest(geometry: ReturnType<typeof createTerrainGeometryData>) 
 }
 
 describe('combined lowlands terrain geometry', () => {
+  it('keeps camera framing bounds stable across terrain mesh quality tiers', () => {
+    const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 5);
+    const high = createTerrainGeometryData(map, 1, {
+      subdivisionsPerEdge: 8,
+      adaptiveDetailRadius: 4
+    });
+    const reduced = createTerrainGeometryData(map, 1, {
+      subdivisionsPerEdge: 3,
+      adaptiveDetailRadius: 4
+    });
+
+    expect(high.bounds.minY).not.toBe(reduced.bounds.minY);
+    expect(high.bounds.maxY).not.toBe(reduced.bounds.maxY);
+    expect(stableRealmCameraBounds(high.bounds)).toEqual(
+      stableRealmCameraBounds(reduced.bounds)
+    );
+    expect(high.bounds.minY).toBeGreaterThanOrEqual(
+      stableRealmCameraBounds(high.bounds).minY
+    );
+    expect(high.bounds.maxY).toBeLessThanOrEqual(
+      stableRealmCameraBounds(high.bounds).maxY
+    );
+    expect(reduced.bounds.minY).toBeGreaterThanOrEqual(
+      stableRealmCameraBounds(reduced.bounds).minY
+    );
+    expect(reduced.bounds.maxY).toBeLessThanOrEqual(
+      stableRealmCameraBounds(reduced.bounds).maxY
+    );
+  });
+
   it('builds one finite indexed surface with valid non-degenerate triangles', () => {
     const map = generateRealmTerrainMap(HEGEMONY_GENESIS_001, 2);
     const geometry = createTerrainGeometryData(map, 1);

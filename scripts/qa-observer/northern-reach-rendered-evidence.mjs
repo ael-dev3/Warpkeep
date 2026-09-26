@@ -1,5 +1,6 @@
 const REGIONS = new Set(['overview', 'transition', 'deep']);
 const RELIEF = Object.freeze({ high: 'two-band', balanced: 'one-band', reduced: 'none' });
+const QUALITY_RANK = Object.freeze({ high: 2, balanced: 1, reduced: 0 });
 const BYTE_LIMIT = Object.freeze({
   high: 0.5 * 1_024 * 1_024,
   balanced: 0.35 * 1_024 * 1_024,
@@ -77,8 +78,8 @@ export function assertNorthernReachRenderedTarget(target, observation) {
 export function parseNorthernReachRenderedEvidence(value, expected) {
   const invalid = () => new TypeError('Invalid Northern Reach rendered evidence.');
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid();
-  const keys = ['band', 'coverage', 'material', 'quality', 'recovered',
-    'recoveryExercised', 'region', 'retained', 'selected', 'stable',
+  const keys = ['band', 'coverage', 'emergencyQuality', 'material', 'quality',
+    'recovered', 'recoveryExercised', 'region', 'retained', 'selected', 'stable',
     'vertices'].sort();
   const actual = Object.keys(value).sort();
   const [climate, deep, playableRatio, deepRatio, innerLeaks, southernLeaks]
@@ -98,6 +99,14 @@ export function parseNorthernReachRenderedEvidence(value, expected) {
   const [revision, relief, enhanced, fallback] = value.material ?? [];
   const quality = expected?.quality;
   const recover = expected?.recover;
+  const emergencyQualityValid = value.emergencyQuality === 'none'
+    || Object.hasOwn(QUALITY_RANK, value.emergencyQuality);
+  const effectiveQuality = emergencyQualityValid
+    && value.emergencyQuality !== 'none'
+    && Object.hasOwn(QUALITY_RANK, quality)
+    && QUALITY_RANK[value.emergencyQuality] < QUALITY_RANK[quality]
+    ? value.emergencyQuality
+    : quality;
   const region = expected?.region;
   const band = region === 'overview' ? 'overview'
     : region === 'transition' || expected?.viewport?.width <= 480
@@ -105,11 +114,14 @@ export function parseNorthernReachRenderedEvidence(value, expected) {
       : 'close';
   if (
     actual.length !== keys.length || actual.some((key, index) => key !== keys[index])
-    || !Object.hasOwn(RELIEF, quality) || !REGIONS.has(region)
+    || !Object.hasOwn(RELIEF, quality)
+    || !Object.hasOwn(RELIEF, effectiveQuality) || !REGIONS.has(region)
     || typeof recover !== 'boolean'
+    || !emergencyQualityValid
     || !Number.isSafeInteger(expected?.viewport?.width)
     || !Number.isSafeInteger(expected?.viewport?.height)
-    || value.quality !== quality || value.region !== region || value.band !== band
+    || value.quality !== effectiveQuality
+    || value.region !== region || value.band !== band
     || value.selected !== true || value.stable !== true
     || value.recoveryExercised !== recover || value.recovered !== recover
     || !Array.isArray(value.coverage) || value.coverage.length !== 6
@@ -143,10 +155,11 @@ export function parseNorthernReachRenderedEvidence(value, expected) {
     || retainedNorthernmostMean <= 0.75 || retainedNorthernmostMean > 1
     || !Array.isArray(value.vertices) || value.vertices.length !== 4
     || minimum < 0 || maximum > 1 || maximum <= 0.75 || mean <= 0
-    || !Number.isSafeInteger(bytes) || bytes < 1 || bytes > BYTE_LIMIT[quality]
+    || !Number.isSafeInteger(bytes) || bytes < 1 || bytes > BYTE_LIMIT[effectiveQuality]
     || !Array.isArray(value.material) || value.material.length !== 4
     || revision !== 'genesis-001-northern-snow-presentation-v1'
-    || relief !== RELIEF[quality] || enhanced !== true || fallback !== false
+    || relief !== RELIEF[effectiveQuality]
+    || enhanced !== true || fallback !== false
   ) throw invalid();
   return Object.freeze({ ...value });
 }
@@ -165,12 +178,21 @@ export function assertNorthernReachRenderedVisual(evidence, visual) {
     0,
     ...(visual?.coolSpatialBuckets ?? [])
   );
+  // Strategy framing places the selected transition field in the upper row,
+  // including on short landscape screens where the frame center is clear.
+  const transitionSnowMass = Math.max(
+    0,
+    ...(visual?.coolSpatialBuckets?.slice(0, 3) ?? [])
+  );
   if (!visual || typeof visual !== 'object'
     || !Number.isSafeInteger(cool)
     || !exactSpatialAggregate(visual.coolSpatialBuckets, cool)
     || (evidence?.region === 'overview'
       ? cool < OVERVIEW_MINIMUM_SNOW_SAMPLES
         || strongestSnowBucket < OVERVIEW_MINIMUM_SNOW_SAMPLES
+      : evidence?.region === 'transition'
+        ? cool < OVERVIEW_MINIMUM_SNOW_SAMPLES
+          || transitionSnowMass < OVERVIEW_MINIMUM_SNOW_SAMPLES
       : cool < TARGET_MINIMUM_FRAME_SNOW_SAMPLES
         || !Number.isSafeInteger(targetSnowMass)
         || targetSnowMass < TARGET_MINIMUM_SNOW_SAMPLES)
@@ -262,24 +284,53 @@ export async function applyNorthernReachRenderedEvidence(session, options) {
         await new Promise(resolve=>setTimeout(resolve,64));
         await wait(()=>canvas()?.dataset.realmCameraSettled==='true',5000);
       }
-      const signature=()=>[root.dataset.snowFieldRevision,root.dataset.snowAttributeBytes,
-        root.dataset.terrainTriangleCount,root.dataset.grassDrawCalls,
-        root.dataset.forestDecorativeDrawCalls,root.dataset.sharedForestTreeCount].join('|');
+      // Emergency recovery intentionally drops one graphics tier, so mesh
+      // counts, per-vertex buffers, instance counts, and slope-retained values
+      // may change. Keep this signature on canonical climate evidence.
+      const signature=()=>[
+        root.dataset.snowFieldRevision,
+        root.dataset.snowPreRetentionCellCountAbove015,
+        root.dataset.snowPreRetentionDeepCellCountAbove075,
+        root.dataset.snowPreRetentionCoverageRatio,
+        root.dataset.snowPreRetentionDeepCoverageRatio,
+        root.dataset.snowInnerRadiusLeakCount,
+        root.dataset.snowSouthernLeakCount,
+      ].join('|');
       const selectedTargetKey=region==='overview'?'':targets[region].q+','+targets[region].r;
       if(region!=='overview'&&root.dataset.realmSelectedCellKey!==selectedTargetKey)return null;
       const cameraToken=()=>canvas()?.dataset.realmCameraStateToken??'';
       const before=signature(),beforeCameraToken=cameraToken();let recovered=false;
       if(!/^[0-9a-f]{24}$/.test(beforeCameraToken))return null;
       if(recover){
+        const beforeEffectiveQuality=root.dataset.rendererEffectiveQuality;
+        const beforeEmergencyQuality=root.dataset.rendererEmergencyQuality;
+        const storedEmergencyQuality=()=>{
+          try{return sessionStorage.getItem(
+            'warpkeep.realm.renderer.emergency-quality.v1')??'none';}
+          catch{return 'unavailable';}
+        };
+        const lowerQuality=beforeEffectiveQuality==='high'?'balanced'
+          :beforeEffectiveQuality==='balanced'?'reduced':undefined;
+        const expectedEmergencyQuality=lowerQuality??beforeEmergencyQuality;
+        const expectedEffectiveQuality=lowerQuality??beforeEffectiveQuality;
+        if(!['high','balanced','reduced'].includes(beforeEffectiveQuality)
+          ||!['none','high','balanced','reduced'].includes(beforeEmergencyQuality)
+          ||storedEmergencyQuality()!==beforeEmergencyQuality)return null;
         const generation=Number(root.dataset.rendererGeneration);
         const context=canvas()?.getContext('webgl2')??canvas()?.getContext('webgl');
         const controller=context?.getExtension('WEBGL_lose_context');if(!controller)return null;
         controller.loseContext();
         const recovering=await wait(()=>root.dataset.rendererState==='recovering'
           &&root.dataset.rendererFailure==='context-lost');
+        const tierStagedAtLoss=recovering
+          &&storedEmergencyQuality()===expectedEmergencyQuality
+          &&root.dataset.rendererEffectiveQuality===beforeEffectiveQuality
+          &&root.dataset.rendererEmergencyQuality===beforeEmergencyQuality;
         if(recovering){await new Promise(resolve=>setTimeout(resolve,64));controller.restoreContext();}
-        recovered=recovering&&await wait(()=>root.dataset.rendererState==='ready'
+        recovered=tierStagedAtLoss&&await wait(()=>root.dataset.rendererState==='ready'
           &&root.dataset.rendererFailure==='none'&&Number(root.dataset.rendererGeneration)>generation
+          &&root.dataset.rendererEmergencyQuality===expectedEmergencyQuality
+          &&root.dataset.rendererEffectiveQuality===expectedEffectiveQuality
           &&canvas()?.dataset.realmCameraSettled==='true'&&signature()===before
           &&cameraToken()===beforeCameraToken
           &&root.dataset.realmSelectedCellKey===selectedTargetKey);
@@ -293,7 +344,8 @@ export async function applyNorthernReachRenderedEvidence(session, options) {
           number('snowInnerRadiusLeakCount'),number('snowSouthernLeakCount')],
         material:[root.dataset.snowFieldRevision,root.dataset.snowFineReliefMode,
           root.dataset.snowShaderEnhanced==='true',root.dataset.snowShaderFallbackActive==='true'],
-        quality:overlay.dataset.quality,recovered,recoveryExercised:recover,region,selected,
+        emergencyQuality:root.dataset.rendererEmergencyQuality,
+        quality:root.dataset.rendererEffectiveQuality,recovered,recoveryExercised:recover,region,selected,
         retained:[number('snowSampledPlayableLandCellCenterCount'),
           number('snowRetainedCellCenterCountAbove015'),
           number('snowRetainedDeepCellCenterCountAbove075'),
@@ -311,11 +363,16 @@ export async function applyNorthernReachRenderedEvidence(session, options) {
     awaitPromise: true,
     returnByValue: true,
   }, recover ? 40_000 : 10_000);
-  if (result?.exceptionDetails || result?.result?.type !== 'object') {
+  if (
+    result?.exceptionDetails
+    || result?.result?.type !== 'object'
+    || result.result.value === null
+  ) {
     throw new Error('Northern Reach rendered observation failed.');
   }
+  const evidence = result.result.value;
   try {
-    return parseNorthernReachRenderedEvidence(result.result.value, {
+    return parseNorthernReachRenderedEvidence(evidence, {
       quality,
       recover,
       region,

@@ -322,6 +322,7 @@ const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS = Object.freeze([
 const RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPEC_BY_ID = new Map(
   RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS.map((spec) => [spec.id, spec])
 );
+const WORKER_LOCOMOTION_LOCAL_DIAGNOSTICS = new WeakMap();
 export const RENDERED_WEBGL_QA_CASE_COUNT = 15;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_COUNT = 312;
 export const RENDERED_WEBGL_QA_OCCUPANCY_STRESS_MAXIMUM_PRESENCES = 400;
@@ -1144,7 +1145,17 @@ export function controlledRendererRecoveryWarningKind(
   } catch {
     return null;
   }
-  const expectedDependencyPrefix = `/@fs${profileDirectory}/vite-cache/deps/`;
+  const profileUrlPath = profileDirectory
+    .replace(/\\/gu, '/')
+    .replace(/^\/+/, '')
+    .split('/')
+    .map((segment, index) => (
+      index === 0 && /^[A-Za-z]:$/u.test(segment)
+        ? segment
+        : encodeURIComponent(segment)
+    ))
+    .join('/');
+  const expectedDependencyPrefix = `/@fs/${profileUrlPath}/vite-cache/deps/`;
   const dependencyName = sourceUrl.pathname.startsWith(expectedDependencyPrefix)
     ? sourceUrl.pathname.slice(expectedDependencyPrefix.length)
     : '';
@@ -1756,6 +1767,8 @@ export function parseRenderedWebglWorkerLocomotionEvidence(value) {
       'animatedCount',
       'assetProfile',
       'caseId',
+      'effectiveQuality',
+      'emergencyQuality',
       'fallbackCount',
       'fixtureSelected',
       'modelCount',
@@ -1775,6 +1788,8 @@ export function parseRenderedWebglWorkerLocomotionEvidence(value) {
     || candidate.approvedAssetLoaded !== true
     || candidate.animatedCount !== spec.animatedCount
     || candidate.assetProfile !== spec.assetProfile
+    || candidate.effectiveQuality !== spec.quality
+    || candidate.emergencyQuality !== 'none'
     || candidate.fallbackCount !== 0
     || candidate.fixtureSelected !== true
     || candidate.modelCount !== spec.modelCount
@@ -1901,6 +1916,8 @@ export function parseRenderedWebglWorkerLocomotionEvidence(value) {
     animatedCount: candidate.animatedCount,
     assetProfile: candidate.assetProfile,
     caseId: candidate.caseId,
+    effectiveQuality: candidate.effectiveQuality,
+    emergencyQuality: 'none',
     fallbackCount: candidate.fallbackCount,
     fixtureSelected: true,
     modelCount: candidate.modelCount,
@@ -2172,6 +2189,8 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     'canvasRealmCameraPresentationBand',
     'documentWidth',
     'directExploreControlState',
+    'effectiveQuality',
+    'emergencyQuality',
     'environmentLighting',
     'exploreAccessibleCastleCount',
     'exploreAccessibleResourceSiteCount',
@@ -2340,9 +2359,6 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     ? undefined : 0;
   const expectedFocusedReadableLabelDomFocusCount = expected.interaction === 'inspector'
     ? undefined : 0;
-  const expectedExploreCastleCount = expected.interaction === 'explore'
-    ? candidate.castleCount
-    : 0;
   const exploreOpen = expected.interaction === 'explore';
   const expectedExploreCoordinateJumpCount = exploreOpen
     && expected.expectedPresentationMode === 'observer' ? 1 : 0;
@@ -2391,12 +2407,32 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   const exploreAggregateShapeValid = exploreAggregateCounts.every((count) => (
     Number.isSafeInteger(count) && count >= 0
   ));
-  const terrainBudgets = TERRAIN_PRESENTATION_BUDGETS[expected.expectedQuality];
+  const rendererQualityRank = Object.freeze({ high: 2, balanced: 1, reduced: 0 });
+  const emergencyQualityValid = candidate.emergencyQuality === 'none'
+    || Object.hasOwn(rendererQualityRank, candidate.emergencyQuality);
+  const effectiveQualityValid = Object.hasOwn(
+    rendererQualityRank,
+    candidate.effectiveQuality
+  );
+  const expectedEffectiveQuality = emergencyQualityValid
+    && Object.hasOwn(rendererQualityRank, expected.expectedQuality)
+    && candidate.emergencyQuality !== 'none'
+    && rendererQualityRank[candidate.emergencyQuality]
+      < rendererQualityRank[expected.expectedQuality]
+    ? candidate.emergencyQuality
+    : expected.expectedQuality;
+  const effectiveQualityMatchesEmergencyCeiling = emergencyQualityValid
+    && effectiveQualityValid
+    && candidate.effectiveQuality === expectedEffectiveQuality;
+  const effectiveQuality = effectiveQualityValid
+    ? candidate.effectiveQuality
+    : expected.expectedQuality;
+  const terrainBudgets = TERRAIN_PRESENTATION_BUDGETS[effectiveQuality];
   const forestDecorativeBudgets = RENDERED_WEBGL_QA_FOREST_DECORATIVE_BUDGETS[
-    expected.expectedQuality
+    effectiveQuality
   ];
   const grassBudgets = RENDERED_WEBGL_QA_GRASS_BUDGETS[
-    expected.expectedQuality
+    effectiveQuality
   ];
   const forestDecorativeNumericValues = [
     candidate.forestDecorativeTreeCount,
@@ -2642,7 +2678,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   const vegetationCapabilityTelemetryValid =
     candidate.realmVegetationCapability === 'preferred'
     && candidate.realmVegetationCapabilityReason === 'none'
-    && candidate.realmVegetationSelectedProfile === expected.expectedQuality
+    && candidate.realmVegetationSelectedProfile === effectiveQuality
     && Number.isSafeInteger(candidate.realmVegetationMaxAttributes)
     && candidate.realmVegetationMaxAttributes >= 13;
   const terrainMaterialTelemetryValid =
@@ -2669,6 +2705,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
       ? 'map-presentation-mode' : '',
     !cameraPresentationSynchronized ? 'camera-presentation-synchronization' : '',
     candidate.quality !== expected.expectedQuality ? 'quality' : '',
+    !effectiveQualityMatchesEmergencyCeiling ? 'effective-quality-emergency-ceiling' : '',
     candidate.viewportWidth !== expected.viewport.width ? 'viewport-width' : '',
     candidate.viewportHeight !== expected.viewport.height ? 'viewport-height' : '',
     candidate.documentWidth !== expected.viewport.width ? 'horizontal-overflow' : '',
@@ -2846,7 +2883,10 @@ export function parseRenderedWebglBrowserDom(value, expected) {
     expectedFocusedReadableLabelDomFocusCount !== undefined
       && candidate.focusedReadableLabelDomFocusCount !== expectedFocusedReadableLabelDomFocusCount
       ? 'focused-readable-label-dom-focus' : '',
-    candidate.exploreCastleCount !== expectedExploreCastleCount
+    (exploreOpen
+      ? !Number.isSafeInteger(candidate.exploreCastleCount)
+        || candidate.exploreCastleCount !== candidate.castleCount
+      : candidate.exploreCastleCount !== 0)
       ? 'explore-castle-coverage' : '',
     candidate.exploreAccessibleCastleCount !== candidate.exploreCastleCount
       ? 'explore-castle-accessibility' : '',
@@ -2938,6 +2978,8 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   return Object.freeze({
     ...observation,
     environmentLighting: 'procedural',
+    effectiveQuality: candidate.effectiveQuality,
+    emergencyQuality: candidate.emergencyQuality,
     forestDecorativeTreeCount: candidate.forestDecorativeTreeCount,
     forestDecorativeTriangleCount: candidate.forestDecorativeTriangleCount,
     forestDecorativeDrawCalls: candidate.forestDecorativeDrawCalls,
@@ -3039,6 +3081,19 @@ export function parseRenderedWebglBrowserDom(value, expected) {
   });
 }
 
+/** A new visual case must start at its requested tier. The ordinary DOM
+ * parser also accepts the lower tier reached within a deliberate recovery
+ * case, so this separate gate keeps that allowance out of fresh baselines.
+ */
+export function assertRenderedWebglFreshCoreBaseline(value, expected) {
+  const observation = parseRenderedWebglBrowserDom(value, expected);
+  if (
+    observation.emergencyQuality !== 'none'
+    || observation.effectiveQuality !== expected.expectedQuality
+  ) throw new TypeError('Fresh rendered WebGL case inherited an emergency quality tier.');
+  return observation;
+}
+
 /**
  * Reuse the complete rendered DOM contract, then require the camera-local
  * ecology to be materially present. This is deliberately separate from the
@@ -3046,7 +3101,7 @@ export function parseRenderedWebglBrowserDom(value, expected) {
  */
 export function parseRenderedWebglActiveForestDom(value, expected) {
   const observation = parseRenderedWebglBrowserDom(value, expected);
-  const expectsWildflowers = observation.quality !== 'reduced';
+  const expectsWildflowers = observation.effectiveQuality !== 'reduced';
   if (
     observation.rootRealmCameraMode !== 'keep'
     || observation.canvasRealmCameraMode !== 'keep'
@@ -3983,8 +4038,22 @@ export function renderedWebglTerrainShaderFallbackVitePlugin() {
     name: 'warpkeep-local-terrain-shader-fallback',
     enforce: 'pre',
     transform(source, id) {
-      const sourceId = typeof id === 'string' ? id.split('?', 1)[0] : '';
-      if (sourceId !== RENDERED_WEBGL_TERRAIN_MATERIAL_SOURCE) return null;
+      const normalizeModulePath = (value) => value
+        .replace(/\\/gu, '/')
+        // Vite's /@fs prefix wraps an absolute path. Keep the leading slash
+        // for POSIX paths; the drive-prefix rule below handles Windows.
+        .replace(/^\/@fs(?=\/)/u, '')
+        .replace(/^\/([A-Za-z]:\/)/u, '$1');
+      const sourceId = typeof id === 'string'
+        ? normalizeModulePath(id.split('?', 1)[0])
+        : '';
+      const expectedSourceId = normalizeModulePath(
+        RENDERED_WEBGL_TERRAIN_MATERIAL_SOURCE
+      );
+      const sourcePathMatches = process.platform === 'win32'
+        ? sourceId.toLowerCase() === expectedSourceId.toLowerCase()
+        : sourceId === expectedSourceId;
+      if (!sourcePathMatches) return null;
       if (
         typeof source !== 'string'
         || source.length < 1
@@ -4429,6 +4498,8 @@ const READ_DOM_EXPRESSION = `(() => {
     presentationMode: overlay?.getAttribute('data-presentation-mode') ?? null,
     mapPresentationMode: map?.getAttribute('data-presentation-mode') ?? null,
     quality: overlay?.getAttribute('data-quality') ?? null,
+    emergencyQuality: map?.getAttribute('data-renderer-emergency-quality') ?? null,
+    effectiveQuality: map?.getAttribute('data-renderer-effective-quality') ?? null,
     castleCount: integer(overlay?.getAttribute('data-castle-count')),
     readyAfterMilliseconds: integer(overlay?.getAttribute('data-ready-after-ms')),
     environmentLighting: canvas?.getAttribute('data-environment-lighting') ?? null,
@@ -5082,6 +5153,7 @@ export function assertNorthernReachRepeatedReducedMotionEvidence(
   const repeatedVisual = repeated?.visual;
   const exactEvidenceFields = [
     'band',
+    'emergencyQuality',
     'quality',
     'recovered',
     'recoveryExercised',
@@ -5097,6 +5169,7 @@ export function assertNorthernReachRepeatedReducedMotionEvidence(
   const exactEvidenceKeys = [
     'band',
     'coverage',
+    'emergencyQuality',
     'material',
     'quality',
     'recovered',
@@ -7239,6 +7312,75 @@ export async function applyRenderedWebglCaseInteraction(
   return Object.freeze({});
 }
 
+async function applyRenderedWebglExploreInventoryInteraction(session) {
+  const evaluation = await session.command('Runtime.evaluate', {
+    expression: `(async () => {
+      const dialog = document.querySelector('.realm-cell-navigator__dialog');
+      if (!(dialog instanceof HTMLElement)) return false;
+      const waitFor = async (predicate, timeoutMilliseconds = 5000) => {
+        const deadline = performance.now() + timeoutMilliseconds;
+        while (performance.now() <= deadline) {
+          if (predicate()) return true;
+          await new Promise((resolve) => setTimeout(resolve, 32));
+        }
+        return false;
+      };
+      const expand = async (section) => {
+        const toggle = dialog.querySelector(
+          '[data-realm-explore-section="' + section + '"]'
+        );
+        if (!(toggle instanceof HTMLButtonElement) || toggle.disabled) return false;
+        if (toggle.getAttribute('aria-expanded') !== 'true') {
+          toggle.focus({ preventScroll: true });
+          toggle.click();
+        }
+        return waitFor(() => toggle.getAttribute('aria-expanded') === 'true');
+      };
+      if (!await expand('castles') || !await expand('resources')) return false;
+      const castleButtons = () => [...dialog.querySelectorAll(
+        '.realm-cell-navigator__castles[aria-label="Founded castles"] > li > button'
+      )];
+      const resourceButtons = () => [...dialog.querySelectorAll(
+        '.realm-cell-navigator__resources .realm-cell-navigator__resource-site'
+      )];
+      const revealAll = async (section, buttons) => {
+        const sectionRoot = dialog.querySelector(
+          '[data-realm-explore-section="' + section + '"]'
+        )?.closest('.realm-cell-navigator__section');
+        if (!(sectionRoot instanceof HTMLElement)) return false;
+        for (let page = 0; page < 8; page += 1) {
+          const more = sectionRoot.querySelector(
+            '.realm-cell-navigator__section-more'
+          );
+          if (more === null) return true;
+          if (!(more instanceof HTMLButtonElement) || more.disabled) return false;
+          const previousCount = buttons().length;
+          more.focus({ preventScroll: true });
+          more.click();
+          if (!await waitFor(() => buttons().length > previousCount)) return false;
+        }
+        return sectionRoot.querySelector(
+          '.realm-cell-navigator__section-more'
+        ) === null;
+      };
+      if (!await revealAll('castles', castleButtons)
+        || !await revealAll('resources', resourceButtons)) return false;
+      const sites = resourceButtons();
+      return castleButtons().length > 0
+        && sites.length >= 4
+        && new Set(sites.map((button) => (
+          button.getAttribute('data-resource-kind')
+        ))).size === 4;
+    })()`,
+    awaitPromise: true,
+    returnByValue: true,
+  }, CDP_COMMAND_TIMEOUT_MILLISECONDS * 5);
+  if (
+    evaluation?.exceptionDetails
+    || evaluation?.result?.value !== true
+  ) throw new Error('Rendered WebGL Explore inventories did not expand.');
+}
+
 export async function applyRenderedWebglResourceOccupantInteraction(
   session,
   presentationMode,
@@ -7399,10 +7541,22 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         if (!await openExplore()) return false;
         if (expectedMode === 'player') {
           if (document.querySelector('.realm-cell-navigator__jump') !== null) return false;
-          const matches = [...document.querySelectorAll(
-            '.realm-cell-navigator__resource-site'
+          const resourceToggle = document.querySelector(
+            '[data-realm-explore-section="resources"]'
+          );
+          if (!(resourceToggle instanceof HTMLButtonElement)) return false;
+          if (resourceToggle.getAttribute('aria-expanded') !== 'true') {
+            resourceToggle.focus({ preventScroll: true });
+            resourceToggle.click();
+          }
+          if (!await waitFor(() => (
+            resourceToggle.getAttribute('aria-expanded') === 'true'
+          ))) return false;
+          const resourceButtons = () => [...document.querySelectorAll(
+            '.realm-cell-navigator__resources .realm-cell-navigator__resource-site'
               + '[data-resource-kind][data-resource-state]'
-          )].filter((button) => (
+          )];
+          const matchesForTarget = () => resourceButtons().filter((button) => (
             button instanceof HTMLButtonElement
             && !button.disabled
             && button.getAttribute('data-resource-kind') === target.resource
@@ -7410,6 +7564,19 @@ export async function applyRenderedWebglResourceOccupantInteraction(
             && (button.getAttribute('aria-label') ?? '').trim().length > 0
             && visible(button)
           ));
+          let matches = matchesForTarget();
+          let page = 0;
+          while (matches.length <= target.occurrence && page < 16) {
+            const more = document.querySelector(
+              '.realm-cell-navigator__resources .realm-cell-navigator__section-more'
+            );
+            if (!(more instanceof HTMLButtonElement) || more.disabled) break;
+            const previousCount = resourceButtons().length;
+            more.click();
+            if (!await waitFor(() => resourceButtons().length > previousCount)) break;
+            matches = matchesForTarget();
+            page += 1;
+          }
           const resourceButton = matches[target.occurrence];
           if (!(resourceButton instanceof HTMLButtonElement)) return false;
           resourceButton.scrollIntoView({
@@ -8066,7 +8233,23 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         if (overviewLane === 'control' && settledControl instanceof HTMLButtonElement) {
           overviewPresence = settledControl;
         } else if (overviewLane === 'control') {
-          overviewPresence = undefined;
+          const settledPassivePresence = presentationForKey(
+            '.realm-resource-occupant-presence',
+            overviewTargetKey
+          );
+          if (
+            settledPassivePresence instanceof HTMLElement
+            && settledPassivePresence.getAttribute('data-projected-visible') === 'true'
+            && visible(settledPassivePresence)
+            && settledPassivePresence.querySelector(
+              'canvas[data-profile-image-state="ready"]'
+            ) instanceof HTMLCanvasElement
+          ) {
+            overviewLane = 'presence';
+            overviewPresence = settledPassivePresence;
+          } else {
+            overviewPresence = undefined;
+          }
         } else {
           overviewPresence = presentationForKey(
             '.realm-resource-occupant-presence',
@@ -8275,7 +8458,10 @@ export async function applyRenderedWebglResourceOccupantInteraction(
           compactOverviewCullingValid
           || (
             overviewPresencePrivacyBounded
-            && subtreePrivacyBounded(overviewPanel)
+            && (
+              overviewLane === 'presence'
+              || subtreePrivacyBounded(overviewPanel)
+            )
           )
         );
       const duringRenderer = rendererSnapshot();
@@ -8381,7 +8567,8 @@ export async function applyRenderedWebglResourceOccupantInteraction(
         publicRecordCorrect,
         publicRecordOpened,
         rendererStable,
-        workerRecordCorrect
+        overviewLane,
+        workerRecordCorrect,
       };
     })()`,
     awaitPromise: true,
@@ -8540,13 +8727,14 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
       const commandBounds = commandCenter instanceof HTMLElement
         ? commandCenter.getBoundingClientRect()
         : undefined;
-      const mobileBoundsSafe = innerWidth === 390
-        && innerHeight === 844
-        && commandBounds !== undefined
+      const commandBoundsSafe = commandBounds !== undefined
         && commandBounds.left >= -1
         && commandBounds.top >= -1
         && commandBounds.right <= innerWidth + 1
-        && commandBounds.bottom <= innerHeight + 1
+        && commandBounds.bottom <= innerHeight + 1;
+      const mobileBoundsSafe = innerWidth === 390
+        && innerHeight === 844
+        && commandBoundsSafe
         && document.documentElement.scrollWidth <= innerWidth + 1;
       const back = commandCenter?.querySelector(
         'button[aria-label="Back to Realm menu"]'
@@ -8569,16 +8757,41 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
       const navigatorReady = await waitFor(() => visible(
         document.querySelector('.realm-cell-navigator__dialog')
       ));
-      const navigator = document.querySelector('.realm-cell-navigator__dialog');
-      const semanticResourceButton = [...(navigator?.querySelectorAll(
+      let navigator = document.querySelector('.realm-cell-navigator__dialog');
+      const searchInput = navigator?.querySelector('input[type="search"]');
+      const nativeValueSetter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype, 'value'
+      )?.set;
+      let resourceSearchApplied = false;
+      if (searchInput instanceof HTMLInputElement
+        && visible(searchInput)
+        && typeof nativeValueSetter === 'function') {
+        searchInput.focus({ preventScroll: true });
+        nativeValueSetter.call(searchInput, 'occupied');
+        resourceSearchApplied = searchInput.dispatchEvent(new InputEvent(
+          'input', { bubbles: true, inputType: 'insertText', data: 'occupied' }
+        )) && searchInput.value === 'occupied';
+      }
+      const resourceSectionExpanded = resourceSearchApplied && await waitFor(() => (
+        document.querySelector(
+          '.realm-cell-navigator__dialog [data-realm-explore-section="resources"]'
+        )
+          ?.getAttribute('aria-expanded') === 'true'
+      ));
+      navigator = document.querySelector('.realm-cell-navigator__dialog');
+      const resourceMoreAvailable = navigator?.querySelector(
+        '.realm-cell-navigator__resources .realm-cell-navigator__section-more'
+      ) instanceof HTMLButtonElement;
+      const occupiedGoldButtons = [...(navigator?.querySelectorAll(
         '.realm-cell-navigator__resource-site'
           + '[data-resource-kind="gold"][data-resource-state="occupied"]'
-      ) ?? [])].find((button) => (
+      ) ?? [])].filter((button) => (
         button instanceof HTMLButtonElement
         && !button.disabled
         && (button.getAttribute('aria-label') ?? '').trim().length > 0
         && visible(button)
       ));
+      const semanticResourceButton = occupiedGoldButtons[0];
       if (semanticResourceButton instanceof HTMLButtonElement) {
         semanticResourceButton.scrollIntoView({
           behavior: 'instant',
@@ -8601,6 +8814,9 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
         : '';
       const semanticResourceNavigationSafe = navigatorReady
         && navigator instanceof HTMLElement
+        && resourceSearchApplied
+        && resourceSectionExpanded
+        && occupiedGoldButtons.length === 2
         && navigator.querySelector('.realm-cell-navigator__jump') === null
         && semanticResourceButton instanceof HTMLButtonElement
         && semanticResourceBounds !== undefined
@@ -8670,8 +8886,7 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
       const privacyNodes = [commandCenter, semanticInspector].filter((node) => (
         node instanceof HTMLElement
       ));
-      const privacyBounded = privacyNodes.length === 2
-        && privacyNodes.every((root) => (
+      const privacyAttributesSafe = privacyNodes.every((root) => (
           [root, ...root.querySelectorAll('*')].every((element) => (
             [...element.attributes].every((attribute) => (
               !/(?:^|[-_:])(?:fid|wallet|token|proof|auth|request)(?:$|[-_:])/i
@@ -8680,6 +8895,8 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
             ))
           ))
         ));
+      const privacyBounded = privacyNodes.length === 2
+        && privacyAttributesSafe;
       const semanticInspectorClose = semanticInspector?.querySelector(
         '.gold-mine-inspection__dismiss'
       );
@@ -8735,7 +8952,31 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
         ownerRosterExact,
         privacyBounded,
         rendererContextRecovered,
-        rendererStable: rendererContextRecovered && rendererHealthy()
+        rendererStable: rendererContextRecovered && rendererHealthy(),
+        ...(${process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1'} ? {
+          localDiagnostics: {
+            commandBoundsSafe,
+            viewportWidth: innerWidth,
+            viewportHeight: innerHeight,
+            documentScrollWidth: document.documentElement.scrollWidth,
+            commandLeft: commandBounds?.left ?? null,
+            commandTop: commandBounds?.top ?? null,
+            commandRight: commandBounds?.right ?? null,
+            commandBottom: commandBounds?.bottom ?? null,
+            navigatorReady,
+            resourceSearchApplied,
+            resourceSectionExpanded,
+            resourceMoreAvailable,
+            occupiedGoldSiteCountExact: occupiedGoldButtons.length === 2,
+            semanticResourceButtonFound: semanticResourceButton instanceof HTMLButtonElement,
+            semanticResourceNavigationSafe,
+            semanticInspectorReady,
+            semanticForeignRecordReady,
+            privacyNodesPresent: privacyNodes.length === 2,
+            privacyAttributesSafe,
+            semanticNavigationSettled,
+          }
+        } : {})
       };
     })()`,
     awaitPromise: true,
@@ -8744,7 +8985,44 @@ export async function applyRenderedWebglActiveWorkerInteraction(session) {
   if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
     throw new Error('Rendered WebGL active Worker evaluation failed.');
   }
-  return evaluation.result.value;
+  const raw = evaluation.result.value;
+  if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
+    const keys = [
+      'commandBoundsSafe',
+      'navigatorReady',
+      'resourceSearchApplied',
+      'resourceSectionExpanded',
+      'resourceMoreAvailable',
+      'occupiedGoldSiteCountExact',
+      'semanticResourceButtonFound',
+      'semanticResourceNavigationSafe',
+      'semanticInspectorReady',
+      'semanticForeignRecordReady',
+      'privacyNodesPresent',
+      'privacyAttributesSafe',
+      'semanticNavigationSettled',
+    ];
+    const diagnostics = raw?.localDiagnostics;
+    const bounded = Object.fromEntries(keys.map((key) => [
+      key, diagnostics?.[key] === true,
+    ]));
+    const boundedNumber = (value) => Number.isFinite(value)
+      && value >= -10_000 && value <= 10_000
+      ? Math.round(value) : null;
+    for (const key of [
+      'viewportWidth', 'viewportHeight', 'documentScrollWidth',
+      'commandLeft', 'commandTop', 'commandRight', 'commandBottom',
+    ]) bounded[key] = boundedNumber(diagnostics?.[key]);
+    process.stderr.write(
+      `Local synthetic active Worker stage booleans: ${JSON.stringify(bounded)}\n`
+    );
+  }
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const evidence = { ...raw };
+    delete evidence.localDiagnostics;
+    return evidence;
+  }
+  return raw;
 }
 
 export async function applyRenderedWebglActiveWorkerReconnectInteraction(session) {
@@ -9048,53 +9326,101 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
           canvas.getAttribute('data-realm-camera-state-token') ?? ''
         )
       );
+      const visibleSurface = (element) => {
+        if (!(element instanceof HTMLElement)
+          || !['dialog', 'region'].includes(element.getAttribute('role'))) return false;
+        const style = getComputedStyle(element);
+        const bounds = element.getBoundingClientRect();
+        return style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || '1') > 0
+          && bounds.width > 0
+          && bounds.height > 0;
+      };
+      const surfacesClosed = () => (
+        document.querySelector('.worker-inspection') === null
+        && document.querySelector('.worker-command-center') === null
+        && document.querySelector('.realm-profile-menu__panel') === null
+      );
+      const emptyLocateGates = () => ({
+        triggerReady: false,
+        workersControlReady: false,
+        rosterReady: false,
+        workerButtonReady: false,
+        locateReady: false,
+        surfacesClosed: false,
+        cameraSettled: false,
+        projectionVisible: false,
+      });
+      const locateGates = {
+        outbound: emptyLocateGates(),
+        returning: emptyLocateGates(),
+      };
       const closeWorkerSurfaces = async () => {
+        if (await waitFor(surfacesClosed, 250)) return true;
         const workerBack = document.querySelector(
           '.worker-inspection__dismiss[aria-label="Back to workers"]'
         );
         if (workerBack instanceof HTMLButtonElement) workerBack.click();
-        await waitFor(() => document.querySelector(
-          '.worker-command-center[role="dialog"]'
-        ) instanceof HTMLElement, 2_000);
+        if (!await waitFor(() => surfacesClosed() || visibleSurface(
+          document.querySelector('.worker-command-center')
+        ), 2_000)) return false;
+        if (surfacesClosed()) return true;
         const menuBack = document.querySelector(
           '.worker-command-center button[aria-label="Back to Realm menu"]'
         );
         if (menuBack instanceof HTMLButtonElement) menuBack.click();
-        await waitFor(() => document.querySelector(
-          '.realm-profile-menu__panel[role="dialog"]'
-        ) instanceof HTMLElement, 2_000);
+        if (!await waitFor(() => surfacesClosed() || visibleSurface(
+          document.querySelector('.realm-profile-menu__panel')
+        ), 2_000)) return false;
+        if (surfacesClosed()) return true;
         const menuClose = document.querySelector(
           '.realm-profile-menu__panel button[aria-label="Close Realm menu"]'
         );
         if (menuClose instanceof HTMLButtonElement) menuClose.click();
-        return waitFor(() => (
-          document.querySelector('.worker-inspection') === null
-          && document.querySelector('.worker-command-center') === null
-          && document.querySelector('.realm-profile-menu__panel') === null
-        ), 2_000);
+        return waitFor(surfacesClosed, 2_000);
       };
       const locateMovingWorker = async (target) => {
+        const gates = locateGates[target.phase];
         const profileTrigger = document.querySelector('.realm-profile-trigger');
         if (!(profileTrigger instanceof HTMLButtonElement)) return false;
+        gates.triggerReady = true;
         profileTrigger.click();
         const workersReady = await waitFor(() => (
           document.querySelector(
-            '.realm-profile-menu__worker-actions button[aria-haspopup="dialog"]'
+            '.realm-profile-menu__worker-actions '
+              + 'button[data-realm-focus-key="commands:workers"]'
+              + '[aria-controls="realm-worker-command-center"]'
           ) instanceof HTMLButtonElement
         ), 2_000);
         if (!workersReady) return false;
         const workersButton = document.querySelector(
-          '.realm-profile-menu__worker-actions button[aria-haspopup="dialog"]'
+          '.realm-profile-menu__worker-actions '
+            + 'button[data-realm-focus-key="commands:workers"]'
+            + '[aria-controls="realm-worker-command-center"]'
         );
         if (!(workersButton instanceof HTMLButtonElement) || workersButton.disabled) {
           return false;
         }
+        workersButton.scrollIntoView({ behavior: 'instant', block: 'center' });
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        const workerButtonBounds = workersButton.getBoundingClientRect();
+        if (!visibleSurface(document.querySelector('.realm-profile-menu__panel'))
+          || workerButtonBounds.width <= 0
+          || workerButtonBounds.height <= 0
+          || workerButtonBounds.right <= 0
+          || workerButtonBounds.bottom <= 0
+          || workerButtonBounds.left >= innerWidth
+          || workerButtonBounds.top >= innerHeight) return false;
+        gates.workersControlReady = true;
         workersButton.click();
         const rosterReady = await waitFor(() => (
-          document.querySelector('.worker-command-center__worker')
+          visibleSurface(document.querySelector('.worker-command-center'))
+          && document.querySelector('.worker-command-center__worker')
             instanceof HTMLButtonElement
         ), 2_000);
         if (!rosterReady) return false;
+        gates.rosterReady = true;
         const workerButton = [...document.querySelectorAll(
           '.worker-command-center__worker'
         )].find((button) => (
@@ -9106,6 +9432,7 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
         if (!(workerButton instanceof HTMLButtonElement) || workerButton.disabled) {
           return false;
         }
+        gates.workerButtonReady = true;
         workerButton.click();
         const locateReady = await waitFor(() => (
           document.querySelector('.worker-inspection__locate')
@@ -9116,14 +9443,20 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
         if (!(locateButton instanceof HTMLButtonElement) || locateButton.disabled) {
           return false;
         }
+        gates.locateReady = true;
         locateButton.click();
         const surfacesClosed = await closeWorkerSurfaces();
+        gates.surfacesClosed = surfacesClosed;
         const settled = surfacesClosed && await waitFor(() => (
           cameraSettled()
           && visibleRootProjections().some(
             ({ phase }) => phase === target.phase
           )
         ), 5_000);
+        gates.cameraSettled = cameraSettled();
+        gates.projectionVisible = visibleRootProjections().some(
+          ({ phase }) => phase === target.phase
+        );
         return settled
           ? canvas.getAttribute('data-realm-camera-state-token')
           : false;
@@ -9135,7 +9468,6 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
           === expected.reducedMotion
         && innerWidth === expected.viewportWidth
         && innerHeight === expected.viewportHeight
-        && approvedAssetLoaded()
         && exactCountsReady()
       ));
       const samples = [];
@@ -9281,6 +9613,8 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
         animatedCount: counts.animatedCount,
         assetProfile: expected.assetProfile,
         caseId: expected.caseId,
+        effectiveQuality: map?.getAttribute('data-renderer-effective-quality') ?? null,
+        emergencyQuality: map?.getAttribute('data-renderer-emergency-quality') ?? null,
         fallbackCount: counts.fallbackCount,
         fixtureSelected: fixtureSelected(),
         modelCount: counts.modelCount,
@@ -9295,7 +9629,25 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
         viewportHeight: innerHeight,
         viewportWidth: innerWidth,
         visibleProjectionCount: finalRoots.length,
-        wheelDrivenCount: counts.wheelDrivenCount
+        wheelDrivenCount: counts.wheelDrivenCount,
+        ...(${process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1'} ? {
+          localDiagnostics: {
+            rendererHealthy: rendererHealthy(),
+            fixtureSelected: fixtureSelected(),
+            motionPreferenceMatches: matchMedia('(prefers-reduced-motion: reduce)')
+              .matches === expected.reducedMotion,
+            viewportExact: innerWidth === expected.viewportWidth
+              && innerHeight === expected.viewportHeight,
+            countsExact: exactCountsReady(),
+            compactChromeMode: map?.dataset.realmChromeMode === 'compact-web',
+            assetTimingEntryPresent: approvedAssetLoaded(),
+            baseReadinessSatisfied,
+            phaseReadinessSatisfied,
+            regionalSelectionStable,
+            outbound: locateGates.outbound,
+            returning: locateGates.returning,
+          }
+        } : {})
       };
     })()`,
     awaitPromise: true,
@@ -9304,7 +9656,18 @@ export async function applyRenderedWebglWorkerLocomotionInteraction(
   if (evaluation?.exceptionDetails || evaluation?.result?.type !== 'object') {
     throw new Error('Rendered WebGL Worker locomotion evaluation failed.');
   }
-  return evaluation.result.value;
+  const raw = evaluation.result.value;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const evidence = { ...raw };
+    delete evidence.localDiagnostics;
+    if (raw.localDiagnostics) {
+      WORKER_LOCOMOTION_LOCAL_DIAGNOSTICS.set(
+        evidence, raw.localDiagnostics
+      );
+    }
+    return evidence;
+  }
+  return raw;
 }
 
 export async function applyRenderedWebglOccupancyStressInteraction(session) {
@@ -9543,6 +9906,29 @@ export async function applyRenderedWebglOccupancyStressInteraction(session) {
   return parseRenderedWebglOccupancyStressEvidence(evaluation.result.value);
 }
 
+export function renderedWebglCoreEmergencyResetScript(loopbackOrigin) {
+  let origin;
+  try {
+    origin = new URL(loopbackOrigin);
+  } catch {
+    throw new TypeError('Invalid rendered WebGL loopback origin.');
+  }
+  if (
+    origin.protocol !== 'http:'
+    || origin.hostname !== '127.0.0.1'
+    || !origin.port
+    || origin.origin !== loopbackOrigin
+  ) throw new TypeError('Invalid rendered WebGL loopback origin.');
+  return `(() => {
+    if (location.origin !== ${JSON.stringify(loopbackOrigin)}) return;
+    const key = 'warpkeep.realm.renderer.emergency-quality.v1';
+    sessionStorage.removeItem(key);
+    if (sessionStorage.getItem(key) !== null) {
+      throw new Error('Rendered WebGL emergency quality reset failed.');
+    }
+  })();`;
+}
+
 async function navigateRenderedWebglCase(session, url, state) {
   const previousLoadEventCount = state.loadedPageEventCount;
   const navigation = await session.command('Page.navigate', { url });
@@ -9600,6 +9986,13 @@ async function runRenderedOccupancyStressCase(session, probeCase, state) {
 }
 
 async function runRenderedWorkerLocomotionCase(session, probeCase, state) {
+  // Clear any emulation left by an earlier case or an isolated diagnostic run
+  // before applying this fixture's viewport and motion preferences.
+  await session.command('Emulation.setTouchEmulationEnabled', {
+    enabled: false,
+    maxTouchPoints: 1,
+  });
+  await session.command('Emulation.clearDeviceMetricsOverride');
   await session.command('Emulation.setDeviceMetricsOverride', {
     width: probeCase.viewport.width,
     height: probeCase.viewport.height,
@@ -9616,22 +10009,92 @@ async function runRenderedWorkerLocomotionCase(session, probeCase, state) {
         : 'no-preference',
     }],
   });
-  await navigateRenderedWebglCase(session, probeCase.url, state);
-  await waitForAcceptedRenderedDom(session, probeCase, state);
+  state.workerAssetPath = probeCase.workerLocomotion.assetPath;
+  state.workerAssetRequestIds.clear();
+  state.workerAssetRequestRecords.clear();
+  state.workerAssetRequestEvidence = {
+    requested: false,
+    failed: false,
+    responseStatus: null,
+    completed: false,
+    servedFromCache: false,
+    responseFromDiskCache: false,
+    responseFromServiceWorker: false,
+  };
+  const emergencyQualityReset = await session.command(
+    'Page.addScriptToEvaluateOnNewDocument',
+    {
+      source: `(() => {
+        if (location.origin !== ${JSON.stringify(state.loopbackOrigin)}) return;
+        try {
+          sessionStorage.removeItem('warpkeep.realm.renderer.emergency-quality.v1');
+        } catch {}
+      })();`,
+    }
+  );
+  if (typeof emergencyQualityReset?.identifier !== 'string') {
+    throw new Error('Worker locomotion renderer isolation was unavailable.');
+  }
+  try {
+    await navigateRenderedWebglCase(session, probeCase.url, state);
+    await waitForAcceptedRenderedDom(session, probeCase, state);
+  } finally {
+    await session.command('Page.removeScriptToEvaluateOnNewDocument', {
+      identifier: emergencyQualityReset.identifier,
+    });
+  }
   await captureRenderedCasePixels(session, probeCase.viewport);
   const rawEvidence =
     await applyRenderedWebglWorkerLocomotionInteraction(session, probeCase);
-  let evidence;
-  try {
-    evidence = parseRenderedWebglWorkerLocomotionEvidence(rawEvidence);
-  } catch (error) {
-    if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
-      process.stderr.write(
-        `Local synthetic Worker locomotion evidence: ${JSON.stringify(rawEvidence)}\n`
-      );
-    }
-    throw error;
+  // Resource Timing can omit the GLB entry. The exact-path CDP
+  // request/response/completion proves the load independently.
+  const assetNetworkVerified = [...state.workerAssetRequestRecords.values()]
+    .some((request) => request.responseStatus === 200
+      && request.completed && !request.failed);
+  const attestedEvidence = {
+    ...rawEvidence,
+    approvedAssetLoaded: rawEvidence?.approvedAssetLoaded === true
+      || assetNetworkVerified,
+  };
+  if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
+    const rawGates = WORKER_LOCOMOTION_LOCAL_DIAGNOSTICS.get(rawEvidence);
+    const gateKeys = [
+      'rendererHealthy', 'fixtureSelected', 'motionPreferenceMatches',
+      'viewportExact', 'countsExact', 'compactChromeMode',
+      'assetTimingEntryPresent', 'baseReadinessSatisfied',
+      'phaseReadinessSatisfied', 'regionalSelectionStable',
+    ];
+    const locateKeys = [
+      'triggerReady', 'workersControlReady', 'rosterReady',
+      'workerButtonReady', 'locateReady', 'surfacesClosed',
+      'cameraSettled', 'projectionVisible',
+    ];
+    const flags = (value, keys) => Object.fromEntries(keys.map((key) => [
+      key, value?.[key] === true,
+    ]));
+    const stages = flags(rawGates, gateKeys);
+    stages.outbound = flags(rawGates?.outbound, locateKeys);
+    stages.returning = flags(rawGates?.returning, locateKeys);
+    process.stderr.write(
+      `Local synthetic Worker readiness: ${JSON.stringify({
+        caseId: probeCase.id,
+        asset: {
+          timingEntry: rawEvidence?.approvedAssetLoaded === true,
+          exactCompleted200: assetNetworkVerified,
+          requestCount: Math.min(state.workerAssetRequestRecords.size, 10),
+          ...state.workerAssetRequestEvidence,
+        },
+        counts: {
+          animated: rawEvidence?.animatedCount,
+          model: rawEvidence?.modelCount,
+          wheelDriven: rawEvidence?.wheelDrivenCount,
+        },
+        readinessSatisfied: rawEvidence?.readinessSatisfied === true,
+        stages,
+      })}\n`
+    );
   }
+  const evidence = parseRenderedWebglWorkerLocomotionEvidence(attestedEvidence);
   const finalVisual = await captureRenderedCasePixels(
     session,
     probeCase.viewport,
@@ -9656,6 +10119,42 @@ async function runRenderedWorkerLocomotionCase(session, probeCase, state) {
     throw new Error('Rendered WebGL Worker locomotion left the local QA boundary.');
   }
   return evidence;
+}
+
+/** Counts only completed, validated Worker evidence; a missing observer must
+ * never suppress the browser case itself. This QA seam is also exercised with
+ * a fake case executor in the focused contract test.
+ */
+export async function runRenderedWebglWorkerLocomotionEvidenceCases(
+  cases,
+  runCase,
+  onEvidence,
+) {
+  if (!Array.isArray(cases)
+    || typeof runCase !== 'function'
+    || (onEvidence !== undefined && typeof onEvidence !== 'function')
+    || new Set(cases.map((probeCase) => probeCase?.id)).size !== cases.length
+  ) throw new TypeError('Invalid rendered Worker locomotion execution lane.');
+  for (const probeCase of cases) workerLocomotionSpecForProbeCase(probeCase);
+  let completed = 0;
+  for (const probeCase of cases) {
+    try {
+      const evidence = parseRenderedWebglWorkerLocomotionEvidence(
+        await runCase(probeCase)
+      );
+      if (evidence.caseId !== probeCase.id) {
+        throw new Error('Rendered Worker locomotion case evidence ID mismatched.');
+      }
+      onEvidence?.(evidence);
+      completed += 1;
+    } catch (error) {
+      throw new Error(
+        `Rendered WebGL Worker locomotion case ${probeCase.id} failed.`,
+        { cause: error }
+      );
+    }
+  }
+  return completed;
 }
 
 async function runRenderedMobileTouchCase(session, probeCase, state) {
@@ -9788,7 +10287,8 @@ async function runRenderedCase(
   state,
   onQualityMetrics,
   northernReachProbe,
-  regionalClimateProbe
+  regionalClimateProbe,
+  firstCoreCase
 ) {
   await session.command('Emulation.setDeviceMetricsOverride', {
     width: probeCase.viewport.width,
@@ -9807,9 +10307,33 @@ async function runRenderedCase(
         : 'no-preference',
     }],
   });
-  await navigateRenderedWebglCase(session, probeCase.url, state);
   const baseline = Object.freeze({ ...probeCase, interaction: 'default' });
-  await waitForAcceptedRenderedDom(session, baseline, state);
+  // A deliberate context-loss case retains its lower emergency tier for the
+  // current tab. Reset only at the next case boundary, before the new Realm
+  // reads sessionStorage. Passing through blank also prevents a same-URL
+  // navigation from accepting the previous case's still-ready document. The
+  // first case already starts in the attested blank target.
+  if (!firstCoreCase) {
+    await navigateRenderedWebglCase(session, 'about:blank', state);
+  }
+  const emergencyReset = await session.command(
+    'Page.addScriptToEvaluateOnNewDocument',
+    { source: renderedWebglCoreEmergencyResetScript(state.loopbackOrigin) }
+  );
+  if (typeof emergencyReset?.identifier !== 'string') {
+    throw new Error('Rendered WebGL core case quality isolation was unavailable.');
+  }
+  try {
+    await navigateRenderedWebglCase(session, probeCase.url, state);
+    const baselineObservation = await waitForAcceptedRenderedDom(
+      session, baseline, state
+    );
+    assertRenderedWebglFreshCoreBaseline(baselineObservation, baseline);
+  } finally {
+    await session.command('Page.removeScriptToEvaluateOnNewDocument', {
+      identifier: emergencyReset.identifier,
+    });
+  }
   await captureRenderedCasePixels(session, probeCase.viewport);
   if (RENDERED_WEBGL_QA_RESOURCE_OCCUPANT_CASE_IDS.has(probeCase.id)) {
     await applyRenderedWebglResourceOccupantInteraction(
@@ -9849,12 +10373,11 @@ async function runRenderedCase(
     }), state);
     await captureRenderedCasePixels(session, probeCase.viewport);
     if (RENDERED_WEBGL_QA_QUALITY_METRIC_CASE_IDS.has(probeCase.id)) {
-      onQualityMetrics?.(
-        await waitForStableRenderedWebglQualityMetrics(
-          session,
-          probeCase.expectedQuality
-        )
+      const metrics = await waitForStableRenderedWebglQualityMetrics(
+        session,
+        probeCase.expectedQuality
       );
+      onQualityMetrics?.(metrics);
     }
     // desktop-high still owns the established keyboard lane. Restore its
     // untouched overview before exercising that independent contract.
@@ -9907,6 +10430,9 @@ async function runRenderedCase(
       probeCase.interaction,
       probeCase.expectedPresentationMode
     );
+    if (probeCase.interaction === 'explore') {
+      await applyRenderedWebglExploreInventoryInteraction(session);
+    }
     if (
       probeCase.interaction === 'inspector'
       && interactionEvidence.inspectorLabelActivated !== true
@@ -10205,7 +10731,7 @@ async function runRenderedCase(
                 : undefined,
               artifactRegion: 'southern',
               minimumDistinctColourBuckets:
-                probeCase.expectedQuality === 'reduced' ? 4 : undefined
+                evidence.quality === 'reduced' ? 4 : undefined
             }
           );
           if (process.env.WARPKEEP_QA_LOCAL_DIAGNOSTICS === '1') {
@@ -10288,13 +10814,71 @@ async function runRenderedTerrainShaderFallbackCase(
  * Runs the established rendered fixture matrix. Callers continue to receive
  * the numeric rendered-case count; an optional callback receives only the
  * already-validated aggregate LOD fidelity metrics from the separate private
- * source comparison lane.
+ * source comparison lane. Mobile-only callers can isolate the real touch cases
+ * while diagnosing a host-specific input failure.
  */
-export async function runRenderedWebglBrowserProbe(options = {}) {
+const SKIP_MOBILE_TOUCH_IN_SESSION = Symbol('separate-mobile-browser');
+const SKIP_WORKER_LOCOMOTION_IN_SESSION = Symbol('separate-worker-browser');
+const SKIP_ACTIVE_WORKER_IN_SESSION = Symbol('separate-active-worker-browser');
+const ACTIVE_WORKER_ONLY_IN_SESSION = Symbol('active-worker-browser');
+const SKIP_POST_VISUAL_IN_SESSION = Symbol('separate-post-visual-browser');
+const POST_VISUAL_LANE_IN_SESSION = Symbol('post-visual-browser-lane');
+const POST_VISUAL_LANES = Object.freeze(['occupancy', 'journey', 'castle-lod']);
+const REVIEWED_JOURNEY_CASE_COUNT = 25;
+const MOBILE_TOUCH_CASE_IDS = Object.freeze([
+  'iphone-chromium-emulation',
+  'android-chromium-emulation',
+]);
+
+async function runRenderedWebglBrowserProbeSession(options = {}) {
   const onCastleLodVisualBoundary = options?.onCastleLodVisualBoundary;
   const onCastleLodVisualEvidence = options?.onCastleLodVisualEvidence;
+  const mobileTouchOnly = options?.mobileTouchOnly ?? false;
+  const mobileTouchCaseId = options?.mobileTouchCaseId;
+  const workerLocomotionOnly = options?.workerLocomotionOnly ?? false;
+  const workerLocomotionCaseId = options?.workerLocomotionCaseId;
+  const activeWorkerOnly = options[ACTIVE_WORKER_ONLY_IN_SESSION] === true;
+  const postVisualLane = options[POST_VISUAL_LANE_IN_SESSION];
+  const postVisualOnly = postVisualLane !== undefined;
   const onQualityMetrics = options?.onQualityMetrics;
   const onWorkerLocomotionEvidence = options?.onWorkerLocomotionEvidence;
+  if (typeof mobileTouchOnly !== 'boolean') {
+    throw new TypeError('Invalid rendered mobile touch-only option.');
+  }
+  if (mobileTouchCaseId !== undefined && ![
+    'iphone-chromium-emulation',
+    'android-chromium-emulation',
+  ].includes(mobileTouchCaseId)) {
+    throw new TypeError('Invalid rendered mobile touch case identifier.');
+  }
+  if (typeof workerLocomotionOnly !== 'boolean') {
+    throw new TypeError('Invalid rendered Worker locomotion-only option.');
+  }
+  if (workerLocomotionCaseId !== undefined && ![
+    'full-hd-high-worker-locomotion',
+    'desktop-balanced-worker-locomotion',
+    'short-landscape-reduced-worker-locomotion',
+    'mobile-reduced-motion-worker-locomotion',
+    'desktop-balanced-northern-worker-locomotion',
+    'desktop-balanced-southern-worker-locomotion',
+  ].includes(workerLocomotionCaseId)) {
+    throw new TypeError('Invalid rendered Worker locomotion case identifier.');
+  }
+  if (postVisualOnly && !POST_VISUAL_LANES.includes(postVisualLane)) {
+    throw new TypeError('Invalid rendered post-visual browser lane.');
+  }
+  if (postVisualOnly && (mobileTouchOnly || workerLocomotionOnly || activeWorkerOnly)) {
+    throw new TypeError('Rendered post-visual browser isolation options conflict.');
+  }
+  if (mobileTouchOnly && workerLocomotionOnly) {
+    throw new TypeError('Rendered mobile and Worker isolation options conflict.');
+  }
+  if (mobileTouchCaseId !== undefined && !mobileTouchOnly) {
+    throw new TypeError('Rendered mobile case ID requires mobile isolation.');
+  }
+  if (workerLocomotionCaseId !== undefined && !workerLocomotionOnly) {
+    throw new TypeError('Rendered Worker case ID requires Worker isolation.');
+  }
   if (
     onCastleLodVisualBoundary !== undefined
     && typeof onCastleLodVisualBoundary !== 'function'
@@ -10344,8 +10928,18 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     const cases = renderedWebglBrowserProbeCases(vite.port);
     const activeWorkerCase = renderedWebglActiveWorkerProbeCase(vite.port);
     const mobileTouchCases = renderedMobileMapGestureProbeCases(vite.port);
+    const mobileTouchCasesToRun = mobileTouchOnly
+      ? mobileTouchCaseId === undefined
+        ? mobileTouchCases
+        : mobileTouchCases.filter(({ id }) => id === mobileTouchCaseId)
+      : mobileTouchCases;
     const workerLocomotionCases =
       renderedWebglWorkerLocomotionProbeCases(vite.port);
+    const workerLocomotionCasesToRun = workerLocomotionOnly
+      ? workerLocomotionCaseId === undefined
+        ? workerLocomotionCases
+        : workerLocomotionCases.filter(({ id }) => id === workerLocomotionCaseId)
+      : workerLocomotionCases;
     const occupancyStressCase = renderedWebglOccupancyStressProbeCase(vite.port);
     const terrainShaderFallbackCase =
       renderedWebglTerrainShaderFallbackProbeCase(vite.port);
@@ -10369,6 +10963,12 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       || new Set(workerLocomotionCases.map(({ id }) => id)).size
         !== RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS.length
     ) throw new Error('Rendered WebGL QA case manifest is invalid.');
+    if (
+      (mobileTouchOnly && mobileTouchCasesToRun.length
+        !== (mobileTouchCaseId === undefined ? mobileTouchCases.length : 1))
+      || (workerLocomotionOnly && workerLocomotionCasesToRun.length
+        !== (workerLocomotionCaseId === undefined ? workerLocomotionCases.length : 1))
+    ) throw new Error('Rendered WebGL isolated case selection did not resolve exactly.');
     const loopbackOrigin = `http://127.0.0.1:${vite.port}`;
     await attestStableHeadlessChromeExecutable(reviewedChromeIdentity);
     chrome = spawnHeadlessChromeProbe(profileDirectory);
@@ -10383,6 +10983,11 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       controlledRendererWarningThrottleSeen: false,
       loadedPageLoaderIds: new Set(),
       loadedPageEventCount: 0,
+      workerAssetPath: '',
+      workerAssetRequestEvidence: null,
+      workerAssetRequestIds: new Set(),
+      workerAssetRequestRecords: new Map(),
+      loopbackOrigin,
       allowedUrls: new Set([
         ...cases.map((probeCase) => probeCase.url),
         ...cases
@@ -10492,7 +11097,20 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
           state.controlledRendererWarningThrottleSeen = true;
           return;
         }
-        state.violation = params.entry.level === 'warning' ? 'log-warning' : 'log-error';
+        const source = [
+          'network', 'javascript', 'rendering', 'security', 'deprecation',
+          'intervention', 'other'
+        ].includes(params.entry.source) ? params.entry.source : 'unknown';
+        const textKind = /\b404\b/u.test(params.entry.text ?? '')
+          ? 'http-404'
+          : /\b500\b/u.test(params.entry.text ?? '')
+            ? 'http-500'
+            : /WebGL|context/iu.test(params.entry.text ?? '')
+              ? 'webgl-context'
+              : 'unclassified';
+        // Retain only fixed diagnostic categories, never the browser's text.
+        state.violation = `${params.entry.level === 'warning'
+          ? 'log-warning' : 'log-error'}-${source}-${textKind}`;
         return;
       }
       if (method === 'Target.targetDestroyed') {
@@ -10577,7 +11195,76 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
         const url = params?.request?.url;
         if (!isAllowedProbeResourceUrl(url)) {
           state.violation = 'network';
+          return;
         }
+        if (state.workerAssetPath !== '') {
+          try {
+            if (new URL(url).pathname === state.workerAssetPath) {
+              state.workerAssetRequestEvidence.requested = true;
+              if (typeof params?.requestId === 'string') {
+                state.workerAssetRequestIds.add(params.requestId);
+                state.workerAssetRequestRecords.set(params.requestId, {
+                  responseStatus: null,
+                  completed: false,
+                  failed: false,
+                  servedFromCache: false,
+                  responseFromDiskCache: false,
+                  responseFromServiceWorker: false,
+                });
+              }
+            }
+          } catch {
+            state.violation = 'network-url';
+          }
+        }
+        return;
+      }
+      if (
+        method === 'Network.requestServedFromCache'
+        && typeof params?.requestId === 'string'
+        && state.workerAssetRequestIds.has(params.requestId)
+      ) {
+        state.workerAssetRequestEvidence.servedFromCache = true;
+        state.workerAssetRequestRecords.get(params.requestId).servedFromCache = true;
+        return;
+      }
+      if (
+        method === 'Network.responseReceived'
+        && typeof params?.requestId === 'string'
+        && state.workerAssetRequestIds.has(params.requestId)
+      ) {
+        const status = params?.response?.status;
+        if (Number.isSafeInteger(status) && status >= 100 && status <= 599) {
+          state.workerAssetRequestEvidence.responseStatus = status;
+          state.workerAssetRequestRecords.get(params.requestId).responseStatus = status;
+        }
+        const fromDiskCache = params?.response?.fromDiskCache === true;
+        const fromServiceWorker = params?.response?.fromServiceWorker === true;
+        state.workerAssetRequestEvidence.responseFromDiskCache ||= fromDiskCache;
+        state.workerAssetRequestEvidence.responseFromServiceWorker ||= fromServiceWorker;
+        const request = state.workerAssetRequestRecords.get(params.requestId);
+        request.responseFromDiskCache = fromDiskCache;
+        request.responseFromServiceWorker = fromServiceWorker;
+        return;
+      }
+      if (
+        method === 'Network.loadingFailed'
+        && typeof params?.requestId === 'string'
+        && state.workerAssetRequestIds.has(params.requestId)
+      ) {
+        state.workerAssetRequestEvidence.failed = true;
+        state.workerAssetRequestRecords.get(params.requestId).failed = true;
+        state.workerAssetRequestIds.delete(params.requestId);
+        return;
+      }
+      if (
+        method === 'Network.loadingFinished'
+        && typeof params?.requestId === 'string'
+        && state.workerAssetRequestIds.has(params.requestId)
+      ) {
+        state.workerAssetRequestEvidence.completed = true;
+        state.workerAssetRequestRecords.get(params.requestId).completed = true;
+        state.workerAssetRequestIds.delete(params.requestId);
         return;
       }
       if (method === 'Network.webSocketCreated') {
@@ -10611,7 +11298,18 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     await devtools.command('Page.setLifecycleEventsEnabled', {
       enabled: true,
     });
-    for (const probeCase of cases) {
+    const isolatedLane = mobileTouchOnly || workerLocomotionOnly
+      || activeWorkerOnly || postVisualOnly;
+    const completed = {
+      rendered: 0,
+      mobileTouch: 0,
+      workerLocomotion: 0,
+      activeWorker: 0,
+      occupancy: 0,
+      journey: 0,
+      castleLod: 0,
+    };
+    for (const probeCase of isolatedLane ? [] : cases) {
       try {
         await runRenderedCase(
           devtools,
@@ -10619,31 +11317,38 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
           state,
           onQualityMetrics,
           northernReachProbe,
-          regionalClimateProbe
+          regionalClimateProbe,
+          completed.rendered === 0
         );
+        completed.rendered += 1;
       } catch (error) {
         throw new Error(`Rendered WebGL case ${probeCase.id} failed.`, { cause: error });
       }
     }
-    try {
-      await runRenderedTerrainShaderFallbackCase(
-        devtools,
-        terrainShaderFallbackCase,
-        state,
-        regionalClimateProbe
-      );
-    } catch (error) {
-      throw new Error('Rendered terrain shader fallback case failed.', {
-        cause: error,
-      });
+    if (!isolatedLane) {
+      try {
+        await runRenderedTerrainShaderFallbackCase(
+          devtools,
+          terrainShaderFallbackCase,
+          state,
+          regionalClimateProbe
+        );
+      } catch (error) {
+        throw new Error('Rendered terrain shader fallback case failed.', {
+          cause: error,
+        });
+      }
     }
-    for (const mobileTouchCase of mobileTouchCases) {
+    for (const mobileTouchCase of options[SKIP_MOBILE_TOUCH_IN_SESSION]
+      || workerLocomotionOnly || activeWorkerOnly || postVisualOnly
+        ? [] : mobileTouchCasesToRun) {
       try {
         await runRenderedMobileTouchCase(
           devtools,
           mobileTouchCase,
           state
         );
+        completed.mobileTouch += 1;
       } catch (error) {
         throw new Error(
           `Rendered mobile map gesture case ${mobileTouchCase.id} failed.`,
@@ -10651,54 +11356,81 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
         );
       }
     }
-    try {
-      await runRenderedActiveWorkerCase(devtools, activeWorkerCase, state);
-    } catch (error) {
-      throw new Error('Rendered WebGL active generic Worker case failed.', {
-        cause: error,
-      });
-    }
-    for (const workerLocomotionCase of workerLocomotionCases) {
+    const workerLocomotionCasesInSession = workerLocomotionOnly
+      ? workerLocomotionCasesToRun
+      : options[SKIP_WORKER_LOCOMOTION_IN_SESSION] || mobileTouchOnly
+        || activeWorkerOnly || postVisualOnly
+        ? [] : workerLocomotionCases;
+    completed.workerLocomotion =
+      await runRenderedWebglWorkerLocomotionEvidenceCases(
+        workerLocomotionCasesInSession,
+        (probeCase) => runRenderedWorkerLocomotionCase(devtools, probeCase, state),
+        onWorkerLocomotionEvidence,
+      );
+    if (activeWorkerOnly
+      || (!isolatedLane && !options[SKIP_ACTIVE_WORKER_IN_SESSION])) {
       try {
-        onWorkerLocomotionEvidence?.(
-          await runRenderedWorkerLocomotionCase(
-            devtools,
-            workerLocomotionCase,
-            state
-          )
-        );
+        await runRenderedActiveWorkerCase(devtools, activeWorkerCase, state);
+        completed.activeWorker += 1;
       } catch (error) {
-        throw new Error(
-          `Rendered WebGL Worker locomotion case ${workerLocomotionCase.id} failed.`,
-          { cause: error }
-        );
+        throw new Error('Rendered WebGL active generic Worker case failed.', {
+          cause: error,
+        });
       }
     }
-    try {
-      await runRenderedOccupancyStressCase(devtools, occupancyStressCase, state);
-    } catch (error) {
-      throw new Error('Rendered WebGL all-node occupancy stress case failed.', {
-        cause: error,
-      });
+    if (postVisualLane === 'occupancy'
+      || (!isolatedLane && !options[SKIP_POST_VISUAL_IN_SESSION])) {
+      try {
+        await runRenderedOccupancyStressCase(devtools, occupancyStressCase, state);
+        completed.occupancy += 1;
+      } catch (error) {
+        throw new Error('Rendered WebGL all-node occupancy stress case failed.', {
+          cause: error,
+        });
+      }
     }
-    try {
-      await journeyProbe.runQaJourneyBrowserCases(devtools, journeyCases, state);
-    } catch (error) {
-      throw new Error('Synthetic journey browser lane failed.', { cause: error });
+    let journeyCaseCount = 0;
+    if (postVisualLane === 'journey'
+      || (!isolatedLane && !options[SKIP_POST_VISUAL_IN_SESSION])) {
+      try {
+        journeyCaseCount = await journeyProbe.runQaJourneyBrowserCases(
+          devtools, journeyCases, state
+        );
+      } catch (error) {
+        throw new Error('Synthetic journey browser lane failed.', { cause: error });
+      }
+      if (journeyCaseCount !== REVIEWED_JOURNEY_CASE_COUNT) {
+        throw new Error('Synthetic journey browser case count mismatched.');
+      }
+      completed.journey = journeyCaseCount;
     }
-    try {
-      const castleLodVisualEvidence = await castleLodVisualProbe.runCastleLodVisualEvidenceBrowserCase(devtools, {
-        port: vite.port,
-        state,
-      });
-      onCastleLodVisualEvidence?.(castleLodVisualEvidence);
-    } catch (error) {
-      throw new Error('Local castle LOD visual evidence lane failed.', { cause: error });
+    if (postVisualLane === 'castle-lod'
+      || (!isolatedLane && !options[SKIP_POST_VISUAL_IN_SESSION])) {
+      try {
+        const castleLodVisualEvidence = await castleLodVisualProbe.runCastleLodVisualEvidenceBrowserCase(devtools, {
+          port: vite.port,
+          state,
+        });
+        onCastleLodVisualEvidence?.(castleLodVisualEvidence);
+        completed.castleLod += 1;
+      } catch (error) {
+        throw new Error('Local castle LOD visual evidence lane failed.', { cause: error });
+      }
     }
     if (state.violation) {
       throw new Error(`Headless browser left the local QA boundary: ${state.violation}.`);
     }
-    return RENDERED_WEBGL_QA_CASE_COUNT;
+    if (mobileTouchOnly) return completed.mobileTouch;
+    if (workerLocomotionOnly) return completed.workerLocomotion;
+    if (activeWorkerOnly) return completed.activeWorker;
+    if (postVisualOnly) return postVisualLane === 'occupancy'
+      ? completed.occupancy
+      : postVisualLane === 'journey'
+        ? completed.journey : completed.castleLod;
+    if (completed.rendered !== RENDERED_WEBGL_QA_CASE_COUNT) {
+      throw new Error('Rendered WebGL core case count mismatched.');
+    }
+    return completed.rendered;
   } finally {
     await cleanupRenderedWebglProbeResources({
       castleLodVisualSource,
@@ -10709,6 +11441,75 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
       vite,
     });
   }
+}
+
+/** Chrome can retain context-loss or touch-injection state across unrelated
+ * rendered cases in one target. Run the visual matrix, occupancy, journey,
+ * castle LOD, Worker checks, and each emulated phone in independent browser
+ * profiles. Both public entry
+ * paths still attest every requested case.
+ */
+export async function runRenderedWebglBrowserProbe(options = {}) {
+  if (options?.workerLocomotionOnly === true
+    || (options?.mobileTouchOnly === true
+      && options?.mobileTouchCaseId !== undefined)) {
+    return runRenderedWebglBrowserProbeSession(options);
+  }
+  if (options?.mobileTouchOnly === true) {
+    for (const mobileTouchCaseId of MOBILE_TOUCH_CASE_IDS) {
+      const count = await runRenderedWebglBrowserProbeSession({
+        ...options,
+        mobileTouchCaseId,
+      });
+      if (count !== 1) {
+        throw new Error('Rendered mobile map gesture case did not complete.');
+      }
+    }
+    return MOBILE_TOUCH_CASE_IDS.length;
+  }
+  const count = await runRenderedWebglBrowserProbeSession({
+    ...options,
+    [SKIP_MOBILE_TOUCH_IN_SESSION]: true,
+    [SKIP_WORKER_LOCOMOTION_IN_SESSION]: true,
+    [SKIP_ACTIVE_WORKER_IN_SESSION]: true,
+    [SKIP_POST_VISUAL_IN_SESSION]: true,
+  });
+  for (const [lane, expectedCount] of [
+    ['occupancy', 1],
+    ['journey', REVIEWED_JOURNEY_CASE_COUNT],
+    ['castle-lod', 1],
+  ]) {
+    const completedCount = await runRenderedWebglBrowserProbeSession({
+      [POST_VISUAL_LANE_IN_SESSION]: lane,
+      onCastleLodVisualEvidence: options?.onCastleLodVisualEvidence,
+    });
+    if (completedCount !== expectedCount) {
+      throw new Error(`Rendered WebGL ${lane} browser lane did not complete.`);
+    }
+  }
+  const activeWorkerCount = await runRenderedWebglBrowserProbeSession({
+    [ACTIVE_WORKER_ONLY_IN_SESSION]: true,
+  });
+  if (activeWorkerCount !== 1) {
+    throw new Error('Rendered WebGL active generic Worker case did not complete.');
+  }
+  const workerCount = await runRenderedWebglBrowserProbeSession({
+    workerLocomotionOnly: true,
+    onWorkerLocomotionEvidence: options?.onWorkerLocomotionEvidence,
+  });
+  if (workerCount !== RENDERED_WEBGL_WORKER_LOCOMOTION_CASE_SPECS.length) {
+    throw new Error('Rendered WebGL Worker locomotion cases did not complete.');
+  }
+  for (const mobileTouchCaseId of MOBILE_TOUCH_CASE_IDS) {
+    const mobileCount = await runRenderedWebglBrowserProbeSession({
+      mobileTouchOnly: true,
+      mobileTouchCaseId,
+    });
+    if (mobileCount !== 1) {
+      throw new Error('Rendered mobile map gesture case did not complete.');
+    }
+  }
+  return count;
 }
 
 async function main() {

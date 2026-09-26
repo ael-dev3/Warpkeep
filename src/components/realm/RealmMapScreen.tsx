@@ -4960,12 +4960,19 @@ function CanonicalRealmMapScreen(
         && nonblockingSceneReplacementRef.current
       )
     );
+    const contextLostAttestation = (
+      rendererLifecycleRef.current.failure?.code === 'context-lost'
+        ? rendererAttestationRef.current
+        : null
+    );
     if (sceneRef.current && !activeSceneIsHealthy) {
       const unhealthyScene = sceneRef.current;
-      try {
-        rendererAttestationRef.current = unhealthyScene.getCameraAttestation();
-      } catch {
-        rendererAttestationRef.current = null;
+      if (contextLostAttestation === null) {
+        try {
+          rendererAttestationRef.current = unhealthyScene.getCameraAttestation();
+        } catch {
+          rendererAttestationRef.current = null;
+        }
       }
       try {
         const snapshot = unhealthyScene.getWorkerPresentationContinuity();
@@ -5143,7 +5150,9 @@ function CanonicalRealmMapScreen(
       else targetScene.showRealm();
     };
     let retainedAttestation: ReturnType<RealmSceneHandle['getCameraAttestation']> | null = null;
-    if (previousActiveScene) {
+    if (contextLostAttestation !== null) {
+      retainedAttestation = contextLostAttestation;
+    } else if (previousActiveScene) {
       try {
         retainedAttestation = previousActiveScene.getCameraAttestation();
       } catch {
@@ -5882,6 +5891,16 @@ function CanonicalRealmMapScreen(
             && sceneSlotsRef.current[candidateSlot] === scene
           );
           if (activeSceneOwnsFailure) {
+            if (failure.code === 'context-lost') {
+              // Capture the camera in the loss event itself. React's recovery
+              // render runs after the browser restores the context, when a
+              // pending frame could otherwise change the state we preserve.
+              try {
+                rendererAttestationRef.current = scene.getCameraAttestation();
+              } catch {
+                rendererAttestationRef.current = null;
+              }
+            }
             if (pendingSceneConstructionRef.current?.scene === scene) {
               pendingSceneConstructionRef.current = null;
             }
