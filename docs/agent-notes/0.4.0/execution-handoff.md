@@ -3,30 +3,36 @@
 ## Current checkpoint — 26 September 2026
 
 Protected `main` is generated-only M2
-[`570dcc60a9a299589e919f3b210b79a7362543bb`](https://github.com/ael-dev3/Warpkeep/commit/570dcc60a9a299589e919f3b210b79a7362543bb),
-tree `118ba431ae77f5d031661be62edaa80680d4b8c6`, merged through
-[PR #367](https://github.com/ael-dev3/Warpkeep/pull/367). Its exact-main
-[Verify run 36252162699](https://github.com/ael-dev3/Warpkeep/actions/runs/36252162699)
-and [CodeQL run 36252162700](https://github.com/ael-dev3/Warpkeep/actions/runs/36252162700)
-passed. Protected read-only
-[preflight 36255588664](https://github.com/ael-dev3/Warpkeep/actions/runs/36255588664)
-and [G001 policy observation 36255633551](https://github.com/ael-dev3/Warpkeep/actions/runs/36255633551)
-also passed on this M2.
+[`cc833c3384fc3e8760c0d491492a5577a28444eb`](https://github.com/ael-dev3/Warpkeep/commit/cc833c3384fc3e8760c0d491492a5577a28444eb),
+tree `f92d7ec7272ec5e4a1014545896967afb3988dff`, merged through
+[PR #369](https://github.com/ael-dev3/Warpkeep/pull/369). Its exact-main
+[Verify 36268543576](https://github.com/ael-dev3/Warpkeep/actions/runs/36268543576)
+and [CodeQL 36268543543](https://github.com/ael-dev3/Warpkeep/actions/runs/36268543543)
+passed. Both local checkouts were synchronized cleanly to this commit before
+the next source repair began.
+Protected read-only [preflight 36271779135](https://github.com/ael-dev3/Warpkeep/actions/runs/36271779135)
+and [G001 policy observation 36271834992](https://github.com/ael-dev3/Warpkeep/actions/runs/36271834992)
+also passed.
 
-The fresh [G001 freeze census 36255794350](https://github.com/ael-dev3/Warpkeep/actions/runs/36255794350)
-failed closed with fixed safe diagnostic `g001-admitted-reconciliation` during
-its first sample. Its private `first/` and applicant files were retained,
-but it produced no `first.json` or completed receipt. There is no validated
-baseline and no provider mutation followed. Preserve this attempt; do not reuse
-its identity or inspect private applicant data.
+The new [G001 freeze census 36271994192](https://github.com/ael-dev3/Warpkeep/actions/runs/36271994192)
+failed closed with `g001-admitted-aggregate-mismatch`. Its first-sample
+directory exists, but `first.json`, the second sample and `complete.json` do
+not. There is no validated baseline and no provider mutation followed. Preserve
+this attempt without reusing its identity or reading private applicant or
+admitted rows. The earlier failed census
+[36255794350](https://github.com/ael-dev3/Warpkeep/actions/runs/36255794350)
+is likewise incomplete and remains preserved.
 
-The current diagnostic combines admitted aggregate/live-set reconciliation with
-cross-proof validation, so it does not establish which check failed. Split those
-safe diagnostics through source-only protected M1 review, then prepare and
-independently check that exact M1 in native WSL and promote its complete
-authenticated generated family through protected M2. Require exact-main
-Verify/CodeQL, fresh preflight and G001 policy observation before one new census
-identity. Follow the [native preparation guide](../../operations/0.4.0-local-release-preparation.md#source-only-m1-before-native-release-preparation)
+The current collector combines two final checks under this label: the aggregate
+changed between its two reads, or a stable allowed aggregate differs from the
+enumerated `player_v2` set. Public evidence cannot distinguish them. The
+preferred `allowed_fid` table is private; do not substitute an unauthenticated
+query or infer counts from timing. Split these into fixed, count-free diagnostics
+through a source-only protected M1, then prepare and independently check that
+exact M1 in native WSL and promote its authenticated generated family through
+protected M2. Require exact-main Verify/CodeQL, fresh preflight and policy
+observation before one new census identity. Follow the
+[native preparation guide](../../operations/0.4.0-local-release-preparation.md#source-only-m1-before-native-release-preparation)
 and [known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths).
 A successful census must supply a validated baseline before any preservation or
 deployment mutation.

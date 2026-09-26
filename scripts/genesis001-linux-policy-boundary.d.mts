@@ -17,7 +17,7 @@ export type G001LinuxPolicyDiagnostic = 'g001-credential' | 'g001-host' | 'g001-
   | 'g001-census-directory' | 'g001-applicant-collection' | 'g001-applicant-export' | 'g001-applicant-proof'
   | 'g001-admitted-identity' | 'g001-admitted-aggregate' | 'g001-admitted-enumeration'
   | 'g001-admitted-aggregate-empty' | 'g001-admitted-aggregate-disabled'
-  | 'g001-admitted-aggregate-invalid' | 'g001-admitted-aggregate-mismatch'
+  | 'g001-admitted-aggregate-invalid' | 'g001-admitted-aggregate-drift' | 'g001-admitted-set-mismatch'
   | 'g001-admitted-status' | 'g001-admitted-reconciliation' | 'g001-census-cross-proof' | 'g001-admitted-collection'
   | 'g001-policy-inspect' | 'g001-policy-cleanup'
   | 'g001-session-finalize';
