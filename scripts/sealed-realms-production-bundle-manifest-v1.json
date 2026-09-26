@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "profile": "warpkeep-spacetime-binding-final-preparation-linux-x64-v1",
-  "sourceCommit": "92af8cf3a2705bf6f116da02b8f4fb1c35c646e0",
-  "sourceTree": "818ba1e3d88c87532b9f7a4586e3232ea309c82f",
+  "sourceCommit": "ef1879ac6c02f5ae69d55362e3e629ec67dbb910",
+  "sourceTree": "dd51146164b830d6d521140e545a502077335b95",
   "bundles": [
     {
       "lane": "activation",
       "path": "scripts/sealed-realms-production-activation-lane.bundle.mjs",
-      "byteLength": 1204690,
-      "sha256": "f5fdde36fca3e082d3f1228087d88907255f4a39589f42bef6924e11246ec643",
-      "sourceClosureDigest": "5c8458aed0ca38f6c1247894f8b114b64172d91152f115f46de6f671f11aa4d0",
+      "byteLength": 1205290,
+      "sha256": "4f364965eae3e4759121c40755addc8a2663743cd73c60eabce27500793e610c",
+      "sourceClosureDigest": "e31f9a268c739ec76e3de87ae8deb31db6ec4134ef0e12efe9022a559668227e",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -558,13 +558,13 @@
         },
         {
           "path": "scripts/genesis001-linux-policy-boundary.mjs",
-          "byteLength": 10522,
-          "sha256": "059683b25f3216b728099ede8a060dac11725533e342f43824bbb949b275bfaf"
+          "byteLength": 10693,
+          "sha256": "fb0fb5879fab934a5f5e704ac4e5e51c7212df42ccd619cef0d091b900b81246"
         },
         {
           "path": "scripts/genesis001-linux-policy-native.mjs",
-          "byteLength": 23407,
-          "sha256": "102b9a2e62e073409241c052d0ccc939ad0c98945eae1b6fe01b67cfaf90f6a1"
+          "byteLength": 23692,
+          "sha256": "9b2f4a0c3c82b75a540414c81e9bc7866b58221e389e7ee6068aa20f2b920c4a"
         },
         {
           "path": "scripts/genesis001-linux-policy-receipt.mjs",
@@ -813,8 +813,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-linux-preflight.mjs",
-          "byteLength": 27636,
-          "sha256": "0723f33ee8267c696c69fea43c432c44bdd8bc3249942b82f50626e4a8bc1c5f"
+          "byteLength": 27807,
+          "sha256": "c46272094c8a489b5f362301a30fe6502ed5eb6db3781a3570d7690eb5d5e0d5"
         },
         {
           "path": "scripts/sealed-realms-production-private-state.mjs",
@@ -1013,9 +1013,9 @@
     {
       "lane": "g001",
       "path": "scripts/sealed-realms-production-g001-lane.bundle.mjs",
-      "byteLength": 366278,
-      "sha256": "40173ea1c6a12dca3d519203768951c39af9d974116fef3497d595be202b6376",
-      "sourceClosureDigest": "1761af56092d339d6dc531c3e3d17050775a95779a81d03cdcc33fc2f211c0d4",
+      "byteLength": 366878,
+      "sha256": "bc48bf8424f55e4c1ff114559290f04fe59bc8543fccbe0c14085351d2a862c0",
+      "sourceClosureDigest": "ab6bd6436ae53b85a8dbb5bc554b46e092527b0f73e8944d166a8cc3e804d447",
       "graphManifest": [
         {
           "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
@@ -1044,13 +1044,13 @@
         },
         {
           "path": "scripts/genesis001-linux-policy-boundary.mjs",
-          "byteLength": 10522,
-          "sha256": "059683b25f3216b728099ede8a060dac11725533e342f43824bbb949b275bfaf"
+          "byteLength": 10693,
+          "sha256": "fb0fb5879fab934a5f5e704ac4e5e51c7212df42ccd619cef0d091b900b81246"
         },
         {
           "path": "scripts/genesis001-linux-policy-native.mjs",
-          "byteLength": 23407,
-          "sha256": "102b9a2e62e073409241c052d0ccc939ad0c98945eae1b6fe01b67cfaf90f6a1"
+          "byteLength": 23692,
+          "sha256": "9b2f4a0c3c82b75a540414c81e9bc7866b58221e389e7ee6068aa20f2b920c4a"
         },
         {
           "path": "scripts/genesis001-linux-policy-receipt.mjs",
@@ -1119,8 +1119,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-linux-preflight.mjs",
-          "byteLength": 27636,
-          "sha256": "0723f33ee8267c696c69fea43c432c44bdd8bc3249942b82f50626e4a8bc1c5f"
+          "byteLength": 27807,
+          "sha256": "c46272094c8a489b5f362301a30fe6502ed5eb6db3781a3570d7690eb5d5e0d5"
         },
         {
           "path": "scripts/sealed-realms-production-private-state.mjs",
@@ -1168,9 +1168,9 @@
     {
       "lane": "g002",
       "path": "scripts/sealed-realms-production-g002-lane.bundle.mjs",
-      "byteLength": 1140099,
-      "sha256": "b70959504000e0b40cf5448051abb4548da41d6f3c193a088007b72aa361985c",
-      "sourceClosureDigest": "ba57d01a80585d457a93a4781d333d0f39cbf2df6ee78b9579f4c4f72e29dcc4",
+      "byteLength": 1140423,
+      "sha256": "f59d7086a598852180f5c766f231add1eb53b407488f7fcc0caa88e77dc94bf1",
+      "sourceClosureDigest": "0358d68e736f10a4dc27b4986e881490f04cc0b2457cad988d012189bdc32eea",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -1719,13 +1719,13 @@
         },
         {
           "path": "scripts/genesis001-linux-policy-boundary.mjs",
-          "byteLength": 10522,
-          "sha256": "059683b25f3216b728099ede8a060dac11725533e342f43824bbb949b275bfaf"
+          "byteLength": 10693,
+          "sha256": "fb0fb5879fab934a5f5e704ac4e5e51c7212df42ccd619cef0d091b900b81246"
         },
         {
           "path": "scripts/genesis001-linux-policy-native.mjs",
-          "byteLength": 23407,
-          "sha256": "102b9a2e62e073409241c052d0ccc939ad0c98945eae1b6fe01b67cfaf90f6a1"
+          "byteLength": 23692,
+          "sha256": "9b2f4a0c3c82b75a540414c81e9bc7866b58221e389e7ee6068aa20f2b920c4a"
         },
         {
           "path": "scripts/genesis001-linux-policy-receipt.mjs",
@@ -1979,8 +1979,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-linux-preflight.mjs",
-          "byteLength": 27636,
-          "sha256": "0723f33ee8267c696c69fea43c432c44bdd8bc3249942b82f50626e4a8bc1c5f"
+          "byteLength": 27807,
+          "sha256": "c46272094c8a489b5f362301a30fe6502ed5eb6db3781a3570d7690eb5d5e0d5"
         },
         {
           "path": "scripts/sealed-realms-production-private-state.mjs",
@@ -2188,9 +2188,9 @@
     {
       "lane": "ptr",
       "path": "scripts/sealed-realms-production-ptr-lane.bundle.mjs",
-      "byteLength": 1137665,
-      "sha256": "ab4bd547c974c4b5bc65efa8fd335c0daeebef94694f42e61d3b4292418d9f80",
-      "sourceClosureDigest": "22599826e5d1d17ae71c048f188a3bdc3aeef6aab9e5f7c43d87785036ca4768",
+      "byteLength": 1137989,
+      "sha256": "b39f31299beaad762359a2fed67d9ac6d842a901e5ad1a40e1882bb484e81822",
+      "sourceClosureDigest": "597d3880cbb38d5406bd0254738cf9b870237df3da5e3d7cfc208dd8f9607e0f",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -2739,13 +2739,13 @@
         },
         {
           "path": "scripts/genesis001-linux-policy-boundary.mjs",
-          "byteLength": 10522,
-          "sha256": "059683b25f3216b728099ede8a060dac11725533e342f43824bbb949b275bfaf"
+          "byteLength": 10693,
+          "sha256": "fb0fb5879fab934a5f5e704ac4e5e51c7212df42ccd619cef0d091b900b81246"
         },
         {
           "path": "scripts/genesis001-linux-policy-native.mjs",
-          "byteLength": 23407,
-          "sha256": "102b9a2e62e073409241c052d0ccc939ad0c98945eae1b6fe01b67cfaf90f6a1"
+          "byteLength": 23692,
+          "sha256": "9b2f4a0c3c82b75a540414c81e9bc7866b58221e389e7ee6068aa20f2b920c4a"
         },
         {
           "path": "scripts/genesis001-linux-policy-receipt.mjs",
@@ -2989,8 +2989,8 @@
         },
         {
           "path": "scripts/sealed-realms-production-linux-preflight.mjs",
-          "byteLength": 27636,
-          "sha256": "0723f33ee8267c696c69fea43c432c44bdd8bc3249942b82f50626e4a8bc1c5f"
+          "byteLength": 27807,
+          "sha256": "c46272094c8a489b5f362301a30fe6502ed5eb6db3781a3570d7690eb5d5e0d5"
         },
         {
           "path": "scripts/sealed-realms-production-private-state.mjs",
