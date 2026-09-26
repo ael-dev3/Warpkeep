@@ -2,51 +2,40 @@
 
 ## Current checkpoint — 26 September 2026
 
-Protected `main` is source-only M1
-[`6abc80b99ca4f9d5eb2d7d41941b32187fe5a872`](https://github.com/ael-dev3/Warpkeep/commit/6abc80b99ca4f9d5eb2d7d41941b32187fe5a872),
-merged through [PR #365](https://github.com/ael-dev3/Warpkeep/pull/365).
-All final-head PR checks passed; GitHub verified the protected merge signature,
-and its tree equals the reviewed signed source tree. Its exact-main
-[Verify run 36239803041](https://github.com/ael-dev3/Warpkeep/actions/runs/36239803041)
-and [CodeQL run 36239803103](https://github.com/ael-dev3/Warpkeep/actions/runs/36239803103)
-are the exact-main gates; CodeQL passed and Verify was still running at this
-checkpoint. Windows and native WSL checkouts were clean at that merge.
-The full local rendered WebGL matrix passed on the reviewed source, including
-real Worker locomotion, mobile touch, journey, occupancy and castle LOD.
+Protected `main` is generated-only M2
+[`570dcc60a9a299589e919f3b210b79a7362543bb`](https://github.com/ael-dev3/Warpkeep/commit/570dcc60a9a299589e919f3b210b79a7362543bb),
+tree `118ba431ae77f5d031661be62edaa80680d4b8c6`, merged through
+[PR #367](https://github.com/ael-dev3/Warpkeep/pull/367). Its exact-main
+[Verify run 36252162699](https://github.com/ael-dev3/Warpkeep/actions/runs/36252162699)
+and [CodeQL run 36252162700](https://github.com/ael-dev3/Warpkeep/actions/runs/36252162700)
+passed. Protected read-only
+[preflight 36255588664](https://github.com/ael-dev3/Warpkeep/actions/runs/36255588664)
+and [G001 policy observation 36255633551](https://github.com/ael-dev3/Warpkeep/actions/runs/36255633551)
+also passed on this M2.
 
-Review of the next release readback found that the prepared bridge uploads an
-observer-enabled Worker, but the production bridge provider reconstructed its
-source contract with the legacy observer-disabled default. The narrow correction
-derives that mode from the authenticated upload record and tests both variants
-through the real HTTP parser. Integrate this source-only correction through
-normal protected review, refresh its complete prepared source closure, and use
-the resulting protected M1 for native preparation. The current `6abc80b9`
-source is an intermediate checkpoint, not the final compiler input.
+The fresh [G001 freeze census 36255794350](https://github.com/ael-dev3/Warpkeep/actions/runs/36255794350)
+failed closed with fixed safe diagnostic `g001-admitted-reconciliation` during
+its first sample. Its private `first/` and applicant files were retained,
+but it produced no `first.json` or completed receipt. There is no validated
+baseline and no provider mutation followed. Preserve this attempt; do not reuse
+its identity or inspect private applicant data.
 
-No protected G001 operation has run on `6abc80b9`. The most recent census
-[run 36145018339](https://github.com/ael-dev3/Warpkeep/actions/runs/36145018339)
-failed closed on older `7a598435` before its operator, with a generic workflow
-phase and no validated baseline receipt. Its bounded result does not identify a
-precise subcause; do not reuse that identity or infer a credential blocker.
-The [Pages run 36177192717](https://github.com/ael-dev3/Warpkeep/actions/runs/36177192717)
-classified successfully, but every build/deploy/live-verification job was
-skipped because the sealed G002 release gate is unmet; no PTR deployment is
-claimed. The production runner is online; no new GitHub App key is required.
+The current diagnostic combines admitted aggregate/live-set reconciliation with
+cross-proof validation, so it does not establish which check failed. Split those
+safe diagnostics through source-only protected M1 review, then prepare and
+independently check that exact M1 in native WSL and promote its complete
+authenticated generated family through protected M2. Require exact-main
+Verify/CodeQL, fresh preflight and G001 policy observation before one new census
+identity. Follow the [native preparation guide](../../operations/0.4.0-local-release-preparation.md#source-only-m1-before-native-release-preparation)
+and [known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths).
+A successful census must supply a validated baseline before any preservation or
+deployment mutation.
 
-The rendered matrix is local evidence, not live PTR acceptance. After the
-bridge-provider correction merges, verify its signed exact-main M1, reviewed
-tree and push Verify/CodeQL. On a clean idle native WSL checkout, prepare and
-independently check the authenticated output family from that exact M1.
-Promote only the complete generated family through protected M2 and require
-its exact-main Verify/CodeQL. Follow the
-[native preparation guide](../../operations/0.4.0-local-release-preparation.md#source-only-m1-before-native-release-preparation).
-Only then run fresh protected preflight, G001 policy observation and one new
-census identity in order. A successful census must supply a validated baseline
-before any preservation or deployment mutation. Follow the
-[known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths)
-for any fixed safe diagnostic; retain all private attempts.
-
-0.4 remains unshipped. Provider bridge/recovery operation, G001
+The local rendered WebGL matrix passed on reviewed source, but remains local
+evidence rather than live PTR acceptance. The
+[Pages run 36177192717](https://github.com/ael-dev3/Warpkeep/actions/runs/36177192717)
+skipped build, deploy and live verification because sealed G002 is unmet. 0.4
+remains unshipped. Provider bridge/recovery operation, G001
 preservation/readback, sealed G002, actual owner PTR journey, physical-device
 and measured-performance acceptance, release freeze and delivery remain open.
 PTR owner access is mandatory; public admissions are not. Keep scheduled

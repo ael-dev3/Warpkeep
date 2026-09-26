@@ -63,6 +63,8 @@ it('the executable returns one bounded public input failure without echoing argu
 it.each(['g001-credential', 'g001-host', 'g001-source', 'g001-closure', 'g001-private-root',
   'g001-materialization', 'g001-prepared-verification', 'g001-authority', 'g001-credential-descriptor',
   'g001-observation', 'g001-receipt', 'g001-cleanup', 'g001-census-directory',
+  'g001-admitted-aggregate-empty', 'g001-admitted-aggregate-disabled',
+  'g001-admitted-aggregate-invalid', 'g001-admitted-aggregate-mismatch', 'g001-census-cross-proof',
   'g001-applicant-collection', 'g001-applicant-export', 'g001-applicant-proof',
   'g001-admitted-collection', 'g001-session-finalize', 'g001-policy-state', 'g001-policy-procedure',
   'g001-policy-transport', 'g001-policy-credential', 'g001-policy-authority',
