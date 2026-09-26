@@ -97,7 +97,7 @@ export const QA_JOURNEY_SCENARIO_MANIFEST = Object.freeze([
   Object.freeze({
     id: 'admission-denied',
     label: 'Admission · denied',
-    externalAnchorCount: 1,
+    externalAnchorCount: 0,
     landmark: Object.freeze({ role: 'heading', name: 'ENTRY NOT YET GRANTED' }),
   }),
   Object.freeze({

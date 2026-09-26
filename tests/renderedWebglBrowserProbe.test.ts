@@ -1795,6 +1795,21 @@ describe('rendered WebGL headless browser probe contract', () => {
       'for (const mobileTouchCase of options[SKIP_MOBILE_TOUCH_IN_SESSION]'
     );
     expect(source).toContain(
+      '[SKIP_POST_VISUAL_IN_SESSION]: true'
+    );
+    expect(source).toContain(
+      "['occupancy', 1]"
+    );
+    expect(source).toContain(
+      "['journey', REVIEWED_JOURNEY_CASE_COUNT]"
+    );
+    expect(source).toContain(
+      "['castle-lod', 1]"
+    );
+    expect(source).toContain(
+      'if (completedCount !== expectedCount)'
+    );
+    expect(source).toContain(
       "await session.command('Emulation.clearDeviceMetricsOverride')"
     );
     expect(source).toContain(

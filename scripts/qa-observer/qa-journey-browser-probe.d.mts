@@ -1,6 +1,6 @@
 export const QA_JOURNEY_BROWSER_DIRECT_CASE_COUNT: 22;
 export const QA_JOURNEY_BROWSER_RESPONSIVE_CASE_COUNT: 2;
-export const QA_JOURNEY_BROWSER_FLOW_STAGE_COUNT: 15;
+export const QA_JOURNEY_BROWSER_FLOW_STAGE_COUNT: 16;
 
 export function isAllowedQaJourneyResourceUrl(value: unknown): boolean;
 
@@ -29,6 +29,7 @@ export function parseQaJourneyFlowObservation(
   value: unknown,
   stage:
     | 'menu'
+    | 'realm-choice'
     | 'initial-terms'
     | 'creating'
     | 'awaiting'

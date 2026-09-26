@@ -10517,6 +10517,12 @@ async function runRenderedTerrainShaderFallbackCase(
  */
 const SKIP_MOBILE_TOUCH_IN_SESSION = Symbol('separate-mobile-browser');
 const SKIP_WORKER_LOCOMOTION_IN_SESSION = Symbol('separate-worker-browser');
+const SKIP_ACTIVE_WORKER_IN_SESSION = Symbol('separate-active-worker-browser');
+const ACTIVE_WORKER_ONLY_IN_SESSION = Symbol('active-worker-browser');
+const SKIP_POST_VISUAL_IN_SESSION = Symbol('separate-post-visual-browser');
+const POST_VISUAL_LANE_IN_SESSION = Symbol('post-visual-browser-lane');
+const POST_VISUAL_LANES = Object.freeze(['occupancy', 'journey', 'castle-lod']);
+const REVIEWED_JOURNEY_CASE_COUNT = 25;
 const MOBILE_TOUCH_CASE_IDS = Object.freeze([
   'iphone-chromium-emulation',
   'android-chromium-emulation',
@@ -10529,6 +10535,9 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
   const mobileTouchCaseId = options?.mobileTouchCaseId;
   const workerLocomotionOnly = options?.workerLocomotionOnly ?? false;
   const workerLocomotionCaseId = options?.workerLocomotionCaseId;
+  const activeWorkerOnly = options[ACTIVE_WORKER_ONLY_IN_SESSION] === true;
+  const postVisualLane = options[POST_VISUAL_LANE_IN_SESSION];
+  const postVisualOnly = postVisualLane !== undefined;
   const onQualityMetrics = options?.onQualityMetrics;
   const onWorkerLocomotionEvidence = options?.onWorkerLocomotionEvidence;
   if (typeof mobileTouchOnly !== 'boolean') {
@@ -10552,6 +10561,12 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
     'desktop-balanced-southern-worker-locomotion',
   ].includes(workerLocomotionCaseId)) {
     throw new TypeError('Invalid rendered Worker locomotion case identifier.');
+  }
+  if (postVisualOnly && !POST_VISUAL_LANES.includes(postVisualLane)) {
+    throw new TypeError('Invalid rendered post-visual browser lane.');
+  }
+  if (postVisualOnly && (mobileTouchOnly || workerLocomotionOnly || activeWorkerOnly)) {
+    throw new TypeError('Rendered post-visual browser isolation options conflict.');
   }
   if (mobileTouchOnly && workerLocomotionOnly) {
     throw new TypeError('Rendered mobile and Worker isolation options conflict.');
@@ -10953,7 +10968,8 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
     await devtools.command('Page.setLifecycleEventsEnabled', {
       enabled: true,
     });
-    const isolatedLane = mobileTouchOnly || workerLocomotionOnly;
+    const isolatedLane = mobileTouchOnly || workerLocomotionOnly
+      || activeWorkerOnly || postVisualOnly;
     for (const probeCase of isolatedLane ? [] : cases) {
       try {
         await runRenderedCase(
@@ -10983,7 +10999,8 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
       }
     }
     for (const mobileTouchCase of options[SKIP_MOBILE_TOUCH_IN_SESSION]
-      || workerLocomotionOnly ? [] : mobileTouchCasesToRun) {
+      || workerLocomotionOnly || activeWorkerOnly || postVisualOnly
+        ? [] : mobileTouchCasesToRun) {
       try {
         await runRenderedMobileTouchCase(
           devtools,
@@ -11000,6 +11017,7 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
     for (const workerLocomotionCase of workerLocomotionOnly
       ? workerLocomotionCasesToRun
       : options[SKIP_WORKER_LOCOMOTION_IN_SESSION] || mobileTouchOnly
+        || activeWorkerOnly || postVisualOnly
         ? [] : workerLocomotionCases) {
       try {
         onWorkerLocomotionEvidence?.(
@@ -11016,7 +11034,8 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
         );
       }
     }
-    if (!isolatedLane) {
+    if (activeWorkerOnly
+      || (!isolatedLane && !options[SKIP_ACTIVE_WORKER_IN_SESSION])) {
       try {
         await runRenderedActiveWorkerCase(devtools, activeWorkerCase, state);
       } catch (error) {
@@ -11024,6 +11043,9 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
           cause: error,
         });
       }
+    }
+    if (postVisualLane === 'occupancy'
+      || (!isolatedLane && !options[SKIP_POST_VISUAL_IN_SESSION])) {
       try {
         await runRenderedOccupancyStressCase(devtools, occupancyStressCase, state);
       } catch (error) {
@@ -11031,11 +11053,23 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
           cause: error,
         });
       }
+    }
+    let journeyCaseCount = 0;
+    if (postVisualLane === 'journey'
+      || (!isolatedLane && !options[SKIP_POST_VISUAL_IN_SESSION])) {
       try {
-        await journeyProbe.runQaJourneyBrowserCases(devtools, journeyCases, state);
+        journeyCaseCount = await journeyProbe.runQaJourneyBrowserCases(
+          devtools, journeyCases, state
+        );
       } catch (error) {
         throw new Error('Synthetic journey browser lane failed.', { cause: error });
       }
+      if (journeyCaseCount !== REVIEWED_JOURNEY_CASE_COUNT) {
+        throw new Error('Synthetic journey browser case count mismatched.');
+      }
+    }
+    if (postVisualLane === 'castle-lod'
+      || (!isolatedLane && !options[SKIP_POST_VISUAL_IN_SESSION])) {
       try {
         const castleLodVisualEvidence = await castleLodVisualProbe.runCastleLodVisualEvidenceBrowserCase(devtools, {
           port: vite.port,
@@ -11051,6 +11085,9 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
     }
     if (mobileTouchOnly) return mobileTouchCasesToRun.length;
     if (workerLocomotionOnly) return workerLocomotionCasesToRun.length;
+    if (activeWorkerOnly) return 1;
+    if (postVisualOnly) return postVisualLane === 'journey'
+      ? journeyCaseCount : 1;
     return RENDERED_WEBGL_QA_CASE_COUNT;
   } finally {
     await cleanupRenderedWebglProbeResources({
@@ -11065,8 +11102,9 @@ async function runRenderedWebglBrowserProbeSession(options = {}) {
 }
 
 /** Chrome can retain context-loss or touch-injection state across unrelated
- * rendered cases in one target. Run visual/journey, Worker locomotion, and
- * each emulated phone in independent browser profiles. Both public entry
+ * rendered cases in one target. Run the visual matrix, occupancy, journey,
+ * castle LOD, Worker checks, and each emulated phone in independent browser
+ * profiles. Both public entry
  * paths still attest every requested case.
  */
 export async function runRenderedWebglBrowserProbe(options = {}) {
@@ -11091,7 +11129,28 @@ export async function runRenderedWebglBrowserProbe(options = {}) {
     ...options,
     [SKIP_MOBILE_TOUCH_IN_SESSION]: true,
     [SKIP_WORKER_LOCOMOTION_IN_SESSION]: true,
+    [SKIP_ACTIVE_WORKER_IN_SESSION]: true,
+    [SKIP_POST_VISUAL_IN_SESSION]: true,
   });
+  for (const [lane, expectedCount] of [
+    ['occupancy', 1],
+    ['journey', REVIEWED_JOURNEY_CASE_COUNT],
+    ['castle-lod', 1],
+  ]) {
+    const completedCount = await runRenderedWebglBrowserProbeSession({
+      [POST_VISUAL_LANE_IN_SESSION]: lane,
+      onCastleLodVisualEvidence: options?.onCastleLodVisualEvidence,
+    });
+    if (completedCount !== expectedCount) {
+      throw new Error(`Rendered WebGL ${lane} browser lane did not complete.`);
+    }
+  }
+  const activeWorkerCount = await runRenderedWebglBrowserProbeSession({
+    [ACTIVE_WORKER_ONLY_IN_SESSION]: true,
+  });
+  if (activeWorkerCount !== 1) {
+    throw new Error('Rendered WebGL active generic Worker case did not complete.');
+  }
   const workerCount = await runRenderedWebglBrowserProbeSession({
     workerLocomotionOnly: true,
     onWorkerLocomotionEvidence: options?.onWorkerLocomotionEvidence,

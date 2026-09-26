@@ -36,6 +36,12 @@ const EMPTY_FLOW = Object.freeze({
   profileTriggerCount: 0,
   profileTriggerTextBearingCount: 0,
   qrSafe: false,
+  realmChoiceCount: 0,
+  realmChoiceVisibleCount: 0,
+  realmChoiceHeadingVisibleCount: 0,
+  realmChoiceSelectedCount: 0,
+  realmChoiceSelectedGenesis001Count: 0,
+  realmChoiceContinueReadyCount: 0,
   realmMainCount: 0,
   realmMenuExploreCommandCount: 0,
   realmMenuMainMenuCommandCount: 0,
@@ -51,6 +57,22 @@ const EMPTY_FLOW = Object.freeze({
 });
 
 describe('real-browser synthetic journey probe', () => {
+  it('checks admission in the mounted scenario after the mobile resize', () => {
+    const source = readFileSync(
+      resolve('scripts/qa-observer/qa-journey-browser-probe.mjs'),
+      'utf8'
+    );
+    const manualCheck = source.split('async function runManualAdmissionCheckPresentation')[1]
+      ?.split('async function runPatchNotesSurface')[0];
+    expect(manualCheck).toBeDefined();
+    expect(manualCheck).not.toContain("session.command('Page.navigate'");
+    expect(manualCheck).toContain('await setViewport(session, MOBILE_VIEWPORT)');
+    expect(manualCheck).toContain('await waitForDirectObservation(session');
+    expect(manualCheck).toContain('const checkingDeadline = Date.now()');
+    expect(manualCheck).toContain("immediate?.flights === '1'");
+    expect(manualCheck).toContain('immediate?.checking === true');
+  });
+
   it('measures responsive controls only inside the active scenario surface', () => {
     const source = readFileSync(
       resolve('scripts/qa-observer/qa-journey-browser-probe.mjs'),
@@ -76,7 +98,7 @@ describe('real-browser synthetic journey probe', () => {
       journey: 2,
       menu: 2,
       terms: 0,
-      'admission-denied': 1,
+      'admission-denied': 0,
       'realm-player': 0,
       'realm-observer': 0
     }));
@@ -155,7 +177,7 @@ describe('real-browser synthetic journey probe', () => {
     }, probeCase)).toThrow(/horizontal-overflow/i);
   });
 
-  it('requires all fifteen flow stages including consent and portrait-menu Realm commands', () => {
+  it('requires all sixteen flow stages including realm selection and consent', () => {
     const href = EMPTY_FLOW.href;
     const realmHref = href.replace('scenario=journey', 'scenario=realm-player');
     const stages = [
@@ -163,10 +185,19 @@ describe('real-browser synthetic journey probe', () => {
         enterRealmButtonCount: 1,
         navigationCount: 1
       }],
+      ['realm-choice', {
+        realmChoiceCount: 1,
+        realmChoiceVisibleCount: 1,
+        realmChoiceHeadingVisibleCount: 1,
+        realmChoiceSelectedCount: 1,
+        realmChoiceSelectedGenesis001Count: 1,
+        realmChoiceContinueReadyCount: 1
+      }],
       ['initial-terms', {
         continuationDisabled: true,
         continuationKind: 'sign-in',
-        navigationCount: 1,
+        navigationCount: 0,
+        realmChoiceCount: 1,
         termsAcceptanceUnchecked: true,
         termsCount: 1
       }],
@@ -297,6 +328,15 @@ describe('real-browser synthetic journey probe', () => {
     }
     expect(() => parseQaJourneyFlowObservation({
       ...EMPTY_FLOW,
+      realmChoiceCount: 1,
+      realmChoiceVisibleCount: 1,
+      realmChoiceHeadingVisibleCount: 1,
+      realmChoiceSelectedCount: 1,
+      realmChoiceSelectedGenesis001Count: 0,
+      realmChoiceContinueReadyCount: 1,
+    }, 'realm-choice', href)).toThrow(/realmChoiceSelectedGenesis001Count/i);
+    expect(() => parseQaJourneyFlowObservation({
+      ...EMPTY_FLOW,
       realmMainCount: 1,
       profileTriggerAvatarCount: 1,
       profileTriggerCount: 1,
@@ -425,8 +465,8 @@ describe('real-browser synthetic journey probe', () => {
     expect(renderedSource).toContain("await import('./qa-journey-browser-probe.mjs')");
     expect(renderedSource).toContain("from './png-visual-aggregate.mjs'");
     expect(renderedSource).toContain('...journeyCases.map((probeCase) => probeCase.url)');
-    expect(renderedSource).toContain(
-      'await journeyProbe.runQaJourneyBrowserCases(devtools, journeyCases, state)'
+    expect(renderedSource).toMatch(
+      /await journeyProbe\.runQaJourneyBrowserCases\(\s*devtools,\s*journeyCases,\s*state\s*\)/
     );
     expect(journeySource).toContain("session.command('Page.captureScreenshot'");
     expect(journeySource).toContain('bytes.fill(0)');
