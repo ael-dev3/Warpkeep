@@ -30,6 +30,15 @@ clean `Warpkeep-Live@616eebfc` checkout: 381 target files and 26 obsolete old
 generated paths. The disposable local manifest was removed; no public repo
 mutation occurred. Native Linux matched all 3,261 source blobs, independently
 regenerated all 16 closure outputs and passed the 1,258-member policy.
+[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) now stages a
+`public-mirror-candidate` lane for activated 0.4 bindings. After a successful
+exact-main Verify, the contents-read build validates the sealed binding, PTR
+inputs, canonical/auth configuration, admission suspension and generated public
+payload. It requires shared Alpha access for owner sign-in. It neither uploads
+nor deploys Pages and does not change `Warpkeep-Live`; signed publication,
+live-byte postflight and owner PTR remain separate release work. This lane is
+source-level preparation until its protected closure is refreshed and the final
+head passes hosted Verify.
 [Verify 36318043715](https://github.com/ael-dev3/Warpkeep/actions/runs/36318043715)
 on that closure head rejected all 17 jobs before runner start. GitHub's billing
 page shows the Actions budget at $0 with stop usage enabled and says a valid

@@ -61,7 +61,7 @@ describe('notification Pages private deployment workflow', () => {
     expect(source).toContain(
       'WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}',
     );
-    expect(source).toContain("deployment-lane == 'sealed-g002'");
+    expect(source).toContain("deployment-lane == 'public-mirror-candidate'");
     expect(source).not.toContain("deployment-lane == 'closed-review'");
     expect(source).toContain("deployment-lane == 'gen0'");
     expect(source).toContain("deployment-lane == 'durable'");
@@ -90,14 +90,15 @@ describe('notification Pages private deployment workflow', () => {
     expect(classify).not.toMatch(
       /(?:actions\/(?:upload|deploy)-pages|environment:|pages:\s*write|id-token:\s*write|secrets\.|npm ci)/u,
     );
-    expect(build).toContain("deployment-lane == 'sealed-g002'");
+    expect(build).toContain("deployment-lane == 'public-mirror-candidate'");
     expect(build).not.toContain('sealed-launch-blocked');
     expect(build.indexOf('npm run verify:sealed-launch:activation')).toBeLessThan(
       build.indexOf('npm run build'),
     );
     expect(build.indexOf('npm run build')).toBeLessThan(
-      build.indexOf('actions/upload-pages-artifact@'),
+      build.indexOf('node scripts/verify-public-pages-payload.mjs --write'),
     );
+    expect(build).not.toContain('actions/upload-pages-artifact@');
     expect(deploy).toContain("deployment-lane == 'sealed-g002'");
     expect(deploy).not.toContain('sealed-launch-blocked');
     expect(privateToolchain).not.toContain('sealed-launch-blocked');
@@ -116,12 +117,20 @@ describe('notification Pages private deployment workflow', () => {
     );
     expect(build).not.toContain('vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED');
     expect(build).toContain('npm run verify:sealed-launch:activation');
-    expect(build).not.toContain('npm run validate:pages-config');
+    expect(build).toContain('npm run validate:pages-config');
+    expect(build.indexOf('npm ci')).toBeLessThan(
+      build.indexOf('npm run validate:pages-config'),
+    );
+    expect(build.indexOf('npm run validate:pages-config')).toBeLessThan(
+      build.indexOf('npm run build'),
+    );
     expect(build).not.toContain('npm run verify:greater-realm-release-gates');
     expect(build.indexOf('npm run verify:sealed-launch:activation')).toBeLessThan(
       build.indexOf('npm run build'),
     );
-    expect(build).toContain('actions/upload-pages-artifact@');
+    expect(build).toContain('node scripts/verify-public-pages-payload.mjs --write');
+    expect(build).toContain('node scripts/verify-public-pages-payload.mjs --check');
+    expect(build).not.toMatch(/actions\/(?:configure|upload|deploy)-pages@/u);
   });
 
   it('installs only in a contents-read job and binds the persistent runner identity', () => {

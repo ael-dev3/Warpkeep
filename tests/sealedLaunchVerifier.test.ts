@@ -2367,7 +2367,7 @@ export function createPtrAtlasImportTransport(`,
       ptrPresentationEnabled: true,
     });
     expect(classifySealedLaunchPagesSources(activationSources())).toBe(
-      'sealed-g002',
+      'public-mirror-candidate',
     );
   });
 
@@ -3568,8 +3568,10 @@ export function createPtrAtlasImportTransport(`,
       ['farcasterContractSource', 'Command four Workers, gather resources and return to a permanent keep in Genesis 001. Invite-only Alpha.', 'Explore a six-region world foundation.'],
       ['latestPatchNotesSource', "title: 'THE SECOND GENESIS WAITS'", "title: 'THE SECOND GENESIS OPENS'"],
       ['pagesWorkflowSource', "VITE_WARPKEEP_PTR_ENABLED: 'true'", "VITE_WARPKEEP_PTR_ENABLED: 'false'"],
+      ['pagesWorkflowSource', '[[ "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" != \'true\' ]]', '[[ "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" != \'false\' ]]'],
       ['pagesWorkflowSource', 'VITE_PTR_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}', "VITE_PTR_SPACETIMEDB_DATABASE: ''"],
       ['pagesWorkflowSource', 'node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build', 'node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation'],
+      ['pagesWorkflowSource', 'npm run validate:pages-config', 'npm run validate:pages-confog'],
     ] as const) {
       const candidate = { ...sources, [field]: sources[field].replace(before, after) };
       expect(

@@ -4014,17 +4014,20 @@ function verifyPagesTwoPhaseBoundary(sources) {
   const buildIndex = workflow.indexOf('\n  build:\n');
   const deployIndex = workflow.indexOf('\n  deploy:\n');
   const verifyLiveIndex = workflow.indexOf('\n  verify-live:\n');
+  const recoveryIndex = workflow.indexOf('\n  deploy-recovery:\n');
   const privateToolchainIndex = workflow.indexOf('\n  private-toolchain:\n');
   if (
     buildIndex < 1
     || deployIndex <= buildIndex
     || verifyLiveIndex <= deployIndex
-    || privateToolchainIndex <= verifyLiveIndex
+    || recoveryIndex <= verifyLiveIndex
+    || privateToolchainIndex <= recoveryIndex
   ) fail('SEALED_LAUNCH_PAGES_WORKFLOW_INVALID');
   const classify = workflow.slice(0, buildIndex);
   const build = workflow.slice(buildIndex, deployIndex);
   const deploy = workflow.slice(deployIndex, verifyLiveIndex);
-  const verifyLive = workflow.slice(verifyLiveIndex, privateToolchainIndex);
+  const verifyLive = workflow.slice(verifyLiveIndex, recoveryIndex);
+  const recovery = workflow.slice(recoveryIndex, privateToolchainIndex);
   for (const token of [
     'node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages',
     'WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}',
@@ -4043,28 +4046,51 @@ function verifyPagesTwoPhaseBoundary(sources) {
     'SEALED_LAUNCH_PAGES_CLASSIFIER_PRIVILEGE_INVALID',
   );
   for (const token of [
-    "needs.classify.outputs.deployment-lane == 'sealed-g002'",
+    "needs.classify.outputs.deployment-lane == 'public-mirror-candidate'",
     "VITE_WARPKEEP_PTR_ENABLED: 'true'",
     'VITE_PTR_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}',
+    '[[ "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" != \'true\' ]]',
+    'WARPKEEP_SHARED_ALPHA_ENABLED must be true for owner PTR.',
     'node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build',
+    'npm run validate:pages-config',
     'npm run verify:sealed-launch:activation',
     'npm run verify:admission-request-suspension',
     'npm run build',
-    'actions/upload-pages-artifact@',
+    'npm run verify:miniapp:release',
+    'node scripts/verify-public-pages-payload.mjs --write "$WARPKEEP_PUBLIC_SOURCE_COMMIT"',
+    'node scripts/verify-public-pages-payload.mjs --check "$WARPKEEP_PUBLIC_SOURCE_COMMIT"',
   ]) {
     if (!build.includes(token)) fail('SEALED_LAUNCH_PAGES_BUILD_GATE_INVALID');
   }
   if (
     build.indexOf('node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build')
       > build.indexOf('npm ci')
+    || build.indexOf('npm ci')
+      > build.indexOf('npm run validate:pages-config')
+    || build.indexOf('npm run validate:pages-config')
+      > build.indexOf('npm run build')
     || build.indexOf('npm run verify:sealed-launch:activation')
       > build.indexOf('npm run verify:admission-request-suspension')
     || build.indexOf('npm run verify:admission-request-suspension')
       > build.indexOf('npm run build')
     || build.indexOf('npm run build')
-      > build.indexOf('actions/upload-pages-artifact@')
+      > build.indexOf('npm run verify:miniapp:release')
+    || build.indexOf('npm run verify:miniapp:release')
+      > build.indexOf('node scripts/verify-public-pages-payload.mjs --write')
+    || build.indexOf('node scripts/verify-public-pages-payload.mjs --write')
+      > build.indexOf('node scripts/verify-public-pages-payload.mjs --check')
   ) fail('SEALED_LAUNCH_PAGES_BUILD_ORDER_INVALID');
   requireAbsent(build, [
+    'pages: read',
+    'pages: write',
+    'id-token: write',
+    'environment:',
+    'secrets.',
+    'actions/configure-pages@',
+    'actions/upload-pages-artifact@',
+    'actions/upload-artifact@',
+    'actions/deploy-pages@',
+    "deployment-lane == 'sealed-g002'",
     'VITE_PTR_SPACETIMEDB_URI',
     'VITE_WARPKEEP_PTR_SPACETIMEDB_URI',
     'VITE_PTR_SPACETIMEDB_ALIAS',
@@ -4092,6 +4118,7 @@ function verifyPagesTwoPhaseBoundary(sources) {
       "needs.classify.outputs.deployment-lane == 'sealed-launch-blocked'",
     )
   ) fail('SEALED_LAUNCH_PAGES_DEPLOY_ORDER_INVALID');
+  requireAbsent(deploy, ['public-mirror-candidate'], 'SEALED_LAUNCH_PAGES_DEPLOY_GATE_INVALID');
   for (const token of [
     'scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
     'npm run verify:admission-request-suspension',
@@ -4108,6 +4135,7 @@ function verifyPagesTwoPhaseBoundary(sources) {
     || verifyLive.indexOf('npm run verify:admission-request-suspension')
       > verifyLive.indexOf('node scripts/verify-alpha-production.mjs')
   ) fail('SEALED_LAUNCH_PAGES_LIVE_POSTFLIGHT_ORDER_INVALID');
+  requireAbsent(recovery, ['public-mirror-candidate'], 'SEALED_LAUNCH_PAGES_DEPLOY_GATE_INVALID');
 }
 
 /**
@@ -4558,7 +4586,7 @@ export function verifySealedLaunchSources(sources, requestedPhase = 'checked-in'
 export function classifySealedLaunchPagesSources(sources) {
   const result = verifySealedLaunchSources(sources, 'checked-in');
   if (result.phase !== 'activation') return 'sealed-launch-blocked';
-  return [2, 3, 4, 5, 6].includes(result.schemaVersion) ? 'sealed-g002-recovery' : 'sealed-g002';
+  return 'public-mirror-candidate';
 }
 
 const FORBIDDEN_PTR_PAGES_ENVIRONMENT_KEYS = Object.freeze([
@@ -5101,9 +5129,9 @@ export function classifySealedLaunchPagesDeployLane({
   catch { fail('SEALED_LAUNCH_BINDING_INVALID'); }
   finally { bindingFile.body.fill(0); }
   if (schema === 2 || schema === 3 || schema === 4 || schema === 5 || schema === 6) {
-    // Routing is not deployment authority. This verifies the complete versioned recovery binding
-    // and exact committed activation child; the recovery job must additionally
-    // authenticate current exact main, artifacts, live state and signed claim.
+    // Routing is not deployment authority. This verifies the complete versioned
+    // binding and exact committed activation child. Public mirror publication
+    // requires independent current-main, artifact and live-state checks.
     const identity = readRecoveryAttestationSource(repositoryRoot);
     if (identity.candidateCommit !== candidatePagesSourceCommit) fail('SEALED_LAUNCH_CHECKOUT_INVALID');
     assertExactCheckout(repositoryRoot, candidatePagesSourceCommit);
@@ -5111,11 +5139,11 @@ export function classifySealedLaunchPagesDeployLane({
       : schema === 3 ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'
         : schema === 4 ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4'
           : schema === 5 ? 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' : 'warpkeep-0.4.0-sealed-launch-g001-linux-freeze-v6', candidatePagesSourceCommit,
-      mode: 'sealed-g002-recovery' });
+      mode: 'public-mirror-candidate' });
   }
   const sources = readSources(repositoryRoot);
   const mode = classifySealedLaunchPagesSources(sources);
-  if (mode === 'sealed-g002') {
+  if (mode === 'public-mirror-candidate') {
     verifySealedLaunchActivationHistory({
       bindingSource: sources.bindingJson,
       candidateActivationCommit: candidatePagesSourceCommit,
@@ -5210,19 +5238,15 @@ function main(arguments_, environment) {
     candidatePagesSourceCommit: environment.WARPKEEP_PAGES_SOURCE_COMMIT,
   });
   if (phase === 'pages-build') {
-    if (result.mode !== 'sealed-g002' && result.mode !== 'sealed-g002-recovery') {
+    if (result.mode !== 'public-mirror-candidate') {
       fail('SEALED_LAUNCH_PAGES_PTR_ENVIRONMENT_INVALID');
     }
     let bindingBytes;
     let ptr;
     try {
-      const bindingSource = result.mode === 'sealed-g002-recovery'
-        ? (() => {
-          bindingBytes = readLocalBindingBoundedFile(resolve(REPOSITORY_ROOT, 'config/releases/0.4.0-sealed-launch.json'),
-            { maximumBytes: 2 * 1024 * 1024 }).body;
-          return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bindingBytes);
-        })()
-        : readSources().bindingJson;
+      bindingBytes = readLocalBindingBoundedFile(resolve(REPOSITORY_ROOT, 'config/releases/0.4.0-sealed-launch.json'),
+        { maximumBytes: 2 * 1024 * 1024 }).body;
+      const bindingSource = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bindingBytes);
       ptr = verifySealedLaunchPagesBuildEnvironment({ bindingSource, environment });
     } finally { bindingBytes?.fill(0); }
     process.stdout.write(`${JSON.stringify({ ...result, ...ptr })}\n`);

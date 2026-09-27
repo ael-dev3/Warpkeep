@@ -116,7 +116,7 @@ export function verifySealedLaunchSources(
 
 export function classifySealedLaunchPagesSources(
   sources: Readonly<Record<string, string>>,
-): 'sealed-launch-blocked' | 'sealed-g002' | 'sealed-g002-recovery';
+): 'sealed-launch-blocked' | 'public-mirror-candidate';
 
 export function verifySealedLaunchPagesBuildEnvironment(input: Readonly<{
   bindingSource: string;
@@ -132,7 +132,7 @@ export function classifySealedLaunchPagesDeployLane(input: Readonly<{
 }>): Readonly<{
   profile: typeof SEALED_LAUNCH_PROFILE | 'warpkeep-0.4.0-sealed-launch-v2' | 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' | 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4' | 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' | 'warpkeep-0.4.0-sealed-launch-g001-linux-freeze-v6';
   candidatePagesSourceCommit: string;
-  mode: 'sealed-launch-blocked' | 'sealed-g002' | 'sealed-g002-recovery';
+  mode: 'sealed-launch-blocked' | 'public-mirror-candidate';
 }>;
 export function verifyGenesis002PrivateSchemaSources(schemaSource: string, gameplaySource: string): void;
 export function verifyGenesis001PreparationProjection(input: Readonly<{

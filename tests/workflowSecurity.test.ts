@@ -126,19 +126,23 @@ describe('GitHub workflow security policy', () => {
     }
   });
 
-  it('keeps Pages deployment authority out of the dependency-running build job', () => {
+  it('keeps public candidate preparation read-only and separate from dormant private deployment', () => {
     const source = workflow('deploy-pages.yml');
     const build = source.slice(source.indexOf('  build:'), source.indexOf('  deploy:'));
     const deploy = source.slice(source.indexOf('  deploy:'));
-    expect(build).toMatch(/^\s+pages:\s*read\s*$/m);
+    expect(build).toMatch(/^\s+contents:\s*read\s*$/m);
+    expect(build).not.toMatch(/^\s+pages:\s*(?:read|write)\s*$/m);
     expect(build).not.toMatch(/^\s+pages:\s*write\s*$/m);
     expect(build).not.toMatch(/^\s+id-token:\s*write\s*$/m);
+    expect(build).not.toMatch(/actions\/(?:configure|upload|deploy)-pages@/u);
+    expect(build).toContain("deployment-lane == 'public-mirror-candidate'");
+    expect(deploy).not.toContain("deployment-lane == 'public-mirror-candidate'");
     expect(deploy).toMatch(/^\s+pages:\s*write\s*$/m);
     expect(deploy).toMatch(/^\s+id-token:\s*write\s*$/m);
     expect(source).not.toContain('enablement: true');
   });
 
-  it('deploys Pages only after successful Verify completion for a main push', () => {
+  it('prepares the public candidate only after successful Verify for exact current main', () => {
     const source = workflow('deploy-pages.yml');
     const trigger = source.slice(source.indexOf('on:'), source.indexOf('permissions:'));
     const build = source.slice(source.indexOf('  build:'), source.indexOf('  deploy:'));
@@ -155,6 +159,7 @@ describe('GitHub workflow security policy', () => {
     expect(build).toContain("github.event.workflow_run.conclusion == 'success'");
     expect(build).toContain("github.event.workflow_run.event == 'push'");
     expect(build).toContain("github.event.workflow_run.head_branch == 'main'");
+    expect(build).toContain("deployment-lane == 'public-mirror-candidate'");
     expect(build).toContain(
       'WARPKEEP_VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}',
     );
@@ -183,12 +188,18 @@ describe('GitHub workflow security policy', () => {
       "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
     );
     expect(build).not.toContain('vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED');
-    expect(build).toContain('true | false) ;;');
+    expect(build).toContain('[[ "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" != \'true\' ]]');
     expect(build).toContain(
-      'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
+      'WARPKEEP_SHARED_ALPHA_ENABLED must be true for owner PTR.',
     );
     expect(build).toContain('npm run verify:sealed-launch:activation');
-    expect(build).not.toContain('npm run validate:pages-config');
+    expect(build).toContain('npm run validate:pages-config');
+    expect(build.indexOf('npm ci')).toBeLessThan(
+      build.indexOf('npm run validate:pages-config'),
+    );
+    expect(build.indexOf('npm run validate:pages-config')).toBeLessThan(
+      build.indexOf('npm run build'),
+    );
     expect(build).not.toContain('npm run verify:greater-realm-release-gates');
     const ptrPagesBuildGate =
       'node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build';
@@ -210,6 +221,12 @@ describe('GitHub workflow security policy', () => {
     });
     expect(build.indexOf('npm run verify:sealed-launch:activation')).toBeLessThan(
       build.indexOf('npm run build'),
+    );
+    expect(build.indexOf('npm run build')).toBeLessThan(
+      build.indexOf('node scripts/verify-public-pages-payload.mjs --write'),
+    );
+    expect(build.indexOf('node scripts/verify-public-pages-payload.mjs --write')).toBeLessThan(
+      build.indexOf('node scripts/verify-public-pages-payload.mjs --check'),
     );
     expect(source).toContain('group: warpkeep-production-state');
     expect(source).not.toMatch(/^\s+group:\s*pages\s*$/m);
@@ -382,8 +399,12 @@ describe('GitHub workflow security policy', () => {
     );
   });
 
-  it('uses the reviewed Pages uploader with a SHA-pinned nested dependency', () => {
+  it('keeps public candidate bytes local while retaining the dormant recovery uploader', () => {
     const source = workflow('deploy-pages.yml');
+    const build = workflowJobSource('deploy-pages.yml', 'build');
+    expect(build).not.toMatch(/actions\/(?:configure|upload|deploy)-pages@/u);
+    expect(build).toContain('node scripts/verify-public-pages-payload.mjs --write');
+    expect(build).toContain('node scripts/verify-public-pages-payload.mjs --check');
     expect(source).toContain(
       'actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9',
     );
@@ -391,8 +412,8 @@ describe('GitHub workflow security policy', () => {
       'actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa',
     );
     expect(source).not.toContain('actions/upload-artifact@');
-    expect(source).toContain('path: ./dist');
-    expect(source).toContain('include-hidden-files: true');
+    expect(workflowJobSource('deploy-pages.yml', 'deploy-recovery')).toContain('path: ./dist');
+    expect(workflowJobSource('deploy-pages.yml', 'deploy-recovery')).toContain('include-hidden-files: true');
     expect(source).toContain('npm run verify:miniapp:release');
   });
 

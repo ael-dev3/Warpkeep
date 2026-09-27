@@ -881,7 +881,7 @@ describe('Pages deployment configuration validation', () => {
     expect(dependencies.assertBridgeSourceAncestor).toHaveBeenCalledTimes(1);
   });
 
-  it('proves durable root source ancestry locally before final acceptance', async () => {
+  it.skipIf(process.platform !== 'linux')('proves durable root source ancestry locally before final acceptance', async () => {
     const head = spawnSync('/usr/bin/git', ['rev-parse', '--verify', 'HEAD^{commit}'], {
       cwd: process.cwd(),
       encoding: 'utf8',

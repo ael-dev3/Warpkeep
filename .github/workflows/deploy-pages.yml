@@ -63,18 +63,18 @@ jobs:
             9>>"$GITHUB_OUTPUT"
 
   build:
+    name: Verify public mirror candidate (no publication)
     needs: classify
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
-      needs.classify.outputs.deployment-lane == 'sealed-g002'
+      needs.classify.outputs.deployment-lane == 'public-mirror-candidate'
     runs-on: ubuntu-latest
     # Bound the receipt-checked build, audits, and artifact preparation.
     timeout-minutes: 75
     permissions:
       contents: read
-      pages: read
     env:
       DEPLOY_BASE: '/'
       VITE_WARPKEEP_RELEASE_CHANNEL: alpha
@@ -114,13 +114,10 @@ jobs:
         env:
           VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}
         run: |
-          case "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" in
-            true | false) ;;
-            *)
-              echo 'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.' >&2
-              exit 1
-              ;;
-          esac
+          if [[ "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" != 'true' ]]; then
+            echo 'WARPKEEP_SHARED_ALPHA_ENABLED must be true for owner PTR.' >&2
+            exit 1
+          fi
 
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -283,6 +280,9 @@ jobs:
           npm audit
           npm audit signatures
 
+      - name: Validate exact public frontend configuration
+        run: npm run validate:pages-config
+
       - name: Validate the exact receipt-bound sealed Pages release
         run: npm run verify:sealed-launch:activation
 
@@ -297,16 +297,14 @@ jobs:
       - name: Verify signed Mini App release metadata
         run: npm run verify:miniapp:release
 
-      - name: Setup Pages
-        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-
-      # v5 excludes hidden files by default and pins its nested upload-artifact
-      # v7 dependency to a full SHA, satisfying the immutable-action policy.
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: ./dist
-          include-hidden-files: true
+      - name: Verify exact candidate files without publishing
+        shell: bash
+        env:
+          WARPKEEP_PUBLIC_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          node scripts/verify-public-pages-payload.mjs --write "$WARPKEEP_PUBLIC_SOURCE_COMMIT"
+          node scripts/verify-public-pages-payload.mjs --check "$WARPKEEP_PUBLIC_SOURCE_COMMIT"
 
   deploy:
     needs: [classify, build]
