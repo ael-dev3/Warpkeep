@@ -4080,7 +4080,7 @@
     {
       "path": "src/components/realm/RealmMapScreen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3c91a6edd45d4a42f50ef78735c851202f7a09d90d3d401c6f00efc0c8280b77"
+      "sha256": "7fc34df794cb7498e9461fbd49163c353313e2b9c73f3bc8de54790eec096204"
     },
     {
       "path": "src/components/realm/RealmNodeWorkerDispatch.css",
