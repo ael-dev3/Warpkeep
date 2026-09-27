@@ -1,6 +1,6 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 00:01 CEST (22:01 UTC on 27 September).
+Source/GitHub check: 00:38 CEST (22:38 UTC on 27 September).
 
 PURPOSE OF THIS FILE
 
@@ -35,7 +35,7 @@ C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep
 
 Local branch: fix/g001-census-admission-proxy
 At this check, local and GitHub branch head was signed
-747c0cfb80884e02016a973b7c92ba9a644a3a82 and the checkout was clean and
+5f67d36a7c52da2d68ce46eea653fb80f221f477 and the checkout was clean and
 remote-equal. PR #374 was open on this head, based on live main
 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. This status note will advance the
 branch; recheck the exact live SHA before acting.
@@ -92,16 +92,30 @@ the recorded rollback version if the verifier regresses. No new recovery key
 is required. Full event timestamps and recovery details are in
 docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md.
 
-No successful hosted Verify exists for the current PR candidate.
-Exact-head [Verify 36353750634](https://github.com/ael-dev3/Warpkeep/actions/runs/36353750634)
-on signed head 747c0cfb started at 2026-09-27 22:00:31 UTC and failed all 17
-jobs before any step ran. GitHub's annotation says recent account payments
-failed or the Actions spending limit must increase. This is a runner-allocation
-gate, not a code-test result. The account owner must resolve Billing & plans,
-then rerun Verify on the updated live final head. Do not use the persistent
-privileged production runner as a workaround. Private-repo Pages remains
-unavailable on the current Free plan. The 0.4 owner PTR and sealed G002
-deployment are not live.
+Exact-head [Verify 36355948438](https://github.com/ael-dev3/Warpkeep/actions/runs/36355948438)
+on signed head 5f67d36a started at 2026-09-27 22:37:48 UTC and completed at
+22:38:28 UTC. All 17 jobs failed before any step ran; the check-run annotation
+explicitly says recent account payments failed or the Actions spending limit
+must increase. This is a runner-allocation gate, not a code-test result. Local
+validation on that source head passed 31 targeted tests, `tsc -b --pretty
+false`, and the full rendered-WebGL browser probe. The probe covered 15
+rendered cases, terrain fallback, Worker lifecycle/locomotion/occupancy, 25
+journey checks and loopback LOD boundaries/fidelity. Direct-menu and Credits
+external-link expectations were corrected for local versus commit-stamped
+builds and the single licensed Credits link.
+
+The owner reported successful login after another fresh QR scan. The
+conversation clock was observed at 2026-09-27 22:17:54 UTC. This is the report
+observation, not an exact scan/exchange time; no new Worker trace, browser
+identity or served build hash was provided. Full evidence boundaries and the
+prior failure timestamps remain in
+docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md.
+
+No exact-final-head hosted Verify has passed. The account owner must resolve
+GitHub Billing & plans and allow a sufficient Actions budget, then rerun Verify
+on the live final PR #374 head. Do not use the persistent privileged
+production runner as a workaround. Private-repo Pages remains unavailable on
+the current Free plan. The 0.4 owner PTR and sealed G002 deployment are not live.
 
 The reviewed Verdant Citadel menu is integrated into signed PR #374 at merge
 397b9697. Follow-up commits preserve glTF-authored double-sided materials and
@@ -115,6 +129,16 @@ describes the menu score as published and links its conversion reference to
 reachable signed game source 175e3257; its 37 Linux tests passed. Recheck both
 PRs' exact heads and checks before acting.
 
+New candidates appeared and are not integrated: Warpkeep #376 adds a gated
+FID 539854 castle lyric-film action, and #377 adds the Genesis 002 score while
+G002 remains sealed. Warpkeep-Assets #38 archives the score and is stacked on
+Assets #37. At this check, #376 and #377 have no submitted reviews and their
+Verify jobs did not start due to the account billing gate. Assets #38 has no
+submitted review and its Verify/CodeQL jobs also did not execute. Review the
+diffs, rights/provenance, accessibility/mobile behavior and branch dependencies;
+independently rerun relevant checks. Re-list both repositories before each
+integration because more 0.4 PRs are expected.
+
 The earlier signed World retry, G001 preservation work, public-mirror
 candidate, local source tests, native closure checks and synthetic mobile
 captures remain described in the repository execution handoff. They do not
@@ -126,24 +150,28 @@ retired title gateway while this app starts at `#menu`. It is not current menu
 visual evidence; do not call it a product failure or a pass. Retarget it to a
 live 0.4 transition before relying on that lane. See execution-handoff.md.
 
-NEXT ACTION — DELIVERY DEPENDENCY
+NEXT ACTION — REVIEW, THEN DELIVERY DEPENDENCY
 
-1. The account owner must resolve GitHub Billing & plans, including any
+1. Review Warpkeep #376/#377 and Assets #38 at their current exact heads.
+   Preserve G002's sealed boundary, require defensible media rights/provenance,
+   and check accessibility/mobile playback before accepting contributions.
+   Honor Assets #38 → #37 and inspect newly opened PRs in both repositories.
+2. The account owner must resolve GitHub Billing & plans, including any
    failed payment, and enable an Actions budget large enough to run Verify:
    https://github.com/settings/billing/budgets
    The Alpha QR now succeeds; do not repeat scans unless a regression appears.
-2. Rerun hosted Verify on the live final PR #374 head after billing is fixed.
+3. Rerun hosted Verify on the live final PR #374 head after billing is fixed.
    Require every job to pass before integration; do not use the persistent
    privileged production runner as a workaround.
-3. Merge signed source/closure M1, confirm exact-main identity and Verify, and
+4. Merge signed source/closure M1, confirm exact-main identity and Verify, and
    repeat the provider-free G002 artifact build.
-4. On that exact M1, run native prepare and independent check; promote only
+5. On that exact M1, run native prepare and independent check; promote only
    the authenticated generated family as M2 and require exact-main Verify.
-5. Run fresh preflight and G001 policy observation, then a new census identity.
+6. Run fresh preflight and G001 policy observation, then a new census identity.
    Resolve any real admitted-set mismatch through the supported workflow;
    never fabricate a baseline or reuse an incomplete attempt. A valid
    baseline precedes provider mutation and G001 preservation readback.
-6. Use fresh exact-M2 authority for G002 inspect, then complete supported
+7. Use fresh exact-M2 authority for G002 inspect, then complete supported
    deployment, sealed denial, actual owner PTR play and recovery evidence.
    Use the signed public publication/rollback operator only after its gates;
    verify exact public bytes and keep the existing Alpha root working until

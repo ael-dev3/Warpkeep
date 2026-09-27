@@ -1,5 +1,50 @@
 # Continue Warpkeep 0.4
 
+## Current continuation — 28 September 2026, 00:38 CEST (27 September, 22:38 UTC)
+
+The maintained checkout is clean and matched GitHub before this documentation
+refresh at signed source head
+[`5f67d36a`](https://github.com/ael-dev3/Warpkeep/commit/5f67d36a7c52da2d68ce46eea653fb80f221f477).
+PR #374 remains open against `main` at
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Its exact-head [Verify
+36355948438](https://github.com/ael-dev3/Warpkeep/actions/runs/36355948438)
+completed at 22:38:28 UTC. GitHub's check-run API confirms all 17 jobs have
+zero steps and the failure annotation is: “The job was not started because
+recent account payments have failed or your spending limit needs to be
+increased.” This is account billing/runner allocation, not a source-test
+verdict. Local checks on the source head passed: 31 targeted tests, TypeScript
+project build, and the full rendered-WebGL browser probe (15 render cases,
+terrain fallback, Worker lifecycle/locomotion/occupancy, 25 journey checks,
+loopback LOD boundaries and aggregate fidelity). The direct-menu and Credits
+link expectations were corrected to match local versus commit-stamped builds
+and the single licensed Credits link.
+
+The owner reported a fresh QR scan login succeeded; the conversation clock
+observation was 22:17:54 UTC. This is the time the report was observed, not the
+untraced scan/exchange time. No new Worker trace, browser identity or served
+build hash is available. The detailed failure diagnosis and exact evidence
+limits remain in the [QR incident record](../../evidence/0.4.0/qr-auth-incident-2026-09-27.md).
+
+New open 0.4 candidates appeared and need review before integration:
+[Warpkeep #376](https://github.com/ael-dev3/Warpkeep/pull/376) adds a gated
+castle lyric-film action; [#377](https://github.com/ael-dev3/Warpkeep/pull/377)
+adds a Genesis 002 soundtrack while that realm stays sealed; and
+[Warpkeep-Assets #38](https://github.com/ael-dev3/Warpkeep-Assets/pull/38)
+archives that score, stacked on open Assets #37. At this checkpoint, #376 and
+#377 have no submitted reviews and their Verify jobs did not start under the
+same account billing gate. Assets #38 also has no review; its Verify/CodeQL
+checks failed before execution. Inspect actual diffs, rights/provenance,
+accessibility, mobile behavior and dependency order; do not treat PR prose or
+local author results as hosted approval. The user expects additional 0.4 PRs,
+so re-inventory both repositories before every integration decision.
+
+This docs refresh does not claim a live 0.4 PTR or release. A docs-only commit
+will advance the PR head, so the eventual passing Verify must match the final
+head exactly. Do not bypass it with the privileged production runner. After
+reviewing incoming PRs, resolve the account Billing & plans gate and resume
+the existing M1 → native proof → generated M2 → exact-main Verify → provider /
+preservation → owner PTR sequence below.
+
 ## Latest release checkpoint — 27 September 2026, 21:58 UTC
 
 Local `fix/g001-census-admission-proxy` and GitHub match signed head
