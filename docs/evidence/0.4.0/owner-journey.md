@@ -16,9 +16,11 @@ evidence boundary, not a claim that the live owner journey is complete.
   renderer evidence, not owner/device/performance acceptance.
 - `npm run qa:fullstack:local`: reached the disposable runtime and failed
   closed at `cli-attestation` before any database, browser, owner, or player
-  state was created. The repository's pinned SpacetimeDB attestation currently
-  has reviewed binaries for `darwin-arm64` and `linux-x64`, but no Windows
-  binary record.
+  state was created. At the time of this run, the repository's pinned
+  SpacetimeDB attestation had reviewed binaries for `darwin-arm64` and
+  `linux-x64`, but no Windows binary record. The manifest has since gained
+  `win32-x64` CLI and standalone digests; this historical failure is not a
+  current Windows-platform conclusion.
 - The Windows synthetic Keep04 browser lane then captured run
   `windows-run-q9Jo7j`: 36 bounded cases, 36 exact server-policy document
   guards, a valid installed Chrome identity, and verified owned-process cleanup.
@@ -40,6 +42,17 @@ hosts. macOS continues to use the signed Chrome application contract. Windows
 uses the fixed Chrome installation path, an isolated profile, offline resolver
 flags, numeric loopback CDP checks, and a bounded process-tree teardown. This
 removes the browser host mismatch without weakening the database attestation.
+
+## 2026-09-27 WSL rerun
+
+On main `786c0b2`, the disposable full-stack probe used pinned Node 22.22.3,
+SpacetimeDB CLI 2.6.1, and installed Chrome stable 154 in WSL `WarpkeepRunner`.
+`WARPKEEP_QA_CHROME=/opt/google/chrome/google-chrome` selected the regular-file
+executable rather than a package symlink. The probe reached the Chrome title
+gateway, then failed closed in `desktop-keyboard` after repeated WSLg OpenGL
+`GPU stall due` driver warnings. No owner/browser journey pass or application
+failure can be inferred. The current candidate source still needs a clean
+disposable browser pass and live owner/PTR acceptance.
 
 ## What remains unverified
 

@@ -4,6 +4,18 @@ Established 2026-09-06 before final visual implementation/measurement.
 Status: **budgets established; synthetic cadence reporting added; no final measurements or pass claimed**.
 Scope: final production-build 0.4 world/keep path, not a standalone demo.
 
+## Keep asset-loading scope — 2026-09-27
+
+The current source-only 0.4 candidate requests the two scenery models for an
+empty Keep instead of all six building models at entry. Completed buildings
+present in the first authoritative view are still requested before that scene
+is shown; models for buildings appearing later hydrate the existing WebGL
+scene. A missing optional model leaves a procedural silhouette, with one
+bounded retry on connection or visible-tab resume. The complete catalog still
+determines the quality and budget profile. This is a request-scope change, not
+a measured speedup or a pass against any transfer, frame-time, or phone gate
+below. Record production-build bytes and timings on the final source.
+
 ## Synthetic observer instrumentation — 2026-09-10
 
 The DEV Keep04 harness now derives nearest-rank p50, p95 and p99 frame-interval

@@ -23,9 +23,10 @@ it('keeps the loop order stable and aligns an empty keep with its first journey'
   expect(KEEP04_LOOP_STAGES04).toEqual(['gather', 'choose', 'build', 'benefit', 'return']);
   expect(activeKeep04LoopStage04(emptySelection, viewOf())).toBe('gather');
   expect(activeKeep04LoopStage04({ ...emptySelection, panel: 'workers' }, viewOf())).toBe('gather');
-  expect(activeKeep04LoopStage04({ ...emptySelection, panel: 'buildings', selectedKind: 'city-mill' }, viewOf())).toBe('build');
+  expect(activeKeep04LoopStage04({ ...emptySelection, panel: 'buildings', selectedKind: 'city-mill' }, viewOf())).toBe('gather');
   const funded = freshWire04(); funded.food = 1n;
   expect(activeKeep04LoopStage04(emptySelection, viewOf(funded))).toBe('choose');
+  expect(activeKeep04LoopStage04({ ...emptySelection, panel: 'buildings', selectedKind: 'city-mill' }, viewOf(funded))).toBe('build');
 });
 
 it('keeps construction at Build until the Realm reports the selected improvement complete', () => {

@@ -33,12 +33,12 @@ export function activeKeep04LoopStage04(selection: Keep04LoopSelection04, view: 
   if (view.workers.some(worker => worker.phase === 'returning')
     || Object.values(view.pending).some(amount => amount > 0n)) return 'return';
   if (view.state.project !== undefined) return 'build';
+  if (isKeep04FirstJourney04(view)) return 'gather';
   if (selection.panel === 'buildings' && selection.selectedKind !== null) {
     return view.buildings.some(building => building.kind === selection.selectedKind && building.phase === 'complete' && building.completedLevel > 0)
       ? 'benefit' : 'build';
   }
   if (selection.panel === 'workers' || view.workers.some(worker => worker.phase === 'outbound' || worker.phase === 'gathering')) return 'gather';
-  if (isKeep04FirstJourney04(view)) return 'gather';
   if (Object.values(view.state.completedLevels).every(level => level === 5)) return 'gather';
   return 'choose';
 }

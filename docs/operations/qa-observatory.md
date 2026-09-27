@@ -36,12 +36,22 @@ temporary database, keys, token, browser profile, and Vite cache are deleted on
 success, failure, or a handled termination signal. Screenshots are reduced in
 memory to aggregate visual measurements and are never saved.
 
-The browser adapter is Windows-ready, but the current reviewed SpacetimeDB
-binary manifest covers only `darwin-arm64` and `linux-x64`. Until a reviewed
-Windows CLI and standalone pair is added to that manifest, Windows runs fail
-closed during CLI attestation before they create a database or browser. Record
-that result as a tooling boundary; do not bypass attestation with an arbitrary
+The browser adapter and pinned SpacetimeDB binary manifest now include
+`win32-x64` alongside `darwin-arm64` and `linux-x64`. Windows still needs the
+exact reviewed CLI and standalone pair available to attestation. A Windows
+end-to-end full-stack browser pass on the current source has not been recorded;
+do not infer one from the platform support or bypass attestation with another
 developer-installed binary.
+
+On 2026-09-27, a disposable WSL `WarpkeepRunner` run against main
+`786c0b2` used pinned Node 22.22.3, SpacetimeDB CLI 2.6.1, and installed
+Google Chrome stable 154 with `WARPKEEP_QA_CHROME` set to its regular-file
+executable, `/opt/google/chrome/google-chrome`. It reached the Chrome title
+gateway, then failed closed in `desktop-keyboard` after repeated WSLg OpenGL
+`GPU stall due` driver warnings. This establishes neither an owner/browser
+journey pass nor an application failure. Resolve or isolate the WSL graphics
+warning, then rerun the disposable lane on the exact candidate source before
+recording acceptance.
 
 The broader rendered-fixture lane is portable across the supported desktop
 hosts:

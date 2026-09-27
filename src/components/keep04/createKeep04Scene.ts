@@ -17,6 +17,7 @@ export type SceneTelemetry04 = Readonly<{
 }>;
 export type Scene04 = Readonly<{
   scene: THREE.Scene; camera: THREE.OrthographicCamera; reconcile: (state: VisualState04) => void;
+  admitBuildingPrefab: (kind: Building04, prefab: InnerKeepRuntimePrefab) => boolean;
   resize: (width: number, height: number, preserveOrientation?: boolean) => void; pickBuilding: (ndcX: number, ndcY: number) => Building04 | null;
   selectedSiteBounds: () => THREE.Box3 | null; entryOverviewBounds: () => THREE.Box3 | null;
   fitSite: (bounds: THREE.Box3, aspect: number, inspection?: boolean) => boolean;
@@ -34,7 +35,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
   const entryLandmarks: THREE.Mesh[] = [];
   let shadow: THREE.LightShadow | undefined;
   const buildings = new Map<Building04, { key: string; building: Keep04Building; view: BuildingView04; reveal: number | null }>();
-  let disposed = false; let fallback: SceneTelemetry04['fallback'] = 'none'; let voxelQuads = 0;
+  let disposed = false; let baseFallback: SceneTelemetry04['fallback'] = 'none'; let fallback: SceneTelemetry04['fallback'] = 'none'; let voxelQuads = 0;
   let voxelPreparationMs: number | null = null;
   let indicatorKey = ''; let selected: THREE.Mesh | null = null; let draft: THREE.Mesh | null = null;
   let visualState: VisualState04 | null = null;
@@ -99,7 +100,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
       const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }); materials.add(material);
       mesh(dressing.geometry, material).name = 'voxel-terracing';
     } catch {
-      fallback = 'voxel'; mesh(new THREE.BoxGeometry(96, 2, 80), groundMat, 0, -2, -4).name = 'simple-perimeter-fallback';
+      baseFallback = fallback = 'voxel'; mesh(new THREE.BoxGeometry(96, 2, 80), groundMat, 0, -2, -4).name = 'simple-perimeter-fallback';
     }
     mesh(new THREE.BoxGeometry(110, .5, 12), groundMat, 0, -5.25, -55).name = 'distant-forest-bank';
     const spine = mesh(new THREE.BoxGeometry(6, .035, 35), masonry, 0, .02, 14.5); spine.name = 'open-gate-spine';
@@ -119,19 +120,24 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     Object.assign(key.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 200 }); key.shadow.bias = -.001;
     scene.add(key, key.target, new THREE.HemisphereLight('#e1eee4', '#526047', 2));
 
-    // Preflight ALL six maximum-level prefabs and tree multiplicities before any source attaches.
+    // The catalog-wide quality and size decision is made before loading. Preflight
+    // each actual source before admitting it, including models loaded after entry.
     const admitted = new Map<string, InnerKeepRuntimePrefab>(); let sourceTriangles = 0; let sourceDraws = 0;
-    for (const id of [...KEEP04_BUILDING_IDS, ...KEEP04_TREE_IDS]) {
-      const prefab = assets.staticPrefabs.get(id); if (!prefab) continue;
+    function admitPrefab(id: string, prefab: InnerKeepRuntimePrefab) {
+      if (admitted.has(id)) return true;
       try {
         const measured = measureKeep04Object(prefab.root); const instances = (KEEP04_TREE_IDS as readonly string[]).includes(id) ? budget.trees / 2 : 1;
         const shadowFactor = quality === 'high' ? 2 : 1;
         if (measured.triangles > prefab.triangles + 16 || measured.drawCalls > prefab.drawCalls
           || sourceTriangles + measured.triangles * instances * shadowFactor > budget.triangles - 12000
-          || sourceDraws + measured.drawCalls * instances * shadowFactor > budget.draws - 40) { fallback = 'budget'; continue; }
+          || sourceDraws + measured.drawCalls * instances * shadowFactor > budget.draws - 40) { baseFallback = fallback = 'budget'; return false; }
         sourceTriangles += measured.triangles * instances * shadowFactor; sourceDraws += measured.drawCalls * instances * shadowFactor;
         admitted.set(id, prefab);
-      } catch { fallback = 'budget'; }
+        return true;
+      } catch { baseFallback = fallback = 'budget'; return false; }
+    }
+    for (const id of [...KEEP04_BUILDING_IDS, ...KEEP04_TREE_IDS]) {
+      const prefab = assets.staticPrefabs.get(id); if (prefab) admitPrefab(id, prefab);
     }
     // Two sparse overlapping bands, always beyond the support rectangle, with no pick registration.
     for (let band = 0; band < 2; band++) {
@@ -141,7 +147,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
       if (!sourceMeshes.length) {
         const geometry = new THREE.ConeGeometry(2.3, 9, 7); geometry.translate(0, 4.5, 0);
         geometries.add(geometry); sourceMeshes.push(new THREE.Mesh(geometry, mat(band === 0 ? P.forestNear : '#81917a')));
-        if (fallback === 'none') fallback = 'asset';
+        if (baseFallback === 'none') baseFallback = fallback = 'asset';
       }
       for (const source of sourceMeshes) {
         const geometry = source.geometry.clone().applyMatrix4(source.matrixWorld); geometries.add(geometry);
@@ -196,16 +202,17 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
       const present = new Set(state.buildings.map(view => view.kind));
       for (const [kind, entry] of buildings) if (!present.has(kind)) { entry.building.dispose(); buildings.delete(kind); }
       for (const view of state.buildings) {
-        const key = [view.completedLevel, view.targetLevel, view.phase, view.startsAtMicros, view.completesAtMicros, view.placement.x, view.placement.z, view.placement.rotation].join(':');
+        const key = [view.completedLevel, view.targetLevel, view.phase, view.startsAtMicros, view.completesAtMicros, view.placement.x, view.placement.z, view.placement.rotation,
+          view.phase === 'complete' && admitted.has(view.kind) ? 'prefab' : 'silhouette'].join(':');
         const previous = buildings.get(view.kind); if (previous?.key === key) continue;
         const reveal = previous?.view.phase === 'constructing' && view.phase === 'complete' && !options.reducedMotion;
         previous?.building.dispose();
         const building = createKeep04Building({ kind: view.kind, level: view.completedLevel, constructing: view.phase === 'constructing', quality, prefab: admitted.get(view.kind) });
-        if (building.fallback && fallback === 'none') fallback = 'asset';
         building.root.position.set(Number(view.placement.x) / 1e6, 0, Number(view.placement.z) / 1e6); building.root.rotation.y = -view.placement.rotation * Math.PI / 180000;
         if (reveal) building.root.scale.setScalar(.94);
         scene.add(building.root); buildings.set(view.kind, { key, building, view, reveal: reveal ? -1 : null });
       }
+      fallback = baseFallback === 'none' && [...buildings.values()].some(entry => entry.building.fallback) ? 'asset' : baseFallback;
       pickTargets.length = 0; pickKinds.clear();
       for (const [kind, entry] of buildings) { pickTargets.push(entry.building.root); pickKinds.set(entry.building.root, kind); }
       const nextIndicatorKey = `${state.selectedKind}:${state.draft?.kind}:${state.draft?.x}:${state.draft?.z}:${state.draft?.rotation}:${state.draftValid}:${state.selectedKind ? buildings.get(state.selectedKind)?.key : ''}`;
@@ -239,6 +246,8 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     }
     return {
       scene, camera, reconcile,
+      admitBuildingPrefab: (kind, prefab) => !disposed && prefab.id === kind
+        && (KEEP04_BUILDING_IDS as readonly string[]).includes(kind) && admitPrefab(kind, prefab),
       selectedSiteBounds: () => {
         if (disposed || !visualState?.selectedKind) return null;
         const entry = buildings.get(visualState.selectedKind);

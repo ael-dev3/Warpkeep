@@ -4,7 +4,7 @@ import type { Building04 } from '../../../spacetimedb/gameplay04/policy';
 import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
 import type { InnerKeepRuntimeAssetBundle } from '../inner-keep/loadInnerKeepRuntimeAssets';
 import { createKeep04Scene, type Scene04, type VisualState04 } from './createKeep04Scene';
-import { loadKeep04Assets } from './loadKeep04Assets';
+import { KEEP04_TREE_IDS, loadKeep04Assets } from './loadKeep04Assets';
 import { KEEP04_VISUAL_PROFILE, type Quality04 } from './keep04VisualProfile';
 import { BUILDING_NAMES04 } from './Keep04BuildingPanel';
 
@@ -41,6 +41,8 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     const host = element.current!; const abort = new AbortController();
     let retired = false; let renderer: THREE.WebGLRenderer | undefined; let scene: Scene04 | undefined;
     let bundle: InnerKeepRuntimeAssetBundle | undefined; let frame = 0; let last = -Infinity;
+    const lateBundles = new Set<InnerKeepRuntimeAssetBundle>(); const requestedBuildings = new Set<Building04>();
+    const retryableBuildings = new Set<Building04>(); const retriedBuildings = new Set<Building04>();
     let observer: ResizeObserver | undefined; const listeners: Array<() => void> = [];
     let recoveryCanvas: HTMLCanvasElement | undefined; let removeRecovery: (() => void) | undefined;
     let lost = false;
@@ -94,6 +96,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       abort.abort(); if (frame) cancelAnimationFrame(frame); frame = 0; observer?.disconnect();
       listeners.splice(0).forEach(remove => remove()); runtime.current = null;
       scene?.dispose(); scene = undefined; bundle?.dispose(); bundle = undefined;
+      lateBundles.forEach(loaded => loaded.dispose()); lateBundles.clear();
       renderer?.dispose();
       // A naturally lost context must be allowed to restore. Only retain its
       // canvas/restoration listener, never the retired scene, bundle or renderer.
@@ -116,8 +119,40 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       try {
         scene?.reconcile(current.current.visual);
         followInspection();
+        loadRelevantBuildings();
         request();
       } catch { failure(); }
+    }
+    function loadRelevantBuildings(retryFailures = false) {
+      if (!scene || retired || abort.signal.aborted || document.hidden) return;
+      for (const building of current.current.visual.buildings) {
+        if (building.phase !== 'complete' && building.phase !== 'constructing') continue;
+        const kind = building.kind;
+        if (qaFault === 'missing-model' && kind === 'city-mill') continue;
+        if (requestedBuildings.has(kind)) {
+          if (!retryFailures || !retryableBuildings.has(kind) || retriedBuildings.has(kind)) continue;
+          retriedBuildings.add(kind); retryableBuildings.delete(kind);
+        } else requestedBuildings.add(kind);
+        activeLoaders++;
+        void loadKeep04Assets({ quality: props.quality, reducedMotion: props.reducedMotion, signal: abort.signal,
+          staticAssetIds: [kind] }).then(loaded => {
+          let retained = false;
+          try {
+            if (retired || abort.signal.aborted || !scene) return;
+            if (!current.current.visual.buildings.some(building => building.kind === kind
+              && (building.phase === 'complete' || building.phase === 'constructing'))) {
+              requestedBuildings.delete(kind); retryableBuildings.delete(kind); retriedBuildings.delete(kind); return;
+            }
+            const prefab = loaded.staticPrefabs.get(kind);
+            if (!prefab) { retryableBuildings.add(kind); return; }
+            if (!scene.admitBuildingPrefab(kind, prefab)) { request(); return; }
+            retryableBuildings.delete(kind);
+            lateBundles.add(loaded); retained = true;
+            reconcile();
+          } finally { if (!retained) loaded.dispose(); }
+        }).catch(() => { if (!retired && !abort.signal.aborted) retryableBuildings.add(kind); })
+          .finally(() => { activeLoaders--; if (retired) observe('disposed'); });
+      }
     }
     function resize() {
       const region = wrapper.current; const controls = toolbar.current;
@@ -156,13 +191,18 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     if ((import.meta.env.DEV && qaFault === 'webgl-unavailable') || typeof WebGL2RenderingContext === 'undefined') { set('fallback'); observe('fallback'); return () => { retired = true; release(); }; }
     async function initialize() {
       let loaded: InnerKeepRuntimeAssetBundle | undefined;
+      let initialLoading = false;
       try {
-        activeLoaders = 1; observe('loading');
-        loaded = await loadKeep04Assets({ quality: props.quality, reducedMotion: props.reducedMotion, signal: abort.signal });
-        activeLoaders = 0;
+        activeLoaders++; initialLoading = true; observe('loading');
+        const completed = current.current.visual.buildings.filter(building => building.phase === 'complete').map(building => building.kind);
+        completed.forEach(kind => requestedBuildings.add(kind));
+        loaded = await loadKeep04Assets({ quality: props.quality, reducedMotion: props.reducedMotion, signal: abort.signal,
+          staticAssetIds: [...KEEP04_TREE_IDS, ...completed] });
+        activeLoaders--; initialLoading = false;
         if (retired || abort.signal.aborted) return;
-        if (loaded.failures.length) throw new Error('Keep graphics assets unavailable.');
         bundle = loaded; loaded = undefined;
+        for (const kind of completed) if (!bundle.staticPrefabs.has(kind)
+          && bundle.failures.some(failure => failure.id === kind)) retryableBuildings.add(kind);
         renderer = new THREE.WebGLRenderer({ antialias: props.quality === 'high', powerPreference: 'low-power' });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, { high: 1.75, balanced: 1.5, reduced: 1 }[props.quality]));
         renderer.shadowMap.enabled = props.quality === 'high'; renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -223,8 +263,10 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         const wheel = (event: WheelEvent) => { if (!scene) return; event.preventDefault(); view.zoom = scene.camera.zoom = Math.max(.8, Math.min(2, scene.camera.zoom * Math.exp(-event.deltaY * .001))); scene.camera.updateProjectionMatrix(); request(); };
         canvas.addEventListener('wheel', wheel, { passive: false }); listeners.push(() => canvas.removeEventListener('wheel', wheel));
         const visibility = () => { if (document.hidden) { if (frame) cancelAnimationFrame(frame); frame = 0; cancelPointer(); }
-          else reconcile(); };
+          else { reconcile(); loadRelevantBuildings(true); } };
         document.addEventListener('visibilitychange', visibility); listeners.push(() => document.removeEventListener('visibilitychange', visibility));
+        const online = () => loadRelevantBuildings(true);
+        window.addEventListener('online', online); listeners.push(() => window.removeEventListener('online', online));
         const sceneAssets = import.meta.env.DEV && qaFault === 'missing-model'
           ? { ...bundle, staticPrefabs: new Map([...bundle.staticPrefabs].filter(([id]) => id !== 'city-mill')) } : bundle;
         scene = createKeep04Scene({ quality: props.quality, reducedMotion: props.reducedMotion, assets: sceneAssets,
@@ -233,12 +275,18 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         scene.reconcile(current.current.visual);
         followInspection();
         if (scene.telemetry().fallback === 'budget') throw new Error('Keep graphics budget exceeded.');
+        loadRelevantBuildings();
         observer = new ResizeObserver(resize); observer.observe(host);
         if (toolbar.current) observer.observe(toolbar.current, { box: 'border-box' });
         window.addEventListener('resize', resize); listeners.push(() => window.removeEventListener('resize', resize));
         resize(); set('webgl'); request();
-      } catch { activeLoaders = 0; if (!retired && !abort.signal.aborted) failure(); }
-      finally { activeLoaders = 0; loaded?.dispose(); if (retired) observe('disposed'); }
+      } catch {
+        if (initialLoading) { activeLoaders--; initialLoading = false; }
+        if (!retired && !abort.signal.aborted) failure();
+      } finally {
+        if (initialLoading) activeLoaders--;
+        loaded?.dispose(); if (retired) observe('disposed');
+      }
     }
     void initialize();
     return () => { retired = true; release(); };

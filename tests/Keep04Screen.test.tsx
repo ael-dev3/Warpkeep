@@ -430,7 +430,7 @@ it.each(['refreshing', 'pending'] as const)('retains first-journey focus and nav
   expect(find).toHaveBeenCalledWith(null, 0);
 });
 
-it('keeps the gather-to-return loop legible while the player makes a decision', () => {
+it('keeps the empty first journey at Gather while the player inspects an unaffordable building', () => {
   setup();
   const loop = () => screen.getByRole('region', { name: 'Keep loop' });
   expect(within(loop()).getByRole('listitem', { name: 'Gather · active' })).toHaveAttribute('aria-current', 'step');
@@ -441,6 +441,16 @@ it('keeps the gather-to-return loop legible while the player makes a decision', 
   fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
   fireEvent.click(screen.getByRole('button', { name: 'Buildings' }));
   fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
-  expect(within(loop()).getByRole('listitem', { name: 'Build · active' })).toHaveAttribute('aria-current', 'step');
-  expect(within(loop()).getByRole('status')).toHaveTextContent('New benefits begin only after the Realm confirms construction is complete.');
+  expect(screen.getByRole('region', { name: 'First journey' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Confirm placement' })).toBeDisabled();
+  expect(within(loop()).getByRole('listitem', { name: 'Gather · active' })).toHaveAttribute('aria-current', 'step');
+});
+
+it('marks Build active for a funded building selection after the first return', () => {
+  const wire = freshWire04(); wire.food = 20n; wire.wood = 40n; wire.stone = 20n;
+  setup(wire); openMill();
+  expect(screen.queryByRole('region', { name: 'First journey' })).not.toBeInTheDocument();
+  const loop = screen.getByRole('region', { name: 'Keep loop' });
+  expect(within(loop).getByRole('listitem', { name: 'Build · active' })).toHaveAttribute('aria-current', 'step');
+  expect(within(loop).getByRole('status')).toHaveTextContent('New benefits begin only after the Realm confirms construction is complete.');
 });

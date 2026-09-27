@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { Keep04SceneHost, type Keep04SceneHostProps, type Keep04Observation } from '../src/components/keep04/Keep04SceneHost';
 import * as loader from '../src/components/keep04/loadKeep04Assets';
-import type { InnerKeepRuntimeAssetBundle } from '../src/components/inner-keep/loadInnerKeepRuntimeAssets';
+import type { InnerKeepRuntimeAssetBundle, InnerKeepRuntimePrefab } from '../src/components/inner-keep/loadInnerKeepRuntimeAssets';
 import { PtrGameplay04SurfaceHost } from '../src/ptr/PtrGameplay04SurfaceHost';
 import { createPtrRealmAuthClient } from '../src/ptr/ptrRealmAuthClient';
 import { connectPtrRealm, createPtrGameplay04Capability, closePtrRealmConnectionSession, type PtrRealmConnectionBuilder, type PtrRealmConnectionLike } from '../src/ptr/ptrRealmConnection';
@@ -24,6 +24,11 @@ vi.mock('../src/components/realm/createGreaterRealmWorldCanvasHost', () => ({ cr
   return { applySnapshot() {}, updatePolicy() {}, dispose() { active--; } };
 } }));
 const bundle = (): InnerKeepRuntimeAssetBundle => ({ staticPrefabs: new Map(), populationPrefabs: new Map(), failures: [], dispose: vi.fn() });
+function modelPrefab(id: string): InnerKeepRuntimePrefab {
+  const root = new THREE.Group(); root.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial()));
+  return { id, root, clips: [], boundsMeters: [1, 1, 1], triangles: 12, drawCalls: 1,
+    animated: false, mounted: false, clone: () => root.clone(true) };
+}
 function deferred<T>() {
   let resolve!: (value: T) => void; let reject!: (reason: unknown) => void;
   const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; });
@@ -75,6 +80,110 @@ function expectEntrySitesVisible(camera: THREE.OrthographicCamera, x: number) {
     expect(Math.abs(point.x)).toBeLessThan(1); expect(Math.abs(point.y)).toBeLessThan(1);
   }
 }
+
+it('requests only scenery for an empty Keep and includes a completed model on first entry', async () => {
+  const empty = render(<Keep04SceneHost {...props()} />); await act(async () => {}); tick();
+  expect(loader.loadKeep04Assets).toHaveBeenCalledOnce();
+  expect(loader.loadKeep04Assets).toHaveBeenCalledWith(expect.objectContaining({
+    staticAssetIds: ['courtyard-linden-teardrop', 'pruned-ornamental-three-tier'],
+  }));
+  empty.unmount();
+  vi.mocked(loader.loadKeep04Assets).mockClear();
+  const occupied = render(<Keep04SceneHost {...occupiedProps()} />); await act(async () => {}); tick();
+  expect(loader.loadKeep04Assets).toHaveBeenCalledOnce();
+  expect(loader.loadKeep04Assets).toHaveBeenCalledWith(expect.objectContaining({
+    staticAssetIds: ['courtyard-linden-teardrop', 'pruned-ornamental-three-tier', 'city-mill'],
+  }));
+  occupied.unmount(); expect(active).toBe(0);
+});
+
+it('hydrates a later completed building without replacing its scene or canvas', async () => {
+  const first = { ...bundle(), staticPrefabs: new Map([
+    ['courtyard-linden-teardrop', modelPrefab('courtyard-linden-teardrop')],
+    ['pruned-ornamental-three-tier', modelPrefab('pruned-ornamental-three-tier')],
+  ]) }; const late = { ...bundle(), staticPrefabs: new Map([['city-mill', modelPrefab('city-mill')]]) };
+  const pending = deferred<InnerKeepRuntimeAssetBundle>();
+  vi.mocked(loader.loadKeep04Assets).mockResolvedValueOnce(first).mockReturnValueOnce(pending.promise);
+  const initial = props(); const mounted = render(<Keep04SceneHost {...initial} />); await act(async () => {}); tick();
+  const canvas = mounted.container.querySelector('canvas'); const scene = renderers[0].scenes[0];
+  mounted.rerender(<Keep04SceneHost {...occupiedProps()} />); tick(1000);
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(2);
+  expect(loader.loadKeep04Assets).toHaveBeenNthCalledWith(2, expect.objectContaining({ staticAssetIds: ['city-mill'] }));
+  expect(scene.getObjectByName('silhouette:city-mill')).toBeDefined();
+  expect(scene.getObjectByName('prefab:city-mill')).toBeUndefined();
+  mounted.rerender(<Keep04SceneHost {...occupiedProps()} />);
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(2);
+  expect(mounted.container.querySelector('.keep04-scene-canvas')).toHaveAttribute('data-fallback', 'asset');
+  await act(async () => { pending.resolve(late); }); tick(2000);
+  expect(scene.getObjectByName('prefab:city-mill')).toBeDefined();
+  expect(scene.getObjectByName('silhouette:city-mill')).toBeUndefined();
+  expect(mounted.container.querySelector('.keep04-scene-canvas')).toHaveAttribute('data-fallback', 'none');
+  expect(mounted.container.querySelector('canvas')).toBe(canvas); expect(renderers).toHaveLength(1);
+  mounted.unmount(); expect(first.dispose).toHaveBeenCalledOnce(); expect(late.dispose).toHaveBeenCalledOnce();
+  expect(active).toBe(0); expect(queued.size).toBe(0);
+});
+
+it('disposes a late building model after the Keep has unmounted', async () => {
+  const pending = deferred<InnerKeepRuntimeAssetBundle>(); const late = { ...bundle(), staticPrefabs: new Map([['city-mill', modelPrefab('city-mill')]]) };
+  vi.mocked(loader.loadKeep04Assets).mockResolvedValueOnce(bundle()).mockReturnValueOnce(pending.promise);
+  const mounted = render(<Keep04SceneHost {...props()} />); await act(async () => {}); tick();
+  mounted.rerender(<Keep04SceneHost {...occupiedProps()} />);
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(2);
+  mounted.unmount(); expect(active).toBe(0);
+  await act(async () => { pending.resolve(late); });
+  expect(late.dispose).toHaveBeenCalledOnce(); expect(renderers).toHaveLength(1); expect(queued.size).toBe(0);
+});
+
+it('discards a model that is no longer in the confirmed Keep view', async () => {
+  const pending = deferred<InnerKeepRuntimeAssetBundle>(); const stale = { ...bundle(), staticPrefabs: new Map([['city-mill', modelPrefab('city-mill')]]) };
+  vi.mocked(loader.loadKeep04Assets).mockResolvedValueOnce(bundle()).mockReturnValueOnce(pending.promise);
+  const initial = props(); const mounted = render(<Keep04SceneHost {...initial} />); await act(async () => {}); tick();
+  mounted.rerender(<Keep04SceneHost {...occupiedProps()} />);
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(2);
+  mounted.rerender(<Keep04SceneHost {...initial} />);
+  await act(async () => { pending.resolve(stale); }); tick(1000);
+  expect(stale.dispose).toHaveBeenCalledOnce();
+  expect(renderers[0].scenes[0].getObjectByName('prefab:city-mill')).toBeUndefined();
+  mounted.rerender(<Keep04SceneHost {...occupiedProps()} />);
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(3);
+  mounted.unmount(); expect(active).toBe(0);
+});
+
+it.each(['rejected', 'missing'] as const)('retries a %s late model once when connectivity returns without replacing the Keep', async failure => {
+  const recovered = { ...bundle(), staticPrefabs: new Map([['city-mill', modelPrefab('city-mill')]]) };
+  const requests = vi.mocked(loader.loadKeep04Assets).mockResolvedValueOnce(bundle());
+  if (failure === 'rejected') requests.mockRejectedValueOnce(new Error('network unavailable'));
+  else requests.mockResolvedValueOnce(bundle());
+  requests.mockResolvedValueOnce(recovered);
+  const initial = props(); const mounted = render(<Keep04SceneHost {...initial} />); await act(async () => {}); tick();
+  const canvas = mounted.container.querySelector('canvas'); const scene = renderers[0].scenes[0];
+  mounted.rerender(<Keep04SceneHost {...occupiedProps()} />); await act(async () => {}); tick(1000);
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(2);
+  expect(scene.getObjectByName('silhouette:city-mill')).toBeDefined();
+  await act(async () => { fireEvent(window, new Event('online')); }); tick(2000);
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(3);
+  expect(scene.getObjectByName('prefab:city-mill')).toBeDefined();
+  fireEvent(window, new Event('online'));
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(3);
+  expect(mounted.container.querySelector('canvas')).toBe(canvas);
+  mounted.unmount(); expect(recovered.dispose).toHaveBeenCalledOnce(); expect(active).toBe(0);
+});
+
+it('keeps the silhouette and records a late model rejected by the scene budget', async () => {
+  const root = new THREE.Group(); root.add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1, 8, 8, 8), new THREE.MeshStandardMaterial()));
+  const oversized = { ...modelPrefab('city-mill'), root, clone: () => root.clone(true) };
+  const rejected = { ...bundle(), staticPrefabs: new Map([['city-mill', oversized]]) };
+  vi.mocked(loader.loadKeep04Assets).mockResolvedValueOnce(bundle()).mockResolvedValueOnce(rejected);
+  const initial = props(); const mounted = render(<Keep04SceneHost {...initial} />); await act(async () => {}); tick();
+  const canvas = mounted.container.querySelector('canvas'); const scene = renderers[0].scenes[0];
+  mounted.rerender(<Keep04SceneHost {...occupiedProps()} />); await act(async () => {}); tick(1000);
+  expect(scene.getObjectByName('silhouette:city-mill')).toBeDefined();
+  expect(scene.getObjectByName('prefab:city-mill')).toBeUndefined();
+  expect(mounted.container.querySelector('.keep04-scene-canvas')).toHaveAttribute('data-fallback', 'budget');
+  expect(mounted.container.querySelector('canvas')).toBe(canvas);
+  expect(rejected.dispose).toHaveBeenCalledOnce();
+  mounted.unmount(); expect(active).toBe(0);
+});
 
 it('frames the latest occupied sites after delayed assets, leaving Fit grounds explicit', async () => {
   vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(342);
@@ -271,7 +380,8 @@ it('retains one scene through a held build and receipt, showing the new project 
   expect(h.mounted.container.querySelector('canvas')).toBe(canvas);
   expect(screen.getByRole('complementary', { name: 'Command panel' })).toBe(panel);
   expect(renderers).toHaveLength(1); expect(renderers[0].scenes.at(-1)).toBe(originalScene);
-  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(1);
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(2);
+  expect(loader.loadKeep04Assets).toHaveBeenNthCalledWith(2, expect.objectContaining({ staticAssetIds: ['city-mill'] }));
   expect(originalScene.getObjectByName('project:city-mill')).toBeDefined();
   fireEvent.resize(window); expect(cameraState(renderers[0].camera!)).toEqual(framing);
   expect(within(resources).getByLabelText('Food: 980 available')).toBeVisible();
@@ -299,7 +409,7 @@ it('reconciles an authoritative construction completion and its reveal in the sa
   const mill = originalScene.getObjectByName('building:city-mill')!;
   expect(mill.scale.x).toBeCloseTo(.94); tick(5500); expect(mill.scale.x).toBe(1);
   fireEvent.resize(window); expect(cameraState(renderers[0].camera!)).toEqual(framing);
-  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(1); expect(h.mutate).not.toHaveBeenCalled();
+  expect(loader.loadKeep04Assets).toHaveBeenCalledTimes(2); expect(h.mutate).not.toHaveBeenCalled();
 });
 
 it('inspects explicitly, retains zoom through resize and draft edits, and resets without loading another scene', async () => {
@@ -472,12 +582,24 @@ it('quantizes a viewport click to half metres without confirming construction or
   expect(options.onSelect).not.toHaveBeenCalled();
 });
 
-it('uses graphics fallback on asset failure without attaching a partial renderer', async () => {
-  const assets = { ...bundle(), failures: [{ kind: 'static' as const, id: 'city-mill', reason: 'unavailable' }] };
+it('keeps the 3D grounds usable when one optional model fails', async () => {
+  const assets = { ...bundle(), failures: [{ kind: 'static' as const, id: 'courtyard-linden-teardrop', reason: 'unavailable' }] };
   vi.mocked(loader.loadKeep04Assets).mockResolvedValue(assets); const options = props();
-  const mounted = render(<Keep04SceneHost {...options} />); await act(async () => {});
-  expect(options.onMode).toHaveBeenLastCalledWith('fallback'); expect(mounted.container.querySelector('canvas')).toBeNull();
-  expect(assets.dispose).toHaveBeenCalledTimes(1); expect(active).toBe(0);
+  const mounted = render(<Keep04SceneHost {...options} />); await act(async () => {}); tick();
+  expect(options.onMode).toHaveBeenLastCalledWith('webgl'); expect(mounted.container.querySelector('canvas')).not.toBeNull();
+  expect(renderers[0].scenes[0].getObjectByName('forest-band:0')).toBeDefined();
+  mounted.unmount(); expect(assets.dispose).toHaveBeenCalledTimes(1); expect(active).toBe(0);
+});
+
+it('keeps a completed building visible as a silhouette if its model fails', async () => {
+  const assets = { ...bundle(), failures: [{ kind: 'static' as const, id: 'city-mill', reason: 'unavailable' }] };
+  vi.mocked(loader.loadKeep04Assets).mockResolvedValue(assets); const options = occupiedProps();
+  const mounted = render(<Keep04SceneHost {...options} />); await act(async () => {}); tick();
+  expect(options.onMode).toHaveBeenLastCalledWith('webgl');
+  expect(renderers[0].scenes[0].getObjectByName('silhouette:city-mill')).toBeDefined();
+  expect(renderers[0].scenes[0].getObjectByName('prefab:city-mill')).toBeUndefined();
+  expect(loader.loadKeep04Assets).toHaveBeenCalledOnce();
+  mounted.unmount(); expect(assets.dispose).toHaveBeenCalledOnce(); expect(active).toBe(0);
 });
 
 it('releases GPU resources and exposes fallback if a render submission fails', async () => {
