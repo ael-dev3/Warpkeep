@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 27 September 2026, 20:11 UTC
+## Current checkpoint — 27 September 2026, 20:16 UTC
 
 The pre-0.4 Alpha 0.3.43 site remains online at
 [`warpkeep.com`](https://warpkeep.com/) through the public, generated-assets-only
@@ -92,12 +92,14 @@ not cause that successful exchange.
 
 The local and GitHub PR branch were clean and synchronized at signed head
 [`6733620d`](https://github.com/ael-dev3/Warpkeep/commit/6733620d2335e317aa221b56ef20866ecf5d11bd)
-when refreshed. This is a documentation checkpoint after the protected closure;
-recheck the PR head before acting. Closure-head Verify 36345079867 and later
-documentation-head [Verify 36345736413](https://github.com/ael-dev3/Warpkeep/actions/runs/36345736413)
-each stopped all 17 jobs before runner steps. GitHub's annotation cites recent
-account payments or an insufficient Actions spending limit. This is neither a
-source failure nor a pass. `main` remains the earlier signed M2 `786c0b2b`.
+when this follow-up began. The signed documentation update `9f43f0dd` had been
+pushed and confirmed remote-equal; this follow-up advances the branch again.
+Closure-head Verify 36345079867, documentation-head Verify
+36345736413 and latest [Verify 36347362794](https://github.com/ael-dev3/Warpkeep/actions/runs/36347362794)
+each stopped all 17 jobs before runner steps. The latest exact-head annotation
+says recent account payments failed or the Actions spending limit must increase.
+This is neither a source failure nor a pass. `main` remains the earlier signed
+M2 `786c0b2b`.
 Restore account billing, then require a passing hosted Verify on the live final
 PR head before signed source M1 merge; prepare/check exact M1 natively, promote
 generated-only M2, verify its exact main head and complete the protected live
@@ -105,7 +107,9 @@ gates before 0.4 PTR.
 
 The Desktop daily action brief is now tracked at
 [`next-work.txt`](next-work.txt). Update that canonical repo copy and the
-existing Desktop companion together; do not create Desktop duplicates.
+existing Desktop companion together; do not create Desktop duplicates. The
+existing Desktop copy was refreshed in place and its SHA-256 matches the
+tracked copy (`a7629d0c9b4c4826d304623dcf197753d6cf938a9b2b1c439068f32157a418d`).
 
 ### Rendered QA compatibility note — 27 September 2026
 

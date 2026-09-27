@@ -49,12 +49,11 @@ records the evidence and its limits. No exact frontend build hash was captured
 for that sign-in. The reviewed Verdant Citadel menu is integrated into the
 signed 0.4 candidate at
 [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374), together with the
-source repairs and refrozen protected closure. The previous documentation
-head's [Verify 36345736413](https://github.com/ael-dev3/Warpkeep/actions/runs/36345736413)
-stopped all 17 jobs before runner steps because GitHub cited failed account
-payments or an Actions spending limit.
-These tracked notes advance the PR head, so restore billing and rerun checks on
-the live final head. The private development source, exact checks and next
+source repairs and refrozen protected closure. Signed documentation head
+`9f43f0dd` received [Verify 36347362794](https://github.com/ael-dev3/Warpkeep/actions/runs/36347362794),
+which stopped all 17 jobs before runner steps because GitHub cited failed
+account payments or an Actions spending limit. Restore billing and rerun
+checks on the live final head. The private development source, exact checks and next
 release action are recorded in the dated
 [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md). Protected
 integration, native preparation, provider work and owner acceptance still

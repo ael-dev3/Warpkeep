@@ -33,11 +33,11 @@ payment/spending-limit gate; it is not a code verdict. GitHub reports `main`
 as unprotected with no required checks, so the release sequence must enforce
 final-head Verify manually rather than infer safety from mergeability.
 
-The latest observed signed documentation head `6733620d` received [Verify
-36345736413](https://github.com/ael-dev3/Warpkeep/actions/runs/36345736413);
-all 17 jobs stopped before runner steps with the same billing/spending-limit
-annotation. The tracked handoff refresh advances the PR head again. Require a
-successful Verify on the live final head after billing is restored.
+The previous signed documentation head `6733620d` received Verify 36345736413.
+Signed checkpoint `9f43f0dd` received [Verify 36347362794](https://github.com/ael-dev3/Warpkeep/actions/runs/36347362794);
+all 17 jobs stopped before runner steps with GitHub's failed-payment or
+spending-limit annotation. Require a successful Verify on the live final head
+after billing is restored.
 Recheck live `main` and its own Verify before using this dated checkpoint as
 operation authority. CodeQL code scanning
 is unavailable on the private-repository plan; full Verify is the executable gate.

@@ -1,6 +1,6 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 27 September 2026, Europe/Budapest.
-Source/GitHub check: 22:13 CEST (20:13 UTC).
+Source/GitHub check: 22:16 CEST (20:16 UTC).
 
 PURPOSE OF THIS FILE
 
@@ -34,10 +34,10 @@ Maintained checkout:
 C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep
 
 Local branch: fix/g001-census-admission-proxy
-At the start of this refresh, local and GitHub branch head was signed
-6733620d2335e317aa221b56ef20866ecf5d11bd and the checkout was clean and
-remote-equal. This tracked brief update advances the branch; recheck the exact
-live SHA before acting.
+At the start of this follow-up, local and GitHub branch head was signed
+9f43f0dd5483ae359ac027ed03ca9c1466a38718 and the checkout was clean and
+remote-equal. This tracked status update advances the branch; recheck the
+exact live SHA before acting.
 Protected source checkpoint: 175e325771768d8427bedeff8280a9cb2a9de282
 Signed protected closure: 6b9bcb1f6bf27fa70d7870b4b0eb074a7f698242
 Closure manifest SHA-256:
@@ -89,11 +89,12 @@ is required. Full event timestamps and recovery details are in
 docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md.
 
 No successful hosted Verify exists for the current PR candidate.
-Verify 36345736413 on the previous documentation head 6733620d stopped all 17
-jobs before runner steps. GitHub's annotation says recent account payments failed
-or the Actions spending limit must be increased. This is an account gate, not
-a code-test result. The account owner must resolve Billing & plans and enable
-a nonzero Actions budget, then rerun Verify on the updated live final head.
+Verify 36347362794 on the signed documentation head 9f43f0dd at this refresh's
+start stopped all 17 jobs before runner steps. GitHub's annotation says recent
+account payments failed or the Actions spending limit must be increased. This is
+an account gate, not a code-test result. The account owner must resolve Billing &
+plans and enable a nonzero Actions budget, then rerun Verify on the updated live
+final head.
 Do not use the persistent privileged production runner as a workaround. Private-repo
 Pages remains unavailable on the current Free plan. The 0.4 owner PTR and
 sealed G002 deployment are not live.
