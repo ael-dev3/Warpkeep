@@ -5100,7 +5100,7 @@ export function classifySealedLaunchPagesDeployLane({
   if (schema === 2 || schema === 3 || schema === 4 || schema === 5 || schema === 6) {
     // Routing is not deployment authority. This verifies the complete versioned recovery binding
     // and exact committed activation child; the recovery job must additionally
-    // authenticate current protected main, artifacts, live state and signed claim.
+    // authenticate current exact main, artifacts, live state and signed claim.
     const identity = readRecoveryAttestationSource(repositoryRoot);
     if (identity.candidateCommit !== candidatePagesSourceCommit) fail('SEALED_LAUNCH_CHECKOUT_INVALID');
     assertExactCheckout(repositoryRoot, candidatePagesSourceCommit);
