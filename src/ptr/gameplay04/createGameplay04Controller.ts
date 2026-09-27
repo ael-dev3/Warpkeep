@@ -85,11 +85,12 @@ export function createGameplay04Controller(options: Readonly<{
     if (error.code === 'GAMEPLAY04_TARGET_INVALID') return 'target';
     return 'reconfirm';
   }
-  function retainRejection(fallback: Snapshot04['problem']): Snapshot04['problem'] {
-    return ['reconfirm', 'capacity', 'target'].includes(snapshot.problem) ? snapshot.problem : fallback;
+  function retainRejection(fallback: Snapshot04['problem'], preserveSiteRejection = false): Snapshot04['problem'] {
+    return snapshot.problem === 'reconfirm' || (preserveSiteRejection && (snapshot.problem === 'capacity' || snapshot.problem === 'target'))
+      ? snapshot.problem : fallback;
   }
 
-  async function readAuthoritative(capturedLife: number) {
+  async function readAuthoritative(capturedLife: number, preserveSiteRejection = false) {
     if (!live(capturedLife)) return;
     try {
       const wire = await capability.read(abort.signal);
@@ -102,7 +103,9 @@ export function createGameplay04Controller(options: Readonly<{
       if (!live(capturedLife)) return;
       if (confirmed) { pending = null; confirmed = null; }
       // An advanced sequence does not establish whose request consumed it.
-      publish(pending ? 'uncertain' : 'ready', pending ? 'unknown' : retainRejection('none'), view);
+      // A rejected site must be explained after its immediate readback, but a
+      // later healthy refresh must not describe a newly chosen site as full or stale.
+      publish(pending ? 'uncertain' : 'ready', pending ? 'unknown' : retainRejection('none', preserveSiteRejection), view);
     } catch (error) {
       if (!live(capturedLife)) return;
       const failure = errorKind(error);
@@ -111,7 +114,7 @@ export function createGameplay04Controller(options: Readonly<{
         publish('uninitialized', retainRejection('none'), null); return;
       }
       publish(pending && !confirmed ? 'uncertain' : 'failed',
-        failure.kind === 'invalid-state' || failure.kind === 'not-initialized' ? 'invalid-state' : retainRejection('unknown'));
+        failure.kind === 'invalid-state' || failure.kind === 'not-initialized' ? 'invalid-state' : retainRejection('unknown', true));
     }
   }
 
@@ -191,7 +194,7 @@ export function createGameplay04Controller(options: Readonly<{
       if (failure.kind === 'rejected' || failure.kind === 'not-initialized') {
         pending = null; confirmed = null;
         publish('loading', rejectionProblem(failure));
-        await readAuthoritative(capturedLife);
+        await readAuthoritative(capturedLife, true);
         if (!live(capturedLife)) return;
       } else publish('uncertain', failure.kind === 'invalid-state' ? 'invalid-state' : 'unknown');
     } finally {
