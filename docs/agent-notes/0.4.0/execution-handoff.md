@@ -48,7 +48,8 @@ menu score path is now allowed by all three Pages delivery boundaries at signed
 [`630503c2`](https://github.com/ael-dev3/Warpkeep/commit/630503c27da57c10e8a11e7d018dc4623464e28a);
 29 focused delivery tests and TypeScript build mode passed. Its mobile-load,
 WebGL-lifecycle and text-legibility review fixes are on signed, pushed branch
-[`fix/verdant-menu-review@748cdd30`](https://github.com/ael-dev3/Warpkeep/commit/748cdd30100f407ec4d51b0cf6174a5faf80d64c),
+[`fix/verdant-menu-review`](https://github.com/ael-dev3/Warpkeep/tree/fix/verdant-menu-review)
+(resolve its live head before integration),
 based on PR #375 and not yet integrated into release source. The original
 emblem remains for castle banners; a deterministic 256px heading derivative
 loads instead, audio waits for an unmuted gesture, parsed 3D resources are
