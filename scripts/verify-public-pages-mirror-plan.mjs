@@ -1,10 +1,17 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
   lstatSync,
+  openSync,
   readdirSync,
   readFileSync,
   realpathSync,
+  renameSync,
+  closeSync,
+  existsSync,
+  fsyncSync,
+  unlinkSync,
+  writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -17,6 +24,7 @@ import {
 const COMMIT = /^[a-f0-9]{40}$/u;
 const PUBLIC_ORIGIN = 'https://github.com/ael-dev3/Warpkeep-Live.git';
 const PAYLOAD_MANIFEST = 'artifacts/delivery/0.4.0/public-pages-payload-v1.json';
+const REVIEWED_PLAN = 'artifacts/delivery/0.4.0/public-pages-mirror-plan-v1.json';
 export const PUBLIC_PAGES_MIRROR_MANIFEST_PATH =
   'docs/releases/0.4.0/public-pages-payload-v1.json';
 const HOST_FILES = new Set(['.nojekyll', '404.html', 'CNAME']);
@@ -285,28 +293,71 @@ export function verifyPublicPagesMirrorPlan({
   });
 }
 
+/** Save the canonical reviewed input beside the ignored candidate manifest. */
+export function writePublicPagesMirrorPlan(options) {
+  const plan = verifyPublicPagesMirrorPlan(options);
+  const bytes = Buffer.from(`${JSON.stringify(plan)}\n`, 'utf8');
+  const source = realpathSync(resolve(options.sourceRoot));
+  const output = join(source, REVIEWED_PLAN);
+  const directory = dirname(output);
+  if (!existsSync(directory) || !lstatSync(directory).isDirectory()
+    || lstatSync(directory).isSymbolicLink()
+    || realpathSync(directory) !== directory) {
+    fail('PUBLIC_PAGES_MIRROR_OUTPUT_INVALID');
+  }
+  if (existsSync(output) && (!lstatSync(output).isFile()
+    || lstatSync(output).isSymbolicLink())) fail('PUBLIC_PAGES_MIRROR_OUTPUT_INVALID');
+  const temporary = join(directory, `.public-pages-mirror-${randomBytes(8).toString('hex')}.tmp`);
+  let descriptor;
+  try {
+    descriptor = openSync(temporary, 'wx', 0o600);
+    writeFileSync(descriptor, bytes);
+    fsyncSync(descriptor);
+    closeSync(descriptor);
+    descriptor = undefined;
+    renameSync(temporary, output);
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    if (existsSync(temporary)) unlinkSync(temporary);
+  }
+  if (!readFileSync(output).equals(bytes)
+    || !Buffer.from(`${JSON.stringify(verifyPublicPagesMirrorPlan(options))}\n`).equals(bytes)) {
+    fail('PUBLIC_PAGES_MIRROR_OUTPUT_CHANGED');
+  }
+  return Object.freeze({ path: output, planSha256: sha256(bytes),
+    sourceCommit: plan.sourceCommit, publicParentCommit: plan.publicParentCommit,
+    targetFileCount: plan.targetFileCount,
+    obsoleteGeneratedFileCount: plan.obsoleteGeneratedPaths.length });
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
     if (
-      process.argv.length !== 6
+      ![6, 7].includes(process.argv.length)
       || process.argv[2] !== '--public-root'
       || !COMMIT.test(process.argv[4] ?? '')
       || !COMMIT.test(process.argv[5] ?? '')
+      || (process.argv.length === 7 && process.argv[6] !== '--write-plan')
     ) fail('PUBLIC_PAGES_MIRROR_ARGUMENT_INVALID');
-    const plan = verifyPublicPagesMirrorPlan({
+    const options = {
       sourceRoot: resolve(dirname(fileURLToPath(import.meta.url)), '..'),
       publicRoot: process.argv[3],
       expectedSourceCommit: process.argv[4],
       expectedPublicHead: process.argv[5],
-    });
-    process.stdout.write(`${JSON.stringify({
-      profile: plan.profile,
-      sourceCommit: plan.sourceCommit,
-      publicParentCommit: plan.publicParentCommit,
-      payloadManifestSha256: plan.payloadManifestSha256,
-      targetFileCount: plan.targetFileCount,
-      obsoleteGeneratedFileCount: plan.obsoleteGeneratedPaths.length,
-    })}\n`);
+    };
+    if (process.argv.length === 7) {
+      process.stdout.write(`${JSON.stringify(writePublicPagesMirrorPlan(options))}\n`);
+    } else {
+      const plan = verifyPublicPagesMirrorPlan(options);
+      process.stdout.write(`${JSON.stringify({
+        profile: plan.profile,
+        sourceCommit: plan.sourceCommit,
+        publicParentCommit: plan.publicParentCommit,
+        payloadManifestSha256: plan.payloadManifestSha256,
+        targetFileCount: plan.targetFileCount,
+        obsoleteGeneratedFileCount: plan.obsoleteGeneratedPaths.length,
+      })}\n`);
+    }
   } catch (error) {
     process.stderr.write(`${error instanceof PublicPagesMirrorPlanError
       ? error.code
