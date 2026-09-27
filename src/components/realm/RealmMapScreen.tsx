@@ -299,6 +299,7 @@ import {
   type RealmChatSenderProfile
 } from './RealmChatDock';
 import { GreaterRealmWorldScene } from './GreaterRealmWorldScene';
+import { lyricFilmCastleIdFromPublicCastles } from './castleLyricFilmEligibility';
 import {
   isNarrowRealmPresentation,
   useNarrowRealmPresentation
@@ -388,6 +389,8 @@ export type RealmMapScreenProps = Readonly<{
   graphicsPreference?: GraphicsPreference;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   audioMuted?: boolean;
+  /** Silences the realm score while the keeper's lyric film is open. */
+  onLyricFilmOpenChange?: (open: boolean, requestClose?: () => void) => void;
   onGraphicsPreferenceChange?: (preference: GraphicsPreference) => void;
   onAudioMutedChange?: (muted: boolean) => void;
   onRequestReturn: () => void;
@@ -743,8 +746,11 @@ function RetiredRealmWorldHost({
           bridge={strategy.bridge}
           identityFid={props.identity.fid}
           identityKey={`${props.identity.fid}:${greaterRealmViewAnchor.castleId}:${greaterRealmViewAnchor.q}:${greaterRealmViewAnchor.r}`}
+          ownKeeperName={props.identity.displayName ?? props.identity.username}
           ownCastle={greaterRealmViewAnchor}
+          lyricFilmCastleId={lyricFilmCastleIdFromPublicCastles(props.realmContinuity?.castles)}
           resolvedGraphicsQuality={props.resolvedGraphicsQuality}
+          onLyricFilmOpenChange={props.onLyricFilmOpenChange}
           onPhaseChange={handleGreaterPhaseChange}
           narrowOpenPanel={narrowOpenPanel === 'details' ? undefined : narrowOpenPanel}
           onNarrowOpenPanelChange={setNarrowOpenPanel}
@@ -1205,7 +1211,16 @@ function CanonicalRealmMapScreen(
   const pushWorldSurface = useCallback((route: RealmSurfaceRoute) => {
     if (fullscreenDestinations) pushSurface(route);
   }, [fullscreenDestinations, pushSurface]);
+  const lyricFilmCloseRef = useRef<(() => void) | null>(null);
+  const handleLyricFilmOpenChange = useCallback((open: boolean, requestClose?: () => void) => {
+    lyricFilmCloseRef.current = open ? requestClose ?? null : null;
+    props.onLyricFilmOpenChange?.(open);
+  }, [props.onLyricFilmOpenChange]);
   const handleMiniAppBack = useCallback(() => {
+    if (lyricFilmCloseRef.current) {
+      lyricFilmCloseRef.current();
+      return;
+    }
     const chatBack = realmChatCompactBackRef.current;
     if (chatBack !== undefined) {
       chatBack();
@@ -7078,6 +7093,7 @@ function CanonicalRealmMapScreen(
               castle={inspectorCastle}
               profile={profileRecords.get(inspectorCastle.castleId)!.profile}
               own={!observerMode && inspectorCastle.ownerFid === identity.fid}
+              onLyricFilmOpenChange={handleLyricFilmOpenChange}
               observer={observerMode}
               hostedDestination={fullscreenDestinations}
               onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1

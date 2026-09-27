@@ -456,6 +456,11 @@
   background: linear-gradient(90deg, rgb(91 50 112 / 18%), transparent);
 }
 
+.castle-inspection__film-feature {
+  min-width: 0;
+  margin-top: 0.7rem;
+}
+
 .castle-inspection__inner-keep {
   display: grid;
   width: 100%;

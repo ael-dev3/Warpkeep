@@ -594,6 +594,67 @@
   color: #dce5d7;
 }
 
+.greater-realm-world__castle-record {
+  position: absolute;
+  z-index: 9;
+  bottom: calc(max(1rem, var(--realm-safe-bottom)) + 6.2rem);
+  left: 50%;
+  width: min(19rem, calc(100vw - 2rem));
+  box-sizing: border-box;
+  padding: 0.8rem 0.9rem 0.9rem;
+  border: 1px solid rgb(227 193 111 / 65%);
+  border-radius: 0.62rem;
+  transform: translateX(-50%);
+  background:
+    linear-gradient(135deg, rgb(43 34 40 / 94%), rgb(8 19 19 / 96%));
+  box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 46%), 0 0 1.4rem rgb(105 195 183 / 12%);
+  color: #f2f0df;
+  backdrop-filter: blur(10px);
+}
+
+.greater-realm-world__castle-record header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.greater-realm-world__castle-record header span {
+  color: #e6d295;
+  font: 700 0.62rem/1.2 Inter, ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.12em;
+}
+
+.greater-realm-world__castle-record header button {
+  width: 1.9rem;
+  height: 1.9rem;
+  flex: none;
+  border: 1px solid rgb(227 193 111 / 48%);
+  border-radius: 0.32rem;
+  background: rgb(28 41 40 / 88%);
+  color: #f2f0df;
+  font: 1.25rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.greater-realm-world__castle-record header button:focus-visible,
+.greater-realm-world__castle-record header button:hover {
+  border-color: #f0d58c;
+  outline: 2px solid #f0d58c;
+  outline-offset: 2px;
+}
+
+.greater-realm-world__castle-record h2 {
+  margin: 0.15rem 0 0;
+  font: 500 1.15rem/1.2 Georgia, "Times New Roman", serif;
+}
+
+.greater-realm-world__castle-record p {
+  margin: 0.3rem 0 0.65rem;
+  color: #c6d5cd;
+  font: 0.72rem/1.35 Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
 .greater-realm-world__zone-legend {
   position: absolute;
   z-index: 6;
@@ -851,6 +912,20 @@
     left: max(0.65rem, var(--realm-safe-left));
     width: 9.5rem;
     padding: 0.48rem;
+  }
+
+  .greater-realm-world[data-castle-selected="true"] .greater-realm-world__zone-legend {
+    display: none;
+  }
+
+  .greater-realm-world__castle-record {
+    right: max(0.65rem, var(--realm-safe-right));
+    bottom: calc(max(0.65rem, var(--realm-safe-bottom)) + 6.4rem);
+    left: auto;
+    width: min(17rem, calc(100vw - 1.3rem));
+    padding: 0.6rem 0.7rem 0.7rem;
+    transform: none;
+    backdrop-filter: none;
   }
 
   .greater-realm-world__continuity {

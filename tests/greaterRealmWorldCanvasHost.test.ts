@@ -184,6 +184,7 @@ describe('Greater Realm world canvas host', () => {
     expect(resourceSelection!.label).toContain('site at');
     expect(resourceSelection!.label).not.toContain('nodes');
     expect(publicCastleSelection).toEqual(expect.objectContaining({ kind: 'castle' }));
+    expect(publicCastleSelection!.castleId).toBe(2n);
     expect(publicCastleSelection!.label).toContain('castle at');
     expect(publicCastleSelection!.label).not.toMatch(/castle \d+$/);
 
@@ -199,6 +200,29 @@ describe('Greater Realm world canvas host', () => {
     expect(runtimes[1]!.setView).toHaveBeenCalledOnce();
     expect(onSelectionChange).not.toHaveBeenLastCalledWith(undefined);
     expect(onSelectionChange.mock.calls.at(-1)![0]).toEqual(selected);
+
+    // A new keeper at the same coordinate must not inherit the previous
+    // castle selection or its profile actions.
+    for (let index = 0; index < 32; index += 1) {
+      host.control({ kind: 'select-next' });
+      if (onSelectionChange.mock.calls.at(-1)![0]?.castleId === 2n) break;
+    }
+    expect(onSelectionChange.mock.calls.at(-1)![0]?.castleId).toBe(2n);
+    const replacedCastle = readySnapshot();
+    host.applySnapshot({
+      ...replacedCastle,
+      window: {
+        ...replacedCastle.window!,
+        castles: replacedCastle.window!.castles.map((castle) => (
+          castle.castleId === 2n ? { ...castle, castleId: 3n } : castle
+        ))
+      }
+    });
+    expect(onSelectionChange).toHaveBeenLastCalledWith(undefined);
+    host.control({ kind: 'select-next' });
+    expect(onSelectionChange).not.toHaveBeenLastCalledWith(undefined);
+    host.control({ kind: 'clear-selection' });
+    expect(onSelectionChange).toHaveBeenLastCalledWith(undefined);
 
     const outsideReturnedView = {
       ...readySnapshot(),

@@ -325,6 +325,7 @@ export function WarpkeepExperience() {
   const [reducedMotion, setReducedMotion] = useState(readReducedMotion);
   const [graphicsPreference, setGraphicsPreference] = useState(readGraphicsPreference);
   const [audioMuted, setAudioMuted] = useState(readAudioMuted);
+  const [lyricFilmOpen, setLyricFilmOpen] = useState(false);
   const [graphicsCapabilities, setGraphicsCapabilities] = useState(browserGraphicsCapabilities);
   const [titleReady, setTitleReady] = useState(initialPhase !== 'title');
   const [showTitleHint, setShowTitleHint] = useState(false);
@@ -1828,6 +1829,7 @@ export function WarpkeepExperience() {
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}
                 audioMuted={audioMuted}
+                onLyricFilmOpenChange={setLyricFilmOpen}
                 onGraphicsPreferenceChange={updateGraphicsPreference}
                 onAudioMutedChange={updateAudioMuted}
                 onRequestReturn={returnRealmToMenu}
@@ -1924,6 +1926,7 @@ export function WarpkeepExperience() {
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}
                 audioMuted={audioMuted}
+                onLyricFilmOpenChange={setLyricFilmOpen}
                 onGraphicsPreferenceChange={updateGraphicsPreference}
                 onAudioMutedChange={updateAudioMuted}
                 onRequestReturn={returnRealmToMenu}
@@ -1977,10 +1980,10 @@ export function WarpkeepExperience() {
         scene={audioScene}
         preloadMenu={menuPreloadReady || audioScene === 'menu'}
         resumeFadeMs={520}
-        suspended={miniAppEntryGateActive}
+        suspended={miniAppEntryGateActive || lyricFilmOpen}
       />
-      <WarpkeepSfxDirector muted={audioMuted} />
-      <WarpkeepHapticsDirector muted={audioMuted} />
+      <WarpkeepSfxDirector muted={audioMuted || lyricFilmOpen} />
+      <WarpkeepHapticsDirector muted={audioMuted || lyricFilmOpen} />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -49,10 +49,86 @@ function miniAppRuntime(): MiniAppBrowserRuntime {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe('CastleInspectionPanel', () => {
+  it('offers the lyric film on the specified keeper castle to owners, peers and observers only', () => {
+    const filmCastle = { ...CASTLE, ownerFid: 539_854 };
+    const filmProfile = PROFILE;
+    const view = render(
+      <CastleInspectionPanel
+        id="film-owner-record"
+        castle={filmCastle}
+        profile={filmProfile}
+        own
+        onRequestClose={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('region', { name: 'Warpkeep lyric film' })).not.toBeNull();
+    expect(document.body.textContent).not.toContain('539854');
+
+    view.rerender(
+      <CastleInspectionPanel
+        id="film-peer-record"
+        castle={filmCastle}
+        profile={filmProfile}
+        own={false}
+        onRequestClose={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('region', { name: 'Warpkeep lyric film' })).not.toBeNull();
+
+    view.rerender(
+      <CastleInspectionPanel
+        id="film-observer-record"
+        castle={filmCastle}
+        observer
+        profile={filmProfile}
+        own={false}
+        onRequestClose={vi.fn()}
+      />
+    );
+    expect(screen.getByRole('region', { name: 'Warpkeep lyric film' })).not.toBeNull();
+
+    view.rerender(
+      <CastleInspectionPanel
+        id="other-keeper-record"
+        castle={CASTLE}
+        profile={filmProfile}
+        own
+        onRequestClose={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('region', { name: 'Warpkeep lyric film' })).toBeNull();
+  });
+
+  it('opens the lyric film from the target castle record', () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+    const onLyricFilmOpenChange = vi.fn();
+    render(
+      <CastleInspectionPanel
+        id="film-watch-record"
+        castle={{ ...CASTLE, ownerFid: 539_854 }}
+        profile={PROFILE}
+        own={false}
+        onLyricFilmOpenChange={onLyricFilmOpenChange}
+        onRequestClose={vi.fn()}
+      />
+    );
+
+    const filmFeature = screen.getByRole('region', { name: 'Warpkeep lyric film' });
+    fireEvent.click(within(filmFeature).getByRole('button'));
+    expect(onLyricFilmOpenChange).toHaveBeenCalledWith(true, expect.any(Function));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close Leave It On film' }));
+    expect(onLyricFilmOpenChange).toHaveBeenLastCalledWith(false);
+    expect(screen.queryByRole('dialog', { name: 'Leave It On' })).toBeNull();
+  });
+
   it('offers Inner Keep entry only on the owning non-observer record', () => {
     const onEnterInnerKeep = vi.fn();
     const view = render(

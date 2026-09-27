@@ -817,6 +817,10 @@ These composite screenshots are `LicenseRef-Warpkeep-Provenance-Required`.
 They document the exact public release UI; repository inclusion does not grant
 independent relicensing of the depicted models, textures, marks, or fonts.
 
+## Leave It On lyric film link
+
+The owner commissioned the [Leave It On Warpkeep lyric film](https://github.com/ael-dev3/lyrics/releases/tag/leave-it-on-warpkeep-v1.0.0) from the supplied recording and Warpkeep castle artwork, then requested a watch action on the public castle record for FID 539854 in both realm presentations. The game links to the versioned 1920×1080 H.264 release asset; the film is not copied into this repository or its Pages build. That asset is 288,869,749 bytes with SHA-256 `e6d61911e59322747a42c51fa0574f1381d912ad87c8fa8172cb373e2ca41d0c` at publication. The [lyrics project record](https://github.com/ael-dev3/lyrics/tree/main/projects/leave-it-on-warpkeep-lyric-film) carries the source, exact game-asset provenance and production limits. This link records authorized official presentation, not a new open-content license for the recording, film or depicted assets.
+
 ## Trademark and endorsement note
 
 These licenses do not grant trademark rights or imply endorsement by the project. Forks, mods, and community realms should avoid presenting themselves as the canonical Warpkeep deployment unless explicitly authorized; see [`TRADEMARKS.md`](TRADEMARKS.md).
