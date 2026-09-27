@@ -714,7 +714,7 @@ async function makeFixture(useLocalGenerator: boolean | 3 | 4 | 5 | 6 = false): 
       default_branch: 'main', archived: false, disabled: false,
       owner: { id: OWNER_ID, login: 'ael-dev3' },
     },
-    branch: { name: 'main', protected: true, commit: { sha: CANDIDATE } },
+    branch: { name: 'main', protected: false, commit: { sha: CANDIDATE } },
     candidateCommit: { sha: CANDIDATE, tree: { sha: CANDIDATE_TREE }, parents: [{ sha: PREPARATION }] },
     preparationCommit: { sha: PREPARATION, tree: { sha: PREPARATION_TREE }, parents: [{ sha: PREPARATION_PARENT }] },
     candidateTree,
@@ -1265,6 +1265,7 @@ describe('GitHub candidate evidence', () => {
 
   it('loads a realistic authenticated GitHub evidence chain and returns copied bytes and actual tree', async () => {
     const fixture = await makeFixture()
+    expect(fixture.state.branch.protected).toBe(false)
     const evidence = await loadGitHubCandidateEvidence(fixture.input)
     expect(evidence).toMatchObject({
       currentMainCommit: CANDIDATE,
@@ -1289,6 +1290,12 @@ describe('GitHub candidate evidence', () => {
     expect(tokenHeaders.get('content-type')).toBe('application/json')
     expect(tokenHeaders.get('x-github-api-version')).toBe('2022-11-28')
     expect(tokenHeaders.get('authorization')).toMatch(/^Bearer [A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u)
+  })
+
+  it('accepts a protected main flag when the pinned commit still matches', async () => {
+    const fixture = await makeFixture()
+    fixture.state.branch.protected = true
+    await expect(loadGitHubCandidateEvidence(fixture.input)).resolves.toMatchObject({ currentMainCommit: CANDIDATE })
   })
 
   it('accepts the checked-in recovery workflow through the complete source evidence chain', async () => {
@@ -1337,7 +1344,7 @@ describe('GitHub candidate evidence', () => {
     expect(prerequisites.run).toContain("private_state='/home/warpkeep/.warpkeep-recovery-v1'")
     expect(prerequisites.run).not.toContain('mkdir')
     expect(prerequisites.run).toContain("printf '%s\\n' 'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false' >> \"$GITHUB_ENV\"")
-    const source = named('Verify current protected main and installed recovery source')
+    const source = named('Verify current main and installed recovery source')
     expect(source.run).toContain('await readRecoveryWorkflowRunContext()')
     expect(source.run).toContain('readRecoveryAttestationSource(process.cwd())')
     expect(source.run).toContain('git ls-files --error-unmatch')
@@ -1492,7 +1499,8 @@ describe('GitHub candidate evidence', () => {
 
   it.each([
     ['stale main', (state: State) => { (state.branch.commit as JsonObject).sha = PREPARATION }],
-    ['unprotected main', (state: State) => { state.branch.protected = false }],
+    ['missing branch protection flag', (state: State) => { delete state.branch.protected }],
+    ['malformed branch protection flag', (state: State) => { state.branch.protected = 'false' }],
     ['candidate merge', (state: State) => { (state.candidateCommit.parents as JsonObject[]).push({ sha: PREPARATION_PARENT }) }],
     ['wrong candidate parent', (state: State) => { (state.candidateCommit.parents as JsonObject[])[0]!.sha = PREPARATION_PARENT }],
     ['wrong candidate tree', (state: State) => { (state.candidateCommit.tree as JsonObject).sha = PREPARATION_TREE }],

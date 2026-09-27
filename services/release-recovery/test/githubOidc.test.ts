@@ -72,7 +72,7 @@ function defaultClaims(): Record<string, unknown> {
     repository_owner_id: '183124839',
     ref: 'refs/heads/main',
     sha: candidateCommit,
-    ref_protected: 'true',
+    ref_protected: 'false',
     workflow: 'Deploy GitHub Pages',
     workflow_ref: workflowRef,
     workflow_sha: candidateCommit,
@@ -95,7 +95,7 @@ function defaultClaims(): Record<string, unknown> {
     job_workflow_sha: candidateCommit,
     ref_type: 'branch',
     repository_owner: 'ael-dev3',
-    repository_visibility: 'public',
+    repository_visibility: 'private',
     run_number: '300',
   }
 }
@@ -357,7 +357,7 @@ async function signedFixture(options: FixtureOptions = {}) {
           id: 1273513252,
           node_id: 'R_kgDOL5fixture',
           name: 'Warpkeep',
-          private: false,
+          private: true,
           owner: { login: 'ael-dev3', id: 183124839 },
         }],
         token: 'installation-token',
@@ -394,6 +394,17 @@ function invalidOidc(options: FixtureOptions) {
 }
 
 describe('GitHub recovery OIDC identity', () => {
+  it('accepts signed false and true ref protection flags for the exact main ref', async () => {
+    await expect(verify()).resolves.toMatchObject({ pagesRunId: '41' })
+    await expect(verify({ mutateClaims: claims => { claims.ref_protected = 'true' } }))
+      .resolves.toMatchObject({ pagesRunId: '41' })
+  })
+
+  it('rejects a missing or non-string ref protection claim', async () => {
+    await invalidOidc({ mutateClaims: claims => { delete claims.ref_protected } })
+    await invalidOidc({ mutateClaims: claims => { claims.ref_protected = false } })
+  })
+
   it('derives the active deploy check from authenticated jobs when GitHub omits check_run_id', async () => {
     await expect(verify({ mutateClaims: claims => { delete claims.check_run_id } }))
       .resolves.toMatchObject({ pagesRunId: '41', pagesRunAttempt: '2', checkRunId: '91' })
@@ -542,7 +553,7 @@ describe('GitHub recovery OIDC identity', () => {
     ['repository owner ID', 'repository_owner_id', '183124840'],
     ['protected ref', 'ref', 'refs/heads/release'],
     ['candidate SHA', 'sha', 'b'.repeat(40)],
-    ['protected-ref flag', 'ref_protected', 'false'],
+    ['malformed protected-ref flag', 'ref_protected', 'yes'],
     ['workflow name', 'workflow', 'Attacker workflow'],
     ['workflow ref', 'workflow_ref', 'attacker/fork/.github/workflows/deploy-pages.yml@refs/heads/main'],
     ['workflow SHA', 'workflow_sha', 'b'.repeat(40)],
@@ -629,7 +640,7 @@ describe('GitHub recovery OIDC identity', () => {
     ['job workflow SHA', 'job_workflow_sha', 'b'.repeat(40)],
     ['ref type', 'ref_type', 'tag'],
     ['repository owner', 'repository_owner', 'attacker'],
-    ['repository visibility', 'repository_visibility', 'private'],
+    ['repository visibility', 'repository_visibility', 'public'],
     ['run number', 'run_number', '0300'],
   ])('rejects a documented optional %s claim with the wrong value or shape', async (
     _name,

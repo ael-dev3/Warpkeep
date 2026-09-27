@@ -19,7 +19,7 @@ async function fixture(options: Readonly<{ mutateAfterBridge?: (env: Record<stri
   bridge?: unknown, now?: number, update?: boolean, reconciliationRun?: boolean,
   oidcMutate?: NonNullable<Parameters<typeof ptrObservationOidcFixture>[0]>['mutate'] }> = {}) {
   const now = options.now ?? 1_800_000_000
-  const oidc = await ptrObservationOidcFixture({ now,
+  const oidc = await ptrObservationOidcFixture({ now, operation: options.update ? 'ptr-update-inspect' : 'ptr-state-inspect',
     ...(options.reconciliationRun ? { runId: '9007199254740997', checkRunId: '9007199254740999',
       requestId: '223e4567-e89b-42d3-a456-426614174000' } : {}),
     claims: options.update ? { aud: 'https://release-auth.warpkeep.com/ptr-update-observation' } : undefined,
@@ -79,7 +79,7 @@ describe('read-only existing PTR observation signer', () => {
   it('refuses a stale refreshed GitHub proof after observing private state', async () => {
     let branches = 0
     const { env, oidc } = await fixture({ oidcMutate(url, value) {
-      if (url.endsWith('/branches/main') && ++branches === 2) value.protected = false
+      if (url.endsWith('/branches/main') && ++branches === 2) value.commit = { sha: 'e'.repeat(40) }
     } })
     await expect(observePtrFromEnvironment(env as never,
       { oidcToken: oidc.token, sourceCommit: oidc.sourceCommit, requestId: oidc.requestId })).rejects.toThrow('RECOVERY_PTR_OBSERVATION_UNAVAILABLE')
@@ -184,7 +184,7 @@ describe('PTR update observation signer composition', () => {
     const { env, oidc, now } = await fixture({ update: true,
       mutateAfterBridge: kind === 'epoch' ? value => { value.RECOVERY_AUTHORIZATION_EPOCH = '9' } : undefined,
       oidcMutate: kind === 'job' ? (url, value) => {
-        if (url.endsWith('/branches/main') && ++refreshedBranches === 2) value.protected = false
+        if (url.endsWith('/branches/main') && ++refreshedBranches === 2) value.commit = { sha: 'e'.repeat(40) }
       } : undefined })
     if (kind === 'expiry') {
       const verify = crypto.subtle.verify.bind(crypto.subtle)

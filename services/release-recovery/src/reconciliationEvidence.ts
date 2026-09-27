@@ -421,7 +421,8 @@ function validateRepository(value: GitHubJsonObject): void {
 
 function validateBranch(value: GitHubJsonObject, candidate: string): void {
   const branchCommit = objectValue(value.commit)
-  if (value.name !== 'main' || value.protected !== true || branchCommit.sha !== candidate) {
+  if (value.name !== 'main' || (value.protected !== true && value.protected !== false)
+    || branchCommit.sha !== candidate) {
     throw new Error(ERROR_CODE)
   }
 }

@@ -3,7 +3,8 @@
 Warpkeep separates player identity, game rules, persistent state and presentation.
 The browser renders a world and offers decisions; SpacetimeDB decides what those
 decisions do. Cloudflare provides the identity bridge and a separate release
-recovery service. GitHub Pages serves the frontend.
+recovery service. A static host serves the frontend after release authorization;
+the current hosting status is recorded in the delivery journal.
 
 This document explains those relationships and the current implementation. The
 [repository map](agent-notes/0.4.0/repo-map.md) links individual source and test
@@ -17,7 +18,7 @@ entry points. Dated verification and deployed state belong in the
 flowchart LR
   Farcaster[Farcaster identity] --> Auth[Cloudflare auth bridge]
   Auth -->|scoped session| Browser[React application]
-  Pages[GitHub Pages] -->|frontend assets| Browser
+  Host[Release static host] -->|frontend assets| Browser
   Browser -->|typed command / read| Realm[SpacetimeDB realm adapter]
   Realm -->|validated facts| Core[Shared 0.4 gameplay core]
   Core -->|transactional storage interface| Realm
@@ -36,7 +37,8 @@ flowchart LR
 | Shared 0.4 gameplay core | Deterministic policy, transitions, arithmetic and validation | Uses storage interfaces; does not depend on browser, network or database SDK |
 | Release tooling and recovery service | Build provenance, deployment authorization and reconciliation | Deployment authority is separate from player authority |
 
-The browser is hosted at `warpkeep.com`, the auth bridge at `auth.warpkeep.com`.
+The intended browser origin is `warpkeep.com`; it currently has no live frontend.
+The auth bridge is at `auth.warpkeep.com`.
 G001, G002 and PTR use distinct database identities. Provider configuration and
 live observations are documented in [infrastructure access](operations/0.4.0-infra-access.md).
 A checked-in endpoint or successful CLI login does not establish that every

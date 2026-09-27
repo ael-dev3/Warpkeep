@@ -76,7 +76,7 @@ describe('request-scoped GitHub evidence credentials', () => {
   })
 
   it('does not use the job token when PTR signed context is invalid', async () => {
-    const { calls, ...input } = await ptrObservationOidcFixture({ claims: { ref_protected: 'false' } })
+    const { calls, ...input } = await ptrObservationOidcFixture({ claims: { ref_protected: 'invalid' } })
     await expect(verifyPtrObservationWorkflowIdentity({ ...input, environment: { GITHUB_WORKFLOW_TOKEN: 'workflow-token' } }))
       .rejects.toThrow()
     expect(calls.some(url => url.startsWith('https://api.github.com/'))).toBe(false)

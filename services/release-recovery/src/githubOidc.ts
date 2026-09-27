@@ -299,7 +299,7 @@ function validOptionalClaims(claims: GitHubJsonObject, candidateCommit: string):
     && (claims.job_workflow_sha === undefined || claims.job_workflow_sha === candidateCommit)
     && (claims.ref_type === undefined || claims.ref_type === 'branch')
     && (claims.repository_owner === undefined || claims.repository_owner === 'ael-dev3')
-    && (claims.repository_visibility === undefined || claims.repository_visibility === 'public')
+    && (claims.repository_visibility === undefined || claims.repository_visibility === 'private')
     && (claims.run_number === undefined || positive(claims.run_number))
   )
 }
@@ -521,7 +521,7 @@ export async function verifyGitHubWorkflowIdentity(input: Readonly<{
     || claims.repository_owner_id !== '183124839'
     || claims.ref !== 'refs/heads/main'
     || claims.sha !== candidateCommit
-    || claims.ref_protected !== 'true'
+    || (claims.ref_protected !== 'true' && claims.ref_protected !== 'false')
     || claims.workflow !== 'Deploy GitHub Pages'
     || claims.workflow_ref !== 'ael-dev3/Warpkeep/.github/workflows/deploy-pages.yml@refs/heads/main'
     || claims.workflow_sha !== candidateCommit

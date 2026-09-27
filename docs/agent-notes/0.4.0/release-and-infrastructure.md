@@ -1,44 +1,38 @@
 # Release engineering, CI and infrastructure audit
 
-## Operational checkpoint — 25 September 2026
+## Operational checkpoint — 27 September 2026
 
-The [execution handoff](execution-handoff.md) owns the moving protected source,
-working branch, and terminal operation receipts. The [release checklist](../../operations/0.4.0-release-checklist.md)
-owns the acceptance gates. Resolve both against GitHub before acting; dated
-evidence below is scoped to its recorded source and must not be reused as current
-authority.
+The [execution handoff](execution-handoff.md) owns current source, CI and
+operation receipts. The [release checklist](../../operations/0.4.0-release-checklist.md)
+owns acceptance. Resolve both against GitHub before acting; dated evidence
+below is historical unless its exact source and operation are reverified.
 
-Current protected main is generated-only M2
-[`edb37f4081de1b989a5137627494c1a2575411bb`](https://github.com/ael-dev3/Warpkeep/commit/edb37f4081de1b989a5137627494c1a2575411bb),
-merged through PR #356. Exact-main Verify, CodeQL, read-only preflight and G001
-policy observation passed. Census runs 36087746335 and 36088300562 failed
-closed with `g001-policy-budget-reservation`; bounded inspection after lease
-expiry showed all six attempts available. Neither run produced a receipt or
-provider mutation. Preserve both attempts and do not retry this M2.
-
-The read-only source repair is in M1
-[PR #357](https://github.com/ael-dev3/Warpkeep/pull/357). It counts each token
-request against the shared atomic cap without reserving write capacity, hides
-reducers and blocks submission only in explicitly read-only sessions. The
-pinned Linux build passed; 14 focused files passed 419 tests with 1 skipped.
-The PR has auto-merge enabled after required checks. Prepare/check its exact
-protected M1 merge, promote that family through generated-only M2, then require
-exact-M2 Verify/CodeQL, preflight, a fresh policy observation and one new census
-identity. The [execution handoff](execution-handoff.md) owns current run links.
+Current `main` is generated-only M2
+[`007e62f2e5b7440abf483a83aeda2b9621f4054e`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e),
+merged through [PR #371](https://github.com/ael-dev3/Warpkeep/pull/371).
+Its G001 census diagnostics distinguish aggregate drift from admitted-set
+mismatch without exposing counts or identities. The prior first-sample census
+[36271994192](https://github.com/ael-dev3/Warpkeep/actions/runs/36271994192)
+failed closed before a baseline and caused no provider mutation. Exact-M2 push
+[Verify 36279277148](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277148)
+failed when the Linux root suite hit its 60-minute bound; PR #371's Verify
+passed. Private-repo CodeQL upload and branch protection are unavailable on
+the current GitHub plan. `main` reports `protected:false` and has no required
+checks. [PR #372](https://github.com/ael-dev3/Warpkeep/pull/372) carries the
+reviewed compatibility and bounded parallel Verify repair.
 
 ### Remaining delivery work, in dependency order
 
-Complete the required checks on PR #357 and merge the source M1 through protection.
-Verify its exact signed main commit and tree, then run native `prepare` and
-independent `check` from the clean WSL ext4 checkout. Promote only that
-authenticated family through generated-only M2. After M2 merges, require exact
-push-to-main Verify and CodeQL, then run preflight and one fresh read-only policy
-observation. Follow a fixed diagnostic category through the access guide; proceed
-only on a verified receipt. Any new census uses a new run identity. Then complete
-the prepared bridge and signer/gateway path, G001 preservation/readback, sealed
-G002 evidence, existing owner-only PTR play, mobile and performance acceptance,
-and final release freeze. Green source CI or preflight alone does not establish
-a live release.
+Require full current-head Verify on PR #372, merge its signed source M1 and
+verify the actual main tree. Prepare and independently check that exact M1 in
+native WSL, then promote only its authenticated generated family through an
+M2 PR. Require PR and exact-M2 push Verify before read-only preflight and a
+fresh G001 policy observation. Start one new census identity only after those
+gates pass; preserve failed attempts and follow its fixed safe diagnostic.
+Then complete the prepared bridge and signer/gateway path, G001
+preservation/readback, sealed G002 evidence, owner-only PTR play, mobile and
+measured-performance acceptance, and final release freeze. Source CI and
+preflight alone do not establish a live release.
 
 ## Historical source checkpoint — 2026-09-12
 

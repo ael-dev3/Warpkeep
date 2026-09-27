@@ -20,7 +20,7 @@ async function fixture(options: { now?: number; post?: boolean; audience?: strin
   change?: (env: Record<string, any>, bridge: ReturnType<typeof ptrObservationBridgeFixture>) => void;
   metadata?: NonNullable<Parameters<typeof ptrObservationOidcFixture>[0]>['mutate'] } = {}) {
   const now = options.now ?? 1_800_000_000
-  const oidc = await ptrObservationOidcFixture({ now,
+  const oidc = await ptrObservationOidcFixture({ now, operation: 'g002-update-inspect',
     ...(options.post ? { runId: '9007199254740997', checkRunId: '9007199254740999', requestId: '223e4567-e89b-42d3-a456-426614174000' } : {}),
     claims: { aud: options.audience ?? 'https://release-auth.warpkeep.com/g002-update-observation' },
     mutate(url, value) {
@@ -92,7 +92,7 @@ describe('connected G002 observation gateway and signer', () => {
       if (kind === 'epoch') env.RECOVERY_AUTHORIZATION_EPOCH = '9'
       if (kind === 'target') bridge.g002.databaseIdentity = 'd'.repeat(64)
       if (kind === 'population') bridge.g002.playerCount = 1
-    }, metadata(url, value) { if (kind === 'source' && url.endsWith('/branches/main') && ++branches === 2) value.protected = false } })
+    }, metadata(url, value) { if (kind === 'source' && url.endsWith('/branches/main') && ++branches === 2) value.commit = { sha: 'e'.repeat(40) } } })
     if (kind === 'expiry') {
       const verify = crypto.subtle.verify.bind(crypto.subtle)
       vi.spyOn(crypto.subtle, 'verify').mockImplementation(async (algorithm, key, signature, data) => {

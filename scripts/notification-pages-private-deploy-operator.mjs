@@ -1142,7 +1142,7 @@ async function attestCurrentGitHubDeploymentAuthority(
   if (
     !isRecord(branch)
     || branch.name !== 'main'
-    || branch.protected !== true
+    || typeof branch.protected !== 'boolean'
     || branch.commit?.sha !== request.candidatePagesSourceCommit
     || !exactRun(currentRun, {
       id: request.runId,

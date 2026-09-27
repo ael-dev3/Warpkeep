@@ -39,7 +39,7 @@ const PROTECTED_STEP_SHA256 = Object.freeze({
   recovery: '89a0e5812fc7ee19462ba3287798de2b3b63ba8873a919a23090764099fdb6c2',
 });
 const CANONICAL_WORKFLOW_SHA256 =
-  'd6484216c1552d3cc2ed6e70456348038619753f68e44dbedab3b08110a1443f';
+  '99ad82cd45e62caaebbfb15e1f35e356b03bfccdbe44d79fd4fa90238ed551e1';
 const PROTECTED_NODE_SELECTION =
   '          node_executable="$WARPKEEP_NODE_EXECUTABLE"';
 const PROTECTED_NODE_OUTPUT_BINDING =
@@ -215,7 +215,7 @@ function assertProtectedPreamble(workflow) {
   const code = 'AUTH_BRIDGE_PREPARED_BOOTSTRAP_POLICY_INVALID';
   const resolution = namedStep(
     workflow,
-    'Resolve exact protected main run authority',
+    'Resolve exact current main run authority',
     code,
   );
   exactCount(resolution, `        shell: ${PROTECTED_SECRET_SHELL}`, 1, code);
@@ -269,7 +269,7 @@ function assertProtectedPreamble(workflow) {
   ]) exactCount(checkout, value, 1, code);
   exactCount(checkout, '          PATH: /usr/bin:/bin', 1, code);
   const resolutionIndex = workflow.indexOf(
-    '      - name: Resolve exact protected main run authority\n',
+    '      - name: Resolve exact current main run authority\n',
   );
   const cleanupIndex = workflow.indexOf(
     '      - name: Discard prior checkout Git metadata\n',
@@ -1023,7 +1023,7 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     "GITHUB_REF\" != 'refs/heads/main'",
     "GITHUB_REPOSITORY\" != 'ael-dev3/Warpkeep'",
     "/opt/homebrew/bin/gh api \"repos/ael-dev3/Warpkeep/branches/main\"",
-    "--jq 'select(.protected == true) | .commit.sha'",
+    "--jq 'select(.protected == true or .protected == false) | .commit.sha'",
     'persist-credentials: false',
     'clean: true',
     'fetch-depth: 1',

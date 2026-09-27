@@ -5,7 +5,8 @@ import { verifyGitHubOidcSignature } from './githubOidc.js'
 import { json, type GitHubJsonObject } from './http.js'
 import { PTR_OBSERVATION_AUDIENCE, PTR_OBSERVATION_JOB, snapshotPtrObservationIdentity,
   G002_UPDATE_OBSERVATION_AUDIENCE, G002_UPDATE_OBSERVATION_JOB,
-  PTR_UPDATE_OBSERVATION_AUDIENCE, PTR_UPDATE_OBSERVATION_JOB, type PtrObservationIdentity } from './ptrObservation.js'
+  PTR_UPDATE_OBSERVATION_AUDIENCE, PTR_UPDATE_OBSERVATION_JOB, PTR_OBSERVATION_OPERATION,
+  type PtrObservationIdentity } from './ptrObservation.js'
 
 const CODE = 'RECOVERY_PTR_OBSERVATION_OIDC_INVALID'
 const API = 'https://api.github.com/repos/ael-dev3/Warpkeep'
@@ -15,6 +16,11 @@ const ENVIRONMENT = 'notification-bridge-prepared'
 const ID = /^[1-9][0-9]{0,19}$/u
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
 const LABELS = ['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive'] as const
+const RUN_OPERATIONS = {
+  [PTR_OBSERVATION_JOB]: [PTR_OBSERVATION_OPERATION],
+  [PTR_UPDATE_OBSERVATION_JOB]: ['ptr-update-inspect', 'ptr-update-apply'],
+  [G002_UPDATE_OBSERVATION_JOB]: ['g002-update-inspect', 'g002-update-apply'],
+} as const
 
 function object(value: unknown): GitHubJsonObject {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) githubFail(CODE)
@@ -40,7 +46,7 @@ async function workflowJobs(fetcher: typeof fetch, url: string, init: RequestIni
   return githubFail(CODE)
 }
 
-/** Authenticates the one read-only PTR observer job against protected current main. */
+/** Authenticates the one read-only PTR observer job against current main. */
 export async function verifyPtrObservationWorkflowIdentity(input: Readonly<{
   token: string
   sourceCommit: string
@@ -73,7 +79,7 @@ export async function verifyG002UpdateObservationWorkflowIdentity(
 
 // No caller-selectable audience, job or profile is exported.
 async function verifyObservationWorkflowIdentity(input: Parameters<typeof verifyPtrObservationWorkflowIdentity>[0],
-  audience: string, jobName: string): Promise<Readonly<{ identity: PtrObservationIdentity; expiresAt: number }>> {
+  audience: string, jobName: keyof typeof RUN_OPERATIONS): Promise<Readonly<{ identity: PtrObservationIdentity; expiresAt: number }>> {
   const source = snapshotExactDataObject(input,
     ['token', 'sourceCommit', 'requestId', 'environment', 'fetch', 'nowSeconds'], CODE)
   if (typeof source.token !== 'string' || !commit(source.sourceCommit) || typeof source.requestId !== 'string'
@@ -85,7 +91,8 @@ async function verifyObservationWorkflowIdentity(input: Parameters<typeof verify
     || claims.sub !== `repo:ael-dev3/Warpkeep:environment:${ENVIRONMENT}`
     || claims.repository !== 'ael-dev3/Warpkeep' || claims.repository_id !== '1273513252'
     || claims.repository_owner_id !== '183124839' || claims.ref !== 'refs/heads/main'
-    || claims.sha !== sha || claims.workflow_sha !== sha || claims.ref_protected !== 'true'
+    || claims.sha !== sha || claims.workflow_sha !== sha
+    || (claims.ref_protected !== 'true' && claims.ref_protected !== 'false')
     || claims.workflow !== 'Sealed Realms Production' || claims.workflow_ref !== WORKFLOW_REF
     || claims.environment !== ENVIRONMENT || claims.event_name !== 'workflow_dispatch'
     || claims.runner_environment !== 'self-hosted'
@@ -114,7 +121,7 @@ async function verifyObservationWorkflowIdentity(input: Parameters<typeof verify
   const repository = object(run.repository)
   if (run.id !== claims.run_id || run.run_attempt !== claims.run_attempt || run.head_sha !== sha
     || run.head_branch !== 'main' || run.event !== 'workflow_dispatch' || run.status !== 'in_progress'
-    || run.conclusion !== null || run.name !== 'Sealed Realms Production'
+    || run.conclusion !== null || !RUN_OPERATIONS[jobName].some(operation => run.name === `${operation} @ ${sha}`)
     || (run.path !== WORKFLOW && run.path !== `${WORKFLOW}@main`)
     || repository.id !== '1273513252' || repository.full_name !== 'ael-dev3/Warpkeep'
     || object(repository.owner).id !== '183124839' || object(run.head_repository).id !== '1273513252'
@@ -153,7 +160,8 @@ async function verifyObservationWorkflowIdentity(input: Parameters<typeof verify
   if (latest.id !== claims.run_id || latest.run_attempt !== claims.run_attempt || latest.head_sha !== sha
     || latest.status !== 'in_progress' || latest.conclusion !== null) githubFail(CODE)
   const branch = await json(fetcher, `${API}/branches/main`, init, CODE)
-  if (branch.name !== 'main' || branch.protected !== true || object(branch.commit).sha !== sha) githubFail(CODE)
+  if (branch.name !== 'main' || (branch.protected !== true && branch.protected !== false)
+    || object(branch.commit).sha !== sha) githubFail(CODE)
   return Object.freeze({ identity: snapshotPtrObservationIdentity({ sourceCommit: sha,
     sourceTree: object(revision.tree).sha, runId: claims.run_id, runAttempt: claims.run_attempt,
     checkRunId, requestId: claims.jti }), expiresAt: claims.exp as number })

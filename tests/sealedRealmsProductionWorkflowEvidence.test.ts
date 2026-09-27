@@ -98,7 +98,7 @@ function fixture(activated = false, includePolicy = false) {
     GITHUB_WORKFLOW: 'Sealed Realms Production', GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',
     GITHUB_RUN_ID: '7001', GITHUB_RUN_ATTEMPT: '1', GITHUB_TOKEN: 'fixture-' + 'x'.repeat(32) })) vi.stubEnv(key, value);
   const operation = run(commit, 7001, 30, true);
-  const main = { name: 'main', protected: true, commit: { sha: commit } };
+  const main = { name: 'main', protected: false, commit: { sha: commit } };
   const runs = new Map<string, ReturnType<typeof run>[]>([[commit, [run(commit, 4001, 21)]]]);
   if (activated) runs.set(parent, [run(parent, 4000, 20)]);
   const override = { respond: undefined as undefined | ((url: string, value: any, options: RequestInit) => Response | Promise<Response>) };
@@ -136,6 +136,7 @@ afterEach(() => {
 describe.sequential('fixed public Verify evidence for retained sources', () => {
   it('reopens a historical S under later main without workflow context, tokens or write requests', async () => {
     const f = fixture(true);
+    expect(f.main.protected).toBe(false);
     for (const key of ['GITHUB_ACTIONS', 'GITHUB_TOKEN', 'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_JOB']) vi.stubEnv(key, undefined);
     const scope = await createRetained({ operatingCommit: f.commit, sourceCommits: [f.parent] });
     expect(verifyRetained(scope, f.parent)).toEqual({ verifiedSha: f.parent });
@@ -417,6 +418,7 @@ describe.sequential('fixed workflow Verify evidence', () => {
 
   it.each([false, true])('loads source and actual activated-parent proofs through fixed GETs: %s', async activated => {
     const f = fixture(activated); const scope = await create({ workflowInputSha: f.commit });
+    expect(f.main.protected).toBe(false);
     expect(Object.keys(scope)).toEqual([]); expect(Object.isFrozen(scope)).toBe(true);
     expect(verify(scope, f.commit)).toEqual({ verifiedSha: f.commit });
     if (activated) expect(verify(scope, f.parent)).toEqual({ verifiedSha: f.parent });
@@ -429,6 +431,16 @@ describe.sequential('fixed workflow Verify evidence', () => {
     await refresh(scope); expect(f.fetch.mock.calls.length).toBeGreaterThan(before);
     revoke(scope); expect(() => verify(scope, f.commit)).toThrow(/SCOPE_INVALID/u);
   });
+  it.each(['missing', 'null', 'string', 'stale-sha'])(
+    'rejects %s main authority despite otherwise valid Verify evidence', async scenario => {
+      const f = fixture();
+      if (scenario === 'missing') Reflect.deleteProperty(f.main, 'protected');
+      if (scenario === 'null') Object.assign(f.main, { protected: null });
+      if (scenario === 'string') Object.assign(f.main, { protected: 'false' });
+      if (scenario === 'stale-sha') f.main.commit.sha = '0'.repeat(40);
+      await expect(create({ workflowInputSha: f.commit })).rejects.toThrow('SEALED_REALMS_WORKFLOW_EVIDENCE_UNAVAILABLE');
+    },
+  );
   it('selects the newest authenticated run number, never an arbitrary older success', async () => {
     const f = fixture(); f.runs.get(f.commit)!.unshift(run(f.commit, 3999, 19));
     const scope = await create({ workflowInputSha: f.commit });

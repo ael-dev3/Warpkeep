@@ -164,7 +164,7 @@ function assertProtectedPreamble(workflow) {
   const code = 'AUTH_BRIDGE_NOTIFICATION_B0_BOOTSTRAP_INVALID';
   const resolution = namedStep(
     workflow,
-    'Resolve exact protected main run authority',
+    'Resolve exact current main run authority',
     code,
   );
   exact(resolution, `        shell: ${PROTECTED_SECRET_SHELL}`, 1, code);
@@ -213,7 +213,7 @@ function assertProtectedPreamble(workflow) {
   ]) exact(checkout, value, 1, code);
   exact(checkout, '          PATH: /usr/bin:/bin', 1, code);
   const resolutionIndex = workflow.indexOf(
-    '      - name: Resolve exact protected main run authority\n',
+    '      - name: Resolve exact current main run authority\n',
   );
   const cleanupIndex = workflow.indexOf(
     '      - name: Discard prior checkout Git metadata\n',

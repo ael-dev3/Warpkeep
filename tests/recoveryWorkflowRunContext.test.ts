@@ -24,7 +24,7 @@ beforeEach(() => {
   source = sourceRun();
   pages = { ...sourceRun(), id: 123, run_attempt: 1, name: 'Deploy GitHub Pages', path: '.github/workflows/deploy-pages.yml',
     event: 'workflow_run', status: 'in_progress', conclusion: null };
-  main = { name: 'main', protected: true, commit: { sha } };
+  main = { name: 'main', protected: false, commit: { sha } };
   artifact = { id: 789, name: 'github-pages-recovery-123-1', node_id: 'artifact-node', expired: false,
     size_in_bytes: 1024, url: `${API}/actions/artifacts/789`, archive_download_url: `${API}/actions/artifacts/789/zip`,
     digest: `sha256:${'b'.repeat(64)}`, created_at: '2026-01-01T00:00:00Z', expires_at: '2099-01-01T00:00:00Z',
@@ -35,7 +35,7 @@ beforeEach(() => {
       : url.endsWith('/branches/main') ? main : url.includes('/456/') ? source : pages, { etag: '"stable"' }));
 });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
-it('cross-checks source and current run with protected main before and after', async () => {
+it('cross-checks source and current run with exact main before and after when the protection flag is false', async () => {
   await expect(read()).resolves.toEqual({ pagesRunId: '123', pagesRunAttempt: '1', sourceVerifyRunId: '456', sourceVerifyRunAttempt: '2', candidateCommit: sha });
   expect(mocks.fetch.mock.calls.map(call => call[0])).toEqual([
     `${API}/branches/main`, `${API}/actions/runs/456/attempts/2`, `${API}/actions/runs/123/attempts/1`, `${API}/branches/main`,
@@ -59,9 +59,15 @@ it.each([
   ['source', 'conclusion', 'failure'], ['source', 'run_attempt', 3], ['source', 'event', 'pull_request'],
   ['source', 'path', '.github/workflows/other.yml'], ['source', 'id', 9007199254740992],
   ['pages', 'head_sha', 'b'.repeat(40)], ['pages', 'event', 'workflow_dispatch'],
-  ['pages', 'status', 'completed'], ['pages', 'run_attempt', 2], ['main', 'protected', false],
+  ['pages', 'status', 'completed'], ['pages', 'run_attempt', 2],
+  ['main', 'protected', 'false'], ['main', 'protected', null],
+  ['main', 'commit', { sha: 'b'.repeat(40) }],
 ] as const)('rejects mismatched %s %s', async (object, key, value) => {
   ({ source, pages, main }[object])[key] = value;
+  await expect(read()).rejects.toThrow('RECOVERY_WORKFLOW_RUN_CONTEXT_INVALID');
+});
+it('rejects a missing main protection flag', async () => {
+  delete main.protected;
   await expect(read()).rejects.toThrow('RECOVERY_WORKFLOW_RUN_CONTEXT_INVALID');
 });
 it('rejects main advancing during the evidence read', async () => {

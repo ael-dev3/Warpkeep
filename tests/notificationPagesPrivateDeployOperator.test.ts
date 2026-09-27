@@ -276,7 +276,7 @@ function githubAuthorityFetch(overrides: {
     if (url.endsWith('/branches/main')) {
       return githubResponse(url, {
         name: 'main',
-        protected: true,
+        protected: false,
         commit: { sha: CANDIDATE },
         ...overrides.branch,
       });
@@ -668,7 +668,7 @@ describe('notification Pages private deployment operator', () => {
     },
   );
 
-  it('attests protected main and both exact attempt-specific workflow runs', async () => {
+  it('attests current main and both exact attempt-specific workflow runs', async () => {
     await expect(attestWithToken(githubAuthorityFetch())).resolves.toEqual({
       candidatePagesSourceCommit: CANDIDATE,
       runAttempt: 1,
@@ -679,7 +679,7 @@ describe('notification Pages private deployment operator', () => {
   });
 
   it.each([
-    { name: 'unprotected main', branch: { protected: false } },
+    { name: 'malformed protection flag', branch: { protected: null } },
     { name: 'stale main', branch: { commit: { sha: '9'.repeat(40) } } },
     { name: 'wrong deploy attempt', currentRun: { run_attempt: 2 } },
     { name: 'deploy run already completed', currentRun: { status: 'completed' } },

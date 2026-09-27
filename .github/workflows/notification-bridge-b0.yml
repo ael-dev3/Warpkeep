@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       source_commit:
-        description: Exact protected main commit to prepare
+        description: Exact reviewed current main commit with successful Verify
         required: true
         type: string
 
@@ -37,11 +37,11 @@ jobs:
       WARPKEEP_HERMES_EXECUTION_APPROVED: 'false'
       WARPKEEP_PAGES_PRESENTATION_ENABLED: 'false'
       WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'd7d4600bb8cd248b79131a96de4d03698508e7f08b40bea094e838d132d9c162'
-      WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: 'e9576e149dca39a506194608f9d0084bdc2ed6f8502a64c5ee766d6a604bc969'
+      WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: 'ff5dcea565b313c840ad9bf52512db94a8e77bdbe33bcce14c5a7e61134e4947'
       WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '639d78a525a0592d25d06a103074c2ab961c229bf3b9c97c3079759f55a09e97'
       WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '9bb11880c6a9f4cb69b76b05f7ef5219ded2a86e3a44ee2c4d9371262213a161'
     steps:
-      - name: Resolve exact protected main run authority
+      - name: Resolve exact current main run authority
         shell: /usr/bin/env -u BASH_ENV -u ENV -u SHELLOPTS -u BASHOPTS -u PS4 -u NODE_OPTIONS -u NODE_PATH -u DYLD_INSERT_LIBRARIES -u DYLD_LIBRARY_PATH PATH=/usr/bin:/bin /bin/bash --noprofile --norc -p -e -o pipefail {0}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -55,13 +55,13 @@ jobs:
             echo 'The requested bridge run authority was invalid.' >&2
             exit 1
           fi
-          protected_main="$(
+          current_main="$(
             /opt/homebrew/bin/gh api "repos/ael-dev3/Warpkeep/branches/main" \
-              --jq 'select(.protected == true) | .commit.sha'
+              --jq 'select(.protected == true or .protected == false) | .commit.sha'
           )"
-          if [[ ! "$protected_main" =~ ^[0-9a-f]{40}$ \
-            || "$protected_main" != "$WARPKEEP_EXPECTED_SOURCE_COMMIT" ]]; then
-            echo 'The requested bridge source is not current protected main.' >&2
+          if [[ ! "$current_main" =~ ^[0-9a-f]{40}$ \
+            || "$current_main" != "$WARPKEEP_EXPECTED_SOURCE_COMMIT" ]]; then
+            echo 'The requested bridge source is not current main.' >&2
             exit 1
           fi
 

@@ -7,26 +7,45 @@ async function verify(options: Parameters<typeof preparationFixture>[0] = {}) {
   return { ...await verifyPreparationWorkflowIdentity(input), calls }
 }
 describe('preparation-specific GitHub authentication', () => {
-  it('authenticates ordinary workflow with genuine signatures and preserves large integer metadata IDs', async () => {
+  it('authenticates a run on private Free main with false protection flags and preserves large integer metadata IDs', async () => {
     const result = await verify()
     expect(result.identity).toEqual({ preparationCommit: 'c'.repeat(40), preparationTree: 'd'.repeat(40),
       runId: '9007199254740995', runAttempt: '2', checkRunId: '9007199254740993' })
     expect(result.calls.at(-1)).toContain('/branches/main')
   })
+  it('also accepts explicit true protection flags when main has branch protection', async () => {
+    await expect(verify({ claims: { ref_protected: 'true' }, mutate: (url, value) => {
+      if (url.endsWith('/branches/main')) value.protected = true
+    } })).resolves.toMatchObject({ identity: { preparationCommit: 'c'.repeat(40) } })
+  })
   it.each([
     { aud: 'warpkeep-release-recovery' }, { environment: 'github-pages' },
     { workflow_sha: 'e'.repeat(40) }, { repository_id: '123' }, { event_name: 'pull_request' },
+    { ref_protected: undefined }, { ref_protected: 'False' }, { ref_protected: false },
     { job_workflow_ref: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main' },
   ])('refuses another purpose or execution context: %j', claims => {
     return expect(verify({ claims })).rejects.toThrow()
   })
-  it.each(['branch', 'job', 'check', 'workflow', 'rerun'])('refuses authenticated metadata mismatch: %s', kind => {
+  it.each(['branch', 'missing branch flag', 'malformed branch flag', 'job', 'check', 'workflow', 'rerun'])(
+    'refuses authenticated metadata mismatch: %s', kind => {
     return expect(verify({ mutate: (url, value) => {
-      if (kind === 'branch' && url.endsWith('/branches/main')) value.protected = false
+      if (kind === 'branch' && url.endsWith('/branches/main')) value.commit = { sha: 'e'.repeat(40) }
+      if (kind === 'missing branch flag' && url.endsWith('/branches/main')) delete value.protected
+      if (kind === 'malformed branch flag' && url.endsWith('/branches/main')) value.protected = 'false'
       if (kind === 'job' && url.includes('/jobs?per_page=100&page=')) (value.jobs as Record<string, unknown>[]).at(-1)!.head_sha = 'e'.repeat(40)
       if (kind === 'check' && url.includes('/check-runs/')) value.head_sha = 'e'.repeat(40)
       if (kind === 'workflow' && url.includes('/actions/workflows/')) value.state = 'disabled_manually'
       if (kind === 'rerun' && url.endsWith('/actions/runs/9007199254740995')) value.run_attempt = 3
+    } })).rejects.toThrow()
+  })
+  it.each([
+    'Sealed Realms Production',
+    `ptr-state-inspect @ ${'c'.repeat(40)}`,
+    `activation-evidence-generate @ ${'e'.repeat(40)}`,
+    `activation-evidence-generate @ ${'c'.repeat(40)} `,
+  ])('rejects a run name outside the exact preparation operation and SHA: %s', name => {
+    return expect(verify({ mutate: (url, value) => {
+      if (url.endsWith('/attempts/2')) value.name = name
     } })).rejects.toThrow()
   })
   it('does not correlate two absent workflow IDs as equal', () => {

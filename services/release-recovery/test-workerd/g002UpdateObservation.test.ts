@@ -15,7 +15,8 @@ declare const __WARPKEEP_PREPARATION_TEST_RESET_TIMEOUT__: number
 afterEach(async () => { vi.unstubAllGlobals(); await reset() }, __WARPKEEP_PREPARATION_TEST_RESET_TIMEOUT__)
 
 it('crosses the actual named signer RPC with real OIDC, fixed G002 capture and canonical signature', async () => {
-  const f = await ptrObservationOidcFixture({ claims: { aud: 'https://release-auth.warpkeep.com/g002-update-observation' },
+  const f = await ptrObservationOidcFixture({ operation: 'g002-update-inspect',
+    claims: { aud: 'https://release-auth.warpkeep.com/g002-update-observation' },
     mutate(url, value) {
       if (url.includes('/jobs?')) for (const job of value.jobs as Record<string, unknown>[])
         if (job.name === 'observe_ptr') job.name = 'operate_g002'

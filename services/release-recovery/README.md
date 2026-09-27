@@ -1,7 +1,7 @@
 # Warpkeep release recovery authorization
 
 This package implements the Cloudflare authorization service for Warpkeep's
-protected 0.4 recovery deployment path. It verifies source, artifact, workflow
+0.4 recovery deployment path. It verifies source, artifact, workflow
 and live-invariant evidence, then issues signed authorization, claim and terminal
 receipts backed by a durable ledger. The deployment caller performs the effect;
 this service is not a database backup, a publisher or a general-purpose signing API.
@@ -24,7 +24,7 @@ jobs require fresh authenticated reconciliation of the retained claim; ambiguous
 readback never authorizes another deployment.
 
 The [Pages workflow](../../.github/workflows/deploy-pages.yml) implements the
-protected Linux `deploy-recovery` caller. It builds and attests the exact artifact
+Linux `deploy-recovery` caller. It builds and attests the exact artifact
 before claim preparation, then runs the fresh deployment boundary, pinned Pages
 deployment and mandatory postflight. The supported production runner is
 `WarpkeepRunner`, account `warpkeep` (UID/GID 1000), with private recovery state
@@ -32,6 +32,11 @@ under `/home/warpkeep/.warpkeep-recovery-v1`. See the
 [runner operations guide](../../docs/operations/0.4.0-linux-runner.md) for current
 metadata and the separate historical installations. Runner connectivity does not
 establish populated claim state or live signer authorization.
+
+Warpkeep is currently a private repository on a plan without private branch
+protection. The caller requires the exact current `main` commit and a successful
+push-to-main `Verify` run for that commit; a PR check or a claimed protection
+flag is not sufficient evidence.
 
 The fixed activation generator, generation receipt, atomic publication and
 read-only reconciliation path are implemented. The record reader validates the

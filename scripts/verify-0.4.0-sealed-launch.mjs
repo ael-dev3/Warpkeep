@@ -1448,10 +1448,31 @@ function verifyGenesis002Policy(sources) {
   for (const token of [
     '--exclude tests/authBridgeNotificationPreparedWorkflow.test.ts',
     '--exclude tests/productionPlayerCanaryClosure.test.ts',
+    '--exclude tests/sealedRealmsProductionActivationRecords.test.ts',
+    '--exclude tests/ptrProductionExistingUpdateContinuation.test.ts',
+    '--exclude tests/greaterRealmRuntimeRelease.test.ts',
     'npm test -- \\\n            tests/authBridgeNotificationPreparedWorkflow.test.ts',
     'tests/productionPlayerCanaryClosure.test.ts \\\n            --maxWorkers=1',
-    '--maxWorkers=1 \\\n            --testTimeout=180000',
-    '--testTimeout=180000',
+    "- { kind: shard, selector: '1/4' }",
+    "- { kind: shard, selector: '2/4' }",
+    "- { kind: shard, selector: '3/4' }",
+    "- { kind: shard, selector: '4/4' }",
+    '- { kind: heavy, selector: tests/ptrProductionExistingUpdateContinuation.test.ts }',
+    '- { kind: heavy, selector: tests/greaterRealmRuntimeRelease.test.ts }',
+    '- { kind: activation-rest, selector: tests/sealedRealmsProductionActivationRecords.test.ts }',
+    "- { kind: activation, selector: 'missing-live-inputs|bootstrap-tree|bootstrap-blob|bootstrap-sha|missing-record' }",
+    "- { kind: activation, selector: 'wrong-private-store|wrong-operation|changed-head|replacement-objects' }",
+    "- { kind: activation, selector: 'caller-facts|expired-records|historical-context|historical-forged-time' }",
+    "- { kind: activation, selector: 'historical-malformed-time|historical-changed-completion|historical-late-changed-completion|historical-replaced-corpus' }",
+    '--shard="${{ matrix.selector }}"',
+    "matrix.kind == 'shard'",
+    "matrix.kind == 'heavy'",
+    "matrix.kind == 'activation-rest'",
+    "matrix.kind == 'activation'",
+    "--testNamePattern='^(?!fixed recovery candidate source/receipt derivation derives actual committed source and private records without inventing live facts: ).*$'",
+    '--testNamePattern="^fixed recovery candidate source/receipt derivation derives actual committed source and private records without inventing live facts: (${{ matrix.selector }})$"',
+    "needs.root-tests.result == 'success'",
+    "needs.root-tests.result != 'success'",
   ]) requireOnce(
     sources.verifyWorkflowSource,
     token,
@@ -5079,7 +5100,7 @@ export function classifySealedLaunchPagesDeployLane({
   if (schema === 2 || schema === 3 || schema === 4 || schema === 5 || schema === 6) {
     // Routing is not deployment authority. This verifies the complete versioned recovery binding
     // and exact committed activation child; the recovery job must additionally
-    // authenticate current protected main, artifacts, live state and signed claim.
+    // authenticate current exact main, artifacts, live state and signed claim.
     const identity = readRecoveryAttestationSource(repositoryRoot);
     if (identity.candidateCommit !== candidatePagesSourceCommit) fail('SEALED_LAUNCH_CHECKOUT_INVALID');
     assertExactCheckout(repositoryRoot, candidatePagesSourceCommit);

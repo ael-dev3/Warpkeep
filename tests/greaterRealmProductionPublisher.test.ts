@@ -1163,7 +1163,7 @@ describe('Greater Realm production publisher lanes', () => {
       }
       rmSync(parent, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 
   it('classifies direct supervisor death while waiting as exact zero-write authority', async () => {
     const parent = mkdtempSync(join(canonicalTemporaryDirectory, 'wkgr-publish-supervisor-waiting-'));

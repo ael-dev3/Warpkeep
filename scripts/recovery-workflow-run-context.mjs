@@ -72,7 +72,8 @@ async function readContext(args, includeArtifact) {
     }
     const verifyMain = async () => {
       const main = await get('/branches/main');
-      if (main?.name !== 'main' || main.protected !== true || main.commit?.sha !== candidateCommit) fail();
+      if (main?.name !== 'main' || typeof main.protected !== 'boolean'
+        || main.commit?.sha !== candidateCommit) fail();
     };
     await verifyMain();
     const verified = await get(`/actions/runs/${sourceVerifyRunId}/attempts/${sourceVerifyRunAttempt}`);

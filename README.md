@@ -7,7 +7,7 @@ across the landscape, resources come home, and a keep becomes a place shaped by
 its Keeper's choices. We are building a game that makes the first session
 satisfying and the next visit worthwhile.
 
-[warpkeep.com](https://warpkeep.com/) · [Follow development](https://github.com/ael-dev3/Warpkeep/pulls)
+[0.4 delivery status](docs/operations/0.4.0-live-delivery-status.md) · [Follow development](https://github.com/ael-dev3/Warpkeep/pulls)
 · [Product direction](docs/design/warpkeep-direction.md) · [Documentation](docs/README.md)
 
 ## The next chapter
@@ -105,7 +105,8 @@ Stop the development server with `Ctrl+C` in its terminal.
 | Contribute and publish a change | [Contributing](CONTRIBUTING.md) and [source synchronization](docs/operations/0.4.0-development-sync.md) |
 
 The browser uses React, TypeScript and Three.js. Cloudflare verifies identity;
-SpacetimeDB owns persistent gameplay; GitHub Pages serves the frontend.
+SpacetimeDB owns persistent gameplay. The frontend is a static build whose
+current hosting and live status are tracked in the delivery journal.
 Development and release operations target Windows/WSL and Linux; the
 [infrastructure notes](docs/agent-notes/0.4.0/release-and-infrastructure.md)
 distinguish verified paths from remaining work. Source publication is continuous

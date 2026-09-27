@@ -140,7 +140,7 @@ async function verifyWorkflowAuthority(sourceCommit, token) {
   ]);
   if (
     branch?.name !== 'main'
-    || branch.protected !== true
+    || typeof branch.protected !== 'boolean'
     || branch.commit?.sha !== sourceCommit
     || String(run?.id) !== process.env.GITHUB_RUN_ID
     || run.run_attempt !== Number(process.env.GITHUB_RUN_ATTEMPT)

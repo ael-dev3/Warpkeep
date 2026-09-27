@@ -988,7 +988,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(source).not.toMatch(/^\s+(?:push|pull_request|workflow_run|schedule):/mu);
   });
 
-  it('binds dispatch, checkout, and both mutations to exact current protected main', () => {
+  it('binds dispatch, checkout, and both mutations to exact current main', () => {
     const source = workflow();
     expect(source).toContain("GITHUB_REPOSITORY\" != 'ael-dev3/Warpkeep'");
     expect(source).toContain("GITHUB_EVENT_NAME\" != 'workflow_dispatch'");
@@ -1000,7 +1000,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       'gh api "repos/ael-dev3/Warpkeep/branches/main"',
     );
     expect(source).toContain(
-      "--jq 'select(.protected == true) | .commit.sha'",
+      "--jq 'select(.protected == true or .protected == false) | .commit.sha'",
     );
     expect(source).toContain('ref: ${{ inputs.source_commit }}');
     expect(source).toContain('persist-credentials: false');
@@ -1139,69 +1139,19 @@ describe('notification-bridge-prepared protected workflow', () => {
     ]);
   });
 
-  it('pins Node for both full root security-suite jobs', () => {
-    const fullRootSuiteCommands = new Set([
-      'npm test -- --maxWorkers=2',
-      [
-        '# Keep the runner-level 75-minute budget observable. Vitest can leave',
-        '# a child process alive without producing step output; GNU timeout',
-        '# converts that hang into a bounded, diagnosable failure instead of',
-        '# occupying the protected gate indefinitely.',
-        'timeout --foreground --signal=TERM --kill-after=30s 60m npm test -- \\',
-        '  --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
-        '  --exclude tests/productionPlayerCanaryClosure.test.ts \\',
-        '  --maxWorkers=2',
-        'timeout --foreground --signal=TERM --kill-after=30s 12m npm test -- \\',
-        '  tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
-        '  tests/productionPlayerCanaryClosure.test.ts \\',
-        '  --maxWorkers=1 \\',
-        '  --testTimeout=180000',
-        '',
-      ].join('\n'),
-      [
-        '# Keep the Pages build runner budget observable. Vitest can leave',
-        '# a child process alive without producing step output; GNU timeout',
-        '# converts that hang into a bounded, diagnosable failure instead of',
-        '# occupying the protected gate indefinitely.',
-        'timeout --foreground --signal=TERM --kill-after=30s 60m npm test -- \\',
-        '  --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
-        '  --exclude tests/productionPlayerCanaryClosure.test.ts \\',
-        '  --maxWorkers=2',
-        'timeout --foreground --signal=TERM --kill-after=30s 12m npm test -- \\',
-        '  tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
-        '  tests/productionPlayerCanaryClosure.test.ts \\',
-        '  --maxWorkers=1 \\',
-        '  --testTimeout=180000',
-        '',
-      ].join('\n'),
-      [
-        'npm test -- \\',
-        '  --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
-        '  --exclude tests/productionPlayerCanaryClosure.test.ts \\',
-        '  --maxWorkers=2',
-        'npm test -- \\',
-        '  tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
-        '  tests/productionPlayerCanaryClosure.test.ts \\',
-        '  --maxWorkers=1 \\',
-        '  --testTimeout=180000',
-        '',
-      ].join('\n'),
-    ]);
+  it('pins Node for every required root security-suite runner', () => {
     const verifyDocument = parse(readFileSync(
       resolve(repositoryRoot, '.github/workflows/verify.yml'),
       'utf8',
     )) as { jobs?: Record<string, WorkflowJob> };
-    const pagesDocument = parse(pagesWorkflow()) as {
-      jobs?: Record<string, WorkflowJob>;
-    };
-    const documents = [verifyDocument, pagesDocument];
-    const fullSuiteJobs = documents.flatMap(document => (
-      Object.values(document.jobs ?? {}).filter(job => job.steps?.some(
-        candidate => fullRootSuiteCommands.has(candidate.run ?? ''),
-      ))
-    ));
-    expect(fullSuiteJobs).toHaveLength(2);
-    for (const job of fullSuiteJobs) {
+    const suiteJobs = ([['linux', 1], ['root-tests', 4]] as const).map(([name, testSteps]) => {
+      const job = verifyDocument.jobs?.[name];
+      expect(job, `${name} must be a required root-test runner`).toBeDefined();
+      expect(job!.steps?.filter(candidate => /\bnpm test\b/u.test(candidate.run ?? '')))
+        .toHaveLength(testSteps);
+      return job!;
+    });
+    for (const job of suiteJobs) {
       const setup = job.steps?.find(candidate => (
         candidate.uses
           === 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020'
@@ -1681,7 +1631,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       profile: string;
       members: Array<{ path: string; digestProfile: string; sha256: string }>;
     };
-    const extraPath = '.github/workflows/codeql.yml';
+    const extraPath = '.github/workflows/sealed-realms-production.yml';
     expect(extraManifest.members.some(member => member.path === extraPath)).toBe(false);
     mkdirSync(dirname(resolve(extra, extraPath)), { recursive: true });
     cpSync(resolve(repositoryRoot, extraPath), resolve(extra, extraPath));

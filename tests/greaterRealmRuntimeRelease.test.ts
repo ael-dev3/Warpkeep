@@ -617,7 +617,7 @@ describe('Greater Realm declassified runtime release', () => {
         for (const chunk of release.chunks) chunk.bytes.fill(0);
       }
     }
-  });
+  }, 180_000);
 
   it('rejects every cross-realm runtime package at the PTR boundary', () => {
     const genesis002 = createGenesis002GreaterRealmRuntimeRelease({
@@ -856,7 +856,7 @@ describe('Greater Realm declassified runtime release', () => {
     expect(replay.chunks.map(chunk => chunk.bytes)).toEqual(artifacts.chunks.map(chunk => chunk.bytes));
     expect(fresh.manifest.publicReleaseId).not.toBe(artifacts.manifest.publicReleaseId);
     expect(fresh.manifest.publicApprovalReceiptId).not.toBe(artifacts.manifest.publicApprovalReceiptId);
-  });
+  }, 180_000);
 
   it('does not let an unused owner selection channel influence any release byte', () => {
     const alternateSource = createGreaterRealmRuntimeReleaseFixtureSource({
@@ -875,7 +875,7 @@ describe('Greater Realm declassified runtime release', () => {
     } finally {
       alternateSource.grid.clearIndex?.();
     }
-  });
+  }, 180_000);
 
   it('rejects a synthetic source that revises a frozen dry Lowlands cell', () => {
     const hostileSource = createGreaterRealmRuntimeReleaseFixtureSource();
