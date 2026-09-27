@@ -3670,7 +3670,7 @@
     {
       "path": "src/components/auth/FarcasterQrAuthPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ac1a71ec14c6615ea204a1e15c72684e7da0c105e97faa37f49374e40cf0993a"
+      "sha256": "8a78538a789379a126649dc784b85a43566d65b228b8e61611adda2e859bc098"
     },
     {
       "path": "src/components/errors/WarpkeepErrorBoundary.css",
@@ -4840,7 +4840,7 @@
     {
       "path": "src/farcaster/farcasterAuthClient.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8e00afd78e46a8e9da3e8d2f97c32c2dcbc800f4567a7b2835015f6ef72efb71"
+      "sha256": "26dacddd87da2c055d4bbf9ab85d15dcc9583cba42616c92e84078c20c890dce"
     },
     {
       "path": "src/farcaster/farcasterAuthContext.ts",
@@ -4860,7 +4860,7 @@
     {
       "path": "src/farcaster/farcasterAuthTypes.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "06dbea630b243b653f4612bd3a9a6c95778fead14b8fb9248d9739fff6c823a5"
+      "sha256": "abeb9be8705c02c9daeb6d435c236172c9906f4b8d68566a099275456710145e"
     },
     {
       "path": "src/farcaster/farcasterBrowserBinding.ts",
@@ -4875,7 +4875,7 @@
     {
       "path": "src/farcaster/farcasterOidcBridgeClient.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "207a4ad52c281e68129a180db7210339fe7b95c297e624bc2e5f820e4bccd29b"
+      "sha256": "32768bfeba9cd7c0c70b1ac5e5cc95b341edae69c6f53d53c8bd928294bdb753"
     },
     {
       "path": "src/farcaster/farcasterOidcSession.ts",
