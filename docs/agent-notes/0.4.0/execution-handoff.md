@@ -5,11 +5,26 @@
 The pre-0.4 Alpha 0.3.43 site is restored at
 [`warpkeep.com`](https://warpkeep.com/) through the public, generated-assets-only
 [`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live) repository. Its
-[Pages build 36310726111](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36310726111)
-succeeded and the live HTML hash matches the last successful old deployment.
+latest signed public head `616eebfc` passed
+[Pages build 36312578563](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36312578563),
+and the live HTML hash matches the last successful old deployment.
 The [hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
 has the exact source, verification and recovery path. This brings the existing
 site online; 0.4 PTR remains unshipped and needs its own reviewed release path.
+
+The current signed source/closure checkpoint on PR #374 is
+[`8ef5f510`](https://github.com/ael-dev3/Warpkeep/commit/8ef5f510a086d6b7e64623080d8b440937ac93cf).
+It keeps unchanged Keep polls from reconciling the 3D scene and allows panel
+navigation against the retained validated view while a refresh or command is
+pending; mutation gates remain closed in those phases. The affected 128 UI
+tests, root typecheck, production build, visual-foundation check and clean
+checked-in sealed-launch verifier passed locally. The two changed protected
+members were refrozen from raw Git blobs in a disposable Linux checkout:
+1,258 closure members, all 16 derived outputs and the policy verifier matched.
+This is local evidence, not hosted CI or actual owner PTR acceptance.
+[Verify 36314339079](https://github.com/ael-dev3/Warpkeep/actions/runs/36314339079)
+on that head rejected every job before runner start with the account
+payment/spending-limit annotation; the PR cannot merge under the release gate.
 
 The source repairs below and a first-session Keep cue correction are published
 in [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374). The untouched Keep
