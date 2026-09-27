@@ -106,6 +106,11 @@
 .keep04 .keep04-scene-toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
 .keep04 .keep04-scene-canvas { position: relative; width: 100%; height: clamp(220px, 43vw, 620px); overflow: hidden; border-radius: 9px; background: linear-gradient(145deg, #91a897, #526e68 58%, #344e49); box-shadow: inset 0 0 0 1px rgba(225, 239, 228, .24), 0 10px 26px rgba(4, 14, 12, .2); }
 .keep04 .keep04-scene[data-mode="fallback"] .keep04-scene-canvas { height: 0; }
+.keep04 .keep04-touch-hint { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .keep04 .keep04-pointer-hint { display: none; }
+  .keep04 .keep04-touch-hint { display: inline; }
+}
 .keep04 .keep04-primary-action button { width: 100%; margin-top: 8px; }
 .keep04 .keep04-confirm:not(:disabled) { background: #e1d4b5; color: #18251e; border-color: #e1d4b5; font-weight: 700; }
 .keep04 .keep04-dock { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding: 12px 0 max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--keep04-line); }

@@ -303,10 +303,10 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         runtime.current?.inspect(); wrapper.current?.scrollIntoView?.({ block: 'start', behavior: 'instant' }); event.currentTarget.focus({ preventScroll: true });
       }}>Inspect selected site</button>
     </div>
+    {mode === 'webgl' && <p>{cameraCaption} · <span className="keep04-pointer-hint">Drag to pan · Scroll to zoom</span>
+      <span className="keep04-touch-hint">Drag to pan · Pinch to zoom · Swipe outside the scene to scroll</span></p>}
     <div ref={element} className="keep04-scene-canvas" />
     {mode === 'loading' && <p role="status">Preparing the citadel. Placement controls remain available below.</p>}
-    {mode === 'webgl' && <><p>{cameraCaption} · Drag to pan · Scroll to zoom</p>
-      {!hasSite && <p>Select a building or draft to inspect its site.</p>}
-    </>}
+    {mode === 'webgl' && !hasSite && <p>Select a building or draft to inspect its site.</p>}
   </section>;
 }

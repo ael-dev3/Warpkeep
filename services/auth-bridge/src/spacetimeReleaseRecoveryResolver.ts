@@ -20,7 +20,7 @@ export const RELEASE_RECOVERY_MAXIMUM_REQUESTS = 114
 export const RELEASE_RECOVERY_AGGREGATE_RESPONSE_BYTES = 12 * 1024 * 1024
 
 export const PROGRAM_HASH_SQL = 'SELECT program_hash FROM st_module' as const
-export const PLAYER_FID_SQL = 'SELECT fid FROM player_v2' as const
+export const ADMITTED_PROFILE_FID_SQL = 'SELECT fid FROM realm_profile_v1' as const
 
 export const G001_POLICY_FIELDS = Object.freeze([
   'realmId',
@@ -649,6 +649,11 @@ function parseAlpha(raw: Uint8Array): Readonly<{
 
 function validateAlpha(alpha: ReturnType<typeof parseAlpha>, count: number): void {
   const n = BigInt(count)
+  const players = decimal(alpha.complete, 'playersV2')
+  const ownerships = decimal(alpha.complete, 'playerOwnershipsV2')
+  // Admission creates the founder profile before the player bootstraps. The
+  // two player tables must still be a matched subset of admitted founders.
+  if (players !== ownerships || players > n) fail()
   const expected: Readonly<Record<string, bigint>> = {
     worldTiles: 10_000n,
     occupiedWorldTiles: n,
@@ -657,8 +662,6 @@ function validateAlpha(alpha: ReturnType<typeof parseAlpha>, count: number): voi
     castleSlots: 100n,
     castleSlotClaims: n,
     legacyPlayers: 0n,
-    playersV2: n,
-    playerOwnershipsV2: n,
     castles: n,
     realmProfiles: n,
     markAccounts: n,
@@ -1528,7 +1531,7 @@ export class SpacetimeReleaseRecoveryResolver {
         key, DOMAINS.alphaBefore, alphaBeforeResponse, parseAlpha,
       )
       const enumerationBeforeResponse = await this.request(
-        context, this.config.genesis001Database, 'sql', PLAYER_FID_SQL, BODY_LIMITS.fids, 'g001',
+        context, this.config.genesis001Database, 'sql', ADMITTED_PROFILE_FID_SQL, BODY_LIMITS.fids, 'g001',
       )
       const { value: fidsBefore, digest: enumerationBeforeDigest } = await this.parseAndDigest(
         key, DOMAINS.enumerationBefore, enumerationBeforeResponse, parseSpacetimeFidResponse,
@@ -1538,7 +1541,7 @@ export class SpacetimeReleaseRecoveryResolver {
       const members = await this.memberPool(context, key, fidsBefore)
 
       const enumerationAfterResponse = await this.request(
-        context, this.config.genesis001Database, 'sql', PLAYER_FID_SQL, BODY_LIMITS.fids, 'g001',
+        context, this.config.genesis001Database, 'sql', ADMITTED_PROFILE_FID_SQL, BODY_LIMITS.fids, 'g001',
       )
       const { value: fidsAfter, digest: enumerationAfterDigest } = await this.parseAndDigest(
         key, DOMAINS.enumerationAfter, enumerationAfterResponse, parseSpacetimeFidResponse,
