@@ -1320,6 +1320,15 @@ a.warpkeep-menu-build-stamp__build:focus-visible {
   }
 }
 
+/* The centered tagline collides with the right-side command rail in wide,
+   short landscape views. Remove only this secondary line; retain it in the
+   568x320 compact layout. */
+@media (min-width: 600px) and (max-height: 420px) and (orientation: landscape) {
+  .warpkeep-menu .warpkeep-menu-tagline {
+    display: none;
+  }
+}
+
 @media (orientation: portrait) {
   .warpkeep-menu {
     --warpkeep-menu-rail-width: calc(100vw - 2.4rem);

@@ -267,4 +267,22 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(shortLandscape).toMatch(/\.warpkeep-menu-command-list\s*\{[^}]*gap:\s*0;/s);
     expect(shortLandscape).toMatch(/\.warpkeep-menu-project\s*\{[^}]*margin-top:\s*0\.12rem;/s);
   });
+
+  it('prevents the heading tagline from colliding with the rail at 844x390', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
+      'utf8'
+    );
+    const wideShortLandscape = readCssBlock(
+      css,
+      '@media (min-width: 600px) and (max-height: 420px) and (orientation: landscape)'
+    );
+
+    expect(wideShortLandscape).toMatch(
+      /\.warpkeep-menu-tagline\s*\{[^}]*display:\s*none;/s
+    );
+    expect(wideShortLandscape).not.toMatch(
+      /\.warpkeep-menu-(?:command|project)(?:[-\w]+)?\s*\{[^}]*(?:display:\s*none|visibility:\s*hidden);/s
+    );
+  });
 });
