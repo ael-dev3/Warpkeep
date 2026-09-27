@@ -64,6 +64,7 @@ type GreaterRealmResourceSelection = Readonly<{
   locationId: string;
   atlasId: string;
   revision: bigint;
+  focus: Resource04 | null;
   source: readonly GreaterRealmResourceLocationSummaryDto[];
 }>;
 
@@ -159,9 +160,16 @@ export function GreaterRealmWorldScene({
   );
   const [resourceSelection, setResourceSelection] =
     useState<GreaterRealmResourceSelection>();
+  const previousResourceFocusRef = useRef(resourceFocus04);
   const [pendingWorkerId, setPendingWorkerId] = useState<string>();
   const [commandError, setCommandError] = useState(false);
   const [localOpenPanel, setLocalOpenPanel] = useState<'controls' | 'resources'>();
+  useLayoutEffect(() => {
+    if (previousResourceFocusRef.current === resourceFocus04) return;
+    previousResourceFocusRef.current = resourceFocus04;
+    setResourceSelection(undefined);
+    setCommandError(false);
+  }, [resourceFocus04]);
   const openPanel = onNarrowOpenPanelChange === undefined
     ? localOpenPanel
     : narrowOpenPanel;
@@ -265,6 +273,15 @@ export function GreaterRealmWorldScene({
     () => boundedPublicResources(publicResourceSource),
     [publicResourceSource]
   );
+  const shownResources = publicResources.filter(
+    location => !resourceFocus04 || location.resourceKind === resourceFocus04
+  );
+  const resourceReadPhase = snapshotCurrent?.resourceLocationPhase;
+  const resourceReadNotice = worldPhase === 'ready' && (
+    resourceReadPhase === 'loading'
+    || resourceReadPhase === 'failed'
+    || (resourceReadPhase === 'ready' && publicResources.length === 0)
+  );
   const visibleRegionIds = useMemo(() => new Set(
     snapshotCurrent?.chunks.flatMap(({ chunk }) => (
       [...chunk.coreCells, ...chunk.apronCells].map((cell) => cell.regionId)
@@ -273,13 +290,14 @@ export function GreaterRealmWorldScene({
   const tierOneRegions = snapshotCurrent?.bootstrap?.regions ?? Object.freeze([]);
   const resourceAtlasId = snapshotCurrent?.bootstrap?.atlasId;
   const resourceRevision = snapshotCurrent?.bootstrap?.revision;
-  const selectedLocation = publicResources.find(
+  const selectedLocation = shownResources.find(
     (location) => (
       resourceSelection !== undefined
       && publicResourceSource !== undefined
       && resourceSelection.source === publicResourceSource
       && resourceSelection.atlasId === resourceAtlasId
       && resourceSelection.revision === resourceRevision
+      && resourceSelection.focus === (resourceFocus04 ?? null)
       && location.locationId === resourceSelection.locationId
     )
   );
@@ -852,12 +870,12 @@ export function GreaterRealmWorldScene({
           </ol>
         </aside>
       )}
-      {publicResources.length === 0 && activeWorkers.length === 0 && renderGameplay04WorldPanel === undefined ? null : (
+      {publicResources.length === 0 && activeWorkers.length === 0 && renderGameplay04WorldPanel === undefined && !resourceReadNotice ? null : (
         <aside
           className="greater-realm-world__resources"
           data-open={openPanel === 'resources'}
           hidden={narrowPresentation && openPanel === 'controls'}
-          aria-label={publicResources.length === 0
+          aria-label={publicResources.length === 0 && !resourceReadNotice
             ? 'Greater Realm Worker controls'
             : 'Nearby public resources'}
         >
@@ -877,11 +895,21 @@ export function GreaterRealmWorldScene({
             className="greater-realm-world__resources-body"
             hidden={narrowPresentation && openPanel !== 'resources'}
           >
+          {worldPhase === 'ready' && resourceReadPhase === 'loading'
+            ? <p role="status">Loading nearby resource sites…</p> : null}
+          {worldPhase === 'ready' && resourceReadPhase === 'failed' ? (
+            <div>
+              <p role="status">Nearby resource sites did not load. Worker dispatch needs a fresh Realm read.</p>
+              <button type="button" onClick={() => retryWorldLoadRef.current?.()}>Retry resource sites</button>
+            </div>
+          ) : null}
+          {worldPhase === 'ready' && resourceReadPhase === 'ready' && publicResources.length === 0
+            ? <p role="status">No public resource sites are shown in this Realm view.</p> : null}
           {publicResources.length === 0 ? null : (
             <>
               <strong>Nearby resources</strong>
               <div className="greater-realm-world__resource-list">
-                {publicResources.filter(location => !resourceFocus04 || location.resourceKind === resourceFocus04).map((location) => (
+                {shownResources.map((location) => (
                   <button
                     key={location.locationId}
                     type="button"
@@ -897,6 +925,7 @@ export function GreaterRealmWorldScene({
                         locationId: location.locationId,
                         atlasId: resourceAtlasId,
                         revision: resourceRevision,
+                        focus: resourceFocus04 ?? null,
                         source: publicResourceSource
                       }));
                       setCommandError(false);
@@ -906,6 +935,8 @@ export function GreaterRealmWorldScene({
                   </button>
                 ))}
               </div>
+              {resourceFocus04 && shownResources.length === 0
+                ? <p role="status">No {resourceFocus04} sites are shown in this Realm view.</p> : null}
               {selectedLocation === undefined || (renderGameplay04WorldPanel !== undefined && workerControl === undefined) ? null : (
                 <div className="greater-realm-world__worker-command">
                   <span>

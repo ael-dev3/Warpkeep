@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Resource04 } from '../spacetimedb/gameplay04/policy';
 
 const canvasHostHarness = vi.hoisted(() => ({
   create: vi.fn()
@@ -159,6 +160,7 @@ function renderScene(
   greaterRealm: AvailableGreaterRealmProviderBridge,
   options: Readonly<{
     onPhaseChange?: (phase: string) => void;
+    resourceFocus04?: Resource04;
   }> = {}
 ) {
   return render(
@@ -169,6 +171,7 @@ function renderScene(
       ownCastle={OWN_CASTLE}
       resolvedGraphicsQuality="balanced"
       onPhaseChange={options.onPhaseChange ?? vi.fn()}
+      resourceFocus04={options.resourceFocus04}
     />
   );
 }
@@ -216,6 +219,48 @@ it('publishes only current 0.4 selection and rejects retained guards after refre
   mounted.unmount();
   expect(retained(last)).toBe(false);
   expect(onSelection).toHaveBeenLastCalledWith(null);
+});
+
+it('clears a selected site when the resource focus changes and requires a fresh visible choice', async () => {
+  setViewportWidth(390);
+  const source = readySnapshot();
+  const snapshot = {
+    ...source,
+    window: { ...source.window!, radius: 2 },
+    view: { ...source.view!, radius: 2 },
+    resourceLocations: source.resourceLocations.filter(location => location.resourceKind === 'food')
+  } as GreaterRealmClientSnapshot;
+  const onSelection = vi.fn();
+  let guard: (selection: WorldSelection04) => boolean = () => false;
+  const props = {
+    bridge: bridge({ snapshot, control: workerControl(['idle']), dispatchWorker: vi.fn() }),
+    identityFid: 77, identityKey: '77:1', ownCastle: OWN_CASTLE,
+    resolvedGraphicsQuality: 'balanced' as const, onPhaseChange: vi.fn(),
+    onGameplay04WorldSelection: onSelection,
+    renderGameplay04WorldPanel: (_selection: WorldSelection04 | null, validate: typeof guard) => {
+      guard = validate;
+      return null;
+    }
+  };
+  const mounted = render(<GreaterRealmWorldScene {...props} resourceFocus04="food" />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Nearby resources and workers' }));
+  fireEvent.click(screen.getByRole('button', { name: /food site at/ }));
+  const selected = onSelection.mock.lastCall?.[0] as WorldSelection04;
+  expect(selected.target?.resource).toBe('food');
+  expect(guard(selected)).toBe(true);
+  expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toBeNull();
+
+  mounted.rerender(<GreaterRealmWorldScene {...props} resourceFocus04="wood" />);
+  expect(screen.getByRole('status').textContent).toContain('No wood sites are shown');
+  expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
+  expect(onSelection.mock.lastCall?.[0]?.target).toBeNull();
+  expect(guard(selected)).toBe(false);
+
+  mounted.rerender(<GreaterRealmWorldScene {...props} resourceFocus04="food" />);
+  expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /food site at/ }));
+  expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toBeNull();
+  expect(onSelection.mock.lastCall?.[0]?.target?.resource).toBe('food');
 });
 
 beforeEach(() => {
@@ -498,6 +543,64 @@ describe('Greater Realm world scene lifecycle', () => {
       })).toBeNull();
       view.unmount();
     }
+  });
+
+  it('explains a failed resource-site read and retries the existing Realm read from the phone drawer', async () => {
+    setViewportWidth(390);
+    const base = readySnapshot({ resourceLocationPhase: 'failed' });
+    const mobileView = { ...VIEW, radius: 2 };
+    const failed = { ...base, window: { ...base.window!, radius: 2 }, view: mobileView } as GreaterRealmClientSnapshot;
+    const recoveredBase = readySnapshot();
+    const recovered = { ...recoveredBase, window: { ...recoveredBase.window!, radius: 2 }, view: mobileView } as GreaterRealmClientSnapshot;
+    const refreshRelease = vi.fn(async (listener: RuntimeListener, _view: unknown) => {
+      listener(recovered);
+      return recovered;
+    });
+    renderScene(bridge({ snapshot: failed, control: workerControl(['idle']), refreshRelease }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Nearby resources and workers' }));
+    expect(screen.getByRole('status').textContent).toContain('Nearby resource sites did not load');
+    expect(screen.queryByRole('button', { name: /site at/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /SEND WORKER/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry resource sites' }));
+
+    await waitFor(() => expect(refreshRelease).toHaveBeenCalledOnce());
+    expect(refreshRelease.mock.calls[0]?.[1]).toEqual(mobileView);
+    expect(screen.queryByRole('button', { name: 'Retry resource sites' })).toBeNull();
+    const location = recovered.resourceLocations[0]!;
+    fireEvent.click(screen.getByRole('button', {
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
+    }));
+    expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toBeNull();
+  });
+
+  it('distinguishes a loading read, an empty view, and a focused kind missing from a phone view', async () => {
+    setViewportWidth(390);
+    const mobileView = { ...VIEW, radius: 2 };
+    const mobile = (snapshot: GreaterRealmClientSnapshot) => ({
+      ...snapshot, window: { ...snapshot.window!, radius: 2 }, view: mobileView
+    }) as GreaterRealmClientSnapshot;
+    const openDrawer = async () => fireEvent.click(await screen.findByRole('button', { name: 'Nearby resources and workers' }));
+
+    const loading = renderScene(bridge({ snapshot: mobile(readySnapshot({ resourceLocationPhase: 'loading' })) }));
+    await openDrawer();
+    expect(screen.getByRole('status').textContent).toContain('Loading nearby resource sites');
+    expect(screen.queryByRole('button', { name: 'Retry resource sites' })).toBeNull();
+    loading.unmount();
+
+    const empty = renderScene(bridge({ snapshot: mobile(readySnapshot({ resources: false })) }));
+    await openDrawer();
+    expect(screen.getByRole('status').textContent).toContain('No public resource sites are shown in this Realm view');
+    expect(screen.queryByRole('button', { name: /site at/ })).toBeNull();
+    empty.unmount();
+
+    const source = readySnapshot();
+    const foodOnly = mobile({ ...source, resourceLocations: source.resourceLocations.filter(location => location.resourceKind === 'food') });
+    renderScene(bridge({ snapshot: foodOnly }), { resourceFocus04: 'wood' });
+    await openDrawer();
+    expect(screen.getByRole('status').textContent).toContain('No wood sites are shown in this Realm view');
+    expect(screen.queryByRole('button', { name: /site at/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Retry resource sites' })).toBeNull();
   });
 
   it('clears a replaced resource read before allowing an immediate current dispatch', async () => {

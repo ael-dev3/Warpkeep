@@ -70,11 +70,12 @@ async function setup(generation = 17) {
   const session = await connectPtrRealm({ config, authority, generation, signal: new AbortController().signal, builderFactory: () => builder });
   const capability = createPtrGameplay04Capability(session, authority, anchor);
   let listener!: (value: GreaterRealmClientSnapshot) => void;
+  let resourceLocations = fixture.resourceLocations;
   const ready = (): GreaterRealmClientSnapshot => ({ phase: 'ready', sessionGeneration: generation, deviceClass: 'desktop', graphicsProfile: 'balanced',
     cellSize: 1, bootstrap: { ...fixture.bootstrap, mode: 'active', myCastleId: 1n },
     window: { ...fixture.window, centerQ: -1, centerR: 0, radius: hostValue.isMiniApp ? 2 : 3 }, view: { centerQ: -1, centerR: 0, radius: hostValue.isMiniApp ? 2 : 3, lod: 1 },
     chunks: fixture.chunks.map((chunk, index) => ({ chunk: { ...chunk, lod: 1, resourceLocations: [] }, distanceChunks: index })),
-    selectedChunkCount: fixture.chunks.length, resourceLocationPhase: 'ready', resourceLocations: fixture.resourceLocations,
+    selectedChunkCount: fixture.chunks.length, resourceLocationPhase: 'ready', resourceLocations,
     resourceLocationsTruncated: false, stream: {},
   } as unknown as GreaterRealmClientSnapshot);
   const bridge = { phase: 'available', presentationAllowed: true, sessionGeneration: generation,
@@ -85,6 +86,7 @@ async function setup(generation = 17) {
   const props = { identity: { fid: 1 }, ptrRealmAuthority: authority, ptrViewAnchor: anchor, greaterRealm: bridge,
     ptrGameplay04: capability, resolvedGraphicsQuality: 'balanced' as const, onRequestReturn };
   return { props, session, capability, bridge, authority, read, dispatch, build, ready, publish: (value: GreaterRealmClientSnapshot) => listener(value),
+    setResourceLocations(value: typeof fixture.resourceLocations) { resourceLocations = value; },
     setUninitialized(value: boolean) { uninitialized = value; },
     fund() { wire.food = 1000n; wire.wood = 1000n; wire.stone = 1000n; wire.gold = 1000n; },
     journeys(points = 8193) {
@@ -589,6 +591,25 @@ it('Find wood from a keep with food pending opens a fresh wood dispatch on the f
   fireEvent.click(dispatch);
   await waitFor(() => expect(h.dispatch).toHaveBeenCalledOnce());
   expect(h.dispatch.mock.calls[0][0]).toMatchObject({ workerOrdinal: 1, resource: 'wood', gatheringDurationMicros: 60_000_000n });
+});
+
+it('Find wood from the keep explains when no wood site is shown in the phone Realm view', async () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+  const h = await setup(); h.pendingFoodWorker();
+  h.setResourceLocations(fixture.resourceLocations.filter(location => location.resourceKind === 'food'));
+  render(<RealmMapScreen {...h.props} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Buildings' }));
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  fireEvent.click(within(screen.getByRole('article', { name: 'City Mill' })).getByRole('button', { name: 'Find wood' }));
+
+  expect((await screen.findByRole('status')).textContent).toContain('No wood sites are shown in this Realm view');
+  expect(screen.queryByRole('button', { name: /wood site at/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Dispatch Worker/ })).toBeNull();
+  expect(h.dispatch).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Show all resources' }));
+  expect(await screen.findByRole('button', { name: /food site at/ })).toBeVisible();
+  expect(screen.queryByText('No wood sites are shown in this Realm view.')).toBeNull();
 });
 
 it('viewport refresh removes dispatch until a current world snapshot and explicit selection arrive', async () => {
