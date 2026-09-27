@@ -1,5 +1,47 @@
 # Continue Warpkeep 0.4
 
+## Deployment and gameplay continuation — 28 September 2026, 01:55 CEST (27 September, 23:55 UTC)
+
+At the start of this check, local `fix/g001-census-admission-proxy` and GitHub
+matched signed head
+[`1f7872f0`](https://github.com/ael-dev3/Warpkeep/commit/1f7872f00dd214b8ec719295cf6a99a1c03d397f),
+with PR #374 open against `main` at
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Eight gameplay, renderer,
+resource-route, loop-rail and mobile-layout suites passed locally: **194/194**
+on Windows Node 24.19.0. This focused run is useful regression evidence, not
+the pinned Linux full-suite or exact-head hosted Verify. Exact-head
+[Verify 36359661370](https://github.com/ael-dev3/Warpkeep/actions/runs/36359661370)
+failed all 17 jobs before any step because GitHub rejected runner allocation on
+the account payment/spending-limit gate.
+
+A new read-only hosting check found that the current Cloudflare browser and
+Wrangler session can see one account, while the configured Pages request targets
+a different account and returns API authentication error 10000. Direct browser
+access to that target also returns Cloudflare's “page may not exist or you may
+not have permission” response. No project, DNS, Worker or deployment was changed.
+Do not use the currently selected account as evidence for production Pages
+access. The protected GitHub workflow may have separate provider credentials;
+its operations remain untested because GitHub did not start the jobs.
+
+The existing generated-only publisher and its manifest verifier pin the custom
+domain artifact to publication path `/` and validate an exact root tree. Using it
+for 0.4 would replace the live Alpha. The separate `/owner-canary/` entry is an
+operator/canary page bound to the shared Alpha configuration; it does not satisfy
+the playable 0.4 PTR. Keep the current Alpha at `/`. Before PTR deployment, either
+restore access to the correct Cloudflare account and implement its source-pinned
+subdomain, rollback and postflight route, or extend the reviewed public mirror to
+publish a verified `/ptr/` subtree while preserving and byte-verifying every
+existing root file. Preserve `https://warpkeep.com` as the login origin; test the
+subpath build and all same-origin auth, legal, asset and mobile routes before
+using it. Then require exact-source hosted Verify and owner PTR acceptance.
+
+The browser dashboard and local Wrangler account IDs disagree with the account
+target used by the configured profile; treat this as an access mismatch, not a
+missing Cloudflare project. Do not create another recovery key or publish to the
+wrong account. The existing PTR still requires owner authentication and the
+server-side sealed-launch bindings. No live 0.4 PTR or release acceptance is
+claimed.
+
 ## Current continuation — 28 September 2026, 01:42 CEST (27 September, 23:42 UTC)
 
 The maintained `fix/g001-census-admission-proxy` checkout and GitHub ref match
