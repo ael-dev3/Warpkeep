@@ -5,7 +5,7 @@ export const GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE:
 export const GENESIS_001_ADMITTED_PLAYER_CENSUS_PREFERRED_SQL:
   'SELECT fid, enabled, auth_epoch FROM allowed_fid';
 export const GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_SQL:
-  'SELECT fid FROM player_v2';
+  'SELECT fid FROM realm_profile_v1';
 export const GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE:
   'admin_get_access_request_reset_status_v1';
 export const GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_ROWS: 4096;
@@ -38,7 +38,8 @@ export type Genesis001AdmittedPlayerCensusPrivateReceipt = Readonly<{
     'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';
   preparationSourceCommit: string;
   observedAt: string;
-  collectionMethod: 'preferred-exact-query' | 'fallback-player-v2-status-v1';
+  collectionMethod: 'preferred-exact-query' | 'fallback-player-v2-status-v1'
+    | 'fallback-realm-profile-v1-status-v1';
   beforeAggregate: Genesis001AdmittedPlayerCensusAggregate;
   afterAggregate: Genesis001AdmittedPlayerCensusAggregate;
   admittedPlayerCount: string;

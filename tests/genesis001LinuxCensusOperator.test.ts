@@ -145,8 +145,9 @@ function response(body = JSON.stringify(sql()), status = 200) {
 function connection() {
   return { identity: { toHexString: () => CALLER }, token: 'synthetic-admin-jwt', isDisconnectRequested: false,
     procedures: {
-      adminGetAlphaStatusV3: vi.fn(async () => ({ allowedFids: 1n, enabledAllowedFids: 1n })),
-      adminGetAccessRequestResetStatusV1: vi.fn(async () => ({ admissionState: 'enabled', authEpoch: 1,
+      adminGetAlphaStatusV3: vi.fn(async () => ({ allowedFids: 1n, enabledAllowedFids: 1n,
+        realmProfiles: 1n, founderStateGaps: 0n, orphanedRealmProfiles: 0n })),
+      adminGetAccessRequestResetStatusV1: vi.fn(async (_input: { fid: bigint }) => ({ admissionState: 'enabled', authEpoch: 1,
         requestState: 'not_requested', requestCycle: undefined, requestedAtMicros: undefined })),
     }, reducers: new Proxy({}, { get() { throw Error('no reducer may be read'); } }) };
 }
@@ -154,12 +155,29 @@ it('uses only exact public SQL with the authenticated connection JWT and authori
   const db = connection(), fetcher = vi.fn(async () => response());
   const result = await collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', fetcher as never);
   expect(fetcher).toHaveBeenCalledTimes(1);
-  expect(fetcher.mock.calls[0]).toEqual([SQL_URL, expect.objectContaining({ method: 'POST', body: 'SELECT fid FROM player_v2',
+  expect(fetcher.mock.calls[0]).toEqual([SQL_URL, expect.objectContaining({ method: 'POST', body: 'SELECT fid FROM realm_profile_v1',
     redirect: 'error', credentials: 'omit', headers: expect.objectContaining({ authorization: 'Bearer synthetic-admin-jwt' }) })]);
   expect(db.procedures.adminGetAlphaStatusV3).toHaveBeenCalledTimes(2);
   expect(db.procedures.adminGetAccessRequestResetStatusV1).toHaveBeenCalledExactlyOnceWith({ fid: 17n });
-  expect(result.collectionMethod).toBe('fallback-player-v2-status-v1');
+  expect(result.collectionMethod).toBe('fallback-realm-profile-v1-status-v1');
   expect(result.entries).toEqual([{ fid: '17', authEpoch: '1' }]);
+});
+it('includes admitted founders before player bootstrap through their public profile FIDs', async () => {
+  const db = connection(), fetcher = vi.fn(async () => response(JSON.stringify(sql([[17], [18]]))));
+  db.procedures.adminGetAlphaStatusV3.mockResolvedValue({ allowedFids: 2n, enabledAllowedFids: 2n,
+    realmProfiles: 2n, founderStateGaps: 0n, orphanedRealmProfiles: 0n });
+  db.procedures.adminGetAccessRequestResetStatusV1.mockImplementation(async ({ fid }: { fid: bigint }) => ({
+    admissionState: 'enabled', authEpoch: fid === 17n ? 1 : 2,
+    requestState: 'not_requested', requestCycle: undefined, requestedAtMicros: undefined,
+  }));
+  const result = await collectGenesis001LinuxAdmittedCensus(db as never, SOURCE,
+    '2026-09-19T00:00:00.000Z', fetcher as never);
+  expect(fetcher).toHaveBeenCalledExactlyOnceWith(SQL_URL,
+    expect.objectContaining({ body: 'SELECT fid FROM realm_profile_v1' }));
+  expect(db.procedures.adminGetAccessRequestResetStatusV1.mock.calls.map(([{ fid }]) => fid))
+    .toEqual([17n, 18n]);
+  expect(result.entries).toEqual([{ fid: '17', authEpoch: '1' }, { fid: '18', authEpoch: '2' }]);
+  expect(result.collectionMethod).toBe('fallback-realm-profile-v1-status-v1');
 });
 it.each(['authentication', 'network', 'schema', 'redirect', 'identity', 'token'] as const)(
   'does not reinterpret %s failure as unsupported or retry another query', async failure => {
@@ -217,7 +235,8 @@ it.each([
   ['contradictory', 0n, 1n, 'g001-admitted-aggregate-invalid'],
 ] as const)('reports fixed %s aggregate state without enumerating FIDs', async (_kind, allowedFids, enabledAllowedFids, diagnostic) => {
   const db = connection(), fetcher = vi.fn();
-  db.procedures.adminGetAlphaStatusV3.mockResolvedValueOnce({ allowedFids, enabledAllowedFids });
+  db.procedures.adminGetAlphaStatusV3.mockResolvedValueOnce({ allowedFids, enabledAllowedFids,
+    realmProfiles: allowedFids, founderStateGaps: 0n, orphanedRealmProfiles: 0n });
   await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', fetcher))
     .rejects.toMatchObject({ message: 'G001_LINUX_CENSUS_COLLECTION_FAILED', diagnostic });
   expect(fetcher).not.toHaveBeenCalled();
@@ -226,8 +245,10 @@ it.each(['missing', 'disabled', 'count-change', 'status-error'] as const)('rejec
   const db = connection();
   if (mode === 'missing' || mode === 'disabled') db.procedures.adminGetAccessRequestResetStatusV1.mockResolvedValueOnce({
     admissionState: mode, authEpoch: mode === 'missing' ? 0 : 1, requestState: 'not_requested', requestCycle: undefined, requestedAtMicros: undefined });
-  if (mode === 'count-change') db.procedures.adminGetAlphaStatusV3.mockResolvedValueOnce({ allowedFids: 1n, enabledAllowedFids: 1n })
-    .mockResolvedValueOnce({ allowedFids: 2n, enabledAllowedFids: 2n });
+  if (mode === 'count-change') db.procedures.adminGetAlphaStatusV3.mockResolvedValueOnce({ allowedFids: 1n, enabledAllowedFids: 1n,
+    realmProfiles: 1n, founderStateGaps: 0n, orphanedRealmProfiles: 0n })
+    .mockResolvedValueOnce({ allowedFids: 2n, enabledAllowedFids: 2n,
+      realmProfiles: 2n, founderStateGaps: 0n, orphanedRealmProfiles: 0n });
   if (mode === 'status-error') db.procedures.adminGetAccessRequestResetStatusV1.mockRejectedValueOnce(Error('status failed'));
   await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z', vi.fn(async () => response()) as never))
     .rejects.toMatchObject({ message: 'G001_LINUX_CENSUS_COLLECTION_FAILED',
@@ -235,11 +256,27 @@ it.each(['missing', 'disabled', 'count-change', 'status-error'] as const)('rejec
 });
 it('separates a stable aggregate from an enumerated set mismatch', async () => {
   const db = connection();
-  db.procedures.adminGetAlphaStatusV3.mockResolvedValue({ allowedFids: 2n, enabledAllowedFids: 2n });
+  db.procedures.adminGetAlphaStatusV3.mockResolvedValue({ allowedFids: 2n, enabledAllowedFids: 2n,
+    realmProfiles: 2n, founderStateGaps: 0n, orphanedRealmProfiles: 0n });
   await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE, '2026-09-19T00:00:00.000Z',
     vi.fn(async () => response()) as never)).rejects.toMatchObject({
       message: 'G001_LINUX_CENSUS_COLLECTION_FAILED', diagnostic: 'g001-admitted-set-mismatch',
     });
+});
+it.each([
+  ['missing founder profile', { realmProfiles: 0n, founderStateGaps: 1n, orphanedRealmProfiles: 0n }],
+  ['orphaned profile', { realmProfiles: 2n, founderStateGaps: 0n, orphanedRealmProfiles: 1n }],
+  ['unreconciled profile count', { realmProfiles: 2n, founderStateGaps: 0n, orphanedRealmProfiles: 0n }],
+] as const)('fails closed before enumerating when %s invalidates the profile proxy', async (_case, witness) => {
+  const db = connection(), fetcher = vi.fn();
+  db.procedures.adminGetAlphaStatusV3.mockResolvedValue({
+    allowedFids: 1n, enabledAllowedFids: 1n, ...witness,
+  });
+  await expect(collectGenesis001LinuxAdmittedCensus(db as never, SOURCE,
+    '2026-09-19T00:00:00.000Z', fetcher)).rejects.toMatchObject({
+      message: 'G001_LINUX_CENSUS_COLLECTION_FAILED', diagnostic: 'g001-admitted-aggregate-invalid',
+    });
+  expect(fetcher).not.toHaveBeenCalled();
 });
 it('validates exact SQL schema, duplicate keys, safe FIDs and zero mutation statistics', () => {
   expect(Buffer.from(parseGenesis001LinuxCensusFidSql(Buffer.from(JSON.stringify(sql([[9007199254740991], [17]]))))).toString())

@@ -3299,6 +3299,20 @@ export function createPtrAtlasImportTransport(`,
         ),
     })).toThrow();
 
+    for (const [before, after] of [
+      ['status.realmProfiles !== status.allowedFids',
+        'status.realmProfiles === status.allowedFids'],
+      ['status.founderStateGaps !== 0n', 'status.founderStateGaps === 0n'],
+      ['status.orphanedRealmProfiles !== 0n', 'status.orphanedRealmProfiles === 0n'],
+    ] as const) {
+      expect(valid.genesis001LinuxCensusOperatorSource).toContain(before);
+      expect(() => verifyGenesis001AdmittedPlayerCensusBoundary({
+        ...valid,
+        genesis001LinuxCensusOperatorSource:
+          valid.genesis001LinuxCensusOperatorSource.replace(before, after),
+      }), before).toThrow();
+    }
+
     const sourceMutations = [
       [
         'warpkeep-genesis-001-admitted-player-census-private-proof-v1',
@@ -3324,7 +3338,7 @@ export function createPtrAtlasImportTransport(`,
         'SELECT fid, enabled, auth_epoch FROM allowed_fid',
         'SELECT fid, auth_epoch FROM allowed_fid',
       ],
-      ['SELECT fid FROM player_v2', 'SELECT fid FROM allowed_fid'],
+      ['SELECT fid FROM realm_profile_v1', 'SELECT fid FROM allowed_fid'],
       [
         'admin_get_access_request_reset_status_v1',
         'admin_get_fid_auth_epoch',

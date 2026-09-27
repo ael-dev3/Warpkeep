@@ -281,10 +281,14 @@ The preferred pinned SpacetimeDB 2.6.1 query is exactly
 output as bounded machine data, requires unique canonical FIDs and epochs,
 requires every row enabled, and exact-matches `allowedFids` and
 `enabledAllowedFids` before and after the query. If that exact query is not
-available without changing the frozen ABI, the sole fallback enumerates
-`player_v2`, invokes the existing administrator status procedure for every
-canonical FID, and accepts only when the reconstructed enabled set exactly
-equals aggregate `allowedFids`. Any mismatch or changing result blocks release.
+available without changing the frozen ABI, the sole fallback enumerates the
+public `realm_profile_v1.fid` primary key. Admission creates this profile before
+player bootstrap, so a valid `admitted_needs_bootstrap` founder is included.
+The fallback requires the existing administrator aggregate to report equal
+profile/admission counts, zero founder-state gaps and zero orphaned profiles,
+then invokes the administrator status procedure for every canonical FID. It
+accepts only when every status is enabled and the reconstructed set exactly
+matches aggregate `allowedFids`. Any mismatch or changing result blocks release.
 
 `g001-census-first` stores pass one of the applicant and admitted-player pairs.
 After 60-300 seconds, `g001-census-second-inspect` stores pass two of both,

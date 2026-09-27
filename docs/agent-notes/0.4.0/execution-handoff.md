@@ -2,67 +2,64 @@
 
 ## Current checkpoint — 27 September 2026
 
-GitHub `main` is generated-only M2
-[`007e62f2e5b7440abf483a83aeda2b9621f4054e`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e),
-tree `be80fdd152bca9d8da80702fbb2b77312faca42b`, merged through
-[PR #371](https://github.com/ael-dev3/Warpkeep/pull/371). Its source-only M1
-was [PR #370](https://github.com/ael-dev3/Warpkeep/pull/370), merged as
-[`0817724a9b2a1cfc19d3c53845e0c667fc31e078`](https://github.com/ael-dev3/Warpkeep/commit/0817724a9b2a1cfc19d3c53845e0c667fc31e078),
-tree `fed9ee6c61a28a57c0f3a08bd893aa13fe7623a2`. Native preparation and
-independent check on that exact M1 succeeded: 3,257 source files and 102
-generated outputs. M2 contains the authenticated generated family and the two
-fixed, count-free diagnostics, `g001-admitted-aggregate-drift` and
-`g001-admitted-set-mismatch`.
+At the start of this repair, the last validated operational `main` was signed
+generated-only M2
+[`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`](https://github.com/ael-dev3/Warpkeep/commit/786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32),
+tree `b6af76785f1cc37d2cfc6778a0b287f4ab0bd3fa`, merged through
+[PR #373](https://github.com/ael-dev3/Warpkeep/pull/373). Its source-only M1
+was [PR #372](https://github.com/ael-dev3/Warpkeep/pull/372), merged as signed
+[`5d175edf25ee1555b27c8220844352fdbc4e99ff`](https://github.com/ael-dev3/Warpkeep/commit/5d175edf25ee1555b27c8220844352fdbc4e99ff),
+tree `e7f36c6c35fa126025220e0b70865ff17a62a93f`. Native preparation and
+independent check on that exact M1 succeeded: 3,256 source/candidate files,
+102 generated outputs. Exact-M2 push
+[Verify 36294403406](https://github.com/ael-dev3/Warpkeep/actions/runs/36294403406)
+succeeded. CodeQL was removed after GitHub refused private-repository code
+scanning on the current plan; Verify remains the executable source gate. Recheck
+live `main` and its exact-head Verify before any operation; this dated SHA is
+an evidence checkpoint, not a permanent ref pin.
 
-PR #371's Verify (including Linux and SpacetimeDB) and CodeQL passed. Exact-M2 push
-[Verify 36279277148](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277148)
-failed: its Linux root-test step reached the 60-minute limit while tests were
-still running, with multiple loaded-runner test timeouts. The module, native,
-bridge and recovery jobs passed. Exact-M2 push
-[CodeQL 36279277087](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277087)
-failed twice. The targeted permission trial on
-[PR #372](https://github.com/ael-dev3/Warpkeep/pull/372) reached SARIF upload,
-where [CodeQL 36281273325](https://github.com/ael-dev3/Warpkeep/actions/runs/36281273325)
-failed because code scanning is disabled for this private repository. GitHub's
-current plan cannot provide that check, so PR #372 removes the unavailable
-workflow; use Verify's Linux, module, native, bridge, recovery, secret-scan and
-dependency-audit jobs as the executable gate. GitHub reports `main` as
-`protected:false`; its private-repo plan also rejects branch-protection API
-access. [PR #372](https://github.com/ael-dev3/Warpkeep/pull/372) is the reviewed
-source M1 for exact-current-main authority, private-repository Pages OIDC and
-bounded parallel Verify tests. Require its full current-head Verify before
-merging. Then prepare and independently check its exact signed main commit in
-native WSL, promote only that generated family as M2, and require successful
-exact-M2 push Verify. Run fresh read-only preflight and G001 policy observation
-before one new census identity. Recheck the live ref immediately before each
-operation; an interim M1 is not an operation source.
+Read-only [preflight 36297501189](https://github.com/ael-dev3/Warpkeep/actions/runs/36297501189)
+and [G001 policy observation 36297585906](https://github.com/ael-dev3/Warpkeep/actions/runs/36297585906)
+succeeded on this exact M2. Fresh
+[G001 freeze census 36297722529](https://github.com/ael-dev3/Warpkeep/actions/runs/36297722529)
+failed closed with the count-free `g001-admitted-set-mismatch` diagnostic. It
+did not establish a two-sample baseline or authorize provider mutation. The
+fallback code enumerated `player_v2`, which is absent until bootstrap even
+for valid `admitted_needs_bootstrap` founders. A targeted source repair now
+enumerates public `realm_profile_v1.fid`, created at admission, while requiring
+the existing profile/founder aggregate witnesses and per-FID administrator
+status. This identifies a code-path defect; it does not reveal or establish
+the private live admitted set. Review, test and publish this source as a new
+M1, generate its exact M2 from native preparation, require both Verify gates,
+then use a fresh operation identity. Do not reuse the failed attempt or query
+private `allowed_fid` with an unreviewed credential.
 
-The previous [G001 freeze census 36271994192](https://github.com/ael-dev3/Warpkeep/actions/runs/36271994192)
-failed closed with the old combined `g001-admitted-aggregate-mismatch` label.
-Its first-sample directory exists, but `first.json`, the second sample and
-`complete.json` do not. There is no validated baseline; no provider mutation
-followed. Preserve that attempt and the earlier incomplete
-[36255794350](https://github.com/ael-dev3/Warpkeep/actions/runs/36255794350)
-without reusing their identities or reading private applicant/admitted rows.
-The old public evidence cannot distinguish drift from set mismatch. A new
-source-bound diagnostic can identify a targeted repair, but only a successful
-two-sample census supplies the baseline needed before preservation or
-deployment mutation. Follow the
-[known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths).
-
-The local rendered WebGL matrix passed on reviewed source, but remains local
-evidence rather than live PTR acceptance. The
-[Pages run 36177192717](https://github.com/ael-dev3/Warpkeep/actions/runs/36177192717)
-skipped build, deploy and live verification because sealed G002 is unmet. 0.4
-remains unshipped. Provider bridge/recovery operation, G001
-preservation/readback, sealed G002, actual owner PTR journey, physical-device
-and measured-performance acceptance, release freeze and delivery remain open.
-The intended `warpkeep.com` frontend currently returns 404: private-repo
-GitHub Pages is disabled on this account plan. A hosting path must be selected
-before owner PTR can be called live.
+[G002 update inspect 36297899627](https://github.com/ael-dev3/Warpkeep/actions/runs/36297899627)
+failed at `phase=workflow`; its cause is under separate diagnosis. It supplies
+no G002 update authority. G001 preservation/readback, sealed G002, actual
+owner PTR journey, physical-device and measured-performance acceptance,
+release freeze and delivery remain open. The local rendered WebGL matrix is
+local evidence rather than live PTR acceptance. The intended `warpkeep.com`
+frontend currently returns 404: private-repo GitHub Pages is disabled on this
+account plan. A hosting path must be selected before owner PTR can be live.
 PTR owner access is mandatory; public admissions are not. Keep scheduled
 automations paused, create no Desktop artifacts, and publish each reviewed
 development checkpoint with a signed commit and verified GitHub SHA.
+
+## Historical checkpoint — earlier 27 September 2026 (superseded above)
+
+Generated M2 [`007e62f2`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e)
+from [PR #371](https://github.com/ael-dev3/Warpkeep/pull/371) had exact-main
+[Verify 36279277148](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277148)
+time out in the loaded Linux root-test step. CodeQL
+[36279277087](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277087)
+could not upload on the private-repository plan. Earlier
+[G001 freeze census 36271994192](https://github.com/ael-dev3/Warpkeep/actions/runs/36271994192)
+failed with the old combined `g001-admitted-aggregate-mismatch` diagnostic,
+without a validated baseline or provider mutation. Preserve its private
+incomplete attempt and the earlier incomplete
+[36255794350](https://github.com/ael-dev3/Warpkeep/actions/runs/36255794350);
+do not reuse identities or inspect private applicant/admitted rows.
 
 ---
 

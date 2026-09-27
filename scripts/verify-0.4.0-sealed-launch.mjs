@@ -3218,7 +3218,7 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
     "'warpkeep-genesis-001-admitted-player-census-private-proof-v1'",
     `'${GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE}'`,
     "'SELECT fid, enabled, auth_epoch FROM allowed_fid'",
-    "'SELECT fid FROM player_v2'",
+    "'SELECT fid FROM realm_profile_v1'",
     "'admin_get_access_request_reset_status_v1'",
     "'warpkeep.genesis-001.admitted-player-census.normalized-set.v1\\n'",
     "'warpkeep.genesis-001.admitted-player-census.raw-evidence.v1\\n'",
@@ -3282,7 +3282,9 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
     if (!source.includes(token)) fail(code);
   }
   if (!operator.includes('projectAccessRequestResetStatus')
-    || !operator.includes('connection.procedures.adminGetAccessRequestResetStatusV1({ fid: BigInt(fid) })')) {
+    || !operator.includes('connection.procedures.adminGetAccessRequestResetStatusV1({ fid: BigInt(fid) })')
+    || !operator.includes("typeof status.realmProfiles !== 'bigint' || status.realmProfiles !== status.allowedFids")
+    || !operator.includes('status.founderStateGaps !== 0n || status.orphanedRealmProfiles !== 0n')) {
     fail(code);
   }
   requireAbsent(operator, ['adminGetAccessRequestAdmissionStatusV1'], code);
@@ -3377,7 +3379,7 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
   requireOnce(source, 'for (const fid of enumeration.fids) {', code);
   const fallbackLoopStart = source.indexOf('for (const fid of enumeration.fids) {');
   const fallbackLoopEnd = source.indexOf(
-    "    collectionMethod = 'fallback-player-v2-status-v1';",
+    "    collectionMethod = 'fallback-realm-profile-v1-status-v1';",
     fallbackLoopStart,
   );
   if (fallbackLoopStart < 0 || fallbackLoopEnd <= fallbackLoopStart) fail(code);
@@ -3436,7 +3438,7 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
     "'warpkeep.genesis-001.admitted-player-census.raw-evidence.v1\\n'",
     "'warpkeep.genesis-001.admitted-player-census.private-proof.v1\\n'",
     "'SELECT fid, enabled, auth_epoch FROM allowed_fid'",
-    "'SELECT fid FROM player_v2'",
+    "'SELECT fid FROM realm_profile_v1'",
     "'admin_get_access_request_reset_status_v1'",
     'GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_ROWS: 4096;',
     'GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_QUERY_OUTPUT_BYTES: 1048576;',
@@ -3447,7 +3449,8 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
     "'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';",
     "outcome: 'exact-query-supported';",
     "outcome: 'unsupported-exact-query'",
-    "collectionMethod: 'preferred-exact-query' | 'fallback-player-v2-status-v1';",
+    "collectionMethod: 'preferred-exact-query' | 'fallback-player-v2-status-v1'",
+    "    | 'fallback-realm-profile-v1-status-v1';",
     "admissionState: 'missing' | 'enabled' | 'disabled';",
     "requestState: 'not_requested' | 'pending' | 'resolved';",
     'requestCycle: bigint | undefined;',

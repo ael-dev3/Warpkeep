@@ -177,6 +177,13 @@ export async function collectGenesis001LinuxAdmittedCensus(connection: DbConnect
           && status.enabledAllowedFids >= 0n && status.enabledAllowedFids < status.allowedFids) {
           fail('g001-admitted-aggregate-disabled');
         }
+        // Admission creates one public profile before player bootstrap.
+        // Its unique FID is an exact membership proxy only while the
+        // existing founder graph has no missing or orphaned profiles.
+        if (typeof status.realmProfiles !== 'bigint' || status.realmProfiles !== status.allowedFids
+          || status.founderStateGaps !== 0n || status.orphanedRealmProfiles !== 0n) {
+          fail('g001-admitted-aggregate-invalid');
+        }
         return { allowedFids: status.allowedFids.toString(), enabledAllowedFids: status.enabledAllowedFids.toString() };
       } catch (error) {
         if (existingCensusDiagnostic(error) !== undefined) throw error;

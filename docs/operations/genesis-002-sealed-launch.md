@@ -386,9 +386,12 @@ The admitted-player preferred query is exactly
 `SELECT fid, enabled, auth_epoch FROM allowed_fid`. It is bounded and
 machine-parseable, requires unique canonical FIDs/epochs and every row enabled,
 and checks `allowedFids === enabledAllowedFids` before and after. The only
-unchanged-ABI fallback enumerates `player_v2`, uses the existing per-FID
-administrator status procedure, and requires the reconstructed enabled set to
-equal aggregate `allowedFids`; any mismatch blocks release.
+unchanged-ABI fallback enumerates public `realm_profile_v1.fid` so admitted
+founders who have not bootstrapped a `player_v2` row remain in the census. It
+requires equal profile/admission aggregate counts, zero founder-state gaps and
+zero orphaned profiles, then checks every FID with the existing administrator
+status procedure and requires the reconstructed enabled set to equal aggregate
+`allowedFids`; any mismatch blocks release.
 
 After 60-300 seconds, `g001-census-second-inspect` collects pass two of both
 pairs, requires distinct timestamps/nonces and private stability within each

@@ -114,7 +114,7 @@ describe('Genesis 001 admitted-player census preferred evidence', () => {
       'SELECT fid, enabled, auth_epoch FROM allowed_fid',
     );
     expect(GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_SQL).toBe(
-      'SELECT fid FROM player_v2',
+      'SELECT fid FROM realm_profile_v1',
     );
     expect(GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE).toBe(
       'admin_get_access_request_reset_status_v1',
@@ -332,7 +332,7 @@ describe('Genesis 001 admitted-player census fallback', () => {
       [GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE, '3'],
       [GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE, '10'],
     ]);
-    expect(result.collectionMethod).toBe('fallback-player-v2-status-v1');
+    expect(result.collectionMethod).toBe('fallback-realm-profile-v1-status-v1');
     expect(result.entries).toEqual([
       { fid: '2', authEpoch: '7' },
       { fid: '3', authEpoch: '9' },
@@ -498,7 +498,7 @@ describe('Genesis 001 admitted-player census fallback', () => {
         requestCycle: 7n,
         requestedAtMicros: 18_446_744_073_709_551_615n,
       }),
-    })).resolves.toMatchObject({ collectionMethod: 'fallback-player-v2-status-v1' });
+    })).resolves.toMatchObject({ collectionMethod: 'fallback-realm-profile-v1-status-v1' });
   });
 
   it('rejects non-plain, accessor, and non-enumerable fallback status records', async () => {

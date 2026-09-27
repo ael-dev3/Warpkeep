@@ -7,7 +7,7 @@ export const GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE =
 export const GENESIS_001_ADMITTED_PLAYER_CENSUS_PREFERRED_SQL =
   'SELECT fid, enabled, auth_epoch FROM allowed_fid';
 export const GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_SQL =
-  'SELECT fid FROM player_v2';
+  'SELECT fid FROM realm_profile_v1';
 export const GENESIS_001_ADMITTED_PLAYER_CENSUS_FALLBACK_PROCEDURE =
   'admin_get_access_request_reset_status_v1';
 export const GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_ROWS = 4_096;
@@ -459,7 +459,7 @@ export async function collectGenesis001AdmittedPlayerCensus(input) {
       }
       fallbackEntries.push({ fid, authEpoch: String(status.authEpoch) });
     }
-    collectionMethod = 'fallback-player-v2-status-v1';
+    collectionMethod = 'fallback-realm-profile-v1-status-v1';
     entries = normalizedEntries(fallbackEntries);
     setDigest = normalizedSetDigest(entries);
     rawEvidenceDigest = rawDigest(enumeration.rawEvidenceBytes, statuses);
@@ -504,7 +504,10 @@ export function verifyGenesis001AdmittedPlayerCensusReceipt(value) {
     || receipt.releaseVersion !== '0.3.43'
     || receipt.databaseIdentity !== GENESIS_001_DATABASE_IDENTITY
     || !COMMIT.test(receipt.preparationSourceCommit ?? '')
-    || !['preferred-exact-query', 'fallback-player-v2-status-v1']
+    // Historical private receipts remain verifiable, but new fallback
+    // collections must enumerate the pre-bootstrap founder profile.
+    || !['preferred-exact-query', 'fallback-player-v2-status-v1',
+      'fallback-realm-profile-v1-status-v1']
       .includes(receipt.collectionMethod)
     || !SHA256.test(receipt.rawEvidenceDigest ?? '')
     || !SHA256.test(receipt.normalizedSetDigest ?? '')
