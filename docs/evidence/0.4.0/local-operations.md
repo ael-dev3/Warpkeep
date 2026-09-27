@@ -2,13 +2,31 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-Current main is generated-only M2
-[`007e62f2e5b7440abf483a83aeda2b9621f4054e`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e).
-Its exact-main Verify failed at the Linux root-test bound. Do not start another
-operation until the [current delivery gates](../../operations/0.4.0-live-delivery-status.md)
-pass on the eventual exact M2. PR #372 is an unmerged source repair; Verify
-`36285086874` has failed jobs on its `67bc09c1` head. Earlier local results
-remain tied to their recorded source and are not current authority.
+## Current checkpoint — 27 September 2026
+
+The last validated operational main at this checkpoint is signed generated-only
+M2 [`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`](https://github.com/ael-dev3/Warpkeep/commit/786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32)
+from [PR #373](https://github.com/ael-dev3/Warpkeep/pull/373). Its exact-main
+[Verify 36294403406](https://github.com/ael-dev3/Warpkeep/actions/runs/36294403406),
+[preflight 36297501189](https://github.com/ael-dev3/Warpkeep/actions/runs/36297501189)
+and [G001 policy observation 36297585906](https://github.com/ael-dev3/Warpkeep/actions/runs/36297585906)
+passed. [G001 census 36297722529](https://github.com/ael-dev3/Warpkeep/actions/runs/36297722529)
+failed closed in its first sample with `g001-admitted-set-mismatch`; no
+validated baseline or provider mutation followed. [G002 update inspect 36297899627](https://github.com/ael-dev3/Warpkeep/actions/runs/36297899627)
+failed before provider transport. [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
+repairs both source paths. Require full final-head PR Verify, exact signed M1
+merge, provider-free module build, native prepare/check, generated-only M2 and
+successful exact-M2 push Verify before any fresh protected inspection. Recheck
+live main immediately before dispatch; prior local evidence is source-bound and
+not current operation authority. See the [current delivery gates](../../operations/0.4.0-live-delivery-status.md).
+
+## Historical operating checkpoint — earlier 27 September 2026 (superseded)
+
+Generated-only M2 [`007e62f2`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e)
+had a failed exact-main Verify at the Linux root-test bound. The then-open
+source repair [PR #372](https://github.com/ael-dev3/Warpkeep/pull/372)
+initially had failed Verify jobs on head `67bc09c1`; later repairs passed and
+merged. That earlier failure is not a standing gate for the present source.
 
 ## Historical exact-M2 operation checkpoint — 25 September 2026
 

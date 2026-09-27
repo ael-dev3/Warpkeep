@@ -7,18 +7,37 @@ CI receipts. The dated engineering results below retain their original input;
 do not use an old passing run or Pages classification as a release grant for a
 later source. 0.4 remains unshipped.
 
-Current main is generated-only M2
-[`007e62f2e5b7440abf483a83aeda2b9621f4054e`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e).
-Its exact-main Verify failed at the bounded Linux root-test step; private-repo
-CodeQL upload is unavailable. PR #372 carries the source M1 authority and CI
-repair; its Verify run `36285086874` has failed jobs on head `67bc09c1`, so
-a fixed head still needs its own complete pass. Require full final-head Verify,
-exact signed M1 merge, native prepare/check, generated-only M2 promotion and
-successful exact-M2 push Verify
-before new read-only operations. Private GitHub Pages is disabled on the
-current account plan and `https://warpkeep.com/` returns 404; deployment also
-needs an enabled host. The [live delivery status](../../operations/0.4.0-live-delivery-status.md)
-tracks this checkpoint; no current run is a live release grant.
+## Current checkpoint — 27 September 2026
+
+The last validated operational main at this checkpoint is signed generated-only
+M2 [`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`](https://github.com/ael-dev3/Warpkeep/commit/786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32)
+from [PR #373](https://github.com/ael-dev3/Warpkeep/pull/373). Exact-main
+[Verify 36294403406](https://github.com/ael-dev3/Warpkeep/actions/runs/36294403406),
+[preflight 36297501189](https://github.com/ael-dev3/Warpkeep/actions/runs/36297501189)
+and [G001 policy observation 36297585906](https://github.com/ael-dev3/Warpkeep/actions/runs/36297585906)
+passed. [G001 census 36297722529](https://github.com/ael-dev3/Warpkeep/actions/runs/36297722529)
+failed closed on `g001-admitted-set-mismatch` before completing its first
+sample; it established no validated baseline. [G002 update inspect 36297899627](https://github.com/ael-dev3/Warpkeep/actions/runs/36297899627)
+failed at workflow phase before provider transport. [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
+repairs the census membership source and the shared pinned dependency build.
+Require full final-head Verify, signed source M1 merge, provider-free artifact
+build, exact-M1 native prepare/check, generated-only M2 promotion and successful
+exact-M2 push Verify before fresh protected inspections. CodeQL scanning is
+unavailable for this private repository; Verify is the executable CI gate.
+Private GitHub Pages is disabled on the current account plan and
+`https://warpkeep.com/` returns 404; owner PTR requires an enabled host. The
+[live delivery status](../../operations/0.4.0-live-delivery-status.md) tracks
+the release gate; no current run is a live release grant.
+
+## Historical operating checkpoint — earlier 27 September 2026 (superseded)
+
+Generated-only M2 [`007e62f2`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e)
+had exact-main [Verify 36279277148](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277148)
+time out at the bounded Linux root-test step. The then-open
+[PR #372](https://github.com/ael-dev3/Warpkeep/pull/372) first failed Verify on
+head `67bc09c1` in run `36285086874`, then passed on its final source and
+merged. The private-repository CodeQL upload failed on this older source;
+its unavailable workflow was removed in the later repair.
 
 ## Historical source checkpoint — 25 September 2026
 
@@ -1741,8 +1760,8 @@ reader also validates the same receipt. See `captureG001ActivationRecord`,
 `reopenPolicyObservationRecord` and `verifyGenesis001LinuxPolicyReceipt` before
 diagnosing persistence again. This local/source capability does not prove that a
 new live observation completed. The cited M3 `g001-observation` failure is
-historical and superseded. Current M2 census failures and source M1 PR #357
-are recorded in the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md);
+historical and superseded. Later census failures and source repairs are
+recorded in the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md);
 do not reuse the old run as current authority.
 
 The workflow Verify reader, other live transport adapters, remaining realm
