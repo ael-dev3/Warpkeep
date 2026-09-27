@@ -43,10 +43,10 @@ describe('Genesis 002 Linux locked-source build native lifecycle', () => {
         operation: context => {
           materializedRoot = context.materializedRoot;
           const g002Root = join(materializedRoot, 'spacetimedb', 'genesis002');
-          const nodeModules = join(g002Root, 'node_modules');
+          const nodeModules = join(materializedRoot, 'spacetimedb', 'node_modules');
           fixture.assertInstalledG002(materializedRoot);
           expect(context.dependencyClosureDigest).toBe(fixture.expectedClosureDigest());
-          expect(existsSync(join(materializedRoot, 'spacetimedb', 'node_modules'))).toBe(false);
+          expect(existsSync(join(g002Root, 'node_modules'))).toBe(false);
           expect(existsSync(join(materializedRoot, 'spacetimedb', 'ptr', 'node_modules'))).toBe(false);
           expect(existsSync(join(nodeModules, '.pnpm', 'fsevents@2.3.3'))).toBe(false);
           expect(existsSync(join(

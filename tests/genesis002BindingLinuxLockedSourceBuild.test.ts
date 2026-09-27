@@ -355,7 +355,7 @@ describe('fixed Genesis 002 Linux workspace locked-source build', () => {
   it.each([
     ['unexpected generated file', (root: string) => writeFileSync(join(root, 'unexpected'), 'x')],
     ['dependency mutation', (root: string) => writeFileSync(join(
-      root, 'spacetimedb', 'genesis002', 'node_modules', 'changed.js',
+      root, 'spacetimedb', 'node_modules', 'changed.js',
     ), 'changed')],
   ])('retains the materialization on %s', (_label, mutate) => {
     const messages = thrownMessages(() => runFixture(fixture(), root => mutate(root)));

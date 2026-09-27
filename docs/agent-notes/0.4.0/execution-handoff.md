@@ -35,8 +35,21 @@ then use a fresh operation identity. Do not reuse the failed attempt or query
 private `allowed_fid` with an unreviewed credential.
 
 [G002 update inspect 36297899627](https://github.com/ael-dev3/Warpkeep/actions/runs/36297899627)
-failed at `phase=workflow`; its cause is under separate diagnosis. It supplies
-no G002 update authority. G001 preservation/readback, sealed G002, actual
+failed at `phase=workflow` before provider transport; it supplies no G002
+update authority. An artifact-only reproduction in a temporary detached checkout
+of this exact M2 returned `GENESIS_002_SOURCE_BUILD_FAILED`. The pinned
+`spacetime build` exited 2 with TypeScript `TS2307` for `spacetimedb/server`
+and `spacetimedb` imported by shared `spacetimedb/src/*`. The locked G002
+builder installed the verified package tree only under
+`spacetimedb/genesis002/node_modules`, which those parent source files cannot
+resolve. The source repair stages the same pinned dependency closure at the
+common `spacetimedb/node_modules` root and updates its owning G001 materializer;
+the closure snapshot, before/after verification and cleanup remain exact. The
+temporary diagnostic checkout was removed without a provider request. Review
+and test this with the census repair in the new source-only M1, then prepare
+and verify its exact M2 before a fresh `g002-update-inspect`. Neither the local
+diagnostic nor the source change establishes a live G002 result. G001
+preservation/readback, sealed G002, actual
 owner PTR journey, physical-device and measured-performance acceptance,
 release freeze and delivery remain open. The local rendered WebGL matrix is
 local evidence rather than live PTR acceptance. The intended `warpkeep.com`
@@ -399,7 +412,9 @@ The earlier diagnosis that all remaining failures require owner-supplied private
 state was too broad. This audit found an agent-owned build defect: the native
 G001 materializer looked for SDK/compiler dependencies in `spacetimedb/node_modules`,
 but its Genesis 002 builder installs them in `spacetimedb/genesis002/node_modules`.
-The correction uses the owning module. Read-only census run `35499384780` failed
+The correction used the owning module at that checkpoint; the current repair
+changes the builder itself to install at the common parent for shared source
+imports. Read-only census run `35499384780` failed
 at `workflow` before this repair; no successful census or provider mutation is
 claimed. The private build roots exist with the required ownership and modes.
 
