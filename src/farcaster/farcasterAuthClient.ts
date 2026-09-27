@@ -4,7 +4,10 @@ import {
   getBrowserFarcasterAuthContext,
   type FarcasterSecureRandomSource
 } from './farcasterAuthContext';
-import { FarcasterOidcBridgeClientError } from './farcasterOidcBridgeClient';
+import {
+  FarcasterOidcBridgeClientError,
+  farcasterOidcBridgeFailureKind
+} from './farcasterOidcBridgeClient';
 import { safePublicHttpsImageUrl } from '../security/publicImageUrl';
 import { normalizePublicProfileText } from '../security/publicProfileText';
 import {
@@ -156,6 +159,31 @@ export function toFarcasterAuthError(error: unknown): FarcasterAuthError {
     return Object.freeze({ code: error.code, message: error.message });
   }
   if (error instanceof FarcasterOidcBridgeClientError) {
+    const kind = farcasterOidcBridgeFailureKind(error);
+    if (kind === 'exchange-request-invalid') {
+      return Object.freeze({
+        code: 'bridge',
+        message: 'Warpkeep could not prepare the completed Farcaster request.'
+      });
+    }
+    if (kind === 'exchange-request-expired') {
+      return Object.freeze({
+        code: 'bridge',
+        message: 'The Farcaster request expired before secure verification.'
+      });
+    }
+    if (kind === 'network-or-cors') {
+      return Object.freeze({
+        code: 'network',
+        message: 'Warpkeep could not reach secure verification.'
+      });
+    }
+    if (kind === 'timeout') {
+      return Object.freeze({
+        code: 'network',
+        message: 'Secure verification did not finish in time.'
+      });
+    }
     return Object.freeze({
       code: 'bridge',
       message: 'The Hegemony verification service could not confirm this sign-in.'

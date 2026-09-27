@@ -898,9 +898,12 @@ export function createFarcasterOidcBridgeClient(
     ) {
       const body = readSafeExchangeBody(request);
       if (!body) {
-        throw new FarcasterOidcBridgeClientError();
+        throw bridgeClientError('exchange-request-invalid');
       }
       const initialWallRemaining = request.expiresAt - Date.now();
+      if (Number.isFinite(initialWallRemaining) && initialWallRemaining <= 0) {
+        throw bridgeClientError('exchange-request-expired');
+      }
       const exchangeBudget = Math.min(
         BRIDGE_EXCHANGE_TIMEOUT_MS,
         initialWallRemaining
@@ -920,7 +923,10 @@ export function createFarcasterOidcBridgeClient(
           request.expiresAt
         );
         if (!Number.isFinite(remainingMilliseconds) || remainingMilliseconds <= 0) {
-          throw new FarcasterOidcBridgeClientError();
+          if (request.expiresAt <= Date.now()) {
+            throw bridgeClientError('exchange-request-expired');
+          }
+          throw bridgeClientError('timeout');
         }
         try {
           result = await postJson(

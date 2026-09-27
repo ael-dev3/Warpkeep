@@ -83,6 +83,8 @@ export type FarcasterQuickAuthTokenResult =
  */
 export type FarcasterOidcBridgeFailureKind =
   | 'configuration'
+  | 'exchange-request-invalid'
+  | 'exchange-request-expired'
   | 'invalid-credential'
   | 'forbidden'
   | 'rate-limited'
