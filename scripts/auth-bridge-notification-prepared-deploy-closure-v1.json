@@ -5,7 +5,7 @@
     {
       "path": ".github/workflows/deploy-pages.yml",
       "digestProfile": "reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1",
-      "sha256": "e83c3557282e992c9182899f2ca25e924d8a3c937a0c949f18928b29ca53899a"
+      "sha256": "ad6de67a6d7a6e3734247023dca89c85fd236c308156c230dd5342a36412a461"
     },
     {
       "path": ".github/workflows/notification-bridge-b0.yml",
@@ -2160,12 +2160,12 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f37944f8de1bf108f00661bed5d3f495d2c7da9711132926a8279c3e1ff128cc"
+      "sha256": "a3b2b92fdc9fac52a516e7768a474ea5cf9deb9746f95827ba139bc3d69d0485"
     },
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "73db5c4e91fdff5040e8c2024c4866c442d3921e12f127196316bfc43787e507"
+      "sha256": "009e415a7423f319190d01b595f0671baea9e24aa418e38b6a88df0ac523013b"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
