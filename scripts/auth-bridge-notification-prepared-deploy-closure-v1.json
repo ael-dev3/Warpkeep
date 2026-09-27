@@ -3825,7 +3825,7 @@
     {
       "path": "src/components/keep04/Keep04BuildingPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8a61e71063ace57b5fe22d78fb8c50db1d75738aaed9168f17bd2780608a2e8b"
+      "sha256": "347a063aa1ad0cbc9f3326f729a134b3734c77dcc6ec808af9b0f05d79bd212a"
     },
     {
       "path": "src/components/keep04/Keep04LoopRail.tsx",
@@ -5210,7 +5210,7 @@
     {
       "path": "src/ptr/gameplay04/createGameplay04Controller.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "075164462495c14d76588bc729e79b4ab60d0282f3e68b73ef7ff752ccd047b1"
+      "sha256": "c623f3c49be4bbcf302180569003bb603f2fb72ad9591e0a9e416031fdaf2727"
     },
     {
       "path": "src/ptr/gameplay04/gameplay04Placement.ts",
