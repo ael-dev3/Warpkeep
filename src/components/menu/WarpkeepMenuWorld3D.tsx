@@ -476,6 +476,13 @@ export function WarpkeepMenuWorld3D({ active, reducedMotion, quality = 'balanced
       mount.dataset.modelReady = 'true';
       render();
 
+      // Performance keeps the castle and its guardian, but avoids decoding
+      // optional scene dressing on constrained devices.
+      if (quality === 'performance') {
+        start();
+        return;
+      }
+
       const additions = await Promise.allSettled([
         loadModel(modelUrl(ASSET_URLS.honorGuard)),
         loadModel(modelUrl(ASSET_URLS.lamplighter)),

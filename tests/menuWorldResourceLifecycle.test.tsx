@@ -141,6 +141,59 @@ describe('menu 3D lifecycle', () => {
     lateAdditions.forEach(expectReleased);
   });
 
+  it('keeps castle and guardian without fetching decorative models in Performance', async () => {
+    const view = render(<WarpkeepMenuWorld3D active reducedMotion quality="performance" />);
+    await vi.waitFor(() => expect(harness.parseRequests).toHaveLength(1));
+    const castle = parsedModel();
+    await act(async () => harness.parseRequests[0].resolve(castle.gltf));
+    await vi.waitFor(() => expect(harness.parseRequests).toHaveLength(2));
+    const guardian = parsedModel();
+    await act(async () => harness.parseRequests[1].resolve(guardian.gltf));
+
+    await vi.waitFor(() => expect(view.container.firstElementChild?.getAttribute('data-model-ready')).toBe('true'));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetch).mock.calls.map(([url]) => String(url))).toEqual([
+      expect.stringContaining('/models/menu/warplet-castle-'),
+      expect.stringContaining('/models/menu/warplet-guardian-'),
+    ]);
+    expect(harness.renderers[0].render).toHaveBeenCalled();
+
+    view.unmount();
+    expectReleased(castle);
+    expectReleased(guardian);
+  });
+
+  it('still fetches decorative models in Balanced with reduced motion', async () => {
+    const view = render(<WarpkeepMenuWorld3D active reducedMotion quality="balanced" />);
+    await vi.waitFor(() => expect(harness.parseRequests).toHaveLength(1));
+    const castle = parsedModel();
+    await act(async () => harness.parseRequests[0].resolve(castle.gltf));
+    await vi.waitFor(() => expect(harness.parseRequests).toHaveLength(2));
+    const guardian = parsedModel();
+    await act(async () => harness.parseRequests[1].resolve(guardian.gltf));
+
+    await vi.waitFor(() => expect(harness.parseRequests).toHaveLength(8));
+    expect(fetch).toHaveBeenCalledTimes(8);
+    expect(vi.mocked(fetch).mock.calls.slice(2).map(([url]) => String(url))).toEqual([
+      expect.stringContaining('/population/infantry/inner-keep-honor-guard-'),
+      expect.stringContaining('/population/citizen/inner-keep-ember-lamplighter-'),
+      expect.stringContaining('/wildlife/rabbit/inner-keep-lowlands-rabbit-'),
+      expect.stringContaining('/town-items/inner-keep-stone-pedestal-brazier-'),
+      expect.stringContaining('/environment/trees/hegemony-tree-regular-'),
+      expect.stringContaining('/environment/trees/hegemony-tree-pine-alpine-'),
+    ]);
+    expect(view.container.firstElementChild?.getAttribute('data-model-ready')).toBe('true');
+    view.unmount();
+    expectReleased(castle);
+    expectReleased(guardian);
+
+    const additions = Array.from({ length: 6 }, parsedModel);
+    await act(async () => {
+      additions.forEach((model, index) => harness.parseRequests[index + 2].resolve(model.gltf));
+    });
+    additions.forEach(expectReleased);
+  });
+
   it('stops drawing when hidden and resumes only when visible again', () => {
     const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
     const view = render(<WarpkeepMenuWorld3D active reducedMotion={false} />);
