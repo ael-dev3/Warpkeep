@@ -1,6 +1,27 @@
 # Continue Warpkeep 0.4
 
-## Latest continuation — 27 September 2026, 21:50 UTC
+## Latest release checkpoint — 27 September 2026, 21:58 UTC
+
+Local `fix/g001-census-admission-proxy` and GitHub match signed head
+[`8d20e2bb`](https://github.com/ael-dev3/Warpkeep/commit/8d20e2bbff8dea0a4a46cd2eacb289a70fdbba4e).
+PR #374 is open against `main` at `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+The mandatory [release checklist](../../operations/0.4.0-release-checklist.md)
+was refreshed on that head with the QR outcome, source-closure evidence,
+current gate and remaining release sequence.
+
+Exact-head [Verify 36353616339](https://github.com/ael-dev3/Warpkeep/actions/runs/36353616339)
+started at **21:58:12 UTC** on `8d20e2bb`. All 17 jobs failed before any step
+ran; the annotation says recent account payments failed or the Actions spending
+limit must increase. This is a runner-allocation failure and contains no source
+test verdict. Do not bypass hosted PR verification by running untrusted PR code
+on the production-admin self-hosted runner. Restore GitHub Actions billing,
+then rerun Verify on the exact final PR head before source integration. The
+current 0.4 source still needs reviewed main integration, exact-M1 native
+preparation/check, generated-only M2 promotion, exact-M2 Verify, protected
+provider/preservation checks and a live owner PTR before it can be called
+shipped.
+
+## QR authentication continuation — 27 September 2026, 21:50 UTC
 
 The owner reported a fresh phone QR scan and confirmed successful browser login.
 The conversation clock was read at **21:50:52 UTC** immediately after that
