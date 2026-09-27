@@ -107,9 +107,8 @@ body,
   min-height: 100%;
   place-items: center;
   background:
-    radial-gradient(circle at 50% 38%, rgb(104 53 133 / 26%), transparent 32rem),
-    linear-gradient(rgb(4 4 8 / 72%), rgb(4 4 8 / 92%)),
-    url('/images/menu/warpkeep-menu-poster-v2.webp') center / cover;
+    radial-gradient(circle at 50% 38%, rgb(72 110 105 / 22%), transparent 32rem),
+    linear-gradient(rgb(8 23 27 / 72%), rgb(8 23 27 / 92%));
 }
 
 .qa-journey__auth-stage .warpkeep-menu-auth-rail {

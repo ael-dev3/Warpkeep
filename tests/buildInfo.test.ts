@@ -10,6 +10,7 @@ import {
   readWarpkeepBuildSha,
   readWarpkeepProductVersion,
   readWarpkeepRepositoryUrl,
+  WARPKEEP_BUILD_INFO,
   WARPKEEP_REALM_SEED
 } from '../src/build/buildInfo';
 
@@ -37,6 +38,10 @@ describe('Warpkeep build identity', () => {
     expect(packageLock.packages?.['']?.version).toBe(packageJson.version);
     expect(readWarpkeepProductVersion('1.0.0-alpha.1+build.7')).toBe('1.0.0-alpha.1+build.7');
     expect(readWarpkeepProductVersion('0.2')).toBeUndefined();
+  });
+
+  it('labels the local 0.4 presentation without changing the sealed package version', () => {
+    expect(WARPKEEP_BUILD_INFO.version).toBe('0.4.0');
   });
 
   it('normalizes the public alpha channel and accepts only full commit SHAs', () => {

@@ -3,6 +3,7 @@ import type {
   WarpkeepBuildInfoInput,
   WarpkeepReleaseChannel
 } from './buildInfoTypes';
+import { WARPKEEP_LAUNCHER_RELEASE_VERSION } from '../release/realmReleaseIdentity';
 
 export type { WarpkeepBuildInfo } from './buildInfoTypes';
 
@@ -88,7 +89,7 @@ export function formatWarpkeepBuildStamp(buildInfo: WarpkeepBuildInfo) {
     : `${release} · ${WARPKEEP_LOCAL_BUILD_LABEL}`;
 }
 
-export const WARPKEEP_BUILD_INFO = createWarpkeepBuildInfo({
+const packagedBuildInfo = createWarpkeepBuildInfo({
   productVersion: typeof __WARPKEEP_PRODUCT_VERSION__ === 'string'
     ? __WARPKEEP_PRODUCT_VERSION__
     : undefined,
@@ -96,3 +97,14 @@ export const WARPKEEP_BUILD_INFO = createWarpkeepBuildInfo({
   buildSha: import.meta.env.VITE_WARPKEEP_BUILD_SHA,
   repositoryUrl: import.meta.env.VITE_WARPKEEP_REPOSITORY_URL
 });
+
+// Keep the unapproved sealed-launch package at 0.3.43 while previewing the
+// 0.4 presentation locally. Public builds always expose the package version.
+export const WARPKEEP_BUILD_INFO = import.meta.env.DEV
+  ? createWarpkeepBuildInfo({
+      productVersion: WARPKEEP_LAUNCHER_RELEASE_VERSION,
+      releaseChannel: import.meta.env.VITE_WARPKEEP_RELEASE_CHANNEL,
+      buildSha: import.meta.env.VITE_WARPKEEP_BUILD_SHA,
+      repositoryUrl: import.meta.env.VITE_WARPKEEP_REPOSITORY_URL
+    })
+  : packagedBuildInfo;

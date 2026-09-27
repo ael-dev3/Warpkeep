@@ -19,15 +19,15 @@ const GRAPHICS_COPY: Readonly<Record<GraphicsPreference, Readonly<{
   },
   cinematic: {
     label: 'CINEMATIC',
-    description: 'Highest-detail title and Realm presentation for devices with ample graphics headroom.'
+    description: 'Highest-detail menu and Realm presentation for devices with ample graphics headroom.'
   },
   balanced: {
     label: 'BALANCED',
-    description: 'Keeps the same world while reducing terrain, model, and drawing-buffer pressure.'
+    description: 'Keeps the full castle scene with moderate terrain detail, resolution, and shadows.'
   },
   performance: {
     label: 'PERFORMANCE',
-    description: 'The lightest Realm profile for devices that need a more responsive presentation.'
+    description: 'Lighter terrain, lower menu resolution, and fewer effects for a more responsive presentation.'
   }
 };
 
@@ -86,7 +86,7 @@ export function SettingsPanel({
           <p>REALM CONFIGURATION</p>
           <h2 id="warpkeep-settings-title" ref={headingRef} tabIndex={-1}>SETTINGS</h2>
           <p id="warpkeep-settings-description">
-            Configure graphics and sound across the title gateway, menu, and Realm. Auto is the safe recommended default; reduced motion remains a system accessibility preference.
+            Configure graphics and sound across the menu and Realm. Auto is the safe recommended default; reduced motion remains a system accessibility preference.
           </p>
         </header>
 

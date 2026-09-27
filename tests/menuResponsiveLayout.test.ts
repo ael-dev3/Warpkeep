@@ -26,7 +26,7 @@ function readCssBlock(source: string, opening: string): string {
 }
 
 describe('Warpkeep main-menu responsive layout', () => {
-  it('keeps command composition aligned while identity remains in normal heading flow', () => {
+  it('sets the opening commands into clear glass over the 3D world', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
       'utf8'
@@ -35,18 +35,24 @@ describe('Warpkeep main-menu responsive layout', () => {
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.tsx'),
       'utf8'
     );
-    const menu = readCssBlock(css, '.warpkeep-menu {');
-    const heading = readCssBlock(css, '.warpkeep-menu-heading {');
-    const navigation = readCssBlock(css, '.warpkeep-menu-nav {');
+    const verdant = css.slice(css.indexOf('/* Clear glass leaves'));
+    const liveScene = css.slice(css.indexOf('/* The 0.4 menu is a HUD'));
+    const menu = readCssBlock(verdant, '.warpkeep-menu {');
+    const waystone = readCssBlock(verdant, '.warpkeep-menu-waystone {');
+    const heading = readCssBlock(verdant, '.warpkeep-menu-heading {');
+    const navigation = readCssBlock(verdant, '.warpkeep-menu-nav {');
     const identity = readCssBlock(css, '.warpkeep-menu-identity {');
 
     expect(menu).toContain('--warpkeep-menu-rail-width:');
-    expect(menu).toContain('--warpkeep-menu-rail-half-width:');
     expect(menu).toContain('--warpkeep-menu-rail-right:');
-    expect(heading).toContain(
-      'right: calc(var(--warpkeep-menu-rail-right) + var(--warpkeep-menu-rail-half-width));'
-    );
-    expect(heading).toContain('transform: translate(50%, -0.65rem);');
+    expect(menu).toContain('--warpkeep-menu-panel-offset:');
+    expect(waystone).toContain('position: absolute;');
+    expect(waystone).toContain('pointer-events: none;');
+    expect(readCssBlock(liveScene, '.warpkeep-menu {')).toContain('background: transparent;');
+    expect(readCssBlock(liveScene, '.warpkeep-menu-scene {')).toContain('z-index: -5;');
+    expect(readCssBlock(liveScene, '.warpkeep-menu-waystone {')).toContain('backdrop-filter: blur(5px) saturate(0.62) brightness(0.73);');
+    expect(heading).toContain('top: calc(var(--warpkeep-menu-panel-offset) + 2.3rem);');
+    expect(navigation).toContain('bottom: calc(var(--warpkeep-menu-panel-offset) + 2.15rem);');
     expect(navigation).toContain('right: var(--warpkeep-menu-rail-right);');
     expect(navigation).toContain('width: var(--warpkeep-menu-rail-width);');
     expect(identity).toContain('position: static;');
@@ -58,6 +64,7 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(headingStart).toBeGreaterThanOrEqual(0);
     expect(identityStart).toBeGreaterThan(headingStart);
     expect(identityStart).toBeLessThan(headingEnd);
+    expect(component).toContain('className="warpkeep-menu-waystone"');
   });
 
   it('bounds the compact identity card so long public names truncate on narrow menus', () => {
@@ -72,7 +79,7 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(compactIdentity).toContain('min-width: 0;');
   });
 
-  it('gives Farcaster auth one opaque full-screen scroll owner without nested panel scroll', () => {
+  it('gives Farcaster auth one full-screen glass scroll owner without nested panel scroll', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
       'utf8'
@@ -93,6 +100,7 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(authRail).toContain('overflow-y: auto;');
     expect(authRail).toContain('overscroll-behavior: contain;');
     expect(authRail).toContain('linear-gradient(180deg, #0d0912 0%, #08070c 100%);');
+    expect(css).toContain('background: rgba(9, 17, 22, 0.68);');
     expect(authPanel).toContain('max-height: none;');
     expect(authPanel).toContain('overflow: visible;');
     expect(authActions).toContain('position: sticky;');
@@ -189,22 +197,16 @@ describe('Warpkeep main-menu responsive layout', () => {
     );
   });
 
-  it('compacts the return control before it can overlap the patch disclosure on narrow phones', () => {
+  it('keeps the portrait command plaque clear of the patch disclosure', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
       'utf8'
     );
-    const narrowPortrait = readCssBlock(
-      css,
-      '@media (max-width: 430px) and (orientation: portrait)'
-    );
-
-    expect(narrowPortrait).toMatch(
-      /.warpkeep-menu \.warpkeep-menu-back\s*\{[^}]*width:\s*2\.75rem;/s
-    );
-    expect(narrowPortrait).toMatch(
-      /\.warpkeep-menu-back__label\s*\{[^}]*display:\s*none;/s
-    );
+    const verdant = css.slice(css.indexOf('/* Clear glass leaves'));
+    const portrait = readCssBlock(verdant, '@media (orientation: portrait)');
+    expect(portrait).toMatch(/\.warpkeep-menu-waystone\s*\{[^}]*bottom:\s*max\(4\.2rem,/s);
+    expect(portrait).toMatch(/\.warpkeep-menu-nav\s*\{[^}]*bottom:\s*max\(5\.05rem,/s);
+    expect(portrait).toMatch(/\.warpkeep-menu \.warpkeep-menu-command\s*\{[^}]*min-height:\s*2\.75rem;/s);
   });
 
   it('stacks all realm choices and keeps tooltips bounded on narrow phones', () => {
@@ -245,15 +247,13 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(admission).toContain('align-items: center;');
   });
 
-  it('frees vertical space at 568x320 without hiding the project link', () => {
+  it('frees vertical space at 568x320 without hiding the project links', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
       'utf8'
     );
-    const shortLandscape = readCssBlock(
-      css,
-      '@media (max-height: 360px) and (orientation: landscape)'
-    );
+    const verdant = css.slice(css.indexOf('/* Clear glass leaves'));
+    const shortLandscape = readCssBlock(verdant, '@media (max-height: 360px) and (orientation: landscape)');
 
     expect(shortLandscape).toMatch(
       /\.warpkeep-menu-heading__crest,\s*\.warpkeep-menu-heading__rule\s*\{[^}]*display:\s*none;/s
@@ -264,18 +264,7 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(shortLandscape).not.toMatch(
       /\.warpkeep-menu-project(?:__[-\w]+)?\s*\{[^}]*(?:display:\s*none|visibility:\s*hidden);/s
     );
-    expect(shortLandscape).toMatch(
-      /\.warpkeep-menu \.warpkeep-menu-back\s*\{[^}]*width:\s*2\.75rem;/s
-    );
-    expect(shortLandscape).toMatch(
-      /\.warpkeep-menu-back__label\s*\{[^}]*display:\s*none;/s
-    );
-
-    const measuredHeadingBottom = 100.375;
-    const measuredNavigationTop = 90.547;
-    const hiddenRuleHeight = (0.3 + 0.64) * 16;
-    const resultingGap = measuredNavigationTop + hiddenRuleHeight - measuredHeadingBottom;
-
-    expect(resultingGap).toBeGreaterThanOrEqual(4);
+    expect(shortLandscape).toMatch(/\.warpkeep-menu-command-list\s*\{[^}]*gap:\s*0;/s);
+    expect(shortLandscape).toMatch(/\.warpkeep-menu-project\s*\{[^}]*margin-top:\s*0\.12rem;/s);
   });
 });

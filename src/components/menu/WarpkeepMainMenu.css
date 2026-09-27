@@ -25,8 +25,6 @@
   pointer-events: auto;
 }
 
-.warpkeep-menu-poster-fallback,
-.warpkeep-menu-background,
 .warpkeep-menu-color-grade,
 .warpkeep-menu-vignette {
   position: absolute;
@@ -34,32 +32,6 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
-}
-
-.warpkeep-menu-poster-fallback {
-  z-index: -5;
-  background-color: #171019;
-  background-position: center center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  filter: saturate(0.98);
-  transform: scale(1.003);
-}
-
-.warpkeep-menu-background {
-  z-index: -4;
-  display: block;
-  border: 0;
-  object-fit: cover;
-  object-position: center center;
-  opacity: 0;
-  filter: saturate(0.98);
-  transform: scale(1.003);
-  transition: opacity 700ms ease;
-}
-
-.warpkeep-menu--video-ready:not(.warpkeep-menu--reduced-motion) .warpkeep-menu-background {
-  opacity: 1;
 }
 
 .warpkeep-menu-color-grade {
@@ -139,8 +111,8 @@
   background: linear-gradient(90deg, currentColor, transparent);
 }
 
-.warpkeep-menu-heading__crest i,
-.warpkeep-menu-heading__rule i {
+.warpkeep-menu-heading__crest > i,
+.warpkeep-menu-heading__rule > i {
   display: block;
   position: relative;
   width: 0.64rem;
@@ -154,13 +126,13 @@
   margin-bottom: clamp(0.3rem, 0.8vh, 0.7rem);
 }
 
-.warpkeep-menu-heading__crest i {
+.warpkeep-menu-heading__crest > i {
   width: clamp(1rem, 1.5vw, 1.45rem);
   height: clamp(1rem, 1.5vw, 1.45rem);
   border-width: 0 2px 2px 0;
 }
 
-.warpkeep-menu-heading__crest i::after {
+.warpkeep-menu-heading__crest > i::after {
   content: "";
   position: absolute;
   inset: 26%;
@@ -903,12 +875,6 @@ a.warpkeep-menu-build-stamp__build:focus-visible {
 }
 
 @media (orientation: portrait) {
-  .warpkeep-menu-poster-fallback,
-  .warpkeep-menu-background {
-    background-position: 50% center;
-    object-position: 50% center;
-  }
-
   .warpkeep-menu-color-grade {
     background:
       linear-gradient(180deg, rgba(8, 5, 10, 0.18) 0%, transparent 23%, rgba(7, 4, 9, 0.2) 55%, rgba(7, 4, 9, 0.68) 100%),
@@ -1065,10 +1031,6 @@ a.warpkeep-menu-build-stamp__build:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .warpkeep-menu-background {
-    display: none;
-  }
-
   .warpkeep-menu-heading,
   .warpkeep-menu-nav,
   .warpkeep-menu-auth-rail,
@@ -1088,5 +1050,452 @@ a.warpkeep-menu-build-stamp__build:focus-visible {
 
   .warpkeep-menu-command__busy-indicator {
     animation: none;
+  }
+}
+
+/* Clear glass leaves the 3D world visible behind the controls. */
+.warpkeep-menu {
+  --warpkeep-menu-gold-bright: #fff0cc;
+  --warpkeep-menu-gold: #e5ba66;
+  --warpkeep-menu-gold-muted: #a48051;
+  --warpkeep-menu-violet: #b69cc5;
+  --warpkeep-menu-shadow: #182127;
+  --warpkeep-menu-rail-width: clamp(20rem, 31vw, 28rem);
+  --warpkeep-menu-rail-half-width: clamp(10rem, 15.5vw, 14rem);
+  --warpkeep-menu-rail-right: max(4.5vw, calc(env(safe-area-inset-right) + 1.25rem));
+  --warpkeep-menu-panel-offset: max(2rem, calc(50svh - 21rem));
+  color: #fff0cc;
+  background: transparent;
+}
+
+.warpkeep-menu-color-grade {
+  background: linear-gradient(90deg, transparent 0 50%, rgba(7, 16, 22, 0.08) 100%);
+  mix-blend-mode: normal;
+}
+
+.warpkeep-menu-vignette {
+  background: linear-gradient(180deg, rgba(7, 14, 20, 0.11), transparent 24% 73%, rgba(7, 14, 20, 0.13));
+}
+
+.warpkeep-menu-waystone {
+  position: absolute;
+  z-index: 1;
+  top: var(--warpkeep-menu-panel-offset);
+  right: calc(var(--warpkeep-menu-rail-right) - 1rem);
+  bottom: var(--warpkeep-menu-panel-offset);
+  width: calc(var(--warpkeep-menu-rail-width) + 2rem);
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0.4rem;
+  background:
+    linear-gradient(125deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.055) 34%, rgba(255, 255, 255, 0.085) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 0 0 5px rgba(255, 255, 255, 0.04),
+    0 1.4rem 4rem rgba(7, 14, 21, 0.21);
+  pointer-events: none;
+}
+
+.warpkeep-menu-waystone::before {
+  position: absolute;
+  inset: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.12rem;
+  content: "";
+}
+
+.warpkeep-menu-waystone::after {
+  position: absolute;
+  top: 1.05rem;
+  right: 1.05rem;
+  bottom: 1.05rem;
+  left: 1.05rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 0.08rem;
+  content: "";
+}
+
+.warpkeep-menu-heading {
+  top: calc(var(--warpkeep-menu-panel-offset) + 2.3rem);
+  right: calc(var(--warpkeep-menu-rail-right) + 0.1rem);
+  width: calc(var(--warpkeep-menu-rail-width) - 0.2rem);
+  transform: translateY(-0.5rem);
+  transition: opacity 680ms 100ms ease, transform 850ms 80ms ease;
+}
+
+.warpkeep-menu--visible .warpkeep-menu-heading {
+  transform: none;
+}
+
+.warpkeep-menu-heading__crest,
+.warpkeep-menu-heading__rule {
+  width: 78%;
+  color: #edc37c;
+  opacity: 0.82;
+}
+
+.warpkeep-menu-heading__crest {
+  margin-bottom: 0.75rem;
+}
+
+.warpkeep-menu-heading__emblem {
+  display: block;
+  width: clamp(5rem, 6.6vw, 6rem);
+  height: clamp(5rem, 6.6vw, 6rem);
+  object-fit: contain;
+  filter: drop-shadow(0 0 0.7rem rgba(240, 191, 94, 0.25));
+}
+
+.warpkeep-menu-eyebrow {
+  margin: 0 0 0.68rem;
+  color: #e2bf87;
+  font: 700 clamp(0.58rem, 0.78vw, 0.7rem)/1.3 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.24em;
+}
+
+.warpkeep-menu .warpkeep-menu-title {
+  color: #fff0d7;
+  font-size: clamp(3.15rem, 4.3vw, 4.8rem);
+  letter-spacing: 0.09em;
+  background: none;
+  filter: drop-shadow(0 2px 3px rgba(20, 7, 27, 0.72));
+  -webkit-text-fill-color: currentColor;
+}
+
+.warpkeep-menu-heading__rule {
+  margin-top: 0.65rem;
+}
+
+.warpkeep-menu .warpkeep-menu-tagline {
+  max-width: 22rem;
+  margin: 0.95rem auto 0;
+  color: #e8d5b4;
+  font: 500 clamp(0.68rem, 0.84vw, 0.78rem)/1.5 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 3px rgba(20, 7, 27, 0.7);
+}
+
+.warpkeep-menu-nav {
+  top: auto;
+  right: var(--warpkeep-menu-rail-right);
+  bottom: calc(var(--warpkeep-menu-panel-offset) + 2.15rem);
+  width: var(--warpkeep-menu-rail-width);
+  transform: translateY(0.5rem);
+  transition: opacity 620ms 240ms ease, transform 800ms 220ms ease;
+}
+
+.warpkeep-menu-nav::before {
+  background: none;
+}
+
+.warpkeep-menu--visible .warpkeep-menu-nav {
+  transform: none;
+}
+
+.warpkeep-menu-command-list {
+  gap: 0.4rem;
+}
+
+.warpkeep-menu .warpkeep-menu-command {
+  min-height: 3.25rem;
+  padding: 0.65rem 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  border-radius: 0.2rem;
+  color: #f6e8d4;
+  background: rgba(255, 255, 255, 0.055);
+  font-size: clamp(0.93rem, 1.2vw, 1.16rem);
+  letter-spacing: 0.12em;
+  text-shadow: 0 1px 2px rgba(18, 7, 27, 0.85);
+  transition: border-color 190ms ease, color 190ms ease, background-color 190ms ease;
+}
+
+.warpkeep-menu .warpkeep-menu-command::before {
+  right: 17%;
+  left: 17%;
+  background: rgba(217, 201, 157, 0.22);
+}
+
+.warpkeep-menu .warpkeep-menu-command[data-prominent="true"] {
+  border-color: rgba(205, 187, 145, 0.68);
+  color: #f7edcd;
+  background: linear-gradient(105deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.045));
+  font-size: clamp(1rem, 1.32vw, 1.28rem);
+}
+
+.warpkeep-menu .warpkeep-menu-command:hover:not(:disabled),
+.warpkeep-menu .warpkeep-menu-command:focus-visible {
+  border-color: rgba(234, 217, 171, 0.72);
+  color: #fff6da;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.warpkeep-menu .warpkeep-menu-command:focus-visible {
+  outline: 2px solid #f2dcab;
+  outline-offset: 2px;
+}
+
+.warpkeep-menu-project {
+  margin-top: 0.75rem;
+  padding-top: 0.55rem;
+  border-top-color: rgba(255, 255, 255, 0.23);
+}
+
+.warpkeep-menu .warpkeep-menu-project__heading {
+  color: #f0e4d7;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.warpkeep-menu-project__link {
+  color: #fff0d2;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  text-shadow: none;
+}
+
+.warpkeep-menu-project__external-mark {
+  color: #bba4cc;
+}
+
+.warpkeep-menu-auth-rail {
+  background: rgba(9, 17, 22, 0.76);
+}
+
+@media (max-height: 650px) and (orientation: landscape) {
+  .warpkeep-menu {
+    --warpkeep-menu-panel-offset: max(0.35rem, calc(env(safe-area-inset-top) + 0.2rem));
+  }
+
+  .warpkeep-menu-heading {
+    top: max(0.45rem, calc(env(safe-area-inset-top) + 0.3rem));
+  }
+
+  .warpkeep-menu-heading__crest {
+    margin-bottom: 0.18rem;
+  }
+
+  .warpkeep-menu-eyebrow {
+    margin-bottom: 0.18rem;
+    font-size: 0.53rem;
+  }
+
+  .warpkeep-menu .warpkeep-menu-title {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+  }
+
+  .warpkeep-menu .warpkeep-menu-tagline {
+    margin-top: 0.36rem;
+    font-size: 0.6rem;
+  }
+
+  .warpkeep-menu-nav {
+    bottom: max(0.55rem, calc(env(safe-area-inset-bottom) + 0.35rem));
+  }
+
+  .warpkeep-menu .warpkeep-menu-command {
+    min-height: 2.75rem;
+    padding-block: 0.3rem;
+  }
+}
+
+@media (max-height: 360px) and (orientation: landscape) {
+  .warpkeep-menu .warpkeep-menu-title {
+    font-size: clamp(1.8rem, 4.4vw, 2.65rem);
+  }
+
+  .warpkeep-menu .warpkeep-menu-tagline {
+    margin-top: 0.22rem;
+  }
+
+  .warpkeep-menu-heading__crest,
+  .warpkeep-menu-heading__rule {
+    display: none;
+  }
+
+  .warpkeep-menu-command-list {
+    gap: 0;
+  }
+
+  .warpkeep-menu-project {
+    margin-top: 0.12rem;
+    padding-top: 0.16rem;
+  }
+}
+
+@media (orientation: portrait) {
+  .warpkeep-menu {
+    --warpkeep-menu-rail-width: calc(100vw - 2.4rem);
+    --warpkeep-menu-rail-half-width: calc(50vw - 1.2rem);
+    --warpkeep-menu-rail-right: 1.2rem;
+  }
+
+  .warpkeep-menu-color-grade {
+    background: linear-gradient(180deg, rgba(8, 16, 22, 0.09), transparent 30% 54%, rgba(8, 16, 22, 0.17));
+  }
+
+  .warpkeep-menu-vignette {
+    background: linear-gradient(180deg, rgba(8, 16, 22, 0.09), transparent 42%, rgba(8, 16, 22, 0.20));
+  }
+
+  .warpkeep-menu-waystone {
+    top: auto;
+    right: max(0.8rem, calc(env(safe-area-inset-right) + 0.55rem));
+    bottom: max(4.2rem, calc(env(safe-area-inset-bottom) + 3.75rem));
+    left: max(0.8rem, calc(env(safe-area-inset-left) + 0.55rem));
+    width: auto;
+    height: clamp(16rem, 35svh, 21rem);
+  }
+
+  .warpkeep-menu-heading {
+    top: max(7vh, calc(env(safe-area-inset-top) + 3.2rem));
+    right: max(1rem, calc(env(safe-area-inset-right) + 0.65rem));
+    left: max(1rem, calc(env(safe-area-inset-left) + 0.65rem));
+    width: auto;
+    text-shadow: 0 2px 0.6rem rgba(8, 16, 22, 0.82);
+  }
+
+  .warpkeep-menu-heading__crest {
+    margin-bottom: 0.3rem;
+  }
+
+  .warpkeep-menu-eyebrow {
+    margin-bottom: 0.42rem;
+  }
+
+  .warpkeep-menu .warpkeep-menu-title {
+    font-size: clamp(2.45rem, 12vw, 4.5rem);
+  }
+
+  .warpkeep-menu .warpkeep-menu-tagline {
+    margin-top: 0.55rem;
+    font-size: clamp(0.75rem, 2.1vw, 0.84rem);
+    text-shadow: 0 1px 0.4rem rgba(8, 16, 22, 0.85);
+  }
+
+  .warpkeep-menu-nav {
+    right: max(1.4rem, calc(env(safe-area-inset-right) + 1.05rem));
+    bottom: max(5.05rem, calc(env(safe-area-inset-bottom) + 4.6rem));
+    left: max(1.4rem, calc(env(safe-area-inset-left) + 1.05rem));
+    width: auto;
+  }
+
+  .warpkeep-menu .warpkeep-menu-command {
+    min-height: 2.75rem;
+    padding-block: 0.35rem;
+  }
+
+  .warpkeep-menu-project {
+    margin-top: 0.35rem;
+    padding-top: 0.32rem;
+  }
+}
+
+@media (max-width: 430px) and (max-height: 740px) and (orientation: portrait) {
+  .warpkeep-menu-waystone {
+    height: 15.25rem;
+  }
+
+  .warpkeep-menu-heading__crest {
+    display: none;
+  }
+
+  .warpkeep-menu-heading__rule {
+    margin-top: 0.25rem;
+  }
+
+  .warpkeep-menu-nav {
+    bottom: max(4.7rem, calc(env(safe-area-inset-bottom) + 4.25rem));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .warpkeep-menu-waystone {
+    transition: none;
+  }
+}
+
+/* Keep sign-in on neutral glass over the same live scene. */
+.warpkeep-menu-auth-rail,
+.warpkeep-menu-realm-rail {
+  background: rgba(9, 17, 22, 0.68);
+  backdrop-filter: blur(12px) saturate(1.18);
+  -webkit-backdrop-filter: blur(12px) saturate(1.18);
+  scrollbar-color: #9aabac #1a2429;
+  scrollbar-width: thin;
+}
+
+.warpkeep-menu-auth-rail > .farcaster-auth-panel {
+  --farcaster-auth-gold-bright: #fff0d2;
+  --farcaster-auth-gold: #e3b567;
+  --farcaster-auth-gold-muted: #ab8054;
+  --farcaster-auth-violet: #bdacca;
+  border-color: rgba(237, 189, 110, 0.57);
+  color: #f6e9d9;
+  background: linear-gradient(155deg, rgba(42, 50, 54, 0.84), rgba(18, 27, 32, 0.90));
+}
+
+.warpkeep-menu-auth-rail .farcaster-auth-panel__eyebrow,
+.warpkeep-menu-auth-rail .farcaster-auth-panel__instruction,
+.warpkeep-menu-auth-rail .farcaster-auth-panel__live-region {
+  color: #e1dfd7;
+}
+
+.warpkeep-menu-auth-rail .farcaster-auth-panel__actions {
+  background: linear-gradient(180deg, transparent, #1b272d 0.55rem);
+}
+
+.warpkeep-menu-auth-rail .farcaster-auth-panel__action {
+  border-color: rgba(204, 193, 157, 0.54);
+  color: #f2e5d2;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.warpkeep-menu-auth-rail .farcaster-auth-panel__action--primary {
+  color: #29172f;
+  background: linear-gradient(180deg, #ffe4aa, #dcaa62);
+}
+
+/* The 0.4 menu is a HUD over a real-time world, never a painted backdrop. */
+.warpkeep-menu {
+  background: transparent;
+}
+
+.warpkeep-menu-scene {
+  position: absolute;
+  inset: 0;
+  z-index: -5;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.warpkeep-menu-scene > * {
+  width: 100%;
+  height: 100%;
+}
+
+.warpkeep-menu-color-grade {
+  background: linear-gradient(90deg, transparent 0 42%, rgba(8, 16, 22, 0.09) 100%);
+}
+
+.warpkeep-menu-vignette {
+  background: linear-gradient(180deg, rgba(8, 16, 22, 0.08), transparent 26% 72%, rgba(8, 16, 22, 0.12));
+}
+
+.warpkeep-menu-waystone {
+  background: linear-gradient(125deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.02) 36%, rgba(255, 255, 255, 0.04));
+  backdrop-filter: blur(5px) saturate(0.62) brightness(0.73);
+  -webkit-backdrop-filter: blur(5px) saturate(0.62) brightness(0.73);
+}
+
+@media (orientation: portrait) {
+  .warpkeep-menu-color-grade {
+    background: linear-gradient(180deg, rgba(8, 16, 22, 0.11), transparent 28% 54%, rgba(8, 16, 22, 0.19));
+  }
+
+  .warpkeep-menu-waystone {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.025));
+  }
+
+  .warpkeep-menu-heading__emblem {
+    width: 4.4rem;
+    height: 4.4rem;
   }
 }
