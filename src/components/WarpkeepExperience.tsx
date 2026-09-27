@@ -1186,11 +1186,11 @@ export function WarpkeepExperience() {
             <WarpkeepMainMenu
               key={menuRouteGeneration}
               active={menuMounted}
-              scene={
+              scene={(animationActive) => (
                 <Suspense fallback={null}>
                   <WarpkeepMenuWorld3D
                     key={menuWarpletSelection.sceneKey}
-                    active={presentedScreen === 'menu' && menuMounted}
+                    active={animationActive && presentedScreen === 'menu'}
                     reducedMotion={reducedMotion}
                     quality={resolvedGraphicsQuality}
                     guardianUrl={menuWarpletSelection.kind === 'unassigned'
@@ -1198,7 +1198,7 @@ export function WarpkeepExperience() {
                       : menuWarpletSelection.guardianUrl}
                   />
                 </Suspense>
-              }
+              )}
               authState={farcasterAuthState}
               visible={presentedScreen === 'menu'}
               interactive={menuInteractive}

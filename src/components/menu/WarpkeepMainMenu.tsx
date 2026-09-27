@@ -67,8 +67,8 @@ export type WarpkeepMainMenuProps = {
   active: boolean;
   visible?: boolean;
   interactive?: boolean;
-  /** Live scene mounted under the menu controls. */
-  scene?: ReactNode;
+  /** Live scene mounted under the menu controls. The render form can pause animation behind full-screen rails. */
+  scene?: ReactNode | ((animationActive: boolean) => ReactNode);
   /** Legacy callback retained while the 0.4 experience moves to direct-menu entry. */
   onRequestReturn?: () => void;
   /** When supplied, ENTER REALM opens the live realm foundation instead of its legacy notice. */
@@ -328,6 +328,8 @@ export function WarpkeepMainMenu({
     || (ptrRealmBusy && selectedRealmId === PTR_ID);
   const patchNotesOpen = patchNotesState !== 'closed';
   const modalSurfaceOpen = termsOpen || surface === 'settings' || surface === 'credits';
+  const sceneAnimationActive = active && visible && interactive
+    && surface === 'commands' && !termsOpen;
   const authenticatedIdentity = authState.phase === 'authenticated'
     ? authState.identity
     : undefined;
@@ -1308,7 +1310,11 @@ export function WarpkeepMainMenu({
         lastActionModalityRef.current = event.pointerType === 'touch' ? 'touch' : 'pointer';
       }}
     >
-      {scene ? <div aria-hidden="true" className="warpkeep-menu-scene" inert>{scene}</div> : null}
+      {scene ? (
+        <div aria-hidden="true" className="warpkeep-menu-scene" inert>
+          {typeof scene === 'function' ? scene(sceneAnimationActive) : scene}
+        </div>
+      ) : null}
       <div aria-hidden="true" className="warpkeep-menu-color-grade" />
       <div aria-hidden="true" className="warpkeep-menu-vignette" />
       {commandSurfaceVisible ? (

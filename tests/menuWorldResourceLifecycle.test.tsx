@@ -236,6 +236,46 @@ describe('menu 3D lifecycle', () => {
     expect(request).toHaveBeenCalledTimes(afterUnmount);
   });
 
+  it('cancels animation behind a menu overlay, keeps its still and WebGL context, then resumes', () => {
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    const view = render(<WarpkeepMenuWorld3D active reducedMotion={false} guardianUrl={null} />);
+    const request = vi.mocked(requestAnimationFrame);
+    const cancel = vi.mocked(cancelAnimationFrame);
+    const renderer = harness.renderers[0];
+    const canvas = renderer.domElement;
+    const scheduled = request.mock.calls.length;
+    expect(scheduled).toBeGreaterThan(0);
+    const pendingFrame = request.mock.calls.at(-1)?.[0];
+    expect(pendingFrame).toBeTypeOf('function');
+    const rendersBeforePause = renderer.render.mock.calls.length;
+
+    view.rerender(<WarpkeepMenuWorld3D active={false} reducedMotion={false} guardianUrl={null} />);
+    expect(cancel).toHaveBeenCalledWith(scheduled);
+    expect(request).toHaveBeenCalledTimes(scheduled);
+    expect(renderer.render).toHaveBeenCalledTimes(rendersBeforePause + 1);
+    act(() => pendingFrame!(1000));
+    expect(request).toHaveBeenCalledTimes(scheduled);
+    expect(renderer.render).toHaveBeenCalledTimes(rendersBeforePause + 1);
+    expect(renderer.dispose).not.toHaveBeenCalled();
+    expect(renderer.forceContextLoss).not.toHaveBeenCalled();
+    expect(renderer.domElement).toBe(canvas);
+    expect(canvas.isConnected).toBe(true);
+    expect(harness.renderers).toHaveLength(1);
+
+    view.rerender(<WarpkeepMenuWorld3D active reducedMotion={false} guardianUrl={null} />);
+    expect(request).toHaveBeenCalledTimes(scheduled + 1);
+    const resumedFrame = request.mock.calls.at(-1)?.[0];
+    expect(resumedFrame).toBeTypeOf('function');
+    act(() => resumedFrame!(1200));
+    expect(renderer.render).toHaveBeenCalledTimes(rendersBeforePause + 2);
+    expect(request).toHaveBeenCalledTimes(scheduled + 2);
+    expect(harness.renderers).toHaveLength(1);
+    expect(canvas.isConnected).toBe(true);
+    view.unmount();
+    expect(renderer.dispose).toHaveBeenCalledOnce();
+    expect(renderer.forceContextLoss).toHaveBeenCalledOnce();
+  });
+
   it('pauses on WebGL context loss and redraws only after restoration', async () => {
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
     const view = render(<WarpkeepMenuWorld3D active reducedMotion={false} guardianUrl={null} />);

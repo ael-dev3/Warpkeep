@@ -167,6 +167,59 @@ describe('WarpkeepMainMenu', () => {
     expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
   });
 
+  it('keeps one scene mounted while full-screen rails pause it and small patch notes leave it active', async () => {
+    const scene = vi.fn((animationActive: boolean) => (
+      <div data-testid="menu-world" data-animation-active={String(animationActive)} />
+    ));
+    render(
+      <WarpkeepMainMenu
+        active
+        onRequestFarcasterSignIn={vi.fn()}
+        onCancelFarcasterSignIn={vi.fn()}
+        onRetryFarcasterSignIn={vi.fn()}
+        onRequestAuthenticatedRealm={vi.fn()}
+        onSignOut={vi.fn()}
+        scene={scene}
+      />
+    );
+    const world = screen.getByTestId('menu-world');
+    const expectSceneActivity = (active: boolean) => {
+      expect(screen.getByTestId('menu-world')).toBe(world);
+      expect(world.getAttribute('data-animation-active')).toBe(String(active));
+      expect(scene).toHaveBeenLastCalledWith(active);
+    };
+    expectSceneActivity(true);
+
+    const patchNotes = getPatchNotesTrigger();
+    fireEvent.click(patchNotes);
+    expectSceneActivity(true);
+    fireEvent.click(patchNotes);
+
+    fireEvent.click(screen.getByRole('button', { name: 'SETTINGS' }));
+    expectSceneActivity(false);
+    fireEvent.click(screen.getByRole('button', { name: 'BACK TO THE MENU' }));
+    expectSceneActivity(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'CREDITS' }));
+    expectSceneActivity(false);
+    fireEvent.click(screen.getByRole('button', { name: /Back to Main Menu/i }));
+    expectSceneActivity(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
+    expectSceneActivity(false);
+    fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
+    expectSceneActivity(false);
+    const terms = screen.getByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' });
+    fireEvent.click(within(terms).getByRole('checkbox', {
+      name: 'I agree to the Alpha Terms and Hegemony Social Contract.'
+    }));
+    fireEvent.click(within(terms).getByRole('button', { name: 'CONTINUE TO SIGN-IN' }));
+    await screen.findByRole('region', { name: 'Farcaster sign-in' });
+    expectSceneActivity(false);
+    fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }));
+    expectSceneActivity(true);
+  });
+
   it('supports wrapping arrows and Home/End while leaving Tab to the browser', () => {
     render(
       <WarpkeepMainMenu
