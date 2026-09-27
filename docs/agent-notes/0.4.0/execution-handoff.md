@@ -5,14 +5,33 @@
 The pre-0.4 Alpha 0.3.43 site is restored at
 [`warpkeep.com`](https://warpkeep.com/) through the public, generated-assets-only
 [`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live) repository. Its
-latest signed public head `616eebfc` passed
-[Pages build 36312578563](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36312578563),
-and the live HTML hash matches the last successful old deployment.
+latest signed public head [`e837b8c`](https://github.com/ael-dev3/Warpkeep-Live/commit/e837b8c882306d3eaaae4879ef909f6514e2404d)
+passed [Pages build 36324195528](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36324195528).
+The live HTML and sampled sign-in assets match that exact published build.
+This backports the bounded client clock-lag repair from signed source
+[`d1cc6a9`](https://github.com/ael-dev3/Warpkeep/commit/d1cc6a9f04673e40b98982fae205416644db1181)
+after a real QR attempt failed; phone-approved end-to-end retest is pending.
 The [hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
 has the exact source, verification and recovery path. This brings the existing
 site online; 0.4 PTR remains unshipped and needs its own reviewed release path.
 
-The latest signed source/closure checkpoint on PR #374 is
+The active 0.4 development branch separately contains the same clock-lag fix
+at signed, remote-equal [`2709fb72`](https://github.com/ael-dev3/Warpkeep/commit/2709fb72a51932dca126f97381ccf634d9c15ca0).
+Its later source changes are not yet part of a refreshed protected closure or
+hosted Verify. Do not confuse the Alpha hotfix build with a 0.4 candidate.
+
+The latest signed protected source/closure checkpoint on PR #374 is
+[`46b4c3b7`](https://github.com/ael-dev3/Warpkeep/commit/46b4c3b7c969460ad6f231d53d311c7ac9eb9e56),
+refrozen from signed source
+[`aaa128bb`](https://github.com/ael-dev3/Warpkeep/commit/aaa128bb41a1fda853a9d5c11983c06dfbac83ca)
+for the public-mirror-candidate lane. Its
+[Verify 36319626894](https://github.com/ael-dev3/Warpkeep/actions/runs/36319626894)
+failed; the final 0.4 branch head still needs a refreshed closure and successful
+hosted Verify before protected-main promotion. The later public Pages postflight,
+first-session Keep cue, publication operator and QR clock-lag fix are source-only
+on this branch.
+
+An earlier signed source/closure checkpoint on PR #374 is
 [`89a29c01`](https://github.com/ael-dev3/Warpkeep/commit/89a29c01e597c5fb677611b9dfe047715cb4eb73),
 from signed source [`a82cb0c9`](https://github.com/ael-dev3/Warpkeep/commit/a82cb0c9408f768516eada7b8eb22db219bd2793).
 World initial/refresh reads now expose Retry after a bounded 30-second stall;
@@ -37,8 +56,8 @@ inputs, canonical/auth configuration, admission suspension and generated public
 payload. It requires shared Alpha access for owner sign-in. It neither uploads
 nor deploys Pages and does not change `Warpkeep-Live`; signed publication,
 live-byte postflight and owner PTR remain separate release work. This lane is
-source-level preparation until its protected closure is refreshed and the final
-head passes hosted Verify.
+source-level preparation: its closure was refreshed at `46b4c3b7`, but the
+later source changes still need a new refreeze and final-head hosted Verify.
 [Verify 36318043715](https://github.com/ael-dev3/Warpkeep/actions/runs/36318043715)
 on that closure head rejected all 17 jobs before runner start. GitHub's billing
 page shows the Actions budget at $0 with stop usage enabled and says a valid
