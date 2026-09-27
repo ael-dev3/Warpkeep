@@ -15,8 +15,21 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, posix, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { SyntaxKind } from 'typescript/unstable/ast';
+import {
+  isArrayLiteralExpression,
+  isCallExpression,
+  isExportDeclaration,
+  isIdentifier,
+  isImportDeclaration,
+  isNoSubstitutionTemplateLiteral,
+  isNumericLiteral,
+  isStringLiteral,
+} from 'typescript/unstable/ast/is';
+import { createVirtualFileSystem } from 'typescript/unstable/fs';
+import { API as TypeScriptAPI } from 'typescript/unstable/sync';
 
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { verifyProductionDistExclusions } from './verify-production-dist-exclusions.mjs';
@@ -128,6 +141,110 @@ function sameDirectoryIdentity(before, after) {
     .every(key => before[key] === after[key]);
 }
 
+function javascriptDependencies(path, source, sourceFile) {
+  const dependencies = new Set();
+  const mapSource = source.match(/m\.f=\[([^\]]{0,16384})\]/u)?.[1];
+  let viteDependencies;
+  if (mapSource !== undefined) {
+    try {
+      viteDependencies = JSON.parse(`[${mapSource}]`);
+    } catch {
+      fail('PUBLIC_PAGES_PAYLOAD_SCRIPT_GRAPH_INVALID');
+    }
+    if (
+      !Array.isArray(viteDependencies)
+      || viteDependencies.length > 512
+      || viteDependencies.some(value => (
+        typeof value !== 'string'
+        || !/^assets\/[A-Za-z0-9._-]+\.(?:css|js)$/u.test(value)
+      ))
+    ) fail('PUBLIC_PAGES_PAYLOAD_SCRIPT_GRAPH_INVALID');
+  }
+  function addRelative(specifier) {
+    if (!/^\.{1,2}\/[A-Za-z0-9._/-]+\.js$/u.test(specifier)) {
+      fail('PUBLIC_PAGES_PAYLOAD_SCRIPT_GRAPH_INVALID');
+    }
+    const target = posix.normalize(posix.join(posix.dirname(path), specifier));
+    if (!/^assets\/[A-Za-z0-9._-]+\.js$/u.test(target)) {
+      fail('PUBLIC_PAGES_PAYLOAD_SCRIPT_GRAPH_INVALID');
+    }
+    dependencies.add(target);
+  }
+  const visit = node => {
+    if (
+      (isImportDeclaration(node) || isExportDeclaration(node))
+      && node.moduleSpecifier !== undefined
+      && isStringLiteral(node.moduleSpecifier)
+      && node.moduleSpecifier.text.startsWith('.')
+    ) addRelative(node.moduleSpecifier.text);
+    if (isCallExpression(node)) {
+      if (node.expression.kind === SyntaxKind.ImportKeyword) {
+        const specifier = node.arguments[0];
+        if (
+          specifier
+          && (isStringLiteral(specifier) || isNoSubstitutionTemplateLiteral(specifier))
+          && specifier.text.startsWith('.')
+        ) addRelative(specifier.text);
+      } else if (
+        isIdentifier(node.expression)
+        && node.expression.text === '__vite__mapDeps'
+      ) {
+        if (!viteDependencies || !isArrayLiteralExpression(node.arguments[0])) {
+          fail('PUBLIC_PAGES_PAYLOAD_SCRIPT_GRAPH_INVALID');
+        }
+        for (const index of node.arguments[0].elements) {
+          if (!isNumericLiteral(index) || !/^\d+$/u.test(index.text)) {
+            fail('PUBLIC_PAGES_PAYLOAD_SCRIPT_GRAPH_INVALID');
+          }
+          const target = viteDependencies[Number(index.text)];
+          if (target === undefined) fail('PUBLIC_PAGES_PAYLOAD_SCRIPT_GRAPH_INVALID');
+          dependencies.add(target);
+        }
+      }
+    }
+    node.forEachChild(visit);
+  };
+  sourceFile.forEachChild(visit);
+  return dependencies;
+}
+
+function createJavascriptParser() {
+  const virtualFs = createVirtualFileSystem({});
+  const api = new TypeScriptAPI({ cwd: '/warpkeep-public-pages-payload', fs: virtualFs });
+  let previousFile;
+  return Object.freeze({
+    dependencies(path, source) {
+      const fileName = `/warpkeep-public-pages-payload/${path}`;
+      const previousFiles = previousFile === undefined ? [] : [previousFile];
+      let snapshot;
+      try {
+        for (const previous of previousFiles) virtualFs.removeFile(previous);
+        virtualFs.writeFile(fileName, source);
+        snapshot = api.updateSnapshot({
+          openFiles: [fileName],
+          closeFiles: previousFiles,
+          fileChanges: { created: [fileName], deleted: previousFiles },
+        });
+        previousFile = fileName;
+        const project = snapshot.getDefaultProjectForFile(fileName);
+        const sourceFile = project?.program.getSourceFile(fileName);
+        if (
+          !sourceFile
+          || sourceFile.text !== source
+          || project.program.getSyntacticDiagnostics(fileName).length > 0
+        ) fail('PUBLIC_PAGES_PAYLOAD_SCRIPT_GRAPH_INVALID');
+        return javascriptDependencies(path, source, sourceFile);
+      } catch (error) {
+        if (error instanceof PublicPagesPayloadError) throw error;
+        fail('PUBLIC_PAGES_PAYLOAD_SCRIPT_GRAPH_INVALID');
+      } finally {
+        snapshot?.dispose();
+      }
+    },
+    close() { api.close(); },
+  });
+}
+
 function inspectDist(distRoot, expectedSourceCommit) {
   const rootStatus = lstatSync(distRoot, { bigint: true });
   if (
@@ -141,6 +258,8 @@ function inspectDist(distRoot, expectedSourceCommit) {
   const knownCasefoldPaths = new Set();
   const directories = [];
   const shaBearingScripts = new Set();
+  const scriptGraph = new Map();
+  const javascriptParser = createJavascriptParser();
   let indexHtml;
   let totalByteLength = 0;
 
@@ -185,11 +304,11 @@ function inspectDist(distRoot, expectedSourceCommit) {
           sha256: sha256(opened.body),
         }));
         if (path === 'index.html') indexHtml = opened.body.toString('utf8');
-        if (
-          path.startsWith('assets/')
-          && path.endsWith('.js')
-          && opened.body.includes(expectedSourceCommit)
-        ) shaBearingScripts.add(path);
+        if (path.startsWith('assets/') && path.endsWith('.js')) {
+          const source = opened.body.toString('utf8');
+          scriptGraph.set(path, javascriptParser.dependencies(path, source));
+          if (source.includes(expectedSourceCommit)) shaBearingScripts.add(path);
+        }
       } finally {
         opened.body.fill(0);
       }
@@ -198,7 +317,11 @@ function inspectDist(distRoot, expectedSourceCommit) {
       fail('PUBLIC_PAGES_PAYLOAD_FILE_CHANGED');
     }
   }
-  walk(distRoot);
+  try {
+    walk(distRoot);
+  } finally {
+    javascriptParser.close();
+  }
   for (const { path, before } of directories) {
     if (!sameDirectoryIdentity(before, lstatSync(path, { bigint: true }))) {
       fail('PUBLIC_PAGES_PAYLOAD_FILE_CHANGED');
@@ -212,16 +335,31 @@ function inspectDist(distRoot, expectedSourceCommit) {
     || !indexHtml.includes('<meta property="og:url" content="https://warpkeep.com/"')
   ) fail('PUBLIC_PAGES_PAYLOAD_ORIGIN_INVALID');
   const rootAssets = rootAssetUrls(indexHtml, CANONICAL_ORIGIN);
+  const reachable = new Set();
+  const pending = rootAssets
+    .filter(asset => asset.pathname.endsWith('.js'))
+    .map(asset => asset.pathname.slice(1));
+  while (pending.length > 0) {
+    const path = pending.pop();
+    if (reachable.has(path)) continue;
+    reachable.add(path);
+    if (!scriptGraph.has(path)) {
+      fail('PUBLIC_PAGES_PAYLOAD_BUILD_IDENTITY_INVALID');
+    }
+    for (const dependency of scriptGraph.get(path)) {
+      if (!knownPaths.has(dependency)) {
+        fail('PUBLIC_PAGES_PAYLOAD_BUILD_IDENTITY_INVALID');
+      }
+      if (dependency.endsWith('.js')) pending.push(dependency);
+    }
+  }
   if (
     rootAssets.some(asset => (
       asset.search !== ''
       || asset.hash !== ''
       || !knownPaths.has(asset.pathname.slice(1))
     ))
-    || !rootAssets.some(asset => (
-      asset.pathname.endsWith('.js')
-      && shaBearingScripts.has(asset.pathname.slice(1))
-    ))
+    || ![...reachable].some(path => shaBearingScripts.has(path))
   ) fail('PUBLIC_PAGES_PAYLOAD_BUILD_IDENTITY_INVALID');
   entries.sort((a, b) => Buffer.compare(Buffer.from(a.path), Buffer.from(b.path)));
   return Object.freeze({

@@ -186,6 +186,53 @@ describe('public Pages candidate payload', () => {
     })).toThrow('PUBLIC_PAGES_PAYLOAD_BUILD_IDENTITY_INVALID');
   });
 
+  it('accepts a build SHA in a JavaScript chunk reached through static or Vite split imports', () => {
+    const staticImport = createCandidate();
+    write(join(staticImport.dist, 'assets/application-reviewed.js'),
+      'import "./realmReleaseIdentity-reviewed.js";');
+    write(join(staticImport.dist, 'assets/realmReleaseIdentity-reviewed.js'),
+      `const buildSha = "${staticImport.expectedSourceCommit}";`);
+    expect(() => verifyPublicPagesPayload({
+      repositoryRoot: staticImport.root,
+      expectedSourceCommit: staticImport.expectedSourceCommit,
+    })).not.toThrow();
+
+    const viteSplit = createCandidate();
+    write(join(viteSplit.dist, 'assets/application-reviewed.js'),
+      'const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/runtime-reviewed.js","assets/realmReleaseIdentity-reviewed.js"])))=>i.map(i=>d[i]);'
+      + 'import("./runtime-reviewed.js");__vite__mapDeps([0,1]);');
+    write(join(viteSplit.dist, 'assets/runtime-reviewed.js'), 'console.info("runtime");');
+    write(join(viteSplit.dist, 'assets/realmReleaseIdentity-reviewed.js'),
+      `const buildSha = "${viteSplit.expectedSourceCommit}";`);
+    expect(() => verifyPublicPagesPayload({
+      repositoryRoot: viteSplit.root,
+      expectedSourceCommit: viteSplit.expectedSourceCommit,
+    })).not.toThrow();
+  });
+
+  it('rejects a SHA-bearing decoy outside the reachable JavaScript graph', () => {
+    const unreferenced = createCandidate();
+    write(join(unreferenced.dist, 'assets/application-reviewed.js'),
+      'console.info("ordinary root script");');
+    write(join(unreferenced.dist, 'assets/unreferenced-reviewed.js'),
+      `const buildSha = "${unreferenced.expectedSourceCommit}";`);
+    expect(() => verifyPublicPagesPayload({
+      repositoryRoot: unreferenced.root,
+      expectedSourceCommit: unreferenced.expectedSourceCommit,
+    })).toThrow('PUBLIC_PAGES_PAYLOAD_BUILD_IDENTITY_INVALID');
+
+    const unusedViteEntry = createCandidate();
+    write(join(unusedViteEntry.dist, 'assets/application-reviewed.js'),
+      'const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/unreferenced-reviewed.js"])))=>i.map(i=>d[i]);'
+      + '__vite__mapDeps([]);');
+    write(join(unusedViteEntry.dist, 'assets/unreferenced-reviewed.js'),
+      `const buildSha = "${unusedViteEntry.expectedSourceCommit}";`);
+    expect(() => verifyPublicPagesPayload({
+      repositoryRoot: unusedViteEntry.root,
+      expectedSourceCommit: unusedViteEntry.expectedSourceCommit,
+    })).toThrow('PUBLIC_PAGES_PAYLOAD_BUILD_IDENTITY_INVALID');
+  });
+
   it('rejects source-like files, unexpected root metadata, and missing public documents', () => {
     for (const extra of ['.env', 'CNAME', '.nojekyll', '404.html', 'README.md', 'assets/application-reviewed.js.map']) {
       const candidate = createCandidate();
