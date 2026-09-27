@@ -1,6 +1,6 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 00:38 CEST (22:38 UTC on 27 September).
+Source/GitHub check: 00:50 CEST (22:50 UTC on 27 September).
 
 PURPOSE OF THIS FILE
 
@@ -34,9 +34,11 @@ Maintained checkout:
 C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep
 
 Local branch: fix/g001-census-admission-proxy
-At this check, local and GitHub branch head was signed
-5f67d36a7c52da2d68ce46eea653fb80f221f477 and the checkout was clean and
-remote-equal. PR #374 was open on this head, based on live main
+At the start of this refresh, local and GitHub branch head was signed
+4e8d8cf5b3df09ddee81188c23ee53b265dad0d3 and the checkout was clean and
+remote-equal. This docs-only refresh is atop tested source head
+5f67d36a7c52da2d68ce46eea653fb80f221f477. PR #374 was open on that branch,
+based on live main
 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. This status note will advance the
 branch; recheck the exact live SHA before acting.
 Protected source checkpoint: 175e325771768d8427bedeff8280a9cb2a9de282
@@ -92,17 +94,18 @@ the recorded rollback version if the verifier regresses. No new recovery key
 is required. Full event timestamps and recovery details are in
 docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md.
 
-Exact-head [Verify 36355948438](https://github.com/ael-dev3/Warpkeep/actions/runs/36355948438)
-on signed head 5f67d36a started at 2026-09-27 22:37:48 UTC and completed at
-22:38:28 UTC. All 17 jobs failed before any step ran; the check-run annotation
-explicitly says recent account payments failed or the Actions spending limit
-must increase. This is a runner-allocation gate, not a code-test result. Local
-validation on that source head passed 31 targeted tests, `tsc -b --pretty
+Exact-head [Verify 36356502820](https://github.com/ael-dev3/Warpkeep/actions/runs/36356502820)
+on signed docs head 4e8d8cf5 started at 2026-09-27 22:47:37 UTC and completed at
+22:48:17 UTC. All 17 jobs failed before any step ran; GitHub explicitly says
+recent account payments failed or the Actions spending limit must increase.
+This is a runner-allocation gate, not a code-test result. Local validation on
+the underlying source head 5f67d36a passed 31 targeted tests, `tsc -b --pretty
 false`, and the full rendered-WebGL browser probe. The probe covered 15
 rendered cases, terrain fallback, Worker lifecycle/locomotion/occupancy, 25
 journey checks and loopback LOD boundaries/fidelity. Direct-menu and Credits
 external-link expectations were corrected for local versus commit-stamped
-builds and the single licensed Credits link.
+builds and the single licensed Credits link. This note refresh advances the PR
+again; final hosted Verify must match its new exact head.
 
 The owner reported successful login after another fresh QR scan. The
 conversation clock was observed at 2026-09-27 22:17:54 UTC. This is the report
@@ -134,10 +137,23 @@ FID 539854 castle lyric-film action, and #377 adds the Genesis 002 score while
 G002 remains sealed. Warpkeep-Assets #38 archives the score and is stacked on
 Assets #37. At this check, #376 and #377 have no submitted reviews and their
 Verify jobs did not start due to the account billing gate. Assets #38 has no
-submitted review and its Verify/CodeQL jobs also did not execute. Review the
-diffs, rights/provenance, accessibility/mobile behavior and branch dependencies;
-independently rerun relevant checks. Re-list both repositories before each
-integration because more 0.4 PRs are expected.
+submitted review and its Verify/CodeQL jobs also did not execute. That was the
+initial intake queue; independent local review is recorded below. Re-list both
+repositories before each later integration because more 0.4 PRs are expected.
+
+INDEPENDENT INTAKE OUTCOME — 28 SEPTEMBER, 00:50 CEST
+
+The exact #376 head d924e2e99e471add91f22e14db98be3a637eae9d passed five
+affected test suites (66 tests), `tsc -b`, and the full production build
+locally. Its 288,869,749-byte film is click-to-load; defer it from the initial
+PTR candidate pending mobile network/playback review and hosted Verify. The
+exact #377 head 32a3fced56f52a356c7536dfc64042040cad6c47 passed 23 audio tests,
+`tsc -b`, file-size/runtime-asset checks and full production build. G002 remains
+sealed, so the score adds no reachable PTR value; defer until G002 is in scope
+and rights evidence is adequate. The `made with suno` metadata alone is not a
+rights grant. Assets #38 is correctly stacked on #37 and remains blocked by
+that dependency plus billing-blocked Verify/CodeQL. No incoming PR is approved
+or integrated into #374. Local checks restored the shipping branch cleanly.
 
 The earlier signed World retry, G001 preservation work, public-mirror
 candidate, local source tests, native closure checks and synthetic mobile
@@ -150,19 +166,18 @@ retired title gateway while this app starts at `#menu`. It is not current menu
 visual evidence; do not call it a product failure or a pass. Retarget it to a
 live 0.4 transition before relying on that lane. See execution-handoff.md.
 
-NEXT ACTION — REVIEW, THEN DELIVERY DEPENDENCY
+NEXT ACTION — OWNER BILLING GATE, THEN DELIVERY
 
-1. Review Warpkeep #376/#377 and Assets #38 at their current exact heads.
-   Preserve G002's sealed boundary, require defensible media rights/provenance,
-   and check accessibility/mobile playback before accepting contributions.
-   Honor Assets #38 → #37 and inspect newly opened PRs in both repositories.
-2. The account owner must resolve GitHub Billing & plans, including any
+1. The account owner must resolve GitHub Billing & plans, including any
    failed payment, and enable an Actions budget large enough to run Verify:
    https://github.com/settings/billing/budgets
    The Alpha QR now succeeds; do not repeat scans unless a regression appears.
-3. Rerun hosted Verify on the live final PR #374 head after billing is fixed.
+2. Rerun hosted Verify on the live final PR #374 head after billing is fixed.
    Require every job to pass before integration; do not use the persistent
    privileged production runner as a workaround.
+3. Keep #376 out until mobile media cost is acceptable and exact hosted Verify
+   passes. Defer #377 until G002 is in scope and source rights are confirmed.
+   Merge Assets #37 before retargeting/validating #38. Recheck newly opened PRs.
 4. Merge signed source/closure M1, confirm exact-main identity and Verify, and
    repeat the provider-free G002 artifact build.
 5. On that exact M1, run native prepare and independent check; promote only

@@ -45,7 +45,45 @@ reviewing incoming PRs, resolve the account Billing & plans gate and resume
 the existing M1 → native proof → generated M2 → exact-main Verify → provider /
 preservation → owner PTR sequence below.
 
-## Latest release checkpoint — 27 September 2026, 21:58 UTC
+## Incoming PR review — 28 September 2026, 00:50 CEST
+
+The current pushed docs head is signed
+[`4e8d8cf5`](https://github.com/ael-dev3/Warpkeep/commit/4e8d8cf5b3df09ddee81188c23ee53b265dad0d3);
+local and `origin/fix/g001-census-admission-proxy` match. Exact-head [Verify
+36356502820](https://github.com/ael-dev3/Warpkeep/actions/runs/36356502820)
+completed at 22:48:17 UTC. GitHub reports 17 jobs with zero executed steps;
+the failure is the same account payment/Actions spending-limit block. The
+public Alpha home still returned HTTP 200 at 22:50 UTC.
+
+Independent local checks were run against each unchanged PR head. Warpkeep
+[#376](https://github.com/ael-dev3/Warpkeep/pull/376) passed its five changed
+test suites (66 tests), `tsc -b`, and the full production build. Its remote
+film is 288,869,749 bytes and loads only after the user opens the player. Hold
+it outside the release candidate until mobile delivery cost and a poor-network
+playback experience are reviewed; hosted Verify has not run. Warpkeep
+[#377](https://github.com/ael-dev3/Warpkeep/pull/377) passed 23 audio tests,
+`tsc -b`, file-size/runtime-asset verification and the full production build.
+Keep it out of the initial PTR candidate while Genesis 002 is sealed: it adds
+no experience to the currently reachable realm, and the source's `made with
+suno` metadata does not establish ownership or service terms. Preserve the
+PR's narrow use record; do not claim an open or broader redistribution license.
+
+Warpkeep-Assets [#38](https://github.com/ael-dev3/Warpkeep-Assets/pull/38)
+correctly stacks on Assets #37; do not retarget or merge it before that parent
+lands. The archive manifests state unresolved/original terms, and both its
+Verify and CodeQL jobs stopped before execution on the account billing gate.
+Assets #37 also has no submitted review and its checks are blocked. Keep these
+asset changes separate from the reachable PTR candidate until their dependency,
+rights record and hosted checks are resolved. Vite's build warning about the
+existing ~748 kB realm screen chunk remains; #376 changes it by under 1 kB, so
+this is not a regression from that PR.
+
+These candidates have been reviewed for scope and locally validated where the
+game repo is available, but none is integrated or host-verified. Check for new
+PRs before any later decision. Keep the next release checkpoint exact-head
+aware because every docs commit also advances PR #374.
+
+## Previous release checkpoint — 27 September 2026, 21:58 UTC
 
 Local `fix/g001-census-admission-proxy` and GitHub match signed head
 [`8d20e2bb`](https://github.com/ael-dev3/Warpkeep/commit/8d20e2bbff8dea0a4a46cd2eacb289a70fdbba4e).
