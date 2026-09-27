@@ -18,6 +18,7 @@ import {
   isCanonicalFarcasterBrowserBindingValue
 } from './farcasterBrowserBinding';
 import {
+  FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS,
   FARCASTER_OIDC_DEFAULT_AUDIENCE,
   parseFarcasterOidcJwt,
   readSafeFarcasterOidcAudience,
@@ -318,7 +319,7 @@ function readSafeSessionResponse(
     || (expectedFid !== undefined && identity.fid !== expectedFid)
     || sessionExpiresAt === undefined
     || sessionExpiresAt <= now
-    || sessionExpiresAt - now > FARCASTER_SERVER_SESSION_MAX_TTL_MS
+    || sessionExpiresAt - now > FARCASTER_SERVER_SESSION_MAX_TTL_MS + FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS
   ) {
     return undefined;
   }

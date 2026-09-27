@@ -5,6 +5,7 @@ import {
   type FarcasterDeviceSessionEnvironment,
   type FarcasterDeviceSessionStorage
 } from './farcasterDeviceSession';
+import { FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS } from './farcasterOidcSession';
 
 const PRESENTATION_SESSION_VERSION = 1 as const;
 const PRESENTATION_STORAGE_KEY_SUFFIX = ':farcaster-presentation-session:v1';
@@ -114,7 +115,7 @@ function toStoredPresentation(
     || (value.fid as number) <= 0
     || !Number.isSafeInteger(value.expiresAt)
     || (value.expiresAt as number) <= now
-    || (value.expiresAt as number) - now > MAX_PRESENTATION_SESSION_TTL_MS
+    || (value.expiresAt as number) - now > MAX_PRESENTATION_SESSION_TTL_MS + FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS
   ) {
     return undefined;
   }

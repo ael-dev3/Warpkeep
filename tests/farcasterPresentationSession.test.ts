@@ -8,6 +8,7 @@ import {
   type FarcasterPresentationSession
 } from '../src/farcaster/farcasterPresentationSession';
 import type { FarcasterDeviceSessionStorage } from '../src/farcaster/farcasterDeviceSession';
+import { FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS } from '../src/farcaster/farcasterOidcSession';
 
 const NOW = Date.UTC(2026, 6, 16, 12, 0, 0);
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1_000;
@@ -121,7 +122,7 @@ describe('Farcaster tab-local presentation session', () => {
       const sessionStorage = new MemoryStorage();
       expect(persistFarcasterPresentationSession({
         fid: TEST_FID,
-        expiresAt: NOW + THIRTY_DAYS_MS,
+        expiresAt: NOW + THIRTY_DAYS_MS + FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS,
         ...onlyDisplayField
       }, {
         sessionStorage,
@@ -135,7 +136,7 @@ describe('Farcaster tab-local presentation session', () => {
       presentation({ fid: 0 }),
       presentation({ fid: Number.MAX_SAFE_INTEGER + 1 }),
       presentation({ expiresAt: NOW }),
-      presentation({ expiresAt: NOW + THIRTY_DAYS_MS + 1 }),
+      presentation({ expiresAt: NOW + THIRTY_DAYS_MS + FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS + 1 }),
       presentation({ username: 'x'.repeat(257) }),
       presentation({ displayName: ' padded ' }),
       presentation({ pfpUrl: 'http://profiles.example/keeper.png' })

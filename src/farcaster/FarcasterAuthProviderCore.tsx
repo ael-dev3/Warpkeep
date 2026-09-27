@@ -34,7 +34,10 @@ import {
   FARCASTER_BROWSER_BINDING_METHOD,
   isCanonicalFarcasterBrowserBindingValue
 } from './farcasterBrowserBinding';
-import { parseFarcasterOidcJwt } from './farcasterOidcSession';
+import {
+  FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS,
+  parseFarcasterOidcJwt
+} from './farcasterOidcSession';
 import { useAccessRequest } from './useAccessRequest';
 import {
   clearFarcasterPresentationSession,
@@ -499,7 +502,7 @@ function materializeBridgeSession(
     || (expectedFid !== undefined && identity.fid !== expectedFid)
     || !Number.isSafeInteger(response.sessionExpiresAt)
     || response.sessionExpiresAt <= now
-    || response.sessionExpiresAt - now > SERVER_SESSION_MAX_TTL_MS
+    || response.sessionExpiresAt - now > SERVER_SESSION_MAX_TTL_MS + FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS
   ) {
     return undefined;
   }
@@ -1326,7 +1329,7 @@ export function FarcasterAuthProviderCore({
       || currentTime === undefined
       || !Number.isSafeInteger(sessionExpiresAt)
       || sessionExpiresAt <= currentTime
-      || sessionExpiresAt - currentTime > SERVER_SESSION_MAX_TTL_MS
+      || sessionExpiresAt - currentTime > SERVER_SESSION_MAX_TTL_MS + FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS
     ) {
       return;
     }
