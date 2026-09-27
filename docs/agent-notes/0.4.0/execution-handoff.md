@@ -1,6 +1,28 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 27 September 2026, 21:39 UTC
+## Latest continuation — 27 September 2026, 21:50 UTC
+
+The owner reported a fresh phone QR scan and confirmed successful browser login.
+The conversation clock was read at **21:50:52 UTC** immediately after that
+report. The scan and exchange have no accompanying Worker trace, exact request
+time, browser identity or served build hash, so this is recorded as owner
+confirmation, not as an independently timestamped exchange. The prior
+failure's route timestamps, RPC edge probes, secret-only repair and causal
+confidence are detailed in the [QR incident record](../../evidence/0.4.0/qr-auth-incident-2026-09-27.md).
+
+At the start of this continuation, local `fix/g001-census-admission-proxy`
+matched its GitHub branch at `18935876b9bf1f3f655b9aaefec7de06f58b5d49` and
+was clean. PR #374 remained open against `main` at `786c0b2b`. Exact-head
+[Verify run 36352639028](https://github.com/ael-dev3/Warpkeep/actions/runs/36352639028)
+started at 21:41:20 UTC; all 17 jobs failed before any step ran. GitHub's
+annotation explicitly says recent account payments failed or the Actions
+spending limit must increase. This is an account-level runner allocation gate,
+not a source verdict. Do not bypass PR verification or send untrusted PR code to
+the production-admin self-hosted runner. The current 0.4 source still needs a
+passing exact-head Verify, reviewed main integration and a live owner PTR before
+it can be called shipped.
+
+## Prior checkpoint — 27 September 2026, 21:39 UTC
 
 The open [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) is on
 `fix/g001-census-admission-proxy`. Its latest gameplay/runtime source change is
