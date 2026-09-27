@@ -4020,7 +4020,7 @@
     {
       "path": "src/components/realm/GreaterRealmWorldScene.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c80a6e5960131fcad3ee4b7c2e6d0dec9a225eb3bbb08eef650908f3b0a622a5"
+      "sha256": "880b422f5c96d2ce47c7349bb748506f8c194f572467ec30b2bd064823b88836"
     },
     {
       "path": "src/components/realm/LoggingCampInspectionPanel.css",
