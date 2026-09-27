@@ -3,6 +3,18 @@
 Status: **pending**. This record is the authoritative destination for R15 and
 must be updated only from an authenticated deployment and live readback.
 
+The current public site is still **Alpha 0.3.43**, not the 0.4 PTR. Its signed
+QR client clock-lag hotfix source is
+[`d1cc6a9`](https://github.com/ael-dev3/Warpkeep/commit/d1cc6a9f04673e40b98982fae205416644db1181),
+published as generated files in
+[`Warpkeep-Live@e837b8c`](https://github.com/ael-dev3/Warpkeep-Live/commit/e837b8c882306d3eaaae4879ef909f6514e2404d).
+[Pages run 36324195528](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36324195528)
+succeeded and the HTTPS apex returned 200 on 27 September. The hotfix's live
+bytes were compared with its approved build; that proves publication, not a
+successful phone-approved sign-in. A fresh QR challenge was issued by the
+production bridge, but the observed attempt expired without a SIWF exchange.
+The separate Mini App Quick Auth successes do not prove desktop QR sign-in.
+
 The old Alpha 0.3.43 site was restored on 27 September 2026, separately from
 the 0.4 release. Last successful historical source:
 [`f39d57c`](https://github.com/ael-dev3/Warpkeep/commit/f39d57c8622077e6543a16e5610d0e4ec73910da).
@@ -24,17 +36,17 @@ metadata/CORS probes passed. The complete old artifact had expired, and no
 owner-session or private state readback was attempted; these baseline checks
 do not satisfy 0.4 R15.
 
-The public mirror now includes legal texts and provenance notices from that
+The public mirror includes legal texts and provenance notices from that
 historical source. The notices-only publication at
 [`3ca5dad`](https://github.com/ael-dev3/Warpkeep-Live/commit/3ca5dadf7f287cefeaebe84bfaa7b49cc9e7ea58)
 passed [Pages run 36312123405](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36312123405).
 An intermediate link-correction commit `6b5f26f` was unsigned because the new
 local deploy checkout lacked signing configuration; it changed no generated
-app bytes. That configuration was fixed, and the signed current head
+app bytes. That configuration was fixed, and the signed later checkpoint
 [`616eebf`](https://github.com/ael-dev3/Warpkeep-Live/commit/616eebfc67fa8888318515d7e33cac49eac5e473)
 has a valid GitHub signature and successful
 [Pages run 36312578563](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36312578563).
-The live apex still returns the same 0.3.43 HTML hash. The signed successor
+The signed successor
 does not retroactively sign `6b5f26f`; preserve this note in the audit trail.
 
 Record the exact reviewed source commit, Pages workflow run and artifact

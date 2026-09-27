@@ -17,9 +17,15 @@ passed on that source. [G001 census 36297722529](https://github.com/ael-dev3/War
 failed closed in its first sample with `g001-admitted-set-mismatch`; it produced
 no validated baseline or provider mutation. [G002 update inspect 36297899627](https://github.com/ael-dev3/Warpkeep/actions/runs/36297899627)
 failed at workflow phase before provider transport. [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
-is the source-only repair for the census membership path and shared pinned
-module dependencies. Source review identified both defects; the protected
-results do not establish the private live admitted set or a missing credential.
+now includes those repairs, current 0.4 client and gameplay refinements, and
+candidate public delivery and rollback tooling. Source review identified the
+two protected-operation defects; their failed results do not establish the
+private live admitted set or a missing credential. The `d1f8f315` source-checkpoint
+[Verify run 36332298897](https://github.com/ael-dev3/Warpkeep/actions/runs/36332298897)
+rejected all jobs before runner steps because of the account's
+payment/spending-limit gate; it is not a code verdict. GitHub reports `main`
+as unprotected with no required checks, so the release sequence must enforce
+final-head Verify manually rather than infer safety from mergeability.
 Recheck live `main` and its own Verify before using this dated checkpoint as
 operation authority. CodeQL code scanning
 is unavailable on the private-repository plan; full Verify is the executable gate.
