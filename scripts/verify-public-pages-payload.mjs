@@ -76,13 +76,13 @@ function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-function git(repositoryRoot, args) {
+function git(repositoryRoot, args, maxBuffer = 64 * 1024) {
   const result = spawnSync('git', args, {
     cwd: repositoryRoot,
     encoding: 'utf8',
     shell: false,
     timeout: 10_000,
-    maxBuffer: 64 * 1024,
+    maxBuffer,
     windowsHide: true,
   });
   if (result.error || result.status !== 0 || result.signal) {
@@ -106,6 +106,12 @@ function sourceIdentity(repositoryRoot, expectedSourceCommit) {
     || !SOURCE_SHA.test(sourceTree)
     || git(root, ['status', '--porcelain=v1', '--untracked-files=all']) !== ''
   ) {
+    fail('PUBLIC_PAGES_PAYLOAD_SOURCE_CHANGED');
+  }
+  // Status can omit working bytes hidden by assume-unchanged or skip-worktree.
+  // A candidate build must come from a fully visible checkout at both scans.
+  const indexed = git(root, ['ls-files', '-v', '-z', '--cached'], 4 * 1024 * 1024).split('\0');
+  if (indexed.length < 2 || indexed.pop() !== '' || indexed.some(entry => !entry.startsWith('H '))) {
     fail('PUBLIC_PAGES_PAYLOAD_SOURCE_CHANGED');
   }
   return Object.freeze({ root, sourceCommit, sourceTree });

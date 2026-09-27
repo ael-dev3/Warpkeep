@@ -186,6 +186,19 @@ describe('public Pages candidate payload', () => {
     })).toThrow('PUBLIC_PAGES_PAYLOAD_BUILD_IDENTITY_INVALID');
   });
 
+  it.each(['--assume-unchanged', '--skip-worktree'])(
+    'rejects source hidden by %s', (indexFlag) => {
+      const candidate = createCandidate();
+      write(join(candidate.root, 'README.md'), 'hidden working change\n');
+      git(candidate.root, ['update-index', indexFlag, '--', 'README.md']);
+      expect(git(candidate.root, ['status', '--porcelain=v1', '--untracked-files=all'])).toBe('');
+      expect(() => verifyPublicPagesPayload({
+        repositoryRoot: candidate.root,
+        expectedSourceCommit: candidate.expectedSourceCommit,
+      })).toThrow('PUBLIC_PAGES_PAYLOAD_SOURCE_CHANGED');
+    },
+  );
+
   it('accepts a build SHA in a JavaScript chunk reached through static or Vite split imports', () => {
     const staticImport = createCandidate();
     write(join(staticImport.dist, 'assets/application-reviewed.js'),

@@ -754,7 +754,11 @@ function RetiredRealmWorldHost({
         ? 'greater-realm-world__continuity'
         : 'realm-map-screen__loading'}>
         <strong>{strategy.kind === 'greater-realm'
-          ? greaterPhase === 'ready' ? 'Greater Realm' : 'Opening the Greater Realm'
+          ? greaterPhase === 'ready'
+            ? 'Greater Realm'
+            : greaterPhase === 'failed'
+              ? 'Realm needs a retry'
+              : 'Opening the Greater Realm'
           : 'Reconnecting to the Realm'}</strong>
         <span
           role={strategy.kind === 'connection-hold' || greaterPhase !== 'ready'
@@ -766,7 +770,7 @@ function RetiredRealmWorldHost({
         >{strategy.kind === 'greater-realm' && greaterPhase === 'ready'
           ? 'The bounded public atlas around your keep is current.'
           : strategy.kind === 'greater-realm' && greaterPhase === 'failed'
-            ? 'The public atlas could not be loaded. The retired Lowlands remains hidden.'
+            ? 'Current Worker commands are paused. Retry the Realm to restore current authority.'
             : 'The retired Lowlands surface stays hidden while current authority is prepared.'}</span>
         {strategy.kind === 'greater-realm' ? (
           <>
