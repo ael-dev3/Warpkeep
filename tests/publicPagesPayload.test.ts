@@ -15,7 +15,7 @@ import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 // @ts-expect-error Standalone release utility has named test seams.
-import { checkPublicPagesPayloadManifest, verifyPublicPagesPayload, writePublicPagesPayloadManifest } from '../scripts/verify-public-pages-payload.mjs';
+import { allowedPath, checkPublicPagesPayloadManifest, verifyPublicPagesPayload, writePublicPagesPayloadManifest } from '../scripts/verify-public-pages-payload.mjs';
 // @ts-expect-error Production output policy is an executable ESM module.
 import { allowedProductionHtmlPaths, expectedProductionCspByPath } from '../scripts/verify-production-dist-exclusions.mjs';
 
@@ -98,6 +98,14 @@ afterEach(() => {
 });
 
 describe('public Pages candidate payload', () => {
+  it('permits only the reviewed menu M4A alongside existing MP3 audio', () => {
+    expect(allowedPath('audio/warpkeep-verdant-menu-theme.m4a', false)).toBe(true);
+    expect(allowedPath('audio/warpkeep-title-theme-a.mp3', false)).toBe(true);
+    expect(allowedPath('audio/other.m4a', false)).toBe(false);
+    expect(allowedPath('audio/nested/warpkeep-verdant-menu-theme.m4a', false)).toBe(false);
+    expect(allowedPath('audio/warpkeep-verdant-menu-theme.M4A', false)).toBe(false);
+  });
+
   it('derives stable source, tree, and every public file hash without modifying dist', () => {
     const candidate = createCandidate();
     const first = verifyPublicPagesPayload({

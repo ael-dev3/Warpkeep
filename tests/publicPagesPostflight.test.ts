@@ -214,6 +214,11 @@ describe('read-only public Pages postflight', () => {
   it('independently rejects a generated path outside the payload policy or a missing required file', async () => {
     expect(allowedGeneratedPath('video/index.html')).toBe(false);
     expect(allowedGeneratedPath('assets/app.js')).toBe(true);
+    expect(allowedGeneratedPath('audio/warpkeep-verdant-menu-theme.m4a')).toBe(true);
+    expect(allowedGeneratedPath('audio/warpkeep-title-theme-a.mp3')).toBe(true);
+    expect(allowedGeneratedPath('audio/other.m4a')).toBe(false);
+    expect(allowedGeneratedPath('audio/nested/warpkeep-verdant-menu-theme.m4a')).toBe(false);
+    expect(allowedGeneratedPath('audio/warpkeep-verdant-menu-theme.M4A')).toBe(false);
     const extra = fixture(files => files.set('video/index.html', Buffer.from('unexpected HTML')));
     await expect(verifyPublicPagesPostflight(extra.options))
       .rejects.toThrow('PUBLIC_PAGES_MIRROR_FILE_BOUNDARY_INVALID');

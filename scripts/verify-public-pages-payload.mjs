@@ -117,7 +117,7 @@ function sourceIdentity(repositoryRoot, expectedSourceCommit) {
   return Object.freeze({ root, sourceCommit, sourceTree });
 }
 
-function allowedPath(path, directory) {
+export function allowedPath(path, directory) {
   if (
     path.length > 1024
     || /[^\x20-\x7e]/u.test(path)
@@ -135,7 +135,8 @@ function allowedPath(path, directory) {
   const top = segments[0];
   const name = segments.at(-1);
   if (top === 'assets') return /\.(?:css|js)$/u.test(name);
-  if (top === 'audio') return /\.mp3$/u.test(name);
+  if (top === 'audio') return /\.mp3$/u.test(name)
+    || path === 'audio/warpkeep-verdant-menu-theme.m4a';
   if (top === 'images') return /\.(?:png|webp)$/u.test(name);
   if (top === 'models') return /\.glb$/u.test(name);
   if (top === 'video') return /\.mp4$/u.test(name);

@@ -91,7 +91,7 @@ function safeRelativePath(path) {
     && path.split('/').every(segment => /^[A-Za-z0-9._-]+$/u.test(segment));
 }
 
-function generatedPath(path) {
+export function generatedPath(path) {
   if (!safeRelativePath(path)) return false;
   if (!path.includes('/')) return GENERATED_ROOT_FILES.has(path);
   const parts = path.split('/');
@@ -99,7 +99,8 @@ function generatedPath(path) {
   const name = parts.at(-1);
   if (parts[0] === '.well-known') return path === '.well-known/farcaster.json';
   if (parts[0] === 'assets') return /\.(?:css|js)$/u.test(name);
-  if (parts[0] === 'audio') return /\.mp3$/u.test(name);
+  if (parts[0] === 'audio') return /\.mp3$/u.test(name)
+    || path === 'audio/warpkeep-verdant-menu-theme.m4a';
   if (parts[0] === 'images') return /\.(?:png|webp)$/u.test(name);
   if (parts[0] === 'models') return /\.glb$/u.test(name);
   if (parts[0] === 'video') return /\.mp4$/u.test(name);

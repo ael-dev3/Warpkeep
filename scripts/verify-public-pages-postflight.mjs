@@ -90,7 +90,8 @@ export function allowedGeneratedPath(path) {
   const parts = path.split('/');
   const name = parts.at(-1);
   if (parts[0] === 'assets') return /\.(?:css|js)$/u.test(name);
-  if (parts[0] === 'audio') return /\.mp3$/u.test(name);
+  if (parts[0] === 'audio') return /\.mp3$/u.test(name)
+    || path === 'audio/warpkeep-verdant-menu-theme.m4a';
   if (parts[0] === 'images') return /\.(?:png|webp)$/u.test(name);
   if (parts[0] === 'models') return /\.glb$/u.test(name);
   if (parts[0] === 'video') return /\.mp4$/u.test(name);

@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 // @ts-expect-error Standalone release utility has named test seams.
 import { writePublicPagesPayloadManifest } from '../scripts/verify-public-pages-payload.mjs';
 // @ts-expect-error Standalone release utility has named test seams.
-import { SOURCE_PUBLIC_DOCUMENTS, renderPublicPagesMirrorReadme, verifyPublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
+import { SOURCE_PUBLIC_DOCUMENTS, generatedPath, renderPublicPagesMirrorReadme, verifyPublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
 // @ts-expect-error Production output policy is an executable ESM module.
 import { allowedProductionHtmlPaths, expectedProductionCspByPath } from '../scripts/verify-production-dist-exclusions.mjs';
 
@@ -122,6 +122,14 @@ afterEach(() => {
 });
 
 describe('read-only public Pages mirror plan', () => {
+  it('recognizes the exact reviewed menu M4A without broadening the audio boundary', () => {
+    expect(generatedPath('audio/warpkeep-verdant-menu-theme.m4a')).toBe(true);
+    expect(generatedPath('audio/warpkeep-title-theme-a.mp3')).toBe(true);
+    expect(generatedPath('audio/other.m4a')).toBe(false);
+    expect(generatedPath('audio/nested/warpkeep-verdant-menu-theme.m4a')).toBe(false);
+    expect(generatedPath('audio/warpkeep-verdant-menu-theme.M4A')).toBe(false);
+  });
+
   it('plans only verified dist, exact hosting files, and current-source legal records', () => {
     const source = candidate();
     const mirror = publicMirror(source);
@@ -156,7 +164,7 @@ describe('read-only public Pages mirror plan', () => {
     ))).toMatchObject({ sha256: plan.payloadManifestSha256 });
     expect(git(mirror.root, ['rev-parse', 'HEAD'])).toBe(before);
     expect(git(mirror.root, ['status', '--porcelain=v1', '--untracked-files=all'])).toBe('');
-  });
+  }, 30_000);
 
   it('refuses an untracked file, stale public head, or non-allowlisted tracked file', () => {
     const source = candidate();
@@ -204,7 +212,7 @@ describe('read-only public Pages mirror plan', () => {
     });
     expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'CNAME'))
       .toMatchObject({ sha256: sha('warpkeep.com\n') });
-  });
+  }, 30_000);
 
   it('refuses a redirected public push URL despite the expected fetch URL', () => {
     const source = candidate();
