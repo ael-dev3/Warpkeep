@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   FARCASTER_OIDC_ACCESS_TOKEN_TTL_MS,
+  FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS,
   parseFarcasterOidcJwt,
   readSafeFarcasterOidcIssuer
 } from '../src/farcaster/farcasterOidcSession';
@@ -56,6 +57,36 @@ describe('Farcaster OIDC session parser security bounds', () => {
       audience: AUDIENCE,
       now: NOW
     })?.claims).toMatchObject({ fid: FID, issuedAt: NOW, authEpoch: 1 });
+  });
+
+  it('tolerates a bounded ahead-of-browser issuer clock without extending token expiry', () => {
+    const futureIssuedAt = (NOW + FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS) / 1_000;
+    const futureToken = token({
+      iat: futureIssuedAt,
+      nbf: futureIssuedAt,
+      session_iat: futureIssuedAt
+    });
+    expect(parseFarcasterOidcJwt(futureToken, {
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      now: NOW
+    })).toBeDefined();
+    expect(parseFarcasterOidcJwt(futureToken, {
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      now: NOW + FARCASTER_OIDC_ACCESS_TOKEN_TTL_MS
+    })).toBeUndefined();
+
+    const beyondTolerance = futureIssuedAt + 1;
+    expect(parseFarcasterOidcJwt(token({
+      iat: beyondTolerance,
+      nbf: beyondTolerance,
+      session_iat: beyondTolerance
+    }), {
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      now: NOW
+    })).toBeUndefined();
   });
 
   it.each([

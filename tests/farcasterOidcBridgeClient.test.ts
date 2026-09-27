@@ -12,6 +12,7 @@ import type {
   FarcasterBridgeChallengeRequest,
   FarcasterBridgeExchangeRequest
 } from '../src/farcaster/farcasterAuthTypes';
+import { FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS } from '../src/farcaster/farcasterOidcSession';
 
 const NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
 const ISSUER = 'https://auth.warpkeep.example';
@@ -936,7 +937,7 @@ describe('Farcaster OIDC bridge v2 client', () => {
       authorized({ identity: { ...identity, custody: `0x${'11'.repeat(20)}` } }),
       authorized({ identity: { ...identity, username: 'must-not-return' } }),
       authorized({ sessionExpiresAt: NOW }),
-      authorized({ sessionExpiresAt: SESSION_EXPIRY + 1 }),
+      authorized({ sessionExpiresAt: SESSION_EXPIRY + FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS + 1 }),
       authorized({ accessExpiresAt: SESSION_EXPIRY + 1 }),
       authorized({ accessToken: createJwt({ auth_version: 1 }) }),
       authorized({ accessToken: createJwt({ auth_epoch: 0 }) }),
@@ -949,6 +950,32 @@ describe('Farcaster OIDC bridge v2 client', () => {
       await expect(bridge.exchangeCompletedSignIn(exchangeRequest()))
         .rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
     }
+  });
+
+  it('accepts a server-issued bridge session when the issuer clock is slightly ahead', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const futureIssuedAt = NOW / 1_000 + 1;
+    const authorizedWithSkew = authorized({
+      sessionExpiresAt: SESSION_EXPIRY + 1_000,
+      accessExpiresAt: ACCESS_EXPIRY + 1_000,
+      accessToken: createJwt({
+        iat: futureIssuedAt,
+        nbf: futureIssuedAt,
+        exp: ACCESS_EXPIRY / 1_000 + 1,
+        session_iat: futureIssuedAt,
+        session_exp: ACCESS_EXPIRY / 1_000 + 1
+      })
+    });
+    await expect(createBridge(createFetch(authorizedWithSkew))
+      .exchangeCompletedSignIn(exchangeRequest())).resolves.toMatchObject({
+      status: 'authorized',
+      sessionExpiresAt: SESSION_EXPIRY + 1_000
+    });
+    await expect(createBridge(createFetch(pending({ sessionExpiresAt: SESSION_EXPIRY + 1_000 })))
+      .exchangeCompletedSignIn(exchangeRequest())).resolves.toMatchObject({
+      status: 'pending-admission',
+      sessionExpiresAt: SESSION_EXPIRY + 1_000
+    });
   });
 
   it('rejects malformed proof data before fetch', async () => {
