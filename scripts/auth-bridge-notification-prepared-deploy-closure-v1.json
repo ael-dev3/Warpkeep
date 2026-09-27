@@ -3850,7 +3850,7 @@
     {
       "path": "src/components/keep04/Keep04Screen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d979619d2be449d327f7c24420e0c160ed01ec6fc5e5aeb73e0436fba5be8f7d"
+      "sha256": "513d965cadea4c5a0cbb1fdeec454cac82f5c71c1fcc6f06d51cc6d138cfe96b"
     },
     {
       "path": "src/components/keep04/Keep04WorkerPanel.tsx",
@@ -5190,7 +5190,7 @@
     {
       "path": "src/ptr/PtrGameplay04SurfaceHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b395f4e69551cab3e348bb6fe2012e60d3c8829a9a34b8572dc04664f45c5dd3"
+      "sha256": "67e97199fb105cadaa7bf5749a1b3157b21a93efb0e551fae8622d8acb6a5e11"
     },
     {
       "path": "src/ptr/PtrRealmProvider.tsx",
