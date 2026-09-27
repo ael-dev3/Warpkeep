@@ -1366,7 +1366,7 @@ a.warpkeep-menu-build-stamp__build:focus-visible {
 
   .warpkeep-menu .warpkeep-menu-tagline {
     margin-top: 0.55rem;
-    font-size: clamp(0.6rem, 2.1vw, 0.76rem);
+    font-size: clamp(0.75rem, 2.1vw, 0.84rem);
     text-shadow: 0 1px 0.4rem rgba(8, 16, 22, 0.85);
   }
 

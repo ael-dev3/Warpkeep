@@ -256,6 +256,11 @@
     margin-inline: auto;
   }
 
+  .realm-choice-selector__admission {
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+  }
+
   .realm-choice-selector__actions {
     display: grid;
     grid-template-columns: 0.72fr 1.28fr;
