@@ -9,9 +9,10 @@ latest signed public head [`6568687`](https://github.com/ael-dev3/Warpkeep-Live/
 passed [Pages build 36334223725](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36334223725).
 Live HTML and the new main asset matched the approved Alpha build from signed
 source [`2d6811a8`](https://github.com/ael-dev3/Warpkeep/commit/2d6811a861d42d7ca191ac30e2215176db1adabd).
-The source preserves the bounded QR clock-lag repair and now distinguishes
-privacy-safe invalid/expired pre-exchange, network and timeout failures. This
-is diagnostic publication, not proof of successful phone-approved sign-in.
+The deployed Alpha source preserves the bounded QR clock-lag repair and
+distinguishes privacy-safe invalid/expired pre-exchange, network and timeout
+failures. This is diagnostic publication, not proof of successful
+phone-approved sign-in. The newer PR-only QR correction below is not deployed.
 
 The last traced QR attempt produced no new challenge or SIWF exchange, and the
 inspected game tab held an expired challenge. The owner subsequently reported
@@ -26,24 +27,32 @@ observed game tab is on the new build at the Alpha
 Participation Terms gate. The owner must accept those legal terms personally,
 then start a fresh QR and approve it in Farcaster within five minutes. Capture
 only route, status and fixed event labels; never record channel tokens, FIDs
-or proof. Do not infer server rejection from the generic UI eyebrow. A separate
-Mini App Quick Auth success is not desktop QR evidence. The
+or proof. Do not infer server rejection from the deployed generic UI eyebrow.
+A separate Mini App Quick Auth success is not desktop QR evidence. The
 [hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
 has the source, verification and recovery path. The 0.4 PTR is not live.
 
 Read the live head of signed 0.4
 [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) before any operation;
-documentation checkpoints may follow its protected-closure source. That source
-checkpoint remains signed
-[`68937b59`](https://github.com/ael-dev3/Warpkeep/commit/68937b59765340b04a8c0c180f8fc60dd3812129).
+documentation checkpoints may follow its protected-closure source. The latest
+protected-source checkpoint is signed
+[`1ef66c94`](https://github.com/ael-dev3/Warpkeep/commit/1ef66c94b6f6a0937b5c335a0a230c34e7827dcd),
+and its generated closure is signed
+[`7d13a4a2`](https://github.com/ael-dev3/Warpkeep/commit/7d13a4a2b9299ed797ee0e70aa7a60134c48f9f0).
 The 1,258-member closure manifest hashes to
-`58b6a428ca9f12ca7431e8ed1801cbe31d1e09d298564a44f87adbdff1f010ef`;
-exact-source native preparation/check matched 3,266 Git blobs, generated 16
-outputs, and passed Windows/Linux checked-in policy and sealed-launch checks.
-Focused auth tests, typecheck, production build and public payload check passed.
-A recent attempted hosted Verify, [run 36338877084](https://github.com/ael-dev3/Warpkeep/actions/runs/36338877084)
-on the then-current signed PR head
-[`558c62da`](https://github.com/ael-dev3/Warpkeep/commit/558c62da984dce7ceb17be565cdcb36e4f12f724),
+`afcbba80fda34b4a14908224092228429f5c26dd19dbd8ff5af4a5ae2f676566`;
+exact-source preparation matched 3,266 raw Git blobs and generated 16
+byte-reproduced outputs. Native Linux ownership-bound closure policy and
+checked-in sealed-launch verification passed on the exact clean closure head.
+Four focused Linux auth suites passed 129 tests; the Windows QR-focused set
+passed 141 tests, TypeScript build mode and the full production build passed.
+The PR-only QR correction
+preserves fixed, privacy-safe classes for bridge HTTP 401, 403, 429 and 503,
+invalid responses, configuration errors, network and timeouts. It gives the
+screen a neutral failure heading instead of falsely saying that a relay
+rejected the record. Neither tests nor source review prove why the owner's
+prior live scan failed. The exact-head hosted
+[Verify 36340576287](https://github.com/ael-dev3/Warpkeep/actions/runs/36340576287)
 stopped all 17 jobs before runner steps at GitHub's account billing gate. It
 is neither a source failure nor a pass. `main` remains the earlier signed M2
 `786c0b2b`. New [menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375)
