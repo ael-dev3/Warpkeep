@@ -1,28 +1,46 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 27 September 2026, 20:47 UTC
+## Current checkpoint — 27 September 2026, 21:39 UTC
 
 The open [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) is on
-`fix/g001-census-admission-proxy`. Its latest code change is
+`fix/g001-census-admission-proxy`. Its latest gameplay/runtime source change is
 [`66a9724a`](https://github.com/ael-dev3/Warpkeep/commit/66a9724ae9c1e7dc16b01b5227a491415855305b).
-The preceding handoff-only checkpoint was
-[`9926f139`](https://github.com/ael-dev3/Warpkeep/commit/9926f13981a6c23168826bac38d3bf68f1b4861c);
-this update also changes documentation only. The active Windows checkout and
-fetched GitHub ref matched after publication. The last completed exact-head
-[Verify 36349344094](https://github.com/ael-dev3/Warpkeep/actions/runs/36349344094)
-on the preceding handoff checkpoint failed all 17 jobs before any job step
-ran. GitHub's failure annotation says
+The Windows checkout and pushed GitHub ref matched at
+[`8dd3904b`](https://github.com/ael-dev3/Warpkeep/commit/8dd3904b5ffd70e2f81e5a730b281d97b53f4a4b)
+before this checkpoint's test correction and evidence update. The latest
+completed exact-head [Verify 36349486249](https://github.com/ael-dev3/Warpkeep/actions/runs/36349486249)
+on that source failed all 17 jobs before any job step ran. GitHub's failure annotation says
 recent account payments failed or the spending limit needs to increase. This
-run provides no code verdict. Do not bypass the check or call 0.4 shipped; the
-owner's playable PTR remains outstanding. Restore Actions billing in GitHub's
-**Billing & plans**, then require a fresh successful Verify on the exact final
-PR head and exact merged main head.
+run provides no source verdict. Do not call 0.4 shipped; the owner's playable
+PTR remains outstanding. Restore Actions billing in GitHub's **Billing & plans**,
+then require fresh successful Verify on the exact final PR head and exact merged
+main head.
 
-The owner reported another successful fresh QR scan during the 20:28 UTC
-session observation. Its exact exchange time, browser and served build hash
-were not provided, so it is an owner confirmation rather than a new Worker
-trace; the full failure diagnosis and timestamp limits are in the
-[QR incident record](../../evidence/0.4.0/qr-auth-incident-2026-09-27.md).
+After another fresh scan, the owner reported successful sign-in at the
+**20:56:33 UTC conversation-clock observation**. The exact exchange time,
+browser and served build hash were not provided. This is an owner confirmation,
+not a new Worker trace; the full failure diagnosis and timestamp limits are in
+the [QR incident record](../../evidence/0.4.0/qr-auth-incident-2026-09-27.md).
+
+Local checks on this Windows host found and corrected one real test assumption:
+the reviewed menu closure removes obsolete title-screen files, so the complete
+current prepared manifest is 259,978 bytes, below the former 256 KiB limit and
+inside the current 512 KiB cap. The outdated assertion claiming the current
+family was above that old limit was removed; full canonical parsing, inventory,
+cap and digest assertions remain. On the available Node 22.23.2 runtime, the
+owning closure-derivation test now passes 24 tests (2 skipped), and the auth
+configuration, QR-panel and responsive-menu tests pass 69/69. The full
+production build, typecheck, asset checks, production exclusions, public
+boundary and Mini App integrity checks also pass. The available npm is 12.0.2,
+outside the repository's declared npm 10.9.8 line, so these are local checks,
+not exact pinned-toolchain acceptance.
+
+The broad local Vitest run on this Windows filesystem is not a Linux CI result:
+it reports POSIX-only failures for `/usr/bin/git`, `/bin/sh`, owner-only
+directory modes and symlinks, and an earlier unsharded run under unsupported
+Node 24.19.0 hit the worker heap limit. The Windows failures do not override the
+focused passes, but the full Linux Verify remains necessary once GitHub can
+allocate its hosted jobs.
 
 Reviewing the current built menu found its secondary tagline crossed the
 primary action in the 844×390 landscape screenshot. Signed source `66a9724a`

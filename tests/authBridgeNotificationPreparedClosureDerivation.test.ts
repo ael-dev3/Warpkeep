@@ -339,11 +339,10 @@ describe('prepared deploy closure derivation', () => {
     )).toThrow();
   });
 
-  it('derives and parses the complete prospective source family above the former manifest limit', async () => {
+  it('derives and parses the complete prospective source family within the manifest limit', async () => {
     const family = await derivePreparedClosureFamily({ repositoryRoot });
     const manifest = family.files.find(file => file.path === AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MANIFEST_PATH);
     expect(manifest).toBeDefined();
-    expect(manifest!.bytes.byteLength).toBeGreaterThan(256 * 1_024);
     expect(manifest!.bytes.byteLength).toBeLessThanOrEqual(MAX_MANIFEST_BYTES);
     const parsed = authBridgeNotificationPreparedDeployClosureTestSeams!.parseManifest(Buffer.from(manifest!.bytes));
     expect((parsed.members as unknown[]).length).toBe(family.memberCount);

@@ -58,6 +58,7 @@ logic was relaxed.
 | **19:06:22** | Signed public mirror commit `b6afe92e7b09197b1578d992103ac3c8f916d8ad` recorded the separately reviewed Alpha QR diagnostic client. This commit came **after** the successful exchange; no browser build hash was captured for that exact sign-in. |
 | **19:07:15–19:07:48** | [GitHub Pages run 36343178620](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36343178620) built and deployed that exact public commit successfully. Its deploy job completed at 19:07:47. Live root, SPA fallback, owner canary and main JS matched the reviewed files. |
 | **20:28 UTC (session observation)** | The owner reported a fresh QR scan had logged in successfully. The message did not include the scan's exact time, request trace, browser, or served build hash, so this is recorded as an owner confirmation, not as a timestamped Worker exchange or independent reproduction. |
+| **20:56:33 UTC (conversation-clock observation)** | After another fresh scan, the owner reported that QR sign-in succeeded. This is the session clock observed after the report, not the exact scan or exchange time. No Worker trace, browser identity, or served build hash accompanied the report. |
 
 The creation and deployment timestamps are from Cloudflare's version and
 deployment metadata. Failed and successful sign-in route timestamps are from
