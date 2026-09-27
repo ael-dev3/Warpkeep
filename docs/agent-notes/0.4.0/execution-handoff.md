@@ -11,34 +11,49 @@ The live HTML and sampled sign-in assets match that exact published build.
 This backports the bounded client clock-lag repair from signed source
 [`d1cc6a9`](https://github.com/ael-dev3/Warpkeep/commit/d1cc6a9f04673e40b98982fae205416644db1181)
 after a real QR attempt failed; phone-approved end-to-end retest is pending.
+The owner reported another failed scan on 27 September, but the accessible
+Codex browser tab was still at the unchecked Alpha Participation Terms gate,
+so that scan's browser phase and visible detail were unavailable. The prior
+Worker tail had ended and Cloudflare historical request logs were inaccessible;
+do not infer its failure stage or claim the clock repair fixed sign-in. Live
+bridge health reports public authentication enabled, challenge CORS preflight
+passed, the configured browser-side Optimism RPC passed CORS and chain-ID
+probes, and a fresh sanitized Worker tail was verified against a
+health request. The next test needs the owner to accept the Terms in the active
+tab, produce a fresh QR, approve it within its five-minute life and preserve
+the small error line if it fails. Start a sanitized bridge tail before that
+scan; correlate only fixed event labels/statuses, never tokens, FIDs or proof.
 The [hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
 has the exact source, verification and recovery path. This brings the existing
 site online; 0.4 PTR remains unshipped and needs its own reviewed release path.
 
 The active 0.4 development [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
 has a signed, remote-equal protected-closure checkpoint at
-[`4df24928`](https://github.com/ael-dev3/Warpkeep/commit/4df24928037d7e5ec5044edc97e74a6babc6e953),
+[`a0cd382b`](https://github.com/ael-dev3/Warpkeep/commit/a0cd382bb599ba10402e52b62f6412c77f670644),
 refrozen from signed source
-[`70a92a4e`](https://github.com/ael-dev3/Warpkeep/commit/70a92a4e76ae24e2e8fd94bc8fd8dd535db691ce).
+[`4855890e`](https://github.com/ael-dev3/Warpkeep/commit/4855890e8088ad0b34cd001d8da675f2fdb9251a).
 The committed 1,258-member closure manifest has SHA-256
-`4aaf8ea805a2e23651e98332d19c279dc5d5a2cebed884abe8afd5714ff1534b`.
-That source includes the same bounded QR client clock-lag repair as the Alpha
-backport. Its Keep catalog now distinguishes spendable shortages from known
-incoming Worker earnings, suggests a resource still uncovered after incoming,
-chooses the first idle Worker for an untargeted search and explains when all
-Workers are busy. Five focused Keep/PTR suites passed 146 tests and build-mode
-typechecking passed locally. This improves the first journey in source; it
-does not prove actual owner play or physical-phone performance.
+`7852979eaac799f096abc714aa84aa2a7c3cceedbf3e086b4250da9af47ec53a`.
+The exact-source native refreeze matched 3,266 Git blobs, regenerated all 16
+outputs, and passed the independent 1,258-member policy and clean checked-in
+sealed verifier on both Linux and Windows. The current source preserves the
+earlier Keep guidance and QR clock repair; it also makes construction progress
+visible above the first mobile fold and bounds public Realm resource-site reads
+with a retry that keeps keyboard focus. The 98 combined affected tests,
+typecheck and full production build passed locally. This improves the first
+journey in source; it does not prove actual owner play or physical-phone
+performance.
 
-The exact-head
-[Verify 36326406507](https://github.com/ael-dev3/Warpkeep/actions/runs/36326406507)
+The earlier exact-head
+[Verify 36326796457](https://github.com/ael-dev3/Warpkeep/actions/runs/36326796457)
 failed all 17 jobs before any step ran. GitHub's job annotation cites recent
 failed payments or the spending limit. This is an account gate, not a source
 test failure or a CI pass. Require a successful Verify on the final PR head
 before protected-main M1 integration, then exact-M1 native preparation/check,
 generated-only M2, exact-main Verify and authenticated deployment. Current
 `main` remains the earlier `786c0b2b` M2. The public Alpha hotfix is a separate
-build; 0.4 owner PTR is not live.
+build; 0.4 owner PTR is not live. The latest closure head still needs its own
+successful hosted Verify; do not reuse the earlier zero-step run as evidence.
 
 ### Earlier 27 September source checkpoints
 

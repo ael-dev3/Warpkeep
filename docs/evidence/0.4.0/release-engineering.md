@@ -9,6 +9,19 @@ later source. 0.4 remains unshipped.
 
 ## Current checkpoint — 27 September 2026
 
+Signed PR source [`4855890e`](https://github.com/ael-dev3/Warpkeep/commit/4855890e8088ad0b34cd001d8da675f2fdb9251a)
+was refrozen into signed protected closure
+[`a0cd382b`](https://github.com/ael-dev3/Warpkeep/commit/a0cd382bb599ba10402e52b62f6412c77f670644).
+An isolated full native checkout matched all 3,266 source Git blobs, derived
+the 1,258 protected members and all 16 deterministic outputs, then passed an
+independent fresh-process rederivation and policy check. The new manifest
+SHA-256 is `7852979eaac799f096abc714aa84aa2a7c3cceedbf3e086b4250da9af47ec53a`.
+Clean final-head Linux and Windows checked-in sealed verifiers and an outgoing
+secret scan passed. The current source's full production build passed locally.
+These are source checks, not a hosted Verify or deployment grant. The GitHub
+Actions billing gate still needs correction and a successful Verify on the
+final PR head before promotion.
+
 An isolated provider-free diagnostic at clean signed PR checkpoint
 [`389375bb`](https://github.com/ael-dev3/Warpkeep/commit/389375bb335a4eb6a776e4cb088581f9a7cd890e)
 rechecked the repaired G002 build with pinned Linux Node 22.22.3, the attested
