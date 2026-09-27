@@ -89,7 +89,7 @@ const panelHeadings: Record<Exclude<FarcasterAuthPhase, 'anonymous'>, PanelHeadi
     title: 'AUTHENTICATION EXPIRED'
   },
   error: {
-    eyebrow: 'RELAY RECORD REJECTED',
+    eyebrow: 'SIGN-IN INCOMPLETE',
     title: 'AUTHENTICATION FAILED'
   }
 };

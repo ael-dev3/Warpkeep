@@ -301,6 +301,8 @@ describe('FarcasterQrAuthPanel', () => {
     const errorMessage = '<img src=x onerror=alert(1)> Relay unavailable.';
     const failed = renderPanel({ phase: 'error', errorMessage });
     expect(screen.getByRole('heading', { name: 'AUTHENTICATION FAILED' })).not.toBeNull();
+    expect(screen.getByText('SIGN-IN INCOMPLETE')).not.toBeNull();
+    expect(screen.queryByText('RELAY RECORD REJECTED')).toBeNull();
     expect(screen.getByText(errorMessage)).not.toBeNull();
     expect(failed.container.querySelector('img')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'TRY AGAIN' }));

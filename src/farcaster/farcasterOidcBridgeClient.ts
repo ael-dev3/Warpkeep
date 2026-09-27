@@ -110,7 +110,7 @@ const definitiveAccessRequestNoMutationErrors = new WeakMap<
 >();
 
 function createRetryableExchangeError() {
-  const error = new FarcasterOidcBridgeClientError();
+  const error = bridgeClientError('service-unavailable');
   retryableExchangeErrors.add(error);
   return error;
 }
@@ -950,7 +950,7 @@ export function createFarcasterOidcBridgeClient(
             throw error;
           }
           if (retryDelay === undefined) {
-            throw new FarcasterOidcBridgeClientError();
+            throw error;
           }
           await waitForExchangeRetry(
             retryDelay,
@@ -968,7 +968,7 @@ export function createFarcasterOidcBridgeClient(
         request.fid
       );
       if (!session) {
-        throw new FarcasterOidcBridgeClientError();
+        throw bridgeClientError('invalid-response');
       }
       return session;
     },
