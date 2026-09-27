@@ -3565,7 +3565,7 @@
     {
       "path": "src/components/WarpkeepExperience.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4f10cb8c1d401fd217eca2ccea1c62e28721c80dfe3dc9ab361307be1db6d8cf"
+      "sha256": "66234d63a52c1f707a068205c2cff5661b46bf76017388362c905157c3ee94f0"
     },
     {
       "path": "src/components/audio/WarpkeepAudioDirector.tsx",
@@ -3965,7 +3965,7 @@
     {
       "path": "src/components/menu/WarpkeepMainMenu.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ee347217e67549fbb5efb99c932a7795b3489524060934ba21e83c2572a2896f"
+      "sha256": "d888c3ebf8413b32039bd028b976b049a0a0784b4950de542fbb9c46b844eb33"
     },
     {
       "path": "src/components/menu/WarpkeepMenuWorld3D.css",
@@ -3975,7 +3975,7 @@
     {
       "path": "src/components/menu/WarpkeepMenuWorld3D.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5473bca17ddbf32ede5c571d89959ce8c8f605f047b27417d91c7c17ee0cb0e4"
+      "sha256": "baceb1233456df885cacdbeffb6091f5e1db35102f20bb6e77787f6a7625891b"
     },
     {
       "path": "src/components/menu/createMenuLandscape3D.ts",
