@@ -117,8 +117,12 @@
 .keep04 .keep04-primary-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .keep04 .keep04-state { padding: 24px; border: 1px solid var(--keep04-line); }
 .keep04 .keep04-state button { margin: 8px; }
-.keep04 .keep04-construction { padding-top: 16px; color: #ffe1ad; }
-.keep04 .keep04-construction-progress { display: grid; gap: 5px; margin-top: 10px; }
+.keep04 .keep04-construction { margin: 8px 0 12px; padding: 10px 12px; border: 1px solid #b79b68; border-radius: 8px; background: #263b31; color: #ffe1ad; }
+.keep04 .keep04-construction p { margin: 0; }
+.keep04 .keep04-construction-progress { display: grid; gap: 5px; margin-top: 6px; }
+.keep04 .keep04-construction-group { margin: 8px 0 12px; padding: 0 8px; border: 1px solid #b79b68; border-radius: 8px; background: #263b31; }
+.keep04 .keep04-construction-group > summary { min-height: 44px; padding: 10px 4px; cursor: pointer; }
+.keep04 .keep04-construction-group .keep04-construction { margin: 0 0 8px; }
 .keep04 .keep04-construction-progress-track { height: 10px; overflow: hidden; border: 1px solid #9dab96; border-radius: 999px; background: #132723; }
 .keep04 .keep04-construction-progress-track > span { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: linear-gradient(90deg, #dfc6ff, #ffe1ad); transition: width 180ms ease-out; }
 .keep04 .keep04-construction-progress-label { color: #f4efe3; font-size: 13px; }

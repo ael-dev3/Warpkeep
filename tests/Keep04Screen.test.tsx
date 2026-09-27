@@ -216,6 +216,11 @@ it('keeps the construction estimate in the building card and waits for confirmed
   const card = () => within(screen.getByRole('article', { name: 'City Mill' }));
   const sceneConstruction = () => within(screen.getByRole('region', { name: 'City Mill construction' }));
   expect(card().getByText('20 s')).toBeVisible();
+  expect(sceneConstruction().getByText('City Mill').closest('p')).toHaveTextContent('City Mill · Constructing level 1 · Estimated time remaining: 20 s');
+  expect(screen.getAllByRole('region', { name: 'City Mill construction' })).toHaveLength(1);
+  expect(screen.getByRole('region', { name: 'City Mill construction' }).compareDocumentPosition(
+    screen.getByRole('region', { name: 'Verdant Citadel scene' })
+  ) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(sceneConstruction().getByRole('progressbar', { name: 'City Mill scene construction progress' })).toHaveAttribute('aria-valuenow', '83');
   expect(sceneConstruction().getByText('83% complete · 20 s remaining')).toBeVisible();
   act(() => { vi.advanceTimersByTime(20_000); });
@@ -227,6 +232,22 @@ it('keeps the construction estimate in the building card and waits for confirmed
   rerender({ ...snapshot, view: presentState04(decodeState04(completed, SCOPE04), ATLAS04, Date.now()) });
   expect(card().queryByText('Awaiting Realm update')).not.toBeInTheDocument();
   expect(card().getByText('Completed level 1')).toBeVisible();
+});
+
+it('keeps multiple construction summaries compact while retaining each named progressbar', () => {
+  const { snapshot, rerender } = setup(constructingWire04());
+  const mill = snapshot.view!.buildings.find(building => building.phase === 'constructing')!;
+  rerender({ ...snapshot, view: { ...snapshot.view!, buildings: [mill, { ...mill, kind: 'lumber-camp' }] } });
+  const summary = screen.getByText('2 constructions underway · View progress');
+  const group = summary.closest('details');
+  expect(group).not.toHaveAttribute('open');
+  fireEvent.click(summary);
+  expect(group).toHaveAttribute('open');
+  for (const name of ['City Mill', 'Lumber Camp']) {
+    const section = within(screen.getByRole('region', { name: `${name} construction` }));
+    expect(section.getByText(name).closest('p')).toHaveTextContent(`${name} · Constructing level 1`);
+    expect(section.getByRole('progressbar', { name: `${name} scene construction progress` })).toBeVisible();
+  }
 });
 
 it('keeps the Builder busy after estimated zero and never finishes from the UI clock', () => {

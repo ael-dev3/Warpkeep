@@ -63,6 +63,21 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   const visible = (phase === 'ready' || phase === 'refreshing' || phase === 'pending') && view !== null;
   const firstIdleWorker = view?.workers.find(worker => worker.phase === 'idle');
   const showFirstJourney = visible && view !== null && isKeep04FirstJourney04(view);
+  const constructionStatuses = view?.buildings.filter(building => building.phase === 'constructing').map(building => {
+    const construction = building.startsAtMicros !== null && building.completesAtMicros !== null
+      ? constructionProgress04(building.startsAtMicros, building.completesAtMicros, nowMs)
+      : null;
+    return <section key={building.kind} className="keep04-construction" aria-label={`${BUILDING_NAMES04[building.kind]} construction`}>
+      <p><strong>{BUILDING_NAMES04[building.kind]}</strong> · Constructing level {building.targetLevel} · Estimated time remaining: <span>{construction?.remaining ?? estimatedTime04(building.completesAtMicros!, nowMs)}</span></p>
+      {construction && <div className="keep04-construction-progress">
+        <div className="keep04-construction-progress-track" role="progressbar" aria-label={`${BUILDING_NAMES04[building.kind]} scene construction progress`}
+          aria-valuemin={0} aria-valuemax={100} aria-valuenow={construction.percent} aria-valuetext={construction.label}>
+          <span style={{ width: `${construction.percent}%` }} />
+        </div>
+        <span className="keep04-construction-progress-label">{construction.label}</span>
+      </div>}
+    </section>;
+  }) ?? [];
   const sceneBuildings = view?.buildings;
   const previousSceneVisual = useRef<VisualState04 | null>(null);
   // Countdown text updates once a second; only actual placement/structure changes
@@ -202,6 +217,11 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
         <p>Open the Realm and choose a resource location for Worker {firstIdleWorker.ordinal + 1}. What comes home can shape your first improvement.</p>
         <button type="button" onClick={() => onFindResources(null, firstIdleWorker.ordinal)}>Choose a resource location</button>
       </section>}
+      {constructionStatuses.length === 1 ? constructionStatuses[0] : constructionStatuses.length > 1 ?
+        <details className="keep04-construction-group">
+          <summary>{constructionStatuses.length} constructions underway · View progress</summary>
+          {constructionStatuses}
+        </details> : null}
       {problem === 'capacity' && <p role="status">That resource location is full. Find another location.</p>}
       {problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}
       <div className="keep04-workspace" data-panel-open={selection.panel !== null}>
@@ -217,21 +237,6 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
               onSelect={selectBuilding} onChange={draft => onSelectionChange({ ...selection, draft })}
               onReview={selection.panel === 'buildings' ? focusReview : undefined} />
           </details>
-          {view.buildings.filter(building => building.phase === 'constructing').map(building => {
-            const construction = building.startsAtMicros !== null && building.completesAtMicros !== null
-              ? constructionProgress04(building.startsAtMicros, building.completesAtMicros, nowMs)
-              : null;
-            return <section key={building.kind} className="keep04-construction" aria-label={`${BUILDING_NAMES04[building.kind]} construction`}>
-              <p>Constructing level {building.targetLevel} · Estimated build time: <span>{construction?.remaining ?? estimatedTime04(building.completesAtMicros!, nowMs)}</span></p>
-              {construction && <div className="keep04-construction-progress">
-                <div className="keep04-construction-progress-track" role="progressbar" aria-label={`${BUILDING_NAMES04[building.kind]} scene construction progress`}
-                  aria-valuemin={0} aria-valuemax={100} aria-valuenow={construction.percent} aria-valuetext={construction.label}>
-                  <span style={{ width: `${construction.percent}%` }} />
-                </div>
-                <span className="keep04-construction-progress-label">{construction.label}</span>
-              </div>}
-            </section>;
-          })}
         </div>
         {selection.panel && <aside ref={commandPanel} id={panelId} className="keep04-panel" aria-label="Command panel">
           <button ref={closeButton} className="keep04-close" type="button" onClick={closePanel}>Close panel</button>
