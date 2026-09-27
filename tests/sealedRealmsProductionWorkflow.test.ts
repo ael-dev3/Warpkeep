@@ -469,14 +469,14 @@ printf '%s\\n' ptr-fixed-argument-transport-ok
   it('keeps the stable verify check as an always-run aggregator including recovery', () => {
     const document = verification();
     expect(Object.keys(document.jobs ?? {})).toEqual([
-      'linux', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract', 'verify',
+      'linux', 'root-tests', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract', 'verify',
     ]);
     expect(document.jobs?.verify).toMatchObject({
       name: 'verify',
-      needs: ['linux', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract'],
+      needs: ['linux', 'root-tests', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract'],
     });
     expect(document.jobs?.verify?.if).toContain('always()');
-    const predecessors = ['linux', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract'];
+    const predecessors = ['linux', 'root-tests', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract'];
     const [accept, reject] = document.jobs.verify.steps;
     expect(document.jobs.verify.steps).toHaveLength(2);
     expect(accept.run).toBe('exit 0'); expect(reject.run).toBe('exit 1');
