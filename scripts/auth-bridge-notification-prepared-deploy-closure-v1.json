@@ -3845,12 +3845,12 @@
     {
       "path": "src/components/keep04/Keep04Screen.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e75df9921aba52e992db3eeb653578db08f04907ad4e1083d23f1c2f876a5585"
+      "sha256": "77f5e16a9ff0bf01b505394824413993485869ec6f09c76a86bfc6d68ddfe184"
     },
     {
       "path": "src/components/keep04/Keep04Screen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "513d965cadea4c5a0cbb1fdeec454cac82f5c71c1fcc6f06d51cc6d138cfe96b"
+      "sha256": "8d4e0de37a2d9c09fef554e52fed724e9a2e8502557c1d52300d762b1b6a1fd5"
     },
     {
       "path": "src/components/keep04/Keep04WorkerPanel.tsx",
@@ -4020,7 +4020,7 @@
     {
       "path": "src/components/realm/GreaterRealmWorldScene.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "880b422f5c96d2ce47c7349bb748506f8c194f572467ec30b2bd064823b88836"
+      "sha256": "6c918711e837d05767a9d32d32ef5608223a009728c55362eba919fe50e74f54"
     },
     {
       "path": "src/components/realm/LoggingCampInspectionPanel.css",
@@ -5070,7 +5070,7 @@
     {
       "path": "src/greater-realm/greaterRealmClientRuntime.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e1ffefc2e28a9b59bdfa2c980c21478565e74b0c28c08363fd96335373d8eb34"
+      "sha256": "66616e0afd85250af14a48ec3fea513a6ed04d47a9b464af1a1b443c4c41703c"
     },
     {
       "path": "src/greater-realm/greaterRealmPresentationPlan.ts",
