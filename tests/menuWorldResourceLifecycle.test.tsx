@@ -98,6 +98,22 @@ describe('menu 3D lifecycle', () => {
     vi.unstubAllGlobals();
   });
 
+  it('preserves the imported castle material side while configuring its shadows', async () => {
+    const view = render(<WarpkeepMenuWorld3D active reducedMotion quality="performance" guardianUrl={null} />);
+    await vi.waitFor(() => expect(harness.parseRequests).toHaveLength(1));
+    const castle = parsedModel();
+    const meshes = castle.gltf.scene.children as THREE.Mesh[];
+    const material = meshes[0].material as THREE.Material;
+    material.side = THREE.DoubleSide;
+
+    await act(async () => harness.parseRequests[0].resolve(castle.gltf));
+
+    expect(material.side).toBe(THREE.DoubleSide);
+    expect(meshes.every((mesh) => mesh.castShadow && mesh.receiveShadow)).toBe(true);
+    view.unmount();
+    expectReleased(castle);
+  });
+
   it('releases a GLTF whose parse finishes after the menu has unmounted', async () => {
     const view = render(<WarpkeepMenuWorld3D active reducedMotion />);
     await vi.waitFor(() => expect(harness.parseRequests).toHaveLength(1));

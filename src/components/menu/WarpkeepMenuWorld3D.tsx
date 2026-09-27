@@ -89,9 +89,7 @@ function configureModel(root: THREE.Object3D, castShadow: boolean): void {
     if (!(node instanceof THREE.Mesh)) return;
     node.castShadow = castShadow;
     node.receiveShadow = true;
-    for (const material of Array.isArray(node.material) ? node.material : [node.material]) {
-      if ('side' in material) material.side = THREE.FrontSide;
-    }
+    // GLTFLoader applies the asset's doubleSided flag; keep that authored choice.
   });
 }
 
