@@ -13,33 +13,46 @@ The source preserves the bounded QR clock-lag repair and now distinguishes
 privacy-safe invalid/expired pre-exchange, network and timeout failures. This
 is diagnostic publication, not proof of successful phone-approved sign-in.
 
-The latest reported scan produced no new challenge or SIWF exchange in the
-sanitized production bridge tail; the inspected game tab showed the earlier
-challenge expired. Tail connectivity was separately checked with healthz 200.
-The game tab was reloaded onto the new build and reached the Alpha Participation
-Terms gate. The owner must accept those legal terms personally, then start a
-new QR and approve it in Farcaster within five minutes. Keep the sanitized
-tail attached and correlate only route, status and fixed event labels; never
-record channel tokens, FIDs or proof. A separate Mini App Quick Auth success
-is not desktop QR evidence. The
+The last traced QR attempt produced no new challenge or SIWF exchange, and the
+inspected game tab held an expired challenge. The owner subsequently reported
+the same generic failure after another scan, but that scan had no concurrent
+trace; the exact failure stage remains unknown. A fresh sanitized Worker tail
+using the **`warpkeep-production` Wrangler profile** was validated by a
+`/healthz` 200. The observed game tab is on the new build at the Alpha
+Participation Terms gate. The owner must accept those legal terms personally,
+then start a fresh QR and approve it in Farcaster within five minutes. Capture
+only route, status and fixed event labels; never record channel tokens, FIDs
+or proof. Do not infer server rejection from the generic UI eyebrow. A separate
+Mini App Quick Auth success is not desktop QR evidence. The
 [hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
 has the source, verification and recovery path. The 0.4 PTR is not live.
 
 The current signed 0.4 [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
-head is [`68937b59`](https://github.com/ael-dev3/Warpkeep/commit/68937b59765340b04a8c0c180f8fc60dd3812129).
+head is [`0dd69b35`](https://github.com/ael-dev3/Warpkeep/commit/0dd69b35aa4c66a907cf07038853897c9119ea17).
+Its protected-closure source checkpoint remains signed
+[`68937b59`](https://github.com/ael-dev3/Warpkeep/commit/68937b59765340b04a8c0c180f8fc60dd3812129).
 The 1,258-member closure manifest hashes to
 `58b6a428ca9f12ca7431e8ed1801cbe31d1e09d298564a44f87adbdff1f010ef`;
 exact-source native preparation/check matched 3,266 Git blobs, generated 16
 outputs, and passed Windows/Linux checked-in policy and sealed-launch checks.
 Focused auth tests, typecheck, production build and public payload check passed.
-[Verify 36333337949](https://github.com/ael-dev3/Warpkeep/actions/runs/36333337949)
+[latest exact-head Verify 36334621907](https://github.com/ael-dev3/Warpkeep/actions/runs/36334621907)
 stopped all 17 jobs before runner steps at GitHub's account billing gate; it
 is neither a source failure nor a pass. `main` remains the earlier signed M2
 `786c0b2b`. New [menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375)
 is unsigned, has stale protected-closure membership and a new `.m4a` asset
-outside current Pages allowlists. Integrate, sign, refreeze and verify it only
-after the auth investigation. Do not promote M1/M2 or deploy 0.4 without
-final-head hosted Verify and all protected live gates.
+outside current Pages allowlists. Its mobile-load and WebGL-lifecycle review
+fixes are on signed, pushed branch
+[`fix/verdant-menu-review@90ad4827`](https://github.com/ael-dev3/Warpkeep/commit/90ad482779721c87b3bea5c579a2786f11d8cc05),
+based on PR #375 and not yet integrated into release source. The original
+emblem remains for castle banners; a deterministic 256px heading derivative
+loads instead, audio waits for an unmuted gesture, parsed 3D resources are
+released on navigation, and rendering pauses and recovers around WebGL context
+loss/restoration. The pinned build,
+focused tests and rendered 390px/360px/320px mobile review passed. Integrate,
+sign, refreeze and verify the menu only after the auth investigation. Do not
+promote M1/M2 or deploy 0.4 without final-head hosted Verify and all protected
+live gates.
 
 ### Earlier 27 September source checkpoint
 
