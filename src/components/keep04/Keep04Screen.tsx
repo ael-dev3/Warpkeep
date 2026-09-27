@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Building04, Resource04 } from '../../../spacetimedb/gameplay04/policy';
 import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
 import type { Controller04, Snapshot04 } from '../../ptr/gameplay04/createGameplay04Controller';
@@ -45,6 +45,17 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   const visible = (phase === 'ready' || phase === 'refreshing' || phase === 'pending') && view !== null;
   const firstIdleWorker = view?.workers.find(worker => worker.phase === 'idle');
   const showFirstJourney = visible && view !== null && isKeep04FirstJourney04(view);
+  const sceneBuildings = view?.buildings;
+  // Countdown text updates once a second; only actual placement/structure changes
+  // should reconcile the 3D scene or wake its renderer.
+  const sceneVisual = useMemo(() => {
+    const buildings = sceneBuildings ?? [];
+    const candidate = selection.draft;
+    return { buildings, selectedKind: selection.selectedKind,
+      draft: selection.panel === 'buildings' ? candidate : null,
+      draftValid: candidate !== null && evaluatePlacement04(candidate,
+        buildings.filter(building => building.kind !== candidate.kind).map(building => building.placement)).valid };
+  }, [sceneBuildings, selection.selectedKind, selection.draft, selection.panel]);
   const wasVisible = useRef(visible);
   const activeTimer = visible && (view.state.project !== undefined || view.workers.some(worker => worker.phase !== 'idle'));
   useEffect(() => {
@@ -173,8 +184,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
         <div className="keep04-scene-region">
           {visible && <Keep04SceneHost quality={quality} reducedMotion={reducedMotion} onMode={setSceneMode}
             onObservation={onSceneObservation} {...(import.meta.env.DEV ? { qaFault } : {})}
-            visual={{ buildings: view.buildings, selectedKind: selection.selectedKind, draft: selection.panel === 'buildings' ? selection.draft : null,
-              draftValid: selection.draft !== null && evaluatePlacement04(selection.draft, view.buildings.filter(building => building.kind !== selection.draft!.kind).map(building => building.placement)).valid }}
+            visual={sceneVisual}
             onSelect={selectBuilding} onPlacement={draft => onSelectionChange({ ...selection, draft })} />}
           {sceneMode === 'fallback' && <p role="status">3D graphics are unavailable. Your keep and commands remain available in the placement schematic.</p>}
           <details ref={schematic} open>

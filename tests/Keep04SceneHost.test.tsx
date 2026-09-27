@@ -254,7 +254,7 @@ it.each(['entry', 'grounds', 'inspection'] as const)('preserves %s framing, manu
 
 // Real hook, controller, screen, scene host and scene; only SDK replies/assets/GPU
 // are fixtures. Holding a poll prevents React batching from hiding its lifecycle.
-function refreshHarness(wire = freshWire04()) {
+function refreshHarness(wire = freshWire04(), reducedMotion = false) {
   const scripted = scriptedCapability04();
   scripted.read.mockImplementation(async () => wire);
   let current!: ReturnType<typeof useGameplay04Controller>;
@@ -263,10 +263,29 @@ function refreshHarness(wire = freshWire04()) {
     const [selection, onSelectionChange] = useState<Keep04UiSelection>({ panel: 'buildings', selectedKind: 'city-mill', draft: MILL_PLACEMENT04 });
     useEffect(() => state.controller.setAtlas(ATLAS04), [state.controller]);
     return <Keep04Screen {...state} selection={selection} onSelectionChange={onSelectionChange}
-      onBack={vi.fn()} quality="balanced" reducedMotion={false} onFindResources={vi.fn()} onReturnToWorld={vi.fn()} />;
+      onBack={vi.fn()} quality="balanced" reducedMotion={reducedMotion} onFindResources={vi.fn()} onReturnToWorld={vi.fn()} />;
   }
   return { ...scripted, mounted: render(<Harness />), current: () => current };
 }
+
+it.each([false, true])('updates construction time without waking the 3D scene (reduced motion: %s)', async reducedMotion => {
+  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+  vi.setSystemTime(0);
+  const h = refreshHarness(constructingWire04(), reducedMotion); await act(async () => {}); tick();
+  const canvas = h.mounted.container.querySelector('canvas');
+  const construction = h.mounted.container.querySelector('.keep04-construction')!;
+  const before = construction.textContent;
+  const renderedFrames = renderers[0].scenes.length;
+  expect(before).toContain('2 min 1 s');
+  expect(queued.size).toBe(0);
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(construction.textContent).toContain('2 min');
+  expect(construction.textContent).not.toBe(before);
+  expect(queued.size).toBe(0);
+  expect(renderers[0].scenes).toHaveLength(renderedFrames);
+  expect(h.mounted.container.querySelector('canvas')).toBe(canvas);
+  h.mounted.unmount(); expect(active).toBe(0);
+});
 
 it.each(['poll', 'focus'] as const)('retains the real keep scene and focus through a held healthy %s refresh while commands stay disabled', async trigger => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
