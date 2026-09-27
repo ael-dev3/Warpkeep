@@ -25,14 +25,19 @@ sealed-launch checks passed. Verify on that source/closure head
 rejected all 17 jobs before runner start with the same account payment/limit
 annotation, so this is not a CI pass.
 A provider-free diagnostic at earlier signed PR head `a157e3a7` built and
-reattested the real G002 artifact with the pinned Linux tools and locked cache;
-this is diagnostic evidence, not protected-main release authority. The final
-PR head still needs full Verify. A separate provider-free diagnostic on
-`1b115a9b` stopped at `GREATER_REALM_PRODUCTION_MATERIALIZATION_CHANGED` after
-the correct G002 cache was selected. It made no provider request or G002
-mutation; the disposable 862 MB clone was removed and the maintained native
-checkout restored to clean `main`. Diagnose the materialization/context mismatch
-before treating this head as G002 artifact-ready. Earlier Verify
+reattested the real G002 artifact with the pinned Linux tools and locked cache.
+An initial manual rerun at source head `1b115a9b` stopped at
+`GREATER_REALM_PRODUCTION_MATERIALIZATION_CHANGED` from a shell with
+`umask 0022`; the verifier requires the built `dist` directory to be `0700`.
+Repeating the same provider-free test with `umask 077` in the launching shell,
+as the production workflow does, passed: the pinned build exited 0, `dist` was
+`0700`, its bundle was `0600`, and locked-source closure verification completed.
+Both disposable diagnostic checkouts were removed; maintained native `main`
+remains clean. No provider request or G002 mutation occurred. The successful
+mode-correct rerun supports diagnostic-context drift over a source regression;
+neither local test grants
+protected-main release authority. The final PR head still needs full Verify.
+Earlier Verify
 [36299816585](https://github.com/ael-dev3/Warpkeep/actions/runs/36299816585)
 passed 15 of 16 jobs; Linux alone failed `npm audit signatures` although the
 lockfile and published attestation digests matched. The retry and later

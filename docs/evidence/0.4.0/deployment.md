@@ -23,6 +23,19 @@ metadata/CORS probes passed. The complete old artifact had expired, and no
 owner-session or private state readback was attempted; these baseline checks
 do not satisfy 0.4 R15.
 
+The public mirror now includes legal texts and provenance notices from that
+historical source. The notices-only publication at
+[`3ca5dad`](https://github.com/ael-dev3/Warpkeep-Live/commit/3ca5dadf7f287cefeaebe84bfaa7b49cc9e7ea58)
+passed [Pages run 36312123405](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36312123405).
+An intermediate link-correction commit `6b5f26f` was unsigned because the new
+local deploy checkout lacked signing configuration; it changed no generated
+app bytes. That configuration was fixed, and the signed current head
+[`616eebf`](https://github.com/ael-dev3/Warpkeep-Live/commit/616eebfc67fa8888318515d7e33cac49eac5e473)
+has a valid GitHub signature and successful
+[Pages run 36312578563](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36312578563).
+The live apex still returns the same 0.3.43 HTML hash. The signed successor
+does not retroactively sign `6b5f26f`; preserve this note in the audit trail.
+
 Record the exact reviewed source commit, Pages workflow run and artifact
 identity, GitHub Pages URL, Cloudflare auth-bridge version/source, SpacetimeDB
 database identities and program hashes, live frontend build identity, and the
