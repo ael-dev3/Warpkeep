@@ -18,9 +18,10 @@ jobs:
     runs-on: ubuntu-latest
     # Push-to-main analysis scans the complete JavaScript/TypeScript graph and
     # needs more time than the pull-request diff path. Keep a bounded budget
-    # while avoiding a false cancellation on the protected branch.
+    # while avoiding a false cancellation on main.
     timeout-minutes: 45
     permissions:
+      actions: read
       contents: read
       security-events: write
     steps:

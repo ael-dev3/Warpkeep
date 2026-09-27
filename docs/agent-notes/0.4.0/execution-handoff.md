@@ -1,41 +1,43 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 26 September 2026
+## Current checkpoint — 27 September 2026
 
-Protected `main` is generated-only M2
-[`cc833c3384fc3e8760c0d491492a5577a28444eb`](https://github.com/ael-dev3/Warpkeep/commit/cc833c3384fc3e8760c0d491492a5577a28444eb),
-tree `f92d7ec7272ec5e4a1014545896967afb3988dff`, merged through
-[PR #369](https://github.com/ael-dev3/Warpkeep/pull/369). Its exact-main
-[Verify 36268543576](https://github.com/ael-dev3/Warpkeep/actions/runs/36268543576)
-and [CodeQL 36268543543](https://github.com/ael-dev3/Warpkeep/actions/runs/36268543543)
-passed. Both local checkouts were synchronized cleanly to this commit before
-the next source repair began.
-Protected read-only [preflight 36271779135](https://github.com/ael-dev3/Warpkeep/actions/runs/36271779135)
-and [G001 policy observation 36271834992](https://github.com/ael-dev3/Warpkeep/actions/runs/36271834992)
-also passed.
+GitHub `main` is generated-only M2
+[`007e62f2e5b7440abf483a83aeda2b9621f4054e`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e),
+tree `be80fdd152bca9d8da80702fbb2b77312faca42b`, merged through
+[PR #371](https://github.com/ael-dev3/Warpkeep/pull/371). Its source-only M1
+was [PR #370](https://github.com/ael-dev3/Warpkeep/pull/370), merged as
+[`0817724a9b2a1cfc19d3c53845e0c667fc31e078`](https://github.com/ael-dev3/Warpkeep/commit/0817724a9b2a1cfc19d3c53845e0c667fc31e078),
+tree `fed9ee6c61a28a57c0f3a08bd893aa13fe7623a2`. Native preparation and
+independent check on that exact M1 succeeded: 3,257 source files and 102
+generated outputs. M2 contains the authenticated generated family and the two
+fixed, count-free diagnostics, `g001-admitted-aggregate-drift` and
+`g001-admitted-set-mismatch`.
 
-The new [G001 freeze census 36271994192](https://github.com/ael-dev3/Warpkeep/actions/runs/36271994192)
-failed closed with `g001-admitted-aggregate-mismatch`. Its first-sample
-directory exists, but `first.json`, the second sample and `complete.json` do
-not. There is no validated baseline and no provider mutation followed. Preserve
-this attempt without reusing its identity or reading private applicant or
-admitted rows. The earlier failed census
+PR #371's Verify (including Linux and SpacetimeDB) and CodeQL passed. Exact-M2 push
+[Verify 36279277148](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277148)
+is still running. Exact-M2 push
+[CodeQL 36279277087](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277087)
+failed twice when GitHub's API returned 403 to the workflow-run GET. The
+targeted `actions: read` workflow permission repair is in progress. GitHub's
+API currently reports `main` as `protected:false` with no required checks;
+therefore PR merge alone supplies no release authority. Manually require
+terminal successful PR and exact-main Verify/CodeQL for the selected source,
+then fresh read-only preflight and G001 policy observation before one new
+census identity. Recheck the live ref immediately before each operation.
+
+The previous [G001 freeze census 36271994192](https://github.com/ael-dev3/Warpkeep/actions/runs/36271994192)
+failed closed with the old combined `g001-admitted-aggregate-mismatch` label.
+Its first-sample directory exists, but `first.json`, the second sample and
+`complete.json` do not. There is no validated baseline; no provider mutation
+followed. Preserve that attempt and the earlier incomplete
 [36255794350](https://github.com/ael-dev3/Warpkeep/actions/runs/36255794350)
-is likewise incomplete and remains preserved.
-
-The current collector combines two final checks under this label: the aggregate
-changed between its two reads, or a stable allowed aggregate differs from the
-enumerated `player_v2` set. Public evidence cannot distinguish them. The
-preferred `allowed_fid` table is private; do not substitute an unauthenticated
-query or infer counts from timing. Split these into fixed, count-free diagnostics
-through a source-only protected M1, then prepare and independently check that
-exact M1 in native WSL and promote its authenticated generated family through
-protected M2. Require exact-main Verify/CodeQL, fresh preflight and policy
-observation before one new census identity. Follow the
-[native preparation guide](../../operations/0.4.0-local-release-preparation.md#source-only-m1-before-native-release-preparation)
-and [known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths).
-A successful census must supply a validated baseline before any preservation or
-deployment mutation.
+without reusing their identities or reading private applicant/admitted rows.
+The old public evidence cannot distinguish drift from set mismatch. A new
+source-bound diagnostic can identify a targeted repair, but only a successful
+two-sample census supplies the baseline needed before preservation or
+deployment mutation. Follow the
+[known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths).
 
 The local rendered WebGL matrix passed on reviewed source, but remains local
 evidence rather than live PTR acceptance. The
