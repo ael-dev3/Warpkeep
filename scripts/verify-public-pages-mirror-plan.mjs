@@ -1,0 +1,312 @@
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import {
+  lstatSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+} from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+
+import {
+  checkPublicPagesPayloadManifest,
+  verifyPublicPagesPayload,
+} from './verify-public-pages-payload.mjs';
+
+const COMMIT = /^[a-f0-9]{40}$/u;
+const PUBLIC_ORIGIN = 'https://github.com/ael-dev3/Warpkeep-Live.git';
+const PAYLOAD_MANIFEST = 'artifacts/delivery/0.4.0/public-pages-payload-v1.json';
+export const PUBLIC_PAGES_MIRROR_MANIFEST_PATH =
+  'docs/releases/0.4.0/public-pages-payload-v1.json';
+const HOST_FILES = new Set(['.nojekyll', '404.html', 'CNAME']);
+const GENERATED_ROOT_FILES = new Set([
+  'apple-touch-icon-180-fe27e8dc1c97cc36.png',
+  'favicon-64-7b82ca973fe757f5.png',
+  'index.html',
+  'warpkeep-boot.css',
+  'warpkeep-noscript.css',
+]);
+const GENERATED_DIRECTORIES = new Set([
+  '.well-known', 'assets', 'audio', 'images', 'legal', 'models',
+  'owner-canary', 'privacy', 'social-contract', 'terms', 'video',
+]);
+export const SOURCE_PUBLIC_DOCUMENTS = Object.freeze([
+  'ASSETS-LICENSE.md',
+  'LICENSE',
+  'LICENSE-CC-BY-4.0',
+  'LICENSING.md',
+  'NOTICE',
+  'TRADEMARKS.md',
+  'docs/legal/license-inventory.md',
+  'licenses/LicenseRef-Warpkeep-Provenance-Required.txt',
+  'licenses/legacy/LICENSE-0BSD-v0.2.0',
+  'licenses/legacy/LICENSE-CC0-1.0-v0.2.0',
+]);
+const PUBLIC_DOCUMENT_SET = new Set([...SOURCE_PUBLIC_DOCUMENTS, 'README.md']);
+
+export class PublicPagesMirrorPlanError extends Error {
+  constructor(code) {
+    super(code);
+    this.name = 'PublicPagesMirrorPlanError';
+    this.code = code;
+  }
+}
+
+function fail(code) {
+  throw new PublicPagesMirrorPlanError(code);
+}
+
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+function git(root, args, maxBuffer = 4 * 1024 * 1024) {
+  const result = spawnSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+    timeout: 30_000,
+    maxBuffer,
+    windowsHide: true,
+  });
+  if (result.error || result.status !== 0 || result.signal) {
+    fail('PUBLIC_PAGES_MIRROR_GIT_INVALID');
+  }
+  return result.stdout;
+}
+
+function safeRelativePath(path) {
+  return path.length <= 1024
+    && !/[^\x20-\x7e]/u.test(path)
+    && !path.includes('\\')
+    && path.split('/').every(segment => /^[A-Za-z0-9._-]+$/u.test(segment));
+}
+
+function generatedPath(path) {
+  if (!safeRelativePath(path)) return false;
+  if (!path.includes('/')) return GENERATED_ROOT_FILES.has(path);
+  const parts = path.split('/');
+  if (!GENERATED_DIRECTORIES.has(parts[0])) return false;
+  const name = parts.at(-1);
+  if (parts[0] === '.well-known') return path === '.well-known/farcaster.json';
+  if (parts[0] === 'assets') return /\.(?:css|js)$/u.test(name);
+  if (parts[0] === 'audio') return /\.mp3$/u.test(name);
+  if (parts[0] === 'images') return /\.(?:png|webp)$/u.test(name);
+  if (parts[0] === 'models') return /\.glb$/u.test(name);
+  if (parts[0] === 'video') return /\.mp4$/u.test(name);
+  if (parts[0] === 'legal') return path === 'legal/warpkeep-legal.css';
+  return parts.length === 2 && name === 'index.html';
+}
+
+function approvedPublicPath(path) {
+  return safeRelativePath(path) && (
+    generatedPath(path)
+    || HOST_FILES.has(path)
+    || PUBLIC_DOCUMENT_SET.has(path)
+    || path === PUBLIC_PAGES_MIRROR_MANIFEST_PATH
+  );
+}
+
+function inspectPublicMirror(publicRoot, expectedPublicHead) {
+  if (!COMMIT.test(expectedPublicHead ?? '')) {
+    fail('PUBLIC_PAGES_MIRROR_HEAD_INVALID');
+  }
+  const root = realpathSync(resolve(publicRoot));
+  if (
+    realpathSync(resolve(git(root, ['rev-parse', '--show-toplevel']).trim())) !== root
+    || git(root, ['remote', 'get-url', '--all', 'origin']).trim() !== PUBLIC_ORIGIN
+    || git(root, ['remote', 'get-url', '--push', '--all', 'origin']).trim() !== PUBLIC_ORIGIN
+    || git(root, ['branch', '--show-current']).trim() !== 'main'
+    || git(root, ['rev-parse', 'HEAD']).trim() !== expectedPublicHead
+    || git(root, ['status', '--porcelain=v1', '--untracked-files=all']).trim() !== ''
+  ) fail('PUBLIC_PAGES_MIRROR_CHECKOUT_INVALID');
+  const publicTree = git(root, ['rev-parse', 'HEAD^{tree}']).trim();
+  if (!COMMIT.test(publicTree)) fail('PUBLIC_PAGES_MIRROR_CHECKOUT_INVALID');
+  const indexed = git(root, ['ls-files', '-v', '-z', '--cached']).split('\0');
+  if (indexed.length < 2 || indexed.pop() !== '' || indexed.some(entry => !entry.startsWith('H '))) {
+    fail('PUBLIC_PAGES_MIRROR_CHECKOUT_INVALID');
+  }
+  const tracked = new Set(git(root, ['ls-files', '-z']).split('\0').filter(Boolean));
+  const seen = new Set();
+  const seenFolded = new Set();
+  function walk(directory, prefix = '') {
+    for (const name of readdirSync(directory)) {
+      const path = `${prefix}${name}`;
+      if (prefix === '' && name === '.git') continue;
+      const fullPath = join(directory, name);
+      const state = lstatSync(fullPath);
+      if (
+        !safeRelativePath(path)
+        || state.isSymbolicLink()
+        || seenFolded.has(path.toLowerCase())
+        || realpathSync(fullPath) !== fullPath
+      ) fail('PUBLIC_PAGES_MIRROR_FILE_BOUNDARY_INVALID');
+      seenFolded.add(path.toLowerCase());
+      if (state.isDirectory()) {
+        walk(fullPath, `${path}/`);
+      } else if (state.isFile() && approvedPublicPath(path) && tracked.has(path)) {
+        seen.add(path);
+      } else {
+        fail('PUBLIC_PAGES_MIRROR_FILE_BOUNDARY_INVALID');
+      }
+    }
+  }
+  walk(root);
+  if (seen.size !== tracked.size || [...tracked].some(path => !seen.has(path))) {
+    fail('PUBLIC_PAGES_MIRROR_FILE_BOUNDARY_INVALID');
+  }
+  if (
+    [...PUBLIC_DOCUMENT_SET].some(path => !seen.has(path))
+    || [...HOST_FILES].some(path => !seen.has(path))
+    || !seen.has('index.html')
+  ) fail('PUBLIC_PAGES_MIRROR_REQUIRED_FILE_MISSING');
+  if (
+    !readFileSync(join(root, 'CNAME')).equals(Buffer.from('warpkeep.com\n'))
+    || readFileSync(join(root, '.nojekyll')).length !== 0
+    || !readFileSync(join(root, '404.html')).equals(readFileSync(join(root, 'index.html')))
+  ) fail('PUBLIC_PAGES_MIRROR_HOSTING_INVALID');
+  // Git status can hide a tracked edit via assume-unchanged. Fail unless a
+  // full working-tree comparison also confirms the reviewed public commit.
+  git(root, ['-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false',
+    'diff', '--no-ext-diff', '--no-textconv', '--exit-code', 'HEAD', '--']);
+  return Object.freeze({ root, publicTree, tracked: Object.freeze([...tracked]) });
+}
+
+/** Exact public README bytes for a future reviewed publication operator. */
+export function renderPublicPagesMirrorReadme(manifest, manifestSha256) {
+  if (
+    !COMMIT.test(manifest?.sourceCommit ?? '')
+    || !COMMIT.test(manifest?.sourceTree ?? '')
+    || !/^[a-f0-9]{64}$/u.test(manifestSha256 ?? '')
+  ) fail('PUBLIC_PAGES_MIRROR_README_INPUT_INVALID');
+  return Buffer.from(
+    '# Warpkeep Live\n\n'
+    + 'This public repository hosts the generated Warpkeep 0.4 owner PTR frontend '
+    + 'at https://warpkeep.com/. The development source and release controls remain '
+    + 'in the private `ael-dev3/Warpkeep` repository.\n\n'
+    + `Source commit: \`${manifest.sourceCommit}\`  \n`
+    + `Source tree: \`${manifest.sourceTree}\`  \n`
+    + `Payload manifest SHA-256: \`${manifestSha256}\`\n\n`
+    + 'This repository contains generated public assets and their license and '
+    + 'provenance records. The PTR is owner-only; publication of these files does '
+    + 'not open admissions or establish backend access.\n',
+    'utf8',
+  );
+}
+
+/** Read-only publication plan; never stages, commits, pushes or calls a provider. */
+export function verifyPublicPagesMirrorPlan({
+  sourceRoot,
+  expectedSourceCommit,
+  publicRoot,
+  expectedPublicHead,
+}) {
+  const mirror = inspectPublicMirror(publicRoot, expectedPublicHead);
+  checkPublicPagesPayloadManifest({
+    repositoryRoot: sourceRoot,
+    expectedSourceCommit,
+  });
+  const payload = verifyPublicPagesPayload({
+    repositoryRoot: sourceRoot,
+    expectedSourceCommit,
+  });
+  const manifestBytes = readFileSync(join(resolve(sourceRoot), PAYLOAD_MANIFEST));
+  if (!manifestBytes.equals(payload.bytes)) fail('PUBLIC_PAGES_MIRROR_PAYLOAD_CHANGED');
+  const entries = new Map(payload.manifest.files.map(entry => [entry.path, Object.freeze({
+    path: entry.path,
+    byteLength: entry.byteLength,
+    sha256: entry.sha256,
+    origin: 'generated',
+  })]));
+  const index = entries.get('index.html');
+  const publicReadme = renderPublicPagesMirrorReadme(
+    payload.manifest,
+    sha256(manifestBytes),
+  );
+  for (const [path, bytes] of [
+    ['.nojekyll', Buffer.alloc(0)],
+    ['404.html', readFileSync(join(resolve(sourceRoot), 'dist/index.html'))],
+    ['CNAME', Buffer.from('warpkeep.com\n')],
+    [PUBLIC_PAGES_MIRROR_MANIFEST_PATH, manifestBytes],
+    ['README.md', publicReadme],
+  ]) {
+    if (entries.has(path)) fail('PUBLIC_PAGES_MIRROR_TARGET_COLLISION');
+    entries.set(path, Object.freeze({
+      path, byteLength: bytes.length, sha256: sha256(bytes), origin: 'hosting',
+    }));
+  }
+  if (entries.get('404.html').sha256 !== index.sha256) {
+    fail('PUBLIC_PAGES_MIRROR_PAYLOAD_CHANGED');
+  }
+  for (const path of SOURCE_PUBLIC_DOCUMENTS) {
+    if (entries.has(path)) fail('PUBLIC_PAGES_MIRROR_TARGET_COLLISION');
+    const bytes = readFileSync(join(resolve(sourceRoot), path));
+    if (bytes.length > 1024 * 1024) fail('PUBLIC_PAGES_MIRROR_DOCUMENT_INVALID');
+    const reviewedBlob = spawnSync('git', ['show', `${expectedSourceCommit}:${path}`], {
+      cwd: resolve(sourceRoot),
+      encoding: null,
+      shell: false,
+      timeout: 10_000,
+      maxBuffer: 1024 * 1024 + 1,
+      windowsHide: true,
+    });
+    if (
+      reviewedBlob.error || reviewedBlob.status !== 0 || reviewedBlob.signal
+      || !bytes.equals(reviewedBlob.stdout)
+    ) fail('PUBLIC_PAGES_MIRROR_DOCUMENT_INVALID');
+    entries.set(path, Object.freeze({
+      path, byteLength: bytes.length, sha256: sha256(bytes), origin: 'reviewed-source',
+    }));
+  }
+  const sortedEntries = [...entries.values()].sort((a, b) => (
+    Buffer.compare(Buffer.from(a.path), Buffer.from(b.path))
+  ));
+  if (new Set(sortedEntries.map(entry => entry.path.toLowerCase())).size !== sortedEntries.length) {
+    fail('PUBLIC_PAGES_MIRROR_TARGET_COLLISION');
+  }
+  return Object.freeze({
+    schemaVersion: 1,
+    profile: 'warpkeep-public-pages-mirror-plan-v1',
+    sourceCommit: payload.manifest.sourceCommit,
+    sourceTree: payload.manifest.sourceTree,
+    publicParentCommit: expectedPublicHead,
+    publicParentTree: mirror.publicTree,
+    payloadManifestSha256: sha256(manifestBytes),
+    targetFileCount: sortedEntries.length,
+    targetEntries: Object.freeze(sortedEntries),
+    obsoleteGeneratedPaths: Object.freeze(mirror.tracked.filter(path => (
+      generatedPath(path) && !entries.has(path)
+    )).sort()),
+  });
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  try {
+    if (
+      process.argv.length !== 6
+      || process.argv[2] !== '--public-root'
+      || !COMMIT.test(process.argv[4] ?? '')
+      || !COMMIT.test(process.argv[5] ?? '')
+    ) fail('PUBLIC_PAGES_MIRROR_ARGUMENT_INVALID');
+    const plan = verifyPublicPagesMirrorPlan({
+      sourceRoot: resolve(dirname(fileURLToPath(import.meta.url)), '..'),
+      publicRoot: process.argv[3],
+      expectedSourceCommit: process.argv[4],
+      expectedPublicHead: process.argv[5],
+    });
+    process.stdout.write(`${JSON.stringify({
+      profile: plan.profile,
+      sourceCommit: plan.sourceCommit,
+      publicParentCommit: plan.publicParentCommit,
+      payloadManifestSha256: plan.payloadManifestSha256,
+      targetFileCount: plan.targetFileCount,
+      obsoleteGeneratedFileCount: plan.obsoleteGeneratedPaths.length,
+    })}\n`);
+  } catch (error) {
+    process.stderr.write(`${error instanceof PublicPagesMirrorPlanError
+      ? error.code
+      : 'PUBLIC_PAGES_MIRROR_PLAN_INVALID'}\n`);
+    process.exitCode = 1;
+  }
+}
