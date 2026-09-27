@@ -1,6 +1,36 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 27 September 2026, 20:16 UTC
+## Current checkpoint — 27 September 2026, 20:45 UTC
+
+The open [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) is on
+`fix/g001-census-admission-proxy` at signed source
+[`66a9724a`](https://github.com/ael-dev3/Warpkeep/commit/66a9724ae9c1e7dc16b01b5227a491415855305b);
+the active Windows checkout and fetched GitHub ref matched after publication.
+Exact-head [Verify 36349196697](https://github.com/ael-dev3/Warpkeep/actions/runs/36349196697)
+failed all 17 jobs before any job step ran. GitHub's failure annotation says
+recent account payments failed or the spending limit needs to increase. This
+run provides no code verdict. Do not bypass the check or call 0.4 shipped; the
+owner's playable PTR remains outstanding. Restore Actions billing in GitHub's
+**Billing & plans**, then require a fresh successful Verify on the exact final
+PR head and exact merged main head.
+
+The owner reported another successful fresh QR scan during the 20:28 UTC
+session observation. Its exact exchange time, browser and served build hash
+were not provided, so it is an owner confirmation rather than a new Worker
+trace; the full failure diagnosis and timestamp limits are in the
+[QR incident record](../../evidence/0.4.0/qr-auth-incident-2026-09-27.md).
+
+Reviewing the current built menu found its secondary tagline crossed the
+primary action in the 844×390 landscape screenshot. Signed source `66a9724a`
+hides only that tagline at widths of 600px or more and heights of 420px or less
+in landscape. A production-dist Chrome 154 capture at 844×390, 667×375,
+568×320 and 390×844 confirmed the three menu actions, 44px action/link targets,
+community link and WebGL canvas remained present, with no horizontal overflow
+or title-to-primary-action collision. The tagline remains visible at 568×320
+and in portrait. The responsive suite passed 13/13, the production build and
+asset/boundary checks passed, and pinned Gitleaks 8.30.1 found no leaks in the
+single outgoing commit `5fad7332..66a9724a`. This is local synthetic-browser
+evidence; it is not a physical-phone test or 0.4 PTR acceptance.
 
 The pre-0.4 Alpha 0.3.43 site remains online at
 [`warpkeep.com`](https://warpkeep.com/) through the public, generated-assets-only
