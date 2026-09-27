@@ -62,6 +62,16 @@ sign, refreeze and verify the menu only after the auth investigation. Do not
 promote M1/M2 or deploy 0.4 without final-head hosted Verify and all protected
 live gates.
 
+When integrating the menu, update current-presentation assertions in
+`tests/authBridgeNotificationPreparedWorkflow.test.ts` and
+`tests/notificationPagesLiveReceipt.test.ts` to the new reachable menu graph;
+the old title and transition files may remain on disk without remaining in the
+protected browser closure. The packaged version still comes from
+`package.json` (`0.3.43`); coordinate the approved 0.4 version change with the
+actual PTR/release cutover rather than treating the development-only menu stamp
+as publication. Rebuild and measure the combined source, regenerate the closure
+family, and validate the Assets PR's provenance before shipping.
+
 ### Earlier 27 September source checkpoint
 
 At this earlier checkpoint, the 0.4 development [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
