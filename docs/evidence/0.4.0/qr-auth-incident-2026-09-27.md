@@ -40,8 +40,11 @@ logic was relaxed.
 | **18:45:30.186** | `POST /v2/farcaster/challenge` 201, `challenge_binding_created,challenge_issued`. |
 | **18:45:49.068 / 18:45:49.103** | Exchange preflight 204; `POST /v2/farcaster/exchange` 503, `exchange_binding_verified,exchange_rejected`. No `auth_epoch_resolved`. |
 | **18:45:49.707 / 18:45:49.745** | Exchange preflight 204; retry POST 503 with the same fixed rejection stage. |
-| **18:45:50.832 / 18:45:50.877** | Exchange preflight 204; second retry POST 503 with the same fixed rejection stage. A separate disposable unauthorized proof also reproduced a fast 503 before the repair; its exact time was not retained. |
-| 27 Sep, before 19:00:15 | An isolated remote Worker probe found repeated dRPC 429, while PublicNode and `https://mainnet.optimism.io/` completed the required registry read. This was a temporary preview without production routes, bindings or secrets; its individual request timestamps were not retained. |
+| **18:45:50.832 / 18:45:50.877** | Exchange preflight 204; second retry POST 503 with the same fixed rejection stage. |
+| **18:53:15.267** | A disposable unauthorized proof test completed with challenge 201 and exchange 503 (`unavailable`, 369 ms). This is the tool-result observation time, not the exchange request time. |
+| **18:56:20.860** | Initial isolated Cloudflare-edge probe result observed: primary RPC classified `http_4xx` (63 ms; exact HTTP status not recorded in this first sample), PublicNode registry read succeeded (38 ms). |
+| **18:57:18.608** | Edge-probe batch result observed: dRPC 429 (28 ms), PublicNode registry read succeeded (37 ms), `https://mainnet.optimism.io/` registry read succeeded (171 ms). |
+| **18:57:28.756** | Three repeated batches observed: dRPC 429 (27/26/30 ms), PublicNode registry reads succeeded (34/31/32 ms), OP Mainnet registry reads succeeded (45/54/44 ms). The temporary preview had no production routes, bindings or secrets. These are result-observation times and durations, not exact HTTP request timestamps. |
 | **19:00:15.748685** | Wrangler created secret-only Worker version `2b28a266-862b-45da-a747-3cea0a0d858c`, replacing only `FARCASTER_RPC_URL` with `https://mainnet.optimism.io/`. |
 | **19:01:23.825605** | Deployment `b338c098-a33e-4922-a3a4-1c2d92a3b035` activated that version at 100%. |
 | **19:01:56.720** | A disposable unauthorized proof received challenge POST 201. |
@@ -59,8 +62,9 @@ The creation and deployment timestamps are from Cloudflare's version and
 deployment metadata. Failed and successful sign-in route timestamps are from
 the sanitized live Worker tail as captured in the local Codex session record.
 The public publication timestamps are from the signed commit and GitHub
-Actions run. The isolated edge probe and first synthetic proof did not retain
-individual request timestamps; retained production Worker logs are disabled.
+Actions run. The isolated edge probe and first synthetic proof retained result
+observation times, not individual request timestamps. Retained production
+Worker logs are disabled.
 
 ## Change and validation
 
