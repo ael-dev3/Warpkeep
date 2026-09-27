@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 export const DEFAULT_AUTH_BRIDGE_URL = 'https://auth.warpkeep.com';
-export const DEFAULT_FARCASTER_RPC_PRIMARY_URL = 'https://optimism.drpc.org/';
+export const DEFAULT_FARCASTER_RPC_PRIMARY_URL = 'https://mainnet.optimism.io/';
 export const DEFAULT_FARCASTER_RPC_SECONDARY_URL = 'https://optimism-rpc.publicnode.com/';
 export const AUTH_BRIDGE_PTR_OIDC_AUDIENCE = 'warpkeep-ptr-spacetimedb';
 

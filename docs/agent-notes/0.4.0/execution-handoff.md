@@ -5,30 +5,49 @@
 The pre-0.4 Alpha 0.3.43 site remains online at
 [`warpkeep.com`](https://warpkeep.com/) through the public, generated-assets-only
 [`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live) repository. The
-latest signed public head [`6568687`](https://github.com/ael-dev3/Warpkeep-Live/commit/6568687fccd1a317b1958f71bad33b36226e0b61)
-passed [Pages build 36334223725](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36334223725).
-Live HTML and the new main asset matched the approved Alpha build from signed
-source [`2d6811a8`](https://github.com/ael-dev3/Warpkeep/commit/2d6811a861d42d7ca191ac30e2215176db1adabd).
-The deployed Alpha source preserves the bounded QR clock-lag repair and
-distinguishes privacy-safe invalid/expired pre-exchange, network and timeout
-failures. This is diagnostic publication, not proof of successful
-phone-approved sign-in. The newer PR-only QR correction below is not deployed.
+latest signed public head [`b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad)
+passed [Pages build 36343178620](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36343178620).
+Live root, SPA fallback, owner canary and main asset matched the reviewed Alpha
+build from signed source
+[`5f77c3ce`](https://github.com/ael-dev3/Warpkeep/commit/5f77c3cec555823fd52b73c90080032867fc2ed4).
+The deployed Alpha preserves the bounded QR clock-lag repair and distinguishes
+privacy-safe QR failure classes. The owner QR sign-in succeeded at
+2026-09-27 19:06:14 UTC, before this new public build deployed; the sanitized
+bridge trace confirms session creation, but no frontend build hash was captured
+for that exact browser attempt.
 
-The last traced QR attempt produced no new challenge or SIWF exchange, and the
-inspected game tab held an expired challenge. The owner subsequently reported
-the same generic failure after another scan, but that scan had no concurrent
-trace; the exact failure stage remains unknown. A fresh sanitized Worker tail
-using the **`warpkeep-production` Wrangler profile** was validated by a
-`/healthz` 200. A synthetic challenge without phone approval also returned HTTP 201 with
-the expected response shape and appeared in that sanitized tail; this proves
-challenge issuance and trace capture, not proof verification or sign-in. No
-fresh phone-approved exchange has appeared since the tail attached. The
-observed game tab is on the new build at the Alpha
-Participation Terms gate. The owner must accept those legal terms personally,
-then start a fresh QR and approve it in Farcaster within five minutes. Capture
-only route, status and fixed event labels; never record channel tokens, FIDs
-or proof. Do not infer server rejection from the deployed generic UI eyebrow.
-A separate Mini App Quick Auth success is not desktop QR evidence. The
+The owner's fresh phone-approved QR scan was traced through a sanitized Worker
+tail under **`warpkeep-production`**: challenge HTTP 201, followed by three
+exchange HTTP 503 responses after browser-binding verification. The route never
+reached `auth_epoch_resolved`, so Maincloud admission was not the cause of this
+failure. A disposable, syntactically valid but unauthorized SIWF proof also got
+a fast 503. From this Windows host, both expected RPCs accepted registry reads;
+a temporary Cloudflare edge preview instead saw dRPC return HTTP 429 repeatedly,
+while PublicNode and `https://mainnet.optimism.io/` returned valid registry
+reads. The preview had no production routes, bindings or secrets and was stopped.
+This is strong evidence that the primary RPC path was rate-limited at the edge.
+
+To restore the existing two-provider verifier without changing Worker code,
+production version `2b28a266-862b-45da-a747-3cea0a0d858c` replaced only the
+`FARCASTER_RPC_URL` secret with the tested OP Mainnet public endpoint and was
+deployed at 100% by deployment `b338c098-a33e-4922-a3a4-1c2d92a3b035`.
+The candidate retained the prior script etag, runtime, all 27 binding names and
+types, and all plain-text binding values. The prior version
+`79dfceec-9810-4868-afca-5b794d08a9a5` is the rollback target. Live health
+and public attestation still pass with bridge source `308f901d`. After the
+switch, the same disposable unauthorized proof got challenge HTTP 201 and
+exchange HTTP 401 with binding verification, the expected fail-closed result;
+this proves the verifier executed but did not by itself prove an owner session.
+The owner's next live attempt did: challenge HTTP 201 and exchange HTTP 200 at
+2026-09-27 19:06:14.479 UTC with `exchange_binding_verified`,
+`auth_epoch_resolved`, `session_created` and `exchange_succeeded`. The owner
+confirmed the browser was logged in. Record only route/status/fixed event
+labels; never channel tokens, FIDs or proof. Private RPC-role fingerprint
+attestation still needs the existing operator credential; it was not available
+in this environment. The signed Alpha diagnostic source passed 129 focused
+auth tests, production build, Pages configuration/release validators, Mini App
+release validator and file-size policy. A separate Mini App Quick Auth success
+is not desktop QR evidence. The
 [hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
 has the source, verification and recovery path. The 0.4 PTR is not live.
 
@@ -46,12 +65,13 @@ byte-reproduced outputs. Native Linux ownership-bound closure policy and
 checked-in sealed-launch verification passed on the exact clean closure head.
 Four focused Linux auth suites passed 129 tests; the Windows QR-focused set
 passed 141 tests, TypeScript build mode and the full production build passed.
-The PR-only QR correction
+The 0.4 QR correction, also backported to the live Alpha,
 preserves fixed, privacy-safe classes for bridge HTTP 401, 403, 429 and 503,
 invalid responses, configuration errors, network and timeouts. It gives the
 screen a neutral failure heading instead of falsely saying that a relay
-rejected the record. Neither tests nor source review prove why the owner's
-prior live scan failed. The exact-head hosted
+rejected the record. The production trace and edge RPC checks above locate the
+prior failure; the fresh owner scan confirms the repaired sign-in path. The
+exact-head hosted
 [Verify 36340576287](https://github.com/ael-dev3/Warpkeep/actions/runs/36340576287)
 stopped all 17 jobs before runner steps at GitHub's account billing gate. It
 is neither a source failure nor a pass. `main` remains the earlier signed M2
