@@ -45,7 +45,7 @@
     {
       "path": "index.html",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4e3adac6c495b8938d560ce9d368153824d2f75c924009fa3bf3498aa7c7166c"
+      "sha256": "7ac60cbc2d7e2bcb4ad4393c283f0f9d30185281bc4da8a494676bc093b6d386"
     },
     {
       "path": "owner-canary/index.html",
@@ -270,7 +270,7 @@
     {
       "path": "scripts/auth-bridge-config-attestation.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2553802babb4284f14faf5ee21834bc7254630c56b141758211a84d530283850"
+      "sha256": "a469fa6a3559991e4a5638f463d798d94912e3cdb491c5f421017b14c4646c77"
     },
     {
       "path": "scripts/auth-bridge-notification-b0-cloudflare-runtime.d.mts",
@@ -360,7 +360,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d7d4600bb8cd248b79131a96de4d03698508e7f08b40bea094e838d132d9c162"
+      "sha256": "1c5a5a6ad164773028e61d893e49d6c99c671f4c93c2224d6d237f94b4c108d3"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -1245,7 +1245,7 @@
     {
       "path": "scripts/notification-pages-live-receipt.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e94fa89b4c2a31065735b2688d24d9c9ce51d9ea484cbae04b935d6f698c6922"
+      "sha256": "8c99883d75cfefebd06b22bba0fa74af783804978f7537bb382d39048573ef00"
     },
     {
       "path": "scripts/notification-pages-live-release-binding.d.mts",
@@ -1340,7 +1340,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6bf431fa59fe3f1ab9f577c04dc29aed627bfde41d8c0aa69d448bf3e83c136b"
+      "sha256": "66e34d277ad989af5e8e3434bf541d14a6657c77880a7de563f3bd0fa78acc5d"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -3540,7 +3540,7 @@
     {
       "path": "src/App.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ab0b39402ad47d9054b7ba06dfcb7e47b549178608a703f2c9b5eb51b9697431"
+      "sha256": "549d6ce58c9979f0977c031c2ac0a0eb60dab534633d8ee188a32aaf837151af"
     },
     {
       "path": "src/WarpkeepRuntime.tsx",
@@ -3550,7 +3550,7 @@
     {
       "path": "src/build/buildInfo.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a5b20513046bb8e6f8bf5433f38b073e944a0a32d8f330e328188f9ff65782bb"
+      "sha256": "95c0400a9901ce0d44c79454646f4079d4023fbfc6a8d8c2b2dc1f5eec7fb104"
     },
     {
       "path": "src/build/buildInfoTypes.ts",
@@ -3565,12 +3565,12 @@
     {
       "path": "src/components/WarpkeepExperience.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5b141edf2e3bc3885db5a1add89147522168fb8fb841c46138152856d47646c9"
+      "sha256": "4f10cb8c1d401fd217eca2ccea1c62e28721c80dfe3dc9ab361307be1db6d8cf"
     },
     {
       "path": "src/components/audio/WarpkeepAudioDirector.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c834a88460328dbfdba21c44e34700822506955a71fe7e54e8eefe7400341c13"
+      "sha256": "f8257345d3979c92c79bf4eeb3a0b2c83e4d69f723ef20c033915af323b769d3"
     },
     {
       "path": "src/components/audio/WarpkeepHapticsDirector.tsx",
@@ -3585,7 +3585,7 @@
     {
       "path": "src/components/audio/audioDirector.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "22f7b341f0ea285941bc858ad667f9a594a2f261db310ce747f08ca6e77c52b8"
+      "sha256": "b4d6662cde354bcbaa0ea7097ff3b4a2a358b4d4adc4d05db5ab99252b938247"
     },
     {
       "path": "src/components/audio/index.ts",
@@ -3900,7 +3900,7 @@
     {
       "path": "src/components/menu/AlphaParticipationTermsDialog.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f6030b3eae903eb2cda11b49dc717eb2fd81bc09a4b1a5b5f649bc29774fa18e"
+      "sha256": "d7782bc41b122a4f88a60418b827db622c4ef212d388f779cc5ae20f8d263d9d"
     },
     {
       "path": "src/components/menu/AlphaParticipationTermsDialog.tsx",
@@ -3910,12 +3910,12 @@
     {
       "path": "src/components/menu/CreditsRoll.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "23dce4c538cd87fb128eae280a5299d449be3ad2e004f6fe3b6ed0f92983b8c0"
+      "sha256": "9bb2e95b4cf599eb4058527ead81d5007fbca292272d1f0ed18c99d6d389b49f"
     },
     {
       "path": "src/components/menu/CreditsRoll.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "bd2fc7d3e7080d59f1df8534f1e4b42dca0bff5ff5c726655493aa00b8d047ba"
+      "sha256": "0286eec8724d8881e6e10ca0ed0a6c9cde98a04dcde8f58bf60ab81f04b7594c"
     },
     {
       "path": "src/components/menu/LatestPatchNotesPopover.css",
@@ -3935,7 +3935,7 @@
     {
       "path": "src/components/menu/RealmChoiceSelector.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "11e3038f7b472600baab9f606249cd643e18a4f6a0312ef20b07a26a1ca16cbf"
+      "sha256": "b008c7e44b724b30830d82bebddd52c1423d626cf03ee5b526b3115d73f3edfa"
     },
     {
       "path": "src/components/menu/RealmChoiceSelector.tsx",
@@ -3945,12 +3945,12 @@
     {
       "path": "src/components/menu/SettingsPanel.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "39b914cc880280ce37bc18df7413f6026257b1f6b7b7de806f3ac1077d556657"
+      "sha256": "e7f6af9ad49d0227d8e4ded5af9ddee0364c8d26ce0c544c35efe9e69bdf3d06"
     },
     {
       "path": "src/components/menu/SettingsPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6b02d6007ef4cc37ca6d9aa2e1b2f0bb346ba506d945150e2fe9afc66414e11d"
+      "sha256": "c347ff09cabb255165ee4e1742801a05fb10cab6887b9ee52defa4545246aeb4"
     },
     {
       "path": "src/components/menu/WarpkeepBuildStamp.tsx",
@@ -3960,12 +3960,27 @@
     {
       "path": "src/components/menu/WarpkeepMainMenu.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0c4c43df4ea97eec238530c71e2a3c81e62f9c0865e8d0b7cb3661aa368a343c"
+      "sha256": "971adffa189f33375a31c515d35a500838a2f7f8f75d825c0ca04310f1ce217e"
     },
     {
       "path": "src/components/menu/WarpkeepMainMenu.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a37cc233c75d24c16ca588528cedddb4fa47cc478f35723ae5ff8f8e9df00855"
+      "sha256": "ee347217e67549fbb5efb99c932a7795b3489524060934ba21e83c2572a2896f"
+    },
+    {
+      "path": "src/components/menu/WarpkeepMenuWorld3D.css",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "23cadcf69e1b1e5dc2d5787638d5c07e3620ec4a19ea944440982e6cd6742993"
+    },
+    {
+      "path": "src/components/menu/WarpkeepMenuWorld3D.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "5473bca17ddbf32ede5c571d89959ce8c8f605f047b27417d91c7c17ee0cb0e4"
+    },
+    {
+      "path": "src/components/menu/createMenuLandscape3D.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "92b17c09eea3b161e5d143b7549a739f13b0f106a9fa511404e1458e507b143b"
     },
     {
       "path": "src/components/menu/latestPatchNotes.ts",
@@ -3976,6 +3991,16 @@
       "path": "src/components/menu/menuCommands.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "83793223d0d7f62c2f150790f97e3896f9ce8c6a0ca1993f92aba63c925797a9"
+    },
+    {
+      "path": "src/components/menu/menuWarpletRegistry.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "febf14b281c9ad2c6b608f653b1a6de7ac4ccd521bbe010c0cd8bcc923c09214"
+    },
+    {
+      "path": "src/components/menu/menuWorldResources.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "48e816a31fe14e6006701f6c569f603c461adb44d2271dfe4b6d1f51e209383d"
     },
     {
       "path": "src/components/menu/realmChoicePolicy.ts",
@@ -4708,114 +4733,9 @@
       "sha256": "7d690708450e7f6cb971574ba2b523c2ecb35269d07dbb86ee59ba8b8f77273f"
     },
     {
-      "path": "src/components/title/BlackHoleGateway.tsx",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "62b5853dd56553d56a7b79e63523149d7b1b6e9584c92edd01e862275a1895bc"
-    },
-    {
-      "path": "src/components/title/TitleGatewayHint.tsx",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4365499faa5a4e0392ae841e35fa5eac83c86126a93f00bb9a96f93357405601"
-    },
-    {
-      "path": "src/components/title/WarpkeepTitleScreen.css",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c1f1be5d74e55c509823f4bf0c3680ea3f0188a907258bab8f69dc6332bff489"
-    },
-    {
-      "path": "src/components/title/WarpkeepTitleScreen3D.tsx",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "52636d7c843feca94b9ae40ef75259044d98bac0ac9250548e87cea9f932b990"
-    },
-    {
-      "path": "src/components/title/WarpkeepTitleScreenFallback.tsx",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1f17da327f8a144888fb8d45ff80119d296db2f108890b58f888b84c16152c61"
-    },
-    {
       "path": "src/components/title/gatewayActivation.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "a4c1050850b072261a01257e274b235a12ea29b07be7b1f662a1c614832e3ed6"
-    },
-    {
-      "path": "src/components/title/gatewayInteraction.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6f758abdb5afd21539c7a1b67edb44808c89530681a6275786cf38ef20b42525"
-    },
-    {
-      "path": "src/components/title/gatewayPointerProjection.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "fe7ac03af03b4f1710721f8705538d4274bb92da87175aa94e553750a36bbb68"
-    },
-    {
-      "path": "src/components/title/gatewayVfx.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "13ff51530f9781720e8b2b723814e10252e6e52062116909791c266edddc4bd8"
-    },
-    {
-      "path": "src/components/title/gatewayVfxShaders.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cd0ed8213af4b6462411881b64657cad9c492359fda32bc8be5ff04a5f9bad46"
-    },
-    {
-      "path": "src/components/title/gatewayVfxSpec.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "efb454a3e5b001b07383b9fcb8fe698892f093cd446373a187a43eeaae0bf33d"
-    },
-    {
-      "path": "src/components/title/loadWarpkeepTitle.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cf8ce2cde93fb6577d5f971aa7f36cac15308a08148058378c185d310f8bcbb8"
-    },
-    {
-      "path": "src/components/title/titleDeparturePose.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9cafebb8821030077794923b51101957a5fed9b1a5c2d736113526ad6dbb3ad8"
-    },
-    {
-      "path": "src/components/title/titleInteraction.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d88abc0ae8ce9ddbe9f7e605460017695d272a42a5d714ad65364c35d3417827"
-    },
-    {
-      "path": "src/components/title/titleLayout.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "04536b36c40be0247e3fc0b18d34c4cd35d00bb42da7835c37019ffe5eeead8b"
-    },
-    {
-      "path": "src/components/title/titleMaterialReveal.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d2d9038ab689e09a1b321600006eb55073494e508fa516ae3efe7cf403a4ef12"
-    },
-    {
-      "path": "src/components/title/titlePresentationController.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "dee2d1072c85754ce4791b4d3cc0f20ecbd00550df0aa492d64a628626c09540"
-    },
-    {
-      "path": "src/components/title/titlePresentationMachine.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2c72369b912cdb8e161fffd4ed52a78ea8f1a832755abc8054742e194eae57e4"
-    },
-    {
-      "path": "src/components/title/titleSceneSpec.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3d3fb49c3aeabcfc031b3dc28e1d0ef8b2eb90d998507d1e3887f352c0387ed3"
-    },
-    {
-      "path": "src/components/title/titleScreenTypes.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c9d74400e9927a62cff673f0e79ab624ad70b3d77497f6267db5d84c966cc8a8"
-    },
-    {
-      "path": "src/components/transition/WarpTransitionOverlay.css",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "747614bc71cd96e2c52ced9890a568618174cbe80004a74e8482ac05787f102b"
-    },
-    {
-      "path": "src/components/transition/WarpTransitionOverlay.tsx",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2911a748b3bd5d930a0081b0ee9d12cc6e987606b307adf5c00e854ccd4b9013"
     },
     {
       "path": "src/components/transition/experienceTransition.ts",
@@ -5296,11 +5216,6 @@
       "path": "src/settings/graphicsPreference.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "ad122565c8d0fd013716a26d0ee3fa5d70bf1f481238c118767095dcad8f6fea"
-    },
-    {
-      "path": "src/settings/networkPreloadPolicy.ts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "230b2912af38ac5c2a5211e7e21d4c8237b2205bca1930dcc051129cbdaf707e"
     },
     {
       "path": "src/spacetime/WarpkeepSpacetimeProvider.tsx",
