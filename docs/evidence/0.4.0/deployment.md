@@ -16,8 +16,9 @@ build byte-for-byte. Signed README-only follow-up
 [`da5a3988`](https://github.com/ael-dev3/Warpkeep-Live/commit/da5a3988dd456da1f7e2d909d078bff0cf958db3)
 and [Pages run 36311370850](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36311370850)
 also succeeded without changing the app bytes. Browser-style GETs to `www`
-and HTTP redirect to the HTTPS apex; one stale uncompressed `www` CDN variant
-still returned the old 404 immediately after redeployment. The title,
+and HTTP redirect to the HTTPS apex. One stale uncompressed `www` CDN variant
+initially returned the old 404; after cache expiry it also returned 301 to the
+HTTPS apex on 27 September at 10:30 UTC. The title,
 menu and Alpha Terms rendered in a mobile browser. Public auth-bridge and G001
 metadata/CORS probes passed. The complete old artifact had expired, and no
 owner-session or private state readback was attempted; these baseline checks
