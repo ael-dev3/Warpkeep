@@ -2,6 +2,28 @@
 
 ## Current checkpoint — 27 September 2026
 
+The source repairs below and a first-session Keep cue correction are published
+in [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374). The untouched Keep
+now marks Gather, matching its resource-journey action; a funded Keep can mark
+Choose. The code was reviewed, its 41 focused UI tests, typecheck and production
+build passed locally, and the clean checked-in sealed-launch check passed.
+A provider-free diagnostic at earlier signed PR head `a157e3a7` built and
+reattested the real G002 artifact with the pinned Linux tools and locked cache;
+this is diagnostic evidence, not protected-main release authority. The final
+PR head still needs full Verify. Earlier Verify
+[36299816585](https://github.com/ael-dev3/Warpkeep/actions/runs/36299816585)
+passed 15 of 16 jobs; Linux alone failed `npm audit signatures` although the
+lockfile and published attestation digests matched. The retry and later
+[Verify 36304028415](https://github.com/ael-dev3/Warpkeep/actions/runs/36304028415)
+were refused before runners started. GitHub reports an account payment or
+spending-limit block; the account's Actions budget is $0 with usage stopped.
+Restore GitHub-hosted runner availability in account billing, then require a
+fully successful Verify on the live final PR head before merge. Do not route
+untrusted PR checks to the persistent privileged production runner. The
+private-repository Pages destination is also unavailable on the current Free
+plan; choose a supported owner-PTR hosting path before deployment. No live PTR
+exists yet, and this checkpoint does not claim 0.4 shipped.
+
 At the start of this repair, the last validated operational `main` was signed
 generated-only M2
 [`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`](https://github.com/ael-dev3/Warpkeep/commit/786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32),
@@ -29,8 +51,9 @@ for valid `admitted_needs_bootstrap` founders. A targeted source repair now
 enumerates public `realm_profile_v1.fid`, created at admission, while requiring
 the existing profile/founder aggregate witnesses and per-FID administrator
 status. This identifies a code-path defect; it does not reveal or establish
-the private live admitted set. Review, test and publish this source as a new
-M1, generate its exact M2 from native preparation, require both Verify gates,
+the private live admitted set. Merge the reviewed source-only M1 only after
+its successful final-head Verify, generate its exact M2 from native
+preparation, require both exact-main Verify gates,
 then use a fresh operation identity. Do not reuse the failed attempt or query
 private `allowed_fid` with an unreviewed credential.
 
@@ -46,8 +69,8 @@ resolve. The source repair stages the same pinned dependency closure at the
 common `spacetimedb/node_modules` root and updates the G001 materializer and
 G002 runtime worker to use that path for typecheck and build;
 the closure snapshot, before/after verification and cleanup remain exact. The
-temporary diagnostic checkout was removed without a provider request. Review
-and test this with the census repair in the new source-only M1. Once that M1 is
+temporary diagnostic checkout was removed without a provider request. The
+source repair is in PR #374 with the census repair. Once that M1 is
 exact protected main, repeat the provider-free artifact build, then prepare
 and verify its exact M2 before a fresh `g002-update-inspect`. Neither the local
 diagnostic nor the source change establishes a live G002 result. G001
