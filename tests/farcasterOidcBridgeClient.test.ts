@@ -153,6 +153,11 @@ describe('Farcaster OIDC bridge v2 client', () => {
     }
     expect(configurationError).toBeInstanceOf(FarcasterOidcBridgeClientError);
     expect(farcasterOidcBridgeFailureKind(configurationError)).toBe('configuration');
+    expect(toFarcasterAuthError(configurationError)).toEqual({
+      code: 'bridge',
+      stage: 'deployment_contract_mismatch',
+      message: 'Secure sign-in is not configured for this Warpkeep release.'
+    });
     expect(() => createFarcasterOidcBridgeClient({
       bridgeUrl: 'https://bridge.warpkeep.example',
       fetch: createFetch({})
@@ -339,6 +344,51 @@ describe('Farcaster OIDC bridge v2 client', () => {
       message: 'Warpkeep could not reach secure verification.'
     });
     expect(JSON.stringify(toFarcasterAuthError(error))).not.toContain(secret);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [401, 'invalid-credential', 'verification', 'bridge_http_401',
+      'The completed Farcaster sign-in was not accepted. Please try again.'],
+    [403, 'forbidden', 'bridge', 'bridge_http_403',
+      'This Warpkeep release could not complete sign-in.'],
+    [429, 'rate-limited', 'bridge', 'bridge_http_429',
+      'Too many sign-in attempts. Please wait and try again.'],
+    [503, 'service-unavailable', 'bridge', 'bridge_http_503',
+      'Secure verification is temporarily unavailable. Please try again.']
+  ] as const)('gives desktop QR HTTP %i a bounded, actionable failure', async (
+    status, kind, code, stage, message
+  ) => {
+    vi.useFakeTimers({ now: NOW });
+    const privateDetail = 'private bridge response material';
+    const fetch = createFetch(jsonResponse({
+      error: { code: 'private_code', message: privateDetail }
+    }, status));
+    const error = await createBridge(fetch).exchangeCompletedSignIn(exchangeRequest())
+      .catch((caught: unknown) => caught);
+
+    expect(farcasterOidcBridgeFailureKind(error)).toBe(kind);
+    expect(toFarcasterAuthError(error)).toEqual({ code, stage, message });
+    expect(JSON.stringify({ error: toFarcasterAuthError(error) })).not.toContain(privateDetail);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('classifies an invalid HTTP 200 session without disclosing the response', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const privateDetail = 'private bridge response material';
+    const fetch = createFetch(jsonResponse(authorized({
+      accessToken: privateDetail
+    })));
+    const error = await createBridge(fetch).exchangeCompletedSignIn(exchangeRequest())
+      .catch((caught: unknown) => caught);
+
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('invalid-response');
+    expect(toFarcasterAuthError(error)).toEqual({
+      code: 'invalid-response',
+      stage: 'bridge_response_invalid',
+      message: 'Warpkeep received an invalid secure verification response.'
+    });
+    expect(JSON.stringify({ error: toFarcasterAuthError(error) })).not.toContain(privateDetail);
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
@@ -552,7 +602,13 @@ describe('Farcaster OIDC bridge v2 client', () => {
 
     await vi.runAllTimersAsync();
 
+    const error = await result.catch((caught: unknown) => caught);
     await rejection;
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('service-unavailable');
+    expect(toFarcasterAuthError(error)).toMatchObject({
+      code: 'bridge',
+      stage: 'bridge_http_503'
+    });
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
