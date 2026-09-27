@@ -668,6 +668,45 @@
   text-align: center;
 }
 
+.greater-realm-world__load-status {
+  position: absolute;
+  z-index: 9;
+  inset: 50% auto auto 50%;
+  display: grid;
+  gap: 0.65rem;
+  width: min(26rem, calc(100% - 2rem));
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgb(227 193 111 / 46%);
+  border-radius: 0.55rem;
+  transform: translate(-50%, -50%);
+  background: rgb(13 20 20 / 94%);
+  color: #eef2df;
+  font: 600 0.84rem/1.45 Inter, ui-sans-serif, system-ui, sans-serif;
+  text-align: center;
+}
+
+.greater-realm-world__load-status p {
+  margin: 0;
+}
+
+.greater-realm-world__load-status button {
+  min-height: 2.75rem;
+  border: 1px solid rgb(227 193 111 / 58%);
+  border-radius: 0.4rem;
+  background: rgb(72 57 27 / 92%);
+  color: #eef2df;
+  font: 700 0.84rem/1 Inter, ui-sans-serif, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.greater-realm-world__load-status button:hover,
+.greater-realm-world__load-status button:focus-visible {
+  outline: 2px solid #e0c96f;
+  outline-offset: 2px;
+}
+
 .greater-realm-world__continuity {
   position: absolute;
   z-index: 10;

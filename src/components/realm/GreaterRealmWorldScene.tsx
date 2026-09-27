@@ -146,8 +146,11 @@ export function GreaterRealmWorldScene({
   const snapshotBridgeRef = useRef<typeof bridge | undefined>(undefined);
   const gameplaySelectionRef = useRef<WorldSelection04 | null>(null);
   const gameplayLiveRef = useRef(false);
+  const retryWorldLoadRef = useRef<(() => void) | null>(null);
   const [snapshot, setSnapshot] = useState<GreaterRealmClientSnapshot>();
   const [commandSnapshot, setCommandSnapshot] = useState<GreaterRealmClientSnapshot>();
+  const [worldPhase, setWorldPhase] = useState<GreaterRealmClientPhase>('idle');
+  const [runtimeAttempt, setRuntimeAttempt] = useState(0);
   const [renderer, setRenderer] = useState<'loading' | 'webgl' | 'unavailable'>('loading');
   const [worldSelection, setWorldSelection] = useState<GreaterRealmWorldSelection>();
   const [localVesselState, setLocalVesselState] = useState<GreaterRealmLocalVesselState>(
@@ -330,6 +333,10 @@ export function GreaterRealmWorldScene({
     && workerControl?.value.resourceState.workerSystemMode === 'active'
     && workerControl.atlasId === commandSnapshotCurrent.bootstrap.atlasId
     && workerControl.atlasRevision === commandSnapshotCurrent.bootstrap.revision;
+  const recallCurrent = commandSnapshotCurrent?.bootstrap !== undefined
+    && workerControl !== undefined
+    && workerControl.atlasId === commandSnapshotCurrent.bootstrap.atlasId
+    && workerControl.atlasRevision === commandSnapshotCurrent.bootstrap.revision;
   const runWorkerCommand = (workerId: string, command: () => Promise<void>) => {
     const generation = commandGenerationRef.current;
     setPendingWorkerId(workerId);
@@ -466,11 +473,17 @@ export function GreaterRealmWorldScene({
   useEffect(() => {
     let active = true;
     let initialLoadComplete = false;
+    let initialLoadSuperseded = false;
     let refreshInFlight = false;
     let lastReleaseAttemptAt = Date.now();
     let runtime: ReturnType<typeof bridge.createRuntime> | undefined;
     let unsubscribe: (() => void) | undefined;
     let refreshTimer: number | undefined;
+    const reportPhase = (next: GreaterRealmClientPhase) => {
+      if (!active) return;
+      setWorldPhase(next);
+      onPhaseChange(next);
+    };
     const requestedView = Object.freeze({
       centerQ: policy.centerQ,
       centerR: policy.centerR,
@@ -481,7 +494,7 @@ export function GreaterRealmWorldScene({
     setResourceSelection(undefined);
     setSnapshot(undefined);
     setCommandSnapshot(undefined);
-    onPhaseChange('idle');
+    reportPhase('idle');
     try {
       runtime = bridge.createRuntime({
         deviceClass: policy.deviceClass,
@@ -503,7 +516,7 @@ export function GreaterRealmWorldScene({
           setResourceSelection(undefined);
           setSnapshot(undefined);
           setCommandSnapshot(undefined);
-          onPhaseChange('failed');
+          reportPhase('failed');
           return;
         }
         if (usable) {
@@ -511,7 +524,7 @@ export function GreaterRealmWorldScene({
           snapshotIdentityKeyRef.current = identityKey;
           setSnapshot(next);
           setCommandSnapshot(next);
-          onPhaseChange('ready');
+          reportPhase('ready');
           return;
         }
         // Refresh clears the controller while it obtains a new release. Keep
@@ -519,39 +532,53 @@ export function GreaterRealmWorldScene({
         // until a new exact ready snapshot arrives.
         setResourceSelection(undefined);
         setCommandSnapshot(undefined);
-        onPhaseChange(next.phase === 'ready' ? 'failed' : next.phase);
+        reportPhase(next.phase === 'ready' ? 'failed' : next.phase);
       });
       void Promise.resolve().then(() => runtime!.loadView(requestedView)).catch(() => {
-        if (active) {
+        if (active && !initialLoadSuperseded) {
           setResourceSelection(undefined);
           setCommandSnapshot(undefined);
-          onPhaseChange('failed');
+          reportPhase('failed');
         }
       }).finally(() => {
         initialLoadComplete = true;
       });
-      const refreshIfDue = () => {
+      const refreshWorld = (manual: boolean) => {
         if (
           !active
-          || !initialLoadComplete
           || refreshInFlight
-          || document.hidden
           || runtime === undefined
-          || Date.now() - lastReleaseAttemptAt
-            < GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS
+          || (!manual && (
+            !initialLoadComplete
+            || document.hidden
+            || Date.now() - lastReleaseAttemptAt
+              < GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS
+          ))
         ) return;
         refreshInFlight = true;
+        // An explicit retry supersedes an unresolved initial read. Its outcome
+        // becomes the new release baseline for later scheduled refreshes.
+        if (manual) {
+          initialLoadSuperseded = true;
+          initialLoadComplete = true;
+        }
         lastReleaseAttemptAt = Date.now();
+        gameplaySelectionRef.current = null;
+        setResourceSelection(undefined);
+        setCommandSnapshot(undefined);
+        if (manual) reportPhase('bootstrapping');
         void Promise.resolve().then(() => runtime!.refreshRelease(requestedView)).catch(() => {
           if (active) {
             setResourceSelection(undefined);
             setCommandSnapshot(undefined);
-            onPhaseChange('failed');
+            reportPhase('failed');
           }
         }).finally(() => {
           refreshInFlight = false;
         });
       };
+      retryWorldLoadRef.current = () => refreshWorld(true);
+      const refreshIfDue = () => refreshWorld(false);
       const visibilityChange = () => {
         if (!document.hidden) refreshIfDue();
       };
@@ -566,15 +593,18 @@ export function GreaterRealmWorldScene({
       };
       return () => {
         active = false;
+        retryWorldLoadRef.current = null;
         removeRefreshListeners();
         unsubscribe?.();
         runtime?.dispose();
       };
     } catch {
-      if (active) onPhaseChange('failed');
+      retryWorldLoadRef.current = () => setRuntimeAttempt(value => value + 1);
+      reportPhase('failed');
     }
     return () => {
       active = false;
+      retryWorldLoadRef.current = null;
       if (refreshTimer !== undefined) window.clearInterval(refreshTimer);
       unsubscribe?.();
       runtime?.dispose();
@@ -593,7 +623,8 @@ export function GreaterRealmWorldScene({
     policy.deviceClass,
     policy.graphicsProfile,
     policy.lod,
-    policy.radius
+    policy.radius,
+    runtimeAttempt
   ]);
 
   return (
@@ -617,6 +648,14 @@ export function GreaterRealmWorldScene({
         aria-describedby="greater-realm-world-help greater-realm-world-status"
         data-testid="greater-realm-world-canvas"
       />
+      {worldPhase === 'failed' ? (
+        <div className="greater-realm-world__load-status">
+          <p role="status">{snapshotCurrent === undefined
+            ? 'The Realm did not load. Try again to view your map.'
+            : 'The Realm could not refresh. The last verified map remains visible; Worker commands are paused.'}</p>
+          <button type="button" onClick={() => retryWorldLoadRef.current?.()}>Retry Realm</button>
+        </div>
+      ) : null}
       <div
         className="greater-realm-world__controls"
         aria-label="Greater Realm view controls"
@@ -875,12 +914,15 @@ export function GreaterRealmWorldScene({
                   type="button"
                   disabled={
                     pendingWorkerId !== undefined
+                    || !recallCurrent
                     || workerBridge.recallWorker === undefined
                     || worker.status === 'returning'
                   }
                   onClick={() => {
                     if (
-                      workerBridge.recallWorker === undefined
+                      !recallCurrent
+                      || pendingWorkerId !== undefined
+                      || workerBridge.recallWorker === undefined
                       || worker.status === 'returning'
                     ) return;
                     runWorkerCommand(worker.workerId, () => (
@@ -895,8 +937,9 @@ export function GreaterRealmWorldScene({
               {recallableWorkers.length < 2 || workerBridge.recallAllWorkers === undefined ? null : (
                 <button
                   type="button"
-                  disabled={pendingWorkerId !== undefined}
+                  disabled={pendingWorkerId !== undefined || !recallCurrent}
                   onClick={() => {
+                    if (!recallCurrent || pendingWorkerId !== undefined) return;
                     runWorkerCommand('all', () => workerBridge.recallAllWorkers!());
                   }}
                 >
