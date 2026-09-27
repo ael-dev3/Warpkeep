@@ -3,6 +3,26 @@
 Status: **pending**. This record is the authoritative destination for R15 and
 must be updated only from an authenticated deployment and live readback.
 
+The old Alpha 0.3.43 site was restored on 27 September 2026, separately from
+the 0.4 release. Last successful historical source:
+[`f39d57c`](https://github.com/ael-dev3/Warpkeep/commit/f39d57c8622077e6543a16e5610d0e4ec73910da).
+Rebuilt generated files: [`Warpkeep-Live@3e9170f`](https://github.com/ael-dev3/Warpkeep-Live/commit/3e9170fdc14e5b73083db7dd381de77236d4f06c).
+[Pages run 36310726111](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36310726111)
+completed successfully. Live `https://warpkeep.com/` returned 200 and SHA-256
+`e8139922fac3619edff5cbece46a3d9516b75b2b26801935068459502b57d061`
+for `index.html`, matching the historical served page and local rebuilt file.
+The live main JS/CSS, Farcaster manifest and privacy page matched the local
+build byte-for-byte. Signed README-only follow-up
+[`da5a3988`](https://github.com/ael-dev3/Warpkeep-Live/commit/da5a3988dd456da1f7e2d909d078bff0cf958db3)
+and [Pages run 36311370850](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36311370850)
+also succeeded without changing the app bytes. Browser-style GETs to `www`
+and HTTP redirect to the HTTPS apex; one stale uncompressed `www` CDN variant
+still returned the old 404 immediately after redeployment. The title,
+menu and Alpha Terms rendered in a mobile browser. Public auth-bridge and G001
+metadata/CORS probes passed. The complete old artifact had expired, and no
+owner-session or private state readback was attempted; these baseline checks
+do not satisfy 0.4 R15.
+
 Record the exact reviewed source commit, Pages workflow run and artifact
 identity, GitHub Pages URL, Cloudflare auth-bridge version/source, SpacetimeDB
 database identities and program hashes, live frontend build identity, and the

@@ -24,9 +24,11 @@ Require full final-head Verify, signed source M1 merge, provider-free artifact
 build, exact-M1 native prepare/check, generated-only M2 promotion and successful
 exact-M2 push Verify before fresh protected inspections. CodeQL scanning is
 unavailable for this private repository; Verify is the executable CI gate.
-Private GitHub Pages is disabled on the current account plan and
-`https://warpkeep.com/` returns 404; owner PTR requires an enabled host. The
-[live delivery status](../../operations/0.4.0-live-delivery-status.md) tracks
+Private-repository GitHub Pages is disabled on the current account plan. The
+old 0.3.43 Alpha is live again through a separate, public generated-assets-only
+[Pages repository](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored);
+the 0.4 workflow has not been connected to that host. Owner PTR still requires
+a reviewed 0.4 deployment and acceptance. The [live delivery status](../../operations/0.4.0-live-delivery-status.md) tracks
 the release gate; no current run is a live release grant.
 
 ## Historical operating checkpoint — earlier 27 September 2026 (superseded)

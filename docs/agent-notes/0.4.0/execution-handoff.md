@@ -2,15 +2,37 @@
 
 ## Current checkpoint — 27 September 2026
 
+The pre-0.4 Alpha 0.3.43 site is restored at
+[`warpkeep.com`](https://warpkeep.com/) through the public, generated-assets-only
+[`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live) repository. Its
+[Pages build 36310726111](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36310726111)
+succeeded and the live HTML hash matches the last successful old deployment.
+The [hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
+has the exact source, verification and recovery path. This brings the existing
+site online; 0.4 PTR remains unshipped and needs its own reviewed release path.
+
 The source repairs below and a first-session Keep cue correction are published
 in [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374). The untouched Keep
 now marks Gather, matching its resource-journey action; a funded Keep can mark
 Choose. The code was reviewed, its 41 focused UI tests, typecheck and production
 build passed locally, and the clean checked-in sealed-launch check passed.
+A later mobile countdown repair on signed PR head
+[`1b115a9b`](https://github.com/ael-dev3/Warpkeep/commit/1b115a9b61c114610cb64ae09183fd9492b4c4e0)
+stops unchanged Keep 3D content from rerendering each second. Its 138 focused
+tests, typecheck, production build, source/closure rederivation and native
+sealed-launch checks passed. Final-head
+[Verify 36309210745](https://github.com/ael-dev3/Warpkeep/actions/runs/36309210745)
+rejected all 17 jobs before runner start with the same account payment/limit
+annotation, so this is not a CI pass.
 A provider-free diagnostic at earlier signed PR head `a157e3a7` built and
 reattested the real G002 artifact with the pinned Linux tools and locked cache;
 this is diagnostic evidence, not protected-main release authority. The final
-PR head still needs full Verify. Earlier Verify
+PR head still needs full Verify. A separate provider-free diagnostic on
+`1b115a9b` stopped at `GREATER_REALM_PRODUCTION_MATERIALIZATION_CHANGED` after
+the correct G002 cache was selected. It made no provider request or G002
+mutation; the disposable 862 MB clone was removed and the maintained native
+checkout restored to clean `main`. Diagnose the materialization/context mismatch
+before treating this head as G002 artifact-ready. Earlier Verify
 [36299816585](https://github.com/ael-dev3/Warpkeep/actions/runs/36299816585)
 passed 15 of 16 jobs; Linux alone failed `npm audit signatures` although the
 lockfile and published attestation digests matched. The retry and later
@@ -21,7 +43,8 @@ Restore GitHub-hosted runner availability in account billing, then require a
 fully successful Verify on the live final PR head before merge. Do not route
 untrusted PR checks to the persistent privileged production runner. The
 private-repository Pages destination is also unavailable on the current Free
-plan; choose a supported owner-PTR hosting path before deployment. No live PTR
+plan; the public artifact-only Pages site is a possible 0.4 delivery target only
+after its sealed release path is implemented and reviewed. No live PTR
 exists yet, and this checkpoint does not claim 0.4 shipped.
 
 At the start of this repair, the last validated operational `main` was signed
@@ -77,9 +100,10 @@ diagnostic nor the source change establishes a live G002 result. G001
 preservation/readback, sealed G002, actual
 owner PTR journey, physical-device and measured-performance acceptance,
 release freeze and delivery remain open. The local rendered WebGL matrix is
-local evidence rather than live PTR acceptance. The intended `warpkeep.com`
-frontend currently returns 404: private-repo GitHub Pages is disabled on this
-account plan. A hosting path must be selected before owner PTR can be live.
+local evidence rather than live PTR acceptance. `warpkeep.com` serves the old
+Alpha 0.3.43 through a separate public artifact-only Pages repository; the
+private repository's existing 0.4 Pages workflow still cannot deploy there.
+Implement and verify that delivery boundary before calling owner PTR live.
 PTR owner access is mandatory; public admissions are not. Keep scheduled
 automations paused, create no Desktop artifacts, and publish each reviewed
 development checkpoint with a signed commit and verified GitHub SHA.

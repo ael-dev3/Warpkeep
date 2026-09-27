@@ -7,7 +7,7 @@ across the landscape, resources come home, and a keep becomes a place shaped by
 its Keeper's choices. We are building a game that makes the first session
 satisfying and the next visit worthwhile.
 
-[0.4 delivery status](docs/operations/0.4.0-live-delivery-status.md) · [Follow development](https://github.com/ael-dev3/Warpkeep/pulls)
+[Play the current Alpha](https://warpkeep.com/) · [0.4 delivery status](docs/operations/0.4.0-live-delivery-status.md) · [Follow development](https://github.com/ael-dev3/Warpkeep/pulls)
 · [Product direction](docs/design/warpkeep-direction.md) · [Documentation](docs/README.md)
 
 ## The next chapter
@@ -40,14 +40,13 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The gameplay foundation is integrated; 0.4 has not shipped.** The sealed
-operation workflow repair has merged through protected PR #362. It removes a
-redundant post-checkout environment rejection while retaining the pre-checkout
-runner gates and final Node environment scrub. The current source, exact checks
-and next release action are recorded in the dated
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md); earlier
-checkpoints there are historical. Native preparation, generated-only M2,
-provider work and owner acceptance still remain before release.
+**The existing Alpha 0.3.43 is live; 0.4 has not shipped.** The old site was
+restored from its last successful source through a public repository containing
+generated frontend files only. The private development source, current 0.4
+candidate, exact checks and next release action are recorded in the dated
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md). Final-source
+integration, protected native preparation, provider work and owner acceptance
+still remain before 0.4 release.
 
 Provider deployment, accepted G001 preservation/readback, sealed G002 evidence,
 owner PTR play, mobile and measured-performance acceptance, and final release

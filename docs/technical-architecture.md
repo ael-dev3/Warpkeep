@@ -37,7 +37,9 @@ flowchart LR
 | Shared 0.4 gameplay core | Deterministic policy, transitions, arithmetic and validation | Uses storage interfaces; does not depend on browser, network or database SDK |
 | Release tooling and recovery service | Build provenance, deployment authorization and reconciliation | Deployment authority is separate from player authority |
 
-The intended browser origin is `warpkeep.com`; it currently has no live frontend.
+The browser origin is `warpkeep.com`; it currently serves the older 0.3.43
+Alpha from a [generated-assets-only Pages repository](operations/0.4.0-infra-access.md#existing-alpha-frontend-restored).
+The 0.4 frontend has not been deployed.
 The auth bridge is at `auth.warpkeep.com`.
 G001, G002 and PTR use distinct database identities. Provider configuration and
 live observations are documented in [infrastructure access](operations/0.4.0-infra-access.md).

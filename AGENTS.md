@@ -147,7 +147,12 @@ Follow [the development workflow](docs/engineering/development-workflow.md) and
 
 ## Delivery and handoff
 
-GitHub Pages hosts the frontend, Cloudflare hosts identity/recovery services, and
+The live 0.3.43 frontend is served from the public, generated-assets-only
+[`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live) GitHub Pages repository;
+the development repository remains private and has no Pages site on the current
+plan. This restores the existing Alpha, not the 0.4 release lane. Read the
+[hosting and recovery record](docs/operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
+before changing either site. Cloudflare hosts identity/recovery services, and
 SpacetimeDB hosts persistent realms. Verify configured accounts and immutable
 targets. Complete the Windows/WSL/Linux operating path without a Mac dependency;
 required workflow identity must come from the actual supported runner.
