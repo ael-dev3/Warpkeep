@@ -1,5 +1,24 @@
 # Gameplay and visual implementation notes
 
+## Construction progress in the first phone view — September 27, 2026
+
+A returning player with an active City Mill could see the construction model
+but not the project's name, remaining time or progress without scrolling past
+the scene and default-open schematic. The existing authoritative construction
+status now appears immediately after the resource and action header, before the
+scene. It names the building, labels the countdown as estimated time remaining
+and keeps the existing progressbar. Multiple concurrent statuses use a compact
+disclosure, with each named progressbar available on expansion. This changes
+presentation only; the Realm still determines completion and benefits.
+
+At signed source `2462bb5c`, the focused Keep suite passed 39 tests and
+build-mode typechecking passed. Fresh synthetic Chrome 154 captures at 390×844
+show the cue in the first view
+(`artifacts/keep04-qa/windows-run-zxxCpO/mobile-mill-constructing.png`), where
+the matched earlier capture at `windows-run-yaoZKz` did not. The 36-case
+synthetic matrix reported no horizontal overflow. These are fixture renders,
+not an authenticated owner PTR session or physical-phone performance result.
+
 ## Incoming-aware building guidance — September 27, 2026
 
 The building catalog previously linked to the first shortage in spendable

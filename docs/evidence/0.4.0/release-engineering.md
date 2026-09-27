@@ -9,6 +9,20 @@ later source. 0.4 remains unshipped.
 
 ## Current checkpoint — 27 September 2026
 
+An isolated provider-free diagnostic at clean signed PR checkpoint
+[`389375bb`](https://github.com/ael-dev3/Warpkeep/commit/389375bb335a4eb6a776e4cb088581f9a7cd890e)
+rechecked the repaired G002 build with pinned Linux Node 22.22.3, the attested
+SpacetimeDB 2.6.1 CLI, locked dependencies and `umask 077`. The module build,
+private/public ABI generation, standalone schema extraction and exact
+source/artifact assertion all passed. The resulting module SHA-256 was
+`8c3eddfbce4e41a08856a949876febd2b79230051d05f2595091311f051e099b`;
+the artifact was owner-private mode `0400`. The repaired builder blob is
+identical at this checkpoint and source `70a92a4e`. No provider credentials,
+request or mutation were used; disposable diagnostic state was removed. This
+checks that the source can produce the G002 artifact locally. It does not
+replace a successful final-head Verify, exact-M1 preparation, a protected
+inspect or live sealed G002 deployment.
+
 The last validated operational main at this checkpoint is signed generated-only
 M2 [`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`](https://github.com/ael-dev3/Warpkeep/commit/786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32)
 from [PR #373](https://github.com/ael-dev3/Warpkeep/pull/373). Exact-main
