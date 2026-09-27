@@ -574,6 +574,55 @@ describe('Greater Realm world scene lifecycle', () => {
     expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toBeNull();
   });
 
+  it('keeps the phone resource drawer and keyboard focus while a resource retry is pending', async () => {
+    setViewportWidth(390);
+    const base = readySnapshot({ resourceLocationPhase: 'failed' });
+    const mobileView = { ...VIEW, radius: 2 };
+    const failed = { ...base, window: { ...base.window!, radius: 2 }, view: mobileView } as GreaterRealmClientSnapshot;
+    let rejectRefresh!: (error: Error) => void;
+    const refreshRelease = vi.fn(() => new Promise<GreaterRealmClientSnapshot>((_resolve, reject) => {
+      rejectRefresh = reject;
+    }));
+    renderScene(bridge({ snapshot: failed, refreshRelease }));
+    const trigger = await screen.findByRole('button', { name: 'Nearby resources and workers' });
+    fireEvent.click(trigger);
+    const retry = screen.getByRole('button', { name: 'Retry resource sites' });
+    retry.focus();
+    fireEvent.click(retry);
+
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger.isConnected).toBe(true);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('status').textContent).toContain('Retrying nearby resource sites');
+    expect(screen.queryByRole('button', { name: 'Retry resource sites' })).toBeNull();
+    await waitFor(() => expect(refreshRelease).toHaveBeenCalledOnce());
+
+    await act(async () => { rejectRefresh(new Error('offline')); await Promise.resolve(); });
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger.isConnected).toBe(true);
+    expect(screen.getByText(/The Realm retry did not finish/)).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Retry resource sites' })).not.toBeNull();
+  });
+
+  it('moves desktop retry focus to the persistent resource panel while refreshing', async () => {
+    setViewportWidth(1_024);
+    const refreshRelease = vi.fn(() => new Promise<GreaterRealmClientSnapshot>(() => undefined));
+    renderScene(bridge({
+      snapshot: readySnapshot({ resourceLocationPhase: 'failed' }),
+      refreshRelease
+    }));
+    const retry = await screen.findByRole('button', { name: 'Retry resource sites' });
+    const panel = screen.getByRole('complementary', { name: 'Nearby public resources' });
+    retry.focus();
+    fireEvent.click(retry);
+
+    expect(document.activeElement).toBe(panel);
+    expect(panel.isConnected).toBe(true);
+    expect(screen.getByRole('status').textContent).toContain('Retrying nearby resource sites');
+    expect(screen.queryByRole('button', { name: 'Retry resource sites' })).toBeNull();
+    await waitFor(() => expect(refreshRelease).toHaveBeenCalledOnce());
+  });
+
   it('distinguishes a loading read, an empty view, and a focused kind missing from a phone view', async () => {
     setViewportWidth(390);
     const mobileView = { ...VIEW, radius: 2 };

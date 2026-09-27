@@ -179,6 +179,7 @@ export function GreaterRealmWorldScene({
   };
   const controlsTriggerRef = useRef<HTMLButtonElement>(null);
   const resourcesTriggerRef = useRef<HTMLButtonElement>(null);
+  const resourcesPanelRef = useRef<HTMLElement>(null);
   const controlStatusIsAnnouncement = worldSelection !== undefined
     || localVesselState.status === 'selected'
     || localVesselState.status === 'blocked';
@@ -277,11 +278,13 @@ export function GreaterRealmWorldScene({
     location => !resourceFocus04 || location.resourceKind === resourceFocus04
   );
   const resourceReadPhase = snapshotCurrent?.resourceLocationPhase;
-  const resourceReadNotice = worldPhase === 'ready' && (
-    resourceReadPhase === 'loading'
-    || resourceReadPhase === 'failed'
-    || (resourceReadPhase === 'ready' && publicResources.length === 0)
-  );
+  const resourceRetryInFlight = resourceReadPhase === 'failed' && worldPhase === 'bootstrapping';
+  const resourceReadNotice = resourceReadPhase === 'failed'
+    ? worldPhase === 'ready' || worldPhase === 'bootstrapping' || worldPhase === 'failed'
+    : worldPhase === 'ready' && (
+      resourceReadPhase === 'loading'
+      || (resourceReadPhase === 'ready' && publicResources.length === 0)
+    );
   const visibleRegionIds = useMemo(() => new Set(
     snapshotCurrent?.chunks.flatMap(({ chunk }) => (
       [...chunk.coreCells, ...chunk.apronCells].map((cell) => cell.regionId)
@@ -872,9 +875,11 @@ export function GreaterRealmWorldScene({
       )}
       {publicResources.length === 0 && activeWorkers.length === 0 && renderGameplay04WorldPanel === undefined && !resourceReadNotice ? null : (
         <aside
+          ref={resourcesPanelRef}
           className="greater-realm-world__resources"
           data-open={openPanel === 'resources'}
           hidden={narrowPresentation && openPanel === 'controls'}
+          tabIndex={-1}
           aria-label={publicResources.length === 0 && !resourceReadNotice
             ? 'Greater Realm Worker controls'
             : 'Nearby public resources'}
@@ -897,10 +902,17 @@ export function GreaterRealmWorldScene({
           >
           {worldPhase === 'ready' && resourceReadPhase === 'loading'
             ? <p role="status">Loading nearby resource sites…</p> : null}
-          {worldPhase === 'ready' && resourceReadPhase === 'failed' ? (
+          {resourceRetryInFlight ? <p role="status">Retrying nearby resource sites…</p> : null}
+          {resourceReadPhase === 'failed' && (worldPhase === 'ready' || worldPhase === 'failed') ? (
             <div>
-              <p role="status">Nearby resource sites did not load. Worker dispatch needs a fresh Realm read.</p>
-              <button type="button" onClick={() => retryWorldLoadRef.current?.()}>Retry resource sites</button>
+              <p role="status">{worldPhase === 'failed'
+                ? 'The Realm retry did not finish. Worker dispatch still needs a fresh resource-site read.'
+                : 'Nearby resource sites did not load. Worker dispatch needs a fresh Realm read.'}</p>
+              <button type="button" onClick={() => {
+                (narrowPresentation ? resourcesTriggerRef.current : resourcesPanelRef.current)
+                  ?.focus({ preventScroll: true });
+                retryWorldLoadRef.current?.();
+              }}>Retry resource sites</button>
             </div>
           ) : null}
           {worldPhase === 'ready' && resourceReadPhase === 'ready' && publicResources.length === 0
