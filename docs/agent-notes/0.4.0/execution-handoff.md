@@ -41,7 +41,7 @@ The 1,258-member closure manifest hashes to
 exact-source native preparation/check matched 3,266 Git blobs, generated 16
 outputs, and passed Windows/Linux checked-in policy and sealed-launch checks.
 Focused auth tests, typecheck, production build and public payload check passed.
-The latest attempted hosted Verify, [run 36338877084](https://github.com/ael-dev3/Warpkeep/actions/runs/36338877084)
+A recent attempted hosted Verify, [run 36338877084](https://github.com/ael-dev3/Warpkeep/actions/runs/36338877084)
 on the then-current signed PR head
 [`558c62da`](https://github.com/ael-dev3/Warpkeep/commit/558c62da984dce7ceb17be565cdcb36e4f12f724),
 stopped all 17 jobs before runner steps at GitHub's account billing gate. It
