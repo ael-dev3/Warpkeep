@@ -1,5 +1,37 @@
 # Continue Warpkeep 0.4
 
+## Current continuation — 28 September 2026, 01:42 CEST (27 September, 23:42 UTC)
+
+The maintained `fix/g001-census-admission-proxy` checkout and GitHub ref match
+signed commit
+[`e48221bc`](https://github.com/ael-dev3/Warpkeep/commit/e48221bc411fc7675ecfb1f5ceef870cf84fd191).
+PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) remains open against
+`main` at `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+
+The 0.4 menu replaced the old GitHub link with the Farcaster community link,
+so the QA journey test's previous accessible name was stale. It now checks the
+current link's new-tab and referrer protections and confirms that mounting the
+local fixture causes no navigation. The focused Linux run passed all 50 tests.
+Earlier local checks on the same application source passed license, runtime
+asset, file-size and checked-in sealed-launch verification, TypeScript checks,
+and standard plus both GitHub Pages production builds. The full local four-shard
+root suite was not completed; do not represent it as a full-suite pass.
+
+Exact-head [Verify 36359580351](https://github.com/ael-dev3/Warpkeep/actions/runs/36359580351)
+on `e48221bc` completed with all 17 jobs failing before any step ran. GitHub's
+runner-allocation annotation again cites failed account payments or the Actions
+spending limit. This is not a source-test result. Hosted Verify must pass on
+the exact final PR head before integrating the source. The current Alpha remains
+separate; no live 0.4 PTR or release acceptance is claimed.
+
+Resume by resolving GitHub **Billing & plans**, then rerun exact-head Verify.
+After that, integrate PR #374 through its required review path, prepare and
+independently check the exact merged M1, promote only its generated M2, pass
+exact-main Verify and protected provider/preservation gates, and publish and
+accept the owner PTR. Keep #376 (large on-demand film), #377 (sealed G002 audio),
+and Assets #38 (stacked on #37) deferred under the existing mobile, realm-readiness,
+rights and hosted-check criteria. Re-inventory incoming PRs before integration.
+
 ## Current continuation — 28 September 2026, 00:38 CEST (27 September, 22:38 UTC)
 
 The maintained checkout is clean and matched GitHub before this documentation
