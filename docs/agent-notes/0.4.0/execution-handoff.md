@@ -16,7 +16,7 @@ has the exact source, verification and recovery path. This brings the existing
 site online; 0.4 PTR remains unshipped and needs its own reviewed release path.
 
 The active 0.4 development [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
-is signed and remote-equal at protected closure
+has a signed, remote-equal protected-closure checkpoint at
 [`4df24928`](https://github.com/ael-dev3/Warpkeep/commit/4df24928037d7e5ec5044edc97e74a6babc6e953),
 refrozen from signed source
 [`70a92a4e`](https://github.com/ael-dev3/Warpkeep/commit/70a92a4e76ae24e2e8fd94bc8fd8dd535db691ce).
