@@ -22,6 +22,19 @@ function setup(fixture: 'empty' | 'construction' | 'complete' = 'empty', snapsho
   const rendered = render(<Harness />);
   return { controller, rerenderPhase: (phase: Snapshot04['phase']) => rendered.rerender(<Harness phase={phase} />) };
 }
+it('keeps the catalog explanation in overview while leading selected review with the decision', () => {
+  setup();
+  fireEvent.click(screen.getByRole('button', { name: 'Buildings' }));
+  expect(screen.getByRole('heading', { level: 2, name: 'Buildings' })).toBeVisible();
+  expect(screen.getByText(/Each expedition keeps the gathering rate it began with/)).toBeVisible();
+
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  const heading = screen.getByRole('heading', { level: 2, name: 'Place City Mill' });
+  expect(heading).toHaveFocus();
+  expect(screen.queryByRole('heading', { name: 'Buildings' })).not.toBeInTheDocument();
+  expect(screen.queryByText(/Each expedition keeps the gathering rate it began with/)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Confirm placement' })).toBeVisible();
+});
 it('promotes one complete selected review and connects it to the same schematic without commands', () => {
   const { controller, rerenderPhase } = setup(); act(() => sceneProps.onMode('webgl'));
   const opener = screen.getByRole('button', { name: 'Buildings' }); fireEvent.click(opener);

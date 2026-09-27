@@ -105,12 +105,14 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
     </article>;
   }
   return <section aria-label="Buildings" className="keep04-building-panel">
-    <h2>Buildings</h2>
-    <p>Benefits apply after completion. Each expedition keeps the gathering rate it began with.</p>
+    {selectedKind === null && <>
+      <h2>Buildings</h2>
+      <p>Benefits apply after completion. Each expedition keeps the gathering rate it began with.</p>
+    </>}
     {!hasIdleWorker && <p role="status">All Workers are busy. Another journey becomes available after one returns.</p>}
     {view.state.project !== undefined && <p className="keep04-badge">Builder busy</p>}
     {selectedKind && <section aria-labelledby={reviewId} className="keep04-selected-review">
-      <h3 id={reviewId} ref={reviewHeadingRef} tabIndex={-1}>{selectedProject ? 'Construction underway ·' : selectedMaximum ? 'Building complete ·' : existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h3>
+      <h2 id={reviewId} ref={reviewHeadingRef} tabIndex={-1}>{selectedProject ? 'Construction underway ·' : selectedMaximum ? 'Building complete ·' : existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h2>
       {onViewSite && <button type="button" onClick={onViewSite}>{existing ? 'View site' : 'Adjust placement'}</button>}
       {card(selectedKind)}
       <div className="keep04-primary-action">
