@@ -3,21 +3,44 @@
 Status: **pending**. This record is the authoritative destination for R15 and
 must be updated only from an authenticated deployment and live readback.
 
-The current public site is still **Alpha 0.3.43**, not the 0.4 PTR. Its signed
-QR diagnostic and bounded clock-lag repair source is
+The current public site is still **Alpha 0.3.43**, not the 0.4 PTR. Its latest
+signed diagnostic client source is
+[`5f77c3ce`](https://github.com/ael-dev3/Warpkeep/commit/5f77c3cec555823fd52b73c90080032867fc2ed4),
+published as generated files in
+[`Warpkeep-Live@b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad).
+[Pages run 36343178620](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36343178620)
+deployed that commit by 19:07:48 UTC on 27 September. Live root, SPA fallback,
+owner canary and main JS matched the reviewed files; live `index.html` SHA-256
+was `18658055f4fa1c2376fae34d9d34e400c4bb308f922de48aaeb604a1de0c3a4d`.
+
+The source-pinned primary Optimism RPC endpoint repeatedly returned 429 from
+the Cloudflare edge while bound QR exchanges returned 503 before admission.
+That edge rate limit is the strongest supported cause; the previous secret
+value could not be read back directly. A secret-only Worker version
+`2b28a266-862b-45da-a747-3cea0a0d858c` was created at
+**19:00:15.748685 UTC** and deployment
+`b338c098-a33e-4922-a3a4-1c2d92a3b035` activated it at
+**19:01:23.825605 UTC**. It replaced the primary RPC with the tested OP
+Mainnet public endpoint while preserving the independent PublicNode secondary
+and the existing verifier. A fresh owner-approved QR exchange returned 200 at
+**19:06:14.479 UTC**, with `auth_epoch_resolved,session_created`, and the owner
+confirmed browser login. The public mirror commit was created at 19:06:22 UTC,
+**after** that successful exchange. No exact frontend build hash was captured
+for the sign-in, so the later public artifact cannot be credited with causing
+it. See the [timestamped QR-auth incident record](qr-auth-incident-2026-09-27.md)
+for the failed attempts, edge probes, recovery and limitations. This Alpha
+authentication result does not satisfy the 0.4 PTR deployment gate.
+
+The preceding signed QR diagnostic and bounded clock-lag repair source was
 [`2d6811a8`](https://github.com/ael-dev3/Warpkeep/commit/2d6811a861d42d7ca191ac30e2215176db1adabd),
 published as generated files in
 [`Warpkeep-Live@6568687`](https://github.com/ael-dev3/Warpkeep-Live/commit/6568687fccd1a317b1958f71bad33b36226e0b61).
 [Pages run 36334223725](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36334223725)
 succeeded on 27 September. The HTTPS apex returned 200 with `index.html`
 SHA-256 `eb1b0eafa2c116e8a6c47956f1e72324a828b17bb2f36740047ab53b8d91d5f3`,
-matching the reviewed build; its SPA fallback matched byte-for-byte and the
-new main asset returned 200. Publication does not prove phone-approved sign-in.
-The latest observed scan reached neither a new challenge nor a SIWF exchange;
-the previously displayed challenge had expired. The new client distinguishes
-safe pre-exchange invalid/expired, network and timeout messages, so a fresh
-phone-approved QR attempt with the sanitized bridge tail is required. Separate
-Mini App Quick Auth successes do not prove desktop QR sign-in.
+matching that reviewed build; its SPA fallback matched byte-for-byte and its
+main asset returned 200. At that checkpoint, no successful phone-approved
+desktop QR sign-in had been observed.
 
 The old Alpha 0.3.43 site was restored on 27 September 2026, separately from
 the 0.4 release. Last successful historical source:
@@ -61,8 +84,8 @@ identities and raw provider responses in the private operations store; link only
 privacy-safe digests or secure references here.
 
 What this record must not claim without fresh evidence: a successful provider
-mutation, a deployed 0.4 frontend, an authenticated owner journey, preserved
-Genesis 001 state, sealed Genesis 002 access, or recovery completion.
+mutation, a deployed 0.4 frontend or authenticated **0.4 PTR** owner journey,
+preserved Genesis 001 state, sealed Genesis 002 access, or recovery completion.
 
 Evidence template:
 
