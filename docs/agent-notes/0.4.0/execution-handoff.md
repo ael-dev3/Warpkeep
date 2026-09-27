@@ -18,13 +18,20 @@ PR #371's Verify (including Linux and SpacetimeDB) and CodeQL passed. Exact-M2 p
 [Verify 36279277148](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277148)
 is still running. Exact-M2 push
 [CodeQL 36279277087](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277087)
-failed twice when GitHub's API returned 403 to the workflow-run GET. The
-targeted `actions: read` workflow permission repair is in progress. GitHub's
-API currently reports `main` as `protected:false` with no required checks;
-therefore PR merge alone supplies no release authority. Manually require
-terminal successful PR and exact-main Verify/CodeQL for the selected source,
-then fresh read-only preflight and G001 policy observation before one new
-census identity. Recheck the live ref immediately before each operation.
+failed twice. The targeted permission trial on
+[PR #372](https://github.com/ael-dev3/Warpkeep/pull/372) reached SARIF upload,
+where [CodeQL 36281273325](https://github.com/ael-dev3/Warpkeep/actions/runs/36281273325)
+failed because code scanning is disabled for this private repository. GitHub's
+current plan cannot provide that check, so PR #372 removes the unavailable
+workflow; use Verify's Linux, module, native, bridge, recovery, secret-scan and
+dependency-audit jobs as the executable gate. GitHub reports `main` as
+`protected:false`; its private-repo plan also rejects branch-protection API
+access. Existing native release attestations require `protected:true`, so a
+reviewed source M1 and authenticated generated M2 compatibility repair must
+pass before preflight can run. Manually require successful PR and exact-main
+Verify for the selected source, then fresh read-only preflight and G001 policy
+observation before one new census identity. Recheck the live ref immediately
+before each operation.
 
 The previous [G001 freeze census 36271994192](https://github.com/ael-dev3/Warpkeep/actions/runs/36271994192)
 failed closed with the old combined `g001-admitted-aggregate-mismatch` label.
