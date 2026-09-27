@@ -11,9 +11,13 @@ Current main is generated-only M2
 [`007e62f2e5b7440abf483a83aeda2b9621f4054e`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e).
 Its exact-main Verify failed at the bounded Linux root-test step; private-repo
 CodeQL upload is unavailable. PR #372 carries the source M1 authority and CI
-repair. Require its full current-head Verify, exact signed M1 merge, native
-prepare/check, generated-only M2 promotion and successful exact-M2 push Verify
-before new read-only operations. The [live delivery status](../../operations/0.4.0-live-delivery-status.md)
+repair; its Verify run `36285086874` has failed jobs on head `67bc09c1`, so
+a fixed head still needs its own complete pass. Require full final-head Verify,
+exact signed M1 merge, native prepare/check, generated-only M2 promotion and
+successful exact-M2 push Verify
+before new read-only operations. Private GitHub Pages is disabled on the
+current account plan and `https://warpkeep.com/` returns 404; deployment also
+needs an enabled host. The [live delivery status](../../operations/0.4.0-live-delivery-status.md)
 tracks this checkpoint; no current run is a live release grant.
 
 ## Historical source checkpoint — 25 September 2026

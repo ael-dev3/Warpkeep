@@ -6,8 +6,9 @@ Current main is generated-only M2
 [`007e62f2e5b7440abf483a83aeda2b9621f4054e`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e).
 Its exact-main Verify failed at the Linux root-test bound. Do not start another
 operation until the [current delivery gates](../../operations/0.4.0-live-delivery-status.md)
-pass on the eventual exact M2. Earlier local results remain tied to their
-recorded source and are not current authority.
+pass on the eventual exact M2. PR #372 is an unmerged source repair; Verify
+`36285086874` has failed jobs on its `67bc09c1` head. Earlier local results
+remain tied to their recorded source and are not current authority.
 
 ## Historical exact-M2 operation checkpoint — 25 September 2026
 

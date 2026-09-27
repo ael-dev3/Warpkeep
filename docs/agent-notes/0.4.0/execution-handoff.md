@@ -57,6 +57,9 @@ skipped build, deploy and live verification because sealed G002 is unmet. 0.4
 remains unshipped. Provider bridge/recovery operation, G001
 preservation/readback, sealed G002, actual owner PTR journey, physical-device
 and measured-performance acceptance, release freeze and delivery remain open.
+The intended `warpkeep.com` frontend currently returns 404: private-repo
+GitHub Pages is disabled on this account plan. A hosting path must be selected
+before owner PTR can be called live.
 PTR owner access is mandatory; public admissions are not. Keep scheduled
 automations paused, create no Desktop artifacts, and publish each reviewed
 development checkpoint with a signed commit and verified GitHub SHA.

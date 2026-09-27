@@ -2200,7 +2200,7 @@
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f941abb2d6163f9ed137bd9d845e218e01fda90feee49c16963ff77f1c1c6eb0"
+      "sha256": "1b879a4fcbb5ba6a3b5584541ac3dc4462bcaf817915fe78c3116421271abcb2"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-receipt.mjs",

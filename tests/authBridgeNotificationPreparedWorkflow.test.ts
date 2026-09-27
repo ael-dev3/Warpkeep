@@ -1631,7 +1631,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       profile: string;
       members: Array<{ path: string; digestProfile: string; sha256: string }>;
     };
-    const extraPath = '.github/workflows/codeql.yml';
+    const extraPath = '.github/workflows/sealed-realms-production.yml';
     expect(extraManifest.members.some(member => member.path === extraPath)).toBe(false);
     mkdirSync(dirname(resolve(extra, extraPath)), { recursive: true });
     cpSync(resolve(repositoryRoot, extraPath), resolve(extra, extraPath));

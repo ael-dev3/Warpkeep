@@ -1614,7 +1614,8 @@ async function joinedLinuxRecoveryFixture(race?: (phase: string, path: string) =
         steps: [{ name: 'Attest runtime and execute authenticated operation', status: 'completed', conclusion: 'success' }] }] }
       : { id: census ? 900 : 1001, run_attempt: 1, event: 'workflow_dispatch', status: census ? 'completed' : 'in_progress',
         conclusion: census ? 'success' : null, head_branch: 'main', head_sha: current, path: '.github/workflows/sealed-realms-production.yml',
-        name: 'Sealed Realms Production', display_title: `${census ? 'g001-freeze-census' : 'activation-evidence-generate'} @ ${current}`,
+        name: `${census ? 'g001-freeze-census' : 'activation-evidence-generate'} @ ${current}`,
+        display_title: `${census ? 'g001-freeze-census' : 'activation-evidence-generate'} @ ${current}`,
         repository: { full_name: 'ael-dev3/Warpkeep' } };
     const text = JSON.stringify(body), response = new Response(text, { status: 200, headers: {
       'content-type': 'application/json', 'content-length': String(Buffer.byteLength(text)) } });
