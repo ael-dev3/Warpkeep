@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WarpkeepMainMenu } from '../src/components/menu/WarpkeepMainMenu';
 import { menuCommands } from '../src/components/menu/menuCommands';
-import { DEFAULT_WARPKEEP_REPOSITORY_URL } from '../src/build/buildInfo';
 import { WARPKEEP_FARCASTER_CHANNEL_URL } from '../src/farcaster/farcasterProjectLinks';
 
 function installMotionPreference(matches = false) {
@@ -22,7 +21,7 @@ function installMotionPreference(matches = false) {
 function getPatchNotesTrigger(options: { hidden?: boolean } = {}) {
   return screen.getByRole('button', {
     ...options,
-    name: 'Open patch notes for Warpkeep ALPHA 0.3.43'
+    name: 'Open patch notes for Warpkeep ALPHA 0.4.0'
   });
 }
 
@@ -45,11 +44,12 @@ describe('WarpkeepMainMenu', () => {
     vi.useRealTimers();
   });
 
-  it('renders the live heading, exact tagline, and three semantic commands in order', () => {
+  it('opens on the Verdant Citadel heading and three semantic commands', () => {
     render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
 
     expect(screen.getByRole('heading', { level: 1, name: 'WARPKEEP' })).not.toBeNull();
-    expect(screen.getByText('BUILD YOUR LEGACY. DEFEND THE REALM. DEFY THE CORE.')).not.toBeNull();
+    expect(screen.getByText('THE VERDANT CITADEL')).not.toBeNull();
+    expect(screen.getByText('A PLACE TO BUILD. A REASON TO RETURN.')).not.toBeNull();
 
     const navigation = screen.getByRole('navigation', { name: 'Hegemony main menu' });
     const commandLabels = within(navigation)
@@ -57,30 +57,25 @@ describe('WarpkeepMainMenu', () => {
       .map((button) => button.textContent);
     expect(commandLabels).toEqual(menuCommands.map((command) => command.label));
     expect(within(navigation).queryByRole('button', { name: 'PATCH NOTES' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Return to Title' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Return to Title' })).toBeNull();
   });
 
-  it('exposes the canonical project and community destinations as hardened external links', () => {
+  it('exposes the Farcaster community destination without a repository link', () => {
     render(<WarpkeepMainMenu active onRequestReturn={vi.fn()} />);
 
-    const project = screen.getByRole('region', { name: 'PROJECT' });
-    const repositoryLink = within(project).getByRole('link', {
-      name: 'Open Warpkeep repository on GitHub (opens in a new tab)'
-    });
-    const farcasterLink = within(project).getByRole('link', {
+    const community = screen.getByRole('region', { name: 'COMMUNITY' });
+    const farcasterLink = within(community).getByRole('link', {
       name: 'Open Warpkeep Farcaster channel (opens in a new tab)'
     });
 
-    expect(repositoryLink.getAttribute('href')).toBe(DEFAULT_WARPKEEP_REPOSITORY_URL);
+    expect(within(community).queryByRole('link', { name: /GitHub/i })).toBeNull();
     expect(farcasterLink.getAttribute('href')).toBe(WARPKEEP_FARCASTER_CHANNEL_URL);
-    for (const link of [repositoryLink, farcasterLink]) {
-      expect(link.getAttribute('target')).toBe('_blank');
-      expect(link.getAttribute('rel')?.split(/\s+/)).toEqual(
-        expect.arrayContaining(['noopener', 'noreferrer'])
-      );
-      expect(link.getAttribute('referrerpolicy')).toBe('no-referrer');
-      expect(link.getAttribute('tabindex')).toBe('0');
-    }
+    expect(farcasterLink.getAttribute('target')).toBe('_blank');
+    expect(farcasterLink.getAttribute('rel')?.split(/\s+/)).toEqual(
+      expect.arrayContaining(['noopener', 'noreferrer'])
+    );
+    expect(farcasterLink.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(farcasterLink.getAttribute('tabindex')).toBe('0');
   });
 
   it('routes ENTER REALM to its live callback only after Terms acceptance', () => {
@@ -138,15 +133,15 @@ describe('WarpkeepMainMenu', () => {
     const restoredPatchNotes = getPatchNotesTrigger();
     act(() => restoredPatchNotes.focus());
     expect(screen.getByRole('status').textContent).toContain('living frontier');
-    expect(screen.queryByRole('region', { name: 'THE REALM STANDS READY' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SECOND GENESIS WAITS' })).toBeNull();
 
     fireEvent.click(restoredPatchNotes, { detail: 0 });
     expect(screen.queryByRole('status')).toBeNull();
-    expect(screen.getByRole('region', { name: 'THE REALM STANDS READY' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE SECOND GENESIS WAITS' })).not.toBeNull();
     expect(document.activeElement).toBe(restoredPatchNotes);
   });
 
-  it('opens the dramatic credits roll and uses Escape/back to return without leaving the menu notice open', () => {
+  it('opens credits and uses Escape/back to return to the opening menu', () => {
     const onRequestReturn = vi.fn();
     render(<WarpkeepMainMenu active onRequestReturn={onRequestReturn} />);
     const credits = screen.getByRole('button', { name: 'CREDITS' });
@@ -168,7 +163,8 @@ describe('WarpkeepMainMenu', () => {
     expect(document.activeElement).toBe(credits);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(onRequestReturn).toHaveBeenCalledTimes(1);
+    expect(onRequestReturn).not.toHaveBeenCalled();
+    expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
   });
 
   it('supports wrapping arrows and Home/End while leaving Tab to the browser', () => {
@@ -246,30 +242,31 @@ describe('WarpkeepMainMenu', () => {
 
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
-    expect(screen.queryByRole('region', { name: 'THE REALM STANDS READY' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SECOND GENESIS WAITS' })).toBeNull();
 
     act(() => patchNotes.focus());
-    expect(screen.queryByRole('region', { name: 'THE REALM STANDS READY' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SECOND GENESIS WAITS' })).toBeNull();
 
     fireEvent.click(patchNotes, { detail: 0 });
-    const notes = screen.getByRole('region', { name: 'THE REALM STANDS READY' });
+    const notes = screen.getByRole('region', { name: 'THE SECOND GENESIS WAITS' });
     expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
-    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.3.43');
-    expect(notes.textContent).toContain('Performance mode');
-    expect(notes.textContent).toContain('Request Received');
-    expect(notes.textContent).toContain('four permanent Workers');
+    expect(notes.textContent).toContain('LATEST PATCH · ALPHA 0.4.0');
+    expect(notes.textContent).toContain('Genesis 001');
+    expect(notes.textContent).toContain('Genesis 002');
+    expect(notes.textContent).toContain('PTR');
     expect(notes.getAttribute('tabindex')).toBe('0');
     expect(within(notes).queryByRole('link')).toBeNull();
     act(() => notes.focus());
     expect(document.activeElement).toBe(notes);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'THE REALM STANDS READY' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SECOND GENESIS WAITS' })).toBeNull();
     expect(document.activeElement).toBe(patchNotes);
     expect(onRequestReturn).not.toHaveBeenCalled();
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(onRequestReturn).toHaveBeenCalledOnce();
+    expect(onRequestReturn).not.toHaveBeenCalled();
+    expect(screen.getByRole('navigation', { name: 'Hegemony main menu' })).not.toBeNull();
   });
 
   it('previews patch notes on fine-pointer hover and pins or dismisses them on touch', () => {
@@ -277,19 +274,19 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE REALM STANDS READY' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE SECOND GENESIS WAITS' })).not.toBeNull();
 
     fireEvent.pointerDown(document.body, { pointerType: 'mouse' });
-    expect(screen.queryByRole('region', { name: 'THE REALM STANDS READY' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SECOND GENESIS WAITS' })).toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     patchNotes.focus();
     fireEvent.click(patchNotes);
-    expect(screen.getByRole('region', { name: 'THE REALM STANDS READY' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE SECOND GENESIS WAITS' })).not.toBeNull();
 
     fireEvent.pointerDown(patchNotes, { pointerType: 'touch' });
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE REALM STANDS READY' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SECOND GENESIS WAITS' })).toBeNull();
   });
 
   it('keeps hover notes reachable across the anchor gap and toggles by activation', () => {
@@ -298,21 +295,21 @@ describe('WarpkeepMainMenu', () => {
     const patchNotes = getPatchNotesTrigger();
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
-    expect(screen.getByRole('region', { name: 'THE REALM STANDS READY' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE SECOND GENESIS WAITS' })).not.toBeNull();
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
-    const panel = screen.getByRole('region', { name: 'THE REALM STANDS READY' });
+    const panel = screen.getByRole('region', { name: 'THE SECOND GENESIS WAITS' });
     fireEvent.pointerEnter(panel, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(200));
-    expect(screen.getByRole('region', { name: 'THE REALM STANDS READY' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE SECOND GENESIS WAITS' })).not.toBeNull();
 
     fireEvent.click(patchNotes);
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(500));
-    expect(screen.getByRole('region', { name: 'THE REALM STANDS READY' })).not.toBeNull();
+    expect(screen.getByRole('region', { name: 'THE SECOND GENESIS WAITS' })).not.toBeNull();
     fireEvent.click(patchNotes);
-    expect(screen.queryByRole('region', { name: 'THE REALM STANDS READY' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'THE SECOND GENESIS WAITS' })).toBeNull();
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {
@@ -321,10 +318,6 @@ describe('WarpkeepMainMenu', () => {
     );
     const menu = container.querySelector('main.warpkeep-menu');
     const commands = screen.getAllByRole('button', { hidden: true });
-    const repositoryLink = screen.getByRole('link', {
-      hidden: true,
-      name: 'Open Warpkeep repository on GitHub (opens in a new tab)'
-    });
     const farcasterLink = screen.getByRole('link', {
       hidden: true,
       name: 'Open Warpkeep Farcaster channel (opens in a new tab)'
@@ -337,7 +330,6 @@ describe('WarpkeepMainMenu', () => {
       expect((button as HTMLButtonElement).disabled).toBe(true);
       expect(button.getAttribute('tabindex')).toBe('-1');
     });
-    expect(repositoryLink.getAttribute('tabindex')).toBe('-1');
     expect(farcasterLink.getAttribute('tabindex')).toBe('-1');
     expect((patchNotes as HTMLButtonElement).disabled).toBe(true);
     expect(patchNotes.getAttribute('tabindex')).toBe('-1');

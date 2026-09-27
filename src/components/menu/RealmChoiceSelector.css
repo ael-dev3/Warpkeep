@@ -289,3 +289,55 @@
     transition-delay: 0ms;
   }
 }
+
+/* Carry the Verdant Citadel palette into realm selection. */
+.realm-choice-selector {
+  border-color: rgba(206, 195, 158, 0.48);
+  color: #e8ebdf;
+  background: linear-gradient(145deg, rgba(28, 52, 49, 0.98), rgba(11, 32, 33, 0.99));
+  box-shadow: inset 0 0 0 4px rgba(7, 23, 24, 0.42), 0 1.5rem 5rem rgba(3, 17, 18, 0.58);
+}
+
+.realm-choice-selector__eyebrow,
+.realm-choice-selector__intro,
+.realm-choice-selector__version {
+  color: #b9c9b7;
+}
+
+.realm-choice-selector__heading,
+.realm-choice-selector__name {
+  color: #f0e9d9;
+}
+
+.warpkeep-menu .realm-choice-selector__button {
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #f0e3da;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.warpkeep-menu .realm-choice-selector__button[aria-checked="true"] {
+  border-color: #d8c99d;
+  background: rgba(255, 255, 255, 0.17);
+  box-shadow: inset 0 0 0 1px rgba(236, 225, 189, 0.17);
+}
+
+.realm-choice-selector__tooltip {
+  border-color: rgba(206, 195, 158, 0.52);
+  color: #e7e9dd;
+  background: rgba(24, 34, 40, 0.93);
+}
+
+.realm-choice-selector__status {
+  color: #d8c99d;
+}
+
+.warpkeep-menu .realm-choice-selector__action {
+  border-color: rgba(206, 195, 158, 0.52);
+  color: #e9e6d8;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.warpkeep-menu .realm-choice-selector__action--primary {
+  color: #28172f;
+  background: linear-gradient(180deg, #ffe7b2, #dca965);
+}

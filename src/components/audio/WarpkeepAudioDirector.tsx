@@ -48,7 +48,7 @@ const loopSceneDefinitions: Record<AudioLoopScene, LoopSceneDefinition> = {
   menu: {
     level: WARPKEEP_AUDIO_LEVELS.menu,
     loop: WARPKEEP_MENU_LOOP,
-    path: 'audio/warpkeep-menu-theme.mp3'
+    path: 'audio/warpkeep-verdant-menu-theme.m4a'
   },
   realm: {
     level: WARPKEEP_AUDIO_LEVELS.realm,

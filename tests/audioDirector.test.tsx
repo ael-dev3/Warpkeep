@@ -89,11 +89,11 @@ describe('audio director helpers', () => {
     expect(getEqualPowerGains(1).outgoing).toBeCloseTo(0, 8);
   });
 
-  it('schedules the measured 400.128s → 401.920s menu overlap without a paused loop', () => {
+  it('schedules the Verdant score’s 205.1s → 208.1s menu overlap without a paused loop', () => {
     expect(WARPKEEP_MENU_LOOP).toEqual({
-      crossfadeStartSeconds: 400.128,
-      endSeconds: 401.92,
-      overlapSeconds: 1.792
+      crossfadeStartSeconds: 205.1,
+      endSeconds: 208.1,
+      overlapSeconds: 3
     });
 
     expect(getMenuLoopSchedule(100, true)).toEqual({
@@ -101,18 +101,18 @@ describe('audio director helpers', () => {
       delayMs: null,
       shouldCrossfadeNow: false
     });
-    expect(getMenuLoopSchedule(399.128, false)).toEqual({
+    expect(getMenuLoopSchedule(204.1, false)).toEqual({
       crossfadeProgress: 0,
       delayMs: 1_000,
       shouldCrossfadeNow: false
     });
-    expect(getMenuLoopSchedule(399.128, false, 2).delayMs).toBe(500);
+    expect(getMenuLoopSchedule(204.1, false, 2).delayMs).toBe(500);
 
-    const midpoint = getMenuLoopSchedule(401.024, false);
+    const midpoint = getMenuLoopSchedule(206.6, false);
     expect(midpoint.shouldCrossfadeNow).toBe(true);
     expect(midpoint.delayMs).toBe(0);
     expect(midpoint.crossfadeProgress).toBeCloseTo(0.5, 8);
-    expect(getMenuLoopSchedule(401.92, false).crossfadeProgress).toBe(1);
+    expect(getMenuLoopSchedule(208.1, false).crossfadeProgress).toBe(1);
     expect(getOtherSource(0)).toBe(1);
     expect(getOtherSource(1)).toBe(0);
     expect(getOtherMenuSource(0)).toBe(1);
@@ -197,7 +197,7 @@ describe('WarpkeepAudioDirector', () => {
     expect(title.src).toMatch(/\/audio\/warpkeep-title-theme-[ab]\.mp3$/);
     expect(title.dataset.track).toMatch(/^theme-[ab]$/);
     expect(title.loop).toBe(true);
-    expect(primary.src).toMatch(/\/audio\/warpkeep-menu-theme\.mp3$/);
+    expect(primary.src).toMatch(/\/audio\/warpkeep-verdant-menu-theme\.m4a$/);
     expect(standby.src).toBe(primary.src);
     expect(primary.loop).toBe(false);
     expect(standby.loop).toBe(false);

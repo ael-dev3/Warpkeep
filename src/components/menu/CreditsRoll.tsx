@@ -5,6 +5,7 @@ import './CreditsRoll.css';
 
 export const CREDITS_ROLES = [
   { role: 'IDEAS MAN', name: 'AEL' },
+  { role: "WARPLET'S WATCH 3D MODEL", name: 'ASTRA' },
   { role: 'CREATIVE DIRECTOR', name: 'CLAWBERTO' },
   { role: 'GAME DESIGN', name: 'CLAWBERTO' },
   { role: 'WORLD-BUILDING & LORE', name: 'CLAWBERTO' },
@@ -137,14 +138,6 @@ export function CreditsRoll({ onClose }: CreditsRollProps) {
               target="_blank"
             >
               CC BY 4.0
-            </a>.{' '}
-            <a
-              href="https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/title-stone-letters-2026-07-12"
-              rel="noopener noreferrer"
-              tabIndex={manualReading ? 0 : -1}
-              target="_blank"
-            >
-              View archive
             </a>.
           </p>
           <p className="warpkeep-credits__tiny">NO CASTLES WERE HARMED IN THE MAKING OF THIS MENU.</p>
