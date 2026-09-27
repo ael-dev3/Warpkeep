@@ -108,7 +108,7 @@ function approvedPublicPath(path) {
   );
 }
 
-function inspectPublicMirror(publicRoot, expectedPublicHead) {
+export function inspectPublicMirror(publicRoot, expectedPublicHead) {
   if (!COMMIT.test(expectedPublicHead ?? '')) {
     fail('PUBLIC_PAGES_MIRROR_HEAD_INVALID');
   }
@@ -161,8 +161,12 @@ function inspectPublicMirror(publicRoot, expectedPublicHead) {
     || [...HOST_FILES].some(path => !seen.has(path))
     || !seen.has('index.html')
   ) fail('PUBLIC_PAGES_MIRROR_REQUIRED_FILE_MISSING');
+  const currentCname = readFileSync(join(root, 'CNAME'));
   if (
-    !readFileSync(join(root, 'CNAME')).equals(Buffer.from('warpkeep.com\n'))
+    ![
+      Buffer.from('warpkeep.com\n'),
+      Buffer.from('warpkeep.com\r\n'),
+    ].some(value => currentCname.equals(value))
     || readFileSync(join(root, '.nojekyll')).length !== 0
     || !readFileSync(join(root, '404.html')).equals(readFileSync(join(root, 'index.html')))
   ) fail('PUBLIC_PAGES_MIRROR_HOSTING_INVALID');

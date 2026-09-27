@@ -190,6 +190,22 @@ describe('read-only public Pages mirror plan', () => {
     expect(mirror.plan).toThrow('PUBLIC_PAGES_PAYLOAD_MANIFEST_MISMATCH');
   });
 
+  it('accepts the existing public host CNAME line ending while planning canonical LF', () => {
+    const source = candidate();
+    const mirror = publicMirror(source);
+    git(mirror.root, ['config', 'core.autocrlf', 'false']);
+    write(join(mirror.root, 'CNAME'), 'warpkeep.com\r\n');
+    const revisedPublicHead = commit(mirror.root, 'Use the existing public CNAME form');
+    const plan = verifyPublicPagesMirrorPlan({
+      sourceRoot: source.root,
+      expectedSourceCommit: source.expectedSourceCommit,
+      publicRoot: mirror.root,
+      expectedPublicHead: revisedPublicHead,
+    });
+    expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'CNAME'))
+      .toMatchObject({ sha256: sha('warpkeep.com\n') });
+  });
+
   it('refuses a redirected public push URL despite the expected fetch URL', () => {
     const source = candidate();
     const mirror = publicMirror(source);

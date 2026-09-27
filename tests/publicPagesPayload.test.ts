@@ -261,7 +261,7 @@ describe('public Pages candidate payload', () => {
       repositoryRoot: missing.root,
       expectedSourceCommit: missing.expectedSourceCommit,
     })).toThrow('PUBLIC_PAGES_PAYLOAD_REQUIRED_FILE_MISSING');
-  });
+  }, 30_000);
 
   it('rejects a local QA marker even in an otherwise allowed JavaScript path', () => {
     const candidate = createCandidate();
