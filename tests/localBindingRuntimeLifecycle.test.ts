@@ -138,9 +138,12 @@ vi.mock('../scripts/greater-realm-production-provenance', async () => {
         verify(allowed?: Readonly<{ files?: readonly string[] }>) {
           const bundle = allowed?.files?.find(path => /^spacetimedb\/(?:ptr|genesis002)\/dist\/bundle\.js$/u.test(path));
           if (bundle !== undefined) {
-            if (bundle.startsWith('spacetimedb/genesis002/')
-                && fs.existsSync(join(input.destination, 'spacetimedb', 'node_modules'))) {
-              throw new Error('LIFECYCLE_BUILD_RESOLUTION_LINK_RETAINED');
+            if (bundle.startsWith('spacetimedb/genesis002/')) {
+              const parentModules = join(input.destination, 'spacetimedb', 'node_modules');
+              if (!fs.lstatSync(parentModules).isDirectory()
+                  || fs.existsSync(join(input.destination, 'spacetimedb', 'genesis002', 'node_modules'))) {
+                throw new Error('LIFECYCLE_BUILD_DEPENDENCY_LAYOUT_INVALID');
+              }
             }
             const dist = join(input.destination, ...dirname(bundle).split('/'));
             const mode = fs.lstatSync(dist).mode & 0o7777;
@@ -263,6 +266,15 @@ vi.mock('node:child_process', async () => {
         const project = args[args.indexOf('--project') + 1]!;
         if (basename(project) === 'genesis002-typecheck-v1.json') {
           boundary.typecheckConfig = JSON.parse(readFileSync(project, 'utf8'));
+          const dependencyRoot = join(dirname(options.cwd), 'node_modules');
+          if (args[0] !== join(dependencyRoot, 'typescript', 'bin', 'tsc')
+              || JSON.stringify((boundary.typecheckConfig as any).compilerOptions.paths) !== JSON.stringify({
+                spacetimedb: [join(dependencyRoot, 'spacetimedb', 'dist', 'index.d.ts')],
+                'spacetimedb/server': [join(dependencyRoot, 'spacetimedb', 'dist', 'server', 'index.d.ts')],
+              })) {
+            throw new Error('LIFECYCLE_TYPECHECK_DEPENDENCY_LAYOUT_INVALID');
+          }
+          boundary.events.push('typecheck:pinned-parent-dependencies');
         }
         boundary.events.push('command:typecheck');
         if (boundary.commandFailure === 'typecheck') {
@@ -286,12 +298,12 @@ vi.mock('node:child_process', async () => {
         }
         const modulePath = args[args.indexOf('--module-path') + 1]!;
         if (modulePath === 'spacetimedb/genesis002') {
-          const resolutionLink = join(options.cwd, 'spacetimedb', 'node_modules');
-          if (!lstatSync(resolutionLink).isSymbolicLink()
-              || realpathSync(resolutionLink) !== realpathSync(join(options.cwd, modulePath, 'node_modules'))) {
-            throw new Error('LIFECYCLE_BUILD_RESOLUTION_LINK_MISSING');
+          const dependencyRoot = join(options.cwd, 'spacetimedb', 'node_modules');
+          if (!lstatSync(dependencyRoot).isDirectory()
+              || existsSync(join(options.cwd, modulePath, 'node_modules'))) {
+            throw new Error('LIFECYCLE_BUILD_DEPENDENCY_LAYOUT_INVALID');
           }
-          boundary.events.push('build:resolution-link');
+          boundary.events.push('build:pinned-parent-dependencies');
         }
         const dist = join(options.cwd, ...modulePath.split('/'), 'dist');
         boundary.buildOutputWasPrecreated = existsSync(dist);
@@ -713,6 +725,7 @@ describe('controlled local binding runtime lifecycle', () => {
     expect(readFileSync(result.handoffPath, 'utf8')).toBe('controlled-bundle');
     expect(boundary.events).toContain('builder:operation');
     expect(boundary.events).toContain('command:typecheck');
+    expect(boundary.events).toContain('typecheck:pinned-parent-dependencies');
     expect(boundary.typecheckArgs[boundary.typecheckArgs.indexOf('--project') + 1]).toBe(
       join(boundary.request!.materializationRoot as string, 'genesis002-typecheck-v1.json'),
     );
@@ -726,6 +739,7 @@ describe('controlled local binding runtime lifecycle', () => {
       },
     }));
     expect(boundary.events).toContain('command:build-snapshot-cli');
+    expect(boundary.events).toContain('build:pinned-parent-dependencies');
     expect(readdirSync(join(value.materializationParent, 'genesis002-locked-source-builds-v1'))).toEqual([]);
   });
 
