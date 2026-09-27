@@ -13,6 +13,30 @@ has the exact source, verification and recovery path. This brings the existing
 site online; 0.4 PTR remains unshipped and needs its own reviewed release path.
 
 The latest signed source/closure checkpoint on PR #374 is
+[`89a29c01`](https://github.com/ael-dev3/Warpkeep/commit/89a29c01e597c5fb677611b9dfe047715cb4eb73),
+from signed source [`a82cb0c9`](https://github.com/ael-dev3/Warpkeep/commit/a82cb0c9408f768516eada7b8eb22db219bd2793).
+World initial/refresh reads now expose Retry after a bounded 30-second stall;
+late intermediate phases cannot hide it, the last validated map stays visible,
+and Worker commands require fresh authority. The parent Realm status no longer
+claims a retained map is absent. The public Pages payload verifier rejects
+index-hidden source drift. A read-only public-mirror planner checks exact clean
+source/build and the existing public checkout, and inventories only reviewed
+generated output, hosting files and current-source attribution documents. It
+does not stage, publish or authorize 0.4. The 90 focused World/Realm/PTR tests,
+17 payload/mirror tests, typecheck, root-base production build, checked-in
+sealed-launch check, outgoing secret scan and signed remote readback passed.
+The real source build passed payload `--write`/`--check` and a plan against the
+clean `Warpkeep-Live@616eebfc` checkout: 381 target files and 26 obsolete old
+generated paths. The disposable local manifest was removed; no public repo
+mutation occurred. Native Linux matched all 3,261 source blobs, independently
+regenerated all 16 closure outputs and passed the 1,258-member policy.
+[Verify 36318043715](https://github.com/ael-dev3/Warpkeep/actions/runs/36318043715)
+on that closure head rejected all 17 jobs before runner start. GitHub's billing
+page shows the Actions budget at $0 with stop usage enabled and says a valid
+payment method is missing. Owner action is pending; no merge or PTR deployment
+is justified by local checks.
+
+An earlier signed source/closure checkpoint on PR #374 was
 [`24c90daa`](https://github.com/ael-dev3/Warpkeep/commit/24c90daa9b92aa84e2c0322e226119d115b4c120).
 The Greater Realm now explains an initial or refresh failure, offers a reachable
 mobile retry, retains the last verified map during refresh failure and disables
