@@ -1,0 +1,274 @@
+WARPKEEP 0.4 — NEXT WORK
+Refreshed 27 September 2026, Europe/Budapest.
+Source/GitHub check: 22:13 CEST (20:13 UTC).
+
+PURPOSE OF THIS FILE
+
+This is the daily action brief, not another design specification. Its tracked
+repository copy is canonical for local/GitHub sync; refresh this copy and then
+update the existing Desktop companion in place. Do not create another Desktop
+copy.
+Full product, architecture and every retained inspiration link/study:
+C:/Users/heyas/OneDrive/Рабочий стол/Warpkeep - Full Project Handoff.md
+
+The old TXT is preserved inside that handoff's historical appendix. It contains
+corrupted identifiers and superseded findings; do not use it as a live work queue.
+
+THE PRODUCT WE ARE FINISHING
+
+A real person, a permanent keep, and a world worth returning to.
+
+Make gather -> choose -> build -> benefit -> return understandable, rewarding
+and dependable. The shared atlas supplies journeys; the keep turns their returns
+into visible improvements. The first economy building AND its improved credited
+return must fit within ten minutes on actual atlas routes in the owner's PTR.
+
+The Verdant Citadel should feel like one intentional place: pale masonry, dark
+timber, teal roofs, warm activity, layered forest, restrained warp accents.
+Voxel scenery and water mainly support presentation. Professional means coherent,
+readable and responsive on a phone, not more effects or a larger simulation.
+
+SOURCE CHECKPOINT — FACTS, NOT A DEPLOYMENT CLAIM
+
+Maintained checkout:
+C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep
+
+Local branch: fix/g001-census-admission-proxy
+At the start of this refresh, local and GitHub branch head was signed
+6733620d2335e317aa221b56ef20866ecf5d11bd and the checkout was clean and
+remote-equal. This tracked brief update advances the branch; recheck the exact
+live SHA before acting.
+Protected source checkpoint: 175e325771768d8427bedeff8280a9cb2a9de282
+Signed protected closure: 6b9bcb1f6bf27fa70d7870b4b0eb074a7f698242
+Closure manifest SHA-256:
+26f7a57e406fc239f6d7b42222d92293ca4402e83d863fba1de05b51be898f2e
+The closure contains 1,241 members and 16 derived outputs. Compare the live
+checkout and PR head before acting; prose-only commits can advance the branch.
+Recheck before acting:
+https://github.com/ael-dev3/Warpkeep/pull/374
+
+The source adds first-session Keep guidance, pending-return-aware building
+choices, visible construction progress above the mobile fold, a bounded
+resource-site read with keyboard-safe retry, a bounded browser clock-lag QR
+repair, and a signed public Pages publication/rollback operator. Incoming
+Worker earnings guide the next resource search but are not spendable until
+Realm confirmation. An earlier protected closure was refrozen from exact
+source 4855890e; native/Windows sealed checks and the full production build passed.
+This is not hosted Verify, main promotion, PTR deployment or owner play. The
+latest signed menu integration and protected closure passed clean native
+ownership-bound policy and checked-in sealed-launch verification. The final
+Node 22 production build and all 20 native Pages live-receipt tests passed;
+reviewed menu, QR and delivery tests are recorded in the repository handoff.
+
+GitHub main still has signed generated-only M2
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32 through PR #373. Its
+exact-main Verify, read-only preflight and G001 policy observation passed.
+Fresh census 36297722529 failed closed with g001-admitted-set-mismatch and
+established no baseline; G002 inspect 36297899627 failed before provider
+transport. PR #374 repairs the census/recovery admission lookup and sealed
+G002 build dependency placement. Earlier provider-free artifact checks are
+diagnostic, not authority for a live update.
+
+Existing Alpha 0.3.43 is online at warpkeep.com through signed public
+Warpkeep-Live@b6afe92e7b09197b1578d992103ac3c8f916d8ad. Pages run
+36343178620 passed; 338 staged build files and sampled live root, fallback,
+owner canary and main asset matched the reviewed bytes from signed source
+5f77c3ce. The fresh phone-approved owner exchange returned HTTP 200 with
+session_created at 2026-09-27 19:06:14.479 UTC, and the owner confirmed login.
+It succeeded before the diagnostic frontend deployed, so no browser build hash
+is attested for that sign-in.
+
+The timestamped incident record identifies the strongest supported cause of
+the previous three HTTP 503 exchanges: repeated HTTP 429 responses from the
+primary dRPC RPC path at Cloudflare edge, while PublicNode and the OP Mainnet
+endpoint succeeded. The old secret could not be read back directly. A secret-
+only change to https://mainnet.optimism.io/ deployed at 19:01:23.825605 UTC;
+the next owner-approved exchange succeeded. Preserve that uncertainty and use
+the recorded rollback version if the verifier regresses. No new recovery key
+is required. Full event timestamps and recovery details are in
+docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md.
+
+No successful hosted Verify exists for the current PR candidate.
+Verify 36345736413 on the previous documentation head 6733620d stopped all 17
+jobs before runner steps. GitHub's annotation says recent account payments failed
+or the Actions spending limit must be increased. This is an account gate, not
+a code-test result. The account owner must resolve Billing & plans and enable
+a nonzero Actions budget, then rerun Verify on the updated live final head.
+Do not use the persistent privileged production runner as a workaround. Private-repo
+Pages remains unavailable on the current Free plan. The 0.4 owner PTR and
+sealed G002 deployment are not live.
+
+The reviewed Verdant Citadel menu is integrated into signed PR #374 at merge
+397b9697. Follow-up commits preserve glTF-authored double-sided materials and
+pause WebGL animation under full-screen overlays; the Pages receipt covers its
+loaded media. PR #375 remains open with a notice that its older closure must
+not be merged directly. Warpkeep-Assets PR #37 has signed provenance correction
+b631f2c: the menu score is described as published and its conversion reference
+points to reachable signed game source 175e3257. Its 37 Linux tests pass.
+Both PRs' hosted checks remain stopped before runner steps by account billing.
+
+The earlier signed World retry, G001 preservation work, public-mirror
+candidate, local source tests, native closure checks and synthetic mobile
+captures remain described in the repository execution handoff. They do not
+replace final-head Verify, an actual-owner journey or physical-phone proof.
+
+QA contract diagnostic: legacy `qa:title-transition` timed out at
+2026-09-27 20:07:24.870 UTC because its initial route still requires the
+retired title gateway while this app starts at `#menu`. It is not current menu
+visual evidence; do not call it a product failure or a pass. Retarget it to a
+live 0.4 transition before relying on that lane. See execution-handoff.md.
+
+NEXT ACTION — DELIVERY DEPENDENCY
+
+1. The account owner must resolve GitHub Billing & plans, including any
+   failed payment, and enable an Actions budget large enough to run Verify:
+   https://github.com/settings/billing/budgets
+   The Alpha QR now succeeds; do not repeat scans unless a regression appears.
+2. Rerun hosted Verify on the live final PR #374 head after billing is fixed.
+   Require every job to pass before integration; do not use the persistent
+   privileged production runner as a workaround.
+3. Merge signed source/closure M1, confirm exact-main identity and Verify, and
+   repeat the provider-free G002 artifact build.
+4. On that exact M1, run native prepare and independent check; promote only
+   the authenticated generated family as M2 and require exact-main Verify.
+5. Run fresh preflight and G001 policy observation, then a new census identity.
+   Resolve any real admitted-set mismatch through the supported workflow;
+   never fabricate a baseline or reuse an incomplete attempt. A valid
+   baseline precedes provider mutation and G001 preservation readback.
+6. Use fresh exact-M2 authority for G002 inspect, then complete supported
+   deployment, sealed denial, actual owner PTR play and recovery evidence.
+   Use the signed public publication/rollback operator only after its gates;
+   verify exact public bytes and keep the existing Alpha root working until
+   release. No new recovery key is needed.
+
+Operational details and current resumption point:
+C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep/docs/agent-notes/0.4.0/execution-handoff.md
+C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep/docs/operations/0.4.0-infra-access.md
+
+The above is a release dependency, not permission to turn every visual edit into
+another release-system redesign. Use the existing change classification.
+
+WHAT STILL NEEDS PROOF, IN ORDER
+
+A. A rewarding actual-owner journey.
+   Gather on the real atlas; receive spendable resources; choose/place/build an
+   economy improvement; receive its improved next return within ten minutes.
+   Then return/reconnect/background/resume without lost or duplicated progress.
+   Show what is missing, incoming, committed, complete and improved.
+   Cover all six building effects/progression and required failure cases separately.
+
+B. A professional mobile experience.
+   Compare matching empty, occupied, placement, construction and completed scenes.
+   Prioritize legible buildings, useful framing, reachable controls, coherent ground
+   and shores. Test the production build, not just a decorative fixture.
+   Obtain named physical-phone results; prepare emulated/instrumented runs locally
+   while actual-owner/device access is unavailable. Label those limits honestly.
+
+C. Safe, complete delivery.
+   G001: preserve existing 0.3 progress/access/timers/presentation; freeze new admissions.
+   G002: deployed and accurately CLOSED; admissions TBD; denial causes no unauthorized writes.
+   PTR: isolated actual-owner play, not admission expansion or fixture impersonation.
+   Final source/artifact freeze follows required source changes, then authenticated
+   deployment and live verification. Recovery must preserve post-deployment writes.
+   Finish the evidence ledger and credential-free artifacts/delivery/0.4.0 package.
+
+These are summaries of the existing R01-R18 checklist, not new requirements:
+C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep/docs/operations/0.4.0-release-checklist.md
+
+OLD FINDINGS THAT SHOULD NOT BE REIMPLEMENTED
+
+- Duration labels now use formatKeep04Duration in Worker/building panels.
+- Barracks and Cathedral benefit explanations now exist in the building panel.
+- Capture diagnostics gained bounded cause/resource fields.
+- Responsive framing, action discovery and timeout/retry work have local evidence.
+- The untouched Keep stays on Gather even with an unaffordable selection;
+  funded state can mark Choose. Empty-scene requests avoid unused building
+  models; later buildings hydrate in place with a silhouette fallback. These
+  are source/test observations, not measured speed or owner acceptance.
+
+Source fixes do not prove user comprehension or device performance. Recheck the
+remaining outcome, not the obsolete implementation task. Earlier unexplained
+capture warnings are not retroactively explained by a better collector.
+The final-head hosted suite was rejected before execution; local focused checks
+do not replace it.
+
+MOBILE BUDGETS ALREADY EXIST — MEASURE THEM
+
+Cold usable scene p95: desktop <=10s; mobile <=15s.
+Frame interval p95: high <=33.4ms; balanced <=50ms; reduced <=75ms.
+Input-to-visible feedback p95: <=100ms.
+Compressed JS through first usable keep: <=2MiB.
+Static transfer through world/keep: high <=12MiB / balanced <=8MiB / reduced <=5MiB.
+Keep draws/triangles: high 180/300k; balanced 120/180k; reduced 80/90k.
+Switch heap: final <=warmed baseline+8MiB; growth <=0.25MiB/cycle.
+At most one active world/keep renderer; clean up scene-owned resources.
+
+Use the exact existing profiles and procedure: ten cold runs, three 60-second
+workloads, 20 world/keep switches, 10 realm re-entries and three context restores.
+Current render caps are 30/24/15 FPS, not a new 60-FPS requirement.
+Record actual phone model, OS/browser, quality, thermal context, touch,
+portrait/landscape, background/resume and reconnect. Emulation is not a phone.
+No final physical-phone result is established in the current evidence.
+
+Canonical measurements/methodology:
+C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep/docs/evidence/0.4.0/performance.md
+
+HOW TO USE THE INSPIRATIONS
+
+- Voxel / Verdant Forest: readable silhouettes, layered vegetation, controlled density.
+- Pelagic / Koi / Reynisfjara: coherent water, bank/wet-edge treatment and calm movement.
+- Townscaper / Tiny Glade: a completed improvement should visibly change the keep.
+- Selo / Widelands: explain shortages, pending returns and the next useful choice.
+- Antikythera / Portal Heist: one clear immediate objective and visible progress.
+- Mapgen4: readable geography and selected routes.
+- Dream Loop: capture, identify one visible problem, repair its owner, compare again.
+- Renderer studies: adopt an optimization only if the actual measured scene benefits.
+
+These are presentation/product lessons, not separate engine, boat, diving,
+heist, terrain-editing, logistics or leaderboard commitments.
+The handoff preserves every old reference and detailed study. Key owner links:
+
+https://www.reddit.com/r/aigamedev/comments/1w7kp5b/custom_voxel_engine_done_with_gpt_astra/
+https://verdant-forest.lexn8.chatgpt.site
+https://pelagic-ocean.lexn8.chatgpt.site
+https://github.com/achimala/dream-loop
+https://dream-loop-demo.anshu.dev/
+https://koi-canal.vercel.app/
+https://t.co/TeAWPY6XNa
+https://claude.ai/artifact/ReCBQGZ4EirKSiEmT8XXfs
+https://t.co/Mdnn5unDPS
+https://reynisfjara-photoreal.netlify.app/
+https://www.spawn.co/@j/portal-heist/play
+
+External demos were not revisited in this edit. Their past viewport observations
+are not mobile performance claims or permission to copy assets/source.
+
+WHERE TO WORK
+
+Gameplay authority: spacetimedb/gameplay04/
+Owner/session/controller: src/ptr/ and src/ptr/gameplay04/
+0.4 keep: src/components/keep04/
+0.4 atlas/water: src/greater-realm/
+G001 compatibility: spacetimedb/src/ and src/spacetime/
+Identity: services/auth-bridge/
+Delivery/recovery: scripts/, .github/workflows/, services/release-recovery/
+
+Paths above are relative to the maintained checkout. Do not tune the legacy realm
+scene assuming it owns the 0.4 keep. Read AGENTS.md and the 0.4 agent index first.
+
+DAILY WORK RULE
+
+Name the observed player/delivery problem, smallest responsible component,
+expected improvement, evidence and next action if it fails. Resolve one useful
+uncertainty at a time. Reopen settled design only for a material reason.
+Preserve working code; a different model's authorship alone is not a defect.
+
+Publish reviewable project changes to the proper GitHub branch/PR. Never publish
+secrets or private player/operation data. Report local, pushed, merged, deployed
+and live-verified separately. Do not equate commit volume with release completion.
+
+Replace this current snapshot when it changes; do not prepend another long history.
+The repository is the detailed source/evidence authority; the handoff holds the
+project context/library; this TXT holds the next actions.
+
+END OF CURRENT BRIEF

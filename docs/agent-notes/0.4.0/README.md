@@ -44,6 +44,7 @@ still open.
 | Apply the full inspiration library | [Visual foundation contract](visual-foundation-contract.md) | Reference-to-source decisions, mobile rules, review states, and evidence limits |
 | Complete delivery | [Release and infrastructure](release-and-infrastructure.md) | Current services, CI, operating gaps, and verification routes |
 | Continue this checkout | [Execution handoff](execution-handoff.md), [source synchronization](../../operations/0.4.0-development-sync.md) | Current checkpoint, environment traps, reviewed publication, and next actions |
+| Follow the daily release sequence | [Next work](next-work.txt) | Compact, tracked action brief mirrored to the existing Desktop copy; keep both synced |
 | Resolve access or request owner help | [Connection and resumption guide](../../operations/0.4.0-infra-access.md#resume-without-guessing) | Correct account, target and caller; exact unmet prerequisite and smallest human action |
 | Recover from a known delivery failure | [Known blocker recovery paths](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths) | Observed symptom, owning repair and confirming check; reuse existing credentials and retained evidence |
 | Keep local storage compact | [Output locations and retention](../../engineering/development-workflow.md#output-locations-and-retention) | No new Desktop files; reuse tools/checkouts, bound disposable output, preserve recovery evidence |

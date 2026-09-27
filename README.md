@@ -40,16 +40,22 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The existing Alpha 0.3.43 is live; 0.4 has not shipped.** The public
-generated-files host carries a focused QR sign-in clock-lag repair. Its live
-files match the published build, but a fresh phone-approved QR sign-in is still
-needed to verify that repair end to end. The active 0.4 source and its protected
-closure are signed and synchronized on [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374).
-Another QR failure was reported, but its browser detail and request trace were
-unavailable, so the fix has not been verified end to end. GitHub rejected the
-latest Verify jobs before they started because of the account billing limit.
-The private development source, exact checks and next release action are
-recorded in the dated
+**The existing Alpha 0.3.43 is live; 0.4 has not shipped.** The generated-files
+host now carries the focused QR diagnostic client and matches its reviewed
+build. The owner confirmed successful phone-approved desktop sign-in at
+2026-09-27 19:06:14 UTC after a secret-only RPC endpoint repair; the
+[timestamped incident report](docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md)
+records the evidence and its limits. No exact frontend build hash was captured
+for that sign-in. The reviewed Verdant Citadel menu is integrated into the
+signed 0.4 candidate at
+[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374), together with the
+source repairs and refrozen protected closure. The previous documentation
+head's [Verify 36345736413](https://github.com/ael-dev3/Warpkeep/actions/runs/36345736413)
+stopped all 17 jobs before runner steps because GitHub cited failed account
+payments or an Actions spending limit.
+These tracked notes advance the PR head, so restore billing and rerun checks on
+the live final head. The private development source, exact checks and next
+release action are recorded in the dated
 [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md). Protected
 integration, native preparation, provider work and owner acceptance still
 remain before 0.4 release.
@@ -66,7 +72,8 @@ tracks the evidence required to make that distinction concrete.
 | **Genesis 002** | Prepare the successor realm as a sealed launch; its future admissions remain undecided. |
 | **Owner PTR** | Exercise the new playable experience in an isolated realm before broader release. |
 
-The [current development notes](docs/agent-notes/0.4.0/README.md) distinguish
+The [current development notes](docs/agent-notes/0.4.0/README.md) and tracked
+[daily action brief](docs/agent-notes/0.4.0/next-work.txt) distinguish
 implemented behavior, verified results, open integration work and live observations.
 The [roadmap](docs/design/roadmap.md) explains how the first complete loop supports
 future exploration, cooperation and strategy without promising unfinished features.

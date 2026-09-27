@@ -32,6 +32,12 @@ rejected all 17 jobs before runner steps because of the account's
 payment/spending-limit gate; it is not a code verdict. GitHub reports `main`
 as unprotected with no required checks, so the release sequence must enforce
 final-head Verify manually rather than infer safety from mergeability.
+
+The latest observed signed documentation head `6733620d` received [Verify
+36345736413](https://github.com/ael-dev3/Warpkeep/actions/runs/36345736413);
+all 17 jobs stopped before runner steps with the same billing/spending-limit
+annotation. The tracked handoff refresh advances the PR head again. Require a
+successful Verify on the live final head after billing is restored.
 Recheck live `main` and its own Verify before using this dated checkpoint as
 operation authority. CodeQL code scanning
 is unavailable on the private-repository plan; full Verify is the executable gate.
@@ -45,9 +51,12 @@ published diagnostic Alpha client is live through signed
 and successful [Pages run 36343178620](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36343178620).
 The owner's successful exchange preceded that frontend publication. The
 reviewed menu is integrated into PR #374; original
-[menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375) and
-[Assets PR #37](https://github.com/ael-dev3/Warpkeep-Assets/pull/37) remain open.
-Neither Alpha sign-in nor a source closure establishes 0.4 PTR acceptance.
+[menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375) remains open
+with a supersession notice because its closure is stale. The related
+[Assets PR #37](https://github.com/ael-dev3/Warpkeep-Assets/pull/37) is open
+with signed provenance correction `b631f2c`; 37 Linux tests pass, while its
+hosted checks stop at the same billing gate. Neither Alpha sign-in nor a source
+closure establishes 0.4 PTR acceptance.
 
 Earlier signed PR #374 head [`68937b59`](https://github.com/ael-dev3/Warpkeep/commit/68937b59765340b04a8c0c180f8fc60dd3812129)
 added privacy-safe QR failure distinctions and refroze the then-1,258-member

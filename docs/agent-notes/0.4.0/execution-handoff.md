@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 27 September 2026
+## Current checkpoint — 27 September 2026, 20:11 UTC
 
 The pre-0.4 Alpha 0.3.43 site remains online at
 [`warpkeep.com`](https://warpkeep.com/) through the public, generated-assets-only
@@ -90,14 +90,41 @@ with `session_created` at **2026-09-27 19:06:14.479 UTC**; the owner confirmed
 login. The separately published Alpha diagnostic frontend came later and did
 not cause that successful exchange.
 
-Exact-head hosted
-[Verify 36345079867](https://github.com/ael-dev3/Warpkeep/actions/runs/36345079867)
-on `6b9bcb1f` stopped all 17 jobs before runner steps. GitHub's annotation
-cites recent failed account payments or the spending limit. This is neither a
+The local and GitHub PR branch were clean and synchronized at signed head
+[`6733620d`](https://github.com/ael-dev3/Warpkeep/commit/6733620d2335e317aa221b56ef20866ecf5d11bd)
+when refreshed. This is a documentation checkpoint after the protected closure;
+recheck the PR head before acting. Closure-head Verify 36345079867 and later
+documentation-head [Verify 36345736413](https://github.com/ael-dev3/Warpkeep/actions/runs/36345736413)
+each stopped all 17 jobs before runner steps. GitHub's annotation cites recent
+account payments or an insufficient Actions spending limit. This is neither a
 source failure nor a pass. `main` remains the earlier signed M2 `786c0b2b`.
-Require a passing hosted Verify on the final PR head before signed source M1
-merge; then prepare/check exact M1 natively, promote generated-only M2,
-verify its exact main head and complete the protected live gates before 0.4 PTR.
+Restore account billing, then require a passing hosted Verify on the live final
+PR head before signed source M1 merge; prepare/check exact M1 natively, promote
+generated-only M2, verify its exact main head and complete the protected live
+gates before 0.4 PTR.
+
+The Desktop daily action brief is now tracked at
+[`next-work.txt`](next-work.txt). Update that canonical repo copy and the
+existing Desktop companion together; do not create Desktop duplicates.
+
+### Rendered QA compatibility note — 27 September 2026
+
+The legacy `qa:title-transition` browser run at **20:07:24.870 UTC** timed out
+at `owner-full-hd-half-renderer-repeated-gateway-ready`. Its initial-route
+predicate still requires the retired title screen, title gateway and title
+canvas, while the current app intentionally starts at `#menu`. This run is not
+evidence that the integrated menu failed to render and is not current menu
+visual acceptance. Keep it out of the release verdict until its contract is
+retargeted to a live 0.4 transition; use the existing menu/resource lifecycle
+and production-render evidence meanwhile. The failed probe left an empty
+ignored artifact directory, not a tracked build output.
+
+The same pinned Node 22 Windows run also executed `WarpkeepExperience.test.tsx`,
+`menuWorldResourceLifecycle.test.tsx` and `titleTransitionFrameBrowserProbe.test.ts`:
+26 tests passed. One probe-server test could not execute its symlink rejection
+case because Windows returned `EPERM` while creating the test symlink
+(`2026-09-27 20:12:49 UTC` run start). Treat that single case as environment-
+limited; the other tests do not replace final-head hosted Verify.
 
 ### Earlier 27 September QR-diagnostic closure (superseded)
 
