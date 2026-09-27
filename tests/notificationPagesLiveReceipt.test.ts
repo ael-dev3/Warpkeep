@@ -146,7 +146,8 @@ function descendantCommitWithMutation(path: string): string {
   const original = execFileSync(
     '/usr/bin/git',
     ['show', `${HEAD_COMMIT}:${path}`],
-    { cwd: process.cwd(), encoding: 'buffer' },
+    // Match the receipt's per-asset bound; new menu media exceeds Node's 1 MiB default.
+    { cwd: process.cwd(), encoding: 'buffer', maxBuffer: 16_000_000 },
   );
   const mutated = Buffer.concat([
     original,
