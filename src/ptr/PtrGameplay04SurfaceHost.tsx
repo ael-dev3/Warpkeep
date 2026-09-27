@@ -106,7 +106,9 @@ function CurrentSurface(props: Props & { identityKey: string }) {
       surface.backTo({ kind: 'inner-keep' });
       return;
     }
-    if (snapshot.phase !== 'ready' || !snapshot.view) return;
+    // A retained, validated view remains navigable while a read or mutation is
+    // in flight. The controller and panels still require ready for commands.
+    if (!snapshot.view || (snapshot.phase !== 'ready' && snapshot.phase !== 'refreshing' && snapshot.phase !== 'pending')) return;
     let nextRoute: RealmSurfaceRoute;
     if (next.panel === 'workers') nextRoute = { kind: 'workers' };
     else if (next.selectedKind !== null && buildingKind(next.selectedKind)) {

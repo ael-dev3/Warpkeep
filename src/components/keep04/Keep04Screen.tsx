@@ -8,6 +8,7 @@ import { BUILDING_NAMES04, Keep04BuildingPanel, RESOURCES04 } from './Keep04Buil
 import { activeKeep04LoopStage04, isKeep04FirstJourney04, Keep04LoopRail } from './Keep04LoopRail';
 import { Keep04Schematic } from './Keep04Schematic';
 import { Keep04SceneHost, type Keep04SceneHostProps } from './Keep04SceneHost';
+import type { VisualState04 } from './createKeep04Scene';
 import { evaluatePlacement04 } from '../../../spacetimedb/gameplay04/placement';
 import { constructionProgress04 } from './constructionProgress04';
 import { estimatedTime04, Keep04WorkerPanel } from './Keep04WorkerPanel';
@@ -23,6 +24,23 @@ export type Keep04ScreenProps = Readonly<{
   onFindResources: (resource: Resource04 | null, workerOrdinal?: number) => void; onReturnToWorld: () => void;
   onSceneObservation?: Keep04SceneHostProps['onObservation']; qaFault?: Keep04SceneHostProps['qaFault'];
 }>;
+
+function samePlacement04(first: Placement04 | null, second: Placement04 | null): boolean {
+  return first === second || (first !== null && second !== null
+    && first.kind === second.kind && first.x === second.x && first.z === second.z && first.rotation === second.rotation);
+}
+
+function sameSceneVisual04(first: VisualState04, second: VisualState04): boolean {
+  if (first.selectedKind !== second.selectedKind || first.draftValid !== second.draftValid
+    || !samePlacement04(first.draft, second.draft) || first.buildings.length !== second.buildings.length) return false;
+  return first.buildings.every((building, index) => {
+    const next = second.buildings[index];
+    return building.kind === next.kind && samePlacement04(building.placement, next.placement)
+      && building.completedLevel === next.completedLevel && building.targetLevel === next.targetLevel
+      && building.phase === next.phase && building.startsAtMicros === next.startsAtMicros
+      && building.completesAtMicros === next.completesAtMicros;
+  });
+}
 
 export function Keep04Screen({ snapshot, controller, selection, onSelectionChange, onBack, quality, reducedMotion, onFindResources, onReturnToWorld, onSceneObservation, qaFault }: Keep04ScreenProps) {
   const { view, phase, problem } = snapshot;
@@ -46,16 +64,22 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   const firstIdleWorker = view?.workers.find(worker => worker.phase === 'idle');
   const showFirstJourney = visible && view !== null && isKeep04FirstJourney04(view);
   const sceneBuildings = view?.buildings;
+  const previousSceneVisual = useRef<VisualState04 | null>(null);
   // Countdown text updates once a second; only actual placement/structure changes
   // should reconcile the 3D scene or wake its renderer.
   const sceneVisual = useMemo(() => {
     const buildings = sceneBuildings ?? [];
-    const candidate = selection.draft;
-    return { buildings, selectedKind: selection.selectedKind,
-      draft: selection.panel === 'buildings' ? candidate : null,
+    const candidate = selection.panel === 'buildings' ? selection.draft : null;
+    const next: VisualState04 = { buildings, selectedKind: selection.selectedKind,
+      draft: candidate,
       draftValid: candidate !== null && evaluatePlacement04(candidate,
         buildings.filter(building => building.kind !== candidate.kind).map(building => building.placement)).valid };
+    if (previousSceneVisual.current !== null && sameSceneVisual04(previousSceneVisual.current, next)) {
+      return previousSceneVisual.current;
+    }
+    return next;
   }, [sceneBuildings, selection.selectedKind, selection.draft, selection.panel]);
+  useLayoutEffect(() => { previousSceneVisual.current = sceneVisual; }, [sceneVisual]);
   const wasVisible = useRef(visible);
   const activeTimer = visible && (view.state.project !== undefined || view.workers.some(worker => worker.phase !== 'idle'));
   useEffect(() => {

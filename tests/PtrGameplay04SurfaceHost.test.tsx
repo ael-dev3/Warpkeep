@@ -380,9 +380,17 @@ it.each([
   }
   expect(status).toBeVisible();
   expect(commandState).toHaveBeenLastCalledWith(phase === 'pending');
-  // Dismissal must not grant a new selection, cancel a held read, or replay a mutation.
+  // Retained, verified state remains navigable, but never grants command authority.
   fireEvent.click(screen.getByRole('button', { name: 'Open building catalog' }));
+  expect(screen.getByRole('complementary', { name: 'Command panel' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  const reviewedConfirm = screen.getByRole('button', { name: /Confirm placement/ });
+  expect(reviewedConfirm).toBeDisabled();
+  fireEvent.click(reviewedConfirm);
   fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
+  expect(screen.getByRole('region', { name: 'Workers' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+  await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull());
   act(() => window.dispatchEvent(new Event('focus')));
   expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull();
   expect(screen.queryByRole('button', { name: /Confirm placement/ })).toBeNull();
