@@ -45,11 +45,7 @@ import {
   type PtrRealmAuthority,
   type RealmId
 } from './realmChoicePolicy';
-import {
-  DEFAULT_WARPKEEP_REPOSITORY_URL,
-  WARPKEEP_BUILD_INFO,
-  type WarpkeepBuildInfo
-} from '../../build/buildInfo';
+import { WARPKEEP_BUILD_INFO, type WarpkeepBuildInfo } from '../../build/buildInfo';
 import {
   DEFAULT_GRAPHICS_PREFERENCE,
   type GraphicsPreference,
@@ -71,7 +67,10 @@ export type WarpkeepMainMenuProps = {
   active: boolean;
   visible?: boolean;
   interactive?: boolean;
-  onRequestReturn: () => void;
+  /** Live scene mounted under the menu controls. */
+  scene?: ReactNode;
+  /** Legacy callback retained while the 0.4 experience moves to direct-menu entry. */
+  onRequestReturn?: () => void;
   /** When supplied, ENTER REALM opens the live realm foundation instead of its legacy notice. */
   onRequestEnterRealm?: () => void;
   /** Blocks SIWF when the public shared-alpha configuration is intentionally inactive. */
@@ -126,8 +125,6 @@ export type WarpkeepMainMenuProps = {
   inputModality?: MenuInputModality;
   focusFirstCommand?: boolean;
   buildInfo?: WarpkeepBuildInfo;
-  onVideoReady?: () => void;
-  onVideoError?: () => void;
   noticeDurationMs?: number;
   graphicsPreference?: GraphicsPreference;
   resolvedGraphicsQuality?: GraphicsQualityTier;
@@ -247,59 +244,11 @@ function FarcasterAuthPanelFallback({
   );
 }
 
-export function resolveMenuAssetUrl(baseUrl: string, assetPath: string) {
-  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-  return `${normalizedBase}${assetPath.replace(/^\/+/, '')}`;
-}
-
-export const WARPKEEP_MENU_VIDEO_URL = resolveMenuAssetUrl(
-  import.meta.env.BASE_URL,
-  'video/warpkeep-menu-loop-v2.mp4'
-);
-
-export const WARPKEEP_MENU_POSTER_URL = resolveMenuAssetUrl(
-  import.meta.env.BASE_URL,
-  'images/menu/warpkeep-menu-poster-v2.webp'
-);
-
-function readReducedMotionPreference() {
-  return typeof window !== 'undefined'
-    && typeof window.matchMedia === 'function'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-function useReducedMotionPreference() {
-  const [reducedMotion, setReducedMotion] = useState(readReducedMotionPreference);
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') {
-      return undefined;
-    }
-
-    const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const handleChange = (event: MediaQueryListEvent) => setReducedMotion(event.matches);
-    setReducedMotion(preference.matches);
-    preference.addEventListener?.('change', handleChange);
-
-    return () => preference.removeEventListener?.('change', handleChange);
-  }, []);
-
-  return reducedMotion;
-}
-
-function safelyPauseVideo(video: HTMLVideoElement) {
-  try {
-    video.pause();
-  } catch {
-    // Media support is optional; the poster keeps the menu usable.
-  }
-}
-
 export function WarpkeepMainMenu({
   active,
   visible = active,
   interactive: interactiveOverride,
-  onRequestReturn,
+  scene,
   onRequestEnterRealm,
   backendUnavailableMessage,
   authState = ANONYMOUS_AUTH_STATE,
@@ -333,8 +282,6 @@ export function WarpkeepMainMenu({
   inputModality = 'unknown',
   focusFirstCommand,
   buildInfo,
-  onVideoReady,
-  onVideoError,
   noticeDurationMs = 5600,
   graphicsPreference = DEFAULT_GRAPHICS_PREFERENCE,
   resolvedGraphicsQuality = 'balanced',
@@ -342,7 +289,6 @@ export function WarpkeepMainMenu({
   audioMuted = false,
   onAudioMutedChange
 }: WarpkeepMainMenuProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const commandRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const authHeadingRef = useRef<HTMLHeadingElement>(null);
   const authPrimaryActionRef = useRef<HTMLButtonElement>(null);
@@ -358,15 +304,11 @@ export function WarpkeepMainMenu({
   const ptrRealmStatusGenerationRef = useRef(0);
   const ptrRealmStatusAttemptRef = useRef<PtrRealmStatusAttempt | null>(null);
   const didFocusOnRevealRef = useRef(false);
-  const playbackBlockedRef = useRef(false);
-  const didReportVideoReadyRef = useRef(false);
-  const didReportVideoErrorRef = useRef(false);
   const authWasKeyboardDrivenRef = useRef(false);
   const authAttemptStartedRef = useRef(false);
   const acceptedEntryAttemptRef = useRef(false);
   const previousAuthPhaseRef = useRef(authState.phase);
   const lastActionModalityRef = useRef<MenuInputModality>(inputModality);
-  const [videoState, setVideoState] = useState<'waiting' | 'ready' | 'error'>('waiting');
   const [activeNotice, setActiveNotice] = useState<ActiveNotice | null>(null);
   const [patchNotesState, setPatchNotesState] = useState<WarpkeepPatchNotesState>('closed');
   const [surface, setSurface] = useState<MenuSurface>('commands');
@@ -375,7 +317,6 @@ export function WarpkeepMainMenu({
     useState<SessionRestoreRequest | null>(null);
   const [selectedRealmId, setSelectedRealmId] = useState<RealmId>(GENESIS_001_ID);
   const [realmStatusMessage, setRealmStatusMessage] = useState<string>();
-  const reducedMotion = useReducedMotionPreference();
   const interactive = interactiveOverride ?? (active && visible);
   const shouldFocusFirstCommand = focusFirstCommand ?? inputModality === 'keyboard';
   const authPanelOpen = surface === 'farcaster-auth';
@@ -539,64 +480,6 @@ export function WarpkeepMainMenu({
     };
   }, [closePatchNotes, patchNotesOpen]);
 
-  const attemptVideoPlayback = useCallback(() => {
-    const video = videoRef.current;
-    if (!video || !active || reducedMotion || document.hidden) {
-      return;
-    }
-
-    try {
-      const playResult = video.play();
-      if (playResult && typeof playResult.catch === 'function') {
-        void playResult
-          .then(() => {
-            playbackBlockedRef.current = false;
-          })
-          .catch(() => {
-            playbackBlockedRef.current = true;
-          });
-      }
-    } catch {
-      playbackBlockedRef.current = true;
-    }
-  }, [active, reducedMotion]);
-
-  useEffect(() => {
-    const mountedVideo = videoRef.current;
-    const reconcilePlayback = () => {
-      const video = mountedVideo;
-      if (!video) {
-        return;
-      }
-
-      if (active && !reducedMotion && !document.hidden) {
-        attemptVideoPlayback();
-      } else {
-        safelyPauseVideo(video);
-      }
-    };
-
-    const retryBlockedPlayback = () => {
-      if (playbackBlockedRef.current) {
-        attemptVideoPlayback();
-      }
-    };
-
-    reconcilePlayback();
-    document.addEventListener('visibilitychange', reconcilePlayback);
-    document.addEventListener('pointerdown', retryBlockedPlayback, true);
-    document.addEventListener('keydown', retryBlockedPlayback, true);
-
-    return () => {
-      document.removeEventListener('visibilitychange', reconcilePlayback);
-      document.removeEventListener('pointerdown', retryBlockedPlayback, true);
-      document.removeEventListener('keydown', retryBlockedPlayback, true);
-      if (mountedVideo) {
-        safelyPauseVideo(mountedVideo);
-      }
-    };
-  }, [active, attemptVideoPlayback, reducedMotion]);
-
   useEffect(() => {
     if (!interactive) {
       if (authAttemptStartedRef.current) {
@@ -726,6 +609,10 @@ export function WarpkeepMainMenu({
   const closeRealmChoice = useCallback(() => {
     invalidatePtrRealmStatusAttempt();
     invalidateSessionRestore();
+    if (authAttemptStartedRef.current) {
+      authAttemptStartedRef.current = false;
+      onCancelFarcasterSignIn?.();
+    }
     onCancelPtrRealm?.();
     surfaceTriggerRef.current = null;
     setRealmStatusMessage(undefined);
@@ -733,7 +620,7 @@ export function WarpkeepMainMenu({
     window.setTimeout(() => {
       commandRefs.current[0]?.focus({ preventScroll: true });
     }, 0);
-  }, [invalidatePtrRealmStatusAttempt, invalidateSessionRestore, onCancelPtrRealm]);
+  }, [invalidatePtrRealmStatusAttempt, invalidateSessionRestore, onCancelFarcasterSignIn, onCancelPtrRealm]);
 
   const closeCredits = useCallback(() => {
     setSurface('commands');
@@ -764,21 +651,6 @@ export function WarpkeepMainMenu({
     setTermsRequest(null);
     restoreTermsTriggerFocus();
   }, [restoreTermsTriggerFocus]);
-
-  const handleRequestReturn = useCallback(() => {
-    invalidateSessionRestore();
-    acceptedEntryAttemptRef.current = false;
-    if (authAttemptStartedRef.current) {
-      authAttemptStartedRef.current = false;
-      onCancelFarcasterSignIn?.();
-    }
-    setSurface('commands');
-    onRequestReturn();
-  }, [
-    invalidateSessionRestore,
-    onCancelFarcasterSignIn,
-    onRequestReturn
-  ]);
 
   useEffect(() => {
     if (!interactive || !authPanelOpen) {
@@ -860,6 +732,12 @@ export function WarpkeepMainMenu({
         return;
       }
 
+      // The main menu is now the opening screen, so Escape has no destination
+      // when its command surface is already visible.
+      if (!patchNotesOpen && !activeNotice && !authPanelOpen && !realmChoiceOpen) {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
       lastActionModalityRef.current = 'keyboard';
@@ -871,8 +749,6 @@ export function WarpkeepMainMenu({
         closeAuthPanel(true);
       } else if (realmChoiceOpen) {
         closeRealmChoice();
-      } else {
-        handleRequestReturn();
       }
     };
 
@@ -884,30 +760,12 @@ export function WarpkeepMainMenu({
     closeAuthPanel,
     closePatchNotes,
     closeRealmChoice,
-    handleRequestReturn,
     interactive,
     patchNotesOpen,
     realmChoiceOpen,
     surface,
     termsOpen
   ]);
-
-  const handleVideoReady = useCallback(() => {
-    setVideoState('ready');
-    if (!didReportVideoReadyRef.current) {
-      didReportVideoReadyRef.current = true;
-      onVideoReady?.();
-    }
-  }, [onVideoReady]);
-
-  const handleVideoError = useCallback(() => {
-    setVideoState('error');
-    safelyPauseVideo(videoRef.current as HTMLVideoElement);
-    if (!didReportVideoErrorRef.current) {
-      didReportVideoErrorRef.current = true;
-      onVideoError?.();
-    }
-  }, [onVideoError]);
 
   const openNotice = useCallback((
     command: MenuCommand,
@@ -996,8 +854,8 @@ export function WarpkeepMainMenu({
     setActiveNotice(null);
     closePatchNotes();
     setSessionRestoreRequest({ sequence, keyboardDriven });
-    // Reuse the established lifecycle cancellation boundary so Return to
-    // Title, route deactivation, and unmount abort the credentialed refresh.
+    // Reuse the established lifecycle cancellation boundary so Back,
+    // route deactivation, and unmount abort the credentialed refresh.
     authAttemptStartedRef.current = true;
 
     let restoration: Promise<boolean>;
@@ -1430,10 +1288,7 @@ export function WarpkeepMainMenu({
 
   const rootClassName = [
     'warpkeep-menu',
-    visible ? 'warpkeep-menu--visible' : '',
-    videoState === 'ready' ? 'warpkeep-menu--video-ready' : '',
-    videoState === 'error' ? 'warpkeep-menu--video-error' : '',
-    reducedMotion ? 'warpkeep-menu--reduced-motion' : ''
+    visible ? 'warpkeep-menu--visible' : ''
   ].filter(Boolean).join(' ');
 
   return (
@@ -1444,7 +1299,6 @@ export function WarpkeepMainMenu({
       className={rootClassName}
       data-active={active ? 'true' : 'false'}
       data-menu-surface={surface}
-      data-media-state={reducedMotion ? 'static' : videoState}
       data-visible={visible ? 'true' : 'false'}
       inert={!interactive || modalSurfaceOpen ? true : undefined}
       onKeyDownCapture={() => {
@@ -1454,36 +1308,24 @@ export function WarpkeepMainMenu({
         lastActionModalityRef.current = event.pointerType === 'touch' ? 'touch' : 'pointer';
       }}
     >
-      <div
-        aria-hidden="true"
-        className="warpkeep-menu-poster-fallback"
-        style={{ backgroundImage: `url(${WARPKEEP_MENU_POSTER_URL})` }}
-      />
-      <video
-        aria-hidden="true"
-        autoPlay={!reducedMotion}
-        className="warpkeep-menu-background"
-        loop
-        muted
-        onCanPlay={handleVideoReady}
-        onError={handleVideoError}
-        onLoadedData={handleVideoReady}
-        playsInline
-        poster={WARPKEEP_MENU_POSTER_URL}
-        preload={reducedMotion ? 'none' : 'auto'}
-        ref={videoRef}
-        src={WARPKEEP_MENU_VIDEO_URL}
-        tabIndex={-1}
-      />
+      {scene ? <div aria-hidden="true" className="warpkeep-menu-scene" inert>{scene}</div> : null}
       <div aria-hidden="true" className="warpkeep-menu-color-grade" />
       <div aria-hidden="true" className="warpkeep-menu-vignette" />
+      {commandSurfaceVisible ? (
+        <div aria-hidden="true" className="warpkeep-menu-waystone" />
+      ) : null}
 
       <header aria-hidden={!commandSurfaceVisible} className="warpkeep-menu-heading">
         <div aria-hidden="true" className="warpkeep-menu-heading__crest">
           <span />
-          <i />
+          <img
+            alt=""
+            className="warpkeep-menu-heading__emblem"
+            src={`${import.meta.env.BASE_URL}images/menu/hegemony-emblem-heading-256-4b5b747efcc13f34.png`}
+          />
           <span />
         </div>
+        <p className="warpkeep-menu-eyebrow">THE VERDANT CITADEL</p>
         <h1 className="warpkeep-menu-title" id="warpkeep-menu-title">WARPKEEP</h1>
         <div aria-hidden="true" className="warpkeep-menu-heading__rule">
           <span />
@@ -1491,7 +1333,7 @@ export function WarpkeepMainMenu({
           <span />
         </div>
         <p className="warpkeep-menu-tagline">
-          BUILD YOUR LEGACY. DEFEND THE REALM. DEFY THE CORE.
+          A PLACE TO BUILD. A REASON TO RETURN.
         </p>
         {commandSurfaceVisible && sessionIdentity ? (
           <div className="warpkeep-menu-identity">
@@ -1560,21 +1402,9 @@ export function WarpkeepMainMenu({
                 className="warpkeep-menu-project__heading"
                 id="warpkeep-menu-project-heading"
               >
-                PROJECT
+                COMMUNITY
               </h2>
               <div className="warpkeep-menu-project__links">
-                <a
-                  aria-label="Open Warpkeep repository on GitHub (opens in a new tab)"
-                  className="warpkeep-menu-project__link"
-                  href={DEFAULT_WARPKEEP_REPOSITORY_URL}
-                  referrerPolicy="no-referrer"
-                  rel="noopener noreferrer"
-                  tabIndex={interactive ? 0 : -1}
-                  target="_blank"
-                >
-                  <span>GITHUB</span>
-                  <span aria-hidden="true" className="warpkeep-menu-project__external-mark">↗</span>
-                </a>
                 <a
                   aria-label="Open Warpkeep Farcaster channel (opens in a new tab)"
                   className="warpkeep-menu-project__link"
@@ -1704,20 +1534,6 @@ export function WarpkeepMainMenu({
           )}
         </div>
       )}
-
-      {commandSurfaceVisible ? (
-        <button
-          aria-label="Return to Title"
-          className="warpkeep-menu-back"
-          disabled={!interactive}
-          onClick={handleRequestReturn}
-          tabIndex={interactive ? 0 : -1}
-          type="button"
-        >
-          <span aria-hidden="true" className="warpkeep-menu-back__arrow">←</span>
-          <span className="warpkeep-menu-back__label">Return to Title</span>
-        </button>
-      ) : null}
 
       <p
         aria-live="polite"

@@ -209,13 +209,13 @@ describe('Warpkeep document fallback', () => {
       '.warpkeep-experience__scene-loader span {'
     );
 
-    expect(indexHtml).toContain('<meta name="theme-color" content="#010207" />');
-    expect(boot).toContain('background: #010207');
+    expect(indexHtml).toContain('<meta name="theme-color" content="#202935" />');
+    expect(boot).toContain('background: #202935');
     expect(boot).not.toMatch(/gradient\(/);
     expect(experience).toContain('background: #010207');
     expect(sceneLoader).toContain('background: #010207');
     expect(sceneLoader).not.toMatch(/gradient\(/);
-    expect(bootSigil).toContain('color: #f1eee4');
+    expect(bootSigil).toContain('color: #f1e6cb');
     expect(sceneLoaderGlyph).toContain('border: 1px solid rgba(224, 222, 230, 0.6)');
     expect(sceneLoaderGlyph).not.toMatch(/rgba\((?:92, 45, 124|128, 73, 174)/);
   });

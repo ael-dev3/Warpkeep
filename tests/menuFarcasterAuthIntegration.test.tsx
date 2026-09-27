@@ -496,7 +496,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(restoreSession).toHaveBeenCalledTimes(1);
   });
 
-  it('cancels an in-flight cold restore before returning to the title', async () => {
+  it('cancels an in-flight cold restore when backing out to the menu', async () => {
     const callbacks = createMenuCallbacks();
     let resolveRestore!: (restored: boolean) => void;
     const restoreSession = vi.fn(() => new Promise<boolean>((resolve) => {
@@ -506,10 +506,9 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     requestGenesis001Entry();
     fireEvent.click(screen.getByRole('button', { name: 'BACK' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
 
     expect(callbacks.cancel).toHaveBeenCalledTimes(1);
-    expect(callbacks.returnToTitle).toHaveBeenCalledTimes(1);
+    expect(callbacks.returnToTitle).not.toHaveBeenCalled();
 
     await act(async () => {
       resolveRestore(false);
@@ -553,7 +552,6 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       'Checking access. Restoring your saved Farcaster session.'
     );
     fireEvent.click(screen.getByRole('button', { name: 'BACK' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
 
     await act(async () => {
       resolveRestore(false);
@@ -562,7 +560,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
 
     expect(restoreSession).toHaveBeenCalledTimes(1);
     expect(callbacks.cancel).toHaveBeenCalledTimes(1);
-    expect(callbacks.returnToTitle).toHaveBeenCalledTimes(1);
+    expect(callbacks.returnToTitle).not.toHaveBeenCalled();
     expect(callbacks.begin).not.toHaveBeenCalled();
     expect(callbacks.prepareQrCode).not.toHaveBeenCalled();
     expect(callbacks.refreshSession).not.toHaveBeenCalled();
@@ -719,7 +717,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect((within(freshTerms).getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
   });
 
-  it('uses Escape to cancel an accepted auth attempt back to commands before returning to title', () => {
+  it('uses Escape to cancel an accepted auth attempt back to commands', () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks, anonymousState, 'keyboard'));
 
@@ -736,20 +734,20 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     expect(document.activeElement).toBe(enterRealm);
 
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(callbacks.returnToTitle).toHaveBeenCalledTimes(1);
+    expect(callbacks.returnToTitle).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(enterRealm);
   });
 
-  it('cancels an accepted open request before returning to title', () => {
+  it('cancels an accepted open request back to commands', () => {
     const callbacks = createMenuCallbacks();
     render(menu(callbacks));
 
     openAndAcceptAlphaTerms();
     expect(screen.queryByRole('button', { name: 'Return to Title' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'CANCEL' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Return to Title' }));
 
     expect(callbacks.cancel).toHaveBeenCalledTimes(1);
-    expect(callbacks.returnToTitle).toHaveBeenCalledTimes(1);
+    expect(callbacks.returnToTitle).not.toHaveBeenCalled();
     expect(callbacks.begin).toHaveBeenCalledTimes(1);
   });
 
@@ -872,7 +870,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
     await waitFor(() => expect(identityButton.querySelector<HTMLCanvasElement>(
       '.farcaster-identity-badge__portrait canvas'
     )?.dataset.profileImageState).toBe('ready'));
-    expect(screen.getByRole('button', { name: 'Return to Title' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Return to Title' })).toBeNull();
     requestGenesis001Entry();
     await settleDeferredPresentation();
     expect(screen.queryByRole('dialog', { name: 'ALPHA PARTICIPATION TERMS' })).toBeNull();
@@ -1196,7 +1194,7 @@ describe('WarpkeepMainMenu Farcaster authentication integration', () => {
       'CREDITS'
     ]);
     expect(screen.getByRole('button', {
-      name: 'Open patch notes for Warpkeep ALPHA 0.3.43'
+      name: 'Open patch notes for Warpkeep ALPHA 0.4.0'
     })).not.toBeNull();
 
     expect(screen.queryByRole('button', { name: 'CONTINUE' })).toBeNull();

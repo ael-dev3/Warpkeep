@@ -22,6 +22,10 @@ assertNoStaleAtomicFamilyTransactions(
 const assets = Object.freeze([
   ['public/models/title/warpkeep-title-high.glb', 3_844_364, '2354a57d88be80e5568afb5754102c20c9ea0fe9a83aa5ac49c0d8dd67ae9ff5', true],
   ['public/models/title/warpkeep-title-compact.glb', 1_714_060, 'd29435dfa3a5fbf5103a825cc00bb3ffcef7694167a7fb7303fa89af242d7af8', true],
+  ['public/models/menu/warplet-castle-hegemony-v2-c55f2c6c610e4aac.glb', 4_977_796, 'c55f2c6c610e4aacddde58e485156c85629dd0a2eab88fad65652c317ae59088', true],
+  ['public/models/menu/warplet-guardian-v2-e934a81ae2a210e4.glb', 1_836_344, 'e934a81ae2a210e495675aff99293aebc60cebb1a42603c9d99351db43d9e602', true],
+  ['public/images/menu/hegemony-emblem-26e8664b1db0acf3.png', 1_486_312, '26e8664b1db0acf3e6db443caf46ef13e45fe9de794749e431b7c2e3d6fb8774', false],
+  ['public/images/menu/hegemony-emblem-heading-256-4b5b747efcc13f34.png', 98_026, '4b5b747efcc13f34499058e1f21cd9958b56eb821d5d676809a6e8296019942a', false],
   [lowlandsRabbitRuntimePath, 14_808, '2ecc7b1adf4c1d79b7ca2d5ea9a6727ed3f6d9072047466082bb912d34ea930c', true],
   ['public/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb', 2_215_972, '9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8', true],
   ['public/models/hegemony/hegemony-main-castle-balanced-a9df1a9acd36e720.glb', 892_788, 'a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157', true],
@@ -41,6 +45,7 @@ const assets = Object.freeze([
   ['public/audio/warpkeep-title-theme-a.mp3', 5_352_113, '7844b85fb5914a00f97a7e0b1edecfb544435319266b150ad649f649797a6471', false],
   ['public/audio/warpkeep-title-theme-b.mp3', 6_380_853, 'ecade8860f8c8ff5fb8d08604b0973da329c583d78ef20c81fe5f989f624f73e', false],
   ['public/audio/warpkeep-menu-theme.mp3', 9_631_066, 'ea2a77cf5a2729e4a90a7ccbfe9a37ab1387c9371232b5219843e1715fa17917', false],
+  ['public/audio/warpkeep-verdant-menu-theme.m4a', 4_223_322, 'a823fbd932c425d8bb60b1d7319403ba1f0fb23a7c5670da66c215ff22cc206a', false],
   ['public/audio/warpkeep-lowlands-theme.mp3', 5_704_657, 'd75a8865eda00c808c472d438240a5f645173dead353d44925f34cee500fa13c', false],
   ['public/video/warpkeep-menu-loop-v2.mp4', 5_713_248, '6034f049e8ee25a412fdc1f8c7ccce1ab403a58eac9158e1d0b55a6bfa99260c', false],
   ['public/images/realm/hegemony-castle-record.webp', 145_416, '30e0c3cd1bbc4732bb5025a78a5dc0cc66bc01c1b752a3f21b48fb429cc11123', false],

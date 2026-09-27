@@ -5,12 +5,12 @@ const WarpkeepRuntime = lazy(() => import('./WarpkeepRuntime'));
 function RuntimeFallback() {
   return (
     <main
-      aria-label="Opening the Warpkeep gateway"
+      aria-label="Opening Warpkeep"
       role="status"
       style={{
         alignItems: 'center',
-        background: '#010207',
-        color: '#f2dfae',
+        background: '#202935',
+        color: '#f1e6cb',
         display: 'grid',
         fontFamily: 'Georgia, "Times New Roman", serif',
         inset: 0,
@@ -23,7 +23,7 @@ function RuntimeFallback() {
         textTransform: 'uppercase',
       }}
     >
-      Opening the gateway
+      Opening Warpkeep
     </main>
   );
 }

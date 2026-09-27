@@ -51,15 +51,14 @@ export const WARPKEEP_MENU_TO_REALM_TRANSITION_MS = 2_300;
 export const WARPKEEP_REALM_TO_MENU_TRANSITION_MS = 1_900;
 
 /**
- * The supplied master has a musically compatible head/tail window from
- * 400.128 seconds until 401.920 seconds. Both menu elements use the same URL;
- * the standby element starts at the head while the active element traverses
- * this overlap.
+ * The Verdant Citadel score fades toward silence near 208.1 seconds. The
+ * runtime file omits the final 1.5 seconds of silence; crossfade the last
+ * three seconds into its soft opening before the active source ends.
  */
 export const WARPKEEP_MENU_LOOP = Object.freeze({
-  crossfadeStartSeconds: 400.128,
-  endSeconds: 401.92,
-  overlapSeconds: 1.792
+  crossfadeStartSeconds: 205.1,
+  endSeconds: 208.1,
+  overlapSeconds: 3
 }) satisfies AudioLoopDefinition;
 
 /**

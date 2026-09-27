@@ -1,0 +1,35 @@
+.warpkeep-menu-world-3d {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 34% 48%, #97b8d1 0%, #617b99 55%, #263d58 100%);
+}
+
+.warpkeep-menu-world-3d canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.warpkeep-menu-world-3d[data-model-state='castle-unavailable']::after {
+  position: absolute;
+  left: 1.25rem;
+  bottom: 1.25rem;
+  max-width: min(24rem, 72vw);
+  padding: 0.65rem 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 0.35rem;
+  background: rgba(28, 38, 47, 0.76);
+  color: #fff0cc;
+  content: 'Castle preview temporarily unavailable. Reload to retry.';
+  font: 600 0.75rem/1.4 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 700px) {
+  .warpkeep-menu-world-3d {
+    background: radial-gradient(ellipse at 48% 33%, #a6c2d9 0%, #6d88a5 56%, #2d4662 100%);
+  }
+}

@@ -266,3 +266,53 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Participation terms share the menu's clear, neutral glass. */
+.warpkeep-alpha-terms {
+  color: #f7e9da;
+  background: rgba(9, 17, 22, 0.7);
+  backdrop-filter: blur(12px);
+}
+
+.warpkeep-alpha-terms__panel {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06)), rgba(15, 25, 30, 0.78);
+  box-shadow: 0 1.5rem 5rem rgba(7, 14, 21, 0.53);
+  scrollbar-color: #9aabac #1a2429;
+  scrollbar-width: thin;
+}
+
+.warpkeep-alpha-terms__eyebrow {
+  color: #deddd7;
+}
+
+.warpkeep-alpha-terms__copy,
+.warpkeep-alpha-terms__close {
+  color: #e4dfd6;
+}
+
+.warpkeep-alpha-terms__warning,
+.warpkeep-alpha-terms__documents a {
+  color: #e8deb9;
+}
+
+.warpkeep-alpha-terms__acceptance {
+  border-color: rgba(205, 195, 156, 0.4);
+  color: #e7e9d9;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.warpkeep-alpha-terms__acceptance:has(input:checked) {
+  border-color: #d8c99d;
+  background: rgba(255, 255, 255, 0.17);
+}
+
+.warpkeep-alpha-terms__acceptance input {
+  accent-color: #e5bc7c;
+}
+
+.warpkeep-alpha-terms__action {
+  border-color: rgba(206, 195, 157, 0.54);
+  color: #eae7d7;
+  background: rgba(255, 255, 255, 0.11);
+}
