@@ -505,12 +505,12 @@
     {
       "path": "scripts/genesis001-admitted-player-census.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2df7e522a2c7d4042749b12fc7ba40860165c160a71846381b97cb2bb1fd604e"
+      "sha256": "feb69ad9b8b25d5da114c84ed20ccb818aa8296086dc56c3ef190bfb9625b4c5"
     },
     {
       "path": "scripts/genesis001-admitted-player-census.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f00f2b21932b584606134c23838d4d5338a5dbe6f3b350fa1c878b514de76736"
+      "sha256": "e7fe54a174fe71abb057aff3be6f451aca972da9ba6fabcbd92cbaae0005f09a"
     },
     {
       "path": "scripts/genesis001-binding-frozen-source.d.mts",
@@ -570,7 +570,7 @@
     {
       "path": "scripts/genesis001-linux-census-operator.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2e5e1435711f2bc51b09dcc3d96cd051f5dc95b5de8eb537b421f49bb7f0e446"
+      "sha256": "f5b87dd4c96804bd4ba8f3a91ef1d7421a6710bc4fa33b6fc3c76838d8474451"
     },
     {
       "path": "scripts/genesis001-linux-freeze-receipt.d.mts",
@@ -600,7 +600,7 @@
     {
       "path": "scripts/genesis001-linux-policy-materializer.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d9a13828bd80eba5424e68a1c05592ab505fef9032b179dba55fb96404f2955d"
+      "sha256": "029db340fda6f5ea648e1110daa83db7f89a571d671d253923419a8abac98bfe"
     },
     {
       "path": "scripts/genesis001-linux-policy-native.d.mts",
@@ -1500,7 +1500,7 @@
     {
       "path": "scripts/ptr-binding-locked-source-build-core.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a484ca4984d061786942d56d0f5c487300976db8c266dd00beed7482b15d055b"
+      "sha256": "33278f763214a0f4b6f1fa228a5567e46dc69520b43270700232f35d9c3117a9"
     },
     {
       "path": "scripts/ptr-binding-locked-source-build.ts",
@@ -2165,7 +2165,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d69c619f379992a02e17cc6998935f73375d88081f720326b7246a283b1a3fee"
+      "sha256": "73db5c4e91fdff5040e8c2024c4866c442d3921e12f127196316bfc43787e507"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
@@ -2430,7 +2430,7 @@
     {
       "path": "services/auth-bridge/src/spacetimeReleaseRecoveryResolver.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4ff864b911658ccabb38251dc71e19a586b3df72b5a70ed6f6cd1185049b4843"
+      "sha256": "731aa55b6cfa8ad2f7764e8ce83e6d2bbd75632f054c488c1a751c5314aff49b"
     },
     {
       "path": "services/auth-bridge/src/types.ts",
@@ -2545,7 +2545,7 @@
     {
       "path": "services/auth-bridge/test/spacetimeReleaseRecoveryResolver.test.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e0976580337f60a268838469df88b7a842d43941f8ada7864b84a084120ceb95"
+      "sha256": "2174556fd600c6be44b325dccb2b3f10d407448dce781616177905ffd96bdf21"
     },
     {
       "path": "services/auth-bridge/tsconfig.json",
@@ -3830,12 +3830,12 @@
     {
       "path": "src/components/keep04/Keep04LoopRail.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cf1e38cb0b56b26acd5373773f881d4e4bca0fc753c54a24b6c4dc8f882b14c6"
+      "sha256": "e2d5b297b2f77e2dca28eb4ea4f740d6f8793bae12db5d860bbb636ba3bd8d68"
     },
     {
       "path": "src/components/keep04/Keep04SceneHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "85ccb6cc179a1a588686466184e62ca03a79e9cc88503d3e2f48229e21598987"
+      "sha256": "6ea84aee32175d23a5d44c76a727c4e5768a69d8d4488584b4e531b7cf6fafa9"
     },
     {
       "path": "src/components/keep04/Keep04Schematic.tsx",
@@ -3845,12 +3845,12 @@
     {
       "path": "src/components/keep04/Keep04Screen.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e5406f16e925cf7c7d029334abd8ce1d4b60a660decfd1ea44902f3f1666e1b1"
+      "sha256": "e75df9921aba52e992db3eeb653578db08f04907ad4e1083d23f1c2f876a5585"
     },
     {
       "path": "src/components/keep04/Keep04Screen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8a4ff06303646f10cb0c1fddc132713975b1fac23eed769f5a67e5ce84c17cc3"
+      "sha256": "b9482433549a430d8e02bdde0bddc21ec7dd55bc00c5307c44a4a980eaabe2f2"
     },
     {
       "path": "src/components/keep04/Keep04WorkerPanel.tsx",
@@ -3870,7 +3870,7 @@
     {
       "path": "src/components/keep04/createKeep04Scene.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c0508385c618209af4c418a98e6684d12f9acb8ee2c21f41de3d009daa1916fc"
+      "sha256": "6cbf5750cde9d7bf372a7d91b40eafcb467f23e0f9440d2a7afe0b9322bc5b66"
     },
     {
       "path": "src/components/keep04/formatKeep04Duration.ts",
@@ -3895,7 +3895,7 @@
     {
       "path": "src/components/keep04/loadKeep04Assets.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "90c1518c92629b82d04c400b278049a55d8425791771a373a2b6c8cec18df525"
+      "sha256": "0e5e352c3f6e0260b688604529f71be48bb1f4374711fa8556ba77d0c210b6d7"
     },
     {
       "path": "src/components/menu/AlphaParticipationTermsDialog.css",

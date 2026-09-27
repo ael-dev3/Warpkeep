@@ -3048,3 +3048,42 @@ observation. Do not start census until the fresh observation has returned a
 completed source-bound receipt.
 Keep scheduled automation paused, do not create Desktop files, and do not
 request or generate another recovery key. 0.4 remains unshipped.
+
+## PR #374 recovery observer and Keep review — September 27
+
+Independent audit found that the Auth Bridge release-recovery resolver still
+used `player_v2` to enumerate admitted G001 founders. Admission creates
+`realm_profile_v1`, castle, marks and allowed-FID state before first-login
+`bootstrap_player_v2` creates the player and ownership pair. The resolver now
+enumerates profile FIDs twice, obtains each administrator admission status, and
+requires the alpha player/ownership counts to match and be no greater than the
+admitted count. Existing zero orphan/founder-gap checks and raw/canonical HMAC
+bindings remain. A two-admitted, one-bootstrapped fixture passes; malformed
+aggregate and orphan cases fail closed. The independent reviewer found no
+remaining resolver defect. The source checkpoint is signed `b41d434e`.
+
+Mobile scene guidance now precedes the canvas and switches between desktop
+scroll and touch pinch wording under coarse-pointer emulation. The DEV fixture
+uses the existing hashed favicon, removing the previous lone browser network
+error. This is synthetic presentation evidence, not physical-phone acceptance.
+Auth Bridge checks passed 484 unit tests, 18 Workerd tests and both typechecks;
+root typecheck, production build, 18 Inner Keep browser cases, and a 36-case
+Windows Chrome capture passed. The capture had zero horizontal overflow and no
+network errors; one bounded security diagnostic per document remains for
+review. Synthetic frame timings do not establish production transfer or phone
+performance.
+
+The resolver, its test and Keep files are protected prepared-closure members.
+All 3,256 tracked files at the signed source checkpoint matched their raw Git
+blobs. `derivePreparedClosureFamily` returned 1,258 members, 16 outputs and
+manifest SHA-256
+`01ba31b6cea4d5e4559a4f5f95ffa5d32fdcb99ec0717e724e3fc9467fb82d11`;
+a fresh process reproduced every installed output byte-for-byte. The
+ownership-bound policy verifier rejects the Windows checkout by design; run it
+from the exact clean committed source/closure on the supported Linux ext4
+checkout. Then require final-head hosted Verify before M1 merge, exact-M1 native
+prepare and independent check, generated-only M2 and exact-M2 Verify before
+fresh G001/G002 operations. Old M2 authority cannot cover this source.
+GitHub Actions is still rejecting jobs before runner start due account
+payment/spending-limit state; private Pages also cannot serve this private repo
+on the present plan. No live owner PTR or 0.4 release is claimed.
