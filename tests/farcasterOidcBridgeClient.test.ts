@@ -8,6 +8,7 @@ import {
   isDefinitiveAccessRequestNoMutationError,
   type FarcasterOidcBridgeFetch
 } from '../src/farcaster/farcasterOidcBridgeClient';
+import { toFarcasterAuthError } from '../src/farcaster/farcasterAuthClient';
 import type {
   FarcasterBridgeChallengeRequest,
   FarcasterBridgeExchangeRequest
@@ -282,6 +283,63 @@ describe('Farcaster OIDC bridge v2 client', () => {
     expect(body).not.toHaveProperty('custody');
     expect(body).not.toHaveProperty('signatureParams');
     expect(body).not.toHaveProperty('bindingChallenge');
+  });
+
+  it('identifies a rejected completed request before fetch without exposing proof', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = createFetch(authorized());
+    const secret = 'private-signature-material';
+    const error = await createBridge(fetch).exchangeCompletedSignIn({
+      ...exchangeRequest(),
+      signature: `0x${secret}`
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('exchange-request-invalid');
+    expect(toFarcasterAuthError(error)).toEqual({
+      code: 'bridge',
+      message: 'Warpkeep could not prepare the completed Farcaster request.'
+    });
+    expect(JSON.stringify(toFarcasterAuthError(error))).not.toContain(secret);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('identifies an expired completed request before fetch without extending its deadline', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = createFetch(authorized());
+    const expiresAt = NOW - 1;
+    const error = await createBridge(fetch).exchangeCompletedSignIn({
+      ...exchangeRequest(),
+      expiresAt,
+      expirationTime: new Date(expiresAt).toISOString()
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('exchange-request-expired');
+    expect(toFarcasterAuthError(error)).toEqual({
+      code: 'bridge',
+      message: 'The Farcaster request expired before secure verification.'
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('distinguishes exchange transport failure from a local preflight rejection', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const secret = 'private-transport-detail';
+    const fetch = vi.fn(async () => {
+      throw new TypeError(secret);
+    }) as unknown as FarcasterOidcBridgeFetch;
+    const error = await createBridge(fetch).exchangeCompletedSignIn(exchangeRequest())
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('network-or-cors');
+    expect(toFarcasterAuthError(error)).toEqual({
+      code: 'network',
+      message: 'Warpkeep could not reach secure verification.'
+    });
+    expect(JSON.stringify(toFarcasterAuthError(error))).not.toContain(secret);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('exchanges Quick Auth with a bounded bearer and no cookie credentials', async () => {
@@ -727,15 +785,21 @@ describe('Farcaster OIDC bridge v2 client', () => {
         else requestSignal?.addEventListener('abort', rejectAbort, { once: true });
       })
     )) as unknown as FarcasterOidcBridgeFetch;
-    const result = createBridge(fetch).exchangeCompletedSignIn(exchangeRequest());
-    const rejection = expect(result).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    const result = createBridge(fetch).exchangeCompletedSignIn(exchangeRequest())
+      .catch((caught: unknown) => caught);
 
     await vi.advanceTimersByTimeAsync(19_999);
     expect(requestSignal?.aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(2);
 
     expect(requestSignal?.aborted).toBe(true);
-    await rejection;
+    const error = await result;
+    expect(error).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('timeout');
+    expect(toFarcasterAuthError(error)).toEqual({
+      code: 'network',
+      message: 'Secure verification did not finish in time.'
+    });
   });
 
   it('keeps non-exchange bridge requests on the 10-second deadline', async () => {
