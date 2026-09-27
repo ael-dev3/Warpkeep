@@ -15,21 +15,40 @@ The [hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-front
 has the exact source, verification and recovery path. This brings the existing
 site online; 0.4 PTR remains unshipped and needs its own reviewed release path.
 
-The active 0.4 development branch separately contains the same clock-lag fix
-at signed, remote-equal [`2709fb72`](https://github.com/ael-dev3/Warpkeep/commit/2709fb72a51932dca126f97381ccf634d9c15ca0).
-Its later source changes are not yet part of a refreshed protected closure or
-hosted Verify. Do not confuse the Alpha hotfix build with a 0.4 candidate.
+The active 0.4 development [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
+is signed and remote-equal at protected closure
+[`4df24928`](https://github.com/ael-dev3/Warpkeep/commit/4df24928037d7e5ec5044edc97e74a6babc6e953),
+refrozen from signed source
+[`70a92a4e`](https://github.com/ael-dev3/Warpkeep/commit/70a92a4e76ae24e2e8fd94bc8fd8dd535db691ce).
+The committed 1,258-member closure manifest has SHA-256
+`4aaf8ea805a2e23651e98332d19c279dc5d5a2cebed884abe8afd5714ff1534b`.
+That source includes the same bounded QR client clock-lag repair as the Alpha
+backport. Its Keep catalog now distinguishes spendable shortages from known
+incoming Worker earnings, suggests a resource still uncovered after incoming,
+chooses the first idle Worker for an untargeted search and explains when all
+Workers are busy. Five focused Keep/PTR suites passed 146 tests and build-mode
+typechecking passed locally. This improves the first journey in source; it
+does not prove actual owner play or physical-phone performance.
 
-The latest signed protected source/closure checkpoint on PR #374 is
+The exact-head
+[Verify 36326406507](https://github.com/ael-dev3/Warpkeep/actions/runs/36326406507)
+failed all 17 jobs before any step ran. GitHub's job annotation cites recent
+failed payments or the spending limit. This is an account gate, not a source
+test failure or a CI pass. Require a successful Verify on the final PR head
+before protected-main M1 integration, then exact-M1 native preparation/check,
+generated-only M2, exact-main Verify and authenticated deployment. Current
+`main` remains the earlier `786c0b2b` M2. The public Alpha hotfix is a separate
+build; 0.4 owner PTR is not live.
+
+### Earlier 27 September source checkpoints
+
+An earlier signed protected source/closure checkpoint on PR #374 was
 [`46b4c3b7`](https://github.com/ael-dev3/Warpkeep/commit/46b4c3b7c969460ad6f231d53d311c7ac9eb9e56),
 refrozen from signed source
 [`aaa128bb`](https://github.com/ael-dev3/Warpkeep/commit/aaa128bb41a1fda853a9d5c11983c06dfbac83ca)
 for the public-mirror-candidate lane. Its
 [Verify 36319626894](https://github.com/ael-dev3/Warpkeep/actions/runs/36319626894)
-failed; the final 0.4 branch head still needs a refreshed closure and successful
-hosted Verify before protected-main promotion. The later public Pages postflight,
-first-session Keep cue, publication operator and QR clock-lag fix are source-only
-on this branch.
+failed before the later source and closure refresh.
 
 An earlier signed source/closure checkpoint on PR #374 is
 [`89a29c01`](https://github.com/ael-dev3/Warpkeep/commit/89a29c01e597c5fb677611b9dfe047715cb4eb73),
@@ -56,8 +75,8 @@ inputs, canonical/auth configuration, admission suspension and generated public
 payload. It requires shared Alpha access for owner sign-in. It neither uploads
 nor deploys Pages and does not change `Warpkeep-Live`; signed publication,
 live-byte postflight and owner PTR remain separate release work. This lane is
-source-level preparation: its closure was refreshed at `46b4c3b7`, but the
-later source changes still need a new refreeze and final-head hosted Verify.
+source-level preparation: its closure was refreshed at `46b4c3b7` at that
+checkpoint. The later refreeze at `4df24928` still lacks a passing final-head hosted Verify.
 [Verify 36318043715](https://github.com/ael-dev3/Warpkeep/actions/runs/36318043715)
 on that closure head rejected all 17 jobs before runner start. GitHub's billing
 page shows the Actions budget at $0 with stop usage enabled and says a valid

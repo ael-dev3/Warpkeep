@@ -40,13 +40,17 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The existing Alpha 0.3.43 is live; 0.4 has not shipped.** The old site was
-restored from its last successful source through a public repository containing
-generated frontend files only. The private development source, current 0.4
-candidate, exact checks and next release action are recorded in the dated
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md). Final-source
-integration, protected native preparation, provider work and owner acceptance
-still remain before 0.4 release.
+**The existing Alpha 0.3.43 is live; 0.4 has not shipped.** The public
+generated-files host carries a focused QR sign-in clock-lag repair. Its live
+files match the published build, but a fresh phone-approved QR sign-in is still
+needed to verify that repair end to end. The active 0.4 source and its protected
+closure are signed and synchronized on [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374);
+GitHub rejected its latest Verify jobs before they started because of the
+account billing limit. The private development source, exact checks and next
+release action are recorded in the dated
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md). Protected
+integration, native preparation, provider work and owner acceptance still
+remain before 0.4 release.
 
 Provider deployment, accepted G001 preservation/readback, sealed G002 evidence,
 owner PTR play, mobile and measured-performance acceptance, and final release
@@ -67,8 +71,9 @@ future exploration, cooperation and strategy without promising unfinished featur
 
 ## Build with us
 
-`main` contains the integrated 0.4 development source. The running game remains
-at a different release stage; 0.4 delivery is unfinished. Follow the
+`main` contains an earlier integrated 0.4 development baseline; the active
+0.4 changes are on PR #374. The running game remains at a different
+release stage, and the 0.4 owner PTR is not live. Follow the
 [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) for the live
 checkpoint and next action, then inspect any open pull requests for their exact
 source and check status.
