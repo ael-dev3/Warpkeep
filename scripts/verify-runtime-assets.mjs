@@ -25,6 +25,7 @@ const assets = Object.freeze([
   ['public/models/menu/warplet-castle-hegemony-v2-c55f2c6c610e4aac.glb', 4_977_796, 'c55f2c6c610e4aacddde58e485156c85629dd0a2eab88fad65652c317ae59088', true],
   ['public/models/menu/warplet-guardian-v2-e934a81ae2a210e4.glb', 1_836_344, 'e934a81ae2a210e495675aff99293aebc60cebb1a42603c9d99351db43d9e602', true],
   ['public/images/menu/hegemony-emblem-26e8664b1db0acf3.png', 1_486_312, '26e8664b1db0acf3e6db443caf46ef13e45fe9de794749e431b7c2e3d6fb8774', false],
+  ['public/images/menu/hegemony-emblem-heading-256-4b5b747efcc13f34.png', 98_026, '4b5b747efcc13f34499058e1f21cd9958b56eb821d5d676809a6e8296019942a', false],
   [lowlandsRabbitRuntimePath, 14_808, '2ecc7b1adf4c1d79b7ca2d5ea9a6727ed3f6d9072047466082bb912d34ea930c', true],
   ['public/models/hegemony/hegemony-main-castle-high-9fe06a26446387e0.glb', 2_215_972, '9fe06a26446387e007ea32acfccbf6657e7a6763d73e2cb3890f103fb590afe8', true],
   ['public/models/hegemony/hegemony-main-castle-balanced-a9df1a9acd36e720.glb', 892_788, 'a9df1a9acd36e7208b764396854053a6e3c591f2eb04a83a6e2437c55a3aa157', true],

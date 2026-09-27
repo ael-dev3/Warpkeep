@@ -1321,7 +1321,7 @@ export function WarpkeepMainMenu({
           <img
             alt=""
             className="warpkeep-menu-heading__emblem"
-            src={`${import.meta.env.BASE_URL}images/menu/hegemony-emblem-26e8664b1db0acf3.png`}
+            src={`${import.meta.env.BASE_URL}images/menu/hegemony-emblem-heading-256-4b5b747efcc13f34.png`}
           />
           <span />
         </div>

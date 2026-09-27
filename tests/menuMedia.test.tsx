@@ -22,7 +22,7 @@ describe('Warpkeep main-menu scene slot', () => {
     expect(container.querySelector('video, picture, .verdant-menu-life')).toBeNull();
     const emblem = container.querySelector<HTMLImageElement>('.warpkeep-menu-heading__emblem');
     expect(emblem?.getAttribute('src')).toBe(
-      '/images/menu/hegemony-emblem-26e8664b1db0acf3.png'
+      '/images/menu/hegemony-emblem-heading-256-4b5b747efcc13f34.png'
     );
     expect(container.querySelector('.warpkeep-menu-heading__sword, .warpkeep-menu-heading__ring'))
       .toBeNull();

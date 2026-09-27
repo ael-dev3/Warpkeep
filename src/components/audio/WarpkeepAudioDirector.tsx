@@ -147,6 +147,7 @@ function playMedia(audio: HTMLAudioElement | null, onBlocked?: () => void) {
 
 export interface WarpkeepAudioDirectorHandle {
   ensurePlaybackFromGesture: () => void;
+  unmuteFromGesture: () => void;
   prepareScene: (scene: AudioLoopScene) => void;
   resetScene: (scene?: AudioLoopScene) => void;
   transitionTo: (scene: AudioScene) => void;
@@ -155,6 +156,8 @@ export interface WarpkeepAudioDirectorHandle {
 export interface WarpkeepAudioDirectorProps {
   scene?: AudioScene;
   preloadMenu?: boolean;
+  /** Leave every soundtrack source unattached until an unmuted player gesture. */
+  deferUntilGesture?: boolean;
   muted?: boolean;
   /** Keep media gesture-aware but inaudible behind a full-screen entry gate. */
   suspended?: boolean;
@@ -173,6 +176,7 @@ export const WarpkeepAudioDirector = forwardRef<
 >(function WarpkeepAudioDirector({
   scene = 'title',
   preloadMenu = true,
+  deferUntilGesture = false,
   muted = false,
   suspended = false,
   resumeFadeMs = 520
@@ -188,6 +192,7 @@ export const WarpkeepAudioDirector = forwardRef<
   const titleTrack = useMemo(() => titleSoundtracks[getRandomTrackIndex()], []);
   const titleUrl = `${baseUrl}${titleTrack.path}`;
   const initialSceneRef = useRef(scene);
+  const gestureSeenRef = useRef(!deferUntilGesture);
   const preloadMenuRef = useRef(preloadMenu);
   const mutedRef = useRef(muted);
   const suspendedRef = useRef(suspended);
@@ -196,11 +201,12 @@ export const WarpkeepAudioDirector = forwardRef<
     menu: [null, null],
     realm: [null, null]
   });
-  const [titlePrepared, setTitlePrepared] = useState(scene === 'title');
+  const [titlePrepared, setTitlePrepared] = useState(scene === 'title' && !deferUntilGesture);
+  const [menuPrepared, setMenuPrepared] = useState(!deferUntilGesture);
   const [realmPrepared, setRealmPrepared] = useState(false);
-  const titlePreparedRef = useRef(scene === 'title');
+  const titlePreparedRef = useRef(scene === 'title' && !deferUntilGesture);
   const preparedLoopScenesRef = useRef<Record<AudioLoopScene, boolean>>({
-    menu: true,
+    menu: !deferUntilGesture,
     realm: false
   });
   const disposedRef = useRef(false);
@@ -227,6 +233,7 @@ export const WarpkeepAudioDirector = forwardRef<
   }, []);
 
   const ensureTitleSource = useCallback(() => {
+    if (deferUntilGesture && (!gestureSeenRef.current || mutedRef.current)) return;
     if (!titlePreparedRef.current) {
       titlePreparedRef.current = true;
       setTitlePrepared(true);
@@ -236,7 +243,7 @@ export const WarpkeepAudioDirector = forwardRef<
       titleAudio.setAttribute('src', titleUrl);
     }
     if (titleAudio) titleAudio.preload = 'auto';
-  }, [titleUrl]);
+  }, [deferUntilGesture, titleUrl]);
 
   const getActiveLoopAudio = useCallback(
     (loopScene: AudioLoopScene) => {
@@ -303,7 +310,7 @@ export const WarpkeepAudioDirector = forwardRef<
 
   const prepareScene = useCallback(
     (loopScene: AudioLoopScene) => {
-      if (disposedRef.current) {
+      if (disposedRef.current || (deferUntilGesture && (!gestureSeenRef.current || mutedRef.current))) {
         return;
       }
 
@@ -319,11 +326,14 @@ export const WarpkeepAudioDirector = forwardRef<
         }
       });
 
+      if (loopScene === 'menu' && !wasPrepared) {
+        setMenuPrepared(true);
+      }
       if (loopScene === 'realm' && !wasPrepared) {
         setRealmPrepared(true);
       }
     },
-    [ensureLoopSources, getLoopPair]
+    [deferUntilGesture, ensureLoopSources, getLoopPair]
   );
 
   const scheduleLoopRef = useRef<(loopScene: AudioLoopScene) => void>(() => undefined);
@@ -627,7 +637,8 @@ export const WarpkeepAudioDirector = forwardRef<
   );
 
   const playIntendedSources = useCallback(() => {
-    if (disposedRef.current || hiddenRef.current || suspendedRef.current) {
+    if (disposedRef.current || hiddenRef.current || suspendedRef.current
+      || (deferUntilGesture && (!gestureSeenRef.current || mutedRef.current))) {
       return;
     }
 
@@ -667,9 +678,10 @@ export const WarpkeepAudioDirector = forwardRef<
     }
 
     scheduleLoopRef.current(requestedScene);
-  }, [getActiveLoopAudio, getLoopPair, markPlaybackBlocked]);
+  }, [deferUntilGesture, getActiveLoopAudio, getLoopPair, markPlaybackBlocked]);
 
   const primeRequestedSceneSilently = useCallback(() => {
+    if (deferUntilGesture && (!gestureSeenRef.current || mutedRef.current)) return;
     const requestedScene = requestedSceneRef.current;
     let requestedAudio: HTMLAudioElement | null = null;
     if (requestedScene === 'title') {
@@ -682,7 +694,7 @@ export const WarpkeepAudioDirector = forwardRef<
     requestedAudio.muted = true;
     requestedAudio.preload = 'auto';
     playMedia(requestedAudio, markPlaybackBlocked);
-  }, [ensureTitleSource, getActiveLoopAudio, markPlaybackBlocked]);
+  }, [deferUntilGesture, ensureTitleSource, getActiveLoopAudio, markPlaybackBlocked]);
 
   const finishSceneTransition = useCallback(() => {
     const targetScene = requestedSceneRef.current;
@@ -821,15 +833,52 @@ export const WarpkeepAudioDirector = forwardRef<
     [resetLoopScene]
   );
 
+  const ensurePlaybackFromGesture = useCallback(() => {
+    gestureSeenRef.current = true;
+    if (deferUntilGesture && mutedRef.current) return;
+    const requestedScene = requestedSceneRef.current;
+    if (requestedScene === 'title') ensureTitleSource();
+    else prepareScene(requestedScene);
+    if (suspendedRef.current) primeRequestedSceneSilently();
+    else playIntendedSources();
+  }, [deferUntilGesture, ensureTitleSource, playIntendedSources, prepareScene, primeRequestedSceneSilently]);
+
+  const unmuteFromGesture = useCallback(() => {
+    gestureSeenRef.current = true;
+    mutedRef.current = false;
+    getAllAudio().forEach((audio) => { audio.muted = suspendedRef.current; });
+    ensurePlaybackFromGesture();
+  }, [ensurePlaybackFromGesture, getAllAudio]);
+
+  const releaseMutedSources = useCallback(() => {
+    loopScenes.forEach(pauseLoopScene);
+    getAllAudio().forEach((audio) => {
+      pauseMedia(audio);
+      audio.preload = 'none';
+      if (!audio.hasAttribute('src')) return;
+      audio.removeAttribute('src');
+      // Cancels an in-flight download as well as dropping the next preload.
+      try { audio.load(); } catch { /* Unsupported media implementations may reject reset. */ }
+    });
+    titlePreparedRef.current = false;
+    preparedLoopScenesRef.current = { menu: false, realm: false };
+    loopStateRef.current = createLoopStates();
+    loopGainsRef.current = createLoopGains();
+    setTitlePrepared(false);
+    setMenuPrepared(false);
+    setRealmPrepared(false);
+  }, [getAllAudio, pauseLoopScene]);
+
   useImperativeHandle(
     forwardedRef,
     () => ({
-      ensurePlaybackFromGesture: playIntendedSources,
+      ensurePlaybackFromGesture,
+      unmuteFromGesture,
       prepareScene,
       resetScene,
       transitionTo
     }),
-    [playIntendedSources, prepareScene, resetScene, transitionTo]
+    [ensurePlaybackFromGesture, prepareScene, resetScene, transitionTo, unmuteFromGesture]
   );
 
   useEffect(() => {
@@ -850,7 +899,7 @@ export const WarpkeepAudioDirector = forwardRef<
       audio.muted = mutedRef.current || suspendedRef.current;
     });
     titleAudio!.preload = titlePreparedRef.current ? 'auto' : 'none';
-    getLoopPair('menu')[0] && (getLoopPair('menu')[0]!.preload = preloadMenuRef.current ? 'auto' : 'none');
+    getLoopPair('menu')[0] && (getLoopPair('menu')[0]!.preload = preparedLoopScenesRef.current.menu && preloadMenuRef.current ? 'auto' : 'none');
     getLoopPair('menu')[1] && (getLoopPair('menu')[1]!.preload = 'none');
     getLoopPair('realm').forEach((audio) => {
       if (audio) {
@@ -860,8 +909,7 @@ export const WarpkeepAudioDirector = forwardRef<
     applyVolumes();
 
     const handleGesture = () => {
-      if (suspendedRef.current) primeRequestedSceneSilently();
-      else playIntendedSources();
+      ensurePlaybackFromGesture();
     };
 
     const handleVisibilityChange = () => {
@@ -961,7 +1009,7 @@ export const WarpkeepAudioDirector = forwardRef<
     getLoopPair,
     pauseLoopScene,
     playIntendedSources,
-    primeRequestedSceneSilently,
+    ensurePlaybackFromGesture,
     restartEndedLoopSource
   ]);
 
@@ -970,8 +1018,12 @@ export const WarpkeepAudioDirector = forwardRef<
     getAllAudio().forEach((audio) => {
       audio.muted = muted || suspendedRef.current;
     });
+    if (deferUntilGesture && muted) {
+      releaseMutedSources();
+      return;
+    }
     if (!muted && !suspendedRef.current) playIntendedSources();
-  }, [getAllAudio, muted, playIntendedSources]);
+  }, [deferUntilGesture, getAllAudio, muted, playIntendedSources, releaseMutedSources]);
 
   useEffect(() => {
     const wasSuspended = suspendedRef.current;
@@ -1064,8 +1116,8 @@ export const WarpkeepAudioDirector = forwardRef<
         }}
         data-audio-role="menu-primary"
         muted={muted || suspended}
-        src={soundtrackUrls.menu}
-        preload={preloadMenu ? 'auto' : 'none'}
+        src={menuPrepared ? soundtrackUrls.menu : undefined}
+        preload={menuPrepared && preloadMenu ? 'auto' : 'none'}
         aria-hidden="true"
         tabIndex={-1}
       />
@@ -1075,7 +1127,7 @@ export const WarpkeepAudioDirector = forwardRef<
         }}
         data-audio-role="menu-standby"
         muted={muted || suspended}
-        src={soundtrackUrls.menu}
+        src={menuPrepared ? soundtrackUrls.menu : undefined}
         preload="none"
         aria-hidden="true"
         tabIndex={-1}

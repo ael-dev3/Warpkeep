@@ -46,6 +46,7 @@ beforeEach(() => {
   ) {
     pausedMedia.set(this, true);
   });
+  vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
     animationFrameCallbacks.push(callback);
     return animationFrameCallbacks.length;
@@ -166,6 +167,88 @@ describe('audio director helpers', () => {
 });
 
 describe('WarpkeepAudioDirector', () => {
+  it('keeps the direct menu source-free until an unmuted player gesture, then starts and loops it', () => {
+    const { container } = render(
+      <WarpkeepAudioDirector scene="menu" preloadMenu={false} deferUntilGesture />
+    );
+    const menu = getAudio(container, 'menu-primary');
+    const standby = getAudio(container, 'menu-standby');
+    const playSpy = vi.mocked(HTMLMediaElement.prototype.play);
+
+    expect([...container.querySelectorAll('audio')].every((audio) => !audio.hasAttribute('src'))).toBe(true);
+    expect(playSpy).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(window);
+    expect(menu.getAttribute('src')).toMatch(/\/audio\/warpkeep-verdant-menu-theme\.m4a$/);
+    expect(standby.getAttribute('src')).toBe(menu.getAttribute('src'));
+    expect(playSpy.mock.instances).toContain(menu);
+    expect(menu.preload).toBe('auto');
+    expect(standby.preload).toBe('none');
+
+    playSpy.mockClear();
+    menu.currentTime = WARPKEEP_MENU_LOOP.crossfadeStartSeconds;
+    fireEvent.timeUpdate(menu);
+    expect(playSpy.mock.instances).toContain(standby);
+  });
+
+  it('does not request a soundtrack while muted and starts under the unmute gesture', () => {
+    const directorRef = createRef<WarpkeepAudioDirectorHandle>();
+    const { container, rerender } = render(
+      <WarpkeepAudioDirector
+        ref={directorRef}
+        scene="menu"
+        muted
+        preloadMenu={false}
+        deferUntilGesture
+      />
+    );
+    const menu = getAudio(container, 'menu-primary');
+    const playSpy = vi.mocked(HTMLMediaElement.prototype.play);
+    fireEvent.pointerDown(window);
+    expect(menu.hasAttribute('src')).toBe(false);
+    expect(playSpy).not.toHaveBeenCalled();
+
+    act(() => directorRef.current?.unmuteFromGesture());
+    rerender(
+      <WarpkeepAudioDirector
+        ref={directorRef}
+        scene="menu"
+        muted={false}
+        preloadMenu={false}
+        deferUntilGesture
+      />
+    );
+    expect(menu.getAttribute('src')).toMatch(/\/audio\/warpkeep-verdant-menu-theme\.m4a$/);
+    expect(playSpy.mock.instances).toContain(menu);
+    expect(menu.muted).toBe(false);
+
+    rerender(
+      <WarpkeepAudioDirector
+        ref={directorRef}
+        scene="menu"
+        muted
+        preloadMenu={false}
+        deferUntilGesture
+      />
+    );
+    expect(menu.hasAttribute('src')).toBe(false);
+    expect(menu.paused).toBe(true);
+
+    playSpy.mockClear();
+    act(() => directorRef.current?.unmuteFromGesture());
+    rerender(
+      <WarpkeepAudioDirector
+        ref={directorRef}
+        scene="menu"
+        muted={false}
+        preloadMenu={false}
+        deferUntilGesture
+      />
+    );
+    expect(menu.getAttribute('src')).toMatch(/\/audio\/warpkeep-verdant-menu-theme\.m4a$/);
+    expect(playSpy.mock.instances).toContain(menu);
+  });
+
   it('applies and updates the player soundtrack mute preference to every source', () => {
     const mutedAtPlay: boolean[] = [];
     vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(function (

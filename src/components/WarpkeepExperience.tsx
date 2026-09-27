@@ -358,6 +358,7 @@ export function WarpkeepExperience() {
   }, []);
 
   const updateAudioMuted = useCallback((muted: boolean) => {
+    if (!muted) audioDirectorRef.current?.unmuteFromGesture();
     writeAudioMuted(muted);
     setAudioMuted(muted);
   }, []);
@@ -1403,10 +1404,11 @@ export function WarpkeepExperience() {
       ) : null}
 
       <WarpkeepAudioDirector
+        deferUntilGesture
         muted={audioMuted}
         ref={audioDirectorRef}
         scene={audioScene}
-        preloadMenu
+        preloadMenu={false}
         resumeFadeMs={520}
         suspended={miniAppEntryGateActive}
       />

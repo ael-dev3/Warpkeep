@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import type { GraphicsQualityTier } from '../../settings/graphicsPreference';
 import { createMenuLandscape3D } from './createMenuLandscape3D';
+import { createMenuWorldResourceOwner } from './menuWorldResources';
 import './WarpkeepMenuWorld3D.css';
 
 /** The castle-only GLB leaves the central turret clear for this separate guardian. */
@@ -71,12 +72,16 @@ async function fetchModel(
   loader: import('three/addons/loaders/GLTFLoader.js').GLTFLoader,
   url: string,
   signal: AbortSignal,
+  onParsed: (model: GLTF) => void,
 ): Promise<GLTF> {
   const response = await fetch(url, { signal });
   if (!response.ok) throw new Error(`Menu model ${url} returned ${response.status}.`);
   const bytes = await response.arrayBuffer();
   if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
-  return loader.parseAsync(bytes, url.slice(0, url.lastIndexOf('/') + 1));
+  const model = await loader.parseAsync(bytes, url.slice(0, url.lastIndexOf('/') + 1));
+  onParsed(model);
+  if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+  return model;
 }
 
 function configureModel(root: THREE.Object3D, castShadow: boolean): void {
@@ -239,6 +244,7 @@ export function WarpkeepMenuWorld3D({ active, reducedMotion, quality = 'balanced
     renderer.domElement.setAttribute('aria-hidden', 'true');
     mount.append(renderer.domElement);
     const landscape = createMenuLandscape3D(scene, quality);
+    const resources = createMenuWorldResourceOwner(scene);
 
     scene.add(new THREE.HemisphereLight(0xebf5ed, 0x34513c, 2.35));
     scene.add(new THREE.AmbientLight(0xfff4e7, 0.48));
@@ -275,6 +281,7 @@ export function WarpkeepMenuWorld3D({ active, reducedMotion, quality = 'balanced
     }
 
     let disposed = false;
+    let contextLost = false;
     let frame = 0;
     let elapsed = 0;
     let lastFrameTime = 0;
@@ -285,10 +292,12 @@ export function WarpkeepMenuWorld3D({ active, reducedMotion, quality = 'balanced
     let nextSalute = 17;
     let saluteEnds = Number.POSITIVE_INFINITY;
 
-    const render = () => renderer.render(scene, camera);
+    const render = () => {
+      if (!disposed && !contextLost && document.visibilityState !== 'hidden') renderer.render(scene, camera);
+    };
     const animate = (time: number) => {
       frame = 0;
-      if (disposed || !isActive || motionReduced) return;
+      if (disposed || contextLost || !isActive || motionReduced || document.visibilityState === 'hidden') return;
       const dt = lastFrameTime ? Math.min((time - lastFrameTime) / 1000, 0.05) : 0;
       lastFrameTime = time;
       elapsed += dt;
@@ -345,12 +354,13 @@ export function WarpkeepMenuWorld3D({ active, reducedMotion, quality = 'balanced
       cancelAnimationFrame(frame);
       frame = 0;
       lastFrameTime = 0;
+      if (contextLost || document.visibilityState === 'hidden') return;
       if (isActive && !motionReduced) frame = requestAnimationFrame(animate);
       else render();
     };
 
     const resize = () => {
-      if (disposed) return;
+      if (disposed || contextLost) return;
       const width = Math.max(1, mount.clientWidth);
       const height = Math.max(1, mount.clientHeight);
       const ratioCap = quality === 'performance'
@@ -368,6 +378,26 @@ export function WarpkeepMenuWorld3D({ active, reducedMotion, quality = 'balanced
     };
     const observer = new ResizeObserver(resize);
     observer.observe(mount);
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      contextLost = true;
+      cancelAnimationFrame(frame);
+      frame = 0;
+      lastFrameTime = 0;
+    };
+    const onContextRestored = () => {
+      if (disposed || !contextLost) return;
+      contextLost = false;
+      resize();
+      if (isActive && !motionReduced) {
+        // Refresh the visible still before waiting for the next animation frame.
+        render();
+        start();
+      }
+    };
+    renderer.domElement.addEventListener('webglcontextlost', onContextLost);
+    renderer.domElement.addEventListener('webglcontextrestored', onContextRestored);
+    document.addEventListener('visibilitychange', start);
     resize();
 
     controlRef.current = {
@@ -377,17 +407,19 @@ export function WarpkeepMenuWorld3D({ active, reducedMotion, quality = 'balanced
         start();
       },
       dispose() {
+        if (disposed) return;
         disposed = true;
         abortController.abort();
         cancelAnimationFrame(frame);
         observer.disconnect();
+        document.removeEventListener('visibilitychange', start);
+        renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+        renderer.domElement.removeEventListener('webglcontextrestored', onContextRestored);
         for (const mixer of mixers) mixer.stopAllAction();
-        scene.traverse((node) => {
-          if (!(node instanceof THREE.Mesh)) return;
-          node.geometry.dispose();
-          for (const source of Array.isArray(node.material) ? node.material : [node.material]) source.dispose();
-        });
+        resources.dispose();
+        key.shadow.dispose();
         renderer.dispose();
+        renderer.forceContextLoss();
         renderer.domElement.remove();
       },
     };
@@ -402,9 +434,10 @@ export function WarpkeepMenuWorld3D({ active, reducedMotion, quality = 'balanced
       const loader = new GLTFLoader();
       loader.setMeshoptDecoder(MeshoptDecoder);
       const signal = abortController.signal;
+      const loadModel = (url: string) => fetchModel(loader, url, signal, resources.track);
 
       try {
-        const castle = await fetchModel(loader, modelUrl(castleUrl || DEFAULT_CASTLE_URL), signal);
+        const castle = await loadModel(modelUrl(castleUrl || DEFAULT_CASTLE_URL));
         if (disposed) return;
         configureModel(castle.scene, true);
         scene.add(castle.scene);
@@ -422,7 +455,7 @@ export function WarpkeepMenuWorld3D({ active, reducedMotion, quality = 'balanced
         scene.add(makeUnassignedWarplet());
       } else {
         try {
-          const guardian = await fetchModel(loader, modelUrl(guardianUrl || DEFAULT_GUARDIAN_URL), signal);
+          const guardian = await loadModel(modelUrl(guardianUrl || DEFAULT_GUARDIAN_URL));
           if (disposed) return;
           guardian.scene.position.y = GUARDIAN_ROOFTOP_Y;
           configureModel(guardian.scene, true);
@@ -444,12 +477,12 @@ export function WarpkeepMenuWorld3D({ active, reducedMotion, quality = 'balanced
       render();
 
       const additions = await Promise.allSettled([
-        fetchModel(loader, modelUrl(ASSET_URLS.honorGuard), signal),
-        fetchModel(loader, modelUrl(ASSET_URLS.lamplighter), signal),
-        fetchModel(loader, modelUrl(ASSET_URLS.rabbit), signal),
-        fetchModel(loader, modelUrl(ASSET_URLS.brazier), signal),
-        fetchModel(loader, modelUrl(ASSET_URLS.tree), signal),
-        fetchModel(loader, modelUrl(ASSET_URLS.pine), signal),
+        loadModel(modelUrl(ASSET_URLS.honorGuard)),
+        loadModel(modelUrl(ASSET_URLS.lamplighter)),
+        loadModel(modelUrl(ASSET_URLS.rabbit)),
+        loadModel(modelUrl(ASSET_URLS.brazier)),
+        loadModel(modelUrl(ASSET_URLS.tree)),
+        loadModel(modelUrl(ASSET_URLS.pine)),
       ]);
       if (disposed) return;
       const loaded = additions.map((result) => result.status === 'fulfilled' ? result.value : null);
