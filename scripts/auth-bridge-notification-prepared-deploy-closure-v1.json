@@ -3825,7 +3825,7 @@
     {
       "path": "src/components/keep04/Keep04BuildingPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9410cfb734ae40feb57c26e0d5a6db11be9f7130a89efb1878947fb3fba47da5"
+      "sha256": "8a61e71063ace57b5fe22d78fb8c50db1d75738aaed9168f17bd2780608a2e8b"
     },
     {
       "path": "src/components/keep04/Keep04LoopRail.tsx",
@@ -4830,7 +4830,7 @@
     {
       "path": "src/farcaster/FarcasterAuthProviderCore.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0b5f82e94c61ebcea0fcc25de818a94fc77f7270b0f3f7640de2008ea65ab0c9"
+      "sha256": "1bec29f9b87eb99054a1dc3aeae995b12820f6b9abb6ef5592f4a1b87f2a9c41"
     },
     {
       "path": "src/farcaster/accessRequestStateMachine.ts",
@@ -4875,17 +4875,17 @@
     {
       "path": "src/farcaster/farcasterOidcBridgeClient.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9c0af4cc6b140e0007927d30d92a92dd5ef987ea3127d7dd4ed6a57a4e8ba071"
+      "sha256": "37d932d492e87008ef590bbeb1896530dba1f5a9751e3ac4ccf25d401c22c28c"
     },
     {
       "path": "src/farcaster/farcasterOidcSession.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9f70114eb99dc09ff52108c013a77a5e5358df8be0a8c9ba8e486d5fbc94fd8d"
+      "sha256": "60a2b3416ba2d7d5c2f5957c4ee7d6757f676898d5e208eda473c6feb89478f4"
     },
     {
       "path": "src/farcaster/farcasterPresentationSession.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "fb6a8495ac545e7a12ed6eeec9fb81c0623b2acd38bcdf89d923c007285c75ba"
+      "sha256": "294a66a2d866381983479798c0f45e2c812f75a3889dab2941c4bed8b8088c35"
     },
     {
       "path": "src/farcaster/farcasterProjectLinks.ts",
@@ -5190,7 +5190,7 @@
     {
       "path": "src/ptr/PtrGameplay04SurfaceHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "67e97199fb105cadaa7bf5749a1b3157b21a93efb0e551fae8622d8acb6a5e11"
+      "sha256": "5de7d8debaca07f6729799f6a2639ff017efb23df452865bd0583fe78b516956"
     },
     {
       "path": "src/ptr/PtrRealmProvider.tsx",
