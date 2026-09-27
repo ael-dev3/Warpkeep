@@ -7,6 +7,7 @@ import {
   WARPKEEP_MENU_LOOP,
   WARPKEEP_MENU_TO_REALM_TRANSITION_MS,
   WARPKEEP_REALM_LOOP,
+  WARPKEEP_GENESIS_002_LOOP,
   WARPKEEP_REALM_TO_MENU_TRANSITION_MS,
   WarpkeepAudioDirector,
   clampUnit,
@@ -18,6 +19,7 @@ import {
   getOtherMenuSource,
   getScenePlaybackPlan,
   getSceneTransitionDuration,
+  getRealmSoundtrackId,
   type WarpkeepAudioDirectorHandle
 } from '../src/components/audio';
 
@@ -134,6 +136,24 @@ describe('audio director helpers', () => {
     expect(midpoint.crossfadeProgress).toBeCloseTo(0.5, 8);
     expect(
       getLoopSchedule(WARPKEEP_REALM_LOOP, WARPKEEP_REALM_LOOP.crossfadeStartSeconds - 1, false)
+    ).toEqual({
+      crossfadeProgress: 0,
+      delayMs: 1_000,
+      shouldCrossfadeNow: false
+    });
+  });
+
+  it('maps Genesis 002 to its own eight-second soundtrack wrap', () => {
+    expect(getRealmSoundtrackId('genesis-001')).toBe('lowlands');
+    expect(getRealmSoundtrackId('ptr')).toBe('lowlands');
+    expect(getRealmSoundtrackId('genesis-002')).toBe('genesis-002');
+    expect(WARPKEEP_GENESIS_002_LOOP).toEqual({
+      crossfadeStartSeconds: 215.613,
+      endSeconds: 223.613,
+      overlapSeconds: 8
+    });
+    expect(
+      getLoopSchedule(WARPKEEP_GENESIS_002_LOOP, 214.613, false)
     ).toEqual({
       crossfadeProgress: 0,
       delayMs: 1_000,
@@ -281,6 +301,34 @@ describe('WarpkeepAudioDirector', () => {
     rerender(<WarpkeepAudioDirector ref={directorRef} scene="realm" />);
     act(() => directorRef.current?.ensurePlaybackFromGesture());
     expect(playSpy.mock.instances).toContain(realmPrimary);
+  });
+
+  it('selects the Genesis 002 score only when that realm is explicitly prepared', () => {
+    const directorRef = createRef<WarpkeepAudioDirectorHandle>();
+    const { container } = render(
+      <WarpkeepAudioDirector ref={directorRef} scene="realm" />
+    );
+    const realmPrimary = getAudio(container, 'realm-primary');
+    const realmStandby = getAudio(container, 'realm-standby');
+
+    expect(realmPrimary.getAttribute('src')).toBeNull();
+    expect(realmStandby.getAttribute('src')).toBeNull();
+
+    act(() => directorRef.current?.prepareScene('realm', 'genesis-002'));
+
+    expect(realmPrimary.src).toMatch(/\/audio\/warpkeep-genesis-002-theme\.m4a$/);
+    expect(realmStandby.src).toBe(realmPrimary.src);
+    expect(realmPrimary.preload).toBe('auto');
+    expect(realmStandby.preload).toBe('none');
+    expect(realmPrimary.volume).toBeCloseTo(0.58, 8);
+
+    realmPrimary.currentTime = 36;
+    act(() => directorRef.current?.prepareScene('realm', 'genesis-001'));
+
+    expect(realmPrimary.src).toMatch(/\/audio\/warpkeep-lowlands-theme\.mp3$/);
+    expect(realmStandby.src).toBe(realmPrimary.src);
+    expect(realmPrimary.currentTime).toBe(0);
+    expect(realmPrimary.volume).toBe(WARPKEEP_AUDIO_LEVELS.realm);
   });
 
   it('crossfades from the retained menu position into Lowlands and back', () => {

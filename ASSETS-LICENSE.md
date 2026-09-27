@@ -42,6 +42,18 @@ The original 1280×720 runtime film and poster were superseded on 2026-07-11. Th
 
 The unresolved-rights source film/audio binaries are not present in the v0.3.0 HEAD and were not uploaded to a public asset release. Exact technical records remain in `docs/reference/`; required runtime derivatives remain in `public/` under the same unresolved source terms.
 
+## Genesis 002 supplied realm score
+
+On 2026-09-28, Ael supplied `Genesis 002.m4a` and requested its official use as the Genesis 002 realm score and its archival in Warpkeep-Assets. The supplied metadata says `made with suno`; it does not establish ownership or a license. The request authorizes this exact archive and official-game use, but does not assert a separate open-content license, source-service right, or broader public reuse right.
+
+| Intended use | Supplied source | Runtime file | Technical record |
+| --- | --- | --- | --- |
+| Genesis 002 realm music | Assets release [`genesis-002-realm-score-2026-09-28`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/genesis-002-realm-score-2026-09-28) — original Opus-in-M4A source: 4,044,476 bytes, SHA-256 `18e1ba7986bac220146d248ee863fd0020cbacc3e1e7661dd052f608d868b598` | `public/audio/warpkeep-genesis-002-theme.m4a` — AAC-LC, 48 kHz stereo, 223.613 seconds, 4,539,823 bytes, SHA-256 `6392e617b1c869ea81b211aebb10cdca42218377d0d0161232efa6f26dcced47` | Full technical, conversion and playback record in [`docs/reference/audio/2026-09-28-genesis-002/`](docs/reference/audio/2026-09-28-genesis-002/README.md). |
+
+The runtime derivative keeps the complete supplied program, strips source metadata, and is not loudness-normalized. Its measured -17.8 LUFS integrated level is paired with a 0.58 realm gain. The equal-power loop overlaps the final eight seconds with the beginning. The source and runtime derivative retain unresolved original terms; only the exact official game use and archive publication requested by Ael are recorded here.
+
+Genesis 002 remains sealed in 0.4. This audio wiring does not grant entry, request access, connect to the G002 backend, or change gameplay. No current user entry triggers this soundtrack until an authorized G002 entry path exists.
+
 ## Retired Hegemony admission-request sound archive
 
 The former Request Access sample is not present in this repository, is not

@@ -9,6 +9,10 @@ export type MenuSourceIndex = AudioSourceIndex;
 
 export type AudioSourceRole = AudioScene;
 
+export type WarpkeepAudioRealmId = 'genesis-001' | 'genesis-002' | 'ptr';
+
+export type WarpkeepRealmSoundtrackId = 'lowlands' | 'genesis-002';
+
 export interface EqualPowerGains {
   incoming: number;
   outgoing: number;
@@ -71,6 +75,36 @@ export const WARPKEEP_REALM_LOOP = Object.freeze({
   endSeconds: 244.919979,
   overlapSeconds: 8.919979
 }) satisfies AudioLoopDefinition;
+
+/** An eight-second equal-power wrap for the full Genesis 002 score. */
+export const WARPKEEP_GENESIS_002_LOOP = Object.freeze({
+  crossfadeStartSeconds: 215.613,
+  endSeconds: 223.613,
+  overlapSeconds: 8
+}) satisfies AudioLoopDefinition;
+
+export const WARPKEEP_REALM_SOUNDTRACKS = Object.freeze({
+  lowlands: Object.freeze({
+    level: WARPKEEP_AUDIO_LEVELS.realm,
+    loop: WARPKEEP_REALM_LOOP,
+    path: 'audio/warpkeep-lowlands-theme.mp3'
+  }),
+  'genesis-002': Object.freeze({
+    // The supplied score measures -17.8 LUFS integrated, so this gain brings
+    // it close to the existing Lowlands output level without peak normalization.
+    level: 0.58,
+    loop: WARPKEEP_GENESIS_002_LOOP,
+    path: 'audio/warpkeep-genesis-002-theme.m4a'
+  })
+}) satisfies Record<WarpkeepRealmSoundtrackId, {
+  level: number;
+  loop: AudioLoopDefinition;
+  path: string;
+}>;
+
+export function getRealmSoundtrackId(realmId: WarpkeepAudioRealmId): WarpkeepRealmSoundtrackId {
+  return realmId === 'genesis-002' ? 'genesis-002' : 'lowlands';
+}
 
 export function clampUnit(value: number) {
   if (!Number.isFinite(value)) {

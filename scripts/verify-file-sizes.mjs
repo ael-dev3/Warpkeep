@@ -9,6 +9,7 @@ const allowedRuntimeAssets = new Set([
   'public/audio/warpkeep-title-theme-b.mp3',
   'public/audio/warpkeep-menu-theme.mp3',
   'public/audio/warpkeep-lowlands-theme.mp3',
+  'public/audio/warpkeep-genesis-002-theme.m4a',
   'public/video/warpkeep-menu-loop-v2.mp4'
 ]);
 const exactOversizedRuntimeAssets = new Map([
