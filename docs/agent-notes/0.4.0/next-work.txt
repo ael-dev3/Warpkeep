@@ -1,6 +1,6 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 27 September 2026, Europe/Budapest.
-Source/GitHub check: 22:16 CEST (20:16 UTC).
+Refreshed 28 September 2026, Europe/Budapest.
+Source/GitHub check: 00:01 CEST (22:01 UTC on 27 September).
 
 PURPOSE OF THIS FILE
 
@@ -34,10 +34,11 @@ Maintained checkout:
 C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep
 
 Local branch: fix/g001-census-admission-proxy
-At the start of this follow-up, local and GitHub branch head was signed
-9f43f0dd5483ae359ac027ed03ca9c1466a38718 and the checkout was clean and
-remote-equal. This tracked status update advances the branch; recheck the
-exact live SHA before acting.
+At this check, local and GitHub branch head was signed
+747c0cfb80884e02016a973b7c92ba9a644a3a82 and the checkout was clean and
+remote-equal. PR #374 was open on this head, based on live main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. This status note will advance the
+branch; recheck the exact live SHA before acting.
 Protected source checkpoint: 175e325771768d8427bedeff8280a9cb2a9de282
 Signed protected closure: 6b9bcb1f6bf27fa70d7870b4b0eb074a7f698242
 Closure manifest SHA-256:
@@ -76,7 +77,10 @@ owner canary and main asset matched the reviewed bytes from signed source
 5f77c3ce. The fresh phone-approved owner exchange returned HTTP 200 with
 session_created at 2026-09-27 19:06:14.479 UTC, and the owner confirmed login.
 It succeeded before the diagnostic frontend deployed, so no browser build hash
-is attested for that sign-in.
+is attested for that sign-in. The owner later reported another successful
+fresh scan at the 2026-09-27 21:50:52 UTC conversation-clock observation. That
+is the report-observation time, not the exact scan or exchange time; no new
+Worker trace, browser identity or served build hash was supplied.
 
 The timestamped incident record identifies the strongest supported cause of
 the previous three HTTP 503 exchanges: repeated HTTP 429 responses from the
@@ -89,24 +93,27 @@ is required. Full event timestamps and recovery details are in
 docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md.
 
 No successful hosted Verify exists for the current PR candidate.
-Verify 36347362794 on the signed documentation head 9f43f0dd at this refresh's
-start stopped all 17 jobs before runner steps. GitHub's annotation says recent
-account payments failed or the Actions spending limit must be increased. This is
-an account gate, not a code-test result. The account owner must resolve Billing &
-plans and enable a nonzero Actions budget, then rerun Verify on the updated live
-final head.
-Do not use the persistent privileged production runner as a workaround. Private-repo
-Pages remains unavailable on the current Free plan. The 0.4 owner PTR and
-sealed G002 deployment are not live.
+Exact-head [Verify 36353750634](https://github.com/ael-dev3/Warpkeep/actions/runs/36353750634)
+on signed head 747c0cfb started at 2026-09-27 22:00:31 UTC and failed all 17
+jobs before any step ran. GitHub's annotation says recent account payments
+failed or the Actions spending limit must increase. This is a runner-allocation
+gate, not a code-test result. The account owner must resolve Billing & plans,
+then rerun Verify on the updated live final head. Do not use the persistent
+privileged production runner as a workaround. Private-repo Pages remains
+unavailable on the current Free plan. The 0.4 owner PTR and sealed G002
+deployment are not live.
 
 The reviewed Verdant Citadel menu is integrated into signed PR #374 at merge
 397b9697. Follow-up commits preserve glTF-authored double-sided materials and
 pause WebGL animation under full-screen overlays; the Pages receipt covers its
-loaded media. PR #375 remains open with a notice that its older closure must
-not be merged directly. Warpkeep-Assets PR #37 has signed provenance correction
-b631f2c: the menu score is described as published and its conversion reference
-points to reachable signed game source 175e3257. Its 37 Linux tests pass.
-Both PRs' hosted checks remain stopped before runner steps by account billing.
+loaded media. Menu PR #375 remains open at head
+75934520a8dc295c8b68d4c8c197785299e2ff0b, based on main 786c0b2b; its older
+protected closure must not be merged directly. Warpkeep-Assets PR #37 remains
+open at head b631f2cdd79cb3d238fb8f618b9d203cddba3472, based on
+1e5c49e9819ea50cf4e03675bb05868f90f06fdc. Its signed provenance correction
+describes the menu score as published and links its conversion reference to
+reachable signed game source 175e3257; its 37 Linux tests passed. Recheck both
+PRs' exact heads and checks before acting.
 
 The earlier signed World retry, G001 preservation work, public-mirror
 candidate, local source tests, native closure checks and synthetic mobile
