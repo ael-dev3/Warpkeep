@@ -183,7 +183,7 @@ async function reattest(state, inactiveClaimRun) {
     || typeof branch !== 'object'
     || Array.isArray(branch)
     || branch.name !== 'main'
-    || branch.protected !== true
+    || typeof branch.protected !== 'boolean'
     || branch.commit?.sha !== state.sourceCommit
     || run === null
     || typeof run !== 'object'
@@ -351,7 +351,7 @@ export async function attestSealedRealmsProductionCompletedCensusRun(input) {
       || run.event !== 'workflow_dispatch' || run.status !== 'completed'
       || run.conclusion !== 'success' || run.head_branch !== 'main'
       || run.head_sha !== state.sourceCommit || run.path !== SEALED_REALMS_PRODUCTION_WORKFLOW_PATH
-      || run.name !== 'Sealed Realms Production'
+      || run.name !== `g001-freeze-census @ ${state.sourceCommit}`
       || run.display_title !== `g001-freeze-census @ ${state.sourceCommit}`
       || run.repository?.full_name !== SEALED_REALMS_PRODUCTION_REPOSITORY) {
       fail('SEALED_REALMS_WORKFLOW_AUTHORITY_CENSUS_RUN_INVALID');

@@ -14,7 +14,7 @@ permissions:
 # values, so changing any protected executable requires an explicit refreeze.
 env:
   WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'd7d4600bb8cd248b79131a96de4d03698508e7f08b40bea094e838d132d9c162'
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: 'e9576e149dca39a506194608f9d0084bdc2ed6f8502a64c5ee766d6a604bc969'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: 'cbec2ed7ac8f8b868e2e3e4571e13159387bfaa5b06598022d552ccf73506ad0'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '639d78a525a0592d25d06a103074c2ab961c229bf3b9c97c3079759f55a09e97'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '68e05292c7162b982781e2eb673e6e39ed8ddbb99b4f3aa61f7507d3dc7c144b'
   WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256: '692420c1a2a1d8d0b76893caaf720be11f2b3dcb559bf777be4a2cc70c59a0c2'
@@ -420,7 +420,7 @@ jobs:
             gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha'
           )"
           if [[ ! "$current_main" =~ ^[0-9a-f]{40}$ ]] || [[ "$current_main" != "$WARPKEEP_VERIFIED_SHA" ]]; then
-            echo 'Deployment source is no longer the current protected main commit.' >&2
+            echo 'Deployment source is no longer the current main commit.' >&2
             exit 1
           fi
           echo "$WARPKEEP_DEPLOY_PRIVATE_NODE_SHA256  $WARPKEEP_DEPLOY_PRIVATE_NODE" \
@@ -603,7 +603,7 @@ jobs:
           echo "WARPKEEP_RECOVERY_NODE=$private_root/node" >> "$GITHUB_ENV"
           echo "WARPKEEP_RECOVERY_NODE_SHA256=$source_sha" >> "$GITHUB_ENV"
 
-      - name: Verify current protected main and installed recovery source
+      - name: Verify current main and installed recovery source
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -1118,7 +1118,7 @@ jobs:
             scripts/notification-pages-private-deploy-launcher.mjs predeploy \
             9>>"$GITHUB_OUTPUT"
 
-      - name: Re-attest protected main and exact workflow runs in process
+      - name: Re-attest current main and exact workflow runs in process
         if: ${{ steps.private-predeploy.outputs.deploy-required == 'true' }}
         shell: bash
         env:

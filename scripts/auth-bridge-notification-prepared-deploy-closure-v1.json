@@ -5,22 +5,22 @@
     {
       "path": ".github/workflows/deploy-pages.yml",
       "digestProfile": "reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1",
-      "sha256": "0505c9b764b850516c210cc7e8848145daf7854d6d755b41c3fc35643bac991b"
+      "sha256": "f18cd603a0842fa38b58651cfbd6308b9ade8aa5df420538dec7373cd8b183ad"
     },
     {
       "path": ".github/workflows/notification-bridge-b0.yml",
       "digestProfile": "bootstrap-pin-projection-sha256-v1",
-      "sha256": "747a735cb6e1093256e479cf24dca19e93748d13ae94abe1c07c651c057f7eea"
+      "sha256": "908a4f3425b051c88b9a6790c68c6ed67f0005b58006b42053a11622f40a735b"
     },
     {
       "path": ".github/workflows/notification-bridge-prepared-linux.yml",
       "digestProfile": "bootstrap-pin-projection-sha256-v1",
-      "sha256": "9952099eae1dcfa24b2de0a79eb43e00f255bdcbb4570fc31998418cd192b232"
+      "sha256": "7ec1efd6d73d48ba62064d6ec98f1b3eb990d8a11668ae696daf472668d2e247"
     },
     {
       "path": ".github/workflows/notification-bridge-prepared.yml",
       "digestProfile": "bootstrap-pin-projection-sha256-v1",
-      "sha256": "d6484216c1552d3cc2ed6e70456348038619753f68e44dbedab3b08110a1443f"
+      "sha256": "99ad82cd45e62caaebbfb15e1f35e356b03bfccdbe44d79fd4fa90238ed551e1"
     },
     {
       "path": ".github/workflows/verify.yml",
@@ -310,7 +310,7 @@
     {
       "path": "scripts/auth-bridge-notification-b0-deploy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e89bc4c095530cdee166c8b4d01afa1ef5be11e88ef9ae71c0acc96c3a2cae5b"
+      "sha256": "e48e95ef63f7bf6820b105a8182bef9ee43b4862a13c1e66c0f0a925bbb13d34"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-b0-source.d.mts",
@@ -380,7 +380,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7417b5dc217fd700a34f54f82286eb7246192835e8b9905e15c357a9fc7aa855"
+      "sha256": "8871dccb7f3be7df1bc79c4e4bccb913ddae0d56f8c9b2a349d849a0372f8e35"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-installed-toolchain-darwin-arm64-v1.json",
@@ -405,7 +405,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-linux-runner.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "364ec3f730b4e1c5e2ed1996c507e131343ad71b6d5549d51488b8add9958039"
+      "sha256": "8deb56b585c174c72c281494e72e14622a2798fddcd330acc7ff3d41d191c765"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json",
@@ -1285,7 +1285,7 @@
     {
       "path": "scripts/notification-pages-private-deploy-operator.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "30719a7b3757fc26780cc48549635a1e743f534186c2b7ce7d279037d144686a"
+      "sha256": "e67174566226542d7800d396bb2a40b40d974f7107e81a0fa1be417049aa5129"
     },
     {
       "path": "scripts/notification-pages-private-handoff.d.mts",
@@ -1840,7 +1840,7 @@
     {
       "path": "scripts/recovery-workflow-run-context.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "693c360cf2192ed7eaa1d34f8c29f4e5f4f8f40d7710e473e0f2439ef53f003a"
+      "sha256": "e96ebed919cc7f466c8fca549c7c929948cf15f87f0b3e2e084b9b03a48ff134"
     },
     {
       "path": "scripts/recovery-workflow-session.d.mts",
@@ -2080,7 +2080,7 @@
     {
       "path": "scripts/sealed-realms-production-workflow-authority.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2484c2afcd708a40c56803190a2f7554d2d7d9b9e6a1507e2213d47961d31297"
+      "sha256": "bb65e12878439fbf3a7d7f69be597b56bc3a29191732f7f78f74eb3d39e07e79"
     },
     {
       "path": "scripts/sealed-realms-production-workflow-evidence-json.d.mts",
@@ -2100,7 +2100,7 @@
     {
       "path": "scripts/sealed-realms-production-workflow-evidence.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "dc320612556d914d914f9fda6486c0ecc4d24cc23706703b3f3568e11310b28e"
+      "sha256": "6e64f1f632f608868d9ab2616770881084466c3fb7db7daba5756fee233b04de"
     },
     {
       "path": "scripts/spacetime-additive-migration-proof.d.mts",
@@ -2190,7 +2190,7 @@
     {
       "path": "scripts/verify-auth-bridge-notification-b0-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "473da6f74f568d6c9ca3f9f93b0f8b797b21e11117e751935e5d1e1102a7df88"
+      "sha256": "006c38de60910a824e6dd86cb03b0d2de38d89eda590d79c2cbed9ad3a7fbeb1"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.d.mts",
@@ -2200,7 +2200,7 @@
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "05b6e7758d1c0588270736020e5209bc00dffe270e3c30e903ca6b9ac8a58c7e"
+      "sha256": "f941abb2d6163f9ed137bd9d845e218e01fda90feee49c16963ff77f1c1c6eb0"
     },
     {
       "path": "scripts/verify-auth-bridge-notification-prepared-receipt.mjs",

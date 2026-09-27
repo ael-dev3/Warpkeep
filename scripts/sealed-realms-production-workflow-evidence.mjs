@@ -183,12 +183,14 @@ async function load(state) {
   const current = async () => {
     if (state.retained && !state.parentScope) {
       const branch = await request('/branches/main');
-      if (branch.name !== 'main' || branch.protected !== true || record(branch.commit).sha !== state.commit) fail();
+      if (branch.name !== 'main' || typeof branch.protected !== 'boolean'
+        || record(branch.commit).sha !== state.commit) fail();
       return;
     }
     const identity = state.parentScope ? activationParent(state).identity : state.identity;
     const [branch, raw] = await Promise.all([request('/branches/main'), request(`/actions/runs/${identity.runId}`)]);
-    if (branch.name !== 'main' || branch.protected !== true || record(branch.commit).sha !== state.commit) fail();
+    if (branch.name !== 'main' || typeof branch.protected !== 'boolean'
+      || record(branch.commit).sha !== state.commit) fail();
     const run = runIdentity(raw, state.commit, WORKFLOW_PATH,
       `${identity.operation} @ ${state.commit}`, 'workflow_dispatch');
     if (run.id !== identity.runId || run.run_attempt !== identity.runAttempt

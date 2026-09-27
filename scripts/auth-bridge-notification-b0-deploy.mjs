@@ -344,7 +344,7 @@ export function createAuthBridgeNotificationB0GithubWritePermit({
     if (
       !isRecord(branch)
       || branch.name !== 'main'
-      || branch.protected !== true
+      || typeof branch.protected !== 'boolean'
       || branch.commit?.sha !== sourceCommit
       || !isRecord(run)
       || String(run.id) !== runId

@@ -988,7 +988,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(source).not.toMatch(/^\s+(?:push|pull_request|workflow_run|schedule):/mu);
   });
 
-  it('binds dispatch, checkout, and both mutations to exact current protected main', () => {
+  it('binds dispatch, checkout, and both mutations to exact current main', () => {
     const source = workflow();
     expect(source).toContain("GITHUB_REPOSITORY\" != 'ael-dev3/Warpkeep'");
     expect(source).toContain("GITHUB_EVENT_NAME\" != 'workflow_dispatch'");
@@ -1000,7 +1000,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       'gh api "repos/ael-dev3/Warpkeep/branches/main"',
     );
     expect(source).toContain(
-      "--jq 'select(.protected == true) | .commit.sha'",
+      "--jq 'select(.protected == true or .protected == false) | .commit.sha'",
     );
     expect(source).toContain('ref: ${{ inputs.source_commit }}');
     expect(source).toContain('persist-credentials: false');

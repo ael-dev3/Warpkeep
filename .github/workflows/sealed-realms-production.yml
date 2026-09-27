@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       source_commit:
-        description: Exact protected Verify source commit
+        description: Exact reviewed main source commit with successful Verify
         required: true
         type: string
       operation:

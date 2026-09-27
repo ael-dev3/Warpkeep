@@ -35,7 +35,7 @@ async function workflowJobs(fetcher: typeof fetch, url: string, init: RequestIni
   return githubFail(CODE)
 }
 
-/** Ordinary protected workflow identity. Reusable-workflow claims are deliberately not required. */
+/** Ordinary workflow identity on current main. Reusable-workflow claims are deliberately not required. */
 export async function verifyPreparationWorkflowIdentity(input: Readonly<{
   token: string; preparationCommit: string; environment: GitHubEvidenceEnvironment; fetch: typeof fetch; nowSeconds: number
 }>): Promise<Readonly<{ identity: PreparationIdentity; expiresAt: number }>> {
@@ -50,7 +50,8 @@ export async function verifyPreparationWorkflowIdentity(input: Readonly<{
     || claims.sub !== `repo:ael-dev3/Warpkeep:environment:${PREPARATION_ENVIRONMENT}`
     || claims.repository !== 'ael-dev3/Warpkeep' || claims.repository_id !== '1273513252'
     || claims.repository_owner_id !== '183124839' || claims.ref !== 'refs/heads/main'
-    || claims.sha !== sha || claims.workflow_sha !== sha || claims.ref_protected !== 'true'
+    || claims.sha !== sha || claims.workflow_sha !== sha
+    || (claims.ref_protected !== 'true' && claims.ref_protected !== 'false')
     || claims.workflow !== 'Sealed Realms Production' || claims.workflow_ref !== PREPARATION_WORKFLOW_REF
     || claims.environment !== PREPARATION_ENVIRONMENT || claims.event_name !== 'workflow_dispatch'
     || claims.runner_environment !== 'self-hosted'
@@ -77,7 +78,7 @@ export async function verifyPreparationWorkflowIdentity(input: Readonly<{
   const repository = object(run.repository)
   if (run.id !== claims.run_id || run.run_attempt !== claims.run_attempt || run.head_sha !== sha
     || run.head_branch !== 'main' || run.event !== 'workflow_dispatch' || run.status !== 'in_progress'
-    || run.conclusion !== null || run.name !== 'Sealed Realms Production'
+    || run.conclusion !== null || run.name !== `activation-evidence-generate @ ${sha}`
     || (run.path !== WORKFLOW && run.path !== `${WORKFLOW}@main`)
     || repository.id !== '1273513252' || repository.full_name !== 'ael-dev3/Warpkeep'
     || object(repository.owner).id !== '183124839' || object(run.head_repository).id !== '1273513252'
@@ -114,9 +115,10 @@ export async function verifyPreparationWorkflowIdentity(input: Readonly<{
   const latest = await json(fetcher, runUrl, init, CODE, 200, ['/id', '/run_attempt'])
   if (latest.id !== claims.run_id || latest.run_attempt !== claims.run_attempt || latest.head_sha !== sha
     || latest.status !== 'in_progress' || latest.conclusion !== null) githubFail(CODE)
-  // Observe the protected head last, after all other authenticated metadata.
+  // Observe the current main head last, after all other authenticated metadata.
   const branch = await json(fetcher, `${API}/branches/main`, init, CODE)
-  if (branch.name !== 'main' || branch.protected !== true || object(branch.commit).sha !== sha) githubFail(CODE)
+  if (branch.name !== 'main' || (branch.protected !== true && branch.protected !== false)
+    || object(branch.commit).sha !== sha) githubFail(CODE)
   return Object.freeze({ identity: snapshotPreparationIdentity({ preparationCommit: sha, preparationTree: object(revision.tree).sha,
     runId: claims.run_id, runAttempt: claims.run_attempt, checkRunId }), expiresAt: claims.exp as number })
 }

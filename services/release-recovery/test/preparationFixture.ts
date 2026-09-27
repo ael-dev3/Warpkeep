@@ -21,7 +21,7 @@ export async function preparationFixture(options: Readonly<{
   const claims = { iss: 'https://token.actions.githubusercontent.com', aud: PREPARATION_AUDIENCE,
     sub: `repo:ael-dev3/Warpkeep:environment:${PREPARATION_ENVIRONMENT}`, repository: 'ael-dev3/Warpkeep',
     repository_id: '1273513252', repository_owner_id: '183124839', ref: 'refs/heads/main', sha,
-    ref_protected: 'true', workflow: 'Sealed Realms Production', workflow_ref: PREPARATION_WORKFLOW_REF,
+    ref_protected: 'false', workflow: 'Sealed Realms Production', workflow_ref: PREPARATION_WORKFLOW_REF,
     workflow_sha: sha, environment: PREPARATION_ENVIRONMENT, event_name: 'workflow_dispatch', runner_environment: 'self-hosted',
     run_id: '9007199254740995', run_attempt: '2',
     jti: '123e4567-e89b-42d3-a456-426614174000', iat: now - 5, nbf: now - 5, exp: now + 300, ...options.claims }
@@ -64,13 +64,13 @@ export async function preparationFixture(options: Readonly<{
         body = { total_count: jobCount, jobs: jobs.slice((page - 1) * 100, page * 100) }
       }
       else if (url.endsWith('/attempts/2')) body = { id: '__RUN__', run_attempt: 2, head_sha: sha, head_branch: 'main',
-        event: 'workflow_dispatch', status: 'in_progress', conclusion: null, name: 'Sealed Realms Production',
+        event: 'workflow_dispatch', status: 'in_progress', conclusion: null, name: `activation-evidence-generate @ ${sha}`,
         path: '.github/workflows/sealed-realms-production.yml', workflow_id: 42, check_suite_id: 77,
         repository: { id: 1273513252, full_name: 'ael-dev3/Warpkeep', owner: { id: 183124839 } }, head_repository: { id: 1273513252 } }
       else if (url.endsWith(`/actions/runs/${claims.run_id}`)) body = { id: '__RUN__', run_attempt: 2, head_sha: sha, status: 'in_progress', conclusion: null }
       else if (url.endsWith('/actions/workflows/sealed-realms-production.yml')) body = { id: 42, path: '.github/workflows/sealed-realms-production.yml', state: 'active' }
       else if (url === `${api}/git/commits/${sha}`) body = { sha, tree: { sha: tree } }
-      else if (url.endsWith('/branches/main')) body = { name: 'main', protected: true, commit: { sha } }
+      else if (url.endsWith('/branches/main')) body = { name: 'main', protected: false, commit: { sha } }
       else throw new Error(`unexpected fixture URL: ${url}`)
     }
     options.mutate?.(url, body)

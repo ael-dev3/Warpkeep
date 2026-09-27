@@ -507,7 +507,8 @@ function validateRepository(value: GitHubJsonObject): void {
 
 function validateBranch(value: GitHubJsonObject, candidateCommit: string): void {
   const branchCommit = objectValue(value.commit)
-  if (value.name !== 'main' || value.protected !== true || branchCommit.sha !== candidateCommit) {
+  if (value.name !== 'main' || (value.protected !== true && value.protected !== false)
+    || branchCommit.sha !== candidateCommit) {
     githubFail('RECOVERY_GITHUB_EVIDENCE_INVALID')
   }
 }

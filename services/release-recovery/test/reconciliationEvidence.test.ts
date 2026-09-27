@@ -207,7 +207,7 @@ function repositoryResponse(): Record<string, unknown> {
 }
 
 function branchResponse(): Record<string, unknown> {
-  return { name: 'main', protected: true, commit: { sha: CANDIDATE } }
+  return { name: 'main', protected: false, commit: { sha: CANDIDATE } }
 }
 
 function commitResponse(): Record<string, unknown> {
@@ -813,6 +813,21 @@ async function expectOwnedTransportTimeout(fixture: Fixture, url: string): Promi
 }
 
 describe('read-only V2 deployment reconciliation evidence', () => {
+  it('accepts both boolean branch protection states at the same pinned main commit', async () => {
+    for (const protectedFlag of [false, true]) {
+      const fixture = await makeFixture()
+      fixture.state.branch.protected = protectedFlag
+      await expect(fixture.reader(fixture.projection)).resolves.toMatchObject({ outcome: 'completed' })
+    }
+  })
+
+  it.each([undefined, 'false', null])('rejects a missing or malformed branch protection flag: %s', async protectedFlag => {
+    const fixture = await makeFixture()
+    if (protectedFlag === undefined) delete fixture.state.branch.protected
+    else fixture.state.branch.protected = protectedFlag
+    await expect(fixture.reader(fixture.projection)).resolves.toEqual({ outcome: 'ambiguous' })
+  })
+
   it('accepts provider actor/repository metadata without treating display text as authority', async () => {
     const fixture = await makeFixture();
     fixture.state.run.display_title = 'Reconcile the retained Warpkeep release';

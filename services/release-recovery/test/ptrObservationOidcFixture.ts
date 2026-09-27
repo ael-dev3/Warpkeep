@@ -11,6 +11,7 @@ export async function ptrObservationOidcFixture(options: Readonly<{
   runId?: string
   checkRunId?: string
   requestId?: string
+  operation?: 'ptr-state-inspect' | 'ptr-update-inspect' | 'ptr-update-apply' | 'g002-update-inspect' | 'g002-update-apply'
   mutate?: (url: string, value: Record<string, unknown>) => void
 }> = {}) {
   const now = options.now ?? Math.floor(Date.now() / 1000)
@@ -26,7 +27,7 @@ export async function ptrObservationOidcFixture(options: Readonly<{
   const claims = { iss: 'https://token.actions.githubusercontent.com', aud: PTR_OBSERVATION_AUDIENCE,
     sub: `repo:ael-dev3/Warpkeep:environment:${environmentName}`, repository: 'ael-dev3/Warpkeep',
     repository_id: '1273513252', repository_owner_id: '183124839', ref: 'refs/heads/main', sha: sourceCommit,
-    ref_protected: 'true', workflow: 'Sealed Realms Production', workflow_ref: workflowRef,
+    ref_protected: 'false', workflow: 'Sealed Realms Production', workflow_ref: workflowRef,
     workflow_sha: sourceCommit, environment: environmentName, event_name: 'workflow_dispatch', runner_environment: 'self-hosted',
     run_id: runId, run_attempt: '2', jti: requestId,
     iat: now - 5, nbf: now - 5, exp: now + 300, ...options.claims }
@@ -67,13 +68,14 @@ export async function ptrObservationOidcFixture(options: Readonly<{
         const page = Number(new URL(url).searchParams.get('page'))
         body = { total_count: jobCount, jobs: jobs.slice((page - 1) * 100, page * 100) }
       } else if (url.endsWith('/attempts/2')) body = { id: '__RUN__', run_attempt: 2, head_sha: sourceCommit, head_branch: 'main',
-        event: 'workflow_dispatch', status: 'in_progress', conclusion: null, name: 'Sealed Realms Production',
+        event: 'workflow_dispatch', status: 'in_progress', conclusion: null,
+        name: `${options.operation ?? 'ptr-state-inspect'} @ ${sourceCommit}`,
         path: '.github/workflows/sealed-realms-production.yml', workflow_id: 42, check_suite_id: 77,
         repository: { id: 1273513252, full_name: 'ael-dev3/Warpkeep', owner: { id: 183124839 } }, head_repository: { id: 1273513252 } }
       else if (url.endsWith(`/actions/runs/${claims.run_id}`)) body = { id: '__RUN__', run_attempt: 2, head_sha: sourceCommit, status: 'in_progress', conclusion: null }
       else if (url.endsWith('/actions/workflows/sealed-realms-production.yml')) body = { id: 42, path: '.github/workflows/sealed-realms-production.yml', state: 'active' }
       else if (url === `${api}/git/commits/${sourceCommit}`) body = { sha: sourceCommit, tree: { sha: sourceTree } }
-      else if (url.endsWith('/branches/main')) body = { name: 'main', protected: true, commit: { sha: sourceCommit } }
+      else if (url.endsWith('/branches/main')) body = { name: 'main', protected: false, commit: { sha: sourceCommit } }
       else throw new Error(`unexpected fixture URL: ${url}`)
     }
     options.mutate?.(url, body)

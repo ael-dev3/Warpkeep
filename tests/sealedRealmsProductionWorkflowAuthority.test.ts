@@ -78,7 +78,7 @@ function github(options: Readonly<{
     calls.push({ url, init });
     if (url.endsWith('/branches/main')) {
       const branch: Record<string, unknown> = {
-        name: 'main', protected: true, commit: { sha: sourceCommit },
+        name: 'main', protected: false, commit: { sha: sourceCommit },
       };
       options.mutateBranch?.(branch);
       return response(url, branch);
@@ -141,11 +141,12 @@ async function censusFixture(scenario = 'success', operation = 'activation-evide
     }
     censusReads++;
     const run = { id: 900, run_attempt: 1, event: 'workflow_dispatch', status: 'completed', conclusion: 'success',
-      head_branch: 'main', head_sha: S, path: WORKFLOW_PATH, name: 'Sealed Realms Production',
+      head_branch: 'main', head_sha: S, path: WORKFLOW_PATH, name: `g001-freeze-census @ ${S}`,
       display_title: `g001-freeze-census @ ${S}`, repository: { full_name: REPOSITORY } };
     if (scenario === 'failed-census') run.conclusion = 'failure';
     if (scenario === 'live-census') run.status = 'in_progress';
     if (scenario === 'wrong-operation') run.display_title = `g001-policy-observe @ ${S}`;
+    if (scenario === 'wrong-name') run.name = 'Sealed Realms Production';
     if (scenario === 'wrong-workflow') run.path = '.github/workflows/verify.yml';
     if (scenario === 'wrong-repo') run.repository.full_name = 'different/Warpkeep';
     if (scenario === 'wrong-source') run.head_sha = A;
@@ -199,7 +200,7 @@ describe('completed Linux census provenance', () => {
     expect(paths).toContain(`https://api.github.com/repos/${REPOSITORY}/actions/runs/900/attempts/1/jobs?per_page=100&page=1`);
     expect(f.fetchImpl.mock.calls.every(([, init]) => init?.method === 'GET')).toBe(true);
   });
-  it.each(['failed-census', 'live-census', 'wrong-operation', 'wrong-workflow', 'wrong-repo', 'wrong-source',
+  it.each(['failed-census', 'live-census', 'wrong-operation', 'wrong-name', 'wrong-workflow', 'wrong-repo', 'wrong-source',
     'wrong-branch', 'rerun-after-jobs', 'rerun-during-reattest', 'attempt-failed', 'wrong-job', 'wrong-runner', 'wrong-labels',
     'wrong-job-source', 'wrong-job-attempt', 'job-skipped', 'step-skipped', 'step-missing', 'truncated-jobs',
     'duplicate-job', 'main-advanced', 'activation-stopped'])('rejects %s instead of consuming retained data', async scenario => {
@@ -420,8 +421,9 @@ describe('sealed-realms protected workflow authority', () => {
   });
 
   it.each([
-    ['unprotected main', (branch: Record<string, unknown>) => { branch.protected = false; }, undefined],
-    ['wrong protected SHA', (branch: Record<string, unknown>) => { branch.commit = { sha: A }; }, undefined],
+    ['missing main protection flag', (branch: Record<string, unknown>) => { delete branch.protected; }, undefined],
+    ['nonboolean main protection flag', (branch: Record<string, unknown>) => { branch.protected = 'false'; }, undefined],
+    ['stale main SHA', (branch: Record<string, unknown>) => { branch.commit = { sha: A }; }, undefined],
     ['wrong repository', undefined, (run: Record<string, unknown>) => { run.repository = { full_name: 'attacker/repo' }; }],
     ['wrong workflow', undefined, (run: Record<string, unknown>) => { run.path = '.github/workflows/other.yml'; }],
     ['wrong event', undefined, (run: Record<string, unknown>) => { run.event = 'push'; }],
