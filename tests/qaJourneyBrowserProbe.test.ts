@@ -89,14 +89,14 @@ describe('real-browser synthetic journey probe', () => {
     expect(QA_JOURNEY_SCENARIOS).toBe(QA_JOURNEY_SCENARIO_MANIFEST);
     expect(QA_JOURNEY_SCENARIO_MANIFEST[0]).toEqual(expect.objectContaining({
       id: 'journey',
-      externalAnchorCount: 2,
+      externalAnchorCount: { local: 1, commit: 2 },
       landmark: { role: 'region', name: 'Synthetic journey controls' }
     }));
     expect(Object.fromEntries(QA_JOURNEY_SCENARIO_MANIFEST.map((entry) => (
       [entry.id, entry.externalAnchorCount]
     )))).toEqual(expect.objectContaining({
-      journey: 2,
-      menu: 2,
+      journey: { local: 1, commit: 2 },
+      menu: { local: 1, commit: 2 },
       terms: 0,
       'admission-denied': 0,
       'realm-player': 0,
@@ -119,7 +119,7 @@ describe('real-browser synthetic journey probe', () => {
     }));
     expect(cases.at(-1)).toEqual(expect.objectContaining({
       id: 'short-landscape-menu',
-      expectedExternalAnchorCount: 2,
+      expectedExternalAnchorCount: { local: 1, commit: 2 },
       scenario: 'menu',
       screenshot: true,
       url: 'http://127.0.0.1:41733/dev/qa-journey.html?scenario=menu',
@@ -139,6 +139,12 @@ describe('real-browser synthetic journey probe', () => {
       id === 'direct-menu'
     ))!;
     const observation = {
+      buildProvenanceAnchorCount: 1,
+      buildProvenanceLinkValid: true,
+      buildStampCount: 1,
+      buildStampMode: 'commit',
+      communityAnchorCount: 1,
+      communityLinkValid: true,
       documentWidth: 1_024,
       externalAnchorCount: 2,
       externalMediaCount: 0,
@@ -159,6 +165,16 @@ describe('real-browser synthetic journey probe', () => {
       scenario: 'menu',
       responsive: false
     });
+    expect(parseQaJourneyDirectObservation({
+      ...observation,
+      buildProvenanceAnchorCount: 0,
+      buildProvenanceLinkValid: true,
+      buildStampMode: 'local',
+      externalAnchorCount: 1
+    }, probeCase)).toEqual({
+      scenario: 'menu',
+      responsive: false
+    });
     expect(() => parseQaJourneyDirectObservation({
       ...observation,
       privateDomText: 'must-not-survive'
@@ -170,6 +186,14 @@ describe('real-browser synthetic journey probe', () => {
     expect(() => parseQaJourneyDirectObservation({
       ...observation,
       externalAnchorCount: 1
+    }, probeCase)).toThrow(/external-anchor-count/i);
+    expect(() => parseQaJourneyDirectObservation({
+      ...observation,
+      buildProvenanceLinkValid: false
+    }, probeCase)).toThrow(/menu-link-contract/i);
+    expect(() => parseQaJourneyDirectObservation({
+      ...observation,
+      externalAnchorCount: 3
     }, probeCase)).toThrow(/external-anchor-count/i);
     expect(() => parseQaJourneyDirectObservation({
       ...observation,
@@ -393,6 +417,7 @@ describe('real-browser synthetic journey probe', () => {
       modalCount: 0,
       patchExpanded: false,
       surfaceExternalAnchorCount: 0,
+      surfaceExternalLinksValid: true,
       surfaceKind: 'none',
       surfaceWithinViewport: true,
       undersizedSurfaceButtonCount: 0,
@@ -419,7 +444,8 @@ describe('real-browser synthetic journey probe', () => {
         creditsPresentation: 'rolling',
         focusTarget: 'surface',
         modalCount: 1,
-        surfaceExternalAnchorCount: 2,
+        surfaceExternalAnchorCount: 1,
+        surfaceExternalLinksValid: true,
         surfaceKind: 'credits',
         visibleSurfaceCount: 1
       }],
@@ -427,7 +453,8 @@ describe('real-browser synthetic journey probe', () => {
         creditsPresentation: 'reading',
         focusTarget: 'surface',
         modalCount: 1,
-        surfaceExternalAnchorCount: 2,
+        surfaceExternalAnchorCount: 1,
+        surfaceExternalLinksValid: true,
         surfaceKind: 'credits',
         visibleSurfaceCount: 1
       }],

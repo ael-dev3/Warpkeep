@@ -25,7 +25,7 @@ export type QaJourneyScenarioManifestId =
 export type QaJourneyScenarioManifestEntry = Readonly<{
   id: QaJourneyScenarioManifestId;
   label: string;
-  externalAnchorCount: 0 | 1 | 2;
+  externalAnchorCount: 0 | Readonly<{ local: 1; commit: 2 }>;
   landmark: Readonly<{
     role: 'dialog' | 'heading' | 'main' | 'navigation' | 'region';
     name: string;

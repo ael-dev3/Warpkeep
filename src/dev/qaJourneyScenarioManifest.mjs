@@ -7,13 +7,13 @@ export const QA_JOURNEY_SCENARIO_MANIFEST = Object.freeze([
   Object.freeze({
     id: 'journey',
     label: 'Interactive full journey',
-    externalAnchorCount: 2,
+    externalAnchorCount: Object.freeze({ local: 1, commit: 2 }),
     landmark: Object.freeze({ role: 'region', name: 'Synthetic journey controls' }),
   }),
   Object.freeze({
     id: 'menu',
     label: 'Main menu',
-    externalAnchorCount: 2,
+    externalAnchorCount: Object.freeze({ local: 1, commit: 2 }),
     landmark: Object.freeze({ role: 'navigation', name: 'Hegemony main menu' }),
   }),
   Object.freeze({

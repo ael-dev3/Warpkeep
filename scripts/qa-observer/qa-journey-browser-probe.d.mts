@@ -8,7 +8,9 @@ export type QaJourneyBrowserProbeCase = Readonly<{
   id: string;
   kind: 'direct' | 'responsive';
   scenario: import('../../src/dev/qaJourneyScenarioManifest.mjs').QaJourneyScenarioManifestId;
-  expectedExternalAnchorCount: 0 | 1 | 2;
+  expectedExternalAnchorCount:
+    | 0
+    | Readonly<{ local: 1; commit: 2 }>;
   landmark: Readonly<{
     role: 'dialog' | 'heading' | 'main' | 'navigation' | 'region';
     name: string;

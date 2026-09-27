@@ -60,6 +60,7 @@ logic was relaxed.
 | **20:28 UTC (session observation)** | The owner reported a fresh QR scan had logged in successfully. The message did not include the scan's exact time, request trace, browser, or served build hash, so this is recorded as an owner confirmation, not as a timestamped Worker exchange or independent reproduction. |
 | **20:56:33 UTC (conversation-clock observation)** | After another fresh scan, the owner reported that QR sign-in succeeded. This is the session clock observed after the report, not the exact scan or exchange time. No Worker trace, browser identity, or served build hash accompanied the report. |
 | **21:50:52 UTC (conversation-clock observation)** | The owner reported another fresh scan and confirmed successful login. This is the session clock read immediately after the report, not the exact scan or exchange time. No Worker trace, browser identity, or served build hash accompanied this confirmation. |
+| **22:17:54 UTC (conversation-clock observation)** | The owner reported another scan and confirmed successful login (“scanned, logged in successfully”). This is the clock read during the follow-up after the report, not the scan or exchange time. No Worker trace, browser identity, or served build hash accompanied this confirmation. |
 
 The creation and deployment timestamps are from Cloudflare's version and
 deployment metadata. Failed and successful sign-in route timestamps are from
@@ -67,10 +68,10 @@ the sanitized live Worker tail as captured in the local Codex session record.
 The public publication timestamps are from the signed commit and GitHub
 Actions run. The isolated edge probe and first synthetic proof retained result
 observation times, not individual request timestamps. Retained production
-Worker logs are disabled. The 20:28 UTC and 21:50:52 UTC owner confirmation
-times are assistant-session observation times, not scan times. The 20:56:33
-UTC value is also a conversation-clock observation, not a Worker request
-timestamp.
+Worker logs are disabled. The 20:28 UTC, 21:50:52 UTC, and 22:17:54 UTC owner
+confirmation values are assistant-session clock observations, not scan times.
+The 20:56:33 UTC value is also a conversation-clock observation, not a Worker
+request timestamp.
 
 ## Change and validation
 

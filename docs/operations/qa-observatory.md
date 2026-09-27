@@ -68,6 +68,12 @@ journey, responsive presentation, pointer and keyboard interactions, and the
 castle LOD comparison lane. It exits non-zero if a case fails or the browser
 leaves the local boundary.
 
+The menu observer accounts for the local build stamp's single Farcaster link
+and the optional, validated GitHub commit permalink on commit-stamped builds.
+It also checks the exact Creative Commons attribution link in Credits. Local
+QA does not require injecting a build SHA just to satisfy production-menu link
+expectations.
+
 The fetch step retrieves the hash-pinned historical castle source used only by
 the LOD comparison lane and stores it in the ignored local asset cache. On
 Windows, the attested system `tar.exe` adapter provides the same list/extract
