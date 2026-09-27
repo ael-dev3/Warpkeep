@@ -27,17 +27,20 @@ Mini App Quick Auth success is not desktop QR evidence. The
 [hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
 has the source, verification and recovery path. The 0.4 PTR is not live.
 
-The current signed 0.4 [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
-head is [`0dd69b35`](https://github.com/ael-dev3/Warpkeep/commit/0dd69b35aa4c66a907cf07038853897c9119ea17).
-Its protected-closure source checkpoint remains signed
+Read the live head of signed 0.4
+[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) before any operation;
+documentation checkpoints may follow its protected-closure source. That source
+checkpoint remains signed
 [`68937b59`](https://github.com/ael-dev3/Warpkeep/commit/68937b59765340b04a8c0c180f8fc60dd3812129).
 The 1,258-member closure manifest hashes to
 `58b6a428ca9f12ca7431e8ed1801cbe31d1e09d298564a44f87adbdff1f010ef`;
 exact-source native preparation/check matched 3,266 Git blobs, generated 16
 outputs, and passed Windows/Linux checked-in policy and sealed-launch checks.
 Focused auth tests, typecheck, production build and public payload check passed.
-[latest exact-head Verify 36334621907](https://github.com/ael-dev3/Warpkeep/actions/runs/36334621907)
-stopped all 17 jobs before runner steps at GitHub's account billing gate; it
+The last attempted hosted Verify, [run 36334621907](https://github.com/ael-dev3/Warpkeep/actions/runs/36334621907)
+on earlier signed documentation head
+[`0dd69b35`](https://github.com/ael-dev3/Warpkeep/commit/0dd69b35aa4c66a907cf07038853897c9119ea17),
+stopped all 17 jobs before runner steps at GitHub's account billing gate. It
 is neither a source failure nor a pass. `main` remains the earlier signed M2
 `786c0b2b`. New [menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375)
 is unsigned, has stale protected-closure membership and a new `.m4a` asset
