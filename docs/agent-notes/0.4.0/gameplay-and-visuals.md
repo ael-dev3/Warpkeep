@@ -1,5 +1,27 @@
 # Gameplay and visual implementation notes
 
+## Incoming-aware building guidance — September 27, 2026
+
+The building catalog previously linked to the first shortage in spendable
+balances even when confirmed Worker earnings already covered it. For a first
+City Mill with food on the way home, that could send the player to gather more
+food instead of the still-needed wood. Cards now show relevant incoming amounts
+and suggest the first shortage still uncovered after those amounts. If incoming
+earnings cover every shortage, the card asks the player to await confirmed
+returns. A resource search without a named Worker now starts with the first
+idle Worker; a named Worker remains the player's explicit choice. If all
+Workers are busy, the catalog explains the wait instead of offering a resource
+dispatch shortcut that cannot proceed. Build confirmation still uses spendable
+balances only; no resources, Worker commands or building policy changed.
+
+The focused Keep04 screen suite covers partial coverage, fully covered but
+unspendable costs, confirmed-credit review and busy Workers. The PTR surface
+integration suite covers the phone-width Keep-to-world handoff and available
+dispatch for the first idle Worker. Typechecking and the full production build
+passed. This is
+local UI evidence; an authenticated owner journey, rendered phone review and
+physical-device timing remain open.
+
 ## Stalled response recovery — September 20, 2026
 
 An open PTR socket could leave a gameplay procedure unanswered and hold the

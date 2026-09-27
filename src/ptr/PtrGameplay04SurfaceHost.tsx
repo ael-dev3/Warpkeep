@@ -127,9 +127,11 @@ function CurrentSurface(props: Props & { identityKey: string }) {
   }, [controller, props.ptrGameplay04]);
   const onPhaseChange = useCallback(() => {}, []);
   function findResources(resource: Resource04 | null, workerOrdinal?: number) {
-    // Keep only the requested Worker for this capability's next resource review.
-    // The new world scene still requires a fresh target and current idle state.
-    setResourceWorkerOrdinal(isWorkerOrdinal04(workerOrdinal) ? workerOrdinal : 0);
+    // Keep an explicitly requested Worker, or start an untargeted search with
+    // the first currently idle Worker. The world still requires a fresh target
+    // and rechecks that Worker before dispatch.
+    const firstIdle = controller.getSnapshot().view?.workers.find(worker => worker.phase === 'idle')?.ordinal;
+    setResourceWorkerOrdinal(isWorkerOrdinal04(workerOrdinal) ? workerOrdinal : firstIdle ?? 0);
     setResourceFocus(resource); setOpenPanel('resources'); setDraft(null); surface.closeToRealm();
   }
   if (restoringSurface) return <p role="status">Opening keep…</p>;

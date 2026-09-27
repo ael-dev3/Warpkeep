@@ -104,6 +104,12 @@ async function setup(generation = 17) {
         route: [{ q: -2, r: 1 }, { q: -1, r: 1 }], destinationCellKey: 'CELL:-1:1' };
       wire.revision++;
     },
+    pendingFoodWorker() {
+      wire.workers[0].assignmentRevision++;
+      wire.workers[0].assignment = { ...assignmentWire04(), phase: 'returning', earned: 60n,
+        route: [{ q: -2, r: 1 }, { q: -1, r: 1 }], destinationCellKey: 'CELL:-1:1' };
+      wire.revision++;
+    },
   };
 }
 
@@ -560,6 +566,29 @@ it('Find food returns to the actual focused resource panel and requires a fresh 
   expect(host.maximum).toBe(1);
   fireEvent.click(screen.getByRole('button', { name: 'Show all resources' }));
   expect(screen.getByRole('button', { name: /wood site at/ })).toBeTruthy();
+});
+
+it('Find wood from a keep with food pending opens a fresh wood dispatch on the first idle Worker at phone width', async () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+  const h = await setup(); h.pendingFoodWorker();
+  render(<RealmMapScreen {...h.props} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Buildings' }));
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  const mill = within(screen.getByRole('article', { name: 'City Mill' }));
+  expect(mill.getByText('Incoming (not spendable yet): food 60')).toBeVisible();
+  fireEvent.click(mill.getByRole('button', { name: 'Find wood' }));
+  expect(screen.queryByRole('button', { name: /^Dispatch Worker/ })).toBeNull();
+  fireEvent.click(await screen.findByRole('button', { name: /wood site at/ }));
+  const chooser = screen.getByRole('combobox', { name: 'Idle Worker' }) as HTMLSelectElement;
+  expect(chooser.value).toBe('1');
+  expect(screen.getByRole('option', { name: 'Worker 1 · returning' })).toBeDisabled();
+  const dispatch = screen.getByRole('button', { name: 'Dispatch Worker 2' }) as HTMLButtonElement;
+  expect(dispatch).toBeEnabled();
+  expect(h.dispatch).not.toHaveBeenCalled();
+  fireEvent.click(dispatch);
+  await waitFor(() => expect(h.dispatch).toHaveBeenCalledOnce());
+  expect(h.dispatch.mock.calls[0][0]).toMatchObject({ workerOrdinal: 1, resource: 'wood', gatheringDurationMicros: 60_000_000n });
 });
 
 it('viewport refresh removes dispatch until a current world snapshot and explicit selection arrive', async () => {

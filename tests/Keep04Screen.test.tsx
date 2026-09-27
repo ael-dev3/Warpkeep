@@ -53,8 +53,57 @@ it('shows four Workers and spendable resources; pending returns never fund perma
   expect(screen.getByText(/spent resources are not refunded/i)).toBeVisible();
   expect(screen.getByRole('button', { name: /Confirm placement/ })).toBeDisabled();
   expect(screen.getByText('Missing: food 20 · wood 40 · stone 20')).toBeVisible();
-  fireEvent.click(screen.getAllByRole('button', { name: 'Find food' })[0]); expect(find).toHaveBeenCalledWith('food');
+  const mill = within(screen.getByRole('article', { name: 'City Mill' }));
+  expect(mill.getByText('Incoming (not spendable yet): food 60')).toBeVisible();
+  fireEvent.click(mill.getByRole('button', { name: 'Find wood' })); expect(find).toHaveBeenCalledWith('wood');
   expect(controller.submit).not.toHaveBeenCalled();
+});
+
+it('keeps gathering the same resource when a confirmed incoming amount does not cover its cost', () => {
+  const wire = freshWire04(); wire.workers[0].assignmentRevision = 1n;
+  wire.workers[0].assignment = { ...assignmentWire04(), earned: 10n, phase: 'gathering' };
+  const { find } = setup(wire); openMill();
+  const mill = within(screen.getByRole('article', { name: 'City Mill' }));
+  expect(mill.getByText('Incoming (not spendable yet): food 10')).toBeVisible();
+  fireEvent.click(mill.getByRole('button', { name: 'Find food' }));
+  expect(find).toHaveBeenCalledWith('food');
+});
+
+it('waits for confirmed return when incoming earnings cover every shortage without enabling construction', () => {
+  const wire = freshWire04();
+  for (const [ordinal, resource] of ['food', 'wood', 'stone'].entries()) {
+    wire.workers[ordinal].assignmentRevision = 1n;
+    wire.workers[ordinal].assignment = { ...assignmentWire04(), resource: resource as 'food' | 'wood' | 'stone',
+      locationId: `${resource}-site`, earned: 60n, phase: 'returning' };
+  }
+  const { snapshot, rerender, controller } = setup(wire); openMill();
+  const mill = within(screen.getByRole('article', { name: 'City Mill' }));
+  expect(mill.getByText('Incoming (not spendable yet): food 60 · wood 60 · stone 60')).toBeVisible();
+  expect(mill.getByText('Await confirmed Worker returns before building.')).toBeVisible();
+  expect(mill.queryByRole('button', { name: /^Find (food|wood|stone)$/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Confirm placement/ })).toBeDisabled();
+  expect(controller.submit).not.toHaveBeenCalled();
+
+  wire.revision = 2n; wire.food = 60n; wire.wood = 60n; wire.stone = 60n;
+  for (const worker of wire.workers.slice(0, 3)) worker.assignment = undefined;
+  rerender({ ...snapshot, view: presentState04(decodeState04(wire, SCOPE04), ATLAS04, Date.now()) });
+  expect(mill.queryByText('Await confirmed Worker returns before building.')).not.toBeInTheDocument();
+  expect(mill.getByText('Resources ready')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Review updated costs' }));
+  expect(screen.getByRole('button', { name: /Confirm placement/ })).toBeEnabled();
+});
+
+it('explains why a missing resource has no new-journey action while every Worker is busy', () => {
+  const wire = freshWire04();
+  for (const worker of wire.workers) {
+    worker.assignmentRevision = 1n;
+    worker.assignment = { ...assignmentWire04(), phase: 'outbound', earned: 0n };
+  }
+  const { find } = setup(wire); openMill();
+  expect(screen.getByText('All Workers are busy. Another journey becomes available after one returns.')).toBeVisible();
+  expect(within(screen.getByRole('article', { name: 'City Mill' })).queryByRole('button', { name: 'Find food' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Confirm placement/ })).toBeDisabled();
+  expect(find).not.toHaveBeenCalled();
 });
 
 it('submits one frozen quote without local deductions and requires review after realm changes', async () => {
