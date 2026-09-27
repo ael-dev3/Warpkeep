@@ -5,7 +5,7 @@ import type { Controller04, Snapshot04 } from '../../ptr/gameplay04/createGamepl
 import { initialPlacement04 } from '../../ptr/gameplay04/gameplay04Placement';
 import { PENDING_LABEL04 } from '../../ptr/gameplay04/gameplay04Presentation';
 import { BUILDING_NAMES04, Keep04BuildingPanel, RESOURCES04 } from './Keep04BuildingPanel';
-import { activeKeep04LoopStage04, Keep04LoopRail } from './Keep04LoopRail';
+import { activeKeep04LoopStage04, isKeep04FirstJourney04, Keep04LoopRail } from './Keep04LoopRail';
 import { Keep04Schematic } from './Keep04Schematic';
 import { Keep04SceneHost, type Keep04SceneHostProps } from './Keep04SceneHost';
 import { evaluatePlacement04 } from '../../../spacetimedb/gameplay04/placement';
@@ -44,10 +44,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   // focus. Only ready grants command authority; failures and expired scopes hide it.
   const visible = (phase === 'ready' || phase === 'refreshing' || phase === 'pending') && view !== null;
   const firstIdleWorker = view?.workers.find(worker => worker.phase === 'idle');
-  const showFirstJourney = visible && view !== null && view.buildings.length === 0
-    && firstIdleWorker !== undefined
-    && view.workers.every(worker => worker.assignmentRevision === 0n)
-    && RESOURCES04.every(resource => view.balances[resource] === 0n && view.pending[resource] === 0n);
+  const showFirstJourney = visible && view !== null && isKeep04FirstJourney04(view);
   const wasVisible = useRef(visible);
   const activeTimer = visible && (view.state.project !== undefined || view.workers.some(worker => worker.phase !== 'idle'));
   useEffect(() => {

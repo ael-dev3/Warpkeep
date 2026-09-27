@@ -21,6 +21,14 @@ export function keep04LoopDetail04(stage: Keep04LoopStage04): string {
   return LOOP_COPY04[stage].detail;
 }
 
+export function isKeep04FirstJourney04(view: View04): boolean {
+  return view.buildings.length === 0
+    && view.workers.some(worker => worker.phase === 'idle')
+    && view.workers.every(worker => worker.assignmentRevision === 0n)
+    && Object.values(view.balances).every(amount => amount === 0n)
+    && Object.values(view.pending).every(amount => amount === 0n);
+}
+
 export function activeKeep04LoopStage04(selection: Keep04LoopSelection04, view: View04): Keep04LoopStage04 {
   if (view.workers.some(worker => worker.phase === 'returning')
     || Object.values(view.pending).some(amount => amount > 0n)) return 'return';
@@ -30,6 +38,7 @@ export function activeKeep04LoopStage04(selection: Keep04LoopSelection04, view: 
       ? 'benefit' : 'build';
   }
   if (selection.panel === 'workers' || view.workers.some(worker => worker.phase === 'outbound' || worker.phase === 'gathering')) return 'gather';
+  if (isKeep04FirstJourney04(view)) return 'gather';
   if (Object.values(view.state.completedLevels).every(level => level === 5)) return 'gather';
   return 'choose';
 }

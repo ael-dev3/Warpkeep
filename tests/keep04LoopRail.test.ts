@@ -19,11 +19,13 @@ it('offers gathering when the keep has no remaining building upgrades', () => {
   expect(activeKeep04LoopStage04({ ...emptySelection, panel: 'buildings', selectedKind: 'city-mill' }, view)).toBe('benefit');
 });
 
-it('keeps the loop order stable and chooses a clear next stage', () => {
+it('keeps the loop order stable and aligns an empty keep with its first journey', () => {
   expect(KEEP04_LOOP_STAGES04).toEqual(['gather', 'choose', 'build', 'benefit', 'return']);
-  expect(activeKeep04LoopStage04(emptySelection, viewOf())).toBe('choose');
+  expect(activeKeep04LoopStage04(emptySelection, viewOf())).toBe('gather');
   expect(activeKeep04LoopStage04({ ...emptySelection, panel: 'workers' }, viewOf())).toBe('gather');
   expect(activeKeep04LoopStage04({ ...emptySelection, panel: 'buildings', selectedKind: 'city-mill' }, viewOf())).toBe('build');
+  const funded = freshWire04(); funded.food = 1n;
+  expect(activeKeep04LoopStage04(emptySelection, viewOf(funded))).toBe('choose');
 });
 
 it('keeps construction at Build until the Realm reports the selected improvement complete', () => {

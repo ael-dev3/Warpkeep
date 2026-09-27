@@ -394,6 +394,7 @@ it("keeps zero incoming resources quiet without hiding available balances", () =
 it('makes the first resource journey obvious for a new empty keep', () => {
   const { find, controller } = setup();
   const firstJourney = screen.getByRole('region', { name: 'First journey' });
+  expect(within(screen.getByRole('region', { name: 'Keep loop' })).getByRole('listitem', { name: 'Gather · active' })).toHaveAttribute('aria-current', 'step');
   expect(firstJourney).toHaveTextContent('Start with one useful journey.');
   expect(firstJourney).toHaveTextContent('Open the Realm and choose a resource location for Worker 1.');
   fireEvent.click(within(firstJourney).getByRole('button', { name: 'Choose a resource location' }));
@@ -432,7 +433,7 @@ it.each(['refreshing', 'pending'] as const)('retains first-journey focus and nav
 it('keeps the gather-to-return loop legible while the player makes a decision', () => {
   setup();
   const loop = () => screen.getByRole('region', { name: 'Keep loop' });
-  expect(within(loop()).getByRole('listitem', { name: 'Choose · active' })).toHaveAttribute('aria-current', 'step');
+  expect(within(loop()).getByRole('listitem', { name: 'Gather · active' })).toHaveAttribute('aria-current', 'step');
 
   fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
   expect(within(loop()).getByRole('listitem', { name: 'Gather · active' })).toHaveAttribute('aria-current', 'step');
