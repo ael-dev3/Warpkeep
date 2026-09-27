@@ -12,7 +12,28 @@ The [hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-front
 has the exact source, verification and recovery path. This brings the existing
 site online; 0.4 PTR remains unshipped and needs its own reviewed release path.
 
-The current signed source/closure checkpoint on PR #374 is
+The latest signed source/closure checkpoint on PR #374 is
+[`24c90daa`](https://github.com/ael-dev3/Warpkeep/commit/24c90daa9b92aa84e2c0322e226119d115b4c120).
+The Greater Realm now explains an initial or refresh failure, offers a reachable
+mobile retry, retains the last verified map during refresh failure and disables
+stale recall commands until a current read succeeds. A standalone candidate
+verifier checks that an exact clean source build contains only reviewed public
+static paths and that its embedded source SHA is reachable from the root page;
+it writes a deterministic file-hash manifest outside `dist`. It does not publish
+or authorize 0.4. The 70 combined focused World/PTR/payload tests, typecheck,
+root-base production build, checked-in sealed-launch check, outgoing secret scan
+and signed remote readback passed. A real local build from this exact head
+passed payload manifest `--write`/`--check` with 366 files and 124,852,956 bytes;
+the disposable manifest was removed. Clean native Linux passed the eight
+payload tests, checked-in sealed-launch and the 1,258-member closure policy.
+The changed World and CSS protected members were independently refrozen from
+raw Git blobs; all 16 derived outputs matched. These are local/preparatory
+checks, not actual owner PTR or live deployment acceptance.
+[Verify 36315983892](https://github.com/ael-dev3/Warpkeep/actions/runs/36315983892)
+on that head again rejected all 17 jobs before runner start with the account
+payment/spending-limit annotation. Do not merge under the release gate.
+
+An earlier signed source/closure checkpoint on PR #374 is
 [`8ef5f510`](https://github.com/ael-dev3/Warpkeep/commit/8ef5f510a086d6b7e64623080d8b440937ac93cf).
 It keeps unchanged Keep polls from reconciling the 3D scene and allows panel
 navigation against the retained validated view while a refresh or command is
