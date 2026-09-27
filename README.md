@@ -44,10 +44,12 @@ on a desktop. Reused assets retain their original credits and permissions.
 generated-files host carries a focused QR sign-in clock-lag repair. Its live
 files match the published build, but a fresh phone-approved QR sign-in is still
 needed to verify that repair end to end. The active 0.4 source and its protected
-closure are signed and synchronized on [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374);
-GitHub rejected its latest Verify jobs before they started because of the
-account billing limit. The private development source, exact checks and next
-release action are recorded in the dated
+closure are signed and synchronized on [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374).
+Another QR failure was reported, but its browser detail and request trace were
+unavailable, so the fix has not been verified end to end. GitHub rejected the
+latest Verify jobs before they started because of the account billing limit.
+The private development source, exact checks and next release action are
+recorded in the dated
 [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md). Protected
 integration, native preparation, provider work and owner acceptance still
 remain before 0.4 release.

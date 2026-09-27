@@ -54,6 +54,10 @@ generated-only M2, exact-main Verify and authenticated deployment. Current
 `main` remains the earlier `786c0b2b` M2. The public Alpha hotfix is a separate
 build; 0.4 owner PTR is not live. The latest closure head still needs its own
 successful hosted Verify; do not reuse the earlier zero-step run as evidence.
+[Verify 36330429158](https://github.com/ael-dev3/Warpkeep/actions/runs/36330429158)
+on subsequent signed documentation head `0e1fcedd` also stopped all 17 jobs
+before any step with the same billing annotation. A passing Verify on the
+eventual final PR head remains absent.
 
 ### Earlier 27 September source checkpoints
 
