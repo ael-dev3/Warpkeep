@@ -48,7 +48,11 @@ async function setup(generation = 17) {
   });
   const authority = await client.exchangeQuickAuth('quick.auth.token');
   let wire = freshWire04();
-  const read = vi.fn(async () => structuredClone(wire));
+  let uninitialized = false;
+  const read = vi.fn(async () => {
+    if (uninitialized) throw 'GAMEPLAY04_NOT_INITIALIZED';
+    return structuredClone(wire);
+  });
   const build = vi.fn((_input: BuildWire04) => new Promise<{ sequence: bigint; revision: bigint }>(() => {}));
   const dispatch = vi.fn(async (input: DispatchWire04) => {
     wire.revision = input.expectedRevision + 1n; wire.lastAcceptedSequence = input.sequence;
@@ -81,6 +85,7 @@ async function setup(generation = 17) {
   const props = { identity: { fid: 1 }, ptrRealmAuthority: authority, ptrViewAnchor: anchor, greaterRealm: bridge,
     ptrGameplay04: capability, resolvedGraphicsQuality: 'balanced' as const, onRequestReturn };
   return { props, session, capability, bridge, authority, read, dispatch, build, ready, publish: (value: GreaterRealmClientSnapshot) => listener(value),
+    setUninitialized(value: boolean) { uninitialized = value; },
     fund() { wire.food = 1000n; wire.wood = 1000n; wire.stone = 1000n; wire.gold = 1000n; },
     journeys(points = 8193) {
       for (const worker of wire.workers) {
@@ -110,6 +115,38 @@ beforeEach(() => {
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener() {}, removeEventListener() {} })));
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+
+it('guides an uninitialized first-session World entry to the existing keep establishment flow', async () => {
+  const h = await setup();
+  h.setUninitialized(true);
+  render(<RealmMapScreen {...h.props} />);
+
+  expect(await screen.findByText('Establish your keep before sending Workers.')).toBeVisible();
+  expect(screen.queryByText('Refresh keep state before dispatch.')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /food site at/ }));
+  expect(screen.queryByRole('button', { name: 'Dispatch Worker 1' })).toBeNull();
+  expect(screen.queryByText('Select a current public resource location to dispatch.')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Open keep to establish' }));
+  expect(await screen.findByRole('heading', { name: 'Your keep' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Establish keep' })).toBeEnabled();
+  expect(h.dispatch).not.toHaveBeenCalled();
+});
+
+it('keeps the setup guidance and action visible at phone width with the resources drawer closed', async () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+  const h = await setup();
+  h.setUninitialized(true);
+  render(<RealmMapScreen {...h.props} />);
+
+  expect(await screen.findByText('Establish your keep before sending Workers.')).toBeVisible();
+  expect(document.getElementById('greater-realm-world-resources-panel')).toHaveAttribute('hidden');
+  const setupAction = screen.getByRole('button', { name: 'Open keep to establish' });
+  expect(setupAction).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Open keep' })).toBeNull();
+  fireEvent.click(setupAction);
+  expect(await screen.findByRole('button', { name: 'Establish keep' })).toBeEnabled();
+  expect(h.dispatch).not.toHaveBeenCalled();
+});
 
 it('opens keep only through current matching branded PTR capability; legacy and capability-only inputs fail closed', async () => {
   const h = await setup();

@@ -145,7 +145,8 @@ function CurrentSurface(props: Props & { identityKey: string }) {
         resourceFocus04={resourceFocus} onGameplay04WorldSelection={worldSelection}
         renderGameplay04WorldPanel={(value, validate) => <WorldWorkerPanel snapshot={snapshot} controller={controller} selection={value} validateSelection={validate} initialWorkerOrdinal={resourceWorkerOrdinal} />} />
       <div className="greater-realm-world__continuity"><button type="button" onClick={handleBack}>Back</button>
-        <button type="button" onClick={() => surface.push({ kind: 'inner-keep' })}>Open keep</button>
+        {snapshot.phase === 'uninitialized' && <span role="status">Establish your keep before sending Workers.</span>}
+        <button type="button" onClick={() => surface.push({ kind: 'inner-keep' })}>{snapshot.phase === 'uninitialized' ? 'Open keep to establish' : 'Open keep'}</button>
         {resourceFocus && <button type="button" onClick={() => setResourceFocus(null)}>Show all resources</button>}
       </div>
     </> : <Keep04Screen snapshot={snapshot} controller={controller} selection={selection} onSelectionChange={changeSelection}
@@ -188,6 +189,7 @@ function WorldWorkerPanel({ snapshot, controller, selection, validateSelection, 
   const enabled = ready && idle && selection !== null && target != null && validateSelection(selection);
   const effects = view?.state.completedEffects;
   const rate = target && effects ? { food: effects.foodYieldPerQuantum, wood: effects.woodYieldPerQuantum, stone: effects.stoneYieldPerQuantum, gold: effects.goldYieldPerQuantum }[target.resource] : null;
+  if (snapshot.phase === 'uninitialized') return null;
   return <section aria-label="0.4 Workers">
     <h2>Workers</h2>
     {snapshot.problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}
