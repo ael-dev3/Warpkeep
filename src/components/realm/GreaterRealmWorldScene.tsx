@@ -43,6 +43,7 @@ type BrowserPresentation = Readonly<{
 }>;
 
 export const GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS = 60_000;
+export const GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS = 30_000;
 
 function readWorkerControl(bridge: AvailableGreaterRealmProviderBridge) {
   try {
@@ -475,10 +476,14 @@ export function GreaterRealmWorldScene({
     let initialLoadComplete = false;
     let initialLoadSuperseded = false;
     let refreshInFlight = false;
+    let refreshAttempt = 0;
+    let readTimedOut = false;
     let lastReleaseAttemptAt = Date.now();
     let runtime: ReturnType<typeof bridge.createRuntime> | undefined;
     let unsubscribe: (() => void) | undefined;
     let refreshTimer: number | undefined;
+    let initialLoadTimeout: number | undefined;
+    let refreshTimeout: number | undefined;
     const reportPhase = (next: GreaterRealmClientPhase) => {
       if (!active) return;
       setWorldPhase(next);
@@ -520,6 +525,7 @@ export function GreaterRealmWorldScene({
           return;
         }
         if (usable) {
+          readTimedOut = false;
           snapshotBridgeRef.current = bridge;
           snapshotIdentityKeyRef.current = identityKey;
           setSnapshot(next);
@@ -532,8 +538,20 @@ export function GreaterRealmWorldScene({
         // until a new exact ready snapshot arrives.
         setResourceSelection(undefined);
         setCommandSnapshot(undefined);
-        reportPhase(next.phase === 'ready' ? 'failed' : next.phase);
+        // A late intermediate publication from a timed-out request must not
+        // hide Retry again. Only an exact ready read can recover implicitly.
+        if (!readTimedOut) reportPhase(next.phase === 'ready' ? 'failed' : next.phase);
       });
+      // A provider request can stay pending without reporting failure. Surface
+      // recovery while preserving the last validated atlas and revoking commands.
+      initialLoadTimeout = window.setTimeout(() => {
+        if (!active || initialLoadComplete || initialLoadSuperseded) return;
+        initialLoadComplete = true;
+        readTimedOut = true;
+        setResourceSelection(undefined);
+        setCommandSnapshot(undefined);
+        reportPhase('failed');
+      }, GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS);
       void Promise.resolve().then(() => runtime!.loadView(requestedView)).catch(() => {
         if (active && !initialLoadSuperseded) {
           setResourceSelection(undefined);
@@ -541,6 +559,7 @@ export function GreaterRealmWorldScene({
           reportPhase('failed');
         }
       }).finally(() => {
+        if (initialLoadTimeout !== undefined) window.clearTimeout(initialLoadTimeout);
         initialLoadComplete = true;
       });
       const refreshWorld = (manual: boolean) => {
@@ -556,24 +575,37 @@ export function GreaterRealmWorldScene({
           ))
         ) return;
         refreshInFlight = true;
-        // An explicit retry supersedes an unresolved initial read. Its outcome
-        // becomes the new release baseline for later scheduled refreshes.
-        if (manual) {
-          initialLoadSuperseded = true;
-          initialLoadComplete = true;
-        }
+        const attempt = ++refreshAttempt;
+        // Any refresh supersedes an unresolved initial read, including an
+        // automatic refresh after its watchdog expires.
+        initialLoadSuperseded = true;
+        initialLoadComplete = true;
+        readTimedOut = false;
         lastReleaseAttemptAt = Date.now();
         gameplaySelectionRef.current = null;
         setResourceSelection(undefined);
         setCommandSnapshot(undefined);
         if (manual) reportPhase('bootstrapping');
+        refreshTimeout = window.setTimeout(() => {
+          if (!active || attempt !== refreshAttempt) return;
+          ++refreshAttempt;
+          refreshInFlight = false;
+          refreshTimeout = undefined;
+          readTimedOut = true;
+          setResourceSelection(undefined);
+          setCommandSnapshot(undefined);
+          reportPhase('failed');
+        }, GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS);
         void Promise.resolve().then(() => runtime!.refreshRelease(requestedView)).catch(() => {
-          if (active) {
+          if (active && attempt === refreshAttempt) {
             setResourceSelection(undefined);
             setCommandSnapshot(undefined);
             reportPhase('failed');
           }
         }).finally(() => {
+          if (attempt !== refreshAttempt) return;
+          if (refreshTimeout !== undefined) window.clearTimeout(refreshTimeout);
+          refreshTimeout = undefined;
           refreshInFlight = false;
         });
       };
@@ -590,6 +622,8 @@ export function GreaterRealmWorldScene({
       const removeRefreshListeners = () => {
         document.removeEventListener('visibilitychange', visibilityChange);
         if (refreshTimer !== undefined) window.clearInterval(refreshTimer);
+        if (initialLoadTimeout !== undefined) window.clearTimeout(initialLoadTimeout);
+        if (refreshTimeout !== undefined) window.clearTimeout(refreshTimeout);
       };
       return () => {
         active = false;
@@ -606,6 +640,8 @@ export function GreaterRealmWorldScene({
       active = false;
       retryWorldLoadRef.current = null;
       if (refreshTimer !== undefined) window.clearInterval(refreshTimer);
+      if (initialLoadTimeout !== undefined) window.clearTimeout(initialLoadTimeout);
+      if (refreshTimeout !== undefined) window.clearTimeout(refreshTimeout);
       unsubscribe?.();
       runtime?.dispose();
     };

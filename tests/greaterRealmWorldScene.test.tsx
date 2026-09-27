@@ -13,6 +13,7 @@ vi.mock('../src/components/realm/createGreaterRealmWorldCanvasHost', () => ({
 
 import {
   GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS,
+  GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS,
   GreaterRealmWorldScene
 } from '../src/components/realm/GreaterRealmWorldScene';
 import type { WorldSelection04 } from '../src/components/realm/GreaterRealmWorldScene';
@@ -763,7 +764,7 @@ describe('Greater Realm world scene lifecycle', () => {
     expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
 
     await act(async () => {
-      vi.advanceTimersByTime(GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS);
+      vi.advanceTimersByTime(GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS / 2);
       await Promise.resolve();
     });
     expect(refreshRelease).toHaveBeenCalledOnce();
@@ -822,6 +823,114 @@ describe('Greater Realm world scene lifecycle', () => {
     });
     expect(screen.queryByRole('button', { name: 'Retry Realm' })).toBeNull();
     expect(canvasHostHarness.create).toHaveBeenCalledOnce();
+  });
+
+  it('offers recovery when the initial World read never settles', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    let rejectInitial!: (error: Error) => void;
+    let publish!: RuntimeListener;
+    const loadView = vi.fn(() => new Promise<GreaterRealmClientSnapshot>((_resolve, reject) => {
+      rejectInitial = reject;
+    }));
+    const refreshRelease = vi.fn(async (listener: RuntimeListener) => {
+      const recovered = readySnapshot();
+      listener(recovered);
+      return recovered;
+    });
+    const onPhaseChange = vi.fn();
+    renderScene(bridge({
+      loadView, refreshRelease, captureListener: listener => { publish = listener; }
+    }), { onPhaseChange });
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.queryByRole('button', { name: 'Retry Realm' })).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS);
+      await Promise.resolve();
+    });
+    expect(onPhaseChange).toHaveBeenLastCalledWith('failed');
+    expect(screen.getByRole('status').textContent).toContain('The Realm did not load');
+    const phaseCount = onPhaseChange.mock.calls.length;
+    act(() => publish({ phase: 'loading-window', sessionGeneration: 17 } as never));
+    expect(onPhaseChange).toHaveBeenCalledTimes(phaseCount);
+    expect(screen.getByRole('button', { name: 'Retry Realm' })).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Realm' }));
+    await act(async () => { await Promise.resolve(); });
+    expect(refreshRelease).toHaveBeenCalledOnce();
+    expect(onPhaseChange).toHaveBeenLastCalledWith('ready');
+    expect(screen.queryByRole('button', { name: 'Retry Realm' })).toBeNull();
+    await act(async () => {
+      rejectInitial(new Error('superseded read failed late'));
+      await Promise.resolve();
+    });
+    expect(onPhaseChange).toHaveBeenLastCalledWith('ready');
+    expect(canvasHostHarness.create).toHaveBeenCalledOnce();
+  });
+
+  it('recovers a stalled refresh without losing the verified atlas or accepting its late rejection', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    let rejectStalled!: (error: Error) => void;
+    let publish!: RuntimeListener;
+    const refreshRelease = vi.fn((listener: RuntimeListener) => {
+      listener({ phase: 'idle', sessionGeneration: 17 } as never);
+      if (refreshRelease.mock.calls.length === 1) {
+        return new Promise<GreaterRealmClientSnapshot>((_resolve, reject) => {
+          rejectStalled = reject;
+        });
+      }
+      const recovered = readySnapshot();
+      listener(recovered);
+      return Promise.resolve(recovered);
+    });
+    const onPhaseChange = vi.fn();
+    renderScene(bridge({
+      control: workerControl(['idle']),
+      refreshRelease,
+      captureListener: listener => { publish = listener; },
+      dispatchWorker: async () => undefined
+    }), { onPhaseChange });
+    const location = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.resourceLocations[0]!;
+    await act(async () => { await Promise.resolve(); });
+    fireEvent.click(screen.getByRole('button', {
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
+    }));
+    expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toHaveProperty('disabled', true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS);
+      await Promise.resolve();
+    });
+    expect(refreshRelease).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
+    await act(async () => {
+      vi.advanceTimersByTime(GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS);
+      await Promise.resolve();
+    });
+    expect(onPhaseChange).toHaveBeenLastCalledWith('failed');
+    expect(screen.getByRole('status').textContent).toContain('last verified map remains visible; Worker commands are paused');
+    expect(screen.getByRole('button', {
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
+    })).not.toBeNull();
+    const phaseCount = onPhaseChange.mock.calls.length;
+    act(() => publish({ phase: 'streaming-chunks', sessionGeneration: 17 } as never));
+    expect(onPhaseChange).toHaveBeenCalledTimes(phaseCount);
+    expect(screen.getByRole('button', { name: 'Retry Realm' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Realm' }));
+    await act(async () => { await Promise.resolve(); });
+    expect(refreshRelease).toHaveBeenCalledTimes(2);
+    expect(onPhaseChange).toHaveBeenLastCalledWith('ready');
+    await act(async () => {
+      rejectStalled(new Error('superseded refresh failed late'));
+      await Promise.resolve();
+    });
+    expect(onPhaseChange).toHaveBeenLastCalledWith('ready');
+    fireEvent.click(screen.getByRole('button', {
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
+    }));
+    expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toHaveProperty('disabled', true);
   });
 
   it('defers a due release refresh while hidden and resumes on visibility', async () => {
