@@ -3079,11 +3079,15 @@ blobs. `derivePreparedClosureFamily` returned 1,258 members, 16 outputs and
 manifest SHA-256
 `01ba31b6cea4d5e4559a4f5f95ffa5d32fdcb99ec0717e724e3fc9467fb82d11`;
 a fresh process reproduced every installed output byte-for-byte. The
-ownership-bound policy verifier rejects the Windows checkout by design; run it
-from the exact clean committed source/closure on the supported Linux ext4
-checkout. Then require final-head hosted Verify before M1 merge, exact-M1 native
+ownership-bound policy verifier rejects the Windows checkout by design. On the
+exact clean signed `317fa0e0` in the supported Linux ext4 checkout, the policy
+verified the same 1,258-member manifest, checked-in sealed-launch verification
+passed, and five focused Linux suites passed all 193 tests, including a one-byte
+mutation check for every member. The native checkout was restored to clean
+`main` `786c0b2b` afterward. Require final-head hosted Verify before M1 merge, exact-M1 native
 prepare and independent check, generated-only M2 and exact-M2 Verify before
 fresh G001/G002 operations. Old M2 authority cannot cover this source.
-GitHub Actions is still rejecting jobs before runner start due account
+Exact-head [Verify 36307725762](https://github.com/ael-dev3/Warpkeep/actions/runs/36307725762)
+rejected all 17 jobs before runner start due account
 payment/spending-limit state; private Pages also cannot serve this private repo
 on the present plan. No live owner PTR or 0.4 release is claimed.
