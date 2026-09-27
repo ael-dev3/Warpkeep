@@ -18,7 +18,11 @@ inspected game tab held an expired challenge. The owner subsequently reported
 the same generic failure after another scan, but that scan had no concurrent
 trace; the exact failure stage remains unknown. A fresh sanitized Worker tail
 using the **`warpkeep-production` Wrangler profile** was validated by a
-`/healthz` 200. The observed game tab is on the new build at the Alpha
+`/healthz` 200. A synthetic challenge without phone approval also returned HTTP 201 with
+the expected response shape and appeared in that sanitized tail; this proves
+challenge issuance and trace capture, not proof verification or sign-in. No
+fresh phone-approved exchange has appeared since the tail attached. The
+observed game tab is on the new build at the Alpha
 Participation Terms gate. The owner must accept those legal terms personally,
 then start a fresh QR and approve it in Farcaster within five minutes. Capture
 only route, status and fixed event labels; never record channel tokens, FIDs
@@ -37,9 +41,9 @@ The 1,258-member closure manifest hashes to
 exact-source native preparation/check matched 3,266 Git blobs, generated 16
 outputs, and passed Windows/Linux checked-in policy and sealed-launch checks.
 Focused auth tests, typecheck, production build and public payload check passed.
-The last attempted hosted Verify, [run 36334621907](https://github.com/ael-dev3/Warpkeep/actions/runs/36334621907)
-on earlier signed documentation head
-[`0dd69b35`](https://github.com/ael-dev3/Warpkeep/commit/0dd69b35aa4c66a907cf07038853897c9119ea17),
+The latest attempted hosted Verify, [run 36338877084](https://github.com/ael-dev3/Warpkeep/actions/runs/36338877084)
+on the then-current signed PR head
+[`558c62da`](https://github.com/ael-dev3/Warpkeep/commit/558c62da984dce7ceb17be565cdcb36e4f12f724),
 stopped all 17 jobs before runner steps at GitHub's account billing gate. It
 is neither a source failure nor a pass. `main` remains the earlier signed M2
 `786c0b2b`. New [menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375)
@@ -54,7 +58,9 @@ based on PR #375 and not yet integrated into release source. The original
 emblem remains for castle banners; a deterministic 256px heading derivative
 loads instead, audio waits for an unmuted gesture, parsed 3D resources are
 released on navigation, and rendering pauses and recovers around WebGL context
-loss/restoration. The pinned menu build, focused tests and rendered
+loss/restoration. Performance mode now fetches only the castle and guardian,
+while Balanced and Cinematic retain all six decorative models. Pinned Node
+22.22.3 full production build, focused tests and rendered
 390px/360px/320px mobile review passed, including the 12px realm/status text.
 Asset provenance [PR #37](https://github.com/ael-dev3/Warpkeep-Assets/pull/37)
 is still open. Integrate,
@@ -66,7 +72,18 @@ When integrating the menu, update current-presentation assertions in
 `tests/authBridgeNotificationPreparedWorkflow.test.ts` and
 `tests/notificationPagesLiveReceipt.test.ts` to the new reachable menu graph;
 the old title and transition files may remain on disk without remaining in the
-protected browser closure. The packaged version still comes from
+protected browser closure. Add the four loaded menu media to
+`PRESENTATION_BUILD_INPUTS` in `scripts/notification-pages-live-receipt.mjs`:
+`public/models/menu/warplet-castle-hegemony-v2-c55f2c6c610e4aac.glb`,
+`public/models/menu/warplet-guardian-v2-e934a81ae2a210e4.glb`,
+`public/images/menu/hegemony-emblem-heading-256-4b5b747efcc13f34.png`, and
+`public/audio/warpkeep-verdant-menu-theme.m4a`. Keep the old media inputs for
+cached-client compatibility. Their static input total would rise from
+50,932,694 to 62,068,182 bytes, leaving 5,040,682 bytes under the 64 MiB
+presentation-closure cap for source members; measure the actual combined
+closure before deciding whether any bound or membership needs revision. Do
+not add these paths before the menu assets land: the exact-tree verifier then
+fails. The packaged version still comes from
 `package.json` (`0.3.43`); coordinate the approved 0.4 version change with the
 actual PTR/release cutover rather than treating the development-only menu stamp
 as publication. Rebuild and measure the combined source, regenerate the closure
