@@ -53,70 +53,61 @@ has the source, verification and recovery path. The 0.4 PTR is not live.
 
 Read the live head of signed 0.4
 [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) before any operation;
-documentation checkpoints may follow its protected-closure source. The latest
-protected-source checkpoint is signed
-[`1ef66c94`](https://github.com/ael-dev3/Warpkeep/commit/1ef66c94b6f6a0937b5c335a0a230c34e7827dcd),
-and its generated closure is signed
-[`7d13a4a2`](https://github.com/ael-dev3/Warpkeep/commit/7d13a4a2b9299ed797ee0e70aa7a60134c48f9f0).
-The 1,258-member closure manifest hashes to
-`afcbba80fda34b4a14908224092228429f5c26dd19dbd8ff5af4a5ae2f676566`;
-exact-source preparation matched 3,266 raw Git blobs and generated 16
-byte-reproduced outputs. Native Linux ownership-bound closure policy and
-checked-in sealed-launch verification passed on the exact clean closure head.
-Four focused Linux auth suites passed 129 tests; the Windows QR-focused set
-passed 141 tests, TypeScript build mode and the full production build passed.
-The 0.4 QR correction, also backported to the live Alpha,
-preserves fixed, privacy-safe classes for bridge HTTP 401, 403, 429 and 503,
-invalid responses, configuration errors, network and timeouts. It gives the
-screen a neutral failure heading instead of falsely saying that a relay
-rejected the record. The production trace and edge RPC checks above locate the
-prior failure; the fresh owner scan confirms the repaired sign-in path. The
-exact-head hosted
-[Verify 36340576287](https://github.com/ael-dev3/Warpkeep/actions/runs/36340576287)
-stopped all 17 jobs before runner steps at GitHub's account billing gate. It
-is neither a source failure nor a pass. `main` remains the earlier signed M2
-`786c0b2b`. New [menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375)
-is unsigned and has stale protected-closure membership. The exact reviewed
-menu score path is now allowed by all three Pages delivery boundaries at signed
-[`630503c2`](https://github.com/ael-dev3/Warpkeep/commit/630503c27da57c10e8a11e7d018dc4623464e28a);
-29 focused delivery tests and TypeScript build mode passed. Its mobile-load,
-WebGL-lifecycle and text-legibility review fixes are on signed, pushed branch
-[`fix/verdant-menu-review`](https://github.com/ael-dev3/Warpkeep/tree/fix/verdant-menu-review)
-(resolve its live head before integration),
-based on PR #375 and not yet integrated into release source. The original
-emblem remains for castle banners; a deterministic 256px heading derivative
-loads instead, audio waits for an unmuted gesture, parsed 3D resources are
-released on navigation, and rendering pauses and recovers around WebGL context
-loss/restoration. Performance mode now fetches only the castle and guardian,
-while Balanced and Cinematic retain all six decorative models. Pinned Node
-22.22.3 full production build, focused tests and rendered
-390px/360px/320px mobile review passed, including the 12px realm/status text.
-Asset provenance [PR #37](https://github.com/ael-dev3/Warpkeep-Assets/pull/37)
-is still open. Integrate,
-sign, refreeze and verify the menu only after the auth investigation. Do not
-promote M1/M2 or deploy 0.4 without final-head hosted Verify and all protected
-live gates.
+documentation checkpoints may follow its protected-closure source. The signed
+protected-source checkpoint is
+[`175e3257`](https://github.com/ael-dev3/Warpkeep/commit/175e325771768d8427bedeff8280a9cb2a9de282),
+and its signed, pushed 16-output closure is
+[`6b9bcb1f`](https://github.com/ael-dev3/Warpkeep/commit/6b9bcb1f6bf27fa70d7870b4b0eb074a7f698242).
+The 1,241-member closure manifest hashes to
+`26f7a57e406fc239f6d7b42222d92293ca4402e83d863fba1de05b51be898f2e`.
+Protected-closure derivation matched 3,285 raw Git blobs and independently
+byte-reproduced all 16 derived outputs. Native Linux ownership-bound closure
+policy and checked-in sealed-launch verification passed on the exact clean
+closure head. These source checks do not attest a generated M2 family or a
+live 0.4 deployment.
 
-When integrating the menu, update current-presentation assertions in
-`tests/authBridgeNotificationPreparedWorkflow.test.ts` and
-`tests/notificationPagesLiveReceipt.test.ts` to the new reachable menu graph;
-the old title and transition files may remain on disk without remaining in the
-protected browser closure. Add the four loaded menu media to
-`PRESENTATION_BUILD_INPUTS` in `scripts/notification-pages-live-receipt.mjs`:
-`public/models/menu/warplet-castle-hegemony-v2-c55f2c6c610e4aac.glb`,
-`public/models/menu/warplet-guardian-v2-e934a81ae2a210e4.glb`,
-`public/images/menu/hegemony-emblem-heading-256-4b5b747efcc13f34.png`, and
-`public/audio/warpkeep-verdant-menu-theme.m4a`. Keep the old media inputs for
-cached-client compatibility. Their static input total would rise from
-50,932,694 to 62,068,182 bytes, leaving 5,040,682 bytes under the 64 MiB
-presentation-closure cap for source members; measure the actual combined
-closure before deciding whether any bound or membership needs revision. Do
-not add these paths before the menu assets land: the exact-tree verifier then
-fails. The packaged version still comes from
-`package.json` (`0.3.43`); coordinate the approved 0.4 version change with the
-actual PTR/release cutover rather than treating the development-only menu stamp
-as publication. Rebuild and measure the combined source, regenerate the closure
-family, and validate the Assets PR's provenance before shipping.
+The reviewed 0.4 menu was integrated into PR #374 at signed merge
+[`397b9697`](https://github.com/ael-dev3/Warpkeep/commit/397b9697),
+with the loaded media in the presentation receipt and its reachable menu
+graph in the release tests. Follow-up signed fixes preserve glTF-authored
+double-sided materials and pause WebGL animation behind full-screen overlays.
+The notification receipt fixture now accommodates the reviewed menu assets
+without changing the production per-asset bound. The packaged version still
+comes from `package.json` (`0.3.43`); coordinate its 0.4 change with actual
+PTR/release cutover. The original
+[menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375) remains open as
+the source of the reviewed work; do not merge its stale closure into `main`.
+Asset provenance [PR #37](https://github.com/ael-dev3/Warpkeep-Assets/pull/37)
+also remains open.
+
+The 0.4 QR diagnostic correction, backported to live Alpha, distinguishes
+privacy-safe bridge failures and uses a neutral error heading. The
+[timestamped incident record](../../evidence/0.4.0/qr-auth-incident-2026-09-27.md)
+records strong evidence linking the failed 503 exchanges to the rate-limited
+primary RPC path and documents
+the secret-only bridge repair. A fresh owner scan reached exchange HTTP 200
+with `session_created` at **2026-09-27 19:06:14.479 UTC**; the owner confirmed
+login. The separately published Alpha diagnostic frontend came later and did
+not cause that successful exchange.
+
+Exact-head hosted
+[Verify 36345079867](https://github.com/ael-dev3/Warpkeep/actions/runs/36345079867)
+on `6b9bcb1f` stopped all 17 jobs before runner steps. GitHub's annotation
+cites recent failed account payments or the spending limit. This is neither a
+source failure nor a pass. `main` remains the earlier signed M2 `786c0b2b`.
+Require a passing hosted Verify on the final PR head before signed source M1
+merge; then prepare/check exact M1 natively, promote generated-only M2,
+verify its exact main head and complete the protected live gates before 0.4 PTR.
+
+### Earlier 27 September QR-diagnostic closure (superseded)
+
+Before menu integration, signed source `1ef66c94` and closure `7d13a4a2`
+held 16 derived outputs and 1,258 members (manifest
+`afcbba80fda34b4a14908224092228429f5c26dd19dbd8ff5af4a5ae2f676566`).
+Its native closure policy and checked-in sealed-launch checks passed; hosted
+[Verify 36340576287](https://github.com/ael-dev3/Warpkeep/actions/runs/36340576287)
+stopped before runner steps at the account billing gate. This checkpoint did
+not include the reviewed menu and is not the current source closure.
 
 ### Earlier 27 September source checkpoint
 

@@ -17,12 +17,18 @@ passed on that source. [G001 census 36297722529](https://github.com/ael-dev3/War
 failed closed in its first sample with `g001-admitted-set-mismatch`; it produced
 no validated baseline or provider mutation. [G002 update inspect 36297899627](https://github.com/ael-dev3/Warpkeep/actions/runs/36297899627)
 failed at workflow phase before provider transport. [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
-now includes those repairs, current 0.4 client and gameplay refinements, and
-candidate public delivery and rollback tooling. Source review identified the
-two protected-operation defects; their failed results do not establish the
-private live admitted set or a missing credential. The `d1f8f315` source-checkpoint
-[Verify run 36332298897](https://github.com/ael-dev3/Warpkeep/actions/runs/36332298897)
-rejected all jobs before runner steps because of the account's
+now includes those repairs, current 0.4 client and gameplay refinements, the
+reviewed menu, and candidate public delivery and rollback tooling. Source
+review identified the two protected-operation defects; their failed results
+do not establish the private live admitted set or a missing credential. The
+signed protected-closure head is
+[`6b9bcb1f`](https://github.com/ael-dev3/Warpkeep/commit/6b9bcb1f6bf27fa70d7870b4b0eb074a7f698242),
+from signed source `175e3257`: 16 outputs, 1,241 members and manifest
+`26f7a57e406fc239f6d7b42222d92293ca4402e83d863fba1de05b51be898f2e`.
+Clean native Linux ownership-bound policy and checked-in sealed-launch
+verification passed on that exact head. The 6b9bcb1f closure-head
+[Verify run 36345079867](https://github.com/ael-dev3/Warpkeep/actions/runs/36345079867)
+rejected all 17 jobs before runner steps because of the account's
 payment/spending-limit gate; it is not a code verdict. GitHub reports `main`
 as unprotected with no required checks, so the release sequence must enforce
 final-head Verify manually rather than infer safety from mergeability.
@@ -30,18 +36,27 @@ Recheck live `main` and its own Verify before using this dated checkpoint as
 operation authority. CodeQL code scanning
 is unavailable on the private-repository plan; full Verify is the executable gate.
 
-Later signed PR #374 head [`68937b59`](https://github.com/ael-dev3/Warpkeep/commit/68937b59765340b04a8c0c180f8fc60dd3812129)
-adds privacy-safe QR failure distinctions and refreezes the 1,258-member source
-closure (`58b6a428ca9f12ca7431e8ed1801cbe31d1e09d298564a44f87adbdff1f010ef`).
+The [27 September QR incident](../../evidence/0.4.0/qr-auth-incident-2026-09-27.md)
+records the failed verifier exchanges, edge RPC diagnosis and secret-only
+bridge repair. A fresh owner exchange returned 200 with `session_created` at
+19:06:14.479 UTC; the owner confirmed Alpha browser login. The separately
+published diagnostic Alpha client is live through signed
+[`Warpkeep-Live@b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad)
+and successful [Pages run 36343178620](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36343178620).
+The owner's successful exchange preceded that frontend publication. The
+reviewed menu is integrated into PR #374; original
+[menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375) and
+[Assets PR #37](https://github.com/ael-dev3/Warpkeep-Assets/pull/37) remain open.
+Neither Alpha sign-in nor a source closure establishes 0.4 PTR acceptance.
+
+Earlier signed PR #374 head [`68937b59`](https://github.com/ael-dev3/Warpkeep/commit/68937b59765340b04a8c0c180f8fc60dd3812129)
+added privacy-safe QR failure distinctions and refroze the then-1,258-member
+source closure (`58b6a428ca9f12ca7431e8ed1801cbe31d1e09d298564a44f87adbdff1f010ef`).
 Native preparation/check matched 3,266 Git blobs and regenerated 16 outputs;
-its focused auth tests, typecheck, build and public payload checks passed
-locally. [Final-head Verify 36333337949](https://github.com/ael-dev3/Warpkeep/actions/runs/36333337949)
-still stopped before runner steps at the account billing gate. Incoming
-[menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375) is a separate
-unsigned source change with stale protected-closure membership and a new
-`.m4a` public asset not yet covered by the narrow Pages allowlists. Review,
-integrate, sign, refreeze and verify it before any 0.4 source or generated
-promotion; neither its mergeability nor zero-step CI establishes readiness.
+focused auth tests, typecheck, build and public payload checks passed locally.
+[Verify 36333337949](https://github.com/ael-dev3/Warpkeep/actions/runs/36333337949)
+stopped before runner steps at the same account billing gate. This is a dated
+source checkpoint, superseded by the signed menu integration and later refreeze.
 
 ### Remaining delivery work, in dependency order
 
