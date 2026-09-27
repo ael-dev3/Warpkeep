@@ -43,16 +43,20 @@ on earlier signed documentation head
 stopped all 17 jobs before runner steps at GitHub's account billing gate. It
 is neither a source failure nor a pass. `main` remains the earlier signed M2
 `786c0b2b`. New [menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375)
-is unsigned, has stale protected-closure membership and a new `.m4a` asset
-outside current Pages allowlists. Its mobile-load and WebGL-lifecycle review
-fixes are on signed, pushed branch
-[`fix/verdant-menu-review@90ad4827`](https://github.com/ael-dev3/Warpkeep/commit/90ad482779721c87b3bea5c579a2786f11d8cc05),
+is unsigned and has stale protected-closure membership. The exact reviewed
+menu score path is now allowed by all three Pages delivery boundaries at signed
+[`630503c2`](https://github.com/ael-dev3/Warpkeep/commit/630503c27da57c10e8a11e7d018dc4623464e28a);
+29 focused delivery tests and TypeScript build mode passed. Its mobile-load,
+WebGL-lifecycle and text-legibility review fixes are on signed, pushed branch
+[`fix/verdant-menu-review@748cdd30`](https://github.com/ael-dev3/Warpkeep/commit/748cdd30100f407ec4d51b0cf6174a5faf80d64c),
 based on PR #375 and not yet integrated into release source. The original
 emblem remains for castle banners; a deterministic 256px heading derivative
 loads instead, audio waits for an unmuted gesture, parsed 3D resources are
 released on navigation, and rendering pauses and recovers around WebGL context
-loss/restoration. The pinned build,
-focused tests and rendered 390px/360px/320px mobile review passed. Integrate,
+loss/restoration. The pinned menu build, focused tests and rendered
+390px/360px/320px mobile review passed, including the 12px realm/status text.
+Asset provenance [PR #37](https://github.com/ael-dev3/Warpkeep-Assets/pull/37)
+is still open. Integrate,
 sign, refreeze and verify the menu only after the auth investigation. Do not
 promote M1/M2 or deploy 0.4 without final-head hosted Verify and all protected
 live gates.
