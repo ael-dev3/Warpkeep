@@ -30,6 +30,19 @@ Recheck live `main` and its own Verify before using this dated checkpoint as
 operation authority. CodeQL code scanning
 is unavailable on the private-repository plan; full Verify is the executable gate.
 
+Later signed PR #374 head [`68937b59`](https://github.com/ael-dev3/Warpkeep/commit/68937b59765340b04a8c0c180f8fc60dd3812129)
+adds privacy-safe QR failure distinctions and refreezes the 1,258-member source
+closure (`58b6a428ca9f12ca7431e8ed1801cbe31d1e09d298564a44f87adbdff1f010ef`).
+Native preparation/check matched 3,266 Git blobs and regenerated 16 outputs;
+its focused auth tests, typecheck, build and public payload checks passed
+locally. [Final-head Verify 36333337949](https://github.com/ael-dev3/Warpkeep/actions/runs/36333337949)
+still stopped before runner steps at the account billing gate. Incoming
+[menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375) is a separate
+unsigned source change with stale protected-closure membership and a new
+`.m4a` public asset not yet covered by the narrow Pages allowlists. Review,
+integrate, sign, refreeze and verify it before any 0.4 source or generated
+promotion; neither its mergeability nor zero-step CI establishes readiness.
+
 ### Remaining delivery work, in dependency order
 
 Require full final-head Verify on PR #374, merge its signed source M1 and

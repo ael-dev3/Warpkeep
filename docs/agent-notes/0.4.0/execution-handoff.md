@@ -2,32 +2,48 @@
 
 ## Current checkpoint — 27 September 2026
 
-The pre-0.4 Alpha 0.3.43 site is restored at
+The pre-0.4 Alpha 0.3.43 site remains online at
 [`warpkeep.com`](https://warpkeep.com/) through the public, generated-assets-only
-[`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live) repository. Its
-latest signed public head [`e837b8c`](https://github.com/ael-dev3/Warpkeep-Live/commit/e837b8c882306d3eaaae4879ef909f6514e2404d)
-passed [Pages build 36324195528](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36324195528).
-The live HTML and sampled sign-in assets match that exact published build.
-This backports the bounded client clock-lag repair from signed source
-[`d1cc6a9`](https://github.com/ael-dev3/Warpkeep/commit/d1cc6a9f04673e40b98982fae205416644db1181)
-after a real QR attempt failed; phone-approved end-to-end retest is pending.
-The owner reported another failed scan on 27 September, but the accessible
-Codex browser tab was still at the unchecked Alpha Participation Terms gate,
-so that scan's browser phase and visible detail were unavailable. The prior
-Worker tail had ended and Cloudflare historical request logs were inaccessible;
-do not infer its failure stage or claim the clock repair fixed sign-in. Live
-bridge health reports public authentication enabled, challenge CORS preflight
-passed, the configured browser-side Optimism RPC passed CORS and chain-ID
-probes, and a fresh sanitized Worker tail was verified against a
-health request. The next test needs the owner to accept the Terms in the active
-tab, produce a fresh QR, approve it within its five-minute life and preserve
-the small error line if it fails. Start a sanitized bridge tail before that
-scan; correlate only fixed event labels/statuses, never tokens, FIDs or proof.
-The [hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
-has the exact source, verification and recovery path. This brings the existing
-site online; 0.4 PTR remains unshipped and needs its own reviewed release path.
+[`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live) repository. The
+latest signed public head [`6568687`](https://github.com/ael-dev3/Warpkeep-Live/commit/6568687fccd1a317b1958f71bad33b36226e0b61)
+passed [Pages build 36334223725](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36334223725).
+Live HTML and the new main asset matched the approved Alpha build from signed
+source [`2d6811a8`](https://github.com/ael-dev3/Warpkeep/commit/2d6811a861d42d7ca191ac30e2215176db1adabd).
+The source preserves the bounded QR clock-lag repair and now distinguishes
+privacy-safe invalid/expired pre-exchange, network and timeout failures. This
+is diagnostic publication, not proof of successful phone-approved sign-in.
 
-The active 0.4 development [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
+The latest reported scan produced no new challenge or SIWF exchange in the
+sanitized production bridge tail; the inspected game tab showed the earlier
+challenge expired. Tail connectivity was separately checked with healthz 200.
+The game tab was reloaded onto the new build and reached the Alpha Participation
+Terms gate. The owner must accept those legal terms personally, then start a
+new QR and approve it in Farcaster within five minutes. Keep the sanitized
+tail attached and correlate only route, status and fixed event labels; never
+record channel tokens, FIDs or proof. A separate Mini App Quick Auth success
+is not desktop QR evidence. The
+[hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
+has the source, verification and recovery path. The 0.4 PTR is not live.
+
+The current signed 0.4 [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
+head is [`68937b59`](https://github.com/ael-dev3/Warpkeep/commit/68937b59765340b04a8c0c180f8fc60dd3812129).
+The 1,258-member closure manifest hashes to
+`58b6a428ca9f12ca7431e8ed1801cbe31d1e09d298564a44f87adbdff1f010ef`;
+exact-source native preparation/check matched 3,266 Git blobs, generated 16
+outputs, and passed Windows/Linux checked-in policy and sealed-launch checks.
+Focused auth tests, typecheck, production build and public payload check passed.
+[Verify 36333337949](https://github.com/ael-dev3/Warpkeep/actions/runs/36333337949)
+stopped all 17 jobs before runner steps at GitHub's account billing gate; it
+is neither a source failure nor a pass. `main` remains the earlier signed M2
+`786c0b2b`. New [menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375)
+is unsigned, has stale protected-closure membership and a new `.m4a` asset
+outside current Pages allowlists. Integrate, sign, refreeze and verify it only
+after the auth investigation. Do not promote M1/M2 or deploy 0.4 without
+final-head hosted Verify and all protected live gates.
+
+### Earlier 27 September source checkpoint
+
+At this earlier checkpoint, the 0.4 development [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
 has a signed, remote-equal protected-closure checkpoint at
 [`a0cd382b`](https://github.com/ael-dev3/Warpkeep/commit/a0cd382bb599ba10402e52b62f6412c77f670644),
 refrozen from signed source

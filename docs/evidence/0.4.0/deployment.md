@@ -4,16 +4,20 @@ Status: **pending**. This record is the authoritative destination for R15 and
 must be updated only from an authenticated deployment and live readback.
 
 The current public site is still **Alpha 0.3.43**, not the 0.4 PTR. Its signed
-QR client clock-lag hotfix source is
-[`d1cc6a9`](https://github.com/ael-dev3/Warpkeep/commit/d1cc6a9f04673e40b98982fae205416644db1181),
+QR diagnostic and bounded clock-lag repair source is
+[`2d6811a8`](https://github.com/ael-dev3/Warpkeep/commit/2d6811a861d42d7ca191ac30e2215176db1adabd),
 published as generated files in
-[`Warpkeep-Live@e837b8c`](https://github.com/ael-dev3/Warpkeep-Live/commit/e837b8c882306d3eaaae4879ef909f6514e2404d).
-[Pages run 36324195528](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36324195528)
-succeeded and the HTTPS apex returned 200 on 27 September. The hotfix's live
-bytes were compared with its approved build; that proves publication, not a
-successful phone-approved sign-in. A fresh QR challenge was issued by the
-production bridge, but the observed attempt expired without a SIWF exchange.
-The separate Mini App Quick Auth successes do not prove desktop QR sign-in.
+[`Warpkeep-Live@6568687`](https://github.com/ael-dev3/Warpkeep-Live/commit/6568687fccd1a317b1958f71bad33b36226e0b61).
+[Pages run 36334223725](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36334223725)
+succeeded on 27 September. The HTTPS apex returned 200 with `index.html`
+SHA-256 `eb1b0eafa2c116e8a6c47956f1e72324a828b17bb2f36740047ab53b8d91d5f3`,
+matching the reviewed build; its SPA fallback matched byte-for-byte and the
+new main asset returned 200. Publication does not prove phone-approved sign-in.
+The latest observed scan reached neither a new challenge nor a SIWF exchange;
+the previously displayed challenge had expired. The new client distinguishes
+safe pre-exchange invalid/expired, network and timeout messages, so a fresh
+phone-approved QR attempt with the sanitized bridge tail is required. Separate
+Mini App Quick Auth successes do not prove desktop QR sign-in.
 
 The old Alpha 0.3.43 site was restored on 27 September 2026, separately from
 the 0.4 release. Last successful historical source:
