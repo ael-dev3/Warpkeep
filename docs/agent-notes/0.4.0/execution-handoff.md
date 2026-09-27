@@ -20,7 +20,7 @@ A later mobile countdown repair on signed PR head
 [`1b115a9b`](https://github.com/ael-dev3/Warpkeep/commit/1b115a9b61c114610cb64ae09183fd9492b4c4e0)
 stops unchanged Keep 3D content from rerendering each second. Its 138 focused
 tests, typecheck, production build, source/closure rederivation and native
-sealed-launch checks passed. Final-head
+sealed-launch checks passed. Verify on that source/closure head
 [Verify 36309210745](https://github.com/ael-dev3/Warpkeep/actions/runs/36309210745)
 rejected all 17 jobs before runner start with the same account payment/limit
 annotation, so this is not a CI pass.
