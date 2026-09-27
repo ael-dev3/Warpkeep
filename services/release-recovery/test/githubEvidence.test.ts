@@ -1344,7 +1344,7 @@ describe('GitHub candidate evidence', () => {
     expect(prerequisites.run).toContain("private_state='/home/warpkeep/.warpkeep-recovery-v1'")
     expect(prerequisites.run).not.toContain('mkdir')
     expect(prerequisites.run).toContain("printf '%s\\n' 'VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED=false' >> \"$GITHUB_ENV\"")
-    const source = named('Verify current protected main and installed recovery source')
+    const source = named('Verify current main and installed recovery source')
     expect(source.run).toContain('await readRecoveryWorkflowRunContext()')
     expect(source.run).toContain('readRecoveryAttestationSource(process.cwd())')
     expect(source.run).toContain('git ls-files --error-unmatch')
