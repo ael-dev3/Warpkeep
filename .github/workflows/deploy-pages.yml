@@ -14,7 +14,7 @@ permissions:
 # values, so changing any protected executable requires an explicit refreeze.
 env:
   WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'd7d4600bb8cd248b79131a96de4d03698508e7f08b40bea094e838d132d9c162'
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: 'cbec2ed7ac8f8b868e2e3e4571e13159387bfaa5b06598022d552ccf73506ad0'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '17ec4bdaace892f824ec9ebb6e73526681dad2fc14152494bb8cb388a631c180'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '639d78a525a0592d25d06a103074c2ab961c229bf3b9c97c3079759f55a09e97'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '68e05292c7162b982781e2eb673e6e39ed8ddbb99b4f3aa61f7507d3dc7c144b'
   WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256: '692420c1a2a1d8d0b76893caaf720be11f2b3dcb559bf777be4a2cc70c59a0c2'
@@ -70,7 +70,7 @@ jobs:
       github.event.workflow_run.head_branch == 'main' &&
       needs.classify.outputs.deployment-lane == 'sealed-g002'
     runs-on: ubuntu-latest
-    # Match Verify's bounded allowance for the complete root security suite.
+    # Bound the receipt-checked build, audits, and artifact preparation.
     timeout-minutes: 75
     permissions:
       contents: read
@@ -269,22 +269,6 @@ jobs:
           test "$(wc -c < "$archive")" -eq 112086
           echo "008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91  $archive" \
             | sha256sum --check --strict -
-
-      - name: Test
-        run: |
-          # Keep the Pages build runner budget observable. Vitest can leave
-          # a child process alive without producing step output; GNU timeout
-          # converts that hang into a bounded, diagnosable failure instead of
-          # occupying the protected gate indefinitely.
-          timeout --foreground --signal=TERM --kill-after=30s 60m npm test -- \
-            --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \
-            --exclude tests/productionPlayerCanaryClosure.test.ts \
-            --maxWorkers=2
-          timeout --foreground --signal=TERM --kill-after=30s 12m npm test -- \
-            tests/authBridgeNotificationPreparedWorkflow.test.ts \
-            tests/productionPlayerCanaryClosure.test.ts \
-            --maxWorkers=1 \
-            --testTimeout=180000
 
       - name: Typecheck
         run: npm run typecheck

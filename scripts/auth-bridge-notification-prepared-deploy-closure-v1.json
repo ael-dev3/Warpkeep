@@ -5,7 +5,7 @@
     {
       "path": ".github/workflows/deploy-pages.yml",
       "digestProfile": "reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1",
-      "sha256": "f18cd603a0842fa38b58651cfbd6308b9ade8aa5df420538dec7373cd8b183ad"
+      "sha256": "e83c3557282e992c9182899f2ca25e924d8a3c937a0c949f18928b29ca53899a"
     },
     {
       "path": ".github/workflows/notification-bridge-b0.yml",
@@ -25,7 +25,7 @@
     {
       "path": ".github/workflows/verify.yml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "09016e5e580534f17a2fbb5a6ab4eeb962dc2a89bf17f870e799e2d640c72819"
+      "sha256": "a77aa2e42267f32eaebc4ab88de5b5cf850c69e8fb27f0e8907d46f172e85581"
     },
     {
       "path": "config/releases/0.4.0-sealed-launch.json",
@@ -2165,7 +2165,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9aa10a730c81855b2b95545a45b4b06468cfc762a816d61ab43bdae8c75a2aad"
+      "sha256": "fc2468d18fe94960b09a1691b880074f827914117780689cceeb6d8bcc672090"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",

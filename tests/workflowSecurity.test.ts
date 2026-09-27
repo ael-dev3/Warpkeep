@@ -6,33 +6,58 @@ import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-function boundedRootTestRun(comment: string) {
-  return [
-    comment,
-    '# a child process alive without producing step output; GNU timeout',
-    '# converts that hang into a bounded, diagnosable failure instead of',
-    '# occupying the protected gate indefinitely.',
-    'timeout --foreground --signal=TERM --kill-after=30s 60m npm test -- \\',
-    '  --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
-    '  --exclude tests/productionPlayerCanaryClosure.test.ts \\',
-    '  --maxWorkers=2',
-    'timeout --foreground --signal=TERM --kill-after=30s 12m npm test -- \\',
-    '  tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
-    '  tests/productionPlayerCanaryClosure.test.ts \\',
-    '  --maxWorkers=1 \\',
-    '  --testTimeout=180000',
-    '',
-  ].join('\n');
-}
-const splitRootTestRun = boundedRootTestRun(
-  '# Keep the runner-level 75-minute budget observable. Vitest can leave',
-);
-const pagesRootTestRun = boundedRootTestRun(
-  '# Keep the Pages build runner budget observable. Vitest can leave',
-);
+const isolatedRootTestRun = [
+  '# These two contracts need the complete prepared toolchain. Their',
+  '# serial run remains bounded independently of scanning and builds.',
+  'timeout --foreground --signal=TERM --kill-after=30s 12m npm test -- \\',
+  '  tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
+  '  tests/productionPlayerCanaryClosure.test.ts \\',
+  '  --maxWorkers=1 \\',
+  '  --testTimeout=180000',
+  '',
+].join('\n');
+const rootShardRun = [
+  '# Vitest shards its discovered test files after applying these exact',
+  '# exclusions. All four legs must succeed; no file is silently skipped.',
+  'timeout --foreground --signal=TERM --kill-after=30s 48m npm test -- \\',
+  '  --exclude tests/authBridgeNotificationPreparedWorkflow.test.ts \\',
+  '  --exclude tests/productionPlayerCanaryClosure.test.ts \\',
+  '  --exclude tests/sealedRealmsProductionActivationRecords.test.ts \\',
+  '  --exclude tests/ptrProductionExistingUpdateContinuation.test.ts \\',
+  '  --exclude tests/greaterRealmRuntimeRelease.test.ts \\',
+  '  --shard="${{ matrix.selector }}" \\',
+  '  --maxWorkers=1',
+  '',
+].join('\n');
+const heavyRootTestRun = [
+  'timeout --foreground --signal=TERM --kill-after=30s 48m npm test -- \\',
+  '  "${{ matrix.selector }}" \\',
+  '  --maxWorkers=1 \\',
+  '  --testTimeout=180000',
+  '',
+].join('\n');
+const activationTableTitle =
+  'fixed recovery candidate source/receipt derivation derives actual committed source and private records without inventing live facts: ';
+const activationRestRun = [
+  'timeout --foreground --signal=TERM --kill-after=30s 48m npm test -- \\',
+  '  "${{ matrix.selector }}" \\',
+  `  --testNamePattern='^(?!${activationTableTitle}).*$' \\`,
+  '  --maxWorkers=1 \\',
+  '  --testTimeout=180000',
+  '',
+].join('\n');
+const activationGroupRun = [
+  'timeout --foreground --signal=TERM --kill-after=30s 48m npm test -- \\',
+  '  tests/sealedRealmsProductionActivationRecords.test.ts \\',
+  `  --testNamePattern="^${activationTableTitle}(\${{ matrix.selector }})$" \\`,
+  '  --maxWorkers=1 \\',
+  '  --testTimeout=180000',
+  '',
+].join('\n');
 
 interface WorkflowStep {
   name?: string;
+  if?: string;
   run?: string;
   uses?: string;
   with?: Record<string, unknown>;
@@ -41,6 +66,7 @@ interface WorkflowStep {
 
 interface WorkflowJob {
   'timeout-minutes'?: number;
+  strategy?: { 'fail-fast'?: boolean; matrix?: Record<string, unknown> };
   steps?: WorkflowStep[];
 }
 
@@ -407,26 +433,82 @@ describe('GitHub workflow security policy', () => {
     }
   });
 
-  it('gives the complete root suite a bounded hosted-runner allowance', () => {
-    for (const { job, timeoutMinutes, stepName, run } of [
-      {
-        job: workflowJob('verify.yml', 'linux'),
-        timeoutMinutes: 75,
-        stepName: 'Run tests',
-        run: splitRootTestRun,
-      },
-      {
-        job: workflowJob('deploy-pages.yml', 'build'),
-        timeoutMinutes: 75,
-        stepName: 'Test',
-        run: pagesRootTestRun,
-      },
-    ]) {
-      expect(job['timeout-minutes']).toBe(timeoutMinutes);
-      expect(job.steps?.filter(step => step.name === stepName)).toEqual([
-        { name: stepName, run },
-      ]);
+  it('bounds each root-test runner and retains all discovered files across the split', () => {
+    const linux = workflowJob('verify.yml', 'linux');
+    expect(linux['timeout-minutes']).toBe(75);
+    expect(linux.steps?.filter(step => step.name === 'Run isolated root security tests')).toEqual([
+      { name: 'Run isolated root security tests', run: isolatedRootTestRun },
+    ]);
+    const matrixJob = workflowJob('verify.yml', 'root-tests');
+    expect(matrixJob['timeout-minutes']).toBe(55);
+    const matrix = [
+      { kind: 'shard', selector: '1/4' },
+      { kind: 'shard', selector: '2/4' },
+      { kind: 'shard', selector: '3/4' },
+      { kind: 'shard', selector: '4/4' },
+      { kind: 'heavy', selector: 'tests/ptrProductionExistingUpdateContinuation.test.ts' },
+      { kind: 'heavy', selector: 'tests/greaterRealmRuntimeRelease.test.ts' },
+      { kind: 'activation-rest', selector: 'tests/sealedRealmsProductionActivationRecords.test.ts' },
+      { kind: 'activation', selector: 'missing-live-inputs|bootstrap-tree|bootstrap-blob|bootstrap-sha|missing-record' },
+      { kind: 'activation', selector: 'wrong-private-store|wrong-operation|changed-head|replacement-objects' },
+      { kind: 'activation', selector: 'caller-facts|expired-records|historical-context|historical-forged-time' },
+      { kind: 'activation', selector: 'historical-malformed-time|historical-changed-completion|historical-late-changed-completion|historical-replaced-corpus' },
+    ];
+    expect(matrixJob.strategy).toEqual({
+      'fail-fast': false,
+      matrix: { include: matrix },
+    });
+    expect(matrixJob.steps?.filter(step => step.name === 'Run root test shard')).toEqual([
+      { name: 'Run root test shard', if: "matrix.kind == 'shard'", run: rootShardRun },
+    ]);
+    expect(matrixJob.steps?.filter(step => step.name === 'Run isolated heavy root test')).toEqual([
+      { name: 'Run isolated heavy root test', if: "matrix.kind == 'heavy'", run: heavyRootTestRun },
+    ]);
+    expect(matrixJob.steps?.filter(step => step.name === 'Run activation-records tests outside the long candidate table')).toEqual([
+      { name: 'Run activation-records tests outside the long candidate table',
+        if: "matrix.kind == 'activation-rest'", run: activationRestRun },
+    ]);
+    expect(matrixJob.steps?.filter(step => step.name === 'Run bounded activation-records candidate group')).toEqual([
+      { name: 'Run bounded activation-records candidate group',
+        if: "matrix.kind == 'activation'", run: activationGroupRun },
+    ]);
+    const excluded = [...rootShardRun.matchAll(/--exclude (tests\/[^\s]+)/gu)].map(match => match[1]);
+    expect(excluded).toEqual([
+      'tests/authBridgeNotificationPreparedWorkflow.test.ts',
+      'tests/productionPlayerCanaryClosure.test.ts',
+      'tests/sealedRealmsProductionActivationRecords.test.ts',
+      ...matrix.filter(entry => entry.kind === 'heavy').map(entry => entry.selector),
+    ]);
+    expect(new Set(excluded).size).toBe(5);
+    for (const file of excluded) {
+      expect(readdirSync(resolve(repositoryRoot, 'tests'))).toContain(file.slice('tests/'.length));
     }
+    expect(readFileSync(resolve(repositoryRoot, 'vite.config.ts'), 'utf8'))
+      .toContain("include: ['tests/**/*.{test,spec}.{ts,tsx}']");
+
+    const activationSource = readFileSync(resolve(repositoryRoot,
+      'tests/sealedRealmsProductionActivationRecords.test.ts'), 'utf8');
+    const tableStart = activationSource.indexOf("describe('fixed recovery candidate source/receipt derivation'");
+    expect(tableStart).toBeGreaterThan(0);
+    const tableCases = /it\.each\(\[([\s\S]*?)\]\)\(\s*'derives actual committed source and private records without inventing live facts: %s'/u
+      .exec(activationSource.slice(tableStart))?.[1];
+    expect(tableCases).toBeDefined();
+    const scenarios = [...tableCases!.matchAll(/'([^']+)'/gu)].map(match => match[1]);
+    const groups = matrix.filter(entry => entry.kind === 'activation')
+      .map(entry => entry.selector.split('|'));
+    expect(groups.map(group => group.length)).toEqual([5, 4, 4, 4]);
+    expect(groups.flat()).toEqual(scenarios);
+    const patterns = groups.map(group => new RegExp(
+      `^${activationTableTitle}(${group.join('|')})$`, 'u',
+    ));
+    for (const scenario of scenarios) {
+      const fullName = `${activationTableTitle}${scenario}`;
+      expect(patterns.filter(pattern => pattern.test(fullName))).toHaveLength(1);
+      expect(new RegExp(`^(?!${activationTableTitle}).*$`, 'u').test(fullName)).toBe(false);
+    }
+    expect(new RegExp(`^(?!${activationTableTitle}).*$`, 'u').test(
+      'connected recovery activation generation uses the fixed generator',
+    )).toBe(true);
   });
 
   it('uses a checksum-verified CLI archive and never pipes a remote installer to a shell', () => {
@@ -439,30 +521,36 @@ describe('GitHub workflow security policy', () => {
     expect(source).toContain('spacetimedb-cli spacetimedb-standalone');
   });
 
-  it('gives the Pages root suite the same prerequisites as Verify before running it', () => {
+  it('gives every matrix leg the same root-test prerequisites as Linux', () => {
     const verify = workflowJob('verify.yml', 'linux');
-    const pages = workflowJob('deploy-pages.yml', 'build');
-    const steps = pages.steps ?? [];
-    const testsAt = steps.findIndex(step => step.name === 'Test');
+    const steps = workflowJob('verify.yml', 'root-tests').steps ?? [];
+    const testsAt = steps.findIndex(step => step.name?.startsWith('Run ') === true);
     const reattestAt = steps.findIndex(step => step.name === 'Re-attest runner-private Node after dependency install');
     expect(testsAt).toBeGreaterThan(reattestAt);
     for (const name of [
-      'Setup Node',
-      'Setup pinned pnpm for bridge runtime-contract tests',
-      'Install exact bridge runtime-test toolchain',
-      'Validate PTR lock and install SpacetimeDB module dependencies',
-      'Install pinned SpacetimeDB CLI',
-      'Prepare exact offline YAML archive for manifest tests',
+        'Checkout',
+        'Setup Node',
+        'Setup pinned pnpm for bridge runtime-contract tests',
+        'Stage Node in a runner-private toolchain path',
+        'Install dependencies',
+        'Install exact bridge runtime-test toolchain',
+        'Validate PTR lock and install SpacetimeDB module dependencies',
+        'Re-attest runner-private Node after dependency install',
+        'Install pinned SpacetimeDB CLI',
+        'Prepare exact offline YAML archive for manifest tests',
     ]) {
       const expected = verify.steps?.find(step => step.name === name);
-      expect(expected, `${name} must exist in Verify`).toBeDefined();
-      expect(steps.filter(step => step.name === name), `${name} differs from Verify`).toEqual([expected]);
-      const index = steps.findIndex(step => step.name === name);
-      expect(index, `${name} must precede the root suite`).toBeLessThan(testsAt);
-      if (name.startsWith('Install exact bridge') || name.startsWith('Validate PTR')) {
-        expect(index, `${name} must precede executable re-attestation`).toBeLessThan(reattestAt);
-      }
+      expect(expected, `${name} must exist in Linux`).toBeDefined();
+      expect(steps.filter(step => step.name === name), `${name} differs from Linux`).toEqual([expected]);
+      expect(steps.findIndex(step => step.name === name), `${name} must precede tests`)
+        .toBeLessThan(testsAt);
     }
+  });
+
+  it('does not rerun the full root suite after successful Verify when building Pages', () => {
+    const pages = workflowJob('deploy-pages.yml', 'build');
+    expect(pages.steps?.some(step => step.name === 'Test')).toBe(false);
+    expect(pages.steps?.some(step => /\bnpm test\b/u.test(step.run ?? ''))).toBe(false);
   });
 
   it('does not persist checkout credentials and audits every package boundary', () => {
@@ -478,20 +566,43 @@ describe('GitHub workflow security policy', () => {
   it('runs root tests from an integrity-checked private Node copy', () => {
     const rootTestWorkflows = [
       {
-        source: workflow('verify.yml'),
+        source: workflowJobSource('verify.yml', 'linux'),
         job: workflowJob('verify.yml', 'linux'),
-        stepName: 'Run tests',
-        run: splitRootTestRun,
+        stepName: 'Run isolated root security tests',
+        run: isolatedRootTestRun,
+        condition: undefined,
       },
       {
-        source: workflow('deploy-pages.yml'),
-        job: workflowJob('deploy-pages.yml', 'build'),
-        stepName: 'Test',
-        run: pagesRootTestRun,
+        source: workflowJobSource('verify.yml', 'root-tests'),
+        job: workflowJob('verify.yml', 'root-tests'),
+        stepName: 'Run root test shard',
+        run: rootShardRun,
+        condition: "matrix.kind == 'shard'",
+      },
+      {
+        source: workflowJobSource('verify.yml', 'root-tests'),
+        job: workflowJob('verify.yml', 'root-tests'),
+        stepName: 'Run isolated heavy root test',
+        run: heavyRootTestRun,
+        condition: "matrix.kind == 'heavy'",
+      },
+      {
+        source: workflowJobSource('verify.yml', 'root-tests'),
+        job: workflowJob('verify.yml', 'root-tests'),
+        stepName: 'Run activation-records tests outside the long candidate table',
+        run: activationRestRun,
+        condition: "matrix.kind == 'activation-rest'",
+      },
+      {
+        source: workflowJobSource('verify.yml', 'root-tests'),
+        job: workflowJob('verify.yml', 'root-tests'),
+        stepName: 'Run bounded activation-records candidate group',
+        run: activationGroupRun,
+        condition: "matrix.kind == 'activation'",
       },
     ];
 
-    for (const { source, job, stepName, run } of rootTestWorkflows) {
+    for (const { source, job, stepName, run, condition } of rootTestWorkflows) {
       expect(source).toContain('Stage Node in a runner-private toolchain path');
       expect(source).toContain('source_command="$(command -v node)"');
       expect(source).toContain('[[ -L "$source_command" ]]');
@@ -523,7 +634,9 @@ describe('GitHub workflow security policy', () => {
       expect(source).toContain('$((8#$node_mode & 0022)) -ne 0');
       expect(source).toContain('| sha256sum --check --strict -');
       expect(job.steps?.filter(step => step.name === stepName)).toEqual([
-        { name: stepName, run },
+        condition === undefined
+          ? { name: stepName, run }
+          : { name: stepName, if: condition, run },
       ]);
       expect(source).not.toMatch(/npm test -- --maxWorkers=[3-9]/);
     }
@@ -541,13 +654,7 @@ describe('GitHub workflow security policy', () => {
     expect(ignored.trim()).toBe('services/auth-bridge/.dev.vars.production');
   });
 
-  it('runs CodeQL without executing a repository build', () => {
-    const source = workflow('codeql.yml');
-    expect(source).toContain('security-events: write');
-    expect(source).toContain('languages: javascript-typescript');
-    expect(source).toContain('build-mode: none');
-    expect(source).not.toMatch(/^\s+run:/m);
-    expect(source).toContain('pull_request:');
-    expect(source).not.toMatch(/pull_request:\s*\n\s+branches:/);
+  it('does not keep a private-repo CodeQL workflow that cannot upload results', () => {
+    expect(readdirSync(resolve(repositoryRoot, '.github/workflows'))).not.toContain('codeql.yml');
   });
 });

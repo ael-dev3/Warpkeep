@@ -19,7 +19,10 @@ const workflow = parse(source) as {
   permissions: Record<string, string>;
   jobs: Record<string, Job>;
 };
-const predecessors = ['linux', 'auth-bridge', 'release-recovery', 'spacetimedb-module', 'native-contract'];
+const predecessors = [
+  'linux', 'root-tests', 'auth-bridge',
+  'release-recovery', 'spacetimedb-module', 'native-contract',
+];
 
 // Evaluate only the workflow's result-comparison grammar, never arbitrary code.
 // This exercises both actual predicates over every possible predecessor result.

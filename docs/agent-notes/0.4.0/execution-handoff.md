@@ -16,7 +16,9 @@ fixed, count-free diagnostics, `g001-admitted-aggregate-drift` and
 
 PR #371's Verify (including Linux and SpacetimeDB) and CodeQL passed. Exact-M2 push
 [Verify 36279277148](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277148)
-is still running. Exact-M2 push
+failed: its Linux root-test step reached the 60-minute limit while tests were
+still running, with multiple loaded-runner test timeouts. The module, native,
+bridge and recovery jobs passed. Exact-M2 push
 [CodeQL 36279277087](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277087)
 failed twice. The targeted permission trial on
 [PR #372](https://github.com/ael-dev3/Warpkeep/pull/372) reached SARIF upload,
@@ -26,12 +28,14 @@ current plan cannot provide that check, so PR #372 removes the unavailable
 workflow; use Verify's Linux, module, native, bridge, recovery, secret-scan and
 dependency-audit jobs as the executable gate. GitHub reports `main` as
 `protected:false`; its private-repo plan also rejects branch-protection API
-access. Existing native release attestations require `protected:true`, so a
-reviewed source M1 and authenticated generated M2 compatibility repair must
-pass before preflight can run. Manually require successful PR and exact-main
-Verify for the selected source, then fresh read-only preflight and G001 policy
-observation before one new census identity. Recheck the live ref immediately
-before each operation.
+access. [PR #372](https://github.com/ael-dev3/Warpkeep/pull/372) is the reviewed
+source M1 for exact-current-main authority, private-repository Pages OIDC and
+bounded parallel Verify tests. Require its full current-head Verify before
+merging. Then prepare and independently check its exact signed main commit in
+native WSL, promote only that generated family as M2, and require successful
+exact-M2 push Verify. Run fresh read-only preflight and G001 policy observation
+before one new census identity. Recheck the live ref immediately before each
+operation; an interim M1 is not an operation source.
 
 The previous [G001 freeze census 36271994192](https://github.com/ael-dev3/Warpkeep/actions/runs/36271994192)
 failed closed with the old combined `g001-admitted-aggregate-mismatch` label.

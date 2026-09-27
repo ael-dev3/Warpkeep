@@ -671,7 +671,7 @@ it(
       vi.unstubAllEnvs();
     }
   },
-  process.platform === "win32" ? 300_000 : 120_000,
+  process.platform === "win32" ? 300_000 : 240_000,
 );
 
 it("validates source-rebound G001 fixture before filesystem-heavy joined composition", () => {

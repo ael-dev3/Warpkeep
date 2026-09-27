@@ -1863,7 +1863,7 @@ it.each([false, true])('keeps inline inspection diagnostic and generates from it
     authority: generateRun.sourceAuthority }).admissionRequestSuspensionReceiptDigest).toBe(names.find(name => name !== oldName)!.slice(23, -5));
   await expect(state.inspectInlineActivationEvidenceForContinuation({ generator, authority: generateRun.sourceAuthority })).rejects.toThrow();
   await expect(bridge.bridgeState.reopenActivationEvidenceContinuation()).rejects.toThrow();
-}, 180000);
+}, 300_000);
 
 it('joins genuine historical adoptions and selected Linux census to current activation without relabelling signed provenance', async () => {
   const f = await joinedLinuxRecoveryFixture(), requests = seams.request.mock.calls.length;

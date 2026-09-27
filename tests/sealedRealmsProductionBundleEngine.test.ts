@@ -203,7 +203,7 @@ describe('sealed-realms production bundle engine', () => {
         local.root, local.root, local.root,
       ]);
     } finally { local.cleanup(); }
-  }, FILESYSTEM_BUILD_TIMEOUT);
+  }, 30_000);
 
   it('binds graph reads to the supplied source root', async () => {
     const firstLocal = sourceFixture();

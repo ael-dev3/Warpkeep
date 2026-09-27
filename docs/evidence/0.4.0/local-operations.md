@@ -2,7 +2,14 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current exact-M2 operation checkpoint — 25 September 2026
+Current main is generated-only M2
+[`007e62f2e5b7440abf483a83aeda2b9621f4054e`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e).
+Its exact-main Verify failed at the Linux root-test bound. Do not start another
+operation until the [current delivery gates](../../operations/0.4.0-live-delivery-status.md)
+pass on the eventual exact M2. Earlier local results remain tied to their
+recorded source and are not current authority.
+
+## Historical exact-M2 operation checkpoint — 25 September 2026
 
 Protected generated-only M2 is
 [`edb37f4081de1b989a5137627494c1a2575411bb`](https://github.com/ael-dev3/Warpkeep/commit/edb37f4081de1b989a5137627494c1a2575411bb).

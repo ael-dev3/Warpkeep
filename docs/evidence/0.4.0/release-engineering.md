@@ -2,12 +2,23 @@
 
 Current reading point: inspect actual [main](https://github.com/ael-dev3/Warpkeep/tree/main), the current working branch and [execution handoff](../../agent-notes/0.4.0/execution-handoff.md).
 
-The execution handoff owns the current protected/development source and terminal
+The execution handoff owns the current main/development source and terminal
 CI receipts. The dated engineering results below retain their original input;
 do not use an old passing run or Pages classification as a release grant for a
 later source. 0.4 remains unshipped.
 
-The current protected source is generated-only M2
+Current main is generated-only M2
+[`007e62f2e5b7440abf483a83aeda2b9621f4054e`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e).
+Its exact-main Verify failed at the bounded Linux root-test step; private-repo
+CodeQL upload is unavailable. PR #372 carries the source M1 authority and CI
+repair. Require its full current-head Verify, exact signed M1 merge, native
+prepare/check, generated-only M2 promotion and successful exact-M2 push Verify
+before new read-only operations. The [live delivery status](../../operations/0.4.0-live-delivery-status.md)
+tracks this checkpoint; no current run is a live release grant.
+
+## Historical source checkpoint — 25 September 2026
+
+The then-current source was generated-only M2
 [`edb37f4081de1b989a5137627494c1a2575411bb`](https://github.com/ael-dev3/Warpkeep/commit/edb37f4081de1b989a5137627494c1a2575411bb),
 merged through PR #356. Exact-main Verify, CodeQL, read-only preflight and
 policy observation passed. Census runs 36087746335 and 36088300562 failed
@@ -16,10 +27,10 @@ provider mutation. Source M1
 [PR #357](https://github.com/ael-dev3/Warpkeep/pull/357) implements the
 read-only session path while preserving reserved write capacity. The pinned
 Linux build and 14 focused files passed (419 passed, 1 skipped). Protected
-checks must pass on the final PR head before exact-M1 prepare/check and
+checks were required on its final PR head before exact-M1 prepare/check and
 generated-only M2 promotion. See the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
 and [live delivery status](../../operations/0.4.0-live-delivery-status.md) for
-current source and required M1 preparation, M2 and read-only recovery steps. No
+current source and read-only recovery steps. No
 earlier candidate grants authority for the current source.
 
 The local/source rails are healthy, but private activation and owner authority,

@@ -692,5 +692,5 @@ it(
       vi.unstubAllEnvs();
     }
   },
-  process.platform === "win32" ? 600_000 : 120_000,
+  process.platform === "win32" ? 600_000 : 240_000,
 );
