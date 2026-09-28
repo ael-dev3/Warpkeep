@@ -1,5 +1,57 @@
 # Continue Warpkeep 0.4
 
+## Latest release checkpoint — 28 September 2026, 20:19 CEST (18:19 UTC)
+
+The owner directed the workflow to continue without GitHub Actions during
+September. No Actions workflow was dispatched or rerun, and no hosted result was
+used as evidence. Every checkpoint published during this continuation used
+`[skip actions]`. Branch `fix/g001-census-admission-proxy` is clean and synced
+to PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) at signed head
+[`d515d4de`](https://github.com/ael-dev3/Warpkeep/commit/d515d4de9fc33903039b7acce1ca3d1b302952cd),
+based on `main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+
+The source branch now includes the reviewed tree-visual candidate from Warpkeep
+PR [#378](https://github.com/ael-dev3/Warpkeep/pull/378), integrated by signed
+merge `12ebfe08`. It authors 20 biome-specific low-poly Greater Realm tree
+meshes, batches them by biome, and charges real geometry bytes and draw calls
+against the existing chunk budget. The original asset archive is not fetched
+at runtime. Warpkeep-Assets PR [#39](https://github.com/ael-dev3/Warpkeep-Assets/pull/39)
+is still open as a separate archive proposal; the current inventory here was
+metadata-only. PR #378 itself remains open; this is candidate-branch integration,
+not main integration or release acceptance.
+
+Independent local checks on the integrated source tree (tree
+`6d5e8d1745c5566c83ff81cb74978e094d81050f`) passed: typecheck; full production
+build, including runtime-asset and public-boundary checks; and seven affected
+Greater Realm geometry, plan, renderer, chunk-stream and world suites (114/114).
+The world-scene tests emitted their existing React `act()` warnings, but passed.
+The build still reports the existing `RealmMapScreen` bundle at about 747.64 kB
+(202.38 kB gzip), effectively unchanged by this candidate. An independent parse
+of the reproducibly generated 60 GLBs verified hashes, GLB headers/chunks,
+attribute lengths, finite vertex colors and positions, unit normals, nonzero
+triangle areas, and 20 distinct silhouettes at each LOD; total archive size is
+681,380 bytes.
+
+Running the full local rendered-WebGL probe uncovered and fixed a Windows QA
+script defect: it converted valid Info-ZIP `-Z1`/`-p` options into invalid
+`-tf`/`-xOf` combinations. The correction is in signed commit `d515d4de`.
+Afterward, three focused suites passed 61 tests (one platform skip), and the
+full browser probe passed 15 rendered cases, the shader fallback, active Worker
+lifecycle, all six Worker locomotion cases, all-node occupancy, 25 journeys,
+loopback LOD boundary checks, and High/Balanced/Reduced castle LOD fidelity.
+The viewport and journey probes include mobile-sized coverage; no physical
+handset acceptance is recorded. A broader filename-based Greater Realm sweep
+was stopped when it entered unrelated, slow atlas-generation suites; do not
+interpret that interrupted sweep as a pass or a product failure.
+
+The live site was rechecked: `https://warpkeep.com/` returns 200, while
+`https://warpkeep.com/ptr/` returns 404. There is still no deployed or accepted
+0.4 PTR. The sealed verifier's package-structure pin correction and biome-tree
+integration remain subject to the exact-source M1/M2 preparation after source
+integration, and hosted Verify remains required before merging #374. Keep #374
+open through September; do not treat local proof as a hosted-check waiver.
+Continue independent local review and candidate work without starting Actions.
+
 ## Latest release checkpoint — 28 September 2026, 19:46 CEST (17:46 UTC)
 
 The owner directed this workflow to proceed without GitHub Actions during
