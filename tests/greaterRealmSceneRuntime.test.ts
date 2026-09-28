@@ -249,6 +249,62 @@ function voxelDisposalProbe(runtime: ReturnType<typeof createGreaterRealmSceneRu
 }
 
 describe('Greater Realm scene runtime', () => {
+  it('renders separate instanced tree silhouettes for the biomes present in a chunk', () => {
+    const raw = structuredClone(GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]) as any;
+    const savannaCell = raw.coreCells.find((cell: any) => (
+      cell.atlasQ === -2 && cell.atlasR === 1
+    ));
+    savannaCell.biomeClass = 9;
+    const chunk = decodeGreaterRealmChunkDto(raw);
+    const plan = createGreaterRealmChunkPresentationPlan({
+      chunk, graphicsProfile: 'reduced', cellSize: 1
+    });
+    const runtime = createGreaterRealmSceneRuntime({
+      deviceClass: 'mobile', graphicsProfile: 'reduced'
+    });
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: [{ chunk, distanceChunks: 0 }] });
+    expect(runtime.flushUploads()).toBe(1);
+
+    const oak = runtime.group.getObjectByName(
+      `greater-realm-canopy-biome-3:${chunk.chunkHandle}`
+    ) as THREE.InstancedMesh;
+    const savanna = runtime.group.getObjectByName(
+      `greater-realm-canopy-biome-9:${chunk.chunkHandle}`
+    ) as THREE.InstancedMesh;
+    expect(oak).toBeInstanceOf(THREE.InstancedMesh);
+    expect(savanna).toBeInstanceOf(THREE.InstancedMesh);
+    expect(oak.count + savanna.count).toBe(
+      plan.actors.filter((actor) => actor.kind === 'canopy').length
+    );
+    expect(oak.geometry).not.toBe(savanna.geometry);
+    expect(Array.from(oak.geometry.getAttribute('position').array)).not.toEqual(
+      Array.from(savanna.geometry.getAttribute('position').array)
+    );
+    for (const tree of [oak, savanna]) {
+      expect(tree.geometry.getAttribute('color').count).toBeGreaterThan(0);
+      expect((tree.material as THREE.MeshStandardMaterial).vertexColors).toBe(true);
+      expect((tree.material as THREE.MeshStandardMaterial).side).toBe(THREE.DoubleSide);
+    }
+    expect(runtime.getTelemetry().uploadBytesThisFrame).toBeLessThanOrEqual(
+      runtime.getTelemetry().maximumUploadBytesPerFrame
+    );
+    expect(geometryUploadBytes(runtime.group)).toBeLessThanOrEqual(
+      runtime.getTelemetry().uploadBytesThisFrame
+    );
+
+    const before = new THREE.Matrix4();
+    const after = new THREE.Matrix4();
+    savanna.getMatrixAt(0, before);
+    runtime.update(1.5);
+    savanna.getMatrixAt(0, after);
+    expect(after.elements).not.toEqual(before.elements);
+    const oakDispose = vi.spyOn(oak.geometry, 'dispose');
+    const savannaDispose = vi.spyOn(savanna.geometry, 'dispose');
+    runtime.dispose();
+    expect(oakDispose).toHaveBeenCalledOnce();
+    expect(savannaDispose).toHaveBeenCalledOnce();
+  });
+
   it('uploads bounded per-chunk resources and preserves explicit cell access', () => {
     const invalidate = vi.fn();
     const runtime = createGreaterRealmSceneRuntime({
@@ -409,7 +465,9 @@ describe('Greater Realm scene runtime', () => {
     const targetActor = plan.actors.find(
       (actor) => actor.id.startsWith(`${targetCell.cellKey}/canopy/`)
     )!;
-    const canopyIndex = plan.actors.filter((actor) => actor.kind === 'canopy')
+    const canopyIndex = plan.actors.filter((actor) => (
+      actor.kind === 'canopy' && actor.biomeClass === targetActor.biomeClass
+    ))
       .findIndex((actor) => actor.id === targetActor.id);
     const targetRoutePoint = plan.routeSegments.flatMap((segment) => [segment.from, segment.to])
       .find((point) => (
@@ -425,7 +483,7 @@ describe('Greater Realm scene runtime', () => {
     runtime.flushUploads();
 
     const canopy = runtime.group.getObjectByName(
-      `greater-realm-canopy:${chunk.chunkHandle}`
+      `greater-realm-canopy-biome-${targetActor.biomeClass}:${chunk.chunkHandle}`
     ) as THREE.InstancedMesh;
     expect(instancePosition(canopy, canopyIndex).y).toBeCloseTo(0.5, 6);
     const route = runtime.group.getObjectByName(
