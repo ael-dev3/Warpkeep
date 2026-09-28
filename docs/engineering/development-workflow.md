@@ -59,6 +59,18 @@ Historical plans are context, not an automatic restriction on better solutions.
    where evidence lives and the next real caller/gate. Do not invent percentages
    from time spent, line count, test count or number of commits.
 
+### Temporary GitHub Actions pause — September 2026
+
+The owner directed contributors to proceed without GitHub Actions during
+September. Do not dispatch, rerun, or depend on a hosted Actions workflow before
+October 1, 2026. Publish reviewable source checkpoints with `[skip actions]` in
+the commit message so synchronization does not start workflows. GitHub will
+leave the skipped required checks pending; local test results are useful
+evidence but do not waive hosted Verify or authorize merging. Keep affected PRs
+open and continue independent local work. After September, check the owner's
+current direction before resuming Actions; this dated pause does not grant
+automatic authorization to start workflows.
+
 For a maintenance-only request, keep the agreed mechanics and feature set. Fix
 demonstrated defects and inconsistencies through their existing callers. A review
 may find no defect; report that coverage honestly instead of adding speculative

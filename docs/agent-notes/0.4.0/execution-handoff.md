@@ -1,5 +1,42 @@
 # Continue Warpkeep 0.4
 
+## Latest release checkpoint — 28 September 2026, 19:46 CEST (17:46 UTC)
+
+The owner directed this workflow to proceed without GitHub Actions during
+September. No workflow was dispatched or rerun for this checkpoint, and no
+hosted check status was used as evidence. The maintained branch
+`fix/g001-census-admission-proxy` is synced to PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374)
+at signed commit [`f0fcd1a0`](https://github.com/ael-dev3/Warpkeep/commit/f0fcd1a0a537ee4b4763f629ff5784f9226f962d),
+based on `main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The source change
+refreshes `SEALED_LAUNCH_PACKAGE_STRUCTURE_SHA256` in
+`scripts/verify-0.4.0-sealed-launch.mjs` to `5cf98e7b…32a1367f`, matching the
+current root package structure. Local `tests/localPreparedSourcePins.test.ts`
+passed 25/25 and `tests/sealedLaunchVerifier.test.ts` passed 169/169. This is a
+protected/prepared-closure output: the correction still needs the workflow's
+fresh exact-source M1/M2 preparation after integration. It does not mean the
+prepared closure or release was accepted.
+
+On the isolated Linux test checkout, root shard 1 passed 4,105 tests (32
+skipped), shard 3 passed 2,398 (13 skipped), and shard 4 passed 2,543 (4
+skipped). Shard 2 initially exposed an environment setup issue: the pinned
+`spacetimedb/ptr` pnpm workspace was absent and its generated `dist` directory
+had the wrong owner. After installing with the lockfile and correcting only
+that disposable checkout's ownership, the affected
+`tests/ptrRealmBackend.test.ts` passed 15/15; shard 2 as a whole was not rerun.
+The five separately scheduled suites were not run in this continuation.
+`git diff --check` passed. A preparation attempt made before committing the
+source correction correctly rejected the dirty checkout with
+`SEALED_LAUNCH_CHECKOUT_INVALID`; it is recorded as pending exact-source
+preparation, not a product regression. The repository's separate native M1/M2
+sequence and hosted Verify remain required acceptance gates.
+
+Public status is unchanged: `https://warpkeep.com/` serves Alpha 0.3.43 and
+`https://warpkeep.com/ptr/` returns 404. Sealed launch remains in preparation;
+there is no accepted 0.4 PTR deployment. Keep #374 open during the September
+Actions pause. Continue independent local review and integration work, but do
+not merge or describe local evidence as a hosted-check waiver. See the
+[September workflow rule](../../engineering/development-workflow.md#temporary-github-actions-pause--september-2026).
+
 ## Latest release checkpoint — 28 September 2026, 09:15 CEST (07:15 UTC)
 
 At this checkpoint, maintained branch `fix/g001-census-admission-proxy` and
