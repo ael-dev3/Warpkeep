@@ -1,13 +1,14 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 22:15 CEST (20:15 UTC)
+## Latest release checkpoint — 28 September 2026, 22:21 CEST (20:21 UTC)
 
 The owner directed the workflow to continue without GitHub Actions during
 September. No Actions workflow was dispatched, queried or used as evidence.
-Local `HEAD`, the signed origin branch and open PR #374 all match
-`7db3bb12f9e4c3477652476dc2e1d6da2a286c49`; the worktree is clean and
-`git verify-commit HEAD` succeeds. This documentation-only commit follows
-runtime source `44fd9397ba4be770e0936830e3c0e728468ea6c7`. The PR targets main
+Before this documentation-only refresh, local `HEAD`, the signed origin branch
+and open PR #374 matched `0685ccfc09c623d7f19e7bf8af9816d0aeba0257`; the
+worktree was clean and `git verify-commit HEAD` succeeded. This note refresh
+leaves runtime source `44fd9397ba4be770e0936830e3c0e728468ea6c7` unchanged.
+The PR targets main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The connected full-stack probe
 correction is signed commit
 [`12f7ba60`](https://github.com/ael-dev3/Warpkeep/commit/12f7ba60b5b63260f9751c3c0f302a200755d2c1).
@@ -30,13 +31,16 @@ synthetic rendered scenarios, covering construction, completion, mobile
 responsive layouts, keyboard activation, fallback rendering and reduced motion.
 The probe evaluates screenshots in memory and leaves no screenshot files.
 
-At signed candidate head `7db3bb12`, `npm run verify:sealed-launch` passed its
+At signed candidate head `0685ccfc`, `npm run verify:sealed-launch` passed its
 checked-in phase; it correctly returned `pagesDeploymentApproved: false` with
 the live G001/G002/PTR identities unset. This verifies source closure, not a
 deployment. `npm test -- tests/gameplay04KeepModules.test.ts --maxWorkers=1`
 passed 28/28, including the persisted gather→Mill→completion→improved-return
 sequence. That test uses synthetic atlas routes and does not prove the live PTR
 ten-minute journey.
+
+The final local `tests/scannerRegression.test.ts` run passed 7/7. The current
+documentation refresh makes no runtime changes.
 
 On runtime source `44fd9397ba4be770e0936830e3c0e728468ea6c7`,
 `DEPLOY_BASE=/ptr/ npm run build` completed with exit 0. A matching-base preview
@@ -51,7 +55,7 @@ private Assets archive was verified from the existing ignored cache; its
 unauthenticated fetch can return 404 on a fresh checkout. The QA observatory
 records its authenticated recovery.
 
-The public root was last rechecked at 21:56 CEST: it returns 200 while
+The public root was rechecked at 22:21 CEST: it returns 200 while
 `https://warpkeep.com/ptr/` returns 404. No 0.4 PTR or owner/device acceptance
 is claimed. Local tests do not replace hosted Verify, exact-source native
 M1/M2, backend deploy/readback, PTR publication, or owner acceptance. Keep #374

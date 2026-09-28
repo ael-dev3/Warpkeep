@@ -1,12 +1,13 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 22:15 CEST (20:15 UTC).
+Source/GitHub check: 22:21 CEST (20:21 UTC).
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 22:15 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 22:21 CEST
 
 September GitHub Actions pause honored: no Actions workflow was dispatched,
-queried or used. Current local/origin/PR #374 head is the signed documentation
-commit `7db3bb12`; runtime source `44fd9397` is unchanged. The signed QA-source
+queried or used. Before this documentation-only refresh, local/origin/PR #374
+matched signed candidate `0685ccfc`; runtime source `44fd9397` is unchanged.
+This checkpoint changes documentation only. The signed QA-source
 correction `12f7ba60` is included in open PR
 #374 from `fix/g001-census-admission-proxy`, based on main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Signed code fix `2a69271e` now
@@ -22,8 +23,8 @@ three focused auth/entry suites passed 53/53 at both `/` and `/ptr/`, and
 production-boundary, exclusion and Farcaster checks. A matching-base preview
 served all nine unique entry assets and 21 Vite-mapped runtime assets with
 correct content types. Runtime source `44fd9397` built successfully; commits
-`dbb3e79c` and `7db3bb12` only update documentation. A fresh public check
-at 21:56 CEST found root HTTP 200 and `/ptr/` HTTP
+`dbb3e79c`, `7db3bb12` and `0685ccfc` only update documentation. A fresh public
+check at 22:21 CEST found root HTTP 200 and `/ptr/` HTTP
 404. The PTR is not published. A preview started with the wrong `/` base
 returned the SPA index for missing `/ptr/assets/...` URLs; the QA observatory
 records the correct startup environment. The current Vite warning is
@@ -34,11 +35,14 @@ Fresh Windows rendered QA `npm run qa:inner-keep` passed 18 synthetic cases,
 including responsive mobile layouts, construction/completion and fallback
 rendering. Its visual analysis is in memory; it creates no screenshot files.
 
-At candidate head `7db3bb12`, `npm run verify:sealed-launch` passed the
+At candidate head `0685ccfc`, `npm run verify:sealed-launch` passed the
 checked-in phase with deployment approval false and live realm identities
 unset. The persisted gameplay adapter suite passed 28/28, including improved
 return credit after Mill completion. It uses synthetic routes; real PTR timing
 and the ten-minute first-payoff target remain unverified.
+
+The final local `tests/scannerRegression.test.ts` run passed 7/7. The latest
+commit changes documentation only.
 
 The pinned private Assets archive is verified in the ignored cache; the [QA observatory](../../operations/qa-observatory.md)
 records the authenticated recovery command for fresh checkouts. 0.4 is not live
