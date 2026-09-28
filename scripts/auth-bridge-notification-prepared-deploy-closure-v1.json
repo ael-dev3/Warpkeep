@@ -360,7 +360,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1c5a5a6ad164773028e61d893e49d6c99c671f4c93c2224d6d237f94b4c108d3"
+      "sha256": "aa955ab3a740d89ce1dae10629ef8e49a05c21b971d3c3f49337209a47bbbaf3"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -1340,7 +1340,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "66e34d277ad989af5e8e3434bf541d14a6657c77880a7de563f3bd0fa78acc5d"
+      "sha256": "1f878abe7346beea50f3a5a3f3500b7a17a5f20ac9f6a9157ec7913959e9b9c0"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -3850,7 +3850,7 @@
     {
       "path": "src/components/keep04/Keep04Screen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8d4e0de37a2d9c09fef554e52fed724e9a2e8502557c1d52300d762b1b6a1fd5"
+      "sha256": "fef6419e7604342c8259982d2598b0e6846e1b2ee06cf350d6c60959f3c587d8"
     },
     {
       "path": "src/components/keep04/Keep04WorkerPanel.tsx",
@@ -4023,6 +4023,16 @@
       "sha256": "7b2633f0aa98c17a30c33d5580460ab5eae22fc4db24167cf71f1f611d474bf5"
     },
     {
+      "path": "src/components/realm/CastleLyricFilmAction.css",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "4bff0818d20b187644a7949e9afbf856b075548f0141d91904555a2e842e9064"
+    },
+    {
+      "path": "src/components/realm/CastleLyricFilmAction.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "6de921d4733917a9c485ba1c62aaeee0defe8cc5e62e3f320d51fb458aceb9ab"
+    },
+    {
       "path": "src/components/realm/FoodFarmInspectionPanel.css",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "b45b8974928ec29ff6a3cdc01030b127a60f56cdd950bf52ba43ce91f8033715"
@@ -4046,6 +4056,11 @@
       "path": "src/components/realm/GreaterRealmWorldScene.tsx",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "eba378ff4c6b96fb9a1453c342855f78e655cc1582284432895c3b2715da0b26"
+    },
+    {
+      "path": "src/components/realm/LazyCastleLyricFilmAction.tsx",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "95156bedfedcef3c0da7e37798ba2695bf6dc8ed131b12e0e8ebf1dac7fd1f96"
     },
     {
       "path": "src/components/realm/LoggingCampInspectionPanel.css",
@@ -4226,6 +4241,16 @@
       "path": "src/components/realm/castleInstancePlanning.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "6ab9124424d68c7f58e925bd6e7d84bb4acc856afa7da60c1f5e7c801c215b51"
+    },
+    {
+      "path": "src/components/realm/castleLyricFilmConfig.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "1b3ad98b07de4795e6a916f31d2824da0cb6f5e8431ec0bfcce5d8cfab47afdf"
+    },
+    {
+      "path": "src/components/realm/castleLyricFilmEligibility.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "7b34c69c0cdddf34d81ff6828756eed03bb41cd33d8f9cb8564581f46c23121c"
     },
     {
       "path": "src/components/realm/createGreaterRealmWorldCanvasHost.ts",
@@ -4976,6 +5001,11 @@
       "path": "src/game/map/terrainTypes.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "12afcdb3395aba2799ebe8cf30cdef4e9ebec0de44f0a3132639292ab12c3ad1"
+    },
+    {
+      "path": "src/greater-realm/biomeTreeGeometry.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "60f3f7e0029c6e0da75d1465a3db1604d442dd3ae8054e8a3102f334c3235643"
     },
     {
       "path": "src/greater-realm/createGreaterRealmSceneRuntime.ts",

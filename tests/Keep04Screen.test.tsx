@@ -466,7 +466,7 @@ it('makes the first resource journey obvious for a new empty keep', () => {
   const firstJourney = screen.getByRole('region', { name: 'First journey' });
   expect(within(screen.getByRole('region', { name: 'Keep loop' })).getByRole('listitem', { name: 'Gather · active' })).toHaveAttribute('aria-current', 'step');
   expect(firstJourney).toHaveTextContent('Start with one useful journey.');
-  expect(firstJourney).toHaveTextContent('Open the Realm and choose a resource location for Worker 1.');
+  expect(firstJourney).toHaveTextContent('Your first economy building needs Food, Wood, and Stone. City Goldworks also needs Gold. Compare costs under Buildings, then send Worker 1 to gather what you lack.');
   fireEvent.click(within(firstJourney).getByRole('button', { name: 'Choose a resource location' }));
   expect(find).toHaveBeenCalledWith(null, 0);
   expect(controller.submit).not.toHaveBeenCalled();
