@@ -1,5 +1,47 @@
 # Continue Warpkeep 0.4
 
+## Latest release checkpoint — 28 September 2026, 06:37 CEST (04:37 UTC)
+
+At 06:37 CEST the maintained checkout was clean on
+`fix/g001-census-admission-proxy` at signed commit
+[`bfbcc3a4`](https://github.com/ael-dev3/Warpkeep/commit/bfbcc3a4ec7066cd8c048530d6a4e1fb7cda61c9),
+and exactly matched `origin/fix/g001-census-admission-proxy`. This notes-only
+refresh advances the branch; verify the resulting exact head before publication.
+PR
+[#374](https://github.com/ael-dev3/Warpkeep/pull/374) remains open against
+`main` at `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; no review has been
+submitted. Its exact-head Verify
+[36378023628](https://github.com/ael-dev3/Warpkeep/actions/runs/36378023628)
+failed all 17 jobs before a step ran. The jobs began and ended within seconds
+with empty step lists; GitHub's annotation identifies account-payment or
+Actions-spending-limit failure. This is not a source-test result. The `/ptr/`
+production build and source-bound payload-manifest check passed locally for
+this exact SHA. The ignored manifest contains 369 files / 137,380,979 bytes
+and has SHA-256
+`ff57b480916930079ff711beb5c9d1c5ea402330dcab060646fbae4979e8346c`.
+The sealed-launch preparation check still reports package `0.3.43`, no PTR or
+G002 database identity, and no deployment approval. The live Alpha root was
+last checked at HTTP 200 and `/ptr/` at HTTP 404 at 04:15 UTC; no new public
+deployment was made. Therefore 0.4 is not live or accepted.
+
+New PR inventory: #375 repeats the older menu source already integrated into
+#374 and must not be merged directly. #376 adds a 288.9 MB click-to-load video;
+keep it deferred until mobile data/playback cost and hosted Verify are
+acceptable. #377 adds a Genesis 002 soundtrack while G002 remains sealed, so
+it has no reachable PTR value and remains deferred pending scope and rights
+evidence. The latest exact-head hosted checks for #374, #376 and #377 are
+billing-blocked before their steps; locally reported PR checks do not replace
+hosted Verify. Re-inventory before each integration because further PRs are
+expected.
+
+Resume by resolving the GitHub account payment/Actions spending-limit issue,
+then run Verify against the exact live #374 head and require all checks to
+pass. Continue the already documented M1/M2 protected integration, fresh
+G001 census/preservation readback, sealed G002 verification, authenticated PTR
+deployment and owner journey in order. Keep the live Alpha root available.
+Do not use the persistent privileged production runner as a substitute for
+hosted checks. See the release checklist and the detailed sequence below.
+
 ## Shipping continuation — 28 September 2026, 06:15 CEST (04:15 UTC)
 
 PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) is still open against

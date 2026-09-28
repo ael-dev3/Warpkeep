@@ -48,18 +48,23 @@ build. The owner confirmed successful phone-approved desktop sign-in at
 records the evidence and its limits. No exact frontend build hash was captured
 for that sign-in. The reviewed Verdant Citadel menu and source repairs are
 integrated into the open 0.4 candidate, [PR
-#374](https://github.com/ael-dev3/Warpkeep/pull/374). At the latest checked
-checkpoint, its signed branch head was `ef7e8cf6` and matched the maintained
+#374](https://github.com/ael-dev3/Warpkeep/pull/374). At the 06:37 CEST
+checkpoint, its signed branch head was `bfbcc3a4` and matched the maintained
 local checkout. The exact-head
-[Verify run 36377022389](https://github.com/ael-dev3/Warpkeep/actions/runs/36377022389)
-stopped all 17 jobs before any step because GitHub cited account payments or
-the Actions spending limit; this is not a source-test result. The exact-source
-`/ptr/` production build and payload-manifest write/check passed locally. The
-live Alpha root returned HTTP 200, while `/ptr/` returned HTTP 404; no 0.4 PTR
-deployment or release acceptance is claimed. Sealed launch remains in
+[Verify run 36378023628](https://github.com/ael-dev3/Warpkeep/actions/runs/36378023628)
+failed all 17 jobs before any step because GitHub cited account payments or the
+Actions spending limit; each job had an empty step list, so this is not a
+source-test result. The exact-source `/ptr/` production build and
+payload-manifest check passed locally; its manifest SHA-256 is
+`ff57b480916930079ff711beb5c9d1c5ea402330dcab060646fbae4979e8346c`. The live
+Alpha root returned HTTP 200 at 04:15 UTC, while `/ptr/` returned HTTP 404; no
+0.4 PTR deployment or release acceptance is claimed. Sealed launch remains in
 preparation, package version `0.3.43`, without a PTR database identity or
 activated production receipts. Resolve the billing gate, then rerun Verify on
-the exact current PR head. The dated [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md)
+the exact current PR head. PR #375 duplicates menu work already in #374; #376's
+288.9 MB video and #377's Genesis 002-only soundtrack remain deferred from
+the initial PTR, for mobile cost and realm-readiness/rights reasons. The dated
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md)
 records the release sequence and evidence. Protected integration, native
 preparation, provider work and owner acceptance remain before 0.4 release.
 
