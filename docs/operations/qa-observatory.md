@@ -111,6 +111,26 @@ Expected archive identity: 10,672,929 bytes,
 `c029a636ee0a791ca54072d5f32fcf68263677951fd59c338dfe242264335d5f`.
 Keep it in the ignored cache; never copy it to the Desktop or add it to Git.
 
+For a production-path smoke, set `DEPLOY_BASE=/ptr/` for both build and
+preview. Vite reads its deployment base when the preview server starts; if the
+preview process starts with `/` instead, requests for `/ptr/assets/...` can
+fall through to the SPA index and return `200 text/html`. Check content types,
+not status alone. On Windows PowerShell:
+
+```powershell
+$env:DEPLOY_BASE = '/ptr/'
+npm run build
+npm run preview -- --host 127.0.0.1 --port 4173
+```
+
+While preview is running, verify `/ptr/` and every local `src`/`href` asset in
+its entry HTML, then stop the server and clear `$env:DEPLOY_BASE`. The
+Farcaster “open web” fallbacks use the same Vite base, so an auth or framed-host
+recovery from the owner PTR returns to `/ptr/#menu` rather than the Alpha root.
+`tests/farcasterAuthContext.test.ts`,
+`tests/farcasterMiniAppEntryGate.test.tsx` and
+`tests/WarpkeepExperienceRealm.test.tsx` cover the root and PTR path behavior.
+
 Neither browser lane needs access to a live Warpkeep service.
 
 For the keep-only visual foundation lane, run:

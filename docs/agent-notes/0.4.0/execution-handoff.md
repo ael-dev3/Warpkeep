@@ -1,52 +1,42 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 21:29 CEST (19:29 UTC)
+## Latest release checkpoint — 28 September 2026, 21:47 CEST (19:47 UTC)
 
 The owner directed the workflow to continue without GitHub Actions during
 September. No Actions workflow was dispatched, queried or used as evidence.
 The signed candidate branch is synced to open PR
 [#374](https://github.com/ael-dev3/Warpkeep/pull/374) against `main`
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Its QA-source correction is commit
-[`12f7ba60`](https://github.com/ael-dev3/Warpkeep/commit/12f7ba60b5b63260f9751c3c0f302a200755d2c1);
-the later commits in this continuation update notes only. The correction
-updates the connected local full-stack QA probe to reflect the shipped 0.4 entry contract:
-the experience opens directly on its main menu, so six responsive profiles now
-verify that visible, interactive menu instead of the retired title gateway.
-Obsolete title-only code and warmup paths were removed. This is QA alignment;
-it does not add a player feature.
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The connected full-stack probe
+correction is signed commit [`12f7ba60`](https://github.com/ael-dev3/Warpkeep/commit/12f7ba60b5b63260f9751c3c0f302a200755d2c1).
+Signed commit [`2a69271e`](https://github.com/ael-dev3/Warpkeep/commit/2a69271e)
+fixes a PTR navigation defect: web-version and unverified-frame fallbacks now
+derive their URL from the validated host and Vite deployment base. A player
+recovering from `/ptr/` remains at `/ptr/#menu`; root deployment still resolves
+to `/#menu`. No gameplay rule or feature changed.
 
-On the final candidate source, the Windows disposable full-stack probe passed
-all six desktop/mobile profiles, synthetic sign-in and Terms, Inner Keep City
-Mill start/completion and reload persistence, Lumber Camp start, fresh-browser
-Worker reconnect/private-read recovery, four resource dispatches, recalls,
-settlement and return. It used the attested SpacetimeDB 2.6.1 CLI/standalone
-pair and completed without a live service. The security/source-contract suite
-passed 51/51. The full rendered WebGL browser matrix passed 15 rendered cases,
-including shader fallback, Worker lifecycle and locomotion, occupancy stress,
-25 journeys, LOD boundary/fidelity and High/Balanced/Reduced modes. One initial
-Android Chrome-emulation attempt reported `log-error-network-unclassified`;
-both mobile touch cases passed in isolation and the entire matrix passed on
-rerun. Treat that as a non-reproducing runner warning, not a waived test. The
-archive identity was verified from the existing ignored cache; its private
-Assets release makes the generic unauthenticated downloader return 404. Recovery
-steps and the pinned digest are in
-[`qa-observatory.md`](../../operations/qa-observatory.md).
+After the fallback correction, the focused auth/entry suites passed 53/53 under
+both `/` and `/ptr/` deployment bases, and `npm run typecheck` passed. The
+earlier Windows full-stack journey and complete 15-case rendered-WebGL matrix
+remain valid for the unchanged gameplay/rendering paths. A `/ptr/` production
+build passed its asset, type, boundary, exclusion and Farcaster integrity checks.
+With the preview server launched under the same `/ptr/` base, all nine entry
+assets and 21 mapped runtime chunks returned 200 with JavaScript/CSS/image
+content types. A preview started at `/` had instead returned the SPA index for
+missing `/ptr/assets/...` requests; the matching-base recovery is now in the
+[QA observatory](../../operations/qa-observatory.md).
 
-Pushed candidate documentation head `5adf1dd5` also passed `npm run build`,
-including TypeScript, runtime/provenance asset manifests, production asset
-verification, distribution exclusions, public-boundary checks (3,293 tracked
-paths; 1,771 scanned entries) and Farcaster Mini App integrity. Vite reports
-the existing `RealmMapScreen` chunk at 747.62 kB (202.35 kB gzip), effectively
-unchanged from the previous candidate; retain it as a measured mobile-load
-follow-up, not a failed build.
+The current Vite build reports `RealmMapScreen` at 747.73 kB (202.36 kB gzip),
+effectively unchanged; keep its mobile-load impact under observation. The
+private Assets archive was verified from the existing ignored cache; its
+unauthenticated fetch can return 404 on a fresh checkout. The QA observatory
+records its authenticated recovery.
 
-Public status was rechecked at 21:18 CEST: `https://warpkeep.com/` returns 200;
-`https://warpkeep.com/ptr/` returns 404. No 0.4 PTR deployment or owner/device
-acceptance is claimed. Keep #374 open during September's Actions pause. The
-local evidence does not satisfy hosted Verify, exact-source native M1/M2,
-backend deploy/readback, PTR publication, or owner acceptance. Continue local
-candidate review and resolve those exact gates when their required environment
-is available; do not describe this local pass as a release.
+The public root was last rechecked at 21:31 CEST: it returns 200 while
+`https://warpkeep.com/ptr/` returns 404. No 0.4 PTR or owner/device acceptance
+is claimed. Local tests do not replace hosted Verify, exact-source native
+M1/M2, backend deploy/readback, PTR publication, or owner acceptance. Keep #374
+open during September's Actions pause and continue candidate work without
+describing local evidence as release acceptance.
 
 The source branch now includes the reviewed tree-visual candidate from Warpkeep
 PR [#378](https://github.com/ael-dev3/Warpkeep/pull/378), integrated by signed

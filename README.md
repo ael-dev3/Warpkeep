@@ -48,10 +48,11 @@ Hegemony banners from [PR #375](https://github.com/ael-dev3/Warpkeep/pull/375)
 are already integrated into the open 0.4 candidate,
 [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374), together with the
 mobile/WebGL corrections and the reviewed Greater Realm tree presentation from
-[#378](https://github.com/ael-dev3/Warpkeep/pull/378). PR #375 remains open as
-source provenance; its older branch must not be merged separately. The candidate
-is a polished visual foundation around the existing gather, dispatch, return
-and construction loop.
+[#378](https://github.com/ael-dev3/Warpkeep/pull/378). PTR sign-in and framed-
+host fallbacks now preserve `/ptr/` instead of routing owners to the Alpha root.
+PR #375 remains open as source provenance; its older branch must not be merged
+separately. The candidate is a polished visual foundation around the existing
+gather, dispatch, return and construction loop.
 
 Local Windows verification on September 28 passed the disposable full-stack
 journey across six desktop/mobile profiles and the complete rendered-WebGL

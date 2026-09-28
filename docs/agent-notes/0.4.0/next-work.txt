@@ -1,40 +1,37 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 21:29 CEST (19:29 UTC).
+Source/GitHub check: 21:47 CEST (19:47 UTC).
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 21:29 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 21:47 CEST
 
 September GitHub Actions pause honored: no Actions workflow was dispatched,
 queried or used. Signed QA-source correction `12f7ba60` is included in open PR
 #374 from `fix/g001-census-admission-proxy`, based on main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; follow-up commits in this
-continuation are documentation only.
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Signed code fix `2a69271e` now
+keeps web-version and unverified-frame recovery links on the current deployment
+base: root deployments keep the root menu URL, and the isolated owner PTR uses
+`/ptr/#menu`.
 
-The candidate corrects only the local full-stack QA entrypoint: current 0.4
-opens directly on the main menu, so six responsive desktop/mobile profiles now
-verify the actual visible, interactive menu rather than the retired title
-gateway. The Windows disposable full-stack probe passed through synthetic
-sign-in/Terms, Inner Keep construction and reload persistence, Worker reconnect
-and private-read recovery, four dispatches, recalls, settlement and return.
-Security/source-contract tests passed 51/51. The complete local rendered-WebGL
-matrix passed 15 cases, including shader fallback, Worker lifecycle and
-locomotion, occupancy stress, 25 journeys, LOD boundary/fidelity and all three
-quality modes. An initial Android emulation warning did not reproduce: isolated
-mobile touch checks passed 2/2 and the full matrix passed on rerun.
-Pushed candidate documentation head `5adf1dd5` passed the production build,
-asset integrity, production exclusions, public-boundary scan (3,293 tracked
-paths; 1,771 scanned entries), and Farcaster Mini App integrity. The existing
-`RealmMapScreen` bundle measures 747.62 kB (202.35 kB gzip); track its mobile
-load impact while preserving the passing rendered quality modes.
+The prior Windows full-stack run still covers the direct-menu entry and gameplay
+journey; the complete 15-case rendered-WebGL matrix still covers mobile gestures,
+Worker lifecycle, 25 journeys, LOD and all quality modes. After the path fix,
+three focused auth/entry suites passed 53/53 at both `/` and `/ptr/`, and
+`npm run typecheck` passed. The `/ptr/` production build passed its asset,
+production-boundary, exclusion and Farcaster checks. A matching-base preview
+served all nine entry assets and 21 mapped runtime chunks with correct content
+types. A preview started with the wrong `/` base returned the SPA index for
+missing `/ptr/assets/...` URLs; the QA observatory records the correct startup
+environment. The current Vite warning is `RealmMapScreen` 747.73 kB (202.36 kB
+gzip); retain its mobile-load impact as a follow-up.
 
 The pinned private Assets archive is already verified in the ignored cache;
 the [QA observatory](../../operations/qa-observatory.md) records the
-authenticated recovery command for fresh checkouts. The public root serves
-Alpha 0.3.43 (HTTP 200) and `/ptr/` is HTTP 404. 0.4 is not live on PTR or
-accepted. Release gates remain exact-source native M1/M2, backend deploy/readback,
-PTR publication, and owner/device acceptance; hosted Verify is unavailable
-during the September Actions pause. Continue local review and ready the first
-permissible exact-source publication checks after the pause.
+authenticated recovery command for fresh checkouts. At 21:31 CEST the public
+root served Alpha 0.3.43 (HTTP 200) and `/ptr/` returned HTTP 404. 0.4 is not
+live on PTR or accepted. Release gates remain exact-source native M1/M2,
+backend deploy/readback, PTR publication, and owner/device acceptance; hosted
+Verify is unavailable during the September Actions pause. Continue local review
+and ready the first permissible exact-source publication checks after the pause.
 
 NEXT ACTIONS
 
