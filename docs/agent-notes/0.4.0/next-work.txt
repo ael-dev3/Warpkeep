@@ -1,6 +1,6 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 06:37 CEST (04:37 UTC).
+Source/GitHub check: 06:45 CEST (04:45 UTC).
 
 PURPOSE OF THIS FILE
 
@@ -34,16 +34,16 @@ Maintained checkout:
 C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep
 
 Local branch: fix/g001-census-admission-proxy
-At the 06:37 CEST check, local and GitHub branch head was signed
-bfbcc3a4ec7066cd8c048530d6a4e1fb7cda61c9 and the checkout was clean and
+At the 06:45 CEST check, local and GitHub branch head was signed
+4abc69b773e0541aebdce407aa061999ae811ae9 and the checkout was clean and
 remote-equal. PR #374 is open against `main` at
 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. Its exact-head Verify
-[36378023628](https://github.com/ael-dev3/Warpkeep/actions/runs/36378023628)
+[36378719419](https://github.com/ael-dev3/Warpkeep/actions/runs/36378719419)
 failed all 17 jobs before any job step. GitHub's annotation identifies
 account payments or the Actions spending limit, so hosted source tests have not
 run. The exact-source `/ptr/` build and payload-manifest check passed locally
-at `bfbcc3a4`: 369 files, 137,380,979 bytes, manifest SHA-256
-`ff57b480916930079ff711beb5c9d1c5ea402330dcab060646fbae4979e8346c`.
+at `4abc69b7`: 369 files, 137,382,410 bytes, manifest SHA-256
+`f064464b94ee5722f2af9253fa0427bbeb507bcb501b84e962ec620e53e0289c`.
 At 04:15 UTC, the live Alpha root returned HTTP 200 and `/ptr/` returned HTTP
 404. Sealed launch remains in preparation with no PTR database identity or
 production receipts; 0.4 is not deployed or accepted. This notes update
@@ -125,7 +125,7 @@ docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md.
 The prior exact-head run [Verify 36356502820](https://github.com/ael-dev3/Warpkeep/actions/runs/36356502820)
 on signed docs head 4e8d8cf5 and [Verify 36370609811](https://github.com/ael-dev3/Warpkeep/actions/runs/36370609811)
 on 4ceba245 are historical examples of the same pre-run billing gate. The
-current result at this refresh is Verify 36378023628 on `bfbcc3a4`, recorded
+current result at this refresh is Verify 36378719419 on `4abc69b7`, recorded
 at the top of execution-handoff.md. Check the automatically triggered run for
 this note's new head after publication; do not treat a pre-run billing failure
 as a source test failure or a green release check.
