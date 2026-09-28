@@ -1,13 +1,15 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 21:47 CEST (19:47 UTC)
+## Latest release checkpoint — 28 September 2026, 21:56 CEST (19:56 UTC)
 
 The owner directed the workflow to continue without GitHub Actions during
 September. No Actions workflow was dispatched, queried or used as evidence.
-The signed candidate branch is synced to open PR
-[#374](https://github.com/ael-dev3/Warpkeep/pull/374) against `main`
+Local `HEAD`, the signed origin branch and open PR #374 all match
+`44fd9397ba4be770e0936830e3c0e728468ea6c7`; the worktree is clean and
+`git verify-commit HEAD` succeeds. The PR targets main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The connected full-stack probe
-correction is signed commit [`12f7ba60`](https://github.com/ael-dev3/Warpkeep/commit/12f7ba60b5b63260f9751c3c0f302a200755d2c1).
+correction is signed commit
+[`12f7ba60`](https://github.com/ael-dev3/Warpkeep/commit/12f7ba60b5b63260f9751c3c0f302a200755d2c1).
 Signed commit [`2a69271e`](https://github.com/ael-dev3/Warpkeep/commit/2a69271e)
 fixes a PTR navigation defect: web-version and unverified-frame fallbacks now
 derive their URL from the validated host and Vite deployment base. A player
@@ -25,13 +27,19 @@ content types. A preview started at `/` had instead returned the SPA index for
 missing `/ptr/assets/...` requests; the matching-base recovery is now in the
 [QA observatory](../../operations/qa-observatory.md).
 
-The current Vite build reports `RealmMapScreen` at 747.73 kB (202.36 kB gzip),
-effectively unchanged; keep its mobile-load impact under observation. The
+On that exact synced head, `DEPLOY_BASE=/ptr/ npm run build` completed with exit
+0. A matching-base preview served all nine unique entry assets and all 21
+Vite-mapped runtime assets with HTTP 200 and the expected JavaScript, CSS, or
+image content type; the preview process was stopped after the smoke. A fresh
+public check returned HTTP 200 at `https://warpkeep.com/` and HTTP 404 at
+`https://warpkeep.com/ptr/`, so the PTR is still unavailable. The current Vite
+build reports `RealmMapScreen` at 747.73 kB (202.36 kB gzip), effectively
+unchanged; keep its mobile-load impact under observation. The
 private Assets archive was verified from the existing ignored cache; its
 unauthenticated fetch can return 404 on a fresh checkout. The QA observatory
 records its authenticated recovery.
 
-The public root was last rechecked at 21:31 CEST: it returns 200 while
+The public root was last rechecked at 21:56 CEST: it returns 200 while
 `https://warpkeep.com/ptr/` returns 404. No 0.4 PTR or owner/device acceptance
 is claimed. Local tests do not replace hosted Verify, exact-source native
 M1/M2, backend deploy/readback, PTR publication, or owner acceptance. Keep #374

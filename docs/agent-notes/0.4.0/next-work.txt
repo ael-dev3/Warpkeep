@@ -1,8 +1,8 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 21:47 CEST (19:47 UTC).
+Source/GitHub check: 21:56 CEST (19:56 UTC).
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 21:47 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 21:56 CEST
 
 September GitHub Actions pause honored: no Actions workflow was dispatched,
 queried or used. Signed QA-source correction `12f7ba60` is included in open PR
@@ -18,15 +18,19 @@ Worker lifecycle, 25 journeys, LOD and all quality modes. After the path fix,
 three focused auth/entry suites passed 53/53 at both `/` and `/ptr/`, and
 `npm run typecheck` passed. The `/ptr/` production build passed its asset,
 production-boundary, exclusion and Farcaster checks. A matching-base preview
-served all nine entry assets and 21 mapped runtime chunks with correct content
-types. A preview started with the wrong `/` base returned the SPA index for
-missing `/ptr/assets/...` URLs; the QA observatory records the correct startup
-environment. The current Vite warning is `RealmMapScreen` 747.73 kB (202.36 kB
-gzip); retain its mobile-load impact as a follow-up.
+served all nine unique entry assets and 21 Vite-mapped runtime assets with
+correct content types. Rebuilt exact signed/synced head `44fd9397` successfully;
+its clean worktree, valid commit signature, origin branch and open PR #374 all
+agree. A fresh public check at 21:56 CEST found root HTTP 200 and `/ptr/` HTTP
+404. The PTR is not published. A preview started with the wrong `/` base
+returned the SPA index for missing `/ptr/assets/...` URLs; the QA observatory
+records the correct startup environment. The current Vite warning is
+`RealmMapScreen` 747.73 kB (202.36 kB gzip); retain its mobile-load impact as
+a follow-up.
 
 The pinned private Assets archive is already verified in the ignored cache;
 the [QA observatory](../../operations/qa-observatory.md) records the
-authenticated recovery command for fresh checkouts. At 21:31 CEST the public
+authenticated recovery command for fresh checkouts. At 21:56 CEST the public
 root served Alpha 0.3.43 (HTTP 200) and `/ptr/` returned HTTP 404. 0.4 is not
 live on PTR or accepted. Release gates remain exact-source native M1/M2,
 backend deploy/readback, PTR publication, and owner/device acceptance; hosted
@@ -49,9 +53,10 @@ NEXT ACTIONS
    budget/integration checks. Do not treat an open PR as an approved asset.
 3. Resolve the exact-source native M1/M2 preparation and backend deploy/readback
    prerequisites using the existing supported environment and credentials.
-4. After October 1, run hosted Verify only on the exact live PR head. Complete
-   PTR publication and confirm its public URL on both desktop and a phone; then
-   record owner acceptance. Until those checks pass, 0.4 is not shipped.
+4. After September, resume hosted Verify only on the exact live PR head and
+   only after confirming the account billing gate is clear. Complete PTR
+   publication and confirm its public URL on desktop and a phone; then record
+   owner acceptance. Until those checks pass, 0.4 is not shipped.
 
 PREVIOUS SHIPPING CHECKPOINT — 28 SEPTEMBER, 09:15 CEST
 
