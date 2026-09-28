@@ -1,47 +1,45 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 07:08 CEST (05:08 UTC)
+## Latest release checkpoint — 28 September 2026, 09:15 CEST (07:15 UTC)
 
-At 07:08 CEST the maintained checkout was clean on
-`fix/g001-census-admission-proxy` at signed commit
-[`01bdb087`](https://github.com/ael-dev3/Warpkeep/commit/01bdb0871d5d29561fe305b46296dcdee0191398),
-and exactly matched `origin/fix/g001-census-admission-proxy`. This notes-only
-refresh advances the branch; verify the resulting exact head before publication.
-PR
-[#374](https://github.com/ael-dev3/Warpkeep/pull/374) remains open against
-`main` at `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; no review has been
-submitted. Its exact-head Verify
-[36379201855](https://github.com/ael-dev3/Warpkeep/actions/runs/36379201855)
-failed all 17 jobs before a step ran. The jobs began and ended within seconds
-with empty step lists; the exact annotation says recent account payments have
-failed or the spending limit needs to increase. This is not a source-test
-result. The `/ptr/` production build passed locally on Node 22.23.2/npm 10.9.8,
-and its source-bound payload-manifest check passed for this exact SHA. All
-eight changed publication suites passed: 163 tests, four platform skips. The
-ignored manifest contains 369 files / 137,382,410 bytes and has SHA-256
-`1f9f9ca9c4ad41617dece151b951f06709abf170a6ce5a5d70465c9e08ad81c3`.
-The sealed-launch preparation check still reports package `0.3.43`, no PTR or
-G002 database identity, and no deployment approval. The live Alpha root was
-last checked at HTTP 200 and `/ptr/` at HTTP 404 at 05:08 UTC; no new public
-deployment was made. Therefore 0.4 is not live or accepted.
+At this checkpoint, maintained branch `fix/g001-census-admission-proxy` and
+`origin` matched at signed source
+[`dd24abb`](https://github.com/ael-dev3/Warpkeep/commit/dd24abb135600295e3b0675c92088124a54aee9a).
+PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) is open against
+`main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Exact-head Verify
+[36389656795](https://github.com/ael-dev3/Warpkeep/actions/runs/36389656795)
+failed all 17 jobs before runner allocation. GitHub attributes this to failed
+account payments or the Actions spending limit; the jobs had no test steps,
+so hosted source verification has not run. The account owner must clear this
+gate and rerun Verify on the live exact PR head. This checkpoint's documentation
+updates advance that head; always resolve the pushed SHA before release work.
 
-New PR inventory: #375 repeats the older menu source already integrated into
-#374 and must not be merged directly. #376 adds a 288.9 MB click-to-load video;
-keep it deferred until mobile data/playback cost and hosted Verify are
-acceptable. #377 adds a Genesis 002 soundtrack while G002 remains sealed, so
-it has no reachable PTR value and remains deferred pending scope and rights
-evidence. The latest exact-head hosted checks for #374, #376 and #377 are
-billing-blocked before their steps; locally reported PR checks do not replace
-hosted Verify. Re-inventory before each integration because further PRs are
-expected.
+The local Node 22.23.2 `/ptr/` production build and source-bound payload check
+passed on `dd24abb`: 369 files and 131,605,137 bytes. The local 390×844 Chrome
+capture reached model-ready with a visible canvas and no console warnings; the
+resource waterfall was 3,738,720 bytes, versus 9,516,527 bytes in the earlier
+capture. The castle and guardian source models are preserved unchanged; the
+optimized runtime files total 1,036,412 bytes, down from 6,814,140 bytes. This
+is synthetic local evidence, not physical-device acceptance.
 
-Resume by resolving the GitHub account payment/Actions spending-limit issue,
-then run Verify against the exact live #374 head and require all checks to
-pass. Continue the already documented M1/M2 protected integration, fresh
-G001 census/preservation readback, sealed G002 verification, authenticated PTR
-deployment and owner journey in order. Keep the live Alpha root available.
-Do not use the persistent privileged production runner as a substitute for
-hosted checks. See the release checklist and the detailed sequence below.
+The read-only `/ptr/` mirror plan passed against public
+`Warpkeep-Live@b6afe92`: it preserves 341 current Alpha root files and
+describes a 723-file target tree. No public files or refs changed. The previous
+claim that delivery required the root path was stale; the checked-in planner
+and publisher support `/ptr/` while preserving the live root. Production still
+serves Alpha 0.3.43 at `/` (HTTP 200), while `/ptr/` is HTTP 404. The PTR is not
+deployed or accepted.
+
+PR #375 repeats the older menu source already staged in #374. #376's 288.9 MB
+castle film remains deferred pending mobile transfer/playback review; #377's
+Genesis 002 soundtrack remains deferred pending realm scope and rights review.
+Assets #38 stacks Genesis 002 audio on Assets #37 and remains deferred with
+that realm-scope decision. Re-inventory incoming PRs before integration.
+Resume with account billing and hosted Verify, then complete the documented
+exact-source M1/M2 integration, G001 preservation/readback, sealed G002
+verification, owner PTR deployment, mobile/performance checks and owner
+acceptance in order. Do not use the persistent privileged production runner as
+a substitute for hosted checks.
 
 ## Shipping continuation — 28 September 2026, 06:15 CEST (04:15 UTC)
 

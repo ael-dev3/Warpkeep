@@ -40,35 +40,37 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The existing Alpha 0.3.43 is live; 0.4 has not shipped.** The generated-files
-host now carries the focused QR diagnostic client and matches its reviewed
-build. The owner confirmed successful phone-approved desktop sign-in at
-2026-09-27 19:06:14 UTC after a secret-only RPC endpoint repair; the
+**The existing Alpha 0.3.43 is live; 0.4 has not shipped.** The owner confirmed
+a successful phone-approved sign-in after the Alpha QR RPC repair; the
 [timestamped incident report](docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md)
-records the evidence and its limits. No exact frontend build hash was captured
-for that sign-in. The reviewed Verdant Citadel menu and source repairs are
-integrated into the open 0.4 candidate, [PR
-#374](https://github.com/ael-dev3/Warpkeep/pull/374). At the 07:08 CEST
-checkpoint, its signed branch head was `01bdb087` and matched the maintained
-local checkout. The exact-head
-[Verify run 36379201855](https://github.com/ael-dev3/Warpkeep/actions/runs/36379201855)
-failed all 17 jobs before any step because GitHub cited account payments or the
-Actions spending limit; each job had an empty step list, so this is not a
-source-test result. The exact-source `/ptr/` production build passed locally
-with Node 22.23.2/npm 10.9.8, and the 8 changed publication suites passed
-163 tests with 4 platform skips. Its checked 369-file manifest totals
-137,382,410 bytes and has SHA-256
-`1f9f9ca9c4ad41617dece151b951f06709abf170a6ce5a5d70465c9e08ad81c3`. The live
-Alpha root returned HTTP 200 and `/ptr/` returned HTTP 404 at 05:08 UTC; no
-0.4 PTR deployment or release acceptance is claimed. Sealed launch remains in
-preparation, package version `0.3.43`, without a PTR database identity or
-activated production receipts. Resolve the billing gate, then rerun Verify on
-the exact current PR head. PR #375 duplicates menu work already in #374; #376's
-288.9 MB video and #377's Genesis 002-only soundtrack remain deferred from
-the initial PTR, for mobile cost and realm-readiness/rights reasons. The dated
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md)
-records the release sequence and evidence. Protected integration, native
-preparation, provider work and owner acceptance remain before 0.4 release.
+records the evidence limits. The reviewed Verdant Citadel menu, source fixes,
+and mobile model optimization are in the open 0.4 candidate,
+[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374). Its current local
+production build for `/ptr/` passed with Node 22.23.2, and the exact-source
+payload check covered 369 files totaling 131,605,137 bytes. A 390×844 Chrome
+capture reached model-ready with a visible canvas and no console warnings; its
+measured resource waterfall was 3,738,720 bytes. The castle and guardian
+runtime models now total 1,036,412 bytes, down from 6,814,140 bytes for their
+preserved sources. These are local synthetic checks, not a deployment or
+physical-phone acceptance.
+
+The read-only `/ptr/` mirror plan was verified against the current public
+`Warpkeep-Live` head [`b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad).
+It preserves 341 existing Alpha root files and proposes a 723-file target
+tree; no files were published. `https://warpkeep.com/` remains HTTP 200 and
+`https://warpkeep.com/ptr/` remains HTTP 404. The exact-head
+[Verify run 36389656795](https://github.com/ael-dev3/Warpkeep/actions/runs/36389656795)
+failed before runner allocation because GitHub reports failed account payments
+or an Actions spending limit. Its jobs contain no test steps, so this is not a
+source-test result. Resolve the billing gate and rerun Verify on the live PR
+head before protected integration or publication. The public mirror plan is
+preparation only; it does not bypass the remaining realm, provider, owner-PTR
+and release checks. PR #375 overlaps the integrated menu; #376's large
+castle-film action and #377's Genesis 002 soundtrack remain outside the initial
+PTR candidate pending mobile, realm-scope and rights review. See the dated
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) and
+[delivery status](docs/operations/0.4.0-live-delivery-status.md) for current
+evidence and remaining release work.
 
 Provider deployment, accepted G001 preservation/readback, sealed G002 evidence,
 owner PTR play, mobile and measured-performance acceptance, and final release

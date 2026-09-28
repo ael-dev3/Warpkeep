@@ -1,34 +1,33 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 08:57 CEST (06:57 UTC).
+Source/GitHub check: 09:15 CEST (07:15 UTC).
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 08:57 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 09:15 CEST
 
-The maintained checkout is clean and remote-equal at
-`9a8bdac9c131b90ec0f0ac1873f4331cf7892d0e`, branch
+At the check, the maintained checkout and origin matched at signed source
+`dd24abb135600295e3b0675c92088124a54aee9a`, branch
 `fix/g001-census-admission-proxy`, PR #374 against `main`
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The exact-commit local Node 22
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The exact-source local Node 22
 production build passed TypeScript, runtime/provenance assets, exclusions,
 public-boundary audit (3,289 tracked paths; 1,768 scanned entries), and
 Farcaster Mini App integrity. On the local 390×844 Chrome profile the menu
 reported model-ready with a canvas and no browser warnings. Its resource
 waterfall was 3,738,720 bytes; the prior measured build was 9,516,527 bytes.
 The two unchanged scene models now total 1,036,412 runtime bytes instead of
-6,814,140 source bytes. The source GLBs remain in the dated reference folder;
-the pinned gltfpack 1.2 preparation command reproduces both exact hashed
-outputs. The Windows archive preparation path now selects Info-ZIP rather
-than the incompatible inbox `tar.exe`.
+6,814,140 source bytes. The pinned gltfpack 1.2 command reproduces the
+optimized models. These are local synthetic checks, not physical-phone
+acceptance.
 
-Verify run [36388987777](https://github.com/ael-dev3/Warpkeep/actions/runs/36388987777)
-was triggered by that exact commit. GitHub's check annotation says the jobs
-were not started because recent account payments failed or the Actions
-spending limit needs to increase; all jobs have empty step lists. This is not
-a code-test verdict. The owner must fix the repository owner's GitHub
-**Billing & plans** payment/spending-limit state, then rerun Verify on the
-current exact PR head. No user-set spend amount is assumed. Production still
-serves Alpha 0.3.43 at `/` (HTTP 200); `/ptr/` is HTTP 404. The local 0.4 PTR
-candidate is not deployed, merged, or accepted. This checkpoint supersedes
-the older head and Verify ID recorded later in this historical daily brief.
+Verify run [36389656795](https://github.com/ael-dev3/Warpkeep/actions/runs/36389656795)
+failed before runner allocation because GitHub reports failed recent account
+payments or an Actions spending-limit issue. Its jobs contain no test steps,
+so it is not a code-test verdict. The account owner must clear that gate and
+rerun Verify on the exact live PR head. The read-only `/ptr/` mirror plan
+passed against public `Warpkeep-Live@b6afe92`, preserving 341 existing Alpha
+root files in a proposed 723-file tree. No files were published. Production
+serves Alpha 0.3.43 at `/` (HTTP 200); `/ptr/` remains HTTP 404. 0.4 is not
+deployed, merged or accepted. Documentation updates advance the source SHA;
+rebuild the exact pushed head before publication work.
 
 PURPOSE OF THIS FILE
 
@@ -62,22 +61,22 @@ Maintained checkout:
 C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep
 
 Local branch: fix/g001-census-admission-proxy
-At the 07:08 CEST check, local and GitHub branch head was signed
-01bdb0871d5d29561fe305b46296dcdee0191398 and the checkout was clean and
-remote-equal. PR #374 is open against `main` at
-786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. Its exact-head Verify
-[36379201855](https://github.com/ael-dev3/Warpkeep/actions/runs/36379201855)
-failed all 17 jobs before any job step. GitHub's annotation identifies
-account payments or the Actions spending limit, so hosted source tests have not
-run. The exact-source `/ptr/` build and payload-manifest check passed locally
-at `01bdb087`: 369 files, 137,382,410 bytes, manifest SHA-256
-`1f9f9ca9c4ad41617dece151b951f06709abf170a6ce5a5d70465c9e08ad81c3`.
-At 04:15 UTC, the live Alpha root returned HTTP 200 and `/ptr/` returned HTTP
-404. Sealed launch remains in preparation with no PTR database identity or
-production receipts; 0.4 is not deployed or accepted. This notes update
-advances the branch. Rebuild `/ptr/` and write/check its source-bound manifest
-on the resulting exact head before publication work; rerun hosted Verify after
-the account owner resolves billing.
+At the 09:15 CEST check, local and GitHub branch head was signed
+`dd24abb135600295e3b0675c92088124a54aee9a` and the checkout was clean and
+remote-equal before this documentation refresh. PR #374 is open against `main`
+at `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Its exact-head Verify
+[36389656795](https://github.com/ael-dev3/Warpkeep/actions/runs/36389656795)
+failed all 17 jobs before runner allocation due the account payment/Actions
+spending-limit gate. Hosted source tests have not run. The exact-source `/ptr/`
+build and payload check passed locally at `dd24abb`: 369 files,
+131,605,137 bytes. A read-only public mirror plan against `Warpkeep-Live`
+parent `b6afe92` passed, preserving 341 Alpha root files in a proposed 723-file
+tree. No files were published. At 07:15 UTC the live Alpha root returned HTTP
+200 and `/ptr/` returned HTTP 404. Sealed launch remains in preparation with
+no PTR database identity or production receipts; 0.4 is not deployed or
+accepted. This documentation refresh advances the branch; rebuild `/ptr/` and
+write/check its source-bound manifest on the resulting exact head before any
+publication work.
 Protected source checkpoint: 175e325771768d8427bedeff8280a9cb2a9de282
 Signed protected closure: 6b9bcb1f6bf27fa70d7870b4b0eb074a7f698242
 Closure manifest SHA-256:
