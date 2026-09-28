@@ -3802,3 +3802,48 @@ Exact-head [Verify 36307725762](https://github.com/ael-dev3/Warpkeep/actions/run
 rejected all 17 jobs before runner start due account
 payment/spending-limit state; private Pages also cannot serve this private repo
 on the present plan. No live owner PTR or 0.4 release is claimed.
+
+## 28 September 2026 — mobile menu transfer and current release gate
+
+The 0.4 menu's castle and guardian are now served as separately optimized,
+content-addressed models. Their exact 4,977,796-byte and 1,836,344-byte source
+GLBs were moved from `public/` into
+`docs/reference/menu/2026-09-27-warplet-castle/` without changing their bytes.
+`npm run prepare:menu-world-models` uses the checksum-pinned gltfpack 1.2
+executable and verifies both source and output lengths and SHA-256 before
+installation. The castle output uses Meshopt, quantization, and maximum-quality
+WebP without triangle simplification; the guardian keeps its 12-joint skin and
+both authored clips, sampled at 30 Hz. The runtime outputs are 801,300 and
+235,112 bytes, with explicit structural checks for all nine castle meshes,
+per-mesh vertex/index counts, the WebP texture, guardian joints, and animation
+names. The focused Windows asset-tool fix replaces `tar.exe` with the fixed
+Git-for-Windows Info-ZIP locations required by `-Z1` and `-p`.
+
+Commit `9a8bdac9c131b90ec0f0ac1873f4331cf7892d0e` passed the complete local
+Node 22 production build, runtime assets, production exclusions, public-boundary
+scan (3,289 tracked paths, 1,768 scanned), and Farcaster Mini App verification.
+`tsc -b`, asset-license policy, file-size policy and 15 focused unzip/menu
+lifecycle tests passed. A separate `notificationPagesLiveReceipt.test.ts`
+attempt on native Windows could not start because that test suite hard-codes
+`/usr/bin/git`; the supported hosted Linux full suite remains necessary. At
+390×844, the built `/ptr/` menu reached model-ready with a visible canvas and
+no console warnings. The measured resource waterfall was 3,738,720 bytes,
+down from 9,516,527 bytes in the prior capture (about 60.7%); this is local
+synthetic browser evidence, not a physical-phone test.
+
+The exact-head [Verify 36388987777](https://github.com/ael-dev3/Warpkeep/actions/runs/36388987777)
+on commit `9a8bdac9` failed before runner allocation. GitHub's job annotation
+explicitly attributes it to failed recent account payments or an Actions
+spending limit that must be increased; jobs contain no steps, so this gives no
+code verdict. The owner must resolve the GitHub account's **Billing & plans**
+state and then rerun Verify on the latest PR #374 head. Do not bypass hosted
+Verify with the privileged production runner. At this check `main` is still
+`786c0b2b`; Alpha 0.3.43 remains live at `https://warpkeep.com/` (HTTP 200),
+and `https://warpkeep.com/ptr/` remains HTTP 404. This branch is a locally
+validated candidate, not a merged, deployed, or accepted 0.4 release.
+
+Open candidates Warpkeep #376 (the large click-to-load castle film) and #377
+(the Genesis 002 score), plus Assets #38 (the stacked score archive), were
+checked and remain intentionally outside this candidate while film/mobile
+playback, G002 scope and rights evidence remain unresolved. Re-list their
+current heads and checks before future integration; more 0.4 PRs are expected.

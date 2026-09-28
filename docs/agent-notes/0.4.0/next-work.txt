@@ -1,6 +1,34 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 07:08 CEST (05:08 UTC).
+Source/GitHub check: 08:57 CEST (06:57 UTC).
+
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 08:57 CEST
+
+The maintained checkout is clean and remote-equal at
+`9a8bdac9c131b90ec0f0ac1873f4331cf7892d0e`, branch
+`fix/g001-census-admission-proxy`, PR #374 against `main`
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The exact-commit local Node 22
+production build passed TypeScript, runtime/provenance assets, exclusions,
+public-boundary audit (3,289 tracked paths; 1,768 scanned entries), and
+Farcaster Mini App integrity. On the local 390×844 Chrome profile the menu
+reported model-ready with a canvas and no browser warnings. Its resource
+waterfall was 3,738,720 bytes; the prior measured build was 9,516,527 bytes.
+The two unchanged scene models now total 1,036,412 runtime bytes instead of
+6,814,140 source bytes. The source GLBs remain in the dated reference folder;
+the pinned gltfpack 1.2 preparation command reproduces both exact hashed
+outputs. The Windows archive preparation path now selects Info-ZIP rather
+than the incompatible inbox `tar.exe`.
+
+Verify run [36388987777](https://github.com/ael-dev3/Warpkeep/actions/runs/36388987777)
+was triggered by that exact commit. GitHub's check annotation says the jobs
+were not started because recent account payments failed or the Actions
+spending limit needs to increase; all jobs have empty step lists. This is not
+a code-test verdict. The owner must fix the repository owner's GitHub
+**Billing & plans** payment/spending-limit state, then rerun Verify on the
+current exact PR head. No user-set spend amount is assumed. Production still
+serves Alpha 0.3.43 at `/` (HTTP 200); `/ptr/` is HTTP 404. The local 0.4 PTR
+candidate is not deployed, merged, or accepted. This checkpoint supersedes
+the older head and Verify ID recorded later in this historical daily brief.
 
 PURPOSE OF THIS FILE
 
