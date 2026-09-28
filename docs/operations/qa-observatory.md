@@ -36,22 +36,33 @@ temporary database, keys, token, browser profile, and Vite cache are deleted on
 success, failure, or a handled termination signal. Screenshots are reduced in
 memory to aggregate visual measurements and are never saved.
 
-The browser adapter and pinned SpacetimeDB binary manifest now include
-`win32-x64` alongside `darwin-arm64` and `linux-x64`. Windows still needs the
-exact reviewed CLI and standalone pair available to attestation. A Windows
-end-to-end full-stack browser pass on the current source has not been recorded;
-do not infer one from the platform support or bypass attestation with another
-developer-installed binary.
+The browser adapter and pinned SpacetimeDB binary manifest include
+`win32-x64` alongside `darwin-arm64` and `linux-x64`. On 2026-09-28, the
+Windows full-stack lane passed against candidate source `12f7ba60` using the
+attested SpacetimeDB 2.6.1 CLI and standalone pair, Node 24.19.0, and the
+reviewed local Chrome installation. It exercised six direct-menu desktop and
+mobile profiles, synthetic sign-in and Terms, Inner Keep construction and
+reload persistence, Worker reconnect/recovery, all four resource dispatches,
+recall, settlement and return. This supersedes the older “Windows pass not
+recorded” note in the historical owner-journey section. It remains synthetic
+local evidence, not physical-device or owner/PTR acceptance.
+
+The 0.4 experience enters directly on the main menu. The full-stack browser
+probe now checks that actual entry screen across six viewport profiles; it no
+longer waits for the retired title-gateway route. If a connected probe fails,
+preserve its first safe failure category and check this source-owned route before
+diagnosing renderer or driver startup.
 
 On 2026-09-27, a disposable WSL `WarpkeepRunner` run against main
 `786c0b2` used pinned Node 22.22.3, SpacetimeDB CLI 2.6.1, and installed
 Google Chrome stable 154 with `WARPKEEP_QA_CHROME` set to its regular-file
 executable, `/opt/google/chrome/google-chrome`. It reached the Chrome title
 gateway, then failed closed in `desktop-keyboard` after repeated WSLg OpenGL
-`GPU stall due` driver warnings. This establishes neither an owner/browser
-journey pass nor an application failure. Resolve or isolate the WSL graphics
-warning, then rerun the disposable lane on the exact candidate source before
-recording acceptance.
+`GPU stall due` driver warnings. That run predates the menu-entry correction
+and is retained as historical host evidence; it establishes neither an
+owner/browser journey pass nor an application failure. The supported Windows
+lane now passes locally. Resolve or isolate the WSL graphics warning before
+claiming a WSL run.
 
 The broader rendered-fixture lane is portable across the supported desktop
 hosts:
@@ -81,6 +92,24 @@ operations as `/usr/bin/unzip`; the cache writer retains atomic replacement and
 symlink checks while using Windows ACL semantics for directory ownership. The
 QA command deliberately fails closed when that exact source archive is absent or
 does not match its recorded digest.
+
+`Warpkeep-Assets` is private, so the unauthenticated fetch helper can receive
+HTTP 404 even while the pinned release attachment exists. A verified local
+cache is already sufficient for `npm run qa:rendered-webgl`; do not refetch it
+when its size and SHA-256 match. On a fresh checkout with GitHub CLI access,
+download the exact release attachment into the ignored cache, then verify its
+digest before running the browser probe:
+
+```sh
+gh release download hegemony-frontier-keep-3d-2026-07-14 \
+  --repo ael-dev3/Warpkeep-Assets \
+  --pattern hegemony-frontier-keep-3d-sources-v1.zip \
+  --dir .cache/warpkeep-assets/hegemony-frontier-keep-3d-2026-07-14
+```
+
+Expected archive identity: 10,672,929 bytes,
+`c029a636ee0a791ca54072d5f32fcf68263677951fd59c338dfe242264335d5f`.
+Keep it in the ignored cache; never copy it to the Desktop or add it to Git.
 
 Neither browser lane needs access to a live Warpkeep service.
 

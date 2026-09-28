@@ -1,8 +1,55 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 09:15 CEST (07:15 UTC).
+Source/GitHub check: 21:18 CEST (19:18 UTC).
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 09:15 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 21:18 CEST
+
+September GitHub Actions pause honored: no Actions workflow was dispatched,
+queried or used. Signed candidate `12f7ba60` is synced to open PR #374 from
+`fix/g001-census-admission-proxy`, based on main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+
+The candidate corrects only the local full-stack QA entrypoint: current 0.4
+opens directly on the main menu, so six responsive desktop/mobile profiles now
+verify the actual visible, interactive menu rather than the retired title
+gateway. The Windows disposable full-stack probe passed through synthetic
+sign-in/Terms, Inner Keep construction and reload persistence, Worker reconnect
+and private-read recovery, four dispatches, recalls, settlement and return.
+Security/source-contract tests passed 51/51. The complete local rendered-WebGL
+matrix passed 15 cases, including shader fallback, Worker lifecycle and
+locomotion, occupancy stress, 25 journeys, LOD boundary/fidelity and all three
+quality modes. An initial Android emulation warning did not reproduce: isolated
+mobile touch checks passed 2/2 and the full matrix passed on rerun.
+
+The pinned private Assets archive is already verified in the ignored cache;
+the [QA observatory](../../operations/qa-observatory.md) records the
+authenticated recovery command for fresh checkouts. The public root serves
+Alpha 0.3.43 (HTTP 200) and `/ptr/` is HTTP 404. 0.4 is not live on PTR or
+accepted. Release gates remain exact-source native M1/M2, backend deploy/readback,
+PTR publication, and owner/device acceptance; hosted Verify is unavailable
+during the September Actions pause. Continue local review and ready the first
+permissible exact-source publication checks after the pause.
+
+NEXT ACTIONS
+
+1. Keep candidate source and tracked notes signed and synced to PR #374; do not
+   run GitHub Actions in September.
+2. Review incoming Warpkeep and Warpkeep-Assets pull requests against the 0.4
+   scope, rights, mobile transfer/playback and performance evidence before
+   integrating them. Current decisions: Warpkeep #376's large castle-film
+   addition and #377's Genesis 002 soundtrack remain deferred for mobile
+   delivery/playback and sealed scope/rights review; #378's biome-tree source is
+   already integrated in the candidate, while its PR remains open. Assets #39
+   remains a source-archive proposal, #40 is study-only until packed-image rights
+   are verified, and #41 needs its published v3 attachment plus local mobile
+   budget/integration checks. Do not treat an open PR as an approved asset.
+3. Resolve the exact-source native M1/M2 preparation and backend deploy/readback
+   prerequisites using the existing supported environment and credentials.
+4. After October 1, run hosted Verify only on the exact live PR head. Complete
+   PTR publication and confirm its public URL on both desktop and a phone; then
+   record owner acceptance. Until those checks pass, 0.4 is not shipped.
+
+PREVIOUS SHIPPING CHECKPOINT — 28 SEPTEMBER, 09:15 CEST
 
 At the check, the maintained checkout and origin matched at signed source
 `dd24abb135600295e3b0675c92088124a54aee9a`, branch

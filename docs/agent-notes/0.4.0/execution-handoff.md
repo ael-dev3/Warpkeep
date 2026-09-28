@@ -1,14 +1,44 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 20:22 CEST (18:22 UTC)
+## Latest release checkpoint — 28 September 2026, 21:18 CEST (19:18 UTC)
 
 The owner directed the workflow to continue without GitHub Actions during
-September. No Actions workflow was dispatched or rerun, and no hosted result was
-used as evidence. Every checkpoint published during this continuation used
-`[skip actions]`. Branch `fix/g001-census-admission-proxy` is clean and synced
-to PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) at signed head
-[`d515d4de`](https://github.com/ael-dev3/Warpkeep/commit/d515d4de9fc33903039b7acce1ca3d1b302952cd),
-based on `main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+September. No Actions workflow was dispatched, queried or used as evidence.
+Source commit [`12f7ba60`](https://github.com/ael-dev3/Warpkeep/commit/12f7ba60b5b63260f9751c3c0f302a200755d2c1)
+is signed, verified and synced to open PR
+[#374](https://github.com/ael-dev3/Warpkeep/pull/374), whose head matches this
+commit and whose base remains `main`
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The source correction updates the
+connected local full-stack QA probe to reflect the shipped 0.4 entry contract:
+the experience opens directly on its main menu, so six responsive profiles now
+verify that visible, interactive menu instead of the retired title gateway.
+Obsolete title-only code and warmup paths were removed. This is QA alignment;
+it does not add a player feature.
+
+On the final candidate source, the Windows disposable full-stack probe passed
+all six desktop/mobile profiles, synthetic sign-in and Terms, Inner Keep City
+Mill start/completion and reload persistence, Lumber Camp start, fresh-browser
+Worker reconnect/private-read recovery, four resource dispatches, recalls,
+settlement and return. It used the attested SpacetimeDB 2.6.1 CLI/standalone
+pair and completed without a live service. The security/source-contract suite
+passed 51/51. The full rendered WebGL browser matrix passed 15 rendered cases,
+including shader fallback, Worker lifecycle and locomotion, occupancy stress,
+25 journeys, LOD boundary/fidelity and High/Balanced/Reduced modes. One initial
+Android Chrome-emulation attempt reported `log-error-network-unclassified`;
+both mobile touch cases passed in isolation and the entire matrix passed on
+rerun. Treat that as a non-reproducing runner warning, not a waived test. The
+archive identity was verified from the existing ignored cache; its private
+Assets release makes the generic unauthenticated downloader return 404. Recovery
+steps and the pinned digest are in
+[`qa-observatory.md`](../../operations/qa-observatory.md).
+
+Public status was rechecked at 21:18 CEST: `https://warpkeep.com/` returns 200;
+`https://warpkeep.com/ptr/` returns 404. No 0.4 PTR deployment or owner/device
+acceptance is claimed. Keep #374 open during September's Actions pause. The
+local evidence does not satisfy hosted Verify, exact-source native M1/M2,
+backend deploy/readback, PTR publication, or owner acceptance. Continue local
+candidate review and resolve those exact gates when their required environment
+is available; do not describe this local pass as a release.
 
 The source branch now includes the reviewed tree-visual candidate from Warpkeep
 PR [#378](https://github.com/ael-dev3/Warpkeep/pull/378), integrated by signed

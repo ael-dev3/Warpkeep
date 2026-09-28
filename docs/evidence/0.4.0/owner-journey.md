@@ -43,6 +43,20 @@ uses the fixed Chrome installation path, an isolated profile, offline resolver
 flags, numeric loopback CDP checks, and a bounded process-tree teardown. This
 removes the browser host mismatch without weakening the database attestation.
 
+## 2026-09-28 Windows candidate full-stack rerun
+
+Candidate `12f7ba60` passed `npm run qa:fullstack:local` on the attested Windows
+toolchain. The current 0.4 client enters directly on the main menu, so the
+probe now checks six desktop/mobile menu profiles instead of waiting for the
+retired title gateway. It continued through synthetic sign-in and Terms, Inner
+Keep City Mill start/completion and reload persistence, Lumber Camp start,
+fresh-browser Worker reconnect/private-read recovery, four resource dispatches,
+recall, settlement and return. This is disposable local synthetic evidence;
+it does not establish real identity-provider behavior, physical-device comfort,
+live backend state, or owner/PTR acceptance. See the
+[execution handoff](../../agent-notes/0.4.0/execution-handoff.md) for the exact
+candidate and release gates.
+
 ## 2026-09-27 WSL rerun
 
 On main `786c0b2`, the disposable full-stack probe used pinned Node 22.22.3,
