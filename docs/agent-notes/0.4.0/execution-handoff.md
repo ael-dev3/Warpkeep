@@ -1,33 +1,45 @@
 # Continue Warpkeep 0.4
 
-## Shipping continuation — 29 September 2026, 01:14 CEST (23:14 UTC)
+## Shipping continuation — 29 September 2026, 01:32 CEST (23:32 UTC)
 
-The copy change at signed code commit
+Product guidance at code commit
 [675d8294](https://github.com/ael-dev3/Warpkeep/commit/675d8294042786cea9e60bcae5ed52a73e12853f)
-is pushed to open PR #374. It names the City Mill in the idle-worker first
-journey and points players to the current Buildings cost comparison. This is a
-presentation-only adjustment.
-
-From that exact source, the prepared deployment closure now verifies 1,247
-members with manifest SHA-256
+names the City Mill in the first empty-keep step. The protected closure was
+regenerated from that code at 1,247 members, manifest SHA-256
 748bc2a0f7b81d34556a5f58c5cac854f7ee1b4b1d4fb4696bcb3f88430d2c3e.
-The native Linux closure verifier, closure-policy verifier and static prepared
-policy check passed. Seven focused suites passed 133 tests across Keep04,
-closure convergence/inventory/derivation, release projection, deploy boundary
-and sealed-launch activation. The large prepared workflow suite was interrupted
-after four minutes without a result; no pass is claimed for it.
+The closure verifier, closure policy and static prepared policy passed. Seven
+focused suites passed 133 tests. The prepared-workflow test file:
+tests/authBridgeNotificationPreparedWorkflow.test.ts did not
+finish within four minutes and was interrupted; no result is claimed.
 
-The earlier /ptr/ build and public mirror plan identify older source
-b1afbb2f; regenerate them for this checkpoint. The last actual web observation
-at 00:52 CEST was root HTTP 200 and /ptr/ HTTP 404. No candidate was published.
-No GitHub Actions were dispatched, queried or used in September.
+A /ptr/ production build bound to source 0754260d929c36df885727f36a8fb23afbf3034e
+passed on pinned Linux Node 22.22.3, including type/project checks, runtime
+assets, production exclusions, the public-boundary audit (3,300 tracked,
+1,780 scanned) and Farcaster Mini App integrity. RealmMapScreen measured
+748.60 kB (202.67 kB gzip); phone performance is unmeasured.
 
-Next: source-pin a fresh /ptr/ production build, verify payload integrity, and
-recompute the read-only mirror plan against clean Warpkeep-Live@b6afe92.
-Keep Actions paused through September. In October, require exact-head Verify
-before M1 integration, prepare/check exact M1, promote generated-only M2 and
-verify it, then complete G001/G002 readback, PTR publication, owner play and
-device/performance acceptance. 0.4 remains unshipped.
+The payload write and recheck passed: 373 files, 131,571,432 bytes, manifest
+SHA-256 78f11be36d8cd96a8ddc14c24b64126927df4c597308133d1918fb08a47653c0.
+The read-only plan passed against Warpkeep-Live at b6afe92e: 341 existing Alpha
+root files preserved, 727 target files, zero obsolete generated paths, plan
+SHA-256 8553b07171f4d029dca251e6e986675c1ff46f7b911d5bcb596112fec210d805.
+No public file was changed or published.
+
+The exact-source Windows Chrome synthetic matrix captured 36 desktop/mobile/
+reduced-motion/landscape states with zero horizontal overflow. I inspected the
+390x844 empty-keep card; the City Mill copy and action fit. A bounded
+browser-log-security warning appeared for each document, without raw messages;
+the cause remains unclassified. No stderr warning/error or capture failure was
+reported, and owned Chrome cleanup passed. This does not establish physical
+phone usability or performance.
+
+At 23:32 UTC, the public root returned HTTP 200 and /ptr/ returned HTTP 404.
+No GitHub Actions were dispatched, queried or used in September. #374 remains
+open; #375, #376 and #378 are staged for provenance, and #377 remains deferred
+while G002 is sealed. The candidate plan is local and read-only. After October
+1, require exact-head Verify, M1/M2 preparation and verification, G001
+preservation, sealed G002 readback, PTR publication and owner/device acceptance.
+0.4 remains unshipped.
 
 ## Shipping continuation — 29 September 2026, 00:52 CEST (22:52 UTC)
 

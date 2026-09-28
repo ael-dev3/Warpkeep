@@ -9,24 +9,32 @@ later source. 0.4 remains unshipped.
 
 ## Current PR candidate checkpoint — 29 September 2026
 
-Signed product-code commit
+Product code commit
 [675d8294](https://github.com/ael-dev3/Warpkeep/commit/675d8294042786cea9e60bcae5ed52a73e12853f)
-is pushed to open PR #374. The first-journey instruction now names the City
-Mill and points to the existing Buildings cost comparison. It changes
-presentation only.
+names the City Mill in the first empty-keep instruction. Its regenerated
+prepared closure has 1,247 members and manifest SHA-256
+748bc2a0f7b81d34556a5f58c5cac854f7ee1b4b1d4fb4696bcb3f88430d2c3e. Native
+closure/policy checks and seven focused suites (133 tests) passed. The broader
+prepared workflow test was interrupted without a result.
 
-The exact-source protected deployment closure has been regenerated to 1,247
-members, manifest SHA-256
-748bc2a0f7b81d34556a5f58c5cac854f7ee1b4b1d4fb4696bcb3f88430d2c3e.
-Native Linux closure, closure-policy and static prepared-policy checks passed.
-Seven focused suites passed 133 tests. A broader prepared-workflow test was
-interrupted after four minutes without a result and remains unverified.
+On exact source 0754260d929c36df885727f36a8fb23afbf3034e, a pinned Node 22.22.3
+/ptr/ production build passed TypeScript/project checks, asset verification,
+production exclusions, public-boundary scan (3,300 tracked / 1,780 scanned)
+and Farcaster Mini App integrity. The RealmMapScreen bundle is 748.60 kB
+(202.67 kB gzip). Payload write/check passed for 373 files / 131,571,432 bytes,
+manifest SHA-256 78f11be36d8cd96a8ddc14c24b64126927df4c597308133d1918fb08a47653c0.
+A read-only plan for clean Warpkeep-Live b6afe92 preserves 341 Alpha root files
+and plans 727 total files with zero obsolete generated paths; plan SHA-256 is
+8553b07171f4d029dca251e6e986675c1ff46f7b911d5bcb596112fec210d805. Publication
+was not attempted.
 
-The previous source-pinned /ptr/ build and payload plan refer to b1afbb2f.
-They must be rebuilt and replanned for the updated candidate. The latest
-observed public root was HTTP 200 while /ptr/ was HTTP 404. This candidate
-has not been published. GitHub Actions remain paused during September; none
-were dispatched, queried or used.
+The 36-state rendered synthetic capture has zero horizontal overflow; the
+390x844 first-journey view was inspected. One bounded browser-log-security
+warning per document remains unclassified. This is not physical-device or
+performance acceptance. At 23:32 UTC, the public root returned HTTP 200 and
+/ptr/ HTTP 404. GitHub Actions remain paused during September; none were
+dispatched, queried or used. Final-head hosted Verify and exact M1/M2 operations
+remain for October and later release gates remain open.
 
 ## Historical main/source checkpoint — 27 September 2026
 

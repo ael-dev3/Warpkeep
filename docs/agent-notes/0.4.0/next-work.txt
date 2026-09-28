@@ -1,38 +1,53 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 01:14 CEST (23:14 UTC), Europe/Budapest.
-Product code checkpoint: signed 675d8294; generated closure rederived from that source.
+Refreshed 29 September 2026, 01:32 CEST (23:32 UTC), Europe/Budapest.
+Candidate code and local release plan are bound to signed source 0754260d.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 01:14 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 01:32 CEST
 
-The City Mill first-journey prompt now names the first building directly and
-points players to the existing Buildings cost comparison before gathering.
-The accompanying source commit
-[675d8294](https://github.com/ael-dev3/Warpkeep/commit/675d8294042786cea9e60bcae5ed52a73e12853f)
-is pushed to the open #374 candidate. It changes guidance only; gameplay rules,
-costs, yields, routes and commands are unchanged.
-
-The protected deployment closure was regenerated from that exact code source:
-1,247 members, manifest SHA-256
+The open 0.4 candidate PR #374 is based on main 786c0b2b. Product guidance
+at code commit 675d8294 now names the City Mill in the first empty-keep step.
+The exact-source protected deployment closure was regenerated at 1,247 members,
+manifest SHA-256
 748bc2a0f7b81d34556a5f58c5cac854f7ee1b4b1d4fb4696bcb3f88430d2c3e.
-The Linux-native closure verifier, closure-policy verifier and static prepared
-policy check passed. Seven focused test files passed 133 tests: Keep04 screen,
-closure family, closure inventory, closure derivation, release projection,
-Greater Realm deploy boundary and sealed-launch activation. The large prepared
-workflow test did not finish within four minutes and was interrupted without a
-result; it is not counted as a pass.
+Linux-native closure and static policy checks passed. Seven focused suites
+passed 133 tests. The prepared-workflow test file:
+tests/authBridgeNotificationPreparedWorkflow.test.ts
+did not finish within four minutes and was interrupted without a result.
 
-The previous source-pinned /ptr/ build and read-only mirror plan are for older
-source b1afbb2f, so they do not attest this code. Rebuild the exact current
-checkpoint with the /ptr/ production settings, rerun payload integrity and
-the read-only mirror plan against clean Warpkeep-Live@b6afe92. This only
-prepares and inspects a local candidate; it does not publish. The latest actual
-HTTP observation at 00:52 CEST was root HTTP 200 and /ptr/ HTTP 404.
+The exact source 0754260d production build passed on pinned Linux Node 22.22.3
+with DEPLOY_BASE=/ptr/ and the embedded source SHA set to that commit. Type
+project build, asset checks, production exclusions, public-boundary scan
+(3,300 tracked paths; 1,780 scanned entries) and Farcaster Mini App integrity
+passed. RealmMapScreen remains 748.60 kB (202.67 kB gzip), a measured follow-up
+for mobile loading; physical-device performance has not been measured.
 
-No GitHub Actions were dispatched, queried or used in September. Preserve that
-pause. After October 1, run final-head hosted Verify and reviewed integration,
-then exact-M1 prepare/check, generated-only M2 and exact-M2 Verify, G001
-preservation/readback, sealed G002 verification, PTR publication/readback, and
-owner/device acceptance. The 0.4 PTR remains a required release outcome.
+The verified local payload contains 373 files / 131,571,432 bytes. Its manifest
+SHA-256 is 78f11be36d8cd96a8ddc14c24b64126927df4c597308133d1918fb08a47653c0
+and content-manifest SHA-256 is
+e2563c7001275a9d5d1e01fe7b41decde046c805fe6e73c4b3a673fb8d9f79b8.
+The read-only mirror plan against clean Warpkeep-Live commit b6afe92e preserves
+341 Alpha root files, targets 727 files, and has zero obsolete generated paths.
+Its preserved-root SHA-256 is
+32397edc2c9f7afed14f960f7d929b575dea00470a3368d7385cb4ead816832e; plan
+SHA-256 is 8553b07171f4d029dca251e6e986675c1ff46f7b911d5bcb596112fec210d805.
+The plan changed no public files and grants no deployment approval.
+
+A fresh Windows Chrome synthetic capture on source 0754260d covered 36 desktop,
+390x844 mobile/reduced-motion and landscape states. All 36 report zero
+horizontal overflow. I inspected the 390x844 empty-keep first-journey card:
+the named City Mill and gathering instruction wrap cleanly and its action fits.
+The observer reported one bounded browser-log-security warning per document;
+it retains no raw message, so the warning source remains unclassified. No
+stderr warning/error or capture failure occurred. Browser cleanup was verified.
+This is local synthetic visual evidence, not phone or performance acceptance.
+
+At 23:32 UTC, warpkeep.com returned HTTP 200 and /ptr/ returned HTTP 404.
+Alpha remains live; the required 0.4 PTR is not deployed. No GitHub Actions
+were dispatched, queried or used in September. Open PR inventory remains
+#374–#378: #375, #376 and #378 stay staged for provenance; defer #377 while G002
+is sealed. After October 1, require final-head Verify, exact M1/M2 preparation
+and verification, G001 preservation, sealed G002 readback, PTR publication,
+then owner and physical-device acceptance.
 
 PREVIOUS SHIPPING CHECKPOINT — 28 SEPTEMBER, 23:47 CEST
 

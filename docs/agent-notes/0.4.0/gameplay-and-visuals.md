@@ -5,16 +5,18 @@
 The empty-keep prompt now says to start with a City Mill, names Food, Wood and
 Stone, notes City Goldworks also requires Gold, and tells the player to compare
 the existing costs under Buildings before sending an idle Worker to gather a
-shortage. Naming the actual building removes ambiguity from the first step
-without duplicating tunable prices or changing the existing costs panel,
-navigation, economy, route, Worker authority or construction timing.
+shortage. Naming the building removes ambiguity without duplicating tunable
+prices or changing the existing costs panel, navigation, economy, route, Worker
+authority or construction timing.
 
 The focused Keep04Screen suite passed all 39 tests on code commit 675d8294.
-The regenerated 1,247-member prepared closure and its policy checks passed on
-the exact code source. The earlier mobile screenshots predate this copy
-adjustment; the current copy still needs a fresh local render review. There is
-no authenticated PTR or physical-phone acceptance, and public /ptr/ last
-returned HTTP 404.
+On exact source 0754260d, all 36 Windows Chrome synthetic captures completed
+with zero horizontal overflow. I inspected the 390x844 empty-keep screen: the
+first-journey card wraps cleanly and its action fits. The observer recorded one
+bounded browser-log-security warning per document but retained no raw message;
+its cause remains unclassified. Stderr had no warnings/errors and Chrome
+cleanup was verified. This is synthetic UI evidence, not phone or performance
+acceptance. Public /ptr/ returned HTTP 404 at 23:32 UTC.
 
 ## Construction progress in the first phone view — September 27, 2026
 
