@@ -63,7 +63,7 @@ Local Windows verification on September 28 passed the disposable full-stack
 journey across six desktop/mobile profiles and the complete rendered-WebGL
 matrix across 15 cases. The production build also passed asset integrity,
 production exclusion, public-boundary and Farcaster Mini App checks. The
-`RealmMapScreen` bundle remains 748.45 kB (202.64 kB gzip), a measured mobile
+`RealmMapScreen` bundle remains 748.56 kB (202.65 kB gzip), a measured mobile
 load follow-up. These are local synthetic checks; they do not establish live
 provider state, physical-phone comfort, or release acceptance. The owner has
 paused GitHub Actions for September, so this checkpoint makes no hosted-check

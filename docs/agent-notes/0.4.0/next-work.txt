@@ -1,8 +1,35 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 23:24 CEST (21:24 UTC).
+Base source/GitHub check: 23:47 CEST (21:47 UTC), before this note update.
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 23:24 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 23:47 CEST
+
+The tested candidate source was signed `1b295b3d2e57447485f0f581dafc65f0e8725304`.
+Before this documentation update, local, origin and open PR #374 matched that
+head against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The disposable
+full-stack browser probe passed under Node 22.23.2. It covered six responsive
+menu profiles; synthetic auth and Terms continuity; City Mill completion and a
+discounted Lumber Camp with one Builder; reload persistence and retained Realm
+camera/Worker presentation; a fresh-process four-stage Worker re-entry with
+delayed/failing private reads and recovery; 10,000 local Realm cells; and
+four-resource dispatch, recall, settlement and return. The temporary QA
+database used accelerated Worker timing and a shortened first-build timer, so
+this is integration evidence only; it does not establish a real-route
+ten-minute owner journey or release acceptance.
+
+The 390×844 local review showed the first-return cue, resource cards, primary
+keep actions, City Mill progress and placement controls in a readable, scrollable
+layout. This is synthetic browser evidence, not physical-phone acceptance. The
+candidate's `RealmMapScreen` is 748.56 kB (202.65 kB gzip); phone performance
+remains unmeasured.
+
+No GitHub Actions were dispatched, queried or used. At 23:47 CEST the live root
+returned HTTP 200 while `/ptr/` returned HTTP 404. Keep the owner PTR journey,
+real route timing, physical-device/performance acceptance, exact M1/M2 and
+protected deployment/readback as release gates. Continue signed local work with
+`[skip actions]` and push it to #374; run hosted Verify only after October 1.
+
+PREVIOUS SHIPPING CHECKPOINT — 28 SEPTEMBER, 23:24 CEST
 
 Signed fix `abe2fae24f34ad1da76a952848fea5835c6e42e3` is pushed and matches
 open candidate PR #374. The mobile PTR build previously displayed the sealed

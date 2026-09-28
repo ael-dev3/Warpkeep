@@ -1,6 +1,40 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 23:24 CEST (21:24 UTC)
+## Latest release checkpoint — 28 September 2026, 23:47 CEST (21:47 UTC)
+
+The candidate code exercised here is signed source
+[`1b295b3d`](https://github.com/ael-dev3/Warpkeep/commit/1b295b3d2e57447485f0f581dafc65f0e8725304),
+which matched local, origin and open PR #374 before this documentation update.
+PR #374 remains open against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+GitHub Actions remain paused for September; none were dispatched, queried or
+used.
+
+The disposable full-stack browser probe passed under the existing Node 22.23.2
+runtime. It exercised six responsive direct-menu profiles, synthetic sign-in
+and Terms continuity, City Mill construction and completion, the discounted
+Lumber Camp with one Builder, hard-reload persistence, retained Realm camera
+and Worker presentation, fresh-process four-phase Worker re-entry, delayed and
+failing private reads with recovery, the 10,000-cell local Realm, and dispatch,
+recall, automatic settlement and return completion for all four resources.
+The test database, accelerated Worker timings and shortened first-building
+duration are disposable QA substitutions; this does not prove the real-route
+ten-minute target or an authenticated owner journey.
+
+At 390×844, rendered local review showed the first-return cue, resource cards,
+primary keep actions, City Mill progress and placement controls. This is local
+browser evidence, not physical-phone acceptance. The current production bundle
+measurement is 748.56 kB (202.65 kB gzip) for `RealmMapScreen`; phone performance
+remains unmeasured.
+
+At 21:47 UTC, `https://warpkeep.com/` returned HTTP 200 and
+`https://warpkeep.com/ptr/` returned HTTP 404. The Alpha 0.3.43 root is live;
+0.4 is not deployed or accepted. Continue local source work and signed,
+`[skip actions]` checkpoints through September. In October, final-head Verify,
+exact-M1 preparation/check, generated-only M2 verification, G001 preservation,
+sealed G002 readback, backend and PTR deployment/readback, and owner/device
+acceptance remain required.
+
+## Previous release checkpoint — 28 September 2026, 23:24 CEST (21:24 UTC)
 
 Signed source [`abe2fae2`](https://github.com/ael-dev3/Warpkeep/commit/abe2fae24f34ad1da76a952848fea5835c6e42e3)
 is pushed and synced to open PR #374 on
@@ -34,7 +68,7 @@ M2 promotion, exact-M2 verification, G001 preservation and G002 sealed
 readback, backend deployment/readback, PTR publication and owner/device
 acceptance.
 
-## Latest release checkpoint — 28 September 2026, 22:41 CEST (20:41 UTC)
+## Previous release checkpoint — 28 September 2026, 22:41 CEST (20:41 UTC)
 
 The owner paused GitHub Actions for September; none were dispatched, queried or
 used. Before integration, signed local/origin/PR #374 matched `513dac09` on main
