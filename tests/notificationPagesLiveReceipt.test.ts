@@ -1074,8 +1074,8 @@ describe('notification Pages ongoing live receipt', () => {
       'src/spacetime/warpkeepConfig.ts',
       'public/audio/warpkeep-verdant-menu-theme.m4a',
       'public/images/menu/hegemony-emblem-heading-256-4b5b747efcc13f34.png',
-      'public/models/menu/warplet-castle-hegemony-v2-c55f2c6c610e4aac.glb',
-      'public/models/menu/warplet-guardian-v2-e934a81ae2a210e4.glb',
+      'public/models/menu/warplet-castle-hegemony-v2-meshopt-webp-181a847fe386859f.glb',
+      'public/models/menu/warplet-guardian-v2-meshopt-b959ee1e17e96f00.glb',
       'tsconfig.app.json',
       'tsconfig.json',
       'tsconfig.node.json',
@@ -1096,7 +1096,7 @@ describe('notification Pages ongoing live receipt', () => {
       'src/components/menu/WarpkeepMenuWorld3D.tsx',
       'src/components/menu/menuWorldResources.ts',
       'public/audio/warpkeep-verdant-menu-theme.m4a',
-      'public/models/menu/warplet-castle-hegemony-v2-c55f2c6c610e4aac.glb',
+      'public/models/menu/warplet-castle-hegemony-v2-meshopt-webp-181a847fe386859f.glb',
       'src/spacetime/WarpkeepSpacetimeProvider.tsx',
     ]) {
       const candidate = descendantCommitWithMutation(path);

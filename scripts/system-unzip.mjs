@@ -4,7 +4,12 @@ import { accessSync, lstatSync } from 'node:fs';
 export const SYSTEM_UNZIP_CANDIDATES = Object.freeze({
   darwin: Object.freeze(['/usr/bin/unzip']),
   linux: Object.freeze(['/usr/bin/unzip']),
-  win32: Object.freeze(['C:/Windows/System32/tar.exe'])
+  // The asset installers use Info-ZIP flags such as -Z1 and -p. Windows' tar
+  // accepts ZIP archives, but its command-line contract is incompatible.
+  win32: Object.freeze([
+    'C:/Program Files/Git/usr/bin/unzip.exe',
+    'C:/Program Files (x86)/Git/usr/bin/unzip.exe'
+  ])
 });
 
 export function resolveAttestedSystemUnzip(options = {}) {

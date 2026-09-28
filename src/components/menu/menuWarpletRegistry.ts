@@ -1,7 +1,7 @@
 import type { VerifiedFarcasterIdentity } from '../../farcaster/farcasterAuthTypes';
 
 export const SHOWCASE_WARPLET_GUARDIAN_URL =
-  'models/menu/warplet-guardian-v2-e934a81ae2a210e4.glb';
+  'models/menu/warplet-guardian-v2-meshopt-b959ee1e17e96f00.glb';
 
 export type MenuWarpletAssignment = Readonly<{
   fid: number;

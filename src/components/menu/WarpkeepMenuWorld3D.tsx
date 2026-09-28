@@ -7,8 +7,8 @@ import { createMenuWorldResourceOwner } from './menuWorldResources';
 import './WarpkeepMenuWorld3D.css';
 
 /** The castle-only GLB leaves the central turret clear for this separate guardian. */
-const DEFAULT_CASTLE_URL = 'models/menu/warplet-castle-hegemony-v2-c55f2c6c610e4aac.glb';
-const DEFAULT_GUARDIAN_URL = 'models/menu/warplet-guardian-v2-e934a81ae2a210e4.glb';
+const DEFAULT_CASTLE_URL = 'models/menu/warplet-castle-hegemony-v2-meshopt-webp-181a847fe386859f.glb';
+const DEFAULT_GUARDIAN_URL = 'models/menu/warplet-guardian-v2-meshopt-b959ee1e17e96f00.glb';
 const GUARDIAN_ROOFTOP_Y = 12;
 
 const ASSET_URLS = {

@@ -12,8 +12,8 @@ Run from any directory::
 
     python3 scripts/assets/texture-hegemony-banners.py
 
-The content-hash filename printed by this script is the asset to reference from
-the menu. It uses only the Python standard library.
+The content-hash filename printed by this script is the preserved source for
+the menu runtime optimizer. It uses only the Python standard library.
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from pathlib import Path
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 BASE = REPOSITORY / "docs/reference/menu/2026-09-27-warplet-castle/warplet-castle-base-v2-18428728949eea8b.glb"
-OUTPUT_DIR = REPOSITORY / "public/models/menu"
+OUTPUT_DIR = REPOSITORY / "docs/reference/menu/2026-09-27-warplet-castle"
 EMBLEM = REPOSITORY / "public/images/menu/hegemony-emblem-26e8664b1db0acf3.png"
 BASE_SHA256 = "18428728949eea8b593e2920240f467609c925cf78a28eceb60a929aebc6e7c6"
 EMBLEM_SHA256 = "26e8664b1db0acf3e6db443caf46ef13e45fe9de794749e431b7c2e3d6fb8774"
@@ -272,7 +272,7 @@ def main() -> None:
     document, binary = read_glb(base)
     output = weave_emblem(document, binary, emblem)
     digest = hashlib.sha256(output).hexdigest()
-    destination = OUTPUT_DIR / f"warplet-castle-hegemony-v2-{digest[:16]}.glb"
+    destination = OUTPUT_DIR / f"warplet-castle-hegemony-source-v2-{digest[:16]}.glb"
     destination.write_bytes(output)
     print(f"{destination.relative_to(REPOSITORY)}: {len(output)} bytes sha256={digest}")
 

@@ -9,6 +9,41 @@
 - `.cache/warpkeep-assets/` is explicit, local, and untracked.
 - Unresolved-rights material is never published by assumption.
 
+Pinned asset-preparation scripts use the Info-ZIP command-line interface for
+ZIP listing, member reads, and extraction. macOS/Linux resolve
+`/usr/bin/unzip`; Windows resolves the fixed Git for Windows candidates in
+[`system-unzip.mjs`](../../../scripts/system-unzip.mjs). Windows inbox
+`tar.exe` can read ZIP files but does not accept the Info-ZIP flags these
+scripts validate, so it is intentionally not a fallback. If the fixed Git
+paths are absent, preparation stops with a clear missing-tool error rather
+than failing later with incompatible flags.
+
+## 0.4 menu world models
+
+The banner-textured castle source and exact animated guardian source are
+preserved under
+[`docs/reference/menu/2026-09-27-warplet-castle/`](../../reference/menu/2026-09-27-warplet-castle/README.md).
+Reproduce the source castle from its verified extraction master and supplied
+emblem, fetch the checksum-pinned `gltfpack` 1.2 tool, then prepare and verify
+the two content-addressed browser models:
+
+```sh
+python scripts/assets/texture-hegemony-banners.py
+npm run tools:fetch:gltfpack
+npm run prepare:menu-world-models
+npm run verify:runtime-assets
+```
+
+The optimizer uses Meshopt compression, glTF quantization, and maximum-quality
+WebP for the castle texture without simplifying its meshes. It retains the
+guardian's skin and animation clips and samples those clips at 30 Hz. The
+preparation script verifies pinned source, executable, output lengths, output
+hashes, and GLB headers before atomically installing runtime files. Its
+temporary outputs live outside the repository and are removed on success or
+failure. The runtime verifier separately checks mesh counts, per-mesh vertex
+and index counts, WebP presence, the 12-joint guardian skin, and both authored
+animation names.
+
 ## Stone title release
 
 Public release: [`title-stone-letters-2026-07-12`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/title-stone-letters-2026-07-12)

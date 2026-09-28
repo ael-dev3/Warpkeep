@@ -60,6 +60,7 @@
     "assets:fetch:hegemony-supply-wagon": "node scripts/fetch-hegemony-supply-wagon-assets.mjs",
     "tools:fetch:gltfpack": "node scripts/fetch-gltfpack-tool.mjs",
     "prepare:title-models": "node scripts/prepare-title-models.mjs",
+    "prepare:menu-world-models": "node scripts/prepare-menu-world-models.mjs",
     "prepare:miniapp-assets": "node scripts/prepare-farcaster-miniapp-assets.mjs",
     "prepare:hegemony-castle": "node scripts/install-hegemony-gameready-castle.mjs",
     "prepare:hegemony-castle-base": "node scripts/install-hegemony-gameready-castle-base.mjs",

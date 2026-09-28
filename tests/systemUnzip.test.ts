@@ -2,7 +2,10 @@ import type { Stats } from 'node:fs';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import { resolveAttestedSystemUnzip } from '../scripts/system-unzip.mjs';
+import {
+  resolveAttestedSystemUnzip,
+  SYSTEM_UNZIP_CANDIDATES
+} from '../scripts/system-unzip.mjs';
 
 function fakeStats(overrides: Partial<Pick<Stats, 'uid' | 'mode'>> = {}) {
   return {
@@ -15,6 +18,19 @@ function fakeStats(overrides: Partial<Pick<Stats, 'uid' | 'mode'>> = {}) {
 }
 
 describe('attested system unzip resolution', () => {
+  it('selects an Info-ZIP-compatible Git for Windows binary, not the incompatible tar CLI', () => {
+    expect(SYSTEM_UNZIP_CANDIDATES.win32).toEqual([
+      'C:/Program Files/Git/usr/bin/unzip.exe',
+      'C:/Program Files (x86)/Git/usr/bin/unzip.exe'
+    ]);
+    expect(SYSTEM_UNZIP_CANDIDATES.win32).not.toContain('C:/Windows/System32/tar.exe');
+    expect(resolveAttestedSystemUnzip({
+      platform: 'win32',
+      lstat: () => fakeStats(),
+      access: vi.fn()
+    })).toBe('C:/Program Files/Git/usr/bin/unzip.exe');
+  });
+
   it('accepts only an executable, root-owned, non-writable ordinary file at a fixed absolute path', () => {
     const access = vi.fn();
     expect(resolveAttestedSystemUnzip({
