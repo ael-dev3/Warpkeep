@@ -48,17 +48,18 @@ build. The owner confirmed successful phone-approved desktop sign-in at
 records the evidence and its limits. No exact frontend build hash was captured
 for that sign-in. The reviewed Verdant Citadel menu and source repairs are
 integrated into the open 0.4 candidate, [PR
-#374](https://github.com/ael-dev3/Warpkeep/pull/374). At the 06:45 CEST
-checkpoint, its signed branch head was `4abc69b7` and matched the maintained
+#374](https://github.com/ael-dev3/Warpkeep/pull/374). At the 07:08 CEST
+checkpoint, its signed branch head was `01bdb087` and matched the maintained
 local checkout. The exact-head
-[Verify run 36378719419](https://github.com/ael-dev3/Warpkeep/actions/runs/36378719419)
+[Verify run 36379201855](https://github.com/ael-dev3/Warpkeep/actions/runs/36379201855)
 failed all 17 jobs before any step because GitHub cited account payments or the
 Actions spending limit; each job had an empty step list, so this is not a
 source-test result. The exact-source `/ptr/` production build passed locally
-with Node 22.23.2/npm 10.9.8. Its checked 369-file manifest totals
+with Node 22.23.2/npm 10.9.8, and the 8 changed publication suites passed
+163 tests with 4 platform skips. Its checked 369-file manifest totals
 137,382,410 bytes and has SHA-256
-`f064464b94ee5722f2af9253fa0427bbeb507bcb501b84e962ec620e53e0289c`. The live
-Alpha root returned HTTP 200 and `/ptr/` returned HTTP 404 at 04:45 UTC; no
+`1f9f9ca9c4ad41617dece151b951f06709abf170a6ce5a5d70465c9e08ad81c3`. The live
+Alpha root returned HTTP 200 and `/ptr/` returned HTTP 404 at 05:08 UTC; no
 0.4 PTR deployment or release acceptance is claimed. Sealed launch remains in
 preparation, package version `0.3.43`, without a PTR database identity or
 activated production receipts. Resolve the billing gate, then rerun Verify on

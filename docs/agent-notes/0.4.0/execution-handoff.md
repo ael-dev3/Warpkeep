@@ -1,27 +1,28 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 06:45 CEST (04:45 UTC)
+## Latest release checkpoint — 28 September 2026, 07:08 CEST (05:08 UTC)
 
-At 06:45 CEST the maintained checkout was clean on
+At 07:08 CEST the maintained checkout was clean on
 `fix/g001-census-admission-proxy` at signed commit
-[`4abc69b7`](https://github.com/ael-dev3/Warpkeep/commit/4abc69b773e0541aebdce407aa061999ae811ae9),
+[`01bdb087`](https://github.com/ael-dev3/Warpkeep/commit/01bdb0871d5d29561fe305b46296dcdee0191398),
 and exactly matched `origin/fix/g001-census-admission-proxy`. This notes-only
 refresh advances the branch; verify the resulting exact head before publication.
 PR
 [#374](https://github.com/ael-dev3/Warpkeep/pull/374) remains open against
 `main` at `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; no review has been
 submitted. Its exact-head Verify
-[36378719419](https://github.com/ael-dev3/Warpkeep/actions/runs/36378719419)
+[36379201855](https://github.com/ael-dev3/Warpkeep/actions/runs/36379201855)
 failed all 17 jobs before a step ran. The jobs began and ended within seconds
 with empty step lists; the exact annotation says recent account payments have
 failed or the spending limit needs to increase. This is not a source-test
 result. The `/ptr/` production build passed locally on Node 22.23.2/npm 10.9.8,
-and its source-bound payload-manifest check passed for this exact SHA. The
+and its source-bound payload-manifest check passed for this exact SHA. All
+eight changed publication suites passed: 163 tests, four platform skips. The
 ignored manifest contains 369 files / 137,382,410 bytes and has SHA-256
-`f064464b94ee5722f2af9253fa0427bbeb507bcb501b84e962ec620e53e0289c`.
+`1f9f9ca9c4ad41617dece151b951f06709abf170a6ce5a5d70465c9e08ad81c3`.
 The sealed-launch preparation check still reports package `0.3.43`, no PTR or
 G002 database identity, and no deployment approval. The live Alpha root was
-last checked at HTTP 200 and `/ptr/` at HTTP 404 at 04:45 UTC; no new public
+last checked at HTTP 200 and `/ptr/` at HTTP 404 at 05:08 UTC; no new public
 deployment was made. Therefore 0.4 is not live or accepted.
 
 New PR inventory: #375 repeats the older menu source already integrated into
