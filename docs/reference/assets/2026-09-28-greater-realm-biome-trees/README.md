@@ -1,21 +1,25 @@
 # Greater Realm biome trees — 2026-09-28
 
 Alpha 0.4 replaces the Greater Realm's uniform green canopy cone with 20
-original, faceted tree sculptures. A canopy actor retains the public cell's
-stable biome ID as **visual-only** metadata. The renderer makes one instanced
-batch for each biome actually present in a chunk and includes every batch's
-geometry bytes and draw call in the mobile budget. It preserves the existing
-wind sway through instance transforms. The shapes do not affect the atlas,
-movement, collision, resources, ownership, or any persistent server state.
+textured v3 tree species, each with near and mobile geometry. The source pack
+and release manifest are prepared in [Warpkeep-Assets PR #41](https://github.com/ael-dev3/Warpkeep-Assets/pull/41).
+Warpkeep's compact one-atlas runtime copies are pinned in
+[`public/models/greater-realm/biome-trees/v3/`](../../../../public/models/greater-realm/biome-trees/v3/).
+A canopy actor retains the public cell's stable biome ID as **visual-only**
+metadata. The renderer makes one instanced batch for each biome actually
+present in a chunk, counts each batch's geometry bytes and draw call in the
+mobile budget, and preserves the existing wind sway. Tree shapes do not affect
+the atlas, movement, collision, resources, ownership, or persistent server
+state.
 
-The model sources are
-[`biomeTreeGeometry.ts`](../../../../src/greater-realm/biomeTreeGeometry.ts),
-with the reproducible archive exporter at
-[`export-greater-realm-biome-trees.ts`](../../../../scripts/assets/export-greater-realm-biome-trees.ts).
-These are built from original four-sided tapered limbs, angular volume crowns,
-radial fronds, buttresses, prop roots, and conifer whorls. They use vertex
-colors and no texture images, alpha planes, fetched GLBs, or BlendSwap geometry.
-All models use +Y up with a trunk-root pivot at the origin.
+The v3 source models combine connected low-poly branch structures, full
+species-specific crowns and original painted foliage/bark atlases. Each source
+GLB is converted into one mesh, one material and one packed atlas so all
+instances of a biome stay in one draw call. The app verifies the model's byte
+length and SHA-256 before loading it. It uses near models on High and mobile
+models on Balanced and Reduced; the former code-authored meshes remain a
+temporary fallback if a v3 file cannot load. Models use +Y up and retain a
+trunk-root pivot.
 
 | Biome ID | Biome | Model silhouette |
 | --- | --- | --- |
@@ -45,26 +49,14 @@ have no tree model or canopy actor. The living-world atlas already excludes
 open water from vegetation dressing; the renderer also suppresses a stray
 positive canopy value on these IDs.
 
-Each of the 20 trees has High, Balanced, and Reduced exports. Across this pack,
-the per-model maxima are **276 / 166 / 132 triangles** respectively, far below
-the old Genesis family's 1,200 / 600 / 220 targets. All 60 uncompressed GLBs
-together occupy under 0.7 MB. No individual tree requires a new draw call per
-instance: every present species in a chunk uses one instanced draw. The
-planner counts those actual batches and their buffer sizes before the chunk
-enters the profile's bounded upload queue.
-
-To rebuild the archive from the game repo root, run:
-
-```sh
-node --import tsx scripts/assets/export-greater-realm-biome-trees.ts artifacts/biome-trees
-```
-
-The ignored `artifacts/biome-trees/manifest.json` records every generated
-GLB's SHA-256, bytes, bounds, triangle and vertex count. The new family is
-archived separately in Warpkeep-Assets; the July 2026 Hegemony tree bundle and
-its strict 66-file runtime verifier are unchanged.
+Near meshes span 311–1,098 triangles and mobile meshes 80–277. The 40 runtime
+GLBs total 2,738,208 bytes; the source archive preserves all 40 original GLBs,
+60 PNG source textures and complete provenance. The build checks all model
+hashes, material/atlas structure and triangle counts in both `public/` and the
+production output. The existing canopy budget planner accounts for the actual
+profile geometry before upload.
 
 The user-supplied SavageIndie *Procedural Tree* from BlendSwap was examined as
-procedural-tree reference. These models import no mesh, node graph, texture, or
-packed image from that CC BY file. The original project-authored recipes and
-their derived GLBs are classified as CC BY 4.0 in `ASSETS-LICENSE.md`.
+procedural-tree reference. No mesh, node graph, UV layout, texture or packed
+image from the BlendSwap or WoW examples is included. Source pack licensing
+and runtime adoption are recorded in [`ASSETS-LICENSE.md`](../../../../ASSETS-LICENSE.md).

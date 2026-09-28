@@ -478,25 +478,34 @@ records retain only their supplied trunk-only guidance.
 
 ## Greater Realm biome trees — 2026-09-28
 
-The Alpha 0.4 Greater Realm trees in
-[`src/greater-realm/biomeTreeGeometry.ts`](src/greater-realm/biomeTreeGeometry.ts)
-are original project-authored geometric recipes, licensed under CC BY 4.0 as
-part of Warpkeep's expressly identified project-owned creative work. They
-produce 20 distinct, texture-free, vertex-colored land/coastal tree sculptures
-in High, Balanced, and Reduced detail. The 60 review GLBs are derived from the
-same source by
-[`scripts/assets/export-greater-realm-biome-trees.ts`](scripts/assets/export-greater-realm-biome-trees.ts)
-and belong to a separate Warpkeep-Assets archive family; the game constructs
-the geometry locally and does not download these GLBs at runtime.
+The Alpha 0.4 runtime uses the original, textured near/mobile tree set from
+the prepared Warpkeep-Assets v3 source archive tracked in
+[Assets PR #41](https://github.com/ael-dev3/Warpkeep-Assets/pull/41).
+Its release tag is `greater-realm-lush-biome-trees-2026-09-28-v3`; the
+7,180,652-byte archive has SHA-256
+`039d2fb736b4a58857b84ba11c321208e1a9e8ca54eb1922d6684237144f547e`.
+The 40 source GLBs and 60 PNG atlases are project-authored original work under
+CC BY 4.0; source scripts are Apache-2.0. The release manifest preserves the
+exact model, atlas, license and v2-baseline digests.
 
-The user-supplied SavageIndie BlendSwap *Procedural Tree* (CC BY) was a visual
-study only. None of its geometry, Geometry Nodes, textures, or packed images
-were imported into this family. That supplied file and its 369,154-triangle
-review bake are excluded from the game and the new archive. See the
+Warpkeep packages 40 optimized one-atlas GLBs (2,738,208 bytes) in
+[`public/models/greater-realm/biome-trees/v3/`](public/models/greater-realm/biome-trees/v3/).
+[`install-greater-realm-biome-tree-v3.py`](scripts/assets/install-greater-realm-biome-tree-v3.py)
+builds this same-origin runtime copy and
+[`verify-greater-realm-biome-tree-v3-assets.mjs`](scripts/verify-greater-realm-biome-tree-v3-assets.mjs)
+checks every digest, material, source lineage and triangle count. High uses
+near geometry; Balanced and Reduced use mobile geometry. Instancing keeps one
+draw per present tree-bearing biome per chunk, and the existing sway remains
+visual-only. The older code-authored tree recipes remain a local loading/error
+fallback; they are not the selected tree family after the v3 models load.
+
+The user-supplied SavageIndie BlendSwap *Procedural Tree* and the studied WoW
+trees informed broad procedural and low-poly art direction only. No reference
+geometry, node graphs, UV layouts, textures or image data were imported. The
+tree models are decorative and provide no collision, pathing, gameplay
+placement, resources, ownership, or persistent authority. See the
 [dated biome-tree record](docs/reference/assets/2026-09-28-greater-realm-biome-trees/README.md)
-for the 20 visual mappings, LOD budgets, and reproduction command. These
-models are decorative and supply no collision, pathing, gameplay placement,
-resource, ownership, or persistent authority.
+for the 20 biome mappings and runtime budget details.
 
 ## Inner Keep 3D runtime selection
 

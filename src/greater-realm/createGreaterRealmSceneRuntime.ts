@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 import { createBiomeTreeGeometry } from './biomeTreeGeometry';
+import { loadGreaterRealmBiomeTreePrototype } from './loadGreaterRealmBiomeTreeAssets';
 import { createGreaterRealmWaterSurface, type GreaterRealmWaterSurface } from './greaterRealmWaterSurface';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -677,10 +678,12 @@ function actorColor(kind: Exclude<GreaterRealmPresentationActor['kind'], 'canopy
 function actorMeshes(
   plan: GreaterRealmChunkPresentationPlan,
   groundPosition: GroundPosition,
-  graphicsProfile: GreaterRealmGraphicsProfile
+  graphicsProfile: GreaterRealmGraphicsProfile,
+  onTreeModelReady: () => void
 ) {
   const refs: ActorRenderRef[] = [];
   const meshes: THREE.InstancedMesh[] = [];
+  let disposed = false;
   const matrix = new THREE.Matrix4();
   const quaternion = new THREE.Quaternion();
   const position = new THREE.Vector3();
@@ -729,9 +732,41 @@ function actorMeshes(
       });
       mesh.instanceMatrix.needsUpdate = true;
       meshes.push(mesh);
+      if (kind === 'canopy') {
+        void loadGreaterRealmBiomeTreePrototype(batch.biomeClass!, graphicsProfile)
+          .then((prototype) => {
+            if (disposed) return;
+            const previousGeometry = mesh.geometry;
+            const previousMaterial = mesh.material;
+            mesh.geometry = prototype.geometry;
+            mesh.material = prototype.material;
+            mesh.userData.greaterRealmTreeScale = prototype.scale;
+            batch.actors.forEach((actor, index) => {
+              const grounded = groundPosition(actor.position);
+              position.set(grounded.x, grounded.y, grounded.z);
+              quaternion.setFromAxisAngle(up, actor.headingRadians);
+              scale.setScalar(prototype.scale);
+              matrix.compose(position, quaternion, scale);
+              mesh.setMatrixAt(index, matrix);
+            });
+            mesh.instanceMatrix.needsUpdate = true;
+            mesh.computeBoundingSphere();
+            if (previousGeometry !== prototype.geometry) previousGeometry.dispose();
+            if (previousMaterial !== prototype.material) previousMaterial.dispose();
+            onTreeModelReady();
+          })
+          .catch(() => {
+            // The loader reports a verified-asset failure once; the bounded
+            // local tree remains visible when the network or bytes fail.
+          });
+      }
     }
   }
-  return Object.freeze({ meshes: Object.freeze(meshes), refs: Object.freeze(refs) });
+  return Object.freeze({
+    meshes: Object.freeze(meshes),
+    refs: Object.freeze(refs),
+    dispose: () => { disposed = true; }
+  });
 }
 
 function boundaryMesh(plan: GreaterRealmChunkPresentationPlan) {
@@ -796,10 +831,19 @@ function disposeObject(root: THREE.Object3D) {
   const materials = new Set<THREE.Material>();
   root.traverse((object) => {
     const renderable = object as THREE.Mesh;
-    if (renderable.geometry instanceof THREE.BufferGeometry) geometries.add(renderable.geometry);
+    if (
+      renderable.geometry instanceof THREE.BufferGeometry
+      && renderable.geometry.userData.greaterRealmSharedTreeAsset !== true
+    ) geometries.add(renderable.geometry);
     const material = renderable.material;
-    if (Array.isArray(material)) material.forEach((entry) => materials.add(entry));
-    else if (material instanceof THREE.Material) materials.add(material);
+    if (Array.isArray(material)) {
+      material.forEach((entry) => {
+        if (entry.userData.greaterRealmSharedTreeAsset !== true) materials.add(entry);
+      });
+    } else if (
+      material instanceof THREE.Material
+      && material.userData.greaterRealmSharedTreeAsset !== true
+    ) materials.add(material);
     if (object instanceof THREE.InstancedMesh) object.dispose();
   });
   root.clear();
@@ -810,8 +854,10 @@ function disposeObject(root: THREE.Object3D) {
 function buildChunkResource(
   selected: SelectedChunk,
   cellSize: number,
-  graphicsProfile: GreaterRealmGraphicsProfile
+  graphicsProfile: GreaterRealmGraphicsProfile,
+  onTreeModelReady: () => void
 ): ChunkRenderResource {
+  let disposed = false;
   const group = new THREE.Group();
   group.name = `greater-realm-chunk:${selected.plan.chunkHandle}:lod${selected.plan.lod}`;
   const voxelFallbackReasons: string[] = [];
@@ -858,12 +904,16 @@ function buildChunkResource(
   voxelQuadCount += voxelFeatures.quadCount;
   voxelUploadBytes += voxelFeatures.uploadBytes;
   voxelLayerCount += voxelFeatures.voxelLayerCount;
-  const actors = actorMeshes(selected.plan, groundPosition, graphicsProfile);
+  const actors = actorMeshes(
+    selected.plan,
+    groundPosition,
+    graphicsProfile,
+    onTreeModelReady
+  );
   actors.meshes.forEach((mesh) => group.add(mesh));
   resourceMeshes(selected.plan, groundPosition).forEach((mesh) => group.add(mesh));
   const boundary = boundaryMesh(selected.plan);
   if (boundary) group.add(boundary);
-  let disposed = false;
   return Object.freeze({
     signature: selected.signature,
     group,
@@ -880,6 +930,7 @@ function buildChunkResource(
     dispose: () => {
       if (disposed) return;
       disposed = true;
+      actors.dispose();
       disposeObject(group);
     }
   });
@@ -1328,7 +1379,10 @@ export function createGreaterRealmSceneRuntime(
           tilt.setFromAxisAngle(tiltAxis, sway);
           rotation.multiply(tilt);
         }
-        scale.set(1, 1, 1);
+        const treeScale = actor.kind === 'canopy'
+          ? Number(ref.mesh.userData.greaterRealmTreeScale ?? 1)
+          : 1;
+        scale.setScalar(Number.isFinite(treeScale) && treeScale > 0 ? treeScale : 1);
         matrix.compose(position, rotation, scale);
         ref.mesh.setMatrixAt(ref.index, matrix);
         touchedMeshes.add(ref.mesh);
@@ -1530,7 +1584,12 @@ export function createGreaterRealmSceneRuntime(
           pending.delete(row.plan.chunkHandle);
           continue;
         }
-        const resource = buildChunkResource(row, cellSize, options.graphicsProfile);
+        const resource = buildChunkResource(
+          row,
+          cellSize,
+          options.graphicsProfile,
+          () => options.onInvalidate?.()
+        );
         // Uploads can render between capped ambient ticks. Match resident chunks immediately.
         resource.waterSurfaces.forEach((surface) => surface.update(waterVisualTime));
         uploaded.set(row.plan.chunkHandle, resource);
