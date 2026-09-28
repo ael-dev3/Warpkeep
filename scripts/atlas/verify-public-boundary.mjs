@@ -2315,9 +2315,11 @@ function scanFile(path, relativePath) {
   const descriptor = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
   try {
     const opened = fstatSync(descriptor);
+    // Node 22.13 on Windows can report lstat().dev as 0 (unknown); inode and
+    // size still bind the public path to the pinned open file.
     if (
       !opened.isFile()
-      || opened.dev !== status.dev
+      || (status.dev !== 0 && opened.dev !== status.dev)
       || opened.ino !== status.ino
       || opened.size !== status.size
     ) fail('GREATER_REALM_PUBLIC_BOUNDARY_FILE_CHANGED');
@@ -2370,7 +2372,7 @@ function scanFile(path, relativePath) {
       || after.ctimeMs !== opened.ctimeMs
       || current.isSymbolicLink()
       || !current.isFile()
-      || current.dev !== opened.dev
+      || (current.dev !== 0 && current.dev !== opened.dev)
       || current.ino !== opened.ino
     ) fail('GREATER_REALM_PUBLIC_BOUNDARY_FILE_CHANGED');
   } finally {

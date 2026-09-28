@@ -78,7 +78,8 @@ function readPinnedFile(outputRoot, relativePath, expectedBytes) {
       || before.dev !== after.dev
       || before.ino !== after.ino
       || before.size !== after.size
-      || status.dev !== after.dev
+      // Node 22.13 on Windows can report lstat().dev as 0 (unknown).
+      || (status.dev !== 0 && status.dev !== after.dev)
       || status.ino !== after.ino
       || status.size !== after.size
     ) fail(`${relativePath} changed while it was being verified.`);

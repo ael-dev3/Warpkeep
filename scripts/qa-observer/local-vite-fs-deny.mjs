@@ -296,6 +296,12 @@ function unsafePublicEntry(stats) {
   return stats.isSymbolicLink() || (!stats.isDirectory() && !stats.isFile());
 }
 
+function sameKnownDeviceIdentity(left, right) {
+  // Node 22 on Windows reports lstat().dev as 0 even though fstat().dev has
+  // the volume ID. Zero means unavailable here; inode and size remain pinned.
+  return left === 0 || right === 0 || left === right;
+}
+
 function publicFileFingerprint(stats) {
   return Object.freeze({
     ctimeMs: stats.ctimeMs,
@@ -308,7 +314,9 @@ function publicFileFingerprint(stats) {
 }
 
 function samePublicFileFingerprint(left, right) {
-  return Object.keys(left).every(key => left[key] === right[key]);
+  return Object.keys(left).every(key => key === 'dev'
+    ? sameKnownDeviceIdentity(left[key], right[key])
+    : left[key] === right[key]);
 }
 
 function startsWithBytes(bytes, prefix) {
@@ -480,7 +488,7 @@ function scanRegularPublicFile(path, expectedStats) {
     const opened = fstatSync(descriptor);
     if (
       !opened.isFile()
-      || opened.dev !== expectedStats.dev
+      || !sameKnownDeviceIdentity(opened.dev, expectedStats.dev)
       || opened.ino !== expectedStats.ino
       || opened.size !== expectedStats.size
     ) publicBoundaryProhibited();

@@ -29,6 +29,25 @@ const family = [
   { relativePath: 'compact.glb', bytes: Buffer.from('new-compact'), label: 'Compact' }
 ];
 
+function supportsFileSymlinks(): boolean {
+  const root = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-file-symlink-capability-'));
+  const target = join(root, 'target');
+  const link = join(root, 'link');
+  try {
+    writeFileSync(target, 'fixture');
+    symlinkSync(target, link, 'file');
+    return true;
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error
+      && ['EPERM', 'EACCES', 'ENOSYS'].includes(String(error.code))) return false;
+    throw error;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const FILE_SYMLINKS_SUPPORTED = supportsFileSymlinks();
+
 describe('atomic file-family installer', () => {
   let fixtureRoot: string;
   let destinationRoot: string;
@@ -243,21 +262,24 @@ describe('atomic file-family installer', () => {
     expectNoTransactionDebris();
   });
 
-  it('preflights every destination before creating transaction state', () => {
-    seedCompleteFamily();
-    const outside = join(fixtureRoot, 'outside.glb');
-    writeFileSync(outside, 'outside');
-    rmSync(join(destinationRoot, 'compact.glb'));
-    symlinkSync(outside, join(destinationRoot, 'compact.glb'));
+  it.skipIf(!FILE_SYMLINKS_SUPPORTED)(
+    'preflights every destination before creating transaction state',
+    () => {
+      seedCompleteFamily();
+      const outside = join(fixtureRoot, 'outside.glb');
+      writeFileSync(outside, 'outside');
+      rmSync(join(destinationRoot, 'compact.glb'));
+      symlinkSync(outside, join(destinationRoot, 'compact.glb'));
 
-    expect(() => installAtomicFileFamily({ destinationRoot, entries: family }))
-      .toThrow(/symbolic-link path component/);
+      expect(() => installAtomicFileFamily({ destinationRoot, entries: family }))
+        .toThrow(/symbolic-link path component/);
 
-    expect(readFileSync(join(destinationRoot, 'high.glb'), 'utf8')).toBe('old-high');
-    expect(readFileSync(join(destinationRoot, 'balanced.glb'), 'utf8')).toBe('old-balanced');
-    expect(readFileSync(outside, 'utf8')).toBe('outside');
-    expectNoTransactionDebris();
-  });
+      expect(readFileSync(join(destinationRoot, 'high.glb'), 'utf8')).toBe('old-high');
+      expect(readFileSync(join(destinationRoot, 'balanced.glb'), 'utf8')).toBe('old-balanced');
+      expect(readFileSync(outside, 'utf8')).toBe('outside');
+      expectNoTransactionDebris();
+    },
+  );
 
   it('fails closed on stale transaction state before starting a new install', () => {
     seedCompleteFamily();
@@ -300,33 +322,40 @@ describe('atomic file-family installer', () => {
     expectNoTransactionDebris();
   });
 
-  it('rejects path traversal, symbolic-link leaves, and symbolic-link ancestors', () => {
-    const sourceRoot = join(fixtureRoot, 'source');
-    const actual = join(sourceRoot, 'actual');
-    mkdirSync(sourceRoot);
-    mkdirSync(actual);
-    writeFileSync(join(actual, 'asset.glb'), 'authorized');
-    symlinkSync(actual, join(sourceRoot, 'alias'));
-    symlinkSync(join(actual, 'asset.glb'), join(sourceRoot, 'leaf.glb'));
+  it.skipIf(!FILE_SYMLINKS_SUPPORTED)(
+    'rejects path traversal, symbolic-link leaves, and symbolic-link ancestors',
+    () => {
+      const sourceRoot = join(fixtureRoot, 'source');
+      const actual = join(sourceRoot, 'actual');
+      mkdirSync(sourceRoot);
+      mkdirSync(actual);
+      writeFileSync(join(actual, 'asset.glb'), 'authorized');
+      symlinkSync(
+        actual,
+        join(sourceRoot, 'alias'),
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
+      symlinkSync(join(actual, 'asset.glb'), join(sourceRoot, 'leaf.glb'));
 
-    expect(() => resolveContainedPath(sourceRoot, '../outside.glb', 'source input'))
-      .toThrow(/parent-directory segments/);
-    expect(() => readContainedRegularFile({
-      root: sourceRoot,
-      relativePath: 'leaf.glb',
-      label: 'symbolic leaf'
-    })).toThrow(/symbolic-link path component/);
-    expect(() => readContainedRegularFile({
-      root: sourceRoot,
-      relativePath: 'alias/asset.glb',
-      label: 'symbolic ancestor'
-    })).toThrow(/symbolic-link path component/);
-    expect(readContainedRegularFile({
-      root: sourceRoot,
-      relativePath: 'actual/asset.glb',
-      label: 'regular source'
-    }).toString('utf8')).toBe('authorized');
-  });
+      expect(() => resolveContainedPath(sourceRoot, '../outside.glb', 'source input'))
+        .toThrow(/parent-directory segments/);
+      expect(() => readContainedRegularFile({
+        root: sourceRoot,
+        relativePath: 'leaf.glb',
+        label: 'symbolic leaf'
+      })).toThrow(/symbolic-link path component/);
+      expect(() => readContainedRegularFile({
+        root: sourceRoot,
+        relativePath: 'alias/asset.glb',
+        label: 'symbolic ancestor'
+      })).toThrow(/symbolic-link path component/);
+      expect(readContainedRegularFile({
+        root: sourceRoot,
+        relativePath: 'actual/asset.glb',
+        label: 'regular source'
+      }).toString('utf8')).toBe('authorized');
+    },
+  );
 
   it('rejects a wrong source byte length before accepting its contents', () => {
     const sourceRoot = join(fixtureRoot, 'bounded-source');
@@ -349,7 +378,11 @@ describe('atomic file-family installer', () => {
 
   it('rejects an output root reached through a symbolic-link ancestor', () => {
     const destinationAlias = join(fixtureRoot, 'destination-alias');
-    symlinkSync(destinationRoot, destinationAlias);
+    symlinkSync(
+      destinationRoot,
+      destinationAlias,
+      process.platform === 'win32' ? 'junction' : 'dir',
+    );
     seedCompleteFamily();
 
     expect(() => installAtomicFileFamily({
