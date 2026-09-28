@@ -1,109 +1,44 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 22:21 CEST (20:21 UTC)
+## Latest release checkpoint — 28 September 2026, 22:41 CEST (20:41 UTC)
 
-The owner directed the workflow to continue without GitHub Actions during
-September. No Actions workflow was dispatched, queried or used as evidence.
-Before this documentation-only refresh, local `HEAD`, the signed origin branch
-and open PR #374 matched `0685ccfc09c623d7f19e7bf8af9816d0aeba0257`; the
-worktree was clean and `git verify-commit HEAD` succeeded. This note refresh
-leaves runtime source `44fd9397ba4be770e0936830e3c0e728468ea6c7` unchanged.
-The PR targets main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The connected full-stack probe
-correction is signed commit
-[`12f7ba60`](https://github.com/ael-dev3/Warpkeep/commit/12f7ba60b5b63260f9751c3c0f302a200755d2c1).
-Signed commit [`2a69271e`](https://github.com/ael-dev3/Warpkeep/commit/2a69271e)
-fixes a PTR navigation defect: web-version and unverified-frame fallbacks now
-derive their URL from the validated host and Vite deployment base. A player
-recovering from `/ptr/` remains at `/ptr/#menu`; root deployment still resolves
-to `/#menu`. No gameplay rule or feature changed.
+The owner paused GitHub Actions for September; none were dispatched, queried or
+used. Before integration, signed local/origin/PR #374 matched `513dac09` on main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Signed merge
+[`3e135906`](https://github.com/ael-dev3/Warpkeep/commit/3e135906df7956426f61c3e6ff8d9bbd3753bf4c)
+integrates exact Warpkeep PR [#376](https://github.com/ael-dev3/Warpkeep/pull/376)
+head `d924e2e99e471add91f22e14db98be3a637eae9d` into candidate #374. This is
+candidate integration only. PRs #375, #376 and #378 remain open as provenance
+until #374 lands; their older source closures should not be merged separately.
 
-After the fallback correction, the focused auth/entry suites passed 53/53 under
-both `/` and `/ptr/` deployment bases, and `npm run typecheck` passed. The
-earlier Windows full-stack journey and complete 15-case rendered-WebGL matrix
-remain valid for the unchanged gameplay/rendering paths. A preview started at
-`/` returned the SPA index for missing `/ptr/assets/...` requests; the
-matching-base recovery is documented in the
-[QA observatory](../../operations/qa-observatory.md).
+PR #376 adds the owner-commissioned castle-film action for the verified FID
+539854 record and narrow-screen castle-selection focus handling. The action is
+bound to the resolved castle identity, and stale selections cannot reveal it.
+Its module is lazy-loaded; the built JS is 3.02 kB (1.24 kB gzip), with 3.09 kB
+(1.03 kB gzip) of CSS. The 288,869,749-byte video stays in its versioned public
+release and loads only after the player opens. The release checksum matches
+`ASSETS-LICENSE.md`; no video enters the Warpkeep package. PR #377 remains
+deferred because G002 is sealed and no current player path can exercise its
+score in the owner PTR.
 
-On 28 September, the fresh Windows `npm run qa:inner-keep` run passed all 18
-synthetic rendered scenarios, covering construction, completion, mobile
-responsive layouts, keyboard activation, fallback rendering and reduced motion.
-The probe evaluates screenshots in memory and leaves no screenshot files.
+The combined local suites passed 196/196 across 10 affected test files. The
+full `npm run build` passed build-mode typechecking, asset integrity, production
+exclusions, public-boundary and Farcaster Mini App checks. `npm run
+verify:file-sizes` passed. On signed merge `3e135906`,
+`npm run verify:sealed-launch` passed its checked-in phase and correctly
+returned `pagesDeploymentApproved: false`, with G001/G002/PTR identities unset.
+The build reports `RealmMapScreen` at 748.45 kB (202.64 kB gzip); continue to
+measure mobile load and physical-device performance. The earlier 18-case Keep
+render probe and 15-case rendered-WebGL matrix remain synthetic browser evidence.
 
-At signed candidate head `0685ccfc`, `npm run verify:sealed-launch` passed its
-checked-in phase; it correctly returned `pagesDeploymentApproved: false` with
-the live G001/G002/PTR identities unset. This verifies source closure, not a
-deployment. `npm test -- tests/gameplay04KeepModules.test.ts --maxWorkers=1`
-passed 28/28, including the persisted gather→Mill→completion→improved-return
-sequence. That test uses synthetic atlas routes and does not prove the live PTR
-ten-minute journey.
-
-The final local `tests/scannerRegression.test.ts` run passed 7/7. The current
-documentation refresh makes no runtime changes.
-
-On runtime source `44fd9397ba4be770e0936830e3c0e728468ea6c7`,
-`DEPLOY_BASE=/ptr/ npm run build` completed with exit 0. A matching-base preview
-served all nine unique entry assets and all 21
-Vite-mapped runtime assets with HTTP 200 and the expected JavaScript, CSS, or
-image content type; the preview process was stopped after the smoke. A fresh
-public check returned HTTP 200 at `https://warpkeep.com/` and HTTP 404 at
-`https://warpkeep.com/ptr/`, so the PTR is still unavailable. The current Vite
-build reports `RealmMapScreen` at 747.73 kB (202.36 kB gzip), effectively
-unchanged; keep its mobile-load impact under observation. The
-private Assets archive was verified from the existing ignored cache; its
-unauthenticated fetch can return 404 on a fresh checkout. The QA observatory
-records its authenticated recovery.
-
-The public root was rechecked at 22:21 CEST: it returns 200 while
-`https://warpkeep.com/ptr/` returns 404. No 0.4 PTR or owner/device acceptance
-is claimed. Local tests do not replace hosted Verify, exact-source native
-M1/M2, backend deploy/readback, PTR publication, or owner acceptance. Keep #374
-open during September's Actions pause and continue candidate work without
-describing local evidence as release acceptance.
-
-The source branch now includes the reviewed tree-visual candidate from Warpkeep
-PR [#378](https://github.com/ael-dev3/Warpkeep/pull/378), integrated by signed
-merge `12ebfe08`. It authors 20 biome-specific low-poly Greater Realm tree
-meshes, batches them by biome, and charges real geometry bytes and draw calls
-against the existing chunk budget. The original asset archive is not fetched
-at runtime. Warpkeep-Assets PR [#39](https://github.com/ael-dev3/Warpkeep-Assets/pull/39)
-is still open as a separate archive proposal; the current inventory here was
-metadata-only. PR #378 itself remains open; this is candidate-branch integration,
-not main integration or release acceptance.
-
-Independent local checks on the integrated source tree (tree
-`6d5e8d1745c5566c83ff81cb74978e094d81050f`) passed: typecheck; full production
-build, including runtime-asset and public-boundary checks; and seven affected
-Greater Realm geometry, plan, renderer, chunk-stream and world suites (114/114).
-The world-scene tests emitted their existing React `act()` warnings, but passed.
-The build still reports the existing `RealmMapScreen` bundle at about 747.64 kB
-(202.38 kB gzip), effectively unchanged by this candidate. An independent parse
-of the reproducibly generated 60 GLBs verified hashes, GLB headers/chunks,
-attribute lengths, finite vertex colors and positions, unit normals, nonzero
-triangle areas, and 20 distinct silhouettes at each LOD; total archive size is
-681,380 bytes.
-
-Running the full local rendered-WebGL probe uncovered and fixed a Windows QA
-script defect: it converted valid Info-ZIP `-Z1`/`-p` options into invalid
-`-tf`/`-xOf` combinations. The correction is in signed commit `d515d4de`.
-Afterward, three focused suites passed 61 tests (one platform skip), and the
-full browser probe passed 15 rendered cases, the shader fallback, active Worker
-lifecycle, all six Worker locomotion cases, all-node occupancy, 25 journeys,
-loopback LOD boundary checks, and High/Balanced/Reduced castle LOD fidelity.
-The viewport and journey probes include mobile-sized coverage; no physical
-handset acceptance is recorded. The documentation/security/probe regression
-suites also passed 56/56. A broader filename-based Greater Realm sweep was
-stopped when it entered unrelated, slow atlas-generation suites; do not
-interpret that interrupted sweep as a pass or a product failure.
-
-The live site was rechecked: `https://warpkeep.com/` returns 200, while
-`https://warpkeep.com/ptr/` returns 404. There is still no deployed or accepted
-0.4 PTR. The sealed verifier's package-structure pin correction and biome-tree
-integration remain subject to the exact-source M1/M2 preparation after source
-integration, and hosted Verify remains required before merging #374. Keep #374
-open through September; do not treat local proof as a hosted-check waiver.
-Continue independent local review and candidate work without starting Actions.
+At 22:41 CEST, the public root returned HTTP 200 and `/ptr/` returned HTTP 404.
+No 0.4 PTR, authenticated owner journey, ten-minute real-route result or phone
+acceptance is claimed. Continue syncing the source and notes without Actions.
+After September, run final-head Verify, integrate the signed source, prepare
+and independently check exact M1, promote generated-only M2, then verify and
+complete G001/G002 readback, backend deployment, PTR publication and owner
+acceptance. The documentation-only sync following this checkpoint does not
+change runtime source.
 
 ## Latest release checkpoint — 28 September 2026, 19:46 CEST (17:46 UTC)
 

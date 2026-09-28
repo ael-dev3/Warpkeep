@@ -50,6 +50,11 @@ are already integrated into the open 0.4 candidate,
 mobile/WebGL corrections and the reviewed Greater Realm tree presentation from
 [#378](https://github.com/ael-dev3/Warpkeep/pull/378). PTR sign-in and framed-
 host fallbacks now preserve `/ptr/` instead of routing owners to the Alpha root.
+The candidate also stages the owner-commissioned FID 539854 castle-film action
+and narrow-screen castle focus improvements from
+[#376](https://github.com/ael-dev3/Warpkeep/pull/376); the film player code is
+lazy-loaded for that eligible castle, and its 289 MB video remains external and
+click-to-load. PR #376 stays open as source provenance until #374 lands.
 PR #375 remains open as source provenance; its older branch must not be merged
 separately. The candidate is a polished visual foundation around the existing
 gather, dispatch, return and construction loop.
@@ -58,7 +63,7 @@ Local Windows verification on September 28 passed the disposable full-stack
 journey across six desktop/mobile profiles and the complete rendered-WebGL
 matrix across 15 cases. The production build also passed asset integrity,
 production exclusion, public-boundary and Farcaster Mini App checks. The
-`RealmMapScreen` bundle remains 747.73 kB (202.36 kB gzip), a measured mobile
+`RealmMapScreen` bundle remains 748.45 kB (202.64 kB gzip), a measured mobile
 load follow-up. These are local synthetic checks; they do not establish live
 provider state, physical-phone comfort, or release acceptance. The owner has
 paused GitHub Actions for September, so this checkpoint makes no hosted-check
@@ -76,12 +81,12 @@ The initial 0.4 PTR is required; opening live admissions is not. The [execution 
 [release checklist](docs/operations/0.4.0-release-checklist.md) track the
 current evidence and gates.
 
-The large castle-film PR #376 and Genesis 002 soundtrack PR #377 remain deferred
-pending mobile delivery/playback, sealed-scope and rights review. Warpkeep-Assets
+Genesis 002 soundtrack PR #377 remains deferred because G002 is sealed and no
+current player path can exercise the new score on the owner PTR. Warpkeep-Assets
 PR #39 proposes a source archive; #40 is a study reference pending packed-image
 rights verification; #41 needs its published model attachment and local mobile
-budget/integration checks. None is required for the current candidate to keep
-its reviewed tree presentation.
+budget/integration checks. Those archives are not needed for the current
+candidate's reviewed tree presentation.
 
 | Realm | Purpose |
 | --- | --- |

@@ -1,71 +1,52 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 22:21 CEST (20:21 UTC).
+Source/GitHub check: 22:48 CEST (20:48 UTC).
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 22:21 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 22:41 CEST
 
 September GitHub Actions pause honored: no Actions workflow was dispatched,
-queried or used. Before this documentation-only refresh, local/origin/PR #374
-matched signed candidate `0685ccfc`; runtime source `44fd9397` is unchanged.
-This checkpoint changes documentation only. The signed QA-source
-correction `12f7ba60` is included in open PR
-#374 from `fix/g001-census-admission-proxy`, based on main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Signed code fix `2a69271e` now
-keeps web-version and unverified-frame recovery links on the current deployment
-base: root deployments keep the root menu URL, and the isolated owner PTR uses
-`/ptr/#menu`.
+queried or used. Signed merge `3e135906` integrates exact Warpkeep PR #376 head
+`d924e2e99e471add91f22e14db98be3a637eae9d` into candidate PR #374, atop synced
+candidate `513dac09`. The previously reviewed menu (#375), biome-tree set (#378)
+and PTR path repair remain integrated. Keep source PRs open for provenance until
+#374 lands; this is candidate-branch integration, not main integration.
 
-The prior Windows full-stack run still covers the direct-menu entry and gameplay
-journey; the complete 15-case rendered-WebGL matrix still covers mobile gestures,
-Worker lifecycle, 25 journeys, LOD and all quality modes. After the path fix,
-three focused auth/entry suites passed 53/53 at both `/` and `/ptr/`, and
-`npm run typecheck` passed. The `/ptr/` production build passed its asset,
-production-boundary, exclusion and Farcaster checks. A matching-base preview
-served all nine unique entry assets and 21 Vite-mapped runtime assets with
-correct content types. Runtime source `44fd9397` built successfully; commits
-`dbb3e79c`, `7db3bb12` and `0685ccfc` only update documentation. A fresh public
-check at 22:21 CEST found root HTTP 200 and `/ptr/` HTTP
-404. The PTR is not published. A preview started with the wrong `/` base
-returned the SPA index for missing `/ptr/assets/...` URLs; the QA observatory
-records the correct startup environment. The current Vite warning is
-`RealmMapScreen` 747.73 kB (202.36 kB gzip); retain its mobile-load impact as
-a follow-up.
+PR #376 adds the owner-commissioned FID 539854 film action and mobile castle-card
+focus handling. The action is shown only for the resolved eligible castle; its
+player code is lazy-loaded (3.02 kB, 1.24 kB gzip) and the separate 288,869,749
+byte film is requested only after the player opens it. The release checksum
+record matches the digest in `ASSETS-LICENSE.md`; the film is not copied into
+the Warpkeep build. The candidate build reports `RealmMapScreen` at 748.45 kB
+(202.64 kB gzip), still a measured mobile-load follow-up.
 
-Fresh Windows rendered QA `npm run qa:inner-keep` passed 18 synthetic cases,
-including responsive mobile layouts, construction/completion and fallback
-rendering. Its visual analysis is in memory; it creates no screenshot files.
+The combined local UI/audio/canvas suite passed 196/196 across 10 test files.
+`npm run build` passed build-mode typechecking, runtime and production asset
+checks, production exclusions, the Greater Realm public-boundary audit and
+Farcaster Mini App integrity. `npm run verify:file-sizes` passed. On signed
+merge `3e135906`, `npm run verify:sealed-launch` passed its checked-in phase but
+returned `pagesDeploymentApproved: false` with G001/G002/PTR identities unset.
+These local checks do not prove the authenticated owner journey or mobile
+performance on a physical device.
 
-At candidate head `0685ccfc`, `npm run verify:sealed-launch` passed the
-checked-in phase with deployment approval false and live realm identities
-unset. The persisted gameplay adapter suite passed 28/28, including improved
-return credit after Mill completion. It uses synthetic routes; real PTR timing
-and the ten-minute first-payoff target remain unverified.
-
-The final local `tests/scannerRegression.test.ts` run passed 7/7. The latest
-commit changes documentation only.
-
-The pinned private Assets archive is verified in the ignored cache; the [QA observatory](../../operations/qa-observatory.md)
-records the authenticated recovery command for fresh checkouts. 0.4 is not live
-on PTR or accepted.
-Release gates remain exact-source native M1/M2, backend deploy/readback, PTR
-publication and owner/device acceptance; hosted Verify is unavailable during
-the September Actions pause. Continue local review and ready exact-source
-publication checks for after the pause.
+At 22:41 CEST, `https://warpkeep.com/` returned HTTP 200 and
+`https://warpkeep.com/ptr/` returned HTTP 404. 0.4 is not live or accepted.
+Exact-source M1/M2, G001 preservation/readback, sealed G002 verification,
+backend deploy/readback, PTR publication and owner/device acceptance remain.
+The final-head hosted Verify gate must wait until the September Actions pause
+ends; keep all source and notes synced in the meantime.
 
 NEXT ACTIONS
 
 1. Keep candidate source and tracked notes signed and synced to PR #374; do not
    run GitHub Actions in September.
-2. Review incoming Warpkeep and Warpkeep-Assets pull requests against the 0.4
-   scope, rights, mobile transfer/playback and performance evidence before
-   integrating them. Current decisions: menu PR #375 and biome-tree PR #378 are
-   already integrated in candidate #374; leave #375 open for provenance and
-   close it as superseded only after #374 lands. Warpkeep #376's large
-   castle-film addition and #377's Genesis 002 soundtrack remain deferred for
-   mobile delivery/playback and sealed scope/rights review. Assets #39 remains a
-   source-archive proposal, #40 is study-only until packed-image rights are
-   verified, and #41 needs its published v3 attachment plus local mobile
-   budget/integration checks. Do not treat an open PR as an approved asset.
+2. Keep the reviewed menu (#375), biome trees (#378) and owner film/mobile
+   castle-card change (#376) staged in candidate #374. Leave those PRs open for
+   provenance until #374 lands. Defer #377: it changes only G002 audio, while
+   G002 remains sealed and the score cannot be exercised through the owner PTR.
+   Assets #39 remains a source-archive proposal; #40 is study-only until
+   packed-image rights are verified, and #41 needs its published v3 attachment
+   plus local mobile budget/integration checks. Do not treat an open PR as an
+   approved asset.
 3. Keep native release preparation tied to the exact reviewed M1: first pass
    final-head Verify and merge the signed source, then prepare/check that exact
    M1 and promote its generated-only M2. Do not create another diagnostic
@@ -267,18 +248,22 @@ initial intake queue; independent local review is recorded below. Re-list both
 repositories before each later integration because more 0.4 PRs are expected.
 
 INDEPENDENT INTAKE OUTCOME — 28 SEPTEMBER, 00:50 CEST
+Superseded by the 22:41 checkpoint above.
 
 The exact #376 head d924e2e99e471add91f22e14db98be3a637eae9d passed five
 affected test suites (66 tests), `tsc -b`, and the full production build
-locally. Its 288,869,749-byte film is click-to-load; defer it from the initial
-PTR candidate pending mobile network/playback review and hosted Verify. The
-exact #377 head 32a3fced56f52a356c7536dfc64042040cad6c47 passed 23 audio tests,
-`tsc -b`, file-size/runtime-asset checks and full production build. G002 remains
-sealed, so the score adds no reachable PTR value; defer until G002 is in scope
-and rights evidence is adequate. The `made with suno` metadata alone is not a
+locally. At this earlier checkpoint its 288,869,749-byte film was deferred
+pending mobile network/playback review and hosted Verify. Later source review
+integrated it into candidate #374 with lazy loading and an external,
+click-to-load film. The exact #377 head
+32a3fced56f52a356c7536dfc64042040cad6c47 passed 23 audio tests, `tsc -b`,
+file-size/runtime-asset checks and full production build. G002 remains sealed,
+so the score adds no reachable PTR value; defer until G002 is in scope and
+rights evidence is adequate. The `made with suno` metadata alone is not a
 rights grant. Assets #38 is correctly stacked on #37 and remains blocked by
-that dependency plus billing-blocked Verify/CodeQL. No incoming PR is approved
-or integrated into #374. Local checks restored the shipping branch cleanly.
+that dependency plus billing-blocked Verify/CodeQL. No incoming PR had been
+approved or integrated at that time. Local checks restored the shipping branch
+cleanly.
 
 The earlier signed World retry, G001 preservation work, public-mirror
 candidate, local source tests, native closure checks and synthetic mobile
