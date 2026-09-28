@@ -46,18 +46,22 @@ build. The owner confirmed successful phone-approved desktop sign-in at
 2026-09-27 19:06:14 UTC after a secret-only RPC endpoint repair; the
 [timestamped incident report](docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md)
 records the evidence and its limits. No exact frontend build hash was captured
-for that sign-in. The reviewed Verdant Citadel menu is integrated into the
-signed 0.4 candidate at
-[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374), together with the
-source repairs and refrozen protected closure. Signed documentation head
-`9f43f0dd` received [Verify 36347362794](https://github.com/ael-dev3/Warpkeep/actions/runs/36347362794),
-which stopped all 17 jobs before runner steps because GitHub cited failed
-account payments or an Actions spending limit. Restore billing and rerun
-checks on the live final head. The private development source, exact checks and next
-release action are recorded in the dated
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md). Protected
-integration, native preparation, provider work and owner acceptance still
-remain before 0.4 release.
+for that sign-in. The reviewed Verdant Citadel menu and source repairs are
+integrated into the open 0.4 candidate, [PR
+#374](https://github.com/ael-dev3/Warpkeep/pull/374). At the latest checked
+checkpoint, its signed branch head was `ef7e8cf6` and matched the maintained
+local checkout. The exact-head
+[Verify run 36377022389](https://github.com/ael-dev3/Warpkeep/actions/runs/36377022389)
+stopped all 17 jobs before any step because GitHub cited account payments or
+the Actions spending limit; this is not a source-test result. The exact-source
+`/ptr/` production build and payload-manifest write/check passed locally. The
+live Alpha root returned HTTP 200, while `/ptr/` returned HTTP 404; no 0.4 PTR
+deployment or release acceptance is claimed. Sealed launch remains in
+preparation, package version `0.3.43`, without a PTR database identity or
+activated production receipts. Resolve the billing gate, then rerun Verify on
+the exact current PR head. The dated [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md)
+records the release sequence and evidence. Protected integration, native
+preparation, provider work and owner acceptance remain before 0.4 release.
 
 Provider deployment, accepted G001 preservation/readback, sealed G002 evidence,
 owner PTR play, mobile and measured-performance acceptance, and final release

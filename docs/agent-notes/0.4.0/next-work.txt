@@ -1,6 +1,6 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 04:38 CEST (02:38 UTC).
+Source/GitHub check: 06:28 CEST (04:28 UTC).
 
 PURPOSE OF THIS FILE
 
@@ -34,12 +34,22 @@ Maintained checkout:
 C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep
 
 Local branch: fix/g001-census-admission-proxy
-At the start of this refresh, local and GitHub branch head was signed
-4ceba245db011ea5d5c2b8e764a3ba340ed8a9b5 and the checkout was clean and
-remote-equal. The application checks below ran on feaade75; 4ceba245 contains
-only notes and README wording. PR #374 is open on that branch, based on live main
-786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. This status note will advance the
-branch; recheck the exact live SHA before acting.
+Before this refresh, local and GitHub branch head was signed
+ef7e8cf6aa4c87459b90908e69d799450eb028f0 and the checkout was clean and
+remote-equal. PR #374 is open against `main` at
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. Its exact-head Verify
+[36377022389](https://github.com/ael-dev3/Warpkeep/actions/runs/36377022389)
+failed all 17 jobs before their first steps. GitHub's annotation identifies
+account payments or the Actions spending limit, so hosted source tests have not
+run. The exact-source `/ptr/` build and payload-manifest write/check passed
+locally at `ef7e8cf6`: 369 files, 137,380,979 bytes, manifest SHA-256
+`3483ec9d7a52bf7bf635dc2cd51a15075f7bfcc55bf660f91da75b6c96f88b77`.
+At 04:15 UTC, the live Alpha root returned HTTP 200 and `/ptr/` returned HTTP
+404. Sealed launch remains in preparation with no PTR database identity or
+production receipts; 0.4 is not deployed or accepted. This notes update
+advances the branch. Rebuild `/ptr/` and write/check its source-bound manifest
+on the resulting exact head before publication work; rerun hosted Verify after
+the account owner resolves billing.
 Protected source checkpoint: 175e325771768d8427bedeff8280a9cb2a9de282
 Signed protected closure: 6b9bcb1f6bf27fa70d7870b4b0eb074a7f698242
 Closure manifest SHA-256:
@@ -62,7 +72,7 @@ ownership-bound policy and checked-in sealed-launch verification. The final
 Node 22 production build and all 20 native Pages live-receipt tests passed;
 reviewed menu, QR and delivery tests are recorded in the repository handoff.
 
-EXACT-HEAD LOCAL VERIFICATION — 28 SEPTEMBER, 02:31 UTC
+FULL LOCAL VERIFICATION — SOURCE feaade75, 28 SEPTEMBER, 02:31 UTC
 
 The full four-shard root suite passed 12,138 tests with 201 skipped. One case
 timed out only during the first concurrent run; it passed alone and its full
@@ -74,7 +84,12 @@ connected migration/import/relocation/population/access/CAS rehearsals,
 native contracts, npm audit and full-history Gitleaks passed. One combined
 additive-migration wrapper returned exit 1 after printing its proof as passed;
 the separate database audit exited 0. Details and this anomaly are recorded
-at the top of execution-handoff.md.
+at the top of execution-handoff.md. The later Windows file-identity repair at
+`036b4d67` had focused publication/filesystem coverage: 163 passed, four
+platform/capability skips, and the mirror-plan suite passed all eight cases on
+a serial rerun after one disk-contention timeout. The `/ptr/` production build
+and payload manifest at `ef7e8cf6` passed as recorded above. This does not turn
+the missing hosted Verify into a local-test result.
 
 GitHub main still has signed generated-only M2
 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32 through PR #373. Its
@@ -108,10 +123,12 @@ is required. Full event timestamps and recovery details are in
 docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md.
 
 The prior exact-head run [Verify 36356502820](https://github.com/ael-dev3/Warpkeep/actions/runs/36356502820)
-on signed docs head 4e8d8cf5 is historical. It also stopped all 17 jobs before
-any step because of the same billing/spending-limit gate. The current result
-is Verify 36370609811 on 4ceba245, recorded at the top of execution-handoff.md.
-Recheck the live run after this note is committed.
+on signed docs head 4e8d8cf5 and [Verify 36370609811](https://github.com/ael-dev3/Warpkeep/actions/runs/36370609811)
+on 4ceba245 are historical examples of the same pre-run billing gate. The
+current result is Verify 36377022389 on `ef7e8cf6`, recorded at the top of
+execution-handoff.md. Check the automatically triggered run for this note's
+new head after publication; do not treat a pre-run billing failure as a source
+test failure or a green release check.
 
 The owner reported successful login after another fresh QR scan. The
 conversation clock was observed at 2026-09-27 22:17:54 UTC. This is the report
