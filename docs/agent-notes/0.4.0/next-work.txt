@@ -1,11 +1,13 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 21:56 CEST (19:56 UTC).
+Source/GitHub check: 22:05 CEST (20:05 UTC).
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 21:56 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 22:05 CEST
 
 September GitHub Actions pause honored: no Actions workflow was dispatched,
-queried or used. Signed QA-source correction `12f7ba60` is included in open PR
+queried or used. Current local/origin/PR #374 head is the signed documentation
+commit `dbb3e79c`; runtime source `44fd9397` is unchanged. The signed QA-source
+correction `12f7ba60` is included in open PR
 #374 from `fix/g001-census-admission-proxy`, based on main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Signed code fix `2a69271e` now
 keeps web-version and unverified-frame recovery links on the current deployment
@@ -19,23 +21,26 @@ three focused auth/entry suites passed 53/53 at both `/` and `/ptr/`, and
 `npm run typecheck` passed. The `/ptr/` production build passed its asset,
 production-boundary, exclusion and Farcaster checks. A matching-base preview
 served all nine unique entry assets and 21 Vite-mapped runtime assets with
-correct content types. Rebuilt exact signed/synced head `44fd9397` successfully;
-its clean worktree, valid commit signature, origin branch and open PR #374 all
-agree. A fresh public check at 21:56 CEST found root HTTP 200 and `/ptr/` HTTP
+correct content types. Runtime source `44fd9397` built successfully; the
+subsequent `dbb3e79c` commit only updates documentation. A fresh public check
+at 21:56 CEST found root HTTP 200 and `/ptr/` HTTP
 404. The PTR is not published. A preview started with the wrong `/` base
 returned the SPA index for missing `/ptr/assets/...` URLs; the QA observatory
 records the correct startup environment. The current Vite warning is
 `RealmMapScreen` 747.73 kB (202.36 kB gzip); retain its mobile-load impact as
 a follow-up.
 
-The pinned private Assets archive is already verified in the ignored cache;
-the [QA observatory](../../operations/qa-observatory.md) records the
-authenticated recovery command for fresh checkouts. At 21:56 CEST the public
-root served Alpha 0.3.43 (HTTP 200) and `/ptr/` returned HTTP 404. 0.4 is not
-live on PTR or accepted. Release gates remain exact-source native M1/M2,
-backend deploy/readback, PTR publication, and owner/device acceptance; hosted
-Verify is unavailable during the September Actions pause. Continue local review
-and ready the first permissible exact-source publication checks after the pause.
+Fresh Windows rendered QA `npm run qa:inner-keep` passed 18 synthetic cases,
+including responsive mobile layouts, construction/completion and fallback
+rendering. Its visual analysis is in memory; it creates no screenshot files.
+
+The pinned private Assets archive is verified in the ignored cache; the [QA observatory](../../operations/qa-observatory.md)
+records the authenticated recovery command for fresh checkouts. 0.4 is not live
+on PTR or accepted.
+Release gates remain exact-source native M1/M2, backend deploy/readback, PTR
+publication and owner/device acceptance; hosted Verify is unavailable during
+the September Actions pause. Continue local review and ready exact-source
+publication checks for after the pause.
 
 NEXT ACTIONS
 

@@ -1,12 +1,13 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 21:56 CEST (19:56 UTC)
+## Latest release checkpoint — 28 September 2026, 22:05 CEST (20:05 UTC)
 
 The owner directed the workflow to continue without GitHub Actions during
 September. No Actions workflow was dispatched, queried or used as evidence.
 Local `HEAD`, the signed origin branch and open PR #374 all match
-`44fd9397ba4be770e0936830e3c0e728468ea6c7`; the worktree is clean and
-`git verify-commit HEAD` succeeds. The PR targets main
+`dbb3e79cab735f7e6e693bb277c33087ecd2e2ca`; the worktree is clean and
+`git verify-commit HEAD` succeeds. This documentation-only commit follows
+runtime source `44fd9397ba4be770e0936830e3c0e728468ea6c7`. The PR targets main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The connected full-stack probe
 correction is signed commit
 [`12f7ba60`](https://github.com/ael-dev3/Warpkeep/commit/12f7ba60b5b63260f9751c3c0f302a200755d2c1).
@@ -19,16 +20,19 @@ to `/#menu`. No gameplay rule or feature changed.
 After the fallback correction, the focused auth/entry suites passed 53/53 under
 both `/` and `/ptr/` deployment bases, and `npm run typecheck` passed. The
 earlier Windows full-stack journey and complete 15-case rendered-WebGL matrix
-remain valid for the unchanged gameplay/rendering paths. A `/ptr/` production
-build passed its asset, type, boundary, exclusion and Farcaster integrity checks.
-With the preview server launched under the same `/ptr/` base, all nine entry
-assets and 21 mapped runtime chunks returned 200 with JavaScript/CSS/image
-content types. A preview started at `/` had instead returned the SPA index for
-missing `/ptr/assets/...` requests; the matching-base recovery is now in the
+remain valid for the unchanged gameplay/rendering paths. A preview started at
+`/` returned the SPA index for missing `/ptr/assets/...` requests; the
+matching-base recovery is documented in the
 [QA observatory](../../operations/qa-observatory.md).
 
-On that exact synced head, `DEPLOY_BASE=/ptr/ npm run build` completed with exit
-0. A matching-base preview served all nine unique entry assets and all 21
+On 28 September, the fresh Windows `npm run qa:inner-keep` run passed all 18
+synthetic rendered scenarios, covering construction, completion, mobile
+responsive layouts, keyboard activation, fallback rendering and reduced motion.
+The probe evaluates screenshots in memory and leaves no screenshot files.
+
+On runtime source `44fd9397ba4be770e0936830e3c0e728468ea6c7`,
+`DEPLOY_BASE=/ptr/ npm run build` completed with exit 0. A matching-base preview
+served all nine unique entry assets and all 21
 Vite-mapped runtime assets with HTTP 200 and the expected JavaScript, CSS, or
 image content type; the preview process was stopped after the smoke. A fresh
 public check returned HTTP 200 at `https://warpkeep.com/` and HTTP 404 at
