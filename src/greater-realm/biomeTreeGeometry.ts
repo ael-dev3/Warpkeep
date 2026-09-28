@@ -1,10 +1,10 @@
 import * as THREE from 'three';
+import { GREATER_REALM_BIOME_TREE_V3 } from './biomeTreeV3Catalog';
 
 /**
- * Original, texture-free Greater Realm tree sculptures. The supplied BlendSwap
- * tree informed the branch/crown study, but no geometry, nodes or textures are
- * imported from it. One recipe is authored for each tree-bearing atlas biome.
- * Water and unclassified cells deliberately have no tree.
+ * Local procedural fallback geometry used while a verified v3 tree is loading
+ * or when its same-origin asset cannot load. It is not the selected 0.4 art
+ * family. Water and unclassified cells deliberately have no tree.
  */
 export type BiomeTreeDetail = 'high' | 'balanced' | 'reduced';
 type Point = readonly [number, number, number];
@@ -439,7 +439,7 @@ function sculptTree(biomeClass: keyof typeof BIOME_TREE_NAMES, detail: BiomeTree
   return mesh.finish();
 }
 
-/** Distinct geometry, palette and topology per land biome; no network request. */
+/** Temporary same-size local geometry used only while the v3 GLB is loading. */
 export function createBiomeTreeGeometry(biomeClass: number, detail: BiomeTreeDetail): THREE.BufferGeometry {
   if (!isTreeBiome(biomeClass)) {
     throw new Error(`No tree is defined for biome ${biomeClass}`);
@@ -447,28 +447,18 @@ export function createBiomeTreeGeometry(biomeClass: number, detail: BiomeTreeDet
   return sculptTree(biomeClass as keyof typeof BIOME_TREE_NAMES, detail);
 }
 
-const METRICS = new Map<string, Readonly<{ triangles: number; bytes: number }>>();
-
-function metrics(biomeClass: number, detail: BiomeTreeDetail) {
-  const key = `${biomeClass}:${detail}`;
-  const cached = METRICS.get(key);
-  if (cached) return cached;
-  const geometry = createBiomeTreeGeometry(biomeClass, detail);
-  const measured = Object.freeze({
-    triangles: geometry.getAttribute('position').count / 3,
-    bytes: ['position', 'color', 'normal'].reduce((total, attribute) => (
-      total + (geometry.getAttribute(attribute)?.array.byteLength ?? 0)
-    ), 0)
-  });
-  geometry.dispose();
-  METRICS.set(key, measured);
-  return measured;
+function runtimeModel(biomeClass: number, detail: BiomeTreeDetail) {
+  const biome = GREATER_REALM_BIOME_TREE_V3[
+    biomeClass as keyof typeof GREATER_REALM_BIOME_TREE_V3
+  ];
+  if (!biome) throw new Error(`No tree is defined for biome ${biomeClass}`);
+  return detail === 'high' ? biome.high : biome.mobile;
 }
 
 export function biomeTreeTriangleCount(biomeClass: number, detail: BiomeTreeDetail): number {
-  return metrics(biomeClass, detail).triangles;
+  return runtimeModel(biomeClass, detail).triangles;
 }
 
 export function biomeTreeGeometryBytes(biomeClass: number, detail: BiomeTreeDetail): number {
-  return metrics(biomeClass, detail).bytes;
+  return runtimeModel(biomeClass, detail).geometryBytes;
 }

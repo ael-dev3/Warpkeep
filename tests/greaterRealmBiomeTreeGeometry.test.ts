@@ -28,7 +28,7 @@ describe('Greater Realm biome tree family', () => {
     expect(silhouettes.size).toBe(land.length);
   });
 
-  it('omits open water and keeps the mobile mesh below the legacy compact cap', () => {
+  it('omits open water and keeps mobile v3 meshes within the 280-triangle cap', () => {
     for (const id of [0, 20, 21, 22]) {
       expect(isTreeBiome(id)).toBe(false);
       expect(() => createBiomeTreeGeometry(id, 'reduced')).toThrow();
@@ -36,7 +36,7 @@ describe('Greater Realm biome tree family', () => {
     const land = Object.values(GREATER_REALM_BIOME_ID)
       .filter((id) => isTreeBiome(id));
     for (const id of land) {
-      expect(biomeTreeTriangleCount(id, 'reduced')).toBeLessThanOrEqual(220);
+      expect(biomeTreeTriangleCount(id, 'reduced')).toBeLessThanOrEqual(280);
     }
   });
 });
