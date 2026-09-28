@@ -15,6 +15,7 @@ import type {
   FarcasterOidcSession,
   VerifiedFarcasterIdentity
 } from '../farcaster/farcasterAuthTypes';
+import { getBrowserFarcasterWebMenuUrl } from '../farcaster/farcasterAuthContext';
 import type { WarpkeepBackendState } from '../spacetime/warpkeepBackendTypes';
 import { NEW_ADMISSIONS_SUSPENDED } from '../release/admissionLaunchPolicy';
 import {
@@ -1138,7 +1139,7 @@ export function WarpkeepExperience() {
             This embedded page is not a verified Farcaster Mini App. Open the
             Realm directly before signing in or issuing commands.
           </p>
-          <a href="https://warpkeep.com/" target="_top">
+          <a href={getBrowserFarcasterWebMenuUrl()} target="_top">
             OPEN WARPKEEP
           </a>
         </section>

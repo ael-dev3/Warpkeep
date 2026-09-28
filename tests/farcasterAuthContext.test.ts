@@ -8,6 +8,8 @@ import {
   createSecureFarcasterNonce,
   createSecureFarcasterRequestId,
   getBrowserFarcasterAuthContext,
+  getBrowserFarcasterWebMenuUrl,
+  resolveFarcasterWebMenuUrl,
   resolveFarcasterAuthContext,
   type FarcasterSecureRandomSource
 } from '../src/farcaster/farcasterAuthContext';
@@ -58,6 +60,25 @@ describe('Farcaster auth runtime context', () => {
       domain: 'warpkeep.com',
       siweUri: 'https://warpkeep.com/'
     });
+  });
+
+  it('keeps web-version fallbacks on the root or current isolated deployment path', () => {
+    expect(resolveFarcasterWebMenuUrl({
+      origin: 'https://warpkeep.com',
+      host: 'warpkeep.com',
+      baseUrl: '/'
+    })).toBe('https://warpkeep.com/#menu');
+
+    expect(resolveFarcasterWebMenuUrl({
+      origin: 'https://warpkeep.com',
+      host: 'warpkeep.com',
+      baseUrl: '/ptr/'
+    })).toBe('https://warpkeep.com/ptr/#menu');
+
+    expect(getBrowserFarcasterWebMenuUrl('/ptr/', {
+      origin: 'https://warpkeep.com',
+      host: 'warpkeep.com'
+    })).toBe('https://warpkeep.com/ptr/#menu');
   });
 
   it('rejects cross-origin, credentialed, queried, and traversal-shaped inputs', () => {

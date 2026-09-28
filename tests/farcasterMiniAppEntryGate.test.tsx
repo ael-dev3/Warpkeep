@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FarcasterMiniAppEntryGate } from '../src/components/auth/FarcasterMiniAppEntryGate';
+import { getBrowserFarcasterWebMenuUrl } from '../src/farcaster/farcasterAuthContext';
 import type {
   FarcasterAuthViewState,
   PublicFarcasterIdentity
@@ -334,7 +335,7 @@ describe('FarcasterMiniAppEntryGate', () => {
     expect(screen.getByRole('status').textContent).toMatch(/account has not been changed/i);
     expect(document.body.textContent).not.toContain('private raw failure');
     expect(screen.getByRole('link', { name: 'OPEN WEB VERSION' }).getAttribute('href'))
-      .toBe('https://warpkeep.com/#menu');
+      .toBe(getBrowserFarcasterWebMenuUrl());
 
     fireEvent.click(screen.getByRole('button', { name: 'COPY DIAGNOSTICS' }));
     const manual = await screen.findByRole('textbox', {
