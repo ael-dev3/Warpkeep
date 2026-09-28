@@ -1,15 +1,15 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 21:18 CEST (19:18 UTC)
+## Latest release checkpoint — 28 September 2026, 21:25 CEST (19:25 UTC)
 
 The owner directed the workflow to continue without GitHub Actions during
 September. No Actions workflow was dispatched, queried or used as evidence.
-Source commit [`12f7ba60`](https://github.com/ael-dev3/Warpkeep/commit/12f7ba60b5b63260f9751c3c0f302a200755d2c1)
-is signed, verified and synced to open PR
-[#374](https://github.com/ael-dev3/Warpkeep/pull/374), whose head matches this
-commit and whose base remains `main`
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The source correction updates the
-connected local full-stack QA probe to reflect the shipped 0.4 entry contract:
+The signed candidate branch is synced to open PR
+[#374](https://github.com/ael-dev3/Warpkeep/pull/374) against `main`
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Its QA-source correction is commit
+[`12f7ba60`](https://github.com/ael-dev3/Warpkeep/commit/12f7ba60b5b63260f9751c3c0f302a200755d2c1);
+the later commits in this continuation update notes only. The correction
+updates the connected local full-stack QA probe to reflect the shipped 0.4 entry contract:
 the experience opens directly on its main menu, so six responsive profiles now
 verify that visible, interactive menu instead of the retired title gateway.
 Obsolete title-only code and warmup paths were removed. This is QA alignment;
@@ -31,6 +31,14 @@ archive identity was verified from the existing ignored cache; its private
 Assets release makes the generic unauthenticated downloader return 404. Recovery
 steps and the pinned digest are in
 [`qa-observatory.md`](../../operations/qa-observatory.md).
+
+Pushed candidate documentation head `5adf1dd5` also passed `npm run build`,
+including TypeScript, runtime/provenance asset manifests, production asset
+verification, distribution exclusions, public-boundary checks (3,293 tracked
+paths; 1,771 scanned entries) and Farcaster Mini App integrity. Vite reports
+the existing `RealmMapScreen` chunk at 747.62 kB (202.35 kB gzip), effectively
+unchanged from the previous candidate; retain it as a measured mobile-load
+follow-up, not a failed build.
 
 Public status was rechecked at 21:18 CEST: `https://warpkeep.com/` returns 200;
 `https://warpkeep.com/ptr/` returns 404. No 0.4 PTR deployment or owner/device

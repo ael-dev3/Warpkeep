@@ -1,13 +1,14 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 21:18 CEST (19:18 UTC).
+Source/GitHub check: 21:25 CEST (19:25 UTC).
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 21:18 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 21:25 CEST
 
 September GitHub Actions pause honored: no Actions workflow was dispatched,
-queried or used. Signed candidate `12f7ba60` is synced to open PR #374 from
-`fix/g001-census-admission-proxy`, based on main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+queried or used. Signed QA-source correction `12f7ba60` is included in open PR
+#374 from `fix/g001-census-admission-proxy`, based on main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; follow-up commits in this
+continuation are documentation only.
 
 The candidate corrects only the local full-stack QA entrypoint: current 0.4
 opens directly on the main menu, so six responsive desktop/mobile profiles now
@@ -20,6 +21,11 @@ matrix passed 15 cases, including shader fallback, Worker lifecycle and
 locomotion, occupancy stress, 25 journeys, LOD boundary/fidelity and all three
 quality modes. An initial Android emulation warning did not reproduce: isolated
 mobile touch checks passed 2/2 and the full matrix passed on rerun.
+Pushed candidate documentation head `5adf1dd5` passed the production build,
+asset integrity, production exclusions, public-boundary scan (3,293 tracked
+paths; 1,771 scanned entries), and Farcaster Mini App integrity. The existing
+`RealmMapScreen` bundle measures 747.62 kB (202.35 kB gzip); track its mobile
+load impact while preserving the passing rendered quality modes.
 
 The pinned private Assets archive is already verified in the ignored cache;
 the [QA observatory](../../operations/qa-observatory.md) records the
