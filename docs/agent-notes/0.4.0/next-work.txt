@@ -1,6 +1,6 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 22:48 CEST (20:48 UTC).
+Source/GitHub check: 22:51 CEST (20:51 UTC).
 
 LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 22:41 CEST
 
@@ -47,6 +47,16 @@ NEXT ACTIONS
    packed-image rights are verified, and #41 needs its published v3 attachment
    plus local mobile budget/integration checks. Do not treat an open PR as an
    approved asset.
+   Fresh PR inventory at 22:51 CEST found no new Warpkeep code PRs. Assets #41
+   is still open at `bc3d7ace`; its v3 Release is not published. Its near/mobile
+   GLB previews improve foliage detail, but the v3 set uses textured GLB assets
+   (311–1,098 near and 80–277 mobile triangles) while the integrated #378
+   runtime uses texture-free, instanced generated geometry with High/Balanced/
+   Reduced maxima of 276/166/132 triangles and explicit chunk byte/draw-call
+   budgets. Keep v3 out of the initial PTR candidate until its release archive
+   is published and a planned loader, tier mapping, chunk budget and mobile
+   capture are reviewed. It is a renderer/asset-pipeline migration, not a
+   drop-in visual replacement.
 3. Keep native release preparation tied to the exact reviewed M1: first pass
    final-head Verify and merge the signed source, then prepare/check that exact
    M1 and promote its generated-only M2. Do not create another diagnostic
