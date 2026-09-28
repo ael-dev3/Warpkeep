@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 20:19 CEST (18:19 UTC)
+## Latest release checkpoint — 28 September 2026, 20:22 CEST (18:22 UTC)
 
 The owner directed the workflow to continue without GitHub Actions during
 September. No Actions workflow was dispatched or rerun, and no hosted result was
@@ -40,8 +40,9 @@ full browser probe passed 15 rendered cases, the shader fallback, active Worker
 lifecycle, all six Worker locomotion cases, all-node occupancy, 25 journeys,
 loopback LOD boundary checks, and High/Balanced/Reduced castle LOD fidelity.
 The viewport and journey probes include mobile-sized coverage; no physical
-handset acceptance is recorded. A broader filename-based Greater Realm sweep
-was stopped when it entered unrelated, slow atlas-generation suites; do not
+handset acceptance is recorded. The documentation/security/probe regression
+suites also passed 56/56. A broader filename-based Greater Realm sweep was
+stopped when it entered unrelated, slow atlas-generation suites; do not
 interpret that interrupted sweep as a pass or a product failure.
 
 The live site was rechecked: `https://warpkeep.com/` returns 200, while
