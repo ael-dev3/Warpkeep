@@ -2,17 +2,19 @@
 
 ## First economy journey guidance — 29 September 2026
 
-The empty-keep prompt now names the resources for the first economy building,
-notes that City Goldworks also costs Gold, points players to the existing
-Buildings cost comparison, and directs the idle Worker to gather a shortage.
-This replaces vague guidance about choosing a resource location while keeping
-the existing button and atlas navigation. It changes presentation only; costs,
-yield, route selection, Worker authority and construction timing are unchanged.
+The empty-keep prompt now says to start with a City Mill, names Food, Wood and
+Stone, notes City Goldworks also requires Gold, and tells the player to compare
+the existing costs under Buildings before sending an idle Worker to gather a
+shortage. Naming the actual building removes ambiguity from the first step
+without duplicating tunable prices or changing the existing costs panel,
+navigation, economy, route, Worker authority or construction timing.
 
-`tests/Keep04Screen.test.tsx` passes all 39 tests and `tsc -b` passes. The full
-`/ptr/` production build and protected closure checks also pass at signed
-candidate source `2d6121cf`. This copy is not yet verified in an authenticated
-PTR session or on a physical phone; public `/ptr/` still returns HTTP 404.
+The focused Keep04Screen suite passed all 39 tests on code commit 675d8294.
+The regenerated 1,247-member prepared closure and its policy checks passed on
+the exact code source. The earlier mobile screenshots predate this copy
+adjustment; the current copy still needs a fresh local render review. There is
+no authenticated PTR or physical-phone acceptance, and public /ptr/ last
+returned HTTP 404.
 
 ## Construction progress in the first phone view — September 27, 2026
 

@@ -1,5 +1,34 @@
 # Continue Warpkeep 0.4
 
+## Shipping continuation — 29 September 2026, 01:14 CEST (23:14 UTC)
+
+The copy change at signed code commit
+[675d8294](https://github.com/ael-dev3/Warpkeep/commit/675d8294042786cea9e60bcae5ed52a73e12853f)
+is pushed to open PR #374. It names the City Mill in the idle-worker first
+journey and points players to the current Buildings cost comparison. This is a
+presentation-only adjustment.
+
+From that exact source, the prepared deployment closure now verifies 1,247
+members with manifest SHA-256
+748bc2a0f7b81d34556a5f58c5cac854f7ee1b4b1d4fb4696bcb3f88430d2c3e.
+The native Linux closure verifier, closure-policy verifier and static prepared
+policy check passed. Seven focused suites passed 133 tests across Keep04,
+closure convergence/inventory/derivation, release projection, deploy boundary
+and sealed-launch activation. The large prepared workflow suite was interrupted
+after four minutes without a result; no pass is claimed for it.
+
+The earlier /ptr/ build and public mirror plan identify older source
+b1afbb2f; regenerate them for this checkpoint. The last actual web observation
+at 00:52 CEST was root HTTP 200 and /ptr/ HTTP 404. No candidate was published.
+No GitHub Actions were dispatched, queried or used in September.
+
+Next: source-pin a fresh /ptr/ production build, verify payload integrity, and
+recompute the read-only mirror plan against clean Warpkeep-Live@b6afe92.
+Keep Actions paused through September. In October, require exact-head Verify
+before M1 integration, prepare/check exact M1, promote generated-only M2 and
+verify it, then complete G001/G002 readback, PTR publication, owner play and
+device/performance acceptance. 0.4 remains unshipped.
+
 ## Shipping continuation — 29 September 2026, 00:52 CEST (22:52 UTC)
 
 The product code remains signed `2d6121cfc3c0693636c9e5e7d775625e5d7bff09`

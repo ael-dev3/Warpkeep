@@ -9,37 +9,24 @@ later source. 0.4 remains unshipped.
 
 ## Current PR candidate checkpoint — 29 September 2026
 
-Signed candidate code [`2d6121cf`](https://github.com/ael-dev3/Warpkeep/commit/2d6121cfc3c0693636c9e5e7d775625e5d7bff09)
-is pushed to open PR #374; it is not the operational `main` checkpoint below.
-The source closure had omitted six files already integrated into the candidate.
-The generated closure is now 1,247 members with manifest SHA-256
-`7f2a1b348b1549a97711e928e415256e5f4f94f843885e11f43191f55380b4bf`. Native
-scanner-backed verification on the exact signed source passed, as did the
-prepared workflow suite (164), release projection/deploy-boundary suites (14),
-and the PTR production build. The complete validation set is recorded in the
-[execution handoff](../../agent-notes/0.4.0/execution-handoff.md). This closes
-the stale-candidate-closure defect; it does not replace exact reviewed-M1
-preparation/check, generated-only M2, hosted Verify, deployment or owner PTR
-acceptance. GitHub Actions remain paused during September.
+Signed product-code commit
+[675d8294](https://github.com/ael-dev3/Warpkeep/commit/675d8294042786cea9e60bcae5ed52a73e12853f)
+is pushed to open PR #374. The first-journey instruction now names the City
+Mill and points to the existing Buildings cost comparison. It changes
+presentation only.
 
-On 29 September at 00:52 CEST, a source-pinned `/ptr/` production build and
-payload write/check passed on exact candidate source `b1afbb2f` (the product
-code remains `2d6121cf`). The payload contains 375 files / 131,724,169 bytes
-(SHA-256 `d399648c4f6af64579385f37f76d6d67552ea33620f49c0291c96ba38d093abb`).
-The read-only publication plan passed against clean
-[`Warpkeep-Live@b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad),
-preserving all 341 Alpha root files and producing a 729-file target with no
-obsolete generated paths. The preserved-root manifest SHA-256 is
-`32397edc2c9f7afed14f960f7d929b575dea00470a3368d7385cb4ead816832e`; plan SHA-256
-is `62de9bbbe7d1c7989df9464e83010ff258eefbaafcf6d1000d243d90334ba348`. This
-does not publish the candidate or grant release authority. The public root is
-HTTP 200 and `/ptr/` remains HTTP 404. No Actions were dispatched, queried or
-used. The Windows full suite targets 692 files; the diagnostic was stopped
-after over ten minutes with many failing-case markers and repeated publish-
-supervisor private-directory fixture diagnostics, before any aggregate report.
-Their root causes remain unclassified. Previously passing focused native Linux
-release suites remain the relevant regression evidence; a broad Linux run
-remains open.
+The exact-source protected deployment closure has been regenerated to 1,247
+members, manifest SHA-256
+748bc2a0f7b81d34556a5f58c5cac854f7ee1b4b1d4fb4696bcb3f88430d2c3e.
+Native Linux closure, closure-policy and static prepared-policy checks passed.
+Seven focused suites passed 133 tests. A broader prepared-workflow test was
+interrupted after four minutes without a result and remains unverified.
+
+The previous source-pinned /ptr/ build and payload plan refer to b1afbb2f.
+They must be rebuilt and replanned for the updated candidate. The latest
+observed public root was HTTP 200 while /ptr/ was HTTP 404. This candidate
+has not been published. GitHub Actions remain paused during September; none
+were dispatched, queried or used.
 
 ## Historical main/source checkpoint — 27 September 2026
 
