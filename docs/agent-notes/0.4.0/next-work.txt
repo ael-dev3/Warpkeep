@@ -1,8 +1,45 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 28 September 2026, Europe/Budapest.
-Base source/GitHub check: 23:47 CEST (21:47 UTC), before this note update.
+Refreshed 29 September 2026, Europe/Budapest.
+Validated code source: signed `2d6121cf` (00:14 CEST); documentation refresh at 00:29 CEST.
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 23:47 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 00:27 CEST
+
+The signed code checkpoint `2d6121cfc3c0693636c9e5e7d775625e5d7bff09` is
+synced across the maintained checkout, origin and open candidate PR #374 against
+main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The notes in this refresh are
+documentation-only. The first idle-worker prompt now tells players the first
+economy-building resources, names City Goldworks' Gold cost, points to Buildings
+for the existing costs, and directs the Worker to gather a shortage.
+
+The protected source closure was stale relative to already-integrated 0.4 code:
+six source files were missing. The derived family now covers 1,247 members with
+manifest SHA-256
+`7f2a1b348b1549a97711e928e415256e5f4f94f843885e11f43191f55380b4bf`. Its exact
+committed source passed the native scanner-backed policy verifier. Tests passed
+for the first-journey screen (39), local closure-family derivation (7), closure
+inventory/B0 topology (39, one skipped), closure policy derivation (24, two
+skipped), release projection/deploy boundary (14), and protected workflow
+(164). TypeScript and the full `/ptr/` production build passed; the build audited
+3,300 tracked paths and 1,782 scanned entries and verified the production asset,
+exclusion and Mini App checks. The existing `RealmMapScreen` bundle remains
+748.56 kB (202.65 kB gzip); phone performance is still unmeasured.
+
+The checked-in sealed-launch result correctly keeps
+`pagesDeploymentApproved` false with G001/G002/PTR identities unset. At 00:27
+CEST, `https://warpkeep.com/` returned HTTP 200 and `/ptr/` returned HTTP 404.
+No live 0.4 PTR or owner acceptance is claimed. GitHub Actions were not
+dispatched, queried or used; continue `[skip actions]` source checkpoints until
+hosted Verify resumes in October. The short-lived native Linux test checkout was
+removed after exact-source closure and regression checks; no release-preparation
+candidate or new Desktop file was created.
+
+The latest open-PR inventory has no new Warpkeep PRs. Keep #375, #376 and #378
+staged in #374 for provenance; defer #377 while G002 is sealed. Remaining gates
+include exact-M1 preparation/check, generated-only M2 and exact-M2 Verify,
+G001/G002 deployment readback, PTR publication, the genuine ≤10-minute owner
+journey and phone/performance acceptance.
+
+PREVIOUS SHIPPING CHECKPOINT — 28 SEPTEMBER, 23:47 CEST
 
 The tested candidate source was signed `1b295b3d2e57447485f0f581dafc65f0e8725304`.
 Before this documentation update, local, origin and open PR #374 matched that
@@ -96,7 +133,8 @@ ends; keep all source and notes synced in the meantime.
 NEXT ACTIONS
 
 1. Keep candidate source and tracked notes signed and synced to PR #374; do not
-   run GitHub Actions in September.
+   run GitHub Actions in September. Update the existing Desktop TXT in place;
+   do not create Desktop copies or candidate files.
 2. Keep the reviewed menu (#375), biome trees (#378) and owner film/mobile
    castle-card change (#376) staged in candidate #374. Leave those PRs open for
    provenance until #374 lands. Defer #377: it changes only G002 audio, while

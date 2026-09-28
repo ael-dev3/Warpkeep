@@ -7,7 +7,22 @@ CI receipts. The dated engineering results below retain their original input;
 do not use an old passing run or Pages classification as a release grant for a
 later source. 0.4 remains unshipped.
 
-## Current checkpoint — 27 September 2026
+## Current PR candidate checkpoint — 29 September 2026
+
+Signed candidate code [`2d6121cf`](https://github.com/ael-dev3/Warpkeep/commit/2d6121cfc3c0693636c9e5e7d775625e5d7bff09)
+is pushed to open PR #374; it is not the operational `main` checkpoint below.
+The source closure had omitted six files already integrated into the candidate.
+The generated closure is now 1,247 members with manifest SHA-256
+`7f2a1b348b1549a97711e928e415256e5f4f94f843885e11f43191f55380b4bf`. Native
+scanner-backed verification on the exact signed source passed, as did the
+prepared workflow suite (164), release projection/deploy-boundary suites (14),
+and the PTR production build. The complete validation set is recorded in the
+[execution handoff](../../agent-notes/0.4.0/execution-handoff.md). This closes
+the stale-candidate-closure defect; it does not replace exact reviewed-M1
+preparation/check, generated-only M2, hosted Verify, deployment or owner PTR
+acceptance. GitHub Actions remain paused during September.
+
+## Historical main/source checkpoint — 27 September 2026
 
 Signed PR source [`4855890e`](https://github.com/ael-dev3/Warpkeep/commit/4855890e8088ad0b34cd001d8da675f2fdb9251a)
 was refrozen into signed protected closure

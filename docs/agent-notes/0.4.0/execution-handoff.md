@@ -1,6 +1,46 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 23:47 CEST (21:47 UTC)
+## Latest release checkpoint — 29 September 2026, 00:27 CEST (22:27 UTC)
+
+The tested candidate code is signed commit
+[`2d6121cf`](https://github.com/ael-dev3/Warpkeep/commit/2d6121cfc3c0693636c9e5e7d775625e5d7bff09)
+on `fix/g001-census-admission-proxy`, pushed to open PR #374 against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Local, origin and PR #374 matched
+this code checkpoint. The following handoff refresh is documentation only.
+GitHub Actions remain paused for September; none were dispatched, queried or
+used.
+
+This checkpoint makes the first empty-keep journey name Food, Wood and Stone,
+call out Gold for City Goldworks, direct players to compare costs under
+Buildings, and tell them to send an idle Worker to gather what they lack. It
+does not change costs, yields, timers, routes, authority or commands.
+
+The protected deployment closure had fallen behind the code already integrated
+into the 0.4 candidate: six current files were absent. Regenerating the full
+closure family brings its count to 1,247 and manifest SHA-256 to
+`7f2a1b348b1549a97711e928e415256e5f4f94f843885e11f43191f55380b4bf`. The added
+members are the castle-film action/config/eligibility files and
+`src/greater-realm/biomeTreeGeometry.ts`. Native WSL scanner-backed policy
+verification passed on the exact signed source.
+
+Validation passed: the first-journey screen tests (39), local closure-family
+tests (7), closure inventory and B0 topology tests (39, one skipped), closure
+derivation tests (24, two skipped), native release projection and deploy-boundary
+tests (14), and the protected workflow suite (164). `tsc -b` and the full
+`DEPLOY_BASE=/ptr/ npm run build` also passed. The build verified 3,300 tracked
+paths and 1,782 scanned entries, plus the production asset/exclusion and Mini App
+checks. It continues to report the existing `RealmMapScreen` bundle at 748.56
+kB (202.65 kB gzip); physical-device performance is unmeasured.
+
+The checked-in sealed-launch verifier still reports
+`pagesDeploymentApproved: false`, with G001, G002 and PTR identities unset.
+At 00:27 CEST, the public root returned HTTP 200 and `/ptr/` returned HTTP 404.
+The 0.4 PTR is not deployed or accepted; a genuine owner journey, exact-M1/M2
+preparation and deployment readback, G001 preservation, sealed G002 verification
+and phone/performance acceptance remain. Keep the candidate PR open and continue
+signed `[skip actions]` checkpoints until hosted Verify resumes in October.
+
+## Previous release checkpoint — 28 September 2026, 23:47 CEST (21:47 UTC)
 
 The candidate code exercised here is signed source
 [`1b295b3d`](https://github.com/ael-dev3/Warpkeep/commit/1b295b3d2e57447485f0f581dafc65f0e8725304),
