@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 23:20 CEST (21:20 UTC)
+## Latest release checkpoint — 28 September 2026, 23:24 CEST (21:24 UTC)
 
 Signed source [`abe2fae2`](https://github.com/ael-dev3/Warpkeep/commit/abe2fae24f34ad1da76a952848fea5835c6e42e3)
 is pushed and synced to open PR #374 on
@@ -22,7 +22,8 @@ asset and production-exclusion checks, public-boundary audit, Mini App
 integrity, file-size policy and license policy passed. A 390×844 local browser
 preview showed `ALPHA 0.4.0-ptr.1` and the matching 0.4 notes. The large
 `RealmMapScreen` bundle remains 748.56 kB (202.65 kB gzip); physical-device
-performance is still unmeasured.
+performance is still unmeasured. An independent root-base production build
+and browser preview still show Alpha 0.3.43 and its original patch notes.
 
 No GitHub Actions were dispatched, queried or used during September. At 23:14
 CEST, `https://warpkeep.com/` returned HTTP 200 and `/ptr/` returned HTTP 404.

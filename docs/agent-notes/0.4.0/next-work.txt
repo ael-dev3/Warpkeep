@@ -1,8 +1,8 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 23:20 CEST (21:20 UTC).
+Source/GitHub check: 23:24 CEST (21:24 UTC).
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 23:20 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 23:24 CEST
 
 Signed fix `abe2fae24f34ad1da76a952848fea5835c6e42e3` is pushed and matches
 open candidate PR #374. The mobile PTR build previously displayed the sealed
@@ -24,6 +24,8 @@ production exclusions, public boundary and Mini App integrity. File-size and
 license policies passed. At 390×844, the local preview showed the PTR identity
 and matching 0.4 notes without displacing the menu; `RealmMapScreen` remains a
 748.56 kB (202.65 kB gzip) mobile-load follow-up.
+An independent root-base production build and browser preview still show Alpha
+0.3.43 and THE REALM STANDS READY, preserving the live Genesis 001 identity.
 
 No GitHub Actions were dispatched, queried or used. At 23:14 CEST the public
 root returned HTTP 200 and `/ptr/` returned HTTP 404. No live 0.4 PTR or owner
