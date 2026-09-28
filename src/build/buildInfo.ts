@@ -3,7 +3,10 @@ import type {
   WarpkeepBuildInfoInput,
   WarpkeepReleaseChannel
 } from './buildInfoTypes';
-import { WARPKEEP_LAUNCHER_RELEASE_VERSION } from '../release/realmReleaseIdentity';
+import {
+  PTR_RELEASE_VERSION,
+  WARPKEEP_LAUNCHER_RELEASE_VERSION
+} from '../release/realmReleaseIdentity';
 
 export type { WarpkeepBuildInfo } from './buildInfoTypes';
 
@@ -82,6 +85,18 @@ export function createWarpkeepBuildInfo({
   });
 }
 
+export function createWarpkeepDeploymentBuildInfo({
+  deploymentBase,
+  ...input
+}: WarpkeepBuildInfoInput & Readonly<{ deploymentBase: string }>) {
+  return createWarpkeepBuildInfo({
+    ...input,
+    productVersion: deploymentBase === '/ptr/'
+      ? PTR_RELEASE_VERSION
+      : input.productVersion
+  });
+}
+
 export function formatWarpkeepBuildStamp(buildInfo: WarpkeepBuildInfo) {
   const release = `${buildInfo.channel.toUpperCase()} ${buildInfo.version}`;
   return buildInfo.fullSha
@@ -89,7 +104,8 @@ export function formatWarpkeepBuildStamp(buildInfo: WarpkeepBuildInfo) {
     : `${release} · ${WARPKEEP_LOCAL_BUILD_LABEL}`;
 }
 
-const packagedBuildInfo = createWarpkeepBuildInfo({
+const packagedBuildInfo = createWarpkeepDeploymentBuildInfo({
+  deploymentBase: import.meta.env.BASE_URL,
   productVersion: typeof __WARPKEEP_PRODUCT_VERSION__ === 'string'
     ? __WARPKEEP_PRODUCT_VERSION__
     : undefined,

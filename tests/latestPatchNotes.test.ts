@@ -47,6 +47,7 @@ describe('latest in-menu patch notes', () => {
     expect(getLatestPatchNotes(packageJson.version)?.alphaNotice).toContain('unfinished');
 
     const alpha040 = getLatestPatchNotes('0.4.0');
+    expect(getLatestPatchNotes('0.4.0-ptr.1')).toBe(alpha040);
     expect(alpha040?.summary).toMatch(/Genesis 001.*0\.3\.43.*Genesis 002.*sealed/i);
     expect(alpha040?.highlights.join(' ')).toMatch(
       /realm chooser.*green check.*admitted.*red X.*not admitted.*tooltips/i

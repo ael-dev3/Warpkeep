@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createWarpkeepBuildInfo,
+  createWarpkeepDeploymentBuildInfo,
   formatWarpkeepBuildStamp,
   normalizeWarpkeepReleaseChannel,
   readWarpkeepBuildSha,
@@ -42,6 +43,27 @@ describe('Warpkeep build identity', () => {
 
   it('labels the local 0.4 presentation without changing the sealed package version', () => {
     expect(WARPKEEP_BUILD_INFO.version).toBe('0.4.0');
+  });
+
+  it('keeps the root package identity while assigning the PTR identity only to /ptr/', () => {
+    const packageInput = {
+      productVersion: '0.3.43',
+      buildSha: FULL_SHA,
+      repositoryUrl: 'https://github.com/ael-dev3/Warpkeep'
+    };
+
+    expect(createWarpkeepDeploymentBuildInfo({
+      ...packageInput,
+      deploymentBase: '/'
+    }).version).toBe('0.3.43');
+    expect(createWarpkeepDeploymentBuildInfo({
+      ...packageInput,
+      deploymentBase: '/ptr/'
+    })).toMatchObject({
+      version: '0.4.0-ptr.1',
+      fullSha: FULL_SHA,
+      shortSha: '0123456'
+    });
   });
 
   it('normalizes the public alpha channel and accepts only full commit SHAs', () => {
