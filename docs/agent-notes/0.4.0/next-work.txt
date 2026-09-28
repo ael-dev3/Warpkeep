@@ -1,6 +1,46 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, Europe/Budapest.
-Validated code source: signed `2d6121cf` (00:14 CEST); documentation refresh at 00:29 CEST.
+Refreshed 29 September 2026, 00:52 CEST, Europe/Budapest.
+Validated code source: signed `2d6121cf`; candidate plan source: signed `b1afbb2f`.
+
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 00:52 CEST
+
+The current product code remains signed `2d6121cfc3c0693636c9e5e7d775625e5d7bff09`;
+the candidate and its notes are synced to open PR #374. A source-pinned `/ptr/`
+production build of exact docs head `b1afbb2f14eaf1221d11508eaf3f7c3f27d32aa9`
+passed with Node 22.23.2, including type/build checks, asset integrity,
+production exclusions, public-boundary audit (3,300 tracked paths; 1,782
+scanned entries), and Farcaster Mini App integrity. The existing
+`RealmMapScreen` chunk remains 748.56 kB (202.65 kB gzip); physical-phone
+performance remains unmeasured.
+
+The exact-source public payload manifest was written and rechecked: 375 files,
+131,724,169 bytes, manifest SHA-256
+`d399648c4f6af64579385f37f76d6d67552ea33620f49c0291c96ba38d093abb`. The
+read-only mirror plan against clean `Warpkeep-Live@b6afe92` passed: 341 existing
+Alpha root files are preserved, the target has 729 files, there are no obsolete
+generated paths, and the preserved-root manifest SHA-256 is
+`32397edc2c9f7afed14f960f7d929b575dea00470a3368d7385cb4ead816832e`. The plan
+SHA-256 is `62de9bbbe7d1c7989df9464e83010ff258eefbaafcf6d1000d243d90334ba348`.
+This local candidate plan does not publish or authorize deployment. The first
+local payload attempt correctly rejected a build without `VITE_WARPKEEP_BUILD_SHA`;
+setting the exact source SHA made the normal payload write/check pass.
+
+At 00:52 CEST, `https://warpkeep.com/` returned HTTP 200 and `/ptr/` returned
+HTTP 404. The Alpha root is live; 0.4 PTR is not. No GitHub Actions were
+dispatched, queried or used, and the public repository was not changed. A
+Windows full-suite diagnostic targets 692 test files. After over ten minutes it
+still showed many failing-case markers and repeated
+`Greater Realm publish supervisor directory was not private` fixture
+diagnostics, so it was stopped before the aggregate report. The root causes are
+unclassified; do not treat that run as a pass or product verdict. Use the
+already-passing focused native Linux release suites for their exact code source
+and rerun the broad suite in a supported Linux environment when available.
+
+Keep #375, #376 and #378 staged in #374 for provenance; defer #377 while G002 is
+sealed. After the September pause, require final-head Verify and reviewed source
+integration, exact-M1 prepare/check, generated-only M2 and exact-M2 verification,
+G001 preservation and sealed G002 readback, verified PTR publication, then the
+real owner journey and physical-device/performance acceptance.
 
 LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 00:27 CEST
 

@@ -22,6 +22,25 @@ the stale-candidate-closure defect; it does not replace exact reviewed-M1
 preparation/check, generated-only M2, hosted Verify, deployment or owner PTR
 acceptance. GitHub Actions remain paused during September.
 
+On 29 September at 00:52 CEST, a source-pinned `/ptr/` production build and
+payload write/check passed on exact candidate source `b1afbb2f` (the product
+code remains `2d6121cf`). The payload contains 375 files / 131,724,169 bytes
+(SHA-256 `d399648c4f6af64579385f37f76d6d67552ea33620f49c0291c96ba38d093abb`).
+The read-only publication plan passed against clean
+[`Warpkeep-Live@b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad),
+preserving all 341 Alpha root files and producing a 729-file target with no
+obsolete generated paths. The preserved-root manifest SHA-256 is
+`32397edc2c9f7afed14f960f7d929b575dea00470a3368d7385cb4ead816832e`; plan SHA-256
+is `62de9bbbe7d1c7989df9464e83010ff258eefbaafcf6d1000d243d90334ba348`. This
+does not publish the candidate or grant release authority. The public root is
+HTTP 200 and `/ptr/` remains HTTP 404. No Actions were dispatched, queried or
+used. The Windows full suite targets 692 files; the diagnostic was stopped
+after over ten minutes with many failing-case markers and repeated publish-
+supervisor private-directory fixture diagnostics, before any aggregate report.
+Their root causes remain unclassified. Previously passing focused native Linux
+release suites remain the relevant regression evidence; a broad Linux run
+remains open.
+
 ## Historical main/source checkpoint — 27 September 2026
 
 Signed PR source [`4855890e`](https://github.com/ael-dev3/Warpkeep/commit/4855890e8088ad0b34cd001d8da675f2fdb9251a)

@@ -1,5 +1,46 @@
 # Continue Warpkeep 0.4
 
+## Shipping continuation — 29 September 2026, 00:52 CEST (22:52 UTC)
+
+The product code remains signed `2d6121cfc3c0693636c9e5e7d775625e5d7bff09`
+on the clean, synced candidate branch for open PR #374. This local checkpoint
+uses the latest exact candidate source before this documentation-only refresh,
+`b1afbb2f14eaf1221d11508eaf3f7c3f27d32aa9`. The `/ptr/` production build passed
+with Node 22.23.2, including TypeScript/build mode, assets, production
+exclusions, the public-boundary audit (3,300 tracked paths; 1,782 scanned
+entries), and Farcaster Mini App integrity. The `RealmMapScreen` chunk is still
+748.56 kB (202.65 kB gzip); no physical-phone performance result exists.
+
+The exact-source `/ptr/` payload write/check passed for 375 files and 131,724,169
+bytes (manifest SHA-256 `d399648c4f6af64579385f37f76d6d67552ea33620f49c0291c96ba38d093abb`).
+The read-only public mirror plan passed against clean
+[`Warpkeep-Live@b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad):
+it preserves 341 Alpha root files, plans 729 total files, and has zero obsolete
+generated paths. Preserved-root manifest SHA-256 is
+`32397edc2c9f7afed14f960f7d929b575dea00470a3368d7385cb4ead816832e`; plan SHA-256
+is `62de9bbbe7d1c7989df9464e83010ff258eefbaafcf6d1000d243d90334ba348`. This
+read-only plan is candidate evidence only; it did not change the public checkout,
+publish, or authorize deployment. For local planning, set
+`VITE_WARPKEEP_BUILD_SHA` to the exact source commit before running the payload
+verifier; without it, the verifier correctly rejects the generated build
+identity.
+
+At 00:52 CEST, the public root returned HTTP 200 and `/ptr/` returned HTTP 404.
+No 0.4 PTR is deployed or accepted. No GitHub Actions were dispatched, queried,
+or used in September. The Windows full suite targets 692 test files. After over
+ten minutes it still showed many failing-case markers and repeated
+`Greater Realm publish supervisor directory was not private` fixture
+diagnostics, so it was stopped before the aggregate report. Root causes remain
+unclassified; this is not a suite verdict. Focused native Linux release suites
+passed on the unchanged product-code source `2d6121cf`; the broad full-suite
+result remains pending a supported Linux run.
+
+The existing release order remains: after October 1, run final-head Verify and
+complete source review/integration, prepare and independently check exact M1,
+promote generated-only M2, verify exact M2, then perform G001/G002 readback,
+verified `/ptr/` publication, owner journey and mobile/performance acceptance.
+Until those gates pass, Warpkeep 0.4 is not shipped.
+
 ## Latest release checkpoint — 29 September 2026, 00:27 CEST (22:27 UTC)
 
 The tested candidate code is signed commit
