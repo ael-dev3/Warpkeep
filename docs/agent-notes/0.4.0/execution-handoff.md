@@ -1,5 +1,58 @@
 # Continue Warpkeep 0.4
 
+## Shipping continuation — 28 September 2026, 06:09 CEST (04:09 UTC)
+
+The verified code checkpoint in PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374)
+was exact signed head
+[`036b4d67`](https://github.com/ael-dev3/Warpkeep/commit/036b4d67fec58fab25231afcbde5ad5f47159338).
+At that checkpoint, the maintained checkout and
+`origin/fix/g001-census-admission-proxy` matched with a clean working tree.
+This follow-up fixes Windows Node 22.13 file-identity
+checks: when `lstat().dev` is unavailable (`0`), path validation still pins
+inode, size, file type and all other available identity fields. Windows tests
+now skip only file-symlink cases when the process lacks that capability;
+directory links use junctions.
+
+The full `/ptr/` production build passed on Node 22.13.1 and npm 10.9.8 with
+the exact source SHA embedded. Runtime-asset, production-dist exclusion,
+Greater Realm public-boundary and Farcaster integrity checks all passed. The
+source-bound payload manifest passed both write and check: 369 files,
+137,380,979 bytes, SHA-256
+`2e9115166e1f0ca435da9d6f1ac0a81c1c3a7d8968c466206126fa234ada4b89`.
+The manifest is an ignored delivery artifact under
+`artifacts/delivery/0.4.0/`; it does not alter tracked source. Across the eight
+focused publication, payload and filesystem-boundary suites, 163 cases passed
+and four were skipped. One mirror-plan test timed out at the 10-second limit
+under four-worker disk contention; rerunning that whole file serially passed
+all eight tests. The three symlink-related skips are due to this Windows
+session's file-symlink privilege, not test failures. The outgoing code commit
+passed Gitleaks (6.22 KB scanned, no leaks).
+
+Exact-head [Verify 36376437012](https://github.com/ael-dev3/Warpkeep/actions/runs/36376437012)
+on that code checkpoint completed at 04:08:34 UTC with every job reporting zero
+steps. GitHub's check annotation says recent account payments failed or the
+Actions spending limit must be increased. This is a runner-allocation failure,
+not a hosted source test result. PR #374 remains open and unreviewed by GitHub;
+do not merge until the billing gate is cleared and exact-head Verify passes.
+
+`npm run verify:sealed-launch` still reports phase `preparation`, package
+version `0.3.43`, `pagesDeploymentApproved: false`, and no PTR database
+identity. The release binding has not been activated with production receipts.
+No public mirror mutation or 0.4 deployment occurred; the owner PTR is not
+live. PR #375 says its older menu branch is already staged in #374 and must
+not be merged directly. PRs #376 and #377 remain separate candidates; their
+scope, rights and mobile impact stay subject to the independent review already
+recorded below. Recheck both repositories for newer candidates before each
+integration.
+
+To resume hosted validation, clear the GitHub account payment/spending-limit
+issue and rerun Verify on the latest exact PR head. Then complete the remaining
+sealed-realm/native acceptance and PTR production-binding gates before
+preparing the signed `/ptr/` publication. This handoff/checklist update advances
+the PR head with documentation only; rebuild `/ptr/` and rewrite/check the
+payload manifest against that exact new head before planning publication. Keep
+the live Alpha root unchanged.
+
 ## Shipping continuation — 28 September 2026, 05:29 CEST (03:29 UTC)
 
 PR #374 now carries a source-pinned GitHub Pages candidate path at `/ptr/`, so
