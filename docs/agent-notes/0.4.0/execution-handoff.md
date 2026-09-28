@@ -1,57 +1,47 @@
 # Continue Warpkeep 0.4
 
-## Shipping continuation — 28 September 2026, 06:09 CEST (04:09 UTC)
+## Shipping continuation — 28 September 2026, 06:15 CEST (04:15 UTC)
 
-The verified code checkpoint in PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374)
-was exact signed head
-[`036b4d67`](https://github.com/ael-dev3/Warpkeep/commit/036b4d67fec58fab25231afcbde5ad5f47159338).
-At that checkpoint, the maintained checkout and
-`origin/fix/g001-census-admission-proxy` matched with a clean working tree.
-This follow-up fixes Windows Node 22.13 file-identity
-checks: when `lstat().dev` is unavailable (`0`), path validation still pins
-inode, size, file type and all other available identity fields. Windows tests
-now skip only file-symlink cases when the process lacks that capability;
-directory links use junctions.
+PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) is still open against
+`main` (`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`), with no submitted review.
+The maintained checkout is clean and matches
+`origin/fix/g001-census-admission-proxy` at signed head
+[`0893cf4b`](https://github.com/ael-dev3/Warpkeep/commit/0893cf4b0ecd9b37e8cfb594606afb302819899f).
+The immediately preceding `/ptr/` production build and source-bound payload
+manifest write/check passed on that exact source; the build includes the source
+SHA and validates runtime assets, production exclusions, public boundaries and
+Farcaster integrity. Its payload contained 369 files (137,380,979 bytes).
+After the documentation-only update in this commit, regenerate the build and
+manifest against the resulting exact source head before any publication plan.
 
-The full `/ptr/` production build passed on Node 22.13.1 and npm 10.9.8 with
-the exact source SHA embedded. Runtime-asset, production-dist exclusion,
-Greater Realm public-boundary and Farcaster integrity checks all passed. The
-source-bound payload manifest passed both write and check: 369 files,
-137,380,979 bytes, SHA-256
-`2e9115166e1f0ca435da9d6f1ac0a81c1c3a7d8968c466206126fa234ada4b89`.
-The manifest is an ignored delivery artifact under
-`artifacts/delivery/0.4.0/`; it does not alter tracked source. Across the eight
-focused publication, payload and filesystem-boundary suites, 163 cases passed
-and four were skipped. One mirror-plan test timed out at the 10-second limit
-under four-worker disk contention; rerunning that whole file serially passed
-all eight tests. The three symlink-related skips are due to this Windows
-session's file-symlink privilege, not test failures. The outgoing code commit
-passed Gitleaks (6.22 KB scanned, no leaks).
+Focused filesystem, payload and publication tests had 163 passes and four
+capability/platform skips; the mirror-plan suite passed all eight when rerun
+serially after one disk-contention timeout. The full local test/build evidence
+for the candidate is recorded below. Exact-head [Verify
+36376745041](https://github.com/ael-dev3/Warpkeep/actions/runs/36376745041)
+on `0893cf4b` failed all 17 jobs before any job step ran. GitHub's check-run
+annotation says recent account payments failed or the Actions spending limit
+must be increased. This is a runner-allocation failure, not a hosted source
+test verdict. Do not bypass the hosted gate; clear the account billing/budget
+issue and rerun Verify on the eventual exact final PR head.
 
-Exact-head [Verify 36376437012](https://github.com/ael-dev3/Warpkeep/actions/runs/36376437012)
-on that code checkpoint completed at 04:08:34 UTC with every job reporting zero
-steps. GitHub's check annotation says recent account payments failed or the
-Actions spending limit must be increased. This is a runner-allocation failure,
-not a hosted source test result. PR #374 remains open and unreviewed by GitHub;
-do not merge until the billing gate is cleared and exact-head Verify passes.
+At 04:15 UTC, the production Alpha root returned HTTP 200 and
+`https://warpkeep.com/ptr/` returned HTTP 404. The checked-in sealed-launch
+verification remains in `preparation`, package version `0.3.43`,
+`pagesDeploymentApproved: false`, with no PTR database identity or activated
+production receipts. No public mirror mutation, 0.4 PTR deployment or release
+acceptance occurred. Do not merge PR #375 directly because its older menu
+branch is already staged in #374. PRs #376 and #377 remain open,
+separate candidates deferred by the recorded media-size, mobile, readiness
+and rights review; Assets #38 remains stacked on #37. Re-inventory both
+repositories and review any new PR before integration.
 
-`npm run verify:sealed-launch` still reports phase `preparation`, package
-version `0.3.43`, `pagesDeploymentApproved: false`, and no PTR database
-identity. The release binding has not been activated with production receipts.
-No public mirror mutation or 0.4 deployment occurred; the owner PTR is not
-live. PR #375 says its older menu branch is already staged in #374 and must
-not be merged directly. PRs #376 and #377 remain separate candidates; their
-scope, rights and mobile impact stay subject to the independent review already
-recorded below. Recheck both repositories for newer candidates before each
-integration.
-
-To resume hosted validation, clear the GitHub account payment/spending-limit
-issue and rerun Verify on the latest exact PR head. Then complete the remaining
-sealed-realm/native acceptance and PTR production-binding gates before
-preparing the signed `/ptr/` publication. This handoff/checklist update advances
-the PR head with documentation only; rebuild `/ptr/` and rewrite/check the
-payload manifest against that exact new head before planning publication. Keep
-the live Alpha root unchanged.
+Resume in order: clear GitHub Actions billing/spending limit, obtain a successful
+exact-head hosted Verify and review, complete remaining sealed-realm/native
+acceptance and PTR production bindings/receipts, prepare and verify the signed
+`/ptr/` publication, then get the owner's PTR acceptance. Preserve the live
+Alpha root throughout. See the release checklist for current public checks and
+the detailed gate sequence.
 
 ## Shipping continuation — 28 September 2026, 05:29 CEST (03:29 UTC)
 
