@@ -1,11 +1,11 @@
 # Continue Warpkeep 0.4
 
-## Latest release checkpoint — 28 September 2026, 22:05 CEST (20:05 UTC)
+## Latest release checkpoint — 28 September 2026, 22:15 CEST (20:15 UTC)
 
 The owner directed the workflow to continue without GitHub Actions during
 September. No Actions workflow was dispatched, queried or used as evidence.
 Local `HEAD`, the signed origin branch and open PR #374 all match
-`dbb3e79cab735f7e6e693bb277c33087ecd2e2ca`; the worktree is clean and
+`7db3bb12f9e4c3477652476dc2e1d6da2a286c49`; the worktree is clean and
 `git verify-commit HEAD` succeeds. This documentation-only commit follows
 runtime source `44fd9397ba4be770e0936830e3c0e728468ea6c7`. The PR targets main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The connected full-stack probe
@@ -29,6 +29,14 @@ On 28 September, the fresh Windows `npm run qa:inner-keep` run passed all 18
 synthetic rendered scenarios, covering construction, completion, mobile
 responsive layouts, keyboard activation, fallback rendering and reduced motion.
 The probe evaluates screenshots in memory and leaves no screenshot files.
+
+At signed candidate head `7db3bb12`, `npm run verify:sealed-launch` passed its
+checked-in phase; it correctly returned `pagesDeploymentApproved: false` with
+the live G001/G002/PTR identities unset. This verifies source closure, not a
+deployment. `npm test -- tests/gameplay04KeepModules.test.ts --maxWorkers=1`
+passed 28/28, including the persisted gather→Mill→completion→improved-return
+sequence. That test uses synthetic atlas routes and does not prove the live PTR
+ten-minute journey.
 
 On runtime source `44fd9397ba4be770e0936830e3c0e728468ea6c7`,
 `DEPLOY_BASE=/ptr/ npm run build` completed with exit 0. A matching-base preview

@@ -1,12 +1,12 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 22:05 CEST (20:05 UTC).
+Source/GitHub check: 22:15 CEST (20:15 UTC).
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 22:05 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 22:15 CEST
 
 September GitHub Actions pause honored: no Actions workflow was dispatched,
 queried or used. Current local/origin/PR #374 head is the signed documentation
-commit `dbb3e79c`; runtime source `44fd9397` is unchanged. The signed QA-source
+commit `7db3bb12`; runtime source `44fd9397` is unchanged. The signed QA-source
 correction `12f7ba60` is included in open PR
 #374 from `fix/g001-census-admission-proxy`, based on main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Signed code fix `2a69271e` now
@@ -21,8 +21,8 @@ three focused auth/entry suites passed 53/53 at both `/` and `/ptr/`, and
 `npm run typecheck` passed. The `/ptr/` production build passed its asset,
 production-boundary, exclusion and Farcaster checks. A matching-base preview
 served all nine unique entry assets and 21 Vite-mapped runtime assets with
-correct content types. Runtime source `44fd9397` built successfully; the
-subsequent `dbb3e79c` commit only updates documentation. A fresh public check
+correct content types. Runtime source `44fd9397` built successfully; commits
+`dbb3e79c` and `7db3bb12` only update documentation. A fresh public check
 at 21:56 CEST found root HTTP 200 and `/ptr/` HTTP
 404. The PTR is not published. A preview started with the wrong `/` base
 returned the SPA index for missing `/ptr/assets/...` URLs; the QA observatory
@@ -33,6 +33,12 @@ a follow-up.
 Fresh Windows rendered QA `npm run qa:inner-keep` passed 18 synthetic cases,
 including responsive mobile layouts, construction/completion and fallback
 rendering. Its visual analysis is in memory; it creates no screenshot files.
+
+At candidate head `7db3bb12`, `npm run verify:sealed-launch` passed the
+checked-in phase with deployment approval false and live realm identities
+unset. The persisted gameplay adapter suite passed 28/28, including improved
+return credit after Mill completion. It uses synthetic routes; real PTR timing
+and the ten-minute first-payoff target remain unverified.
 
 The pinned private Assets archive is verified in the ignored cache; the [QA observatory](../../operations/qa-observatory.md)
 records the authenticated recovery command for fresh checkouts. 0.4 is not live
@@ -56,8 +62,11 @@ NEXT ACTIONS
    source-archive proposal, #40 is study-only until packed-image rights are
    verified, and #41 needs its published v3 attachment plus local mobile
    budget/integration checks. Do not treat an open PR as an approved asset.
-3. Resolve the exact-source native M1/M2 preparation and backend deploy/readback
-   prerequisites using the existing supported environment and credentials.
+3. Keep native release preparation tied to the exact reviewed M1: first pass
+   final-head Verify and merge the signed source, then prepare/check that exact
+   M1 and promote its generated-only M2. Do not create another diagnostic
+   workspace from the unmerged candidate; it cannot replace exact-M1 evidence.
+   Backend deploy/readback follows successful exact-M2 verification.
 4. After September, resume hosted Verify only on the exact live PR head and
    only after confirming the account billing gate is clear. Complete PTR
    publication and confirm its public URL on desktop and a phone; then record
