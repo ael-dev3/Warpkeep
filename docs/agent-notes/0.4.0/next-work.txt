@@ -1,13 +1,13 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 00:50 CEST (22:50 UTC on 27 September).
+Source/GitHub check: 04:31 CEST (02:31 UTC).
 
 PURPOSE OF THIS FILE
 
 This is the daily action brief, not another design specification. Its tracked
-repository copy is canonical for local/GitHub sync; refresh this copy and then
-update the existing Desktop companion in place. Do not create another Desktop
-copy.
+repository copy is canonical for local/GitHub sync. Keep work in this existing
+checkout; do not create Desktop copies, duplicate checkouts, backups or other
+project files merely to synchronize notes.
 Full product, architecture and every retained inspiration link/study:
 C:/Users/heyas/OneDrive/Рабочий стол/Warpkeep - Full Project Handoff.md
 
@@ -35,10 +35,8 @@ C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep
 
 Local branch: fix/g001-census-admission-proxy
 At the start of this refresh, local and GitHub branch head was signed
-4e8d8cf5b3df09ddee81188c23ee53b265dad0d3 and the checkout was clean and
-remote-equal. This docs-only refresh is atop tested source head
-5f67d36a7c52da2d68ce46eea653fb80f221f477. PR #374 was open on that branch,
-based on live main
+feaade75fde6b27a2ec95af90faaa3c432e651f5 and the checkout was clean and
+remote-equal. PR #374 was open on that branch, based on live main
 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. This status note will advance the
 branch; recheck the exact live SHA before acting.
 Protected source checkpoint: 175e325771768d8427bedeff8280a9cb2a9de282
@@ -62,6 +60,20 @@ latest signed menu integration and protected closure passed clean native
 ownership-bound policy and checked-in sealed-launch verification. The final
 Node 22 production build and all 20 native Pages live-receipt tests passed;
 reviewed menu, QR and delivery tests are recorded in the repository handoff.
+
+EXACT-HEAD LOCAL VERIFICATION — 28 SEPTEMBER, 02:31 UTC
+
+The full four-shard root suite passed 12,138 tests with 201 skipped. One case
+timed out only during the first concurrent run; it passed alone and its full
+shard passed on a serial rerun. Additional root groups passed 309/309; auth
+bridge passed 502 tests and release recovery passed 68. TypeScript, license,
+asset, size, sealed-launch, atlas-boundary, production, GitHub Pages and /ptr/
+base builds passed. SpaceTimeDB typecheck, 598 pure tests, module build,
+connected migration/import/relocation/population/access/CAS rehearsals,
+native contracts, npm audit and full-history Gitleaks passed. One combined
+additive-migration wrapper returned exit 1 after printing its proof as passed;
+the separate database audit exited 0. Details and this anomaly are recorded
+at the top of execution-handoff.md.
 
 GitHub main still has signed generated-only M2
 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32 through PR #373. Its
@@ -94,18 +106,11 @@ the recorded rollback version if the verifier regresses. No new recovery key
 is required. Full event timestamps and recovery details are in
 docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md.
 
-Exact-head [Verify 36356502820](https://github.com/ael-dev3/Warpkeep/actions/runs/36356502820)
-on signed docs head 4e8d8cf5 started at 2026-09-27 22:47:37 UTC and completed at
-22:48:17 UTC. All 17 jobs failed before any step ran; GitHub explicitly says
-recent account payments failed or the Actions spending limit must increase.
-This is a runner-allocation gate, not a code-test result. Local validation on
-the underlying source head 5f67d36a passed 31 targeted tests, `tsc -b --pretty
-false`, and the full rendered-WebGL browser probe. The probe covered 15
-rendered cases, terrain fallback, Worker lifecycle/locomotion/occupancy, 25
-journey checks and loopback LOD boundaries/fidelity. Direct-menu and Credits
-external-link expectations were corrected for local versus commit-stamped
-builds and the single licensed Credits link. This note refresh advances the PR
-again; final hosted Verify must match its new exact head.
+The prior exact-head run [Verify 36356502820](https://github.com/ael-dev3/Warpkeep/actions/runs/36356502820)
+on signed docs head 4e8d8cf5 is historical. It also stopped all 17 jobs before
+any step because of the same billing/spending-limit gate. The current result
+is Verify 36360727066 on feaade75, recorded at the top of execution-handoff.md.
+Recheck the live run after this note is committed.
 
 The owner reported successful login after another fresh QR scan. The
 conversation clock was observed at 2026-09-27 22:17:54 UTC. This is the report
@@ -118,7 +123,8 @@ No exact-final-head hosted Verify has passed. The account owner must resolve
 GitHub Billing & plans and allow a sufficient Actions budget, then rerun Verify
 on the live final PR #374 head. Do not use the persistent privileged
 production runner as a workaround. Private-repo Pages remains unavailable on
-the current Free plan. The 0.4 owner PTR and sealed G002 deployment are not live.
+the current plan; the separate public mirror serves Alpha at `/` but currently
+returns 404 at `/ptr/`. The 0.4 owner PTR and sealed G002 deployment are not live.
 
 The reviewed Verdant Citadel menu is integrated into signed PR #374 at merge
 397b9697. Follow-up commits preserve glTF-authored double-sided materials and

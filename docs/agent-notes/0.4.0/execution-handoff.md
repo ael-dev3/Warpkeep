@@ -1,5 +1,66 @@
 # Continue Warpkeep 0.4
 
+## Exact-head shipping checkpoint — 28 September 2026, 04:31 CEST (02:31 UTC)
+
+The maintained checkout and `origin/fix/g001-census-admission-proxy` were clean
+and matched signed commit
+[`feaade75`](https://github.com/ael-dev3/Warpkeep/commit/feaade75fde6b27a2ec95af90faaa3c432e651f5).
+PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) remains open against
+`main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`, with no submitted review.
+This update records checks run against that exact source. Its documentation
+commit will advance the PR head and require a fresh exact-head Verify.
+
+Local verification on the exact source completed successfully:
+
+- All four root-test shards passed: **12,138 passed, 201 skipped**. During the
+  initial concurrent run, one 10-second test timed out under CPU contention;
+  the isolated test and a serial rerun of its full shard both passed. This is
+  recorded as runner contention, not hidden as a clean first attempt.
+- The additional root workflow groups passed **309/309**. Auth-bridge checks
+  passed **502** tests; release-recovery passed **68**. Their dependency audits
+  reported no known vulnerabilities.
+- TypeScript, licenses, runtime-asset inventory, file-size, checked-in
+  sealed-launch, atlas-public-boundary, root/GitHub-Pages/subpath production
+  builds, and the primary SpaceTimeDB typecheck, **598/598** pure tests and
+  module build passed. The connected migration, import, relocation/rollback,
+  active-population/gathering, access-request, worker and admission-CAS
+  rehearsals passed. The schema fixtures through v18 built successfully.
+- The additive-migration proof printed a complete pass, but its combined
+  wrapper exited 1; a separate rerun of the database audit exited 0 and found
+  no known vulnerabilities. The wrapper's nonzero source was not isolated, so
+  retain it as an unresolved local-command anomaly rather than claiming every
+  aggregate command exited successfully.
+- The native sealed-existing-update contract passed **260 tests with one
+  platform skip** using its documented privileged entrypoint that drops
+  privileges for the test body; the extra native activation/receipt group
+  passed **156/156**. No host sudo policy was changed.
+- Gitleaks scanner regression passed (**48 positives, 95 negatives**) and the
+  full 667-commit Git history scan found no leaks. `npm audit` found zero
+  vulnerabilities; npm signature verification checked 249 packages and 74
+  attestations.
+
+GitHub exact-head [Verify 36360727066](https://github.com/ael-dev3/Warpkeep/actions/runs/36360727066)
+matches `feaade75`, but all 17 jobs failed before executing a step. The
+runner-allocation annotation cites failed account payments or the Actions
+spending limit. This is an external billing gate, not a hosted source-test
+result. Do not merge or substitute the privileged production runner; the owner
+must clear billing/enable an Actions budget, then rerun Verify on the final PR
+head. The public Alpha root returned HTTP 200; `https://warpkeep.com/ptr/`
+returned HTTP 404. A `/ptr/` candidate build succeeds, but the current
+generated-only public-mirror publisher and verifier are pinned to `/` and the
+exact existing root tree. No 0.4 PTR has been deployed, and preserving Alpha
+requires a reviewed subpath delivery path or access to the intended hosting
+account. No owner PTR play, G001 preservation, G002 activation, or release
+acceptance is claimed.
+
+The latest PR inventory still shows #375, #376, #377 and Warpkeep-Assets #37,
+#38 open without submitted reviews; #38 depends on #37. Recheck exact heads,
+diffs, rights and hosted checks before any later integration. Keep the large
+film and G002 score deferred from the initial PTR candidate under the mobile,
+realm-readiness and rights criteria already recorded in the next-work brief.
+The tracked repository is the canonical local/GitHub note; create no Desktop
+copy or other project file while syncing this checkpoint.
+
 ## Deployment and gameplay continuation — 28 September 2026, 01:55 CEST (27 September, 23:55 UTC)
 
 At the start of this check, local `fix/g001-census-admission-proxy` and GitHub
