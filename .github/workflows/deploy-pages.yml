@@ -76,7 +76,7 @@ jobs:
     permissions:
       contents: read
     env:
-      DEPLOY_BASE: '/'
+      DEPLOY_BASE: '/ptr/'
       VITE_WARPKEEP_RELEASE_CHANNEL: alpha
       VITE_WARPKEEP_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
       VITE_WARPKEEP_REPOSITORY_URL: https://github.com/ael-dev3/Warpkeep
@@ -303,8 +303,8 @@ jobs:
           WARPKEEP_PUBLIC_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          node scripts/verify-public-pages-payload.mjs --write "$WARPKEEP_PUBLIC_SOURCE_COMMIT"
-          node scripts/verify-public-pages-payload.mjs --check "$WARPKEEP_PUBLIC_SOURCE_COMMIT"
+          node scripts/verify-public-pages-payload.mjs --write "$WARPKEEP_PUBLIC_SOURCE_COMMIT" --publication-path /ptr/
+          node scripts/verify-public-pages-payload.mjs --check "$WARPKEEP_PUBLIC_SOURCE_COMMIT" --publication-path /ptr/
 
   deploy:
     needs: [classify, build]

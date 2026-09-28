@@ -560,7 +560,11 @@ function hasCanonicalMetadata(html, frontend) {
   return canonicalLink && openGraphUrl;
 }
 
-export function rootAssetUrls(html, frontend) {
+export function rootAssetUrls(html, frontend, publicationPath = '/') {
+  if (publicationPath !== '/' && publicationPath !== '/ptr/') {
+    fail('frontend publication path is not approved.');
+  }
+  const assetPrefix = `${publicationPath}assets/`;
   const assets = new Map();
   let moduleScriptCount = 0;
   const allTags = [
@@ -581,9 +585,15 @@ export function rootAssetUrls(html, frontend) {
     if (url.origin === frontend && url.pathname.startsWith('/Warpkeep/')) {
       fail('frontend still references the legacy /Warpkeep/ project base.');
     }
-    if (url.origin !== frontend || !url.pathname.startsWith('/assets/')) continue;
-    if (!source.startsWith('/assets/')) {
-      fail('frontend asset URLs must be root-relative /assets/ paths.');
+    if (url.origin !== frontend) continue;
+    const isWarpkeepAsset = url.pathname.startsWith('/assets/')
+      || url.pathname.startsWith('/ptr/assets/');
+    if (!isWarpkeepAsset) continue;
+    if (!url.pathname.startsWith(assetPrefix)) {
+      fail(`frontend assets must use the selected ${publicationPath} publication path.`);
+    }
+    if (!source.startsWith(assetPrefix)) {
+      fail(`frontend asset URLs must be root-relative ${assetPrefix} paths.`);
     }
     if (tagName === 'script') {
       if (attributes.get('type') !== 'module') {

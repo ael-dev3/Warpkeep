@@ -73,7 +73,7 @@ function candidate() {
         : `<!doctype html><meta http-equiv="Content-Security-Policy" content="${
           expectedProductionCspByPath[path]
         }"><title>Warpkeep</title>`;
-    write(join(dist, path), document);
+    write(join(dist, path), document.replaceAll('/assets/', '/ptr/assets/'));
   }
   write(join(dist, 'assets/application-reviewed.js'),
     `const buildSha="${expectedSourceCommit}"; console.info(buildSha);`);
@@ -85,7 +85,7 @@ function candidate() {
   write(join(dist, 'warpkeep-boot.css'), 'body{background:black}');
   write(join(dist, 'warpkeep-noscript.css'), 'noscript{display:block}');
   write(join(dist, 'models/keep.glb'), Buffer.from([0x67, 0x6c, 0x54, 0x46]));
-  writePublicPagesPayloadManifest({ repositoryRoot: root, expectedSourceCommit });
+  writePublicPagesPayloadManifest({ repositoryRoot: root, expectedSourceCommit, publicationPath: '/ptr/' });
   return { root, dist, expectedSourceCommit };
 }
 
@@ -123,6 +123,8 @@ afterEach(() => {
 
 describe('read-only public Pages mirror plan', () => {
   it('recognizes the exact reviewed menu M4A without broadening the audio boundary', () => {
+    expect(generatedPath('ptr/assets/../application.js')).toBe(false);
+    expect(generatedPath('ptr/ptr/assets/application.js')).toBe(false);
     expect(generatedPath('audio/warpkeep-verdant-menu-theme.m4a')).toBe(true);
     expect(generatedPath('audio/warpkeep-title-theme-a.mp3')).toBe(true);
     expect(generatedPath('audio/other.m4a')).toBe(false);
@@ -136,14 +138,21 @@ describe('read-only public Pages mirror plan', () => {
     const before = git(mirror.root, ['rev-parse', 'HEAD']);
     const plan = mirror.plan();
     expect(plan).toMatchObject({
-      profile: 'warpkeep-public-pages-mirror-plan-v1',
+      profile: 'warpkeep-public-pages-ptr-mirror-plan-v1',
+      publicationPath: '/ptr/',
       sourceCommit: source.expectedSourceCommit,
       publicParentCommit: mirror.expectedPublicHead,
-      obsoleteGeneratedPaths: ['assets/application-old.js'],
+      obsoleteGeneratedPaths: [],
     });
     expect(plan.targetFileCount).toBe(plan.targetEntries.length);
-    expect(plan.targetEntries.find((entry: { path: string }) => entry.path === '404.html').sha256)
+    expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'ptr/404.html').sha256)
       .toBe(sha(readFileSync(join(source.dist, 'index.html'))));
+    expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'index.html'))
+      .toMatchObject({ origin: 'preserved-existing', sha256: sha('<!doctype html><title>Old Alpha</title>') });
+    expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'assets/application-old.js'))
+      .toMatchObject({ origin: 'preserved-existing', sha256: sha('console.info("old Alpha");') });
+    expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'CNAME').origin)
+      .toBe('preserved-existing');
     expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'CNAME').sha256)
       .toBe(sha('warpkeep.com\n'));
     expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'ASSETS-LICENSE.md'))
@@ -160,8 +169,8 @@ describe('read-only public Pages mirror plan', () => {
         }, plan.payloadManifestSha256)),
       });
     expect(plan.targetEntries.find((entry: { path: string }) => (
-      entry.path === 'docs/releases/0.4.0/public-pages-payload-v1.json'
-    ))).toMatchObject({ sha256: plan.payloadManifestSha256 });
+      entry.path === 'docs/releases/0.4.0/public-pages-ptr-payload-v1.json'
+    ))).toMatchObject({ origin: 'hosting', sha256: plan.payloadManifestSha256 });
     expect(git(mirror.root, ['rev-parse', 'HEAD'])).toBe(before);
     expect(git(mirror.root, ['status', '--porcelain=v1', '--untracked-files=all'])).toBe('');
   }, 30_000);
@@ -198,7 +207,7 @@ describe('read-only public Pages mirror plan', () => {
     expect(mirror.plan).toThrow('PUBLIC_PAGES_PAYLOAD_MANIFEST_MISMATCH');
   });
 
-  it('accepts the existing public host CNAME line ending while planning canonical LF', () => {
+  it('preserves the existing public host CNAME bytes and line ending', () => {
     const source = candidate();
     const mirror = publicMirror(source);
     git(mirror.root, ['config', 'core.autocrlf', 'false']);
@@ -211,7 +220,7 @@ describe('read-only public Pages mirror plan', () => {
       expectedPublicHead: revisedPublicHead,
     });
     expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'CNAME'))
-      .toMatchObject({ sha256: sha('warpkeep.com\n') });
+      .toMatchObject({ origin: 'preserved-existing', sha256: sha('warpkeep.com\r\n') });
   }, 30_000);
 
   it('refuses a redirected public push URL despite the expected fetch URL', () => {

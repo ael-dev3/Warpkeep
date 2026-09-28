@@ -249,6 +249,13 @@ describe('Pages deployment configuration validation', () => {
     expect(result.stdout).toContain('shared alpha disabled');
   });
 
+  it('accepts the owner PTR subpath and rejects arbitrary deployment bases', () => {
+    expect(validate({ DEPLOY_BASE: '/ptr/' }).status).toBe(0);
+    const unsupported = validate({ DEPLOY_BASE: '/preview/' });
+    expect(unsupported.status).not.toBe(0);
+    expect(unsupported.stderr).toContain('DEPLOY_BASE must be / or /ptr/.');
+  });
+
   it('pins public database coordinates even while shared alpha is disabled', () => {
     const result = validate({
       VITE_SPACETIMEDB_DATABASE: 'warpkeep-89e4u'

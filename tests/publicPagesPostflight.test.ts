@@ -44,10 +44,15 @@ function fixture(mutateGenerated?: (files: Map<string, Buffer>) => void) {
   git(root, ['config', 'user.name', 'Warpkeep Fixture']);
   git(root, ['config', 'user.email', 'fixture@example.invalid']);
   git(root, ['config', 'commit.gpgsign', 'false']);
-  write(root, 'CNAME', 'warpkeep.com\n');
-  write(root, '.nojekyll', '');
-  write(root, 'index.html', '<!doctype html><title>Old Alpha</title>');
-  write(root, '404.html', '<!doctype html><title>Old Alpha</title>');
+  const preservedRoot = new Map<string, Buffer>([
+    ['.nojekyll', Buffer.alloc(0)],
+    ['.well-known/farcaster.json', Buffer.from('{"accountAssociation":{}}\n')],
+    ['404.html', Buffer.from('<!doctype html><script type="module" src="/assets/alpha.js"></script><title>Old Alpha</title>')],
+    ['CNAME', Buffer.from('warpkeep.com\n')],
+    ['index.html', Buffer.from('<!doctype html><script type="module" src="/assets/alpha.js"></script><title>Old Alpha</title>')],
+    ['assets/alpha.js', Buffer.from('console.info("Alpha remains live");')],
+  ]);
+  for (const [path, bytes] of preservedRoot) write(root, path, bytes);
   write(root, 'README.md', 'Old public host\n');
   for (const path of SOURCE_PUBLIC_DOCUMENTS as readonly string[]) {
     write(root, path, `old reviewed ${path}\n`);
@@ -81,7 +86,7 @@ function fixture(mutateGenerated?: (files: Map<string, Buffer>) => void) {
     canonicalOrigin: 'https://warpkeep.com',
     sourceCommit,
     sourceTree,
-    publicationPath: '/',
+    publicationPath: '/ptr/',
     fileCount: payloadFiles.length,
     totalByteLength: payloadFiles.reduce((sum, file) => sum + file.byteLength, 0),
     rootHtmlSha256: sha(generated.get('index.html')!),
@@ -89,30 +94,35 @@ function fixture(mutateGenerated?: (files: Map<string, Buffer>) => void) {
     files: payloadFiles,
   };
   const manifestBytes = Buffer.from(`${JSON.stringify(manifest)}\n`);
+  const ptrGenerated = new Map([...generated].map(([path, bytes]) => [`ptr/${path}`, bytes]));
   const hosting = new Map<string, Buffer>([
-    ['.nojekyll', Buffer.alloc(0)],
-    ['404.html', generated.get('index.html')!],
-    ['CNAME', Buffer.from('warpkeep.com\n')],
+    ['ptr/404.html', generated.get('index.html')!],
     ['README.md', renderPublicPagesMirrorReadme(manifest, sha(manifestBytes))],
     [PUBLIC_PAGES_MIRROR_MANIFEST_PATH, manifestBytes],
   ]);
   const documents = new Map((SOURCE_PUBLIC_DOCUMENTS as readonly string[]).map(path => [
     path, Buffer.from(`current reviewed ${path}\n`),
   ]));
-  const all = new Map([...generated, ...hosting, ...documents]);
+  const all = new Map([...preservedRoot, ...ptrGenerated, ...hosting, ...documents]);
   for (const [path, bytes] of all) write(root, path, bytes);
   const targetEntries = [...all].map(([path, bytes]) => ({
     path, byteLength: bytes.length, sha256: sha(bytes),
-    origin: generated.has(path) ? 'generated' : hosting.has(path) ? 'hosting' : 'reviewed-source',
+    origin: ptrGenerated.has(path) ? 'generated' : hosting.has(path) ? 'hosting'
+      : documents.has(path) ? 'reviewed-source' : 'preserved-existing',
   })).sort((a, b) => Buffer.compare(Buffer.from(a.path), Buffer.from(b.path)));
   const plan = {
-    schemaVersion: 1,
-    profile: 'warpkeep-public-pages-mirror-plan-v1',
+    schemaVersion: 2,
+    profile: 'warpkeep-public-pages-ptr-mirror-plan-v1',
+    publicationPath: '/ptr/',
     sourceCommit,
     sourceTree,
     publicParentCommit,
     publicParentTree,
     payloadManifestSha256: sha(manifestBytes),
+    preservedRootEntryCount: targetEntries.filter(entry => entry.origin === 'preserved-existing').length,
+    preservedRootManifestSha256: sha(JSON.stringify(
+      targetEntries.filter(entry => entry.origin === 'preserved-existing'),
+    )),
     targetFileCount: targetEntries.length,
     targetEntries,
     obsoleteGeneratedPaths: [],
@@ -136,13 +146,26 @@ function fixture(mutateGenerated?: (files: Map<string, Buffer>) => void) {
   expect(git(root, ['log', '-1', '--format=%G?'])).toBe('G');
   const expectedSignerFingerprint = git(root, ['log', '-1', '--format=%GK']);
   const expectedSignerIdentity = git(root, ['log', '-1', '--format=%GS']);
-  const routeBytes = new Map([...generated].map(([path, bytes]) => [`/${path}`, bytes]));
-  routeBytes.set('/', generated.get('index.html')!);
-  routeBytes.set('/404.html', generated.get('index.html')!);
-  routeBytes.set('/owner-canary/', generated.get('owner-canary/index.html')!);
-  routeBytes.set('/privacy/', generated.get('privacy/index.html')!);
-  routeBytes.set('/social-contract/', generated.get('social-contract/index.html')!);
-  routeBytes.set('/terms/', generated.get('terms/index.html')!);
+  const routeBytes = new Map([...generated].map(([path, bytes]) => [`/ptr/${path}`, bytes]));
+  routeBytes.set('/ptr/', generated.get('index.html')!);
+  routeBytes.set('/ptr/index.html', generated.get('index.html')!);
+  routeBytes.set('/ptr/404.html', generated.get('index.html')!);
+  for (const [path, bytes] of generated) {
+    if (path.endsWith('/index.html')) routeBytes.set(`/ptr/${path.slice(0, -'index.html'.length)}`, bytes);
+  }
+  for (const [path, bytes] of preservedRoot) {
+    if (path === '.well-known/farcaster.json') {
+      routeBytes.set('/.well-known/farcaster.json', bytes);
+      continue;
+    }
+    if (path === '404.html') {
+      routeBytes.set('/404.html', bytes);
+      continue;
+    }
+    if (!allowedGeneratedPath(path)) continue;
+    routeBytes.set(`/${path}`, bytes);
+    if (path === 'index.html') routeBytes.set('/', bytes);
+  }
   const fetchImpl = vi.fn(async (url: string, _options: RequestInit) => {
     const bytes = routeBytes.get(new URL(url).pathname);
     if (!bytes) throw new Error(`Unexpected live request: ${url}`);
@@ -181,7 +204,7 @@ afterEach(() => {
 });
 
 describe('read-only public Pages postflight', () => {
-  it('attests the exact signed public tree and only live generated routes', async () => {
+  it('attests the exact signed tree, PTR assets and preserved Alpha entry routes', async () => {
     const f = fixture();
     const before = git(f.root, ['rev-parse', 'HEAD']);
     const result = await verifyPublicPagesPostflight(f.options);
@@ -190,6 +213,7 @@ describe('read-only public Pages postflight', () => {
       publicTree: f.options.expectedPublicTree,
       sourceCommit,
       verifiedFileCount: f.manifest.fileCount,
+      verifiedPreservedRootFileCount: f.plan.preservedRootEntryCount,
       verifiedRouteCount: f.routeBytes.size,
     });
     expect(f.fetchImpl.mock.calls.map(([url]) => url).sort()).toEqual(
@@ -197,6 +221,7 @@ describe('read-only public Pages postflight', () => {
     );
     expect(f.fetchImpl.mock.calls.every(([, options]) => options.redirect === 'manual')).toBe(true);
     expect(f.fetchImpl.mock.calls.some(([url]) => url === 'https://warpkeep.com/404.html')).toBe(true);
+    expect(f.fetchImpl.mock.calls.some(([url]) => url === 'https://warpkeep.com/ptr/404.html')).toBe(true);
     expect(f.readRemoteState).toHaveBeenCalledTimes(2);
     expect(f.readRemoteState.mock.calls.every(([commit]) => commit === before)).toBe(true);
     expect(git(f.root, ['rev-parse', 'HEAD'])).toBe(before);
@@ -209,9 +234,10 @@ describe('read-only public Pages postflight', () => {
       ...f.options, expectedReviewedPlanSha256: '0'.repeat(64),
     })).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
     expect(f.fetchImpl).not.toHaveBeenCalled();
-  });
+  }, 30_000);
 
   it('independently rejects a generated path outside the payload policy or a missing required file', async () => {
+    expect(allowedGeneratedPath('assets/../app.js')).toBe(false);
     expect(allowedGeneratedPath('video/index.html')).toBe(false);
     expect(allowedGeneratedPath('assets/app.js')).toBe(true);
     expect(allowedGeneratedPath('audio/warpkeep-verdant-menu-theme.m4a')).toBe(true);
@@ -221,7 +247,7 @@ describe('read-only public Pages postflight', () => {
     expect(allowedGeneratedPath('audio/warpkeep-verdant-menu-theme.M4A')).toBe(false);
     const extra = fixture(files => files.set('video/index.html', Buffer.from('unexpected HTML')));
     await expect(verifyPublicPagesPostflight(extra.options))
-      .rejects.toThrow('PUBLIC_PAGES_MIRROR_FILE_BOUNDARY_INVALID');
+      .rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
     expect(extra.readRemoteState).not.toHaveBeenCalled();
     const missing = fixture(files => files.delete('favicon-64-7b82ca973fe757f5.png'));
     await expect(verifyPublicPagesPostflight(missing.options))
@@ -272,7 +298,7 @@ describe('read-only public Pages postflight', () => {
       ...f.options, expectedSignerFingerprint: `SHA256:${'A'.repeat(43)}`,
     })).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_SIGNATURE_INVALID');
     expect(f.fetchImpl).not.toHaveBeenCalled();
-  });
+  }, 30_000);
 
   it('rejects an unsigned public commit with the same approved tree', async () => {
     const f = fixture();
@@ -282,7 +308,7 @@ describe('read-only public Pages postflight', () => {
       expectedPublicCommit: git(f.root, ['rev-parse', 'HEAD']),
     })).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_GIT_INVALID');
     expect(f.fetchImpl).not.toHaveBeenCalled();
-  });
+  }, 30_000);
 
   it('rejects a committed legal-document substitution even when the commit is signed', async () => {
     const f = fixture();
@@ -295,7 +321,34 @@ describe('read-only public Pages postflight', () => {
       expectedPublicTree: git(f.root, ['rev-parse', 'HEAD^{tree}']),
     })).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_TREE_INVALID');
     expect(f.fetchImpl).not.toHaveBeenCalled();
-  });
+  }, 30_000);
+
+  it('rejects a signed plan and commit that replace the preserved Alpha root', async () => {
+    const f = fixture();
+    const changedRoot = Buffer.from('<!doctype html><title>Unreviewed root</title>');
+    write(f.root, 'index.html', changedRoot);
+    write(f.root, '404.html', changedRoot);
+    git(f.root, ['add', 'index.html', '404.html']);
+    git(f.root, ['commit', '--amend', '--no-edit', '--quiet']);
+    for (const entry of f.plan.targetEntries) {
+      if (entry.path === 'index.html' || entry.path === '404.html') {
+        entry.byteLength = changedRoot.length;
+        entry.sha256 = sha(changedRoot);
+      }
+    }
+    f.plan.preservedRootManifestSha256 = sha(JSON.stringify(
+      f.plan.targetEntries.filter(entry => entry.origin === 'preserved-existing'),
+    ));
+    const reviewedPlanBytes = Buffer.from(`${JSON.stringify(f.plan)}\n`);
+    await expect(verifyPublicPagesPostflight({
+      ...f.options,
+      expectedPublicCommit: git(f.root, ['rev-parse', 'HEAD']),
+      expectedPublicTree: git(f.root, ['rev-parse', 'HEAD^{tree}']),
+      reviewedPlanBytes,
+      expectedReviewedPlanSha256: sha(reviewedPlanBytes),
+    })).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_ROOT_PRESERVATION_INVALID');
+    expect(f.fetchImpl).not.toHaveBeenCalled();
+  }, 30_000);
 
   it('rejects a live redirect and changed or oversized generated bytes', async () => {
     const f = fixture();
@@ -332,7 +385,7 @@ describe('read-only public Pages postflight', () => {
   it('rejects live /404.html bytes that do not match the planned SPA fallback', async () => {
     const f = fixture();
     const fetchImpl = vi.fn(async (url: string) => {
-      const bytes = url.endsWith('/404.html')
+      const bytes = url.endsWith('/ptr/404.html')
         ? Buffer.from('stale fallback') : f.routeBytes.get(new URL(url).pathname)!;
       const response = new Response(Uint8Array.from(bytes), { status: 200 });
       Object.defineProperty(response, 'url', { value: url });
@@ -340,6 +393,6 @@ describe('read-only public Pages postflight', () => {
     });
     await expect(verifyPublicPagesPostflight({ ...f.options, fetchImpl }))
       .rejects.toThrow(/PUBLIC_PAGES_POSTFLIGHT_HTTP_(?:SIZE|HASH)_INVALID/u);
-    expect(fetchImpl.mock.calls.some(([url]) => url === 'https://warpkeep.com/404.html')).toBe(true);
+    expect(fetchImpl.mock.calls.some(([url]) => url === 'https://warpkeep.com/ptr/404.html')).toBe(true);
   }, 20_000);
 });

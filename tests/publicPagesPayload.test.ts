@@ -43,7 +43,7 @@ function git(root: string, args: string[]) {
   return result.stdout.trim();
 }
 
-function createCandidate() {
+function createCandidate(publicationPath = '/') {
   const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-payload-'));
   temporaryRoots.push(root);
   git(root, ['init', '--quiet']);
@@ -75,6 +75,7 @@ function createCandidate() {
         expectedProductionCspByPath[htmlPath]
       }"><title>Warpkeep</title>`;
     }
+    if (publicationPath === '/ptr/') document = document.replaceAll('/assets/', '/ptr/assets/');
     write(join(dist, htmlPath), document);
   }
   write(join(dist, 'assets/application-reviewed.js'),
@@ -135,6 +136,35 @@ describe('public Pages candidate payload', () => {
     expect(existsSync(join(candidate.dist, '404.html'))).toBe(false);
     expect(existsSync(join(candidate.dist, 'CNAME'))).toBe(false);
     expect(existsSync(join(candidate.root, 'artifacts'))).toBe(false);
+  });
+
+  it('binds a subpath candidate to /ptr/ and accepts only its prefixed application assets', () => {
+    const candidate = createCandidate('/ptr/');
+    const result = verifyPublicPagesPayload({
+      repositoryRoot: candidate.root,
+      expectedSourceCommit: candidate.expectedSourceCommit,
+      publicationPath: '/ptr/',
+    });
+    expect(result.manifest.publicationPath).toBe('/ptr/');
+    expect(result.manifest.files.map((entry: { path: string }) => entry.path))
+      .toContain('assets/application-reviewed.js');
+    expect(() => verifyPublicPagesPayload({
+      repositoryRoot: candidate.root,
+      expectedSourceCommit: candidate.expectedSourceCommit,
+      publicationPath: '/preview/',
+    })).toThrow('PUBLIC_PAGES_PAYLOAD_PUBLICATION_PATH_INVALID');
+  });
+
+  it('rejects a PTR candidate that accidentally loads application assets from the Alpha root', () => {
+    const candidate = createCandidate('/ptr/');
+    const htmlPath = join(candidate.root, 'dist/index.html');
+    write(htmlPath, readFileSync(htmlPath, 'utf8')
+      .replace('/ptr/assets/application-reviewed.js', '/assets/application-reviewed.js'));
+    expect(() => verifyPublicPagesPayload({
+      repositoryRoot: candidate.root,
+      expectedSourceCommit: candidate.expectedSourceCommit,
+      publicationPath: '/ptr/',
+    })).toThrow('frontend assets must use the selected /ptr/ publication path.');
   });
 
   it('writes one ignored deterministic manifest outside dist and reads it back', () => {

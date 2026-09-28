@@ -22,11 +22,12 @@ const IDENTITY = /^[A-Za-z0-9._+@-]{3,128}$/u;
 const PUBLIC_REF = 'refs/heads/main';
 const MAX_PLAN_BYTES = 8 * 1024 * 1024;
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
-const MAX_TREE_BYTES = 170 * 1024 * 1024;
+// The public Pages tree now contains both the existing Alpha root and 0.4 PTR.
+const MAX_TREE_BYTES = 320 * 1024 * 1024;
 const MAX_FILES = 20_000;
-const HOST_FILES = new Set([
-  '.nojekyll', '404.html', 'CNAME', 'README.md', PUBLIC_PAGES_MIRROR_MANIFEST_PATH,
-]);
+const PRESERVED_ROOT_HOST_FILES = new Set(['.nojekyll', '404.html', 'CNAME']);
+const HOSTING_FILES = new Set(['README.md', PUBLIC_PAGES_MIRROR_MANIFEST_PATH, 'ptr/404.html']);
+const PRESERVED_ROOT_REQUIRED = ['.nojekyll', '404.html', 'CNAME', 'index.html'];
 const REQUIRED_GENERATED = [
   '.well-known/farcaster.json',
   'apple-touch-icon-180-fe27e8dc1c97cc36.png',
@@ -40,6 +41,7 @@ const REQUIRED_GENERATED = [
   'warpkeep-boot.css',
   'warpkeep-noscript.css',
 ];
+const REQUIRED_PTR_GENERATED = REQUIRED_GENERATED.map(path => `ptr/${path}`);
 const DOCUMENTS = new Set(SOURCE_PUBLIC_DOCUMENTS);
 
 export class PublicPagesPublicationError extends Error {
@@ -86,6 +88,20 @@ function safePath(path) {
       && /^[A-Za-z0-9._-]+$/u.test(part));
 }
 
+function allowedPtrGeneratedPath(path) {
+  if (!path.startsWith('ptr/')) return false;
+  const nestedPath = path.slice('ptr/'.length);
+  return !nestedPath.startsWith('ptr/') && allowedGeneratedPath(nestedPath);
+}
+
+function preservedRootEntries(entries) {
+  return [...entries.values()].filter(entry => entry.origin === 'preserved-existing');
+}
+
+function preservedRootManifestSha256(entries) {
+  return sha256(Buffer.from(JSON.stringify(preservedRootEntries(entries))));
+}
+
 function requireSigner(fingerprint, identity) {
   if (!FINGERPRINT.test(fingerprint ?? '') || !IDENTITY.test(identity ?? '')) {
     fail('PUBLIC_PAGES_PUBLICATION_SIGNER_INVALID');
@@ -115,13 +131,18 @@ function parseReviewedPlan(bytes, expectedSha256) {
   catch { fail('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID'); }
   if (!plan || Array.isArray(plan) || typeof plan !== 'object'
     || !Buffer.from(`${JSON.stringify(plan)}\n`).equals(bytes)
-    || plan.schemaVersion !== 1 || plan.profile !== 'warpkeep-public-pages-mirror-plan-v1'
+    || plan.schemaVersion !== 2 || plan.profile !== 'warpkeep-public-pages-ptr-mirror-plan-v1'
+    || plan.publicationPath !== '/ptr/'
     || !COMMIT.test(plan.sourceCommit ?? '') || !COMMIT.test(plan.sourceTree ?? '')
     || !COMMIT.test(plan.publicParentCommit ?? '') || !COMMIT.test(plan.publicParentTree ?? '')
     || !DIGEST.test(plan.payloadManifestSha256 ?? '')
+    || !Number.isSafeInteger(plan.preservedRootEntryCount) || plan.preservedRootEntryCount < 4
+    || !DIGEST.test(plan.preservedRootManifestSha256 ?? '')
     || !Array.isArray(plan.targetEntries) || !Array.isArray(plan.obsoleteGeneratedPaths)
-    || plan.targetEntries.length < REQUIRED_GENERATED.length + HOST_FILES.size + DOCUMENTS.size
-    || plan.targetEntries.length > MAX_FILES + HOST_FILES.size + DOCUMENTS.size
+    || plan.targetEntries.length < REQUIRED_PTR_GENERATED.length + PRESERVED_ROOT_REQUIRED.length
+      + HOSTING_FILES.size + DOCUMENTS.size + 1
+    || plan.targetEntries.length > MAX_FILES + REQUIRED_PTR_GENERATED.length
+      + PRESERVED_ROOT_REQUIRED.length + HOSTING_FILES.size + DOCUMENTS.size + 1
     || plan.targetFileCount !== plan.targetEntries.length) {
     fail('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
   }
@@ -133,21 +154,36 @@ function parseReviewedPlan(bytes, expectedSha256) {
       || (previous !== undefined && Buffer.compare(Buffer.from(previous), Buffer.from(entry.path)) >= 0)
       || !Number.isSafeInteger(entry.byteLength) || entry.byteLength < 0
       || entry.byteLength > MAX_FILE_BYTES || !DIGEST.test(entry.sha256 ?? '')
-      || entry.origin !== (HOST_FILES.has(entry.path) ? 'hosting'
+      || entry.origin !== (HOSTING_FILES.has(entry.path) ? 'hosting'
         : DOCUMENTS.has(entry.path) ? 'reviewed-source'
-          : allowedGeneratedPath(entry.path) ? 'generated' : undefined)) {
+          : allowedPtrGeneratedPath(entry.path) ? 'generated'
+            : (PRESERVED_ROOT_HOST_FILES.has(entry.path) || allowedGeneratedPath(entry.path))
+              && !entry.path.startsWith('ptr/') ? 'preserved-existing' : undefined)) {
       fail('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
     }
     entries.set(entry.path, entry);
     folded.add(entry.path.toLowerCase());
     previous = entry.path;
   }
-  if ([...HOST_FILES, ...DOCUMENTS, ...REQUIRED_GENERATED].some(path => !entries.has(path))) {
+  if ([...HOSTING_FILES, ...DOCUMENTS, ...REQUIRED_PTR_GENERATED,
+    ...PRESERVED_ROOT_REQUIRED, 'ptr/404.html'].some(path => !entries.has(path))) {
+    fail('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
+  }
+  const preserved = preservedRootEntries(entries);
+  if (preserved.length !== plan.preservedRootEntryCount
+    || preservedRootManifestSha256(entries) !== plan.preservedRootManifestSha256
+    || preserved.some(entry => entry.path.startsWith('ptr/'))
+    || entries.get('.nojekyll').byteLength !== 0
+    || entries.get('.nojekyll').sha256 !== sha256(Buffer.alloc(0))
+    || entries.get('404.html').sha256 !== entries.get('index.html').sha256
+    || entries.get('404.html').byteLength !== entries.get('index.html').byteLength
+    || ![sha256(Buffer.from('warpkeep.com\n')), sha256(Buffer.from('warpkeep.com\r\n'))]
+      .includes(entries.get('CNAME').sha256)) {
     fail('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
   }
   const obsolete = new Set();
   for (const path of plan.obsoleteGeneratedPaths) {
-    if (!safePath(path) || !allowedGeneratedPath(path)
+    if (!safePath(path) || !path.startsWith('ptr/') || !allowedPtrGeneratedPath(path)
       || folded.has(path.toLowerCase()) || obsolete.has(path.toLowerCase())) {
       fail('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
     }
@@ -164,13 +200,21 @@ function inspectCommit(root, commit, parent, tree, fingerprint, identity) {
   }
 }
 
-function readTargetFile(path, sourceRoot, plan, manifestBytes, manifest) {
-  if (path === '.nojekyll') return Buffer.alloc(0);
-  if (path === 'CNAME') return Buffer.from('warpkeep.com\n');
+function readTargetFile(entry, sourceRoot, publicRoot, plan, manifestBytes, manifest) {
+  const { path } = entry;
+  if (entry.origin === 'preserved-existing') {
+    try {
+      return git(publicRoot, ['show', `${plan.publicParentCommit}:${path}`], {
+        maximumBytes: MAX_FILE_BYTES,
+      });
+    } catch { fail('PUBLIC_PAGES_PUBLICATION_PARENT_CHANGED'); }
+  }
   if (path === 'README.md') return renderPublicPagesMirrorReadme(manifest, plan.payloadManifestSha256);
   if (path === PUBLIC_PAGES_MIRROR_MANIFEST_PATH) return Buffer.from(manifestBytes);
-  const sourcePath = path === '404.html' ? 'dist/index.html'
-    : DOCUMENTS.has(path) ? path : `dist/${path}`;
+  const sourcePath = path === 'ptr/404.html' ? 'dist/index.html'
+    : DOCUMENTS.has(path) ? path
+      : entry.origin === 'generated' ? `dist/${path.slice('ptr/'.length)}` : undefined;
+  if (!sourcePath) fail('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
   const file = join(sourceRoot, sourcePath);
   try {
     return readLocalBindingBoundedFile(file, { maximumBytes: MAX_FILE_BYTES }).body;
@@ -186,7 +230,8 @@ function verifyPlannedTree(root, tree, entries, plan) {
   const seen = new Set();
   let total = 0;
   let manifestBytes;
-  let indexBytes;
+  let ptrIndexBytes;
+  let ptr404Bytes;
   for (const record of raw.toString('utf8').slice(0, -1).split('\0')) {
     const match = /^(100644) blob ([a-f0-9]{40})\t(.+)$/u.exec(record);
     if (!match || !entries.has(match[3]) || seen.has(match[3])) {
@@ -200,14 +245,21 @@ function verifyPlannedTree(root, tree, entries, plan) {
     if (total > MAX_TREE_BYTES || bytes.length !== entry.byteLength
       || sha256(bytes) !== entry.sha256) fail('PUBLIC_PAGES_PUBLICATION_TREE_INVALID');
     if (entry.path === PUBLIC_PAGES_MIRROR_MANIFEST_PATH) manifestBytes = Buffer.from(bytes);
-    if (entry.path === 'index.html') indexBytes = Buffer.from(bytes);
+    if (entry.path === 'ptr/index.html') ptrIndexBytes = Buffer.from(bytes);
+    if (entry.path === 'ptr/404.html') ptr404Bytes = Buffer.from(bytes);
     seen.add(entry.path);
   }
-  if (seen.size !== entries.size || !manifestBytes || !indexBytes
+  if (seen.size !== entries.size || !manifestBytes || !ptrIndexBytes || !ptr404Bytes
     || sha256(manifestBytes) !== plan.payloadManifestSha256
-    || entries.get('404.html').sha256 !== sha256(indexBytes)
+    || sha256(ptr404Bytes) !== sha256(ptrIndexBytes)
+    || entries.get('ptr/404.html').sha256 !== sha256(ptrIndexBytes)
+    || entries.get('ptr/404.html').byteLength !== entries.get('ptr/index.html').byteLength
+    || entries.get('404.html').sha256 !== entries.get('index.html').sha256
     || entries.get('.nojekyll').sha256 !== sha256(Buffer.alloc(0))
-    || entries.get('CNAME').sha256 !== sha256(Buffer.from('warpkeep.com\n'))) {
+    || ![sha256(Buffer.from('warpkeep.com\n')), sha256(Buffer.from('warpkeep.com\r\n'))]
+      .includes(entries.get('CNAME').sha256)
+    || preservedRootEntries(entries).length !== plan.preservedRootEntryCount
+    || preservedRootManifestSha256(entries) !== plan.preservedRootManifestSha256) {
     fail('PUBLIC_PAGES_PUBLICATION_TREE_INVALID');
   }
   let manifest;
@@ -219,10 +271,10 @@ function verifyPlannedTree(root, tree, entries, plan) {
     || manifest.sourceCommit !== plan.sourceCommit
     || manifest.sourceTree !== plan.sourceTree
     || manifest.canonicalOrigin !== 'https://warpkeep.com'
-    || manifest.publicationPath !== '/'
+    || manifest.publicationPath !== '/ptr/'
     || !Array.isArray(manifest.files)
     || manifest.fileCount !== manifest.files.length
-    || manifest.rootHtmlSha256 !== sha256(indexBytes)
+    || manifest.rootHtmlSha256 !== sha256(ptrIndexBytes)
     || manifest.totalByteLength !== manifest.files.reduce((total, file) => total + file.byteLength, 0)
     || manifest.contentManifestSha256 !== sha256(Buffer.from(JSON.stringify(manifest.files)))
     || sha256(renderPublicPagesMirrorReadme(manifest, plan.payloadManifestSha256))
@@ -232,7 +284,7 @@ function verifyPlannedTree(root, tree, entries, plan) {
   const generated = [...entries.values()].filter(entry => entry.origin === 'generated');
   if (manifest.files.length !== generated.length
     || generated.some((entry, index) => (
-      manifest.files[index]?.path !== entry.path
+      `ptr/${manifest.files[index]?.path}` !== entry.path
       || manifest.files[index]?.byteLength !== entry.byteLength
       || manifest.files[index]?.sha256 !== entry.sha256
     ))) fail('PUBLIC_PAGES_PUBLICATION_TREE_INVALID');
@@ -347,7 +399,7 @@ export function preparePublicPagesPublication({
   try {
     git(publicPath, ['read-tree', '--empty'], { indexFile });
     for (const entry of entries.values()) {
-      const bytes = readTargetFile(entry.path, source, plan, manifestBytes, manifest);
+      const bytes = readTargetFile(entry, source, publicPath, plan, manifestBytes, manifest);
       try {
         if (bytes.length !== entry.byteLength || sha256(bytes) !== entry.sha256) {
           fail('PUBLIC_PAGES_PUBLICATION_SOURCE_CHANGED');

@@ -77,7 +77,7 @@ function fixture() {
         : `<!doctype html><meta http-equiv="Content-Security-Policy" content="${
           expectedProductionCspByPath[path]
         }"><title>Warpkeep</title>`;
-    write(join(dist, path), document);
+    write(join(dist, path), document.replaceAll('/assets/', '/ptr/assets/'));
   }
   write(join(dist, 'assets/application-reviewed.js'),
     `const buildSha="${sourceCommit}"; console.info(buildSha);`);
@@ -89,7 +89,8 @@ function fixture() {
   write(join(dist, 'warpkeep-boot.css'), 'body{background:black}');
   write(join(dist, 'warpkeep-noscript.css'), 'noscript{display:block}');
   write(join(dist, 'models/keep.glb'), Buffer.from([0x67, 0x6c, 0x54, 0x46]));
-  writePublicPagesPayloadManifest({ repositoryRoot: source, expectedSourceCommit: sourceCommit });
+  writePublicPagesPayloadManifest({ repositoryRoot: source, expectedSourceCommit: sourceCommit,
+    publicationPath: '/ptr/' });
 
   git(publicRoot, ['remote', 'add', 'origin', 'https://github.com/ael-dev3/Warpkeep-Live.git']);
   write(join(publicRoot, 'CNAME'), 'warpkeep.com\n');
@@ -144,6 +145,12 @@ describe('signed public Pages publication and rollback operator', () => {
       localHead: prepared.publicCommit, remoteHead: prepared.publicCommit });
     expect(pushed).toEqual([prepared.publicCommit]);
     expect(git(f.publicRoot, ['status', '--porcelain=v1', '--untracked-files=all'])).toBe('');
+    expect(readFileSync(join(f.publicRoot, 'index.html'), 'utf8'))
+      .toBe('<!doctype html><title>Old Alpha</title>');
+    expect(readFileSync(join(f.publicRoot, 'assets/application-old.js'), 'utf8'))
+      .toBe('console.info("old Alpha");');
+    expect(readFileSync(join(f.publicRoot, 'ptr/index.html'), 'utf8'))
+      .toContain('/ptr/assets/application-reviewed.js');
     expect(publishPublicPagesPublication(options).localHead).toBe(prepared.publicCommit);
     expect(pushed).toEqual([prepared.publicCommit]);
   }, 60_000);
@@ -198,7 +205,7 @@ describe('signed public Pages publication and rollback operator', () => {
     const preparedSecond = preparePublicPagesPublication({ ...second.common, sourceRoot: second.source });
     let remoteSecond = second.parent;
     const oldIndex = readFileSync(join(second.publicRoot, 'index.html'));
-    const collidingPath = join(second.publicRoot, 'models/keep.glb');
+    const collidingPath = join(second.publicRoot, 'ptr/models/keep.glb');
     const secondOptions = { ...second.common, expectedPublicCommit: preparedSecond.publicCommit,
       readRemoteHead: () => remoteSecond,
       pushCommit: (_root: string, commit: string) => {

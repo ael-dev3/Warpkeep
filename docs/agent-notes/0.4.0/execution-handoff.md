@@ -1,5 +1,37 @@
 # Continue Warpkeep 0.4
 
+## Shipping continuation — 28 September 2026, 05:29 CEST (03:29 UTC)
+
+PR #374 now carries a source-pinned GitHub Pages candidate path at `/ptr/`, so
+the 0.4 owner PTR can coexist with the Alpha at `/`. This supersedes the older
+root-replacement proposal below; never publish an earlier root-targeted plan.
+The versioned mirror plan records every existing Alpha generated/host file and
+its digest, builds only the PTR payload under `ptr/`, refreshes provenance
+documents, and pins the preserved-root inventory. The signed publication
+operator reads preserved blobs from the reviewed public parent, verifies the
+complete new tree and PTR fallback, and retains the exact-parent rollback. Live
+postflight verifies all PTR files, the Alpha index/404/Farcaster manifest and
+the root assets referenced by the Alpha HTML; it compares every preserved root
+file against the publication parent before network checks.
+
+The public `Warpkeep-Live` checkout remains unchanged at `b6afe92e`. Its current
+352-file Alpha tree is 124,665,064 bytes (118.89 MiB); the existing local dist
+was 124,859,424 bytes (119.08 MiB). The publication/postflight tree cap is
+320 MiB to fit the preserved root plus the payload's existing 150 MiB maximum.
+The candidate workflow is configured to build with `/ptr/` and binds its saved
+payload manifest and asset paths to that prefix; the separate sealed G002 lane
+retains its root base.
+
+Verification on this source passed the focused publisher/payload/postflight
+groups (**37 tests**), another selected payload/planner/config/sealed-launch run
+(**23 passed; unrelated cases filtered**), TypeScript build mode, Node syntax
+checks and `git diff --check`. The live root HTML's five application assets
+also pass the independent root asset parser. No public repository mutation or
+PTR deployment has occurred. After syncing this change, recheck GitHub's exact
+PR head and Verify; the most recent hosted run still stopped before runner
+allocation on the Actions payment/spending-limit gate. The PTR backend bindings,
+final source approval, live publication and owner PTR play remain pending.
+
 ## Exact-head shipping checkpoint — 28 September 2026, 04:38 CEST (02:38 UTC)
 
 The maintained checkout and `origin/fix/g001-census-admission-proxy` were clean

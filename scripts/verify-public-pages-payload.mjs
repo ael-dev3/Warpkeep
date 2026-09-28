@@ -38,6 +38,7 @@ import { rootAssetUrls } from './verify-alpha-production.mjs';
 const SOURCE_SHA = /^[a-f0-9]{40}$/u;
 const CANONICAL_ORIGIN = 'https://warpkeep.com';
 const MANIFEST_PATH = 'artifacts/delivery/0.4.0/public-pages-payload-v1.json';
+const PUBLICATION_PATHS = new Set(['/', '/ptr/']);
 const MAX_FILES = 20_000;
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 150 * 1024 * 1024;
@@ -252,7 +253,7 @@ function createJavascriptParser() {
   });
 }
 
-function inspectDist(distRoot, expectedSourceCommit) {
+function inspectDist(distRoot, expectedSourceCommit, publicationPath) {
   const rootStatus = lstatSync(distRoot, { bigint: true });
   if (
     !rootStatus.isDirectory()
@@ -341,11 +342,11 @@ function inspectDist(distRoot, expectedSourceCommit) {
     !indexHtml.includes('<link rel="canonical" href="https://warpkeep.com/"')
     || !indexHtml.includes('<meta property="og:url" content="https://warpkeep.com/"')
   ) fail('PUBLIC_PAGES_PAYLOAD_ORIGIN_INVALID');
-  const rootAssets = rootAssetUrls(indexHtml, CANONICAL_ORIGIN);
+  const rootAssets = rootAssetUrls(indexHtml, CANONICAL_ORIGIN, publicationPath);
   const reachable = new Set();
   const pending = rootAssets
     .filter(asset => asset.pathname.endsWith('.js'))
-    .map(asset => asset.pathname.slice(1));
+    .map(asset => asset.pathname.slice(publicationPath.length));
   while (pending.length > 0) {
     const path = pending.pop();
     if (reachable.has(path)) continue;
@@ -364,7 +365,7 @@ function inspectDist(distRoot, expectedSourceCommit) {
     rootAssets.some(asset => (
       asset.search !== ''
       || asset.hash !== ''
-      || !knownPaths.has(asset.pathname.slice(1))
+      || !knownPaths.has(asset.pathname.slice(publicationPath.length))
     ))
     || ![...reachable].some(path => shaBearingScripts.has(path))
   ) fail('PUBLIC_PAGES_PAYLOAD_BUILD_IDENTITY_INVALID');
@@ -378,11 +379,14 @@ function inspectDist(distRoot, expectedSourceCommit) {
 }
 
 /** Candidate-only local inspection. This does not grant release or deployment authority. */
-export function verifyPublicPagesPayload({ repositoryRoot, expectedSourceCommit }) {
+export function verifyPublicPagesPayload({
+  repositoryRoot, expectedSourceCommit, publicationPath = '/',
+}) {
+  if (!PUBLICATION_PATHS.has(publicationPath)) fail('PUBLIC_PAGES_PAYLOAD_PUBLICATION_PATH_INVALID');
   const source = sourceIdentity(repositoryRoot, expectedSourceCommit);
   const distRoot = join(source.root, 'dist');
   verifyProductionDistExclusions(distRoot);
-  const content = inspectDist(distRoot, source.sourceCommit);
+  const content = inspectDist(distRoot, source.sourceCommit, publicationPath);
   // A changed source or index during scanning invalidates the candidate.
   const after = sourceIdentity(repositoryRoot, expectedSourceCommit);
   if (after.sourceTree !== source.sourceTree) {
@@ -394,7 +398,7 @@ export function verifyPublicPagesPayload({ repositoryRoot, expectedSourceCommit 
     canonicalOrigin: CANONICAL_ORIGIN,
     sourceCommit: source.sourceCommit,
     sourceTree: source.sourceTree,
-    publicationPath: '/',
+    publicationPath,
     fileCount: content.entries.length,
     totalByteLength: content.totalByteLength,
     rootHtmlSha256: content.rootHtmlSha256,
@@ -473,17 +477,21 @@ export function checkPublicPagesPayloadManifest(options) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
-    if (
-      process.argv.length !== 4
-      || !['--write', '--check'].includes(process.argv[2])
-      || !SOURCE_SHA.test(process.argv[3])
-    ) fail('PUBLIC_PAGES_PAYLOAD_ARGUMENT_INVALID');
+    const mode = process.argv[2];
+    const sourceCommit = process.argv[3];
+    let publicationPath = '/';
+    if (process.argv.length === 6 && process.argv[4] === '--publication-path') {
+      publicationPath = process.argv[5];
+    } else if (process.argv.length !== 4) fail('PUBLIC_PAGES_PAYLOAD_ARGUMENT_INVALID');
+    if (!['--write', '--check'].includes(mode) || !SOURCE_SHA.test(sourceCommit ?? '')
+      || !PUBLICATION_PATHS.has(publicationPath)) fail('PUBLIC_PAGES_PAYLOAD_ARGUMENT_INVALID');
     const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
     const options = {
       repositoryRoot,
-      expectedSourceCommit: process.argv[3],
+      expectedSourceCommit: sourceCommit,
+      publicationPath,
     };
-    const result = process.argv[2] === '--write'
+    const result = mode === '--write'
       ? writePublicPagesPayloadManifest(options)
       : checkPublicPagesPayloadManifest(options);
     process.stdout.write(`${JSON.stringify(result)}\n`);

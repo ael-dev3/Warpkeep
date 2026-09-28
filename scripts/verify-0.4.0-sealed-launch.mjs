@@ -4047,6 +4047,7 @@ function verifyPagesTwoPhaseBoundary(sources) {
   );
   for (const token of [
     "needs.classify.outputs.deployment-lane == 'public-mirror-candidate'",
+    "DEPLOY_BASE: '/ptr/'",
     "VITE_WARPKEEP_PTR_ENABLED: 'true'",
     'VITE_PTR_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}',
     '[[ "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" != \'true\' ]]',
@@ -4057,8 +4058,8 @@ function verifyPagesTwoPhaseBoundary(sources) {
     'npm run verify:admission-request-suspension',
     'npm run build',
     'npm run verify:miniapp:release',
-    'node scripts/verify-public-pages-payload.mjs --write "$WARPKEEP_PUBLIC_SOURCE_COMMIT"',
-    'node scripts/verify-public-pages-payload.mjs --check "$WARPKEEP_PUBLIC_SOURCE_COMMIT"',
+    'node scripts/verify-public-pages-payload.mjs --write "$WARPKEEP_PUBLIC_SOURCE_COMMIT" --publication-path /ptr/',
+    'node scripts/verify-public-pages-payload.mjs --check "$WARPKEEP_PUBLIC_SOURCE_COMMIT" --publication-path /ptr/',
   ]) {
     if (!build.includes(token)) fail('SEALED_LAUNCH_PAGES_BUILD_GATE_INVALID');
   }

@@ -24,9 +24,10 @@ import {
 const COMMIT = /^[a-f0-9]{40}$/u;
 const PUBLIC_ORIGIN = 'https://github.com/ael-dev3/Warpkeep-Live.git';
 const PAYLOAD_MANIFEST = 'artifacts/delivery/0.4.0/public-pages-payload-v1.json';
-const REVIEWED_PLAN = 'artifacts/delivery/0.4.0/public-pages-mirror-plan-v1.json';
+const REVIEWED_PLAN = 'artifacts/delivery/0.4.0/public-pages-ptr-mirror-plan-v1.json';
 export const PUBLIC_PAGES_MIRROR_MANIFEST_PATH =
-  'docs/releases/0.4.0/public-pages-payload-v1.json';
+  'docs/releases/0.4.0/public-pages-ptr-payload-v1.json';
+const PTR_PREFIX = 'ptr/';
 const HOST_FILES = new Set(['.nojekyll', '404.html', 'CNAME']);
 const GENERATED_ROOT_FILES = new Set([
   'apple-touch-icon-180-fe27e8dc1c97cc36.png',
@@ -88,11 +89,17 @@ function safeRelativePath(path) {
   return path.length <= 1024
     && !/[^\x20-\x7e]/u.test(path)
     && !path.includes('\\')
-    && path.split('/').every(segment => /^[A-Za-z0-9._-]+$/u.test(segment));
+    && path.split('/').every(segment => segment !== '.' && segment !== '..'
+      && /^[A-Za-z0-9._-]+$/u.test(segment));
 }
 
 export function generatedPath(path) {
   if (!safeRelativePath(path)) return false;
+  if (path === 'ptr/404.html') return true;
+  if (path.startsWith(PTR_PREFIX)) {
+    const nestedPath = path.slice(PTR_PREFIX.length);
+    return !nestedPath.startsWith(PTR_PREFIX) && generatedPath(nestedPath);
+  }
   if (!path.includes('/')) return GENERATED_ROOT_FILES.has(path);
   const parts = path.split('/');
   if (!GENERATED_DIRECTORIES.has(parts[0])) return false;
@@ -179,6 +186,12 @@ export function inspectPublicMirror(publicRoot, expectedPublicHead) {
     || readFileSync(join(root, '.nojekyll')).length !== 0
     || !readFileSync(join(root, '404.html')).equals(readFileSync(join(root, 'index.html')))
   ) fail('PUBLIC_PAGES_MIRROR_HOSTING_INVALID');
+  if (seen.has('ptr/index.html') !== seen.has('ptr/404.html')
+    || ([...seen].some(path => path.startsWith(PTR_PREFIX)) && !seen.has('ptr/index.html'))
+    || (seen.has('ptr/index.html')
+      && !readFileSync(join(root, 'ptr/404.html')).equals(readFileSync(join(root, 'ptr/index.html'))))) {
+    fail('PUBLIC_PAGES_MIRROR_HOSTING_INVALID');
+  }
   // Git status can hide a tracked edit via assume-unchanged. Fail unless a
   // full working-tree comparison also confirms the reviewed public commit.
   git(root, ['-c', 'core.fsmonitor=false', '-c', 'core.untrackedCache=false',
@@ -195,15 +208,17 @@ export function renderPublicPagesMirrorReadme(manifest, manifestSha256) {
   ) fail('PUBLIC_PAGES_MIRROR_README_INPUT_INVALID');
   return Buffer.from(
     '# Warpkeep Live\n\n'
-    + 'This public repository hosts the generated Warpkeep 0.4 owner PTR frontend '
-    + 'at https://warpkeep.com/. The development source and release controls remain '
+    + 'This public repository keeps the existing Warpkeep Alpha at https://warpkeep.com/ '
+    + 'and hosts the generated Warpkeep 0.4 owner PTR under https://warpkeep.com/ptr/. '
+    + 'The development source and release controls remain '
     + 'in the private `ael-dev3/Warpkeep` repository.\n\n'
     + `Source commit: \`${manifest.sourceCommit}\`  \n`
     + `Source tree: \`${manifest.sourceTree}\`  \n`
     + `Payload manifest SHA-256: \`${manifestSha256}\`\n\n`
     + 'This repository contains generated public assets and their license and '
-    + 'provenance records. The PTR is owner-only; publication of these files does '
-    + 'not open admissions or establish backend access.\n',
+    + 'provenance records. PTR publication preserves the Alpha root files byte for '
+    + 'byte. The PTR is owner-only; publication of these files does not open '
+    + 'admissions or establish backend access.\n',
     'utf8',
   );
 }
@@ -214,33 +229,51 @@ export function verifyPublicPagesMirrorPlan({
   expectedSourceCommit,
   publicRoot,
   expectedPublicHead,
+  publicationPath = '/ptr/',
 }) {
+  if (publicationPath !== '/ptr/') fail('PUBLIC_PAGES_MIRROR_PUBLICATION_PATH_INVALID');
   const mirror = inspectPublicMirror(publicRoot, expectedPublicHead);
   checkPublicPagesPayloadManifest({
     repositoryRoot: sourceRoot,
     expectedSourceCommit,
+    publicationPath,
   });
   const payload = verifyPublicPagesPayload({
     repositoryRoot: sourceRoot,
     expectedSourceCommit,
+    publicationPath,
   });
   const manifestBytes = readFileSync(join(resolve(sourceRoot), PAYLOAD_MANIFEST));
   if (!manifestBytes.equals(payload.bytes)) fail('PUBLIC_PAGES_MIRROR_PAYLOAD_CHANGED');
-  const entries = new Map(payload.manifest.files.map(entry => [entry.path, Object.freeze({
-    path: entry.path,
-    byteLength: entry.byteLength,
-    sha256: entry.sha256,
-    origin: 'generated',
-  })]));
-  const index = entries.get('index.html');
+  const entries = new Map();
+  for (const path of mirror.tracked) {
+    if (path.startsWith(PTR_PREFIX) || path === 'README.md'
+      || SOURCE_PUBLIC_DOCUMENTS.includes(path) || path === PUBLIC_PAGES_MIRROR_MANIFEST_PATH) continue;
+    if (!generatedPath(path) && !HOST_FILES.has(path)) continue;
+    const bytes = readFileSync(join(mirror.root, path));
+    entries.set(path, Object.freeze({
+      path,
+      byteLength: bytes.length,
+      sha256: sha256(bytes),
+      origin: 'preserved-existing',
+    }));
+  }
+  for (const entry of payload.manifest.files) {
+    const path = `${PTR_PREFIX}${entry.path}`;
+    if (entries.has(path)) fail('PUBLIC_PAGES_MIRROR_TARGET_COLLISION');
+    entries.set(path, Object.freeze({
+      path,
+      byteLength: entry.byteLength,
+      sha256: entry.sha256,
+      origin: 'generated',
+    }));
+  }
   const publicReadme = renderPublicPagesMirrorReadme(
     payload.manifest,
     sha256(manifestBytes),
   );
   for (const [path, bytes] of [
-    ['.nojekyll', Buffer.alloc(0)],
-    ['404.html', readFileSync(join(resolve(sourceRoot), 'dist/index.html'))],
-    ['CNAME', Buffer.from('warpkeep.com\n')],
+    ['ptr/404.html', readFileSync(join(resolve(sourceRoot), 'dist/index.html'))],
     [PUBLIC_PAGES_MIRROR_MANIFEST_PATH, manifestBytes],
     ['README.md', publicReadme],
   ]) {
@@ -249,7 +282,8 @@ export function verifyPublicPagesMirrorPlan({
       path, byteLength: bytes.length, sha256: sha256(bytes), origin: 'hosting',
     }));
   }
-  if (entries.get('404.html').sha256 !== index.sha256) {
+  if (entries.get('ptr/404.html').sha256
+    !== entries.get('ptr/index.html')?.sha256) {
     fail('PUBLIC_PAGES_MIRROR_PAYLOAD_CHANGED');
   }
   for (const path of SOURCE_PUBLIC_DOCUMENTS) {
@@ -279,17 +313,22 @@ export function verifyPublicPagesMirrorPlan({
     fail('PUBLIC_PAGES_MIRROR_TARGET_COLLISION');
   }
   return Object.freeze({
-    schemaVersion: 1,
-    profile: 'warpkeep-public-pages-mirror-plan-v1',
+    schemaVersion: 2,
+    profile: 'warpkeep-public-pages-ptr-mirror-plan-v1',
+    publicationPath,
     sourceCommit: payload.manifest.sourceCommit,
     sourceTree: payload.manifest.sourceTree,
     publicParentCommit: expectedPublicHead,
     publicParentTree: mirror.publicTree,
     payloadManifestSha256: sha256(manifestBytes),
+    preservedRootEntryCount: sortedEntries.filter(entry => entry.origin === 'preserved-existing').length,
+    preservedRootManifestSha256: sha256(Buffer.from(JSON.stringify(
+      sortedEntries.filter(entry => entry.origin === 'preserved-existing'),
+    ))),
     targetFileCount: sortedEntries.length,
     targetEntries: Object.freeze(sortedEntries),
     obsoleteGeneratedPaths: Object.freeze(mirror.tracked.filter(path => (
-      generatedPath(path) && !entries.has(path)
+      path.startsWith(PTR_PREFIX) && generatedPath(path) && !entries.has(path)
     )).sort()),
   });
 }
@@ -327,6 +366,9 @@ export function writePublicPagesMirrorPlan(options) {
   }
   return Object.freeze({ path: output, planSha256: sha256(bytes),
     sourceCommit: plan.sourceCommit, publicParentCommit: plan.publicParentCommit,
+    publicationPath: plan.publicationPath,
+    preservedRootEntryCount: plan.preservedRootEntryCount,
+    preservedRootManifestSha256: plan.preservedRootManifestSha256,
     targetFileCount: plan.targetFileCount,
     obsoleteGeneratedFileCount: plan.obsoleteGeneratedPaths.length });
 }
@@ -338,7 +380,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       || process.argv[2] !== '--public-root'
       || !COMMIT.test(process.argv[4] ?? '')
       || !COMMIT.test(process.argv[5] ?? '')
-      || (process.argv.length === 7 && process.argv[6] !== '--write-plan')
+        || (process.argv.length === 7 && process.argv[6] !== '--write-plan')
     ) fail('PUBLIC_PAGES_MIRROR_ARGUMENT_INVALID');
     const options = {
       sourceRoot: resolve(dirname(fileURLToPath(import.meta.url)), '..'),
@@ -352,9 +394,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       const plan = verifyPublicPagesMirrorPlan(options);
       process.stdout.write(`${JSON.stringify({
         profile: plan.profile,
+        publicationPath: plan.publicationPath,
         sourceCommit: plan.sourceCommit,
         publicParentCommit: plan.publicParentCommit,
         payloadManifestSha256: plan.payloadManifestSha256,
+        preservedRootEntryCount: plan.preservedRootEntryCount,
+        preservedRootManifestSha256: plan.preservedRootManifestSha256,
         targetFileCount: plan.targetFileCount,
         obsoleteGeneratedFileCount: plan.obsoleteGeneratedPaths.length,
       })}\n`);
