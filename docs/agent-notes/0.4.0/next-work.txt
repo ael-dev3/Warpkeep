@@ -1,8 +1,8 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 21:25 CEST (19:25 UTC).
+Source/GitHub check: 21:29 CEST (19:29 UTC).
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 21:25 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 21:29 CEST
 
 September GitHub Actions pause honored: no Actions workflow was dispatched,
 queried or used. Signed QA-source correction `12f7ba60` is included in open PR
@@ -42,12 +42,13 @@ NEXT ACTIONS
    run GitHub Actions in September.
 2. Review incoming Warpkeep and Warpkeep-Assets pull requests against the 0.4
    scope, rights, mobile transfer/playback and performance evidence before
-   integrating them. Current decisions: Warpkeep #376's large castle-film
-   addition and #377's Genesis 002 soundtrack remain deferred for mobile
-   delivery/playback and sealed scope/rights review; #378's biome-tree source is
-   already integrated in the candidate, while its PR remains open. Assets #39
-   remains a source-archive proposal, #40 is study-only until packed-image rights
-   are verified, and #41 needs its published v3 attachment plus local mobile
+   integrating them. Current decisions: menu PR #375 and biome-tree PR #378 are
+   already integrated in candidate #374; leave #375 open for provenance and
+   close it as superseded only after #374 lands. Warpkeep #376's large
+   castle-film addition and #377's Genesis 002 soundtrack remain deferred for
+   mobile delivery/playback and sealed scope/rights review. Assets #39 remains a
+   source-archive proposal, #40 is study-only until packed-image rights are
+   verified, and #41 needs its published v3 attachment plus local mobile
    budget/integration checks. Do not treat an open PR as an approved asset.
 3. Resolve the exact-source native M1/M2 preparation and backend deploy/readback
    prerequisites using the existing supported environment and credentials.

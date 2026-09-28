@@ -43,40 +43,44 @@ on a desktop. Reused assets retain their original credits and permissions.
 **The existing Alpha 0.3.43 is live; 0.4 has not shipped.** The owner confirmed
 a successful phone-approved sign-in after the Alpha QR RPC repair; the
 [timestamped incident report](docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md)
-records the evidence limits. The reviewed Verdant Citadel menu, source fixes,
-and mobile model optimization are in the open 0.4 candidate,
-[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374). Its current local
-production build for `/ptr/` passed with Node 22.23.2, and the exact-source
-payload check covered 369 files totaling 131,605,137 bytes. A 390×844 Chrome
-capture reached model-ready with a visible canvas and no console warnings; its
-measured resource waterfall was 3,738,720 bytes. The castle and guardian
-runtime models now total 1,036,412 bytes, down from 6,814,140 bytes for their
-preserved sources. These are local synthetic checks, not a deployment or
-physical-phone acceptance.
+records the evidence limits. The reviewed Verdant Citadel menu and native
+Hegemony banners from [PR #375](https://github.com/ael-dev3/Warpkeep/pull/375)
+are already integrated into the open 0.4 candidate,
+[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374), together with the
+mobile/WebGL corrections and the reviewed Greater Realm tree presentation from
+[#378](https://github.com/ael-dev3/Warpkeep/pull/378). PR #375 remains open as
+source provenance; its older branch must not be merged separately. The candidate
+is a polished visual foundation around the existing gather, dispatch, return
+and construction loop.
 
-The read-only `/ptr/` mirror plan was verified against the current public
-`Warpkeep-Live` head [`b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad).
-It preserves 341 existing Alpha root files and proposes a 723-file target
-tree; no files were published. `https://warpkeep.com/` remains HTTP 200 and
-`https://warpkeep.com/ptr/` remains HTTP 404. The exact-head
-[Verify run 36389656795](https://github.com/ael-dev3/Warpkeep/actions/runs/36389656795)
-failed before runner allocation because GitHub reports failed account payments
-or an Actions spending limit. Its jobs contain no test steps, so this is not a
-source-test result. Resolve the billing gate and rerun Verify on the live PR
-head before protected integration or publication. The public mirror plan is
-preparation only; it does not bypass the remaining realm, provider, owner-PTR
-and release checks. PR #375 overlaps the integrated menu; #376's large
-castle-film action and #377's Genesis 002 soundtrack remain outside the initial
-PTR candidate pending mobile, realm-scope and rights review. See the dated
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) and
-[delivery status](docs/operations/0.4.0-live-delivery-status.md) for current
-evidence and remaining release work.
+Local Windows verification on September 28 passed the disposable full-stack
+journey across six desktop/mobile profiles and the complete rendered-WebGL
+matrix across 15 cases. The production build also passed asset integrity,
+production exclusion, public-boundary and Farcaster Mini App checks. The
+`RealmMapScreen` bundle remains 747.62 kB (202.35 kB gzip), a measured mobile
+load follow-up. These are local synthetic checks; they do not establish live
+provider state, physical-phone comfort, or release acceptance. The owner has
+paused GitHub Actions for September, so this checkpoint makes no hosted-check
+claim.
 
-Provider deployment, accepted G001 preservation/readback, sealed G002 evidence,
-owner PTR play, mobile and measured-performance acceptance, and final release
-freeze still need current evidence. The owner PTR is mandatory for the initial
-0.4 ship; live admissions servers are not. The [release checklist](docs/operations/0.4.0-release-checklist.md)
-tracks the evidence required to make that distinction concrete.
+The public root serves Alpha 0.3.43 (HTTP 200), while
+`https://warpkeep.com/ptr/` returns HTTP 404. No 0.4 PTR has been published.
+After the September pause, Verify must pass on the exact candidate head before
+source M1 integration. Native preparation and independent checking then run on
+that exact main source; promote only the generated M2 and require its exact-head
+Verify before protected operations. Finish G001 preservation/readback, sealed
+G002 verification, PTR publication/readback, and owner acceptance on a phone.
+The initial 0.4 PTR is required; opening live admissions is not. The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md),
+[delivery status](docs/operations/0.4.0-live-delivery-status.md), and
+[release checklist](docs/operations/0.4.0-release-checklist.md) track the
+current evidence and gates.
+
+The large castle-film PR #376 and Genesis 002 soundtrack PR #377 remain deferred
+pending mobile delivery/playback, sealed-scope and rights review. Warpkeep-Assets
+PR #39 proposes a source archive; #40 is a study reference pending packed-image
+rights verification; #41 needs its published model attachment and local mobile
+budget/integration checks. None is required for the current candidate to keep
+its reviewed tree presentation.
 
 | Realm | Purpose |
 | --- | --- |
