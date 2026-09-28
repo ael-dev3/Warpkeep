@@ -2,11 +2,16 @@ import { describe, expect, it } from 'vitest';
 
 import { POINTY_TOP_AXIAL_DIRECTIONS, axialToWorld } from '../src/game/map/hexCoordinates';
 import {
+  biomeTreeGeometryBytes,
+  biomeTreeTriangleCount
+} from '../src/greater-realm/biomeTreeGeometry';
+import {
   GREATER_REALM_SYNTHETIC_REVISION,
   GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE,
   createGreaterRealmSyntheticTransport
 } from '../src/dev/greaterRealmSyntheticTierOneFixture';
 import {
+  GREATER_REALM_HYDRO_REGIME,
   GREATER_REALM_TRAVEL_CLASS,
   decodeGreaterRealmChunkDto,
   greaterRealmCoordinateKey
@@ -18,6 +23,51 @@ import {
 import { GREATER_REALM_GRAPHICS_BUDGETS } from '../src/greater-realm/greaterRealmRuntimePolicy';
 
 describe('Greater Realm presentation plan', () => {
+  it('budgets distinct low-poly tree shapes by biome without dressing water', () => {
+    const source = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0];
+    const baseline = createGreaterRealmChunkPresentationPlan({
+      chunk: source, graphicsProfile: 'reduced', cellSize: 1
+    });
+    const raw = structuredClone(source) as any;
+    const savanna = raw.coreCells.find((cell: any) => (
+      cell.atlasQ === -2 && cell.atlasR === 1
+    ));
+    savanna.biomeClass = 9;
+    const mixed = createGreaterRealmChunkPresentationPlan({
+      chunk: decodeGreaterRealmChunkDto(raw), graphicsProfile: 'reduced', cellSize: 1
+    });
+    const canopy = mixed.actors.filter((actor) => actor.kind === 'canopy');
+
+    expect(new Set(canopy.map((actor) => actor.biomeClass))).toEqual(new Set([3, 9]));
+    expect(canopy.find((actor) => actor.id.startsWith(`${savanna.cellKey}/canopy/`)))
+      .toMatchObject({ biomeClass: 9, triangleCount: biomeTreeTriangleCount(9, 'reduced') });
+    expect(mixed.drawCallCount).toBe(baseline.drawCallCount + 1);
+    expect(mixed.estimatedUploadBytes).toBe(
+      baseline.estimatedUploadBytes + biomeTreeGeometryBytes(9, 'reduced')
+    );
+
+    // Even a malformed positive canopy value on a river must not create a tree.
+    const waterRaw = structuredClone(source) as any;
+    const river = waterRaw.coreCells.find((cell: any) => (
+      cell.hydroRegime === GREATER_REALM_HYDRO_REGIME.RIVER
+    ));
+    river.biomeClass = 22;
+    river.canopyBasisPoints = 4_200;
+    const unclassified = waterRaw.coreCells.find((cell: any) => (
+      cell.atlasQ === -3 && cell.atlasR === 0
+    ));
+    unclassified.biomeClass = 0;
+    const noTree = createGreaterRealmChunkPresentationPlan({
+      chunk: decodeGreaterRealmChunkDto(waterRaw), graphicsProfile: 'reduced', cellSize: 1
+    });
+    expect(noTree.actors.some((actor) => actor.id.startsWith(`${river.cellKey}/canopy/`)))
+      .toBe(false);
+    expect(noTree.actors.some((actor) => actor.id.startsWith(`${unclassified.cellKey}/canopy/`)))
+      .toBe(false);
+    expect(noTree.drawCallCount).toBe(baseline.drawCallCount);
+    expect(noTree.instanceCount).toBe(baseline.instanceCount - 1);
+  });
+
   it('assigns a distinct public presentation palette to every Tier-I zone', () => {
     const rows = Object.values(GREATER_REALM_TIER_ONE_REGION_PRESENTATION);
     expect(rows).toHaveLength(6);

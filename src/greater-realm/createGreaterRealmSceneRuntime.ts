@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 
+import { createBiomeTreeGeometry } from './biomeTreeGeometry';
 import { createGreaterRealmWaterSurface, type GreaterRealmWaterSurface } from './greaterRealmWaterSurface';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -657,8 +658,7 @@ function resourceMeshes(plan: GreaterRealmChunkPresentationPlan, groundPosition:
   return Object.freeze(meshes);
 }
 
-function actorGeometry(kind: GreaterRealmPresentationActor['kind']) {
-  if (kind === 'canopy') return new THREE.ConeGeometry(0.075, 0.38, 5);
+function actorGeometry(kind: Exclude<GreaterRealmPresentationActor['kind'], 'canopy'>) {
   if (kind === 'grass') return new THREE.ConeGeometry(0.035, 0.16, 3);
   if (kind === 'flower') return new THREE.ConeGeometry(0.025, 0.12, 4);
   if (kind === 'npc') return new THREE.CylinderGeometry(0.055, 0.075, 0.28, 5);
@@ -666,8 +666,7 @@ function actorGeometry(kind: GreaterRealmPresentationActor['kind']) {
   return new THREE.BoxGeometry(0.24, 0.07, 0.1);
 }
 
-function actorColor(kind: GreaterRealmPresentationActor['kind']) {
-  if (kind === 'canopy') return '#496c46';
+function actorColor(kind: Exclude<GreaterRealmPresentationActor['kind'], 'canopy'>) {
   if (kind === 'grass') return '#6d8b50';
   if (kind === 'flower') return '#d7bd72';
   if (kind === 'npc') return '#8a654f';
@@ -675,7 +674,11 @@ function actorColor(kind: GreaterRealmPresentationActor['kind']) {
   return '#835f45';
 }
 
-function actorMeshes(plan: GreaterRealmChunkPresentationPlan, groundPosition: GroundPosition) {
+function actorMeshes(
+  plan: GreaterRealmChunkPresentationPlan,
+  groundPosition: GroundPosition,
+  graphicsProfile: GreaterRealmGraphicsProfile
+) {
   const refs: ActorRenderRef[] = [];
   const meshes: THREE.InstancedMesh[] = [];
   const matrix = new THREE.Matrix4();
@@ -686,24 +689,47 @@ function actorMeshes(plan: GreaterRealmChunkPresentationPlan, groundPosition: Gr
   for (const kind of ['canopy', 'grass', 'flower', 'npc', 'wildlife', 'boat'] as const) {
     const actors = plan.actors.filter((actor) => actor.kind === kind);
     if (actors.length === 0) continue;
-    const geometry = actorGeometry(kind);
-    const material = new THREE.MeshStandardMaterial({
-      color: actorColor(kind), roughness: 0.88, fog: true
-    });
-    const mesh = new THREE.InstancedMesh(geometry, material, actors.length);
-    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    mesh.name = `greater-realm-${kind}:${plan.chunkHandle}`;
-    mesh.raycast = () => {};
-    actors.forEach((actor, index) => {
-      const grounded = kind === 'boat' ? actor.position : groundPosition(actor.position);
-      position.set(grounded.x, grounded.y, grounded.z);
-      quaternion.setFromAxisAngle(up, actor.headingRadians);
-      matrix.compose(position, quaternion, scale);
-      mesh.setMatrixAt(index, matrix);
-      refs.push(Object.freeze({ actor, groundPosition: grounded, mesh, index }));
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    meshes.push(mesh);
+    // One instanced batch per present tree biome keeps each authored silhouette
+    // distinct without multiplying a draw call for every individual canopy.
+    const batches = kind === 'canopy'
+      ? [...new Set(actors.map((actor) => actor.biomeClass))]
+        .sort((left, right) => (left ?? -1) - (right ?? -1))
+        .map((biomeClass) => ({
+          biomeClass,
+          actors: actors.filter((actor) => actor.biomeClass === biomeClass)
+        }))
+      : [{ biomeClass: undefined, actors }];
+    for (const batch of batches) {
+      if (kind === 'canopy' && batch.biomeClass === undefined) {
+        throw new Error('GREATER_REALM_CANOPY_BIOME_MISSING');
+      }
+      const geometry = kind === 'canopy'
+        ? createBiomeTreeGeometry(batch.biomeClass!, graphicsProfile)
+        : actorGeometry(kind);
+      const material = new THREE.MeshStandardMaterial({
+        color: kind === 'canopy' ? '#ffffff' : actorColor(kind),
+        vertexColors: kind === 'canopy',
+        side: kind === 'canopy' ? THREE.DoubleSide : THREE.FrontSide,
+        roughness: 0.88,
+        fog: true
+      });
+      const mesh = new THREE.InstancedMesh(geometry, material, batch.actors.length);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.name = kind === 'canopy'
+        ? `greater-realm-canopy-biome-${batch.biomeClass}:${plan.chunkHandle}`
+        : `greater-realm-${kind}:${plan.chunkHandle}`;
+      mesh.raycast = () => {};
+      batch.actors.forEach((actor, index) => {
+        const grounded = kind === 'boat' ? actor.position : groundPosition(actor.position);
+        position.set(grounded.x, grounded.y, grounded.z);
+        quaternion.setFromAxisAngle(up, actor.headingRadians);
+        matrix.compose(position, quaternion, scale);
+        mesh.setMatrixAt(index, matrix);
+        refs.push(Object.freeze({ actor, groundPosition: grounded, mesh, index }));
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      meshes.push(mesh);
+    }
   }
   return Object.freeze({ meshes: Object.freeze(meshes), refs: Object.freeze(refs) });
 }
@@ -781,7 +807,11 @@ function disposeObject(root: THREE.Object3D) {
   materials.forEach((material) => material.dispose());
 }
 
-function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRenderResource {
+function buildChunkResource(
+  selected: SelectedChunk,
+  cellSize: number,
+  graphicsProfile: GreaterRealmGraphicsProfile
+): ChunkRenderResource {
   const group = new THREE.Group();
   group.name = `greater-realm-chunk:${selected.plan.chunkHandle}:lod${selected.plan.lod}`;
   const voxelFallbackReasons: string[] = [];
@@ -828,7 +858,7 @@ function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRen
   voxelQuadCount += voxelFeatures.quadCount;
   voxelUploadBytes += voxelFeatures.uploadBytes;
   voxelLayerCount += voxelFeatures.voxelLayerCount;
-  const actors = actorMeshes(selected.plan, groundPosition);
+  const actors = actorMeshes(selected.plan, groundPosition, graphicsProfile);
   actors.meshes.forEach((mesh) => group.add(mesh));
   resourceMeshes(selected.plan, groundPosition).forEach((mesh) => group.add(mesh));
   const boundary = boundaryMesh(selected.plan);
@@ -863,7 +893,7 @@ function planSignature(plan: GreaterRealmChunkPresentationPlan) {
     plan.voxelTerrainFallbackReason ?? '',
     plan.voxelPrefabFallbackReasons.map((row) => `${row.kind}:${row.reason}`).join(','),
     plan.terrainCells.length, plan.sealedEdges.length,
-    plan.actors.map((actor) => actor.id).join(','),
+    plan.actors.map((actor) => `${actor.id}:${actor.biomeClass ?? ''}`).join(','),
     plan.features.map((feature) => feature.id).join(','),
     plan.boatLanes.map((lane) => `${lane.fromCoordinateKey}>${lane.toCoordinateKey}`).join(',')
   ].join('|');
@@ -1500,7 +1530,7 @@ export function createGreaterRealmSceneRuntime(
           pending.delete(row.plan.chunkHandle);
           continue;
         }
-        const resource = buildChunkResource(row, cellSize);
+        const resource = buildChunkResource(row, cellSize, options.graphicsProfile);
         // Uploads can render between capped ambient ticks. Match resident chunks immediately.
         resource.waterSurfaces.forEach((surface) => surface.update(waterVisualTime));
         uploaded.set(row.plan.chunkHandle, resource);

@@ -1,5 +1,10 @@
 import { POINTY_TOP_AXIAL_DIRECTIONS, axialToWorld } from '../game/map/hexCoordinates';
 import {
+  biomeTreeGeometryBytes,
+  biomeTreeTriangleCount,
+  isTreeBiome
+} from './biomeTreeGeometry';
+import {
   createGreaterRealmVoxelPrefabPlan,
   createGreaterRealmVoxelTerrainFallbackPlan,
   createGreaterRealmVoxelTerrainPlan,
@@ -29,6 +34,8 @@ export type GreaterRealmPresentationPosition = Readonly<{ x: number; y: number; 
 export type GreaterRealmPresentationActor = Readonly<{
   id: string;
   kind: 'canopy' | 'grass' | 'flower' | 'npc' | 'wildlife' | 'boat';
+  /** Visual-only source biome for a canopy's authored tree geometry. */
+  biomeClass?: number;
   position: GreaterRealmPresentationPosition;
   headingRadians: number;
   phase: number;
@@ -153,7 +160,6 @@ export type GreaterRealmActorAllowance = Readonly<{
  */
 const STATIC_GEOMETRY_BYTES = Object.freeze({
   crossing: 840,
-  canopy: 796,
   grass: 516,
   flower: 656,
   npc: 1_208,
@@ -301,6 +307,7 @@ function addActor(
   output.push(Object.freeze({
     id: `${cell.cellKey}/${kind}/${ordinal}`,
     kind,
+    ...(kind === 'canopy' ? { biomeClass: cell.biomeClass } : {}),
     position: Object.freeze({
       x: center.x + Math.sin(angle) * radius,
       y: center.y + (kind === 'boat' ? 0.035 : 0),
@@ -495,6 +502,7 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
   })));
   const limits = allowance(input.graphicsProfile, input.actorAllowance);
   const actors: GreaterRealmPresentationActor[] = [];
+  const canopyTriangleCounts = new Map<number, number>();
   let canopyCount = 0;
   let grassPatchCount = 0;
   let grassBladeCount = 0;
@@ -509,9 +517,18 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
     if (
       greaterRealmLodAllowsCanopy(input.chunk.lod)
       && cell.canopyBasisPoints > 0
+      && isTreeBiome(cell.biomeClass)
       && canopyCount < limits.canopy
     ) {
-      addActor(actors, cell, 'canopy', cellSize, canopyCount);
+      let triangleCount = canopyTriangleCounts.get(cell.biomeClass);
+      if (triangleCount === undefined) {
+        triangleCount = biomeTreeTriangleCount(cell.biomeClass, input.graphicsProfile);
+        canopyTriangleCounts.set(cell.biomeClass, triangleCount);
+      }
+      addActor(
+        actors, cell, 'canopy', cellSize, canopyCount,
+        0, triangleCount
+      );
       canopyCount += 1;
     }
     if (
@@ -572,6 +589,18 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
     cell.passable ? [] : [cell.coordinateKey]
   )));
   const actorKinds = new Set(actors.map((actor) => actor.kind));
+  const canopyBiomes = new Set(actors.flatMap((actor) => (
+    actor.kind === 'canopy' && actor.biomeClass !== undefined
+      ? [actor.biomeClass]
+      : []
+  )));
+  const actorDrawCalls = actorKinds.size - Number(actorKinds.has('canopy'))
+    + canopyBiomes.size;
+  const actorGeometryBytes = [...actorKinds].reduce((total, kind) => (
+    kind === 'canopy' ? total : total + STATIC_GEOMETRY_BYTES[kind]
+  ), 0) + [...canopyBiomes].reduce((total, biomeClass) => (
+    total + biomeTreeGeometryBytes(biomeClass, input.graphicsProfile)
+  ), 0);
   const featureKinds = new Set(features.map((feature) => feature.kind));
   const resourceKinds = new Set(resources.map((resource) => resource.kind));
   const occluderCells = input.occluderCells ?? cells;
@@ -619,7 +648,7 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
     + Number(routes.segments.length > 0)
     + Number(routes.crossings.length > 0)
     + Number(boundaries.length > 0)
-    + actorKinds.size
+    + actorDrawCalls
     + featureKinds.size
     + resourceKinds.size;
   const instanceCount = actors.length + routes.crossings.length
@@ -634,7 +663,7 @@ export function createGreaterRealmChunkPresentationPlan(input: Readonly<{
     + (routes.crossings.length > 0 ? STATIC_GEOMETRY_BYTES.crossing : 0)
     + boundaries.length * 864
     + actors.length * 64
-    + [...actorKinds].reduce((total, kind) => total + STATIC_GEOMETRY_BYTES[kind], 0)
+    + actorGeometryBytes
     + features.length * 64
     + featureReservationBytes
     + resources.length * 64

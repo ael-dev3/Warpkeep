@@ -461,6 +461,28 @@ placement, ownership, resources, rewards, pathing, or other game authority.
 Legacy Regular Tree variants have no authorized runtime collision; species
 records retain only their supplied trunk-only guidance.
 
+## Greater Realm biome trees — 2026-09-28
+
+The Alpha 0.4 Greater Realm trees in
+[`src/greater-realm/biomeTreeGeometry.ts`](src/greater-realm/biomeTreeGeometry.ts)
+are original project-authored geometric recipes, licensed under CC BY 4.0 as
+part of Warpkeep's expressly identified project-owned creative work. They
+produce 20 distinct, texture-free, vertex-colored land/coastal tree sculptures
+in High, Balanced, and Reduced detail. The 60 review GLBs are derived from the
+same source by
+[`scripts/assets/export-greater-realm-biome-trees.ts`](scripts/assets/export-greater-realm-biome-trees.ts)
+and belong to a separate Warpkeep-Assets archive family; the game constructs
+the geometry locally and does not download these GLBs at runtime.
+
+The user-supplied SavageIndie BlendSwap *Procedural Tree* (CC BY) was a visual
+study only. None of its geometry, Geometry Nodes, textures, or packed images
+were imported into this family. That supplied file and its 369,154-triangle
+review bake are excluded from the game and the new archive. See the
+[dated biome-tree record](docs/reference/assets/2026-09-28-greater-realm-biome-trees/README.md)
+for the 20 visual mappings, LOD budgets, and reproduction command. These
+models are decorative and supply no collision, pathing, gameplay placement,
+resource, ownership, or persistent authority.
+
 ## Inner Keep 3D runtime selection
 
 The public Warpkeep-Assets release
