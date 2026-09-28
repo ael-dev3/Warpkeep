@@ -1,5 +1,38 @@
 # Continue Warpkeep 0.4
 
+## Latest release checkpoint — 28 September 2026, 23:20 CEST (21:20 UTC)
+
+Signed source [`abe2fae2`](https://github.com/ael-dev3/Warpkeep/commit/abe2fae24f34ad1da76a952848fea5835c6e42e3)
+is pushed and synced to open PR #374 on
+`fix/g001-census-admission-proxy`. The PTR production build previously showed
+0.3.43 and opened Genesis 001's old patch notes. The packaged build identity
+now selects `PTR_RELEASE_VERSION` only when Vite's deployment base is exactly
+`/ptr/`; its footer and Farcaster diagnostic therefore show
+`ALPHA 0.4.0-ptr.1`, with the existing sealed 0.4 patch notes. The root build and
+package remain 0.3.43, preserving Genesis 001.
+
+The exact source closure was re-derived to 1,241 members with manifest SHA-256
+`57ea459bc8fbcde9f9c5e194e227990342ecf75e3d86c219294ec71db760ff3b`. The
+native ownership-bound closure verifier passed. Checked-in sealed-launch
+verification passed in Windows and Linux and correctly returned
+`pagesDeploymentApproved: false` with G001/G002/PTR identities unset. Native
+closure projection and manifest tests passed 27/27. Four focused Windows
+suites passed 204 tests with three skips. The full `/ptr/` production build,
+asset and production-exclusion checks, public-boundary audit, Mini App
+integrity, file-size policy and license policy passed. A 390×844 local browser
+preview showed `ALPHA 0.4.0-ptr.1` and the matching 0.4 notes. The large
+`RealmMapScreen` bundle remains 748.56 kB (202.65 kB gzip); physical-device
+performance is still unmeasured.
+
+No GitHub Actions were dispatched, queried or used during September. At 23:14
+CEST, `https://warpkeep.com/` returned HTTP 200 and `/ptr/` returned HTTP 404.
+This change repairs candidate identity only; it is not a PTR publication or
+owner acceptance. Keep #374 open. After the September pause, require exact-head
+Verify, reviewed source integration, exact-M1 preparation/check, generated-only
+M2 promotion, exact-M2 verification, G001 preservation and G002 sealed
+readback, backend deployment/readback, PTR publication and owner/device
+acceptance.
+
 ## Latest release checkpoint — 28 September 2026, 22:41 CEST (20:41 UTC)
 
 The owner paused GitHub Actions for September; none were dispatched, queried or

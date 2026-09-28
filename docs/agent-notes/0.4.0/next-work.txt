@@ -1,8 +1,37 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 22:51 CEST (20:51 UTC).
+Source/GitHub check: 23:20 CEST (21:20 UTC).
 
-LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 22:41 CEST
+LATEST SHIPPING CHECKPOINT — 28 SEPTEMBER, 23:20 CEST
+
+Signed fix `abe2fae24f34ad1da76a952848fea5835c6e42e3` is pushed and matches
+open candidate PR #374. The mobile PTR build previously displayed the sealed
+G001 package version 0.3.43 and opened its old patch notes. Build identity now
+uses `PTR_RELEASE_VERSION` only for Vite's exact `/ptr/` deployment base, so
+the footer, Farcaster diagnostic and patch notes identify the owner candidate
+as `ALPHA 0.4.0-ptr.1`. Root builds still derive 0.3.43 from the package; the
+package and Genesis 001 identity were not changed. PTR 0.4 notes reuse the
+existing truthful sealed-launch entry.
+
+The source closure was derived from the exact tree: 1,241 members, manifest
+SHA-256 `57ea459bc8fbcde9f9c5e194e227990342ecf75e3d86c219294ec71db760ff3b`.
+The native ownership-bound closure verifier passed, as did the checked-in
+sealed-launch verifier (which correctly leaves deployment approval false with
+all live realm identities unset). Native closure projection/manifest tests
+passed 27/27. Four focused Windows suites passed 204 tests with three skips;
+the complete `DEPLOY_BASE=/ptr/ npm run build` passed, including assets,
+production exclusions, public boundary and Mini App integrity. File-size and
+license policies passed. At 390×844, the local preview showed the PTR identity
+and matching 0.4 notes without displacing the menu; `RealmMapScreen` remains a
+748.56 kB (202.65 kB gzip) mobile-load follow-up.
+
+No GitHub Actions were dispatched, queried or used. At 23:14 CEST the public
+root returned HTTP 200 and `/ptr/` returned HTTP 404. No live 0.4 PTR or owner
+acceptance is claimed. The final PR Verify must wait until October; exact-M1/
+M2 preparation, realm preservation/sealed-state verification, backend
+deployment/readback, PTR publication and owner/device acceptance remain open.
+
+PREVIOUS SHIPPING CHECKPOINT — 28 SEPTEMBER, 22:41 CEST
 
 September GitHub Actions pause honored: no Actions workflow was dispatched,
 queried or used. Signed merge `3e135906` integrates exact Warpkeep PR #376 head
@@ -120,7 +149,7 @@ timber, teal roofs, warm activity, layered forest, restrained warp accents.
 Voxel scenery and water mainly support presentation. Professional means coherent,
 readable and responsive on a phone, not more effects or a larger simulation.
 
-SOURCE CHECKPOINT — FACTS, NOT A DEPLOYMENT CLAIM
+HISTORICAL SOURCE CHECKPOINT — 28 SEPTEMBER, 09:15 CEST
 
 Maintained checkout:
 C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep
