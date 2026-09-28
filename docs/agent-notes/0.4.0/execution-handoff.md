@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Shipping continuation — 29 September 2026, 01:32 CEST (23:32 UTC)
+## Shipping continuation — 29 September 2026, 01:46 CEST (23:46 UTC)
 
 Product guidance at code commit
 [675d8294](https://github.com/ael-dev3/Warpkeep/commit/675d8294042786cea9e60bcae5ed52a73e12853f)
@@ -8,9 +8,12 @@ names the City Mill in the first empty-keep step. The protected closure was
 regenerated from that code at 1,247 members, manifest SHA-256
 748bc2a0f7b81d34556a5f58c5cac854f7ee1b4b1d4fb4696bcb3f88430d2c3e.
 The closure verifier, closure policy and static prepared policy passed. Seven
-focused suites passed 133 tests. The prepared-workflow test file:
-tests/authBridgeNotificationPreparedWorkflow.test.ts did not
-finish within four minutes and was interrupted; no result is claimed.
+focused suites passed 133 tests. The prepared-workflow test file
+tests/authBridgeNotificationPreparedWorkflow.test.ts then passed all 164 tests
+in a verbose single-worker run (305.62 seconds). The suite is slow because it
+starts a fresh verifier process repeatedly and includes a 53-second per-member
+mutation check; it completed successfully. Combined evidence: eight focused
+suites and 297 passing tests, for code source 0754260d.
 
 A /ptr/ production build bound to source 0754260d929c36df885727f36a8fb23afbf3034e
 passed on pinned Linux Node 22.22.3, including type/project checks, runtime

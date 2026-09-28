@@ -1,18 +1,21 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 01:32 CEST (23:32 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 01:46 CEST (23:46 UTC), Europe/Budapest.
 Candidate code and local release plan are bound to signed source 0754260d.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 01:32 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 01:46 CEST
 
 The open 0.4 candidate PR #374 is based on main 786c0b2b. Product guidance
 at code commit 675d8294 now names the City Mill in the first empty-keep step.
 The exact-source protected deployment closure was regenerated at 1,247 members,
 manifest SHA-256
 748bc2a0f7b81d34556a5f58c5cac854f7ee1b4b1d4fb4696bcb3f88430d2c3e.
-Linux-native closure and static policy checks passed. Seven focused suites
-passed 133 tests. The prepared-workflow test file:
-tests/authBridgeNotificationPreparedWorkflow.test.ts
-did not finish within four minutes and was interrupted without a result.
+Linux-native closure and static policy checks passed. The seven earlier focused
+suites passed 133 tests; the prepared-workflow test file
+tests/authBridgeNotificationPreparedWorkflow.test.ts then passed all 164 tests
+in a verbose single-worker run (305.62 seconds). It is slow because it starts
+a fresh verifier process repeatedly and includes a 53-second per-member
+mutation check; the run completed successfully. Combined: eight focused suites,
+297 passing tests. This test evidence is for code source 0754260d.
 
 The exact source 0754260d production build passed on pinned Linux Node 22.22.3
 with DEPLOY_BASE=/ptr/ and the embedded source SHA set to that commit. Type

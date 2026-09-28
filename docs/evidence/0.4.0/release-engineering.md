@@ -15,7 +15,11 @@ names the City Mill in the first empty-keep instruction. Its regenerated
 prepared closure has 1,247 members and manifest SHA-256
 748bc2a0f7b81d34556a5f58c5cac854f7ee1b4b1d4fb4696bcb3f88430d2c3e. Native
 closure/policy checks and seven focused suites (133 tests) passed. The broader
-prepared workflow test was interrupted without a result.
+`tests/authBridgeNotificationPreparedWorkflow.test.ts` suite then passed all
+164 tests in a verbose single-worker run (305.62 seconds). Its runtime comes
+from repeated fresh verifier processes and a 53-second per-member mutation
+check, not a failure. Combined: eight focused suites, 297 passing tests on
+code source 0754260d.
 
 On exact source 0754260d929c36df885727f36a8fb23afbf3034e, a pinned Node 22.22.3
 /ptr/ production build passed TypeScript/project checks, asset verification,
