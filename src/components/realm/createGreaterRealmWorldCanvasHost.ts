@@ -47,18 +47,21 @@ export const GREATER_REALM_HOST_INSTANCE_RESERVE = (
   + 6
 );
 
-export type GreaterRealmWorldSelection = Readonly<{
-  kind: 'region' | 'castle' | 'resource';
+type GreaterRealmWorldSelectionBase = Readonly<{
   label: string;
   atlasQ: number;
   atlasR: number;
 }>;
 
+export type GreaterRealmWorldSelection =
+  | (GreaterRealmWorldSelectionBase & Readonly<{ kind: 'castle'; castleId: bigint }>)
+  | (GreaterRealmWorldSelectionBase & Readonly<{ kind: 'region' | 'resource' }>);
+
 export type GreaterRealmWorldCanvasControl =
   | Readonly<{ kind: 'pan'; direction: 'north' | 'south' | 'east' | 'west' }>
   | Readonly<{ kind: 'zoom'; direction: 'in' | 'out' }>
   | Readonly<{ kind: 'orbit'; direction: 'clockwise' | 'counterclockwise' }>
-  | Readonly<{ kind: 'reset' | 'select-next' | 'take-helm' | 'release-helm' }>
+  | Readonly<{ kind: 'reset' | 'select-next' | 'clear-selection' | 'take-helm' | 'release-helm' }>
   | Readonly<{ kind: 'move-vessel'; direction: GreaterRealmLocalVesselMove }>;
 
 export type GreaterRealmWorldCanvasTelemetry = Readonly<{
@@ -306,6 +309,7 @@ function createPublicCastleLayer(
         const target = Object.freeze({
           selection: Object.freeze({
             kind: 'castle',
+            castleId: castle.castleId,
             label: castle.castleId === ownCastleId
               ? 'Your castle'
               : `${publicNames.get(cell?.regionId ?? '') ?? 'Public'} castle at ${castle.atlasQ}, ${castle.atlasR}`,
@@ -948,6 +952,12 @@ export function createGreaterRealmWorldCanvasHost(
       selectNext();
       return;
     }
+    if (input.kind === 'clear-selection') {
+      selectedTargetIndex = -1;
+      publishSelection(undefined);
+      schedule();
+      return;
+    }
     if (input.kind === 'take-helm') {
       publishLocalVesselState(activeRuntime.selectLocalVessel());
       schedule();
@@ -1170,6 +1180,10 @@ export function createGreaterRealmWorldCanvasHost(
             selection.kind === selectedSelection!.kind
             && selection.atlasQ === selectedSelection!.atlasQ
             && selection.atlasR === selectedSelection!.atlasR
+            && (selection.kind !== 'castle' || (
+              selectedSelection?.kind === 'castle'
+              && selection.castleId === selectedSelection.castleId
+            ))
           ));
       selectedTargetIndex = retainedIndex;
       publishSelection(retainedIndex < 0 ? undefined : selectionTargets[retainedIndex]);

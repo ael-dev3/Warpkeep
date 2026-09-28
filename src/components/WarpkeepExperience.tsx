@@ -288,6 +288,7 @@ export function WarpkeepExperience() {
     && typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches
   );
+  const [lyricFilmOpen, setLyricFilmOpen] = useState(false);
   const [graphicsCapabilities, setGraphicsCapabilities] = useState(browserGraphicsCapabilities);
   const audioDirectorRef = useRef<WarpkeepAudioDirectorHandle>(null);
   const phaseRef = useRef(experience.phase);
@@ -1286,6 +1287,7 @@ export function WarpkeepExperience() {
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}
                 audioMuted={audioMuted}
+                onLyricFilmOpenChange={setLyricFilmOpen}
                 onGraphicsPreferenceChange={updateGraphicsPreference}
                 onAudioMutedChange={updateAudioMuted}
                 onRequestReturn={returnRealmToMenu}
@@ -1382,6 +1384,7 @@ export function WarpkeepExperience() {
                 graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}
                 audioMuted={audioMuted}
+                onLyricFilmOpenChange={setLyricFilmOpen}
                 onGraphicsPreferenceChange={updateGraphicsPreference}
                 onAudioMutedChange={updateAudioMuted}
                 onRequestReturn={returnRealmToMenu}
@@ -1411,10 +1414,10 @@ export function WarpkeepExperience() {
         scene={audioScene}
         preloadMenu={false}
         resumeFadeMs={520}
-        suspended={miniAppEntryGateActive}
+        suspended={miniAppEntryGateActive || lyricFilmOpen}
       />
-      <WarpkeepSfxDirector muted={audioMuted} />
-      <WarpkeepHapticsDirector muted={audioMuted} />
+      <WarpkeepSfxDirector muted={audioMuted || lyricFilmOpen} />
+      <WarpkeepHapticsDirector muted={audioMuted || lyricFilmOpen} />
     </div>
   );
 }

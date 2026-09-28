@@ -3,6 +3,7 @@ import { GAMEPLAY04_WORKER_COUNT, type Building04, type Resource04 } from '../..
 import type { Placement04 } from '../../spacetimedb/gameplay04/placement';
 import { Keep04Screen, type Keep04UiSelection } from '../components/keep04/Keep04Screen';
 import { GreaterRealmWorldScene, type WorldSelection04 } from '../components/realm/GreaterRealmWorldScene';
+import { lyricFilmCastleIdFromPtrAnchor } from '../components/realm/castleLyricFilmEligibility';
 import type { RealmMapScreenProps } from '../components/realm/RealmMapScreen';
 import type { RealmSurfaceRoute } from '../components/realm/realmSurfaceNavigation';
 import { useRealmSurfaceNavigation } from '../components/realm/useRealmSurfaceNavigation';
@@ -77,7 +78,16 @@ function CurrentSurface(props: Props & { identityKey: string }) {
       setWorldRevision(value => value + 1);
     }
   }, [snapshot.problem]);
+  const lyricFilmCloseRef = useRef<(() => void) | null>(null);
+  const handleLyricFilmOpenChange = useCallback((open: boolean, requestClose?: () => void) => {
+    lyricFilmCloseRef.current = open ? requestClose ?? null : null;
+    props.onLyricFilmOpenChange?.(open);
+  }, [props.onLyricFilmOpenChange]);
   const handleBack = useCallback(() => {
+    if (lyricFilmCloseRef.current) {
+      lyricFilmCloseRef.current();
+      return;
+    }
     if (surface.depth > 0) surface.back(); else props.onRequestReturn();
   }, [surface.depth, surface.back, props.onRequestReturn]);
   useMiniAppBackNavigation(surface.depth + 1, handleBack);
@@ -142,7 +152,10 @@ function CurrentSurface(props: Props & { identityKey: string }) {
     <div ref={content} tabIndex={-1} className={`ptr-gameplay-surface__content${route === undefined ? '' : ' ptr-gameplay-surface__content--keep'}`}>
     {route === undefined ? <>
       <GreaterRealmWorldScene key={worldRevision} bridge={props.greaterRealm as AvailableBridge} identityFid={props.identity.fid}
-        identityKey={props.identityKey} ownCastle={props.ptrViewAnchor!} resolvedGraphicsQuality={props.resolvedGraphicsQuality}
+        identityKey={props.identityKey} ownKeeperName={props.identity.displayName ?? props.identity.username}
+        ownCastle={props.ptrViewAnchor!} resolvedGraphicsQuality={props.resolvedGraphicsQuality}
+        lyricFilmCastleId={lyricFilmCastleIdFromPtrAnchor(props.ptrRealmAuthority!.fid, props.ptrViewAnchor!.castleId)}
+        onLyricFilmOpenChange={handleLyricFilmOpenChange}
         onPhaseChange={onPhaseChange} narrowOpenPanel={openPanel} onNarrowOpenPanelChange={setOpenPanel}
         resourceFocus04={resourceFocus} onGameplay04WorldSelection={worldSelection}
         renderGameplay04WorldPanel={(value, validate) => <WorldWorkerPanel snapshot={snapshot} controller={controller} selection={value} validateSelection={validate} initialWorkerOrdinal={resourceWorkerOrdinal} />} />

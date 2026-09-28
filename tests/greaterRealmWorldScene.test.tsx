@@ -78,6 +78,33 @@ function readySnapshot(input: Readonly<{
   } as unknown as GreaterRealmClientSnapshot;
 }
 
+function snapshotWithFilmCastle() {
+  const base = readySnapshot();
+  return {
+    ...base,
+    window: {
+      ...base.window!,
+      castles: base.window!.castles.map((castle) => (
+        castle.castleId === 2n ? { ...castle, castleId: 539854n } : castle
+      ))
+    }
+  } as GreaterRealmClientSnapshot;
+}
+
+function snapshotWithFilmCastleAsOwn() {
+  const base = readySnapshot();
+  return {
+    ...base,
+    bootstrap: { ...base.bootstrap!, myCastleId: 539854n },
+    window: {
+      ...base.window!,
+      castles: base.window!.castles.map((castle) => (
+        castle.castleId === 1n ? { ...castle, castleId: 539854n } : castle
+      ))
+    }
+  } as GreaterRealmClientSnapshot;
+}
+
 function workerControl(statuses: readonly ('idle' | 'outbound' | 'gathering' | 'returning')[]) {
   return {
     status: 'ready' as const,
@@ -161,6 +188,8 @@ function renderScene(
   options: Readonly<{
     onPhaseChange?: (phase: string) => void;
     resourceFocus04?: Resource04;
+    ownKeeperName?: string;
+    lyricFilmCastleId?: number;
   }> = {}
 ) {
   return render(
@@ -169,6 +198,8 @@ function renderScene(
       identityFid={77}
       identityKey="77:1"
       ownCastle={OWN_CASTLE}
+      ownKeeperName={options.ownKeeperName}
+      lyricFilmCastleId={options.lyricFilmCastleId}
       resolvedGraphicsQuality="balanced"
       onPhaseChange={options.onPhaseChange ?? vi.fn()}
       resourceFocus04={options.resourceFocus04}
@@ -284,6 +315,150 @@ afterEach(() => {
 });
 
 describe('Greater Realm world scene lifecycle', () => {
+  it('names FID 539854 own keep from verified identity while gating the film by the selected castle', async () => {
+    render(
+      <GreaterRealmWorldScene
+        bridge={bridge({ snapshot: snapshotWithFilmCastleAsOwn() })}
+        identityFid={539854}
+        identityKey="539854:1"
+        ownCastle={{ castleId: 539854, q: -2, r: 1 }}
+        ownKeeperName="Ael"
+        lyricFilmCastleId={539854}
+        onPhaseChange={vi.fn()}
+      />
+    );
+    await screen.findByRole('button', { name: /food site at/ });
+    const publish = canvasHostHarness.create.mock.calls[0]![0].onSelectionChange;
+    act(() => publish({
+      kind: 'castle', castleId: 2n, label: 'Public castle', atlasQ: -1, atlasR: 1
+    }));
+    expect(screen.getByRole('complementary', { name: 'Selected castle profile' })
+      .querySelector('h2')?.textContent).toBe('Founded keep');
+    expect(screen.queryByRole('button', { name: /WATCH LEAVE IT ON/i })).toBeNull();
+
+    act(() => publish({
+      kind: 'castle', castleId: 539854n, label: 'Your castle', atlasQ: -2, atlasR: 1
+    }));
+    expect(screen.getByRole('complementary', { name: 'Selected castle profile' })
+      .querySelector('h2')?.textContent).toBe('Ael');
+    await screen.findByRole('button', { name: /WATCH LEAVE IT ON/i });
+  });
+
+  it('shows the film only on the resolved public castle ID, never on a matching numeric FID', async () => {
+    let listener!: RuntimeListener;
+    const sceneBridge = bridge({
+      snapshot: readySnapshot(),
+      captureListener: (next) => { listener = next; }
+    });
+    const mounted = renderScene(sceneBridge, {
+      ownKeeperName: 'Ael', lyricFilmCastleId: 2
+    });
+    await screen.findByRole('button', { name: /food site at/ });
+    const publish = canvasHostHarness.create.mock.calls[0]![0].onSelectionChange;
+
+    act(() => publish({
+      kind: 'castle', castleId: 1n, label: 'Your castle', atlasQ: -2, atlasR: 1
+    }));
+    expect(screen.getByRole('complementary', { name: 'Selected castle profile' })
+      .querySelector('h2')?.textContent).toBe('Ael');
+    expect(screen.queryByRole('button', { name: /WATCH LEAVE IT ON/i })).toBeNull();
+
+    act(() => publish({
+      kind: 'castle', castleId: 2n, label: 'Public castle', atlasQ: -1, atlasR: 1
+    }));
+    expect(screen.getByRole('complementary', { name: 'Selected castle profile' })
+      .querySelector('h2')?.textContent).toBe('Founded keep');
+    expect(screen.getByRole('complementary', { name: 'Selected castle profile' }).textContent)
+      .not.toContain('Ael');
+    await screen.findByRole('button', { name: /WATCH LEAVE IT ON/i });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close castle profile' }));
+    expect(canvasHostHarness.create.mock.results[0]!.value.control)
+      .toHaveBeenCalledWith({ kind: 'clear-selection' });
+    expect(screen.queryByRole('complementary', { name: 'Selected castle profile' })).toBeNull();
+
+    act(() => publish({
+      kind: 'resource', label: 'Food site', atlasQ: -1, atlasR: 1
+    }));
+    expect(screen.queryByRole('complementary', { name: 'Selected castle profile' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /WATCH LEAVE IT ON/i })).toBeNull();
+
+    // A forged/stale selection cannot disclose the action unless the current
+    // public window still contains that exact castle ID and coordinate.
+    act(() => publish({
+      kind: 'castle', castleId: 2n, label: 'Public castle', atlasQ: 30, atlasR: 30
+    }));
+    expect(screen.queryByRole('complementary', { name: 'Selected castle profile' })).toBeNull();
+    act(() => publish({
+      kind: 'castle', castleId: 2n, label: 'Public castle', atlasQ: -1, atlasR: 1
+    }));
+    await screen.findByRole('button', { name: /WATCH LEAVE IT ON/i });
+    act(() => listener(snapshotWithFilmCastle()));
+    expect(screen.queryByRole('complementary', { name: 'Selected castle profile' })).toBeNull();
+
+    act(() => publish({
+      kind: 'castle', castleId: 539854n, label: 'Unrelated castle', atlasQ: -1, atlasR: 1
+    }));
+    expect(screen.getByRole('complementary', { name: 'Selected castle profile' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /WATCH LEAVE IT ON/i })).toBeNull();
+
+    act(() => listener(readySnapshot()));
+    expect(screen.queryByRole('complementary', { name: 'Selected castle profile' })).toBeNull();
+    act(() => publish({
+      kind: 'castle', castleId: 2n, label: 'Public castle', atlasQ: -1, atlasR: 1
+    }));
+    await screen.findByRole('button', { name: /WATCH LEAVE IT ON/i });
+    mounted.rerender(
+      <GreaterRealmWorldScene
+        bridge={sceneBridge}
+        identityFid={77}
+        identityKey="77:2"
+        ownCastle={OWN_CASTLE}
+        resolvedGraphicsQuality="balanced"
+        onPhaseChange={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('complementary', { name: 'Selected castle profile' })).toBeNull();
+  });
+
+  it('moves focus into a selected castle record when narrow SELECT NEXT closes its controls', async () => {
+    setViewportWidth(390);
+    const desktopSnapshot = readySnapshot();
+    renderScene(bridge({
+      snapshot: {
+        ...desktopSnapshot,
+        window: { ...desktopSnapshot.window!, radius: 2 },
+        view: { ...desktopSnapshot.view!, radius: 2 }
+      } as GreaterRealmClientSnapshot,
+    }), { lyricFilmCastleId: 2 });
+    await waitFor(() => expect(canvasHostHarness.create.mock.results[0]?.value.applySnapshot)
+      .toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Map and vessel controls' }));
+    const selectNext = screen.getByRole('button', { name: 'SELECT NEXT' });
+    selectNext.focus();
+    const publish = canvasHostHarness.create.mock.calls[0]![0].onSelectionChange;
+    canvasHostHarness.create.mock.results[0]!.value.control.mockImplementation((control: { kind: string }) => {
+      if (control.kind === 'select-next') publish({
+        kind: 'castle', castleId: 2n, label: 'Public castle', atlasQ: -1, atlasR: 1
+      });
+    });
+    fireEvent.click(selectNext);
+    const card = screen.getByRole('complementary', { name: 'Selected castle profile' });
+    expect(document.activeElement).toBe(card);
+    expect(screen.getByRole('button', { name: 'Map and vessel controls' })
+      .getAttribute('aria-expanded')).toBe('false');
+
+    // Canvas selection leaves keyboard focus where it was.
+    const canvas = screen.getByRole('application', {
+      name: 'Interactive Greater Realm public atlas'
+    });
+    canvas.focus();
+    act(() => publish({
+      kind: 'castle', castleId: 1n, label: 'Your castle', atlasQ: -2, atlasR: 1
+    }));
+    expect(document.activeElement).toBe(canvas);
+  });
+
   it('keeps narrow map and resource actions in exclusive accessible disclosures', async () => {
     setViewportWidth(390);
     const desktopSnapshot = readySnapshot();

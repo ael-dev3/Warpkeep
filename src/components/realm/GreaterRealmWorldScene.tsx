@@ -21,9 +21,11 @@ import type {
 } from '../../greater-realm/greaterRealmPublicContract';
 import { greaterRealmRegionPresentation } from '../../greater-realm/greaterRealmPresentationPlan';
 import { useMiniAppHost } from '../../farcaster/miniapp';
+import { normalizePublicProfileText } from '../../security/publicProfileText';
 import type { GraphicsQualityTier } from '../../settings/graphicsPreference';
 import type { AvailableGreaterRealmProviderBridge } from '../../spacetime/greaterRealmProviderBridge';
 import { useReducedMotionPreference } from './realmMapPresentationHelpers';
+import { LazyCastleLyricFilmAction } from './LazyCastleLyricFilmAction';
 import {
   createGreaterRealmWorldCanvasHost,
   type GreaterRealmWorldCanvasHost,
@@ -110,12 +112,17 @@ export type GreaterRealmWorldSceneProps = Readonly<{
   identityFid: number;
   identityKey: string;
   ownCastle: Readonly<{ castleId: number; q: number; r: number }>;
+  /** Verified caller display name; never used for another castle. */
+  ownKeeperName?: string;
+  /** Castle ID resolved from an authoritative public FID mapping for this realm. */
+  lyricFilmCastleId?: number;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   onPhaseChange: (phase: GreaterRealmClientPhase) => void;
   narrowOpenPanel?: 'controls' | 'resources';
   onNarrowOpenPanelChange?: (panel: 'controls' | 'resources' | undefined) => void;
   onGameplay04WorldSelection?: (selection: WorldSelection04 | null) => void;
   resourceFocus04?: Resource04 | null;
+  onLyricFilmOpenChange?: (open: boolean, requestClose?: () => void) => void;
   /** Public presentation only. The freshness guard is not owner authority or capacity proof. */
   renderGameplay04WorldPanel?: (selection: WorldSelection04 | null, validateSelection: (selection: WorldSelection04) => boolean) => ReactNode;
 }>;
@@ -129,12 +136,15 @@ export function GreaterRealmWorldScene({
   identityFid,
   identityKey,
   ownCastle,
+  ownKeeperName,
+  lyricFilmCastleId,
   resolvedGraphicsQuality,
   onPhaseChange,
   narrowOpenPanel,
   onNarrowOpenPanelChange,
   onGameplay04WorldSelection,
   resourceFocus04,
+  onLyricFilmOpenChange,
   renderGameplay04WorldPanel
 }: GreaterRealmWorldSceneProps) {
   const miniAppHost = useMiniAppHost();
@@ -180,6 +190,9 @@ export function GreaterRealmWorldScene({
   const controlsTriggerRef = useRef<HTMLButtonElement>(null);
   const resourcesTriggerRef = useRef<HTMLButtonElement>(null);
   const resourcesPanelRef = useRef<HTMLElement>(null);
+  const castleRecordRef = useRef<HTMLElement>(null);
+  const selectingFromControlsRef = useRef(false);
+  const focusCastleFromControlsRef = useRef(false);
   const controlStatusIsAnnouncement = worldSelection !== undefined
     || localVesselState.status === 'selected'
     || localVesselState.status === 'blocked';
@@ -266,6 +279,29 @@ export function GreaterRealmWorldScene({
     snapshotCurrent
   ]);
   const currentSnapshotRef = useRef<GreaterRealmClientSnapshot | undefined>(undefined);
+  const selectedCastle = worldSelection?.kind === 'castle'
+    ? snapshotCurrent?.window?.castles.find((castle) => (
+        castle.castleId === worldSelection.castleId
+        && castle.atlasQ === worldSelection.atlasQ
+        && castle.atlasR === worldSelection.atlasR
+      ))
+    : undefined;
+  const selectedCastleIsOwn = selectedCastle?.castleId === BigInt(ownCastle.castleId);
+  const ownKeeperDisplayName = selectedCastleIsOwn
+    ? normalizePublicProfileText(ownKeeperName, 80)
+    : undefined;
+  const selectedCastleHasLyricFilm = selectedCastle !== undefined
+    && lyricFilmCastleId !== undefined
+    && Number.isSafeInteger(lyricFilmCastleId)
+    && lyricFilmCastleId > 0
+    && selectedCastle.castleId === BigInt(lyricFilmCastleId);
+  useLayoutEffect(() => {
+    if (!focusCastleFromControlsRef.current) return;
+    focusCastleFromControlsRef.current = false;
+    if (selectedCastle !== undefined) {
+      castleRecordRef.current?.focus({ preventScroll: true });
+    }
+  }, [selectedCastle, worldSelection]);
   currentSnapshotRef.current = snapshotCurrent;
   const publicResourceSource = snapshotCurrent?.resourceLocationPhase === 'ready'
     ? snapshotCurrent.resourceLocations
@@ -452,7 +488,12 @@ export function GreaterRealmWorldScene({
         canvas.dataset.greaterRealmPublicResources = String(telemetry.publicResourceCount);
         canvas.dataset.greaterRealmVisibleRegions = String(telemetry.visibleRegionCount);
       },
-      onSelectionChange: setWorldSelection,
+      onSelectionChange: (selection) => {
+        focusCastleFromControlsRef.current = selectingFromControlsRef.current
+          && selection?.kind === 'castle';
+        setWorldSelection(selection);
+        if (selection?.kind === 'castle') setOpenPanel(undefined);
+      },
       onLocalVesselStateChange: setLocalVesselState,
       onFailure: () => setRenderer('unavailable')
     });
@@ -695,6 +736,7 @@ export function GreaterRealmWorldScene({
       data-greater-realm-lod={policy.lod}
       data-greater-realm-reduced-motion={policy.reducedMotion}
       data-greater-realm-farcaster={miniAppHost.isMiniApp}
+      data-castle-selected={selectedCastle !== undefined}
     >
       <canvas
         ref={canvasRef}
@@ -794,7 +836,15 @@ export function GreaterRealmWorldScene({
           <button
             type="button"
             disabled={renderer !== 'webgl'}
-            onClick={() => canvasHostRef.current?.control({ kind: 'select-next' })}
+            onClick={() => {
+              selectingFromControlsRef.current = narrowPresentation
+                && openPanel === 'controls';
+              try {
+                canvasHostRef.current?.control({ kind: 'select-next' });
+              } finally {
+                selectingFromControlsRef.current = false;
+              }
+            }}
           >SELECT NEXT</button>
         </div>
         <div className="greater-realm-world__helm" aria-label="Local vessel controls">
@@ -871,6 +921,33 @@ export function GreaterRealmWorldScene({
               );
             })}
           </ol>
+        </aside>
+      )}
+      {selectedCastle === undefined ? null : (
+        <aside
+          ref={castleRecordRef}
+          className="greater-realm-world__castle-record"
+          aria-label="Selected castle profile"
+          tabIndex={-1}
+        >
+          <header>
+            <span>{selectedCastleIsOwn
+              ? 'YOUR FOUNDED KEEP'
+              : 'FOUNDED KEEP'}</span>
+            <button
+              aria-label="Close castle profile"
+              onClick={() => {
+                canvasHostRef.current?.control({ kind: 'clear-selection' });
+                setWorldSelection(undefined);
+              }}
+              type="button"
+            >×</button>
+          </header>
+          <h2>{selectedCastleIsOwn ? ownKeeperDisplayName ?? 'Your keep' : 'Founded keep'}</h2>
+          <p>Level {selectedCastle.level} · Atlas {selectedCastle.atlasQ}, {selectedCastle.atlasR}</p>
+          {selectedCastleHasLyricFilm ? (
+            <LazyCastleLyricFilmAction onOpenChange={onLyricFilmOpenChange} />
+          ) : null}
         </aside>
       )}
       {publicResources.length === 0 && activeWorkers.length === 0 && renderGameplay04WorldPanel === undefined && !resourceReadNotice ? null : (
