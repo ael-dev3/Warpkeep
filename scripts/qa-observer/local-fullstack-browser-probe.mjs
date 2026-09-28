@@ -63,132 +63,67 @@ export function safeBrowserRuntimeExceptionCode(exceptionDetails) {
   return 'runtime-exception';
 }
 
-const TITLE_GATEWAY_CASES = Object.freeze([
+// 0.4 enters directly on the menu; exercise that live screen across compact
+// and mobile viewports instead of probing the retired title-gateway route.
+const MENU_READINESS_CASES = Object.freeze([
   Object.freeze({
-    id: 'desktop-keyboard',
-    input: 'keyboard',
+    id: 'desktop-default',
     mobile: false,
     reducedMotion: false,
     deviceScaleFactor: 1,
     viewport: VIEWPORT,
   }),
   Object.freeze({
-    id: 'desktop-pointer',
-    input: 'pointer',
+    id: 'desktop-compact',
     mobile: false,
     reducedMotion: false,
     deviceScaleFactor: 1,
-    viewport: VIEWPORT,
+    viewport: Object.freeze({ width: 1_280, height: 800 }),
   }),
   Object.freeze({
-    id: 'mobile-portrait-touch',
-    input: 'touch',
+    id: 'mobile-portrait',
     mobile: true,
     reducedMotion: false,
     deviceScaleFactor: 3,
     viewport: Object.freeze({ width: 390, height: 844 }),
   }),
   Object.freeze({
-    id: 'tablet-pointer',
-    input: 'pointer',
+    id: 'tablet',
     mobile: false,
     reducedMotion: false,
     deviceScaleFactor: 1.5,
     viewport: Object.freeze({ width: 1_024, height: 768 }),
   }),
   Object.freeze({
-    id: 'short-landscape-touch',
-    input: 'touch',
+    id: 'mobile-landscape',
     mobile: true,
     reducedMotion: false,
     deviceScaleFactor: 2,
     viewport: Object.freeze({ width: 667, height: 375 }),
   }),
   Object.freeze({
-    id: 'desktop-offset-scaled-keyboard',
-    input: 'keyboard',
-    mobile: false,
-    reducedMotion: false,
-    deviceScaleFactor: 1.25,
-    titleTransform: Object.freeze({
-      translateX: 96,
-      translateY: 54,
-      scale: 0.82,
-    }),
-    viewport: VIEWPORT,
-  }),
-  Object.freeze({
-    id: 'desktop-offset-scaled-pointer',
-    input: 'pointer',
-    mobile: false,
-    reducedMotion: false,
-    activationFraction: Object.freeze({ x: 0.72, y: 0.34 }),
-    deviceScaleFactor: 2,
-    titleTransform: Object.freeze({
-      translateX: 72,
-      translateY: 42,
-      scale: 0.86,
-    }),
-    viewport: VIEWPORT,
-  }),
-  Object.freeze({
-    id: 'desktop-reduced-keyboard',
-    input: 'keyboard',
-    mobile: false,
+    id: 'narrow-mobile-reduced-motion',
+    mobile: true,
     reducedMotion: true,
-    deviceScaleFactor: 1,
-    viewport: VIEWPORT,
-  }),
-  Object.freeze({
-    id: 'desktop-resize-pointer',
-    input: 'pointer',
-    mobile: false,
-    reducedMotion: false,
-    deviceScaleFactor: 1,
-    resizeViewport: Object.freeze({ width: 1_024, height: 768 }),
-    viewport: VIEWPORT,
+    deviceScaleFactor: 2,
+    viewport: Object.freeze({ width: 320, height: 640 }),
   }),
 ]);
 const COMMAND_TIMEOUT_MILLISECONDS = 175_000;
 const PRESENTATION_TIMEOUT_MILLISECONDS = 120_000;
 const SCREENSHOT_MAXIMUM_BYTES = 8 * 1_024 * 1_024;
-const TITLE_GATEWAY_CASE_TIMEOUT_MILLISECONDS = 30_000;
-// The first local QA navigation compiles the complete connected presentation
-// graph through Vite. Keep that cold-start bound separate from the per-case
-// transition budget so Windows can finish the transform without weakening
-// the bounded browser probe.
-const TITLE_GATEWAY_INITIAL_LOAD_TIMEOUT_MILLISECONDS = 170_000;
-const TITLE_GATEWAY_FRAME_LIMIT = 360;
-const CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS = 256;
-// Windows can launch the disposable Chrome process while Vite and the local
-// database are still competing for startup resources. Keep this bound local
-// to target discovery so later browser commands remain strictly bounded.
+const MENU_READINESS_TIMEOUT_MILLISECONDS = 30_000;
 const LOCAL_FULLSTACK_BROWSER_TARGET_READY_TIMEOUT_MILLISECONDS = 120_000;
 const LOCAL_FULLSTACK_VITE_WARMUP_PATHS = Object.freeze([
   '/src/dev/fullstackLocalQaMain.tsx',
   '/src/dev/FullstackLocalQaApp.tsx',
   '/src/components/WarpkeepExperience.tsx',
-  '/src/components/title/WarpkeepTitleScreen3D.tsx',
-  '/src/components/title/BlackHoleGateway.tsx',
-  '/src/components/title/gatewayActivation.ts',
-  '/src/components/title/gatewayInteraction.ts',
-  '/src/components/title/gatewayPointerProjection.ts',
-  '/src/components/title/gatewayVfx.ts',
-  '/src/components/title/gatewayVfxSpec.ts',
-  '/src/components/title/loadWarpkeepTitle.ts',
-  '/src/components/title/titleDeparturePose.ts',
-  '/src/components/title/titleInteraction.ts',
-  '/src/components/title/titleLayout.ts',
-  '/src/components/title/titlePresentationController.ts',
-  '/src/components/title/titlePresentationMachine.ts',
-  '/src/components/title/titleSceneSpec.ts',
-  '/src/components/title/titleScreenTypes.ts',
   '/src/components/realm/RealmMapScreen.tsx',
   '/src/components/realm/createRealmScene.ts',
   '/src/components/inner-keep/InnerKeepScreen.tsx',
   '/src/components/inner-keep/createInnerKeepSceneLayer.ts',
 ]);
-
+const CONTROLLED_RENDERER_MAXIMUM_STALE_DELETE_WARNINGS = 256;
 async function warmLocalFullstackViteModules(viteOrigin) {
   await Promise.all(
     LOCAL_FULLSTACK_VITE_WARMUP_PATHS.map(async (pathname) => {
@@ -316,246 +251,7 @@ function delay(milliseconds) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 }
 
-function validateTitleGatewayDepartureFocusObservation(value, probeCase) {
-  if (
-    value === null
-    || typeof value !== 'object'
-    || Array.isArray(value)
-    || value.stage !== 'complete'
-    || !Array.isArray(value.frames)
-    || value.frames.length < (probeCase.reducedMotion ? 4 : 12)
-    || value.frames.length > TITLE_GATEWAY_FRAME_LIMIT
-    || value.initialHistoryLength + 1 !== value.finalHistoryLength
-    || value.finalHash !== '#menu'
-    || !Number.isFinite(value.activationTarget?.x)
-    || !Number.isFinite(value.activationTarget?.y)
-    || !Number.isFinite(value.gatewayCenter?.x)
-    || !Number.isFinite(value.gatewayCenter?.y)
-    || value.finalPhase !== 'menu'
-    || value.finalSequence !== value.initialSequence + 1
-    || value.finalMenuInteractive !== true
-    || value.finalGatewayPresent !== false
-  ) {
-    const safeLifecycleTuple = [
-      value?.stage === 'complete',
-      Array.isArray(value?.frames),
-      Array.isArray(value?.frames)
-        && value.frames.length >= (probeCase.reducedMotion ? 4 : 12),
-      Array.isArray(value?.frames)
-        && value.frames.length <= TITLE_GATEWAY_FRAME_LIMIT,
-      value?.initialHistoryLength + 1 === value?.finalHistoryLength,
-      value?.finalHash === '#menu',
-      Number.isFinite(value?.activationTarget?.x)
-        && Number.isFinite(value?.activationTarget?.y),
-      Number.isFinite(value?.gatewayCenter?.x)
-        && Number.isFinite(value?.gatewayCenter?.y),
-      value?.finalPhase === 'menu',
-      value?.finalSequence === value?.initialSequence + 1,
-      value?.finalMenuInteractive === true,
-      value?.finalGatewayPresent === false,
-    ].map((entry) => entry ? '1' : '0').join('');
-    throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: lifecycle-${safeLifecycleTuple}.`
-    );
-  }
-
-  const phases = [];
-  for (const frame of value.frames) {
-    if (
-      frame === null
-      || typeof frame !== 'object'
-      || Array.isArray(frame)
-      || !Number.isFinite(frame.time)
-      || !Number.isSafeInteger(frame.sequence)
-      || !Number.isSafeInteger(frame.viewportWidth)
-      || !Number.isSafeInteger(frame.viewportHeight)
-      || !Number.isFinite(frame.devicePixelRatio)
-      || frame.devicePixelRatio <= 0
-    ) {
-      throw new LocalFullstackBrowserError(
-        `Title gateway departure focus failed at ${probeCase.id}: frame-shape.`
-      );
-    }
-    if (phases.at(-1) !== frame.phase) phases.push(frame.phase);
-  }
-  if (
-    phases.length !== 3
-    || phases[0] !== 'title'
-    || phases[1] !== 'transitioning-to-menu'
-    || phases[2] !== 'menu'
-  ) {
-    throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: phase-sequence.`
-    );
-  }
-
-  const titleFrames = value.frames.filter((frame) => frame.phase === 'title');
-  const departureFrames = value.frames.filter(
-    (frame) => frame.phase === 'transitioning-to-menu'
-  );
-  const retainedGatewayFrames = departureFrames.filter(
-    (frame) => frame.gatewayPresent
-  );
-  const menuFrames = value.frames.filter((frame) => frame.phase === 'menu');
-  const expectedMotion = probeCase.reducedMotion ? 'reduced' : 'standard';
-  if (
-    titleFrames.length < 1
-    || departureFrames.length < (probeCase.reducedMotion ? 1 : 6)
-    || retainedGatewayFrames.length < 1
-    || menuFrames.length < 2
-    || !titleFrames.some((frame) => (
-      frame.gatewayInteractive === 'true'
-      && frame.gatewayVisible === 'true'
-      && frame.anchorHidden === false
-      && frame.anchorInert === false
-      && frame.anchorDisplay !== 'none'
-      && frame.buttonDisabled === false
-      && frame.buttonTabIndex === 0
-      && frame.hitGateway === true
-    ))
-    || departureFrames.some((frame) => (
-      frame.sequence !== value.initialSequence + 1
-      || frame.overlayCount !== 1
-      || frame.overlayMotion !== expectedMotion
-      || !Number.isFinite(frame.overlayOriginX)
-      || !Number.isFinite(frame.overlayOriginY)
-      || !Number.isFinite(frame.overlayOriginPercentX)
-      || !Number.isFinite(frame.overlayOriginPercentY)
-    ))
-    || menuFrames.some((frame) => frame.sequence !== value.initialSequence + 1)
-    || value.frames.some((frame) => (
-      Math.abs(frame.devicePixelRatio - probeCase.deviceScaleFactor) > 0.01
-    ))
-    || value.frames.some((frame) => frame.overflow)
-  ) {
-    throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: frame-lifecycle.`
-    );
-  }
-
-  const originTolerance = probeCase.mobile ? 3 : 2;
-  const frozenOrigin = departureFrames[0];
-  // The client-space gateway point remains frozen. Its normalized CSS
-  // percentage must be allowed to change when a mid-transition resize changes
-  // the overlay dimensions so the same client point can be reprojected.
-  if (
-    !frozenOrigin
-    || Math.abs(frozenOrigin.overlayOriginX - value.gatewayCenter.x) > originTolerance
-    || Math.abs(frozenOrigin.overlayOriginY - value.gatewayCenter.y) > originTolerance
-    || departureFrames.some((frame) => (
-      Math.abs(frame.overlayOriginX - frozenOrigin.overlayOriginX) > 0.01
-      || Math.abs(frame.overlayOriginY - frozenOrigin.overlayOriginY) > 0.01
-    ))
-  ) {
-    throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: frozen-gateway-origin.`
-    );
-  }
-  if (
-    probeCase.activationFraction
-    && Math.hypot(
-      value.activationTarget.x - value.gatewayCenter.x,
-      value.activationTarget.y - value.gatewayCenter.y
-    ) <= originTolerance * 2
-  ) {
-    throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: pointer-origin-separation.`
-    );
-  }
-
-  const frozenTransforms = new Set(
-    retainedGatewayFrames.map((frame) => frame.anchorTransform)
-  );
-  if (
-    frozenTransforms.size !== 1
-    || frozenTransforms.has('')
-    || retainedGatewayFrames.some((frame) => (
-      frame.titlePhase !== 'departing'
-      || frame.gatewayInteractive !== 'false'
-      || frame.gatewayVisible !== 'false'
-      || frame.gatewayPointerEvents !== 'none'
-      || frame.anchorHidden !== true
-      || frame.anchorInert !== true
-      || frame.anchorAriaHidden !== 'true'
-      || frame.anchorVisible !== 'false'
-      || frame.anchorDisplay !== 'none'
-      || frame.anchorWidth !== 0
-      || frame.anchorHeight !== 0
-      || frame.buttonDisabled !== true
-      || frame.buttonTabIndex !== -1
-      || frame.buttonPointerEvents !== 'none'
-      || frame.buttonFocusVisible !== false
-      || frame.activeTarget === 'gateway'
-      || frame.hitGateway !== false
-      || frame.titleScreenAriaHidden !== 'true'
-      || frame.titleScreenInert !== true
-    ))
-  ) {
-    throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: retired-gateway.`
-    );
-  }
-
-  if (probeCase.input === 'keyboard') {
-    if (
-      departureFrames.some((frame) => (
-        frame.activeTarget !== 'departure-landmark'
-        || frame.landmarkActive !== 'true'
-        || frame.landmarkAriaHidden !== 'false'
-        || frame.landmarkAriaLive !== 'polite'
-        || frame.landmarkRole !== 'status'
-      ))
-      || value.finalActiveTarget !== 'menu-command'
-    ) {
-      throw new LocalFullstackBrowserError(
-        `Title gateway departure focus failed at ${probeCase.id}: keyboard-focus.`
-      );
-    }
-  } else if (
-    departureFrames.some((frame) => frame.activeTarget === 'gateway')
-    || value.finalActiveTarget === 'gateway'
-  ) {
-    throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: pointer-focus.`
-    );
-  }
-
-  const expectedViewport = probeCase.resizeViewport ?? probeCase.viewport;
-  const finalFrame = value.frames.at(-1);
-  if (
-    finalFrame.viewportWidth !== expectedViewport.width
-    || finalFrame.viewportHeight !== expectedViewport.height
-  ) {
-    throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: viewport.`
-    );
-  }
-  if (probeCase.resizeViewport) {
-    const observedInitialViewport = value.frames.some((frame) => (
-      frame.viewportWidth === probeCase.viewport.width
-      && frame.viewportHeight === probeCase.viewport.height
-    ));
-    const observedResizedDeparture = departureFrames.some((frame) => (
-      frame.viewportWidth === probeCase.resizeViewport.width
-      && frame.viewportHeight === probeCase.resizeViewport.height
-    ));
-    if (!observedInitialViewport || !observedResizedDeparture) {
-      throw new LocalFullstackBrowserError(
-        `Title gateway departure focus failed at ${probeCase.id}: departure-resize.`
-      );
-    }
-  }
-
-  return Object.freeze({
-    frameCount: value.frames.length,
-    id: probeCase.id,
-    input: probeCase.input,
-    reducedMotion: probeCase.reducedMotion,
-    resized: probeCase.resizeViewport !== undefined,
-  });
-}
-
-async function setTitleGatewayCaseEnvironment(session, probeCase) {
+async function setMenuReadinessCaseEnvironment(session, probeCase) {
   await session.command('Emulation.setDeviceMetricsOverride', {
     width: probeCase.viewport.width,
     height: probeCase.viewport.height,
@@ -565,8 +261,8 @@ async function setTitleGatewayCaseEnvironment(session, probeCase) {
     mobile: probeCase.mobile,
   });
   await session.command('Emulation.setTouchEmulationEnabled', {
-    enabled: probeCase.input === 'touch',
-    ...(probeCase.input === 'touch' ? { maxTouchPoints: 1 } : {}),
+    enabled: probeCase.mobile,
+    ...(probeCase.mobile ? { maxTouchPoints: 1 } : {}),
   });
   await session.command('Emulation.setEmulatedMedia', {
     features: [{
@@ -576,553 +272,156 @@ async function setTitleGatewayCaseEnvironment(session, probeCase) {
   });
 }
 
-async function prepareTitleGatewayDepartureFocusCase(session, probeCase) {
-  const titleTransform = JSON.stringify(probeCase.titleTransform ?? null);
-  const activationFraction = probeCase.activationFraction
-    ?? Object.freeze({ x: 0.5, y: 0.5 });
-  const result = await session.command('Runtime.evaluate', {
-    expression: `(async () => {
-      const titleTransform = ${titleTransform};
-      const deadline = performance.now() + ${TITLE_GATEWAY_INITIAL_LOAD_TIMEOUT_MILLISECONDS};
-      const waitFor = async (predicate) => {
-        while (performance.now() <= deadline) {
-          try {
-            const value = predicate();
-            if (value) return value;
-          } catch {}
-          await new Promise((resolve) => setTimeout(resolve, 32));
-        }
-        return undefined;
-      };
-      const target = await waitFor(() => {
-        const experience = document.querySelector('.warpkeep-experience');
-        const title = document.querySelector('.warpkeep-title-screen');
-        const gateway = document.querySelector('.warpkeep-gateway');
-        const anchor = document.querySelector('.warpkeep-gateway-anchor');
-        const button = document.querySelector('.warpkeep-gateway-button');
-        if (
-          !(experience instanceof HTMLElement)
-          || !(title instanceof HTMLElement)
-          || !(gateway instanceof HTMLElement)
-          || !(anchor instanceof HTMLElement)
-          || !(button instanceof HTMLButtonElement)
-          || experience.dataset.phase !== 'title'
-          || title.dataset.titlePhase !== 'active'
-          || gateway.dataset.interactive !== 'true'
-          || gateway.dataset.visible !== 'true'
-          || anchor.hidden
-          || anchor.inert
-          || getComputedStyle(anchor).display === 'none'
-          || button.disabled
-          || button.tabIndex !== 0
-        ) return undefined;
-        if (titleTransform) {
-          title.style.transformOrigin = '0 0';
-          title.style.transform =
-            'translate(' + titleTransform.translateX + 'px, '
-            + titleTransform.translateY + 'px) scale(' + titleTransform.scale + ')';
-        }
-        const bounds = button.getBoundingClientRect();
-        const x = bounds.left + bounds.width * ${activationFraction.x};
-        const y = bounds.top + bounds.height * ${activationFraction.y};
-        const hit = document.elementFromPoint(x, y);
-        return (
-          bounds.width > 0
-          && bounds.height > 0
-          && x >= 0
-          && x <= innerWidth
-          && y >= 0
-          && y <= innerHeight
-          && hit instanceof Element
-          && (hit === button || button.contains(hit))
-        ) ? {
-          button,
-          centerX: bounds.left + bounds.width * 0.5,
-          centerY: bounds.top + bounds.height * 0.5,
-          x,
-          y
-        } : undefined;
-      });
-      if (!target) return { stage: 'gateway-ready' };
-
-      const initialExperience = document.querySelector('.warpkeep-experience');
-      const initialSequence = Number(
-        initialExperience?.getAttribute('data-transition-sequence')
-      );
-      if (!Number.isSafeInteger(initialSequence)) {
-        return { stage: 'initial-sequence' };
-      }
-      const state = {
-        done: false,
-        frames: [],
-        gatewayCenter: {
-          x: target.centerX,
-          y: target.centerY
-        },
-        initialHistoryLength: history.length,
-        initialSequence,
-        menuFrames: 0,
-        target: { x: target.x, y: target.y }
-      };
-      Object.defineProperty(window, '__warpkeepTitleGatewayDepartureFocus', {
-        configurable: true,
-        value: state
-      });
-      const activeTarget = (gatewayButton, landmark) => {
-        const active = document.activeElement;
-        if (active === gatewayButton) return 'gateway';
-        if (active === landmark) return 'departure-landmark';
-        if (
-          active instanceof HTMLButtonElement
-          && active.matches('button[data-command]')
-        ) return 'menu-command';
-        if (active === document.body) return 'body';
-        return active instanceof HTMLElement
-          ? active.tagName.toLowerCase()
-          : 'none';
-      };
-      const sampleFrame = (time) => {
-        if (state.done) return;
-        const experience = document.querySelector('.warpkeep-experience');
-        const titleScreen = document.querySelector(
-          '.warpkeep-experience__screen--title'
-        );
-        const title = document.querySelector('.warpkeep-title-screen');
-        const gateway = document.querySelector('.warpkeep-gateway');
-        const anchor = document.querySelector('.warpkeep-gateway-anchor');
-        const button = document.querySelector('.warpkeep-gateway-button');
-        const landmark = document.querySelector(
-          '.warpkeep-experience__title-departure-focus'
-        );
-        const overlay = document.querySelector('.warp-transition-overlay');
-        const overlayStyle = overlay instanceof HTMLElement
-          ? getComputedStyle(overlay)
-          : undefined;
-        const anchorBounds = anchor instanceof HTMLElement
-          ? anchor.getBoundingClientRect()
-          : undefined;
-        const hit = document.elementFromPoint(state.target.x, state.target.y);
-        const hitGateway = hit instanceof Element && (
-          hit.matches('.warpkeep-gateway-button')
-          || hit.closest('.warpkeep-gateway-button') !== null
-        );
-        const phase = experience?.getAttribute('data-phase') ?? 'missing';
-        const viewportWidth = innerWidth;
-        const viewportHeight = innerHeight;
-        const documentWidth = Math.max(
-          document.documentElement.scrollWidth,
-          document.body?.scrollWidth ?? 0
-        );
-        const documentHeight = Math.max(
-          document.documentElement.scrollHeight,
-          document.body?.scrollHeight ?? 0
-        );
-        state.frames.push({
-          time,
-          phase,
-          sequence: Number(
-            experience?.getAttribute('data-transition-sequence')
-          ),
-          viewportWidth,
-          viewportHeight,
-          devicePixelRatio,
-          overflow:
-            documentWidth > viewportWidth + 1
-            || documentHeight > viewportHeight + 1,
-          titlePhase: title?.getAttribute('data-title-phase') ?? '',
-          titleScreenAriaHidden:
-            titleScreen?.getAttribute('aria-hidden') ?? '',
-          titleScreenInert:
-            titleScreen instanceof HTMLElement ? titleScreen.inert : false,
-          gatewayPresent: gateway instanceof HTMLElement,
-          gatewayInteractive:
-            gateway?.getAttribute('data-interactive') ?? '',
-          gatewayVisible: gateway?.getAttribute('data-visible') ?? '',
-          gatewayPointerEvents:
-            gateway instanceof HTMLElement
-              ? getComputedStyle(gateway).pointerEvents
-              : '',
-          anchorHidden:
-            anchor instanceof HTMLElement ? anchor.hidden : false,
-          anchorInert:
-            anchor instanceof HTMLElement ? anchor.inert : false,
-          anchorAriaHidden: anchor?.getAttribute('aria-hidden') ?? '',
-          anchorVisible: anchor?.getAttribute('data-visible') ?? '',
-          anchorDisplay:
-            anchor instanceof HTMLElement ? getComputedStyle(anchor).display : '',
-          anchorTransform:
-            anchor instanceof HTMLElement ? anchor.style.transform : '',
-          anchorWidth: anchorBounds?.width ?? 0,
-          anchorHeight: anchorBounds?.height ?? 0,
-          buttonDisabled:
-            button instanceof HTMLButtonElement ? button.disabled : true,
-          buttonTabIndex:
-            button instanceof HTMLButtonElement ? button.tabIndex : -1,
-          buttonPointerEvents:
-            button instanceof HTMLElement
-              ? getComputedStyle(button).pointerEvents
-              : '',
-          buttonFocusVisible:
-            button instanceof HTMLElement && button.matches(':focus-visible'),
-          activeTarget: activeTarget(button, landmark),
-          hitGateway,
-          landmarkActive: landmark?.getAttribute('data-active') ?? '',
-          landmarkAriaHidden: landmark?.getAttribute('aria-hidden') ?? '',
-          landmarkAriaLive: landmark?.getAttribute('aria-live') ?? '',
-          landmarkRole: landmark?.getAttribute('role') ?? '',
-          overlayCount: document.querySelectorAll(
-            '.warp-transition-overlay'
-          ).length,
-          overlayMotion: overlay?.getAttribute('data-motion') ?? '',
-          overlayOriginX: Number.parseFloat(
-            overlay?.getAttribute('data-gateway-client-x') ?? ''
-          ),
-          overlayOriginY: Number.parseFloat(
-            overlay?.getAttribute('data-gateway-client-y') ?? ''
-          ),
-          overlayOriginPercentX: Number.parseFloat(
-            overlayStyle?.getPropertyValue('--warp-origin-x') ?? ''
-          ),
-          overlayOriginPercentY: Number.parseFloat(
-            overlayStyle?.getPropertyValue('--warp-origin-y') ?? ''
-          )
-        });
-        if (phase === 'menu') state.menuFrames += 1;
-        if (
-          state.menuFrames >= 4
-          || state.frames.length >= ${TITLE_GATEWAY_FRAME_LIMIT}
-        ) {
-          state.done = true;
-          return;
-        }
-        requestAnimationFrame(sampleFrame);
-      };
-      requestAnimationFrame(sampleFrame);
-      await new Promise((resolve) => requestAnimationFrame(
-        () => requestAnimationFrame(resolve)
-      ));
-      const bounds = target.button.getBoundingClientRect();
-      const x = bounds.left + bounds.width * ${activationFraction.x};
-      const y = bounds.top + bounds.height * ${activationFraction.y};
-      state.target = { x, y };
-      state.gatewayCenter = {
-        x: bounds.left + bounds.width * 0.5,
-        y: bounds.top + bounds.height * 0.5
-      };
-      return {
-        stage: 'ready',
-        x,
-        y
-      };
-    })()`,
-    awaitPromise: true,
-    returnByValue: true,
-  }, TITLE_GATEWAY_INITIAL_LOAD_TIMEOUT_MILLISECONDS + 5_000);
-  const value = result?.result?.value;
-  if (
-    result?.exceptionDetails
-    || value === null
-    || typeof value !== 'object'
-    || Array.isArray(value)
-    || value.stage !== 'ready'
-    || !Number.isFinite(value.x)
-    || !Number.isFinite(value.y)
-  ) {
-    const safeStage = typeof value?.stage === 'string'
-      && /^[a-z0-9-]{1,64}$/.test(value.stage)
-      ? value.stage
-      : 'unknown';
-    throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: ${safeStage}.`
-    );
-  }
-  return Object.freeze({ x: value.x, y: value.y });
-}
-
-async function focusTitleGatewayForKeyboard(session, probeCase) {
-  await session.command('Input.dispatchKeyEvent', {
-    type: 'keyDown',
-    key: 'Tab',
-    code: 'Tab',
-    windowsVirtualKeyCode: 9,
-    nativeVirtualKeyCode: 9,
-  });
-  await session.command('Input.dispatchKeyEvent', {
-    type: 'keyUp',
-    key: 'Tab',
-    code: 'Tab',
-    windowsVirtualKeyCode: 9,
-    nativeVirtualKeyCode: 9,
-  });
-  const result = await session.command('Runtime.evaluate', {
-    expression: `(() => {
-      const button = document.querySelector('.warpkeep-gateway-button');
-      return {
-        focused: button instanceof HTMLButtonElement
-          && document.activeElement === button,
-        focusVisible: button instanceof HTMLButtonElement
-          && button.matches(':focus-visible')
-      };
-    })()`,
-    returnByValue: true,
-  });
-  const value = result?.result?.value;
-  if (
-    result?.exceptionDetails
-    || value?.focused !== true
-    || value?.focusVisible !== true
-  ) {
-    throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: keyboard-ready.`
-    );
-  }
-}
-
-async function dispatchTitleGatewayActivation(session, probeCase, target) {
-  if (probeCase.input === 'keyboard') {
-    for (let repetition = 0; repetition < 2; repetition += 1) {
-      await session.command('Input.dispatchKeyEvent', {
-        type: 'keyDown',
-        key: 'Enter',
-        code: 'Enter',
-        text: '\r',
-        unmodifiedText: '\r',
-        windowsVirtualKeyCode: 13,
-        nativeVirtualKeyCode: 13,
-      });
-      await session.command('Input.dispatchKeyEvent', {
-        type: 'keyUp',
-        key: 'Enter',
-        code: 'Enter',
-        windowsVirtualKeyCode: 13,
-        nativeVirtualKeyCode: 13,
-      });
-    }
-    return;
-  }
-  if (probeCase.input === 'touch') {
-    for (let repetition = 0; repetition < 2; repetition += 1) {
-      await session.command('Input.dispatchTouchEvent', {
-        type: 'touchStart',
-        touchPoints: [{ x: target.x, y: target.y }],
-      });
-      await session.command('Input.dispatchTouchEvent', {
-        type: 'touchEnd',
-        touchPoints: [],
-      });
-    }
-    return;
-  }
-  await session.command('Input.dispatchMouseEvent', {
-    type: 'mouseMoved',
-    x: target.x,
-    y: target.y,
-    button: 'none',
-    buttons: 0,
-    pointerType: 'mouse',
-  });
-  for (let repetition = 0; repetition < 2; repetition += 1) {
-    await session.command('Input.dispatchMouseEvent', {
-      type: 'mousePressed',
-      x: target.x,
-      y: target.y,
-      button: 'left',
-      buttons: 1,
-      clickCount: 1,
-      pointerType: 'mouse',
-    });
-    await session.command('Input.dispatchMouseEvent', {
-      type: 'mouseReleased',
-      x: target.x,
-      y: target.y,
-      button: 'left',
-      buttons: 0,
-      clickCount: 1,
-      pointerType: 'mouse',
-    });
-  }
-}
-
-async function attestTitleGatewayActivationStarted(session, probeCase) {
-  const result = await session.command('Runtime.evaluate', {
-    expression: `(async () => {
-      const deadline = performance.now() + 1_500;
-      while (performance.now() <= deadline) {
-        const experience = document.querySelector('.warpkeep-experience');
-        const phase = experience?.getAttribute('data-phase') ?? '';
-        const sequence = Number(
-          experience?.getAttribute('data-transition-sequence')
-        );
-        if (phase === 'transitioning-to-menu') {
-          return { phase, sequence };
-        }
-        await new Promise((resolve) => setTimeout(resolve, 16));
-      }
-      const experience = document.querySelector('.warpkeep-experience');
-      return {
-        phase: experience?.getAttribute('data-phase') ?? '',
-        sequence: Number(
-          experience?.getAttribute('data-transition-sequence')
-        )
-      };
-    })()`,
-    awaitPromise: true,
-    returnByValue: true,
-  }, 2_000);
-  const value = result?.result?.value;
-  if (
-    result?.exceptionDetails
-    || value?.phase !== 'transitioning-to-menu'
-    || value?.sequence !== 1
-  ) {
-    throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: activation-start.`
-    );
-  }
-}
-
-async function collectTitleGatewayDepartureFocusCase(session, probeCase) {
-  const result = await session.command('Runtime.evaluate', {
-    expression: `(async () => {
-      const state = window.__warpkeepTitleGatewayDepartureFocus;
-      if (!state || !Array.isArray(state.frames)) {
-        return { stage: 'missing-sampler' };
-      }
-      const deadline = performance.now() + ${TITLE_GATEWAY_CASE_TIMEOUT_MILLISECONDS};
-      while (!state.done && performance.now() <= deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 16));
-      }
-      const experience = document.querySelector('.warpkeep-experience');
-      const menuScreen = document.querySelector(
-        '.warpkeep-experience__screen--menu'
-      );
-      const menuCommand = document.querySelector('button[data-command]');
-      const gateway = document.querySelector('.warpkeep-gateway');
-      const active = document.activeElement;
-      return {
-        stage: state.done ? 'complete' : 'frame-timeout',
-        frames: state.frames,
-        initialHistoryLength: state.initialHistoryLength,
-        initialSequence: state.initialSequence,
-        finalHistoryLength: history.length,
-        finalHash: location.hash,
-        activationTarget: state.target,
-        gatewayCenter: state.gatewayCenter,
-        finalPhase: experience?.getAttribute('data-phase') ?? '',
-        finalSequence: Number(
-          experience?.getAttribute('data-transition-sequence')
-        ),
-        finalMenuInteractive:
-          menuScreen instanceof HTMLElement
-          && menuScreen.getAttribute('aria-hidden') === 'false'
-          && !menuScreen.inert
-          && menuCommand instanceof HTMLButtonElement
-          && !menuCommand.disabled
-          && menuCommand.tabIndex === 0,
-        finalActiveTarget:
-          active instanceof HTMLButtonElement
-          && active.matches('button[data-command]')
-            ? 'menu-command'
-            : active instanceof HTMLElement
-              && active.matches('.warpkeep-gateway-button')
-                ? 'gateway'
-                : active instanceof HTMLElement
-                  ? active.tagName.toLowerCase()
-                  : 'none',
-        finalGatewayPresent: gateway instanceof HTMLElement
-      };
-    })()`,
-    awaitPromise: true,
-    returnByValue: true,
-  }, TITLE_GATEWAY_CASE_TIMEOUT_MILLISECONDS);
-  if (result?.exceptionDetails || result?.result?.type !== 'object') {
-    const rawDetail = result?.exceptionDetails?.exception?.description
-      ?? result?.exceptionDetails?.text
-      ?? result?.result?.type
-      ?? 'unknown';
-    const safeDetail = String(rawDetail)
-      .split('\n', 1)[0]
-      .replace(/[^A-Za-z0-9 .:_()-]/g, '')
-      .slice(0, 120) || 'unknown';
-    throw new LocalFullstackBrowserError(
-      `Title gateway departure focus failed at ${probeCase.id}: collection-${safeDetail}.`
-    );
-  }
-  return validateTitleGatewayDepartureFocusObservation(
-    result.result.value,
-    probeCase
-  );
-}
-
-async function exerciseTitleGatewayDepartureFocus(
-  session,
-  titleUrl,
-  assertBrowserBoundary
-) {
+async function exerciseInitialMenuReadiness(session, menuUrl, assertBrowserBoundary) {
   const observations = [];
-  for (const probeCase of TITLE_GATEWAY_CASES) {
+  for (const probeCase of MENU_READINESS_CASES) {
     let stage = 'environment';
     try {
-      await setTitleGatewayCaseEnvironment(session, probeCase);
+      await setMenuReadinessCaseEnvironment(session, probeCase);
       stage = 'navigation';
-      // A cold Windows Vite transform can exceed the generic 10 s CDP
-      // command budget; keep the navigation bounded by the probe's 120 s
-      // readiness contract while allowing that first transform to finish.
-      await session.command('Page.navigate', { url: titleUrl }, 60_000);
-      await delay(500);
-      stage = 'preparation';
-      const target = await prepareTitleGatewayDepartureFocusCase(session, probeCase);
+      await session.command('Page.navigate', { url: menuUrl }, 60_000);
+      await delay(150);
+      stage = 'readiness';
+      const result = await session.command('Runtime.evaluate', {
+        expression: `(async () => {
+          const inspect = () => {
+            const experience = document.querySelector('.warpkeep-experience');
+            const screen = document.querySelector(
+              '.warpkeep-experience__screen--menu'
+            );
+            const menu = document.querySelector('.warpkeep-menu');
+            const title = document.querySelector('#warpkeep-menu-title');
+            const primary = document.querySelector(
+              'button[data-command="enter-realm"]'
+            );
+            const bounds = primary instanceof HTMLButtonElement
+              ? primary.getBoundingClientRect()
+              : undefined;
+            const style = primary instanceof HTMLElement
+              ? getComputedStyle(primary)
+              : undefined;
+            const point = bounds && bounds.width > 0 && bounds.height > 0
+              ? document.elementFromPoint(
+                  bounds.left + bounds.width / 2,
+                  bounds.top + bounds.height / 2
+                )
+              : null;
+            const viewport = {
+              width: innerWidth,
+              height: innerHeight,
+              scale: devicePixelRatio,
+            };
+            const overflowX = Math.max(
+              document.documentElement.scrollWidth,
+              document.body?.scrollWidth ?? 0
+            ) > viewport.width + 1;
+            const phase = experience?.getAttribute('data-phase') ?? 'missing';
+            const screenPresented = screen?.getAttribute('data-presented') ?? 'missing';
+            const menuVisible = menu?.getAttribute('data-visible') ?? 'missing';
+            const primaryReady = primary instanceof HTMLButtonElement
+              && !primary.disabled
+              && primary.tabIndex === 0
+              && style?.display !== 'none'
+              && style?.visibility !== 'hidden'
+              && Number(style?.opacity ?? '1') > 0
+              && bounds.left >= -1
+              && bounds.top >= -1
+              && bounds.right <= viewport.width + 1
+              && bounds.bottom <= viewport.height + 1
+              && point instanceof Element
+              && (point === primary || primary.contains(point));
+            return {
+              phase,
+              screenPresented,
+              screenInteractive: screen instanceof HTMLElement
+                && screen.getAttribute('aria-hidden') === 'false'
+                && !screen.inert,
+              menuVisible,
+              menuActive: menu?.getAttribute('data-active') ?? 'missing',
+              titlePresent: title instanceof HTMLElement,
+              primaryState: !(primary instanceof HTMLButtonElement)
+                ? 'missing'
+                : primary.disabled
+                  ? 'disabled'
+                  : primaryReady ? 'ready' : 'not-visible',
+              primaryReady,
+              overflowX,
+              viewport,
+              ready: phase === 'menu'
+                && screenPresented === 'true'
+                && screen instanceof HTMLElement
+                && screen.getAttribute('aria-hidden') === 'false'
+                && !screen.inert
+                && menuVisible === 'true'
+                && menu?.getAttribute('data-active') === 'true'
+                && title instanceof HTMLElement
+                && primaryReady
+                && !overflowX,
+            };
+          };
+          const deadline = performance.now() + ${MENU_READINESS_TIMEOUT_MILLISECONDS};
+          let state;
+          while (performance.now() <= deadline) {
+            state = inspect();
+            if (state.ready) return { stage: 'ready', ...state };
+            await new Promise((resolve) => setTimeout(resolve, 32));
+          }
+          return { stage: 'menu-timeout', ...inspect() };
+        })()`,
+        awaitPromise: true,
+        returnByValue: true,
+      }, MENU_READINESS_TIMEOUT_MILLISECONDS + 5_000);
       assertBrowserBoundary?.(probeCase.id);
-      if (probeCase.input === 'keyboard') {
-        stage = 'keyboard-focus';
-        await focusTitleGatewayForKeyboard(session, probeCase);
+      const value = result?.result?.value;
+      if (
+        result?.exceptionDetails
+        || value === null
+        || typeof value !== 'object'
+        || Array.isArray(value)
+        || value.stage !== 'ready'
+        || value.ready !== true
+        || value.viewport?.width !== probeCase.viewport.width
+        || value.viewport?.height !== probeCase.viewport.height
+        || Math.abs(value.viewport?.scale - probeCase.deviceScaleFactor) > 0.01
+      ) {
+        const phase = typeof value?.phase === 'string'
+          && /^[a-z-]{1,32}$/.test(value.phase) ? value.phase : 'unknown';
+        const screen = typeof value?.screenPresented === 'string'
+          && /^[a-z-]{1,32}$/.test(value.screenPresented)
+          ? value.screenPresented : 'unknown';
+        const primary = typeof value?.primaryState === 'string'
+          && /^[a-z-]{1,32}$/.test(value.primaryState)
+          ? value.primaryState : 'unknown';
+        const overflow = value?.overflowX === true ? 'yes' : 'no';
+        throw new LocalFullstackBrowserError(
+          `Direct menu readiness failed at ${probeCase.id}: ${value?.stage ?? 'runtime'}-${phase}-${screen}-${primary}-overflow-${overflow}.`
+        );
       }
-      stage = 'activation';
-      await dispatchTitleGatewayActivation(session, probeCase, target);
-      await attestTitleGatewayActivationStarted(session, probeCase);
-      if (probeCase.resizeViewport) {
-        stage = 'departure-resize';
-        await delay(96);
-        await session.command('Emulation.setDeviceMetricsOverride', {
-          width: probeCase.resizeViewport.width,
-          height: probeCase.resizeViewport.height,
-          screenWidth: probeCase.resizeViewport.width,
-          screenHeight: probeCase.resizeViewport.height,
-          deviceScaleFactor: probeCase.deviceScaleFactor,
-          mobile: probeCase.mobile,
-        });
-      }
-      stage = 'collection';
-      observations.push(
-        await collectTitleGatewayDepartureFocusCase(session, probeCase)
-      );
-      assertBrowserBoundary?.(probeCase.id);
+      observations.push(Object.freeze({
+        id: probeCase.id,
+        mobile: probeCase.mobile,
+        reducedMotion: probeCase.reducedMotion,
+        viewport: Object.freeze(value.viewport),
+      }));
     } catch (error) {
       assertBrowserBoundary?.(probeCase.id);
       if (error instanceof LocalFullstackBrowserError) throw error;
       const safeDetail = error instanceof Error
-        ? error.message
-          .replace(/[^A-Za-z0-9 .:_()-]/g, '')
-          .slice(0, 120)
+        ? error.message.replace(/[^A-Za-z0-9 .:_()-]/g, '').slice(0, 120)
         : '';
       throw new LocalFullstackBrowserError(
-        `Title gateway departure focus failed at ${probeCase.id}: ${stage}${
+        `Direct menu readiness failed at ${probeCase.id}: ${stage}${
           safeDetail ? `-${safeDetail}` : ''
         }.`
       );
     }
   }
-  await setTitleGatewayCaseEnvironment(session, TITLE_GATEWAY_CASES[0]);
+  await setMenuReadinessCaseEnvironment(session, MENU_READINESS_CASES[0]);
   return Object.freeze({
     caseCount: observations.length,
-    frameCount: observations.reduce(
-      (total, observation) => total + observation.frameCount,
-      0
-    ),
     observations: Object.freeze(observations),
   });
 }
-
 async function exerciseRestoredEntryAgreementContinuity(session) {
   const result = await session.command('Runtime.evaluate', {
     expression: `(async () => {
@@ -7095,14 +6394,14 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       return session;
     };
     devtools = await connectDisposableDevtools(chrome, state);
-    probeStage = 'title-gateway-departure-focus';
-    const titleGatewayDepartureFocus = await exerciseTitleGatewayDepartureFocus(
+    probeStage = 'direct-menu-readiness';
+    const initialMenuReadiness = await exerciseInitialMenuReadiness(
       devtools,
-      titleUrl,
+      pageUrl,
       (caseId) => {
         if (state.violation) {
           throw new LocalFullstackBrowserError(
-            `Title gateway departure focus left its boundary at ${caseId}: ${
+            `Direct menu readiness left its boundary at ${caseId}: ${
               state.violation
             }.`
           );
@@ -7413,7 +6712,7 @@ export async function runLocalFullstackBrowserProbe(options = {}) {
       moduleDigest: database.moduleDigest,
       persistentWorkerReentry,
       restoredEntryAgreementContinuity,
-      titleGatewayDepartureFocus,
+      initialMenuReadiness,
       visual,
       workerPrivateSeamMatrix,
     });
@@ -7463,10 +6762,9 @@ async function main() {
   try {
     const result = await runLocalFullstackBrowserProbe();
     process.stdout.write(
-      'Warpkeep disposable local full-stack QA passed: one title-gateway departure/focus '
-      + `matrix (${result.titleGatewayDepartureFocus.caseCount} cases, ${
-        result.titleGatewayDepartureFocus.frameCount
-      } frames), one restored exact-current server Terms continuity skip, `
+      'Warpkeep disposable local full-stack QA passed: one direct-menu readiness '
+      + `matrix (${result.initialMenuReadiness.caseCount} responsive profiles), `
+      + 'one restored exact-current server Terms continuity skip, '
       + 'one authoritative Inner Keep City Mill start/completion and discounted '
       + 'Lumber Camp start with one Builder, hard-reload persistence, and preserved '
       + 'Realm camera/Worker presentation, '
