@@ -1,14 +1,23 @@
 # Continue Warpkeep 0.4
 
-## Exact-head shipping checkpoint — 28 September 2026, 04:31 CEST (02:31 UTC)
+## Exact-head shipping checkpoint — 28 September 2026, 04:38 CEST (02:38 UTC)
 
 The maintained checkout and `origin/fix/g001-census-admission-proxy` were clean
 and matched signed commit
-[`feaade75`](https://github.com/ael-dev3/Warpkeep/commit/feaade75fde6b27a2ec95af90faaa3c432e651f5).
+[`4ceba245`](https://github.com/ael-dev3/Warpkeep/commit/4ceba245db011ea5d5c2b8e764a3ba340ed8a9b5).
 PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) remains open against
 `main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`, with no submitted review.
-This update records checks run against that exact source. Its documentation
-commit will advance the PR head and require a fresh exact-head Verify.
+The application checks below ran on exact source `feaade75`; `4ceba245` changes
+only the release notes. The outgoing documentation commit passed the pinned
+Gitleaks scan (8.58 KB, no leaks) and scanner-regression fixture (48 positives,
+95 negatives). Exact-head
+[Verify 36370609811](https://github.com/ael-dev3/Warpkeep/actions/runs/36370609811)
+on `4ceba245` then failed all 17 jobs before any step. GitHub's check annotation
+states that recent account payments failed or the Actions spending limit must
+increase. This is the same external runner-allocation gate, not a hosted source
+test result. This notes-only update will advance PR #374 again; recheck the new
+exact head and run, and do not merge until a successful hosted Verify and
+review are recorded.
 
 Local verification on the exact source completed successfully:
 
@@ -39,8 +48,8 @@ Local verification on the exact source completed successfully:
   vulnerabilities; npm signature verification checked 249 packages and 74
   attestations.
 
-GitHub exact-head [Verify 36360727066](https://github.com/ael-dev3/Warpkeep/actions/runs/36360727066)
-matches `feaade75`, but all 17 jobs failed before executing a step. The
+GitHub exact-head Verify 36360727066 on `feaade75` and 36370609811 on
+`4ceba245` both failed all 17 jobs before executing a step. The latest
 runner-allocation annotation cites failed account payments or the Actions
 spending limit. This is an external billing gate, not a hosted source-test
 result. Do not merge or substitute the privileged production runner; the owner

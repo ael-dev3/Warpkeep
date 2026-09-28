@@ -1,6 +1,6 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 28 September 2026, Europe/Budapest.
-Source/GitHub check: 04:31 CEST (02:31 UTC).
+Source/GitHub check: 04:38 CEST (02:38 UTC).
 
 PURPOSE OF THIS FILE
 
@@ -35,8 +35,9 @@ C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep
 
 Local branch: fix/g001-census-admission-proxy
 At the start of this refresh, local and GitHub branch head was signed
-feaade75fde6b27a2ec95af90faaa3c432e651f5 and the checkout was clean and
-remote-equal. PR #374 was open on that branch, based on live main
+4ceba245db011ea5d5c2b8e764a3ba340ed8a9b5 and the checkout was clean and
+remote-equal. The application checks below ran on feaade75; 4ceba245 contains
+only notes and README wording. PR #374 is open on that branch, based on live main
 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. This status note will advance the
 branch; recheck the exact live SHA before acting.
 Protected source checkpoint: 175e325771768d8427bedeff8280a9cb2a9de282
@@ -109,7 +110,7 @@ docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md.
 The prior exact-head run [Verify 36356502820](https://github.com/ael-dev3/Warpkeep/actions/runs/36356502820)
 on signed docs head 4e8d8cf5 is historical. It also stopped all 17 jobs before
 any step because of the same billing/spending-limit gate. The current result
-is Verify 36360727066 on feaade75, recorded at the top of execution-handoff.md.
+is Verify 36370609811 on 4ceba245, recorded at the top of execution-handoff.md.
 Recheck the live run after this note is committed.
 
 The owner reported successful login after another fresh QR scan. The
