@@ -231,8 +231,11 @@ describe('Warpkeep local QA journey lab', () => {
 
   it.each(QA_JOURNEY_SCENARIOS)(
     'mounts the manifest-backed $id state without external authority',
-    ({ id }) => {
+    async ({ id }) => {
       render(<WarpkeepQaJourneyLab initialScenario={id} />);
+      if (id === 'admission-denied') {
+        await screen.findByRole('button', { name: 'REQUEST ACCESS' });
+      }
       const root = document.querySelector<HTMLElement>('.qa-journey');
       expect(root?.getAttribute('data-qa-scenario')).toBe(id);
       const landmark = QA_SCENARIO_LANDMARKS[id];
@@ -361,8 +364,11 @@ describe('Warpkeep local QA journey lab', () => {
     ['admission-accepting-terms', 'RECORDING ENTRY AGREEMENT'],
     ['admission-opening-realm', 'OPENING GENESIS 001…'],
     ['admission-error', 'HEGEMONY RECORDS UNREACHABLE']
-  ] as const)('renders exhaustive %s backend presentation state', (scenario, heading) => {
+  ] as const)('renders exhaustive %s backend presentation state', async (scenario, heading) => {
     render(<WarpkeepQaJourneyLab initialScenario={scenario} />);
+    if (scenario === 'admission-denied') {
+      await screen.findByRole('button', { name: 'REQUEST ACCESS' });
+    }
     expect(screen.getByRole('heading', { name: heading })).not.toBeNull();
     expectNoExternalSideEffects();
   });
