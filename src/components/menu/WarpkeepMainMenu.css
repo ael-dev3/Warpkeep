@@ -1508,3 +1508,28 @@ a.warpkeep-menu-build-stamp__build:focus-visible {
     height: 4.4rem;
   }
 }
+
+/* Preserve the full wordmark and build provenance within narrow phone safe areas. */
+@media (max-width: 430px) and (orientation: portrait) {
+  .warpkeep-menu .warpkeep-menu-title {
+    font-size: clamp(1.9rem, 10.5vw, 2.55rem);
+    letter-spacing: 0.035em;
+  }
+
+  .warpkeep-menu .warpkeep-menu-tagline {
+    max-width: 100%;
+    padding-inline: 0.15rem;
+    font-size: clamp(0.56rem, 2.25vw, 0.68rem);
+    letter-spacing: 0.07em;
+  }
+
+  .warpkeep-menu-build-stamp {
+    right: max(0.8rem, calc(env(safe-area-inset-right) + 0.55rem));
+    left: max(0.8rem, calc(env(safe-area-inset-left) + 0.55rem));
+    width: auto;
+    max-width: none;
+    justify-content: center;
+    font-size: clamp(0.52rem, 2.25vw, 0.62rem);
+    letter-spacing: 0.06em;
+  }
+}

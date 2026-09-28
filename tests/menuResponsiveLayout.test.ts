@@ -209,6 +209,28 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(portrait).toMatch(/\.warpkeep-menu \.warpkeep-menu-command\s*\{[^}]*min-height:\s*2\.75rem;/s);
   });
 
+  it('keeps the full wordmark and build provenance inside narrow portrait screens', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/components/menu/WarpkeepMainMenu.css'),
+      'utf8'
+    );
+    const compactPhone = css.slice(css.indexOf(
+      '/* Preserve the full wordmark and build provenance within narrow phone safe areas. */'
+    ));
+    const portrait = readCssBlock(
+      compactPhone,
+      '@media (max-width: 430px) and (orientation: portrait)'
+    );
+    const title = readCssBlock(portrait, '.warpkeep-menu .warpkeep-menu-title {');
+    const buildStamp = readCssBlock(portrait, '.warpkeep-menu-build-stamp {');
+
+    expect(title).toContain('font-size: clamp(1.9rem, 10.5vw, 2.55rem);');
+    expect(title).toContain('letter-spacing: 0.035em;');
+    expect(buildStamp).toContain('left: max(');
+    expect(buildStamp).toContain('right: max(');
+    expect(buildStamp).toContain('justify-content: center;');
+  });
+
   it('stacks all realm choices and keeps tooltips bounded on narrow phones', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/RealmChoiceSelector.css'),
