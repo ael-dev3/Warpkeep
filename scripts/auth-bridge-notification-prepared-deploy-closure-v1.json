@@ -4120,7 +4120,7 @@
     {
       "path": "src/components/realm/RealmMapScreen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2a556b20cad261135813d24fcaea0a5805b587a0958bf2d7701f55e6e2127a3c"
+      "sha256": "5d39f069bad7f85b48669ddc270fa23c167f4b6c6eeb969420bb416b0ee5a187"
     },
     {
       "path": "src/components/realm/RealmNodeWorkerDispatch.css",
@@ -4350,7 +4350,7 @@
     {
       "path": "src/components/realm/greaterRealmSceneStrategy.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0f184c970ca8a55bdfa6efc932b8bce60260e91d02c435152f3dd7054a71eb5a"
+      "sha256": "6e8207c1d7e5ce22dcd8573a147e33b73c684b41ef833dda94db01a06c5c103e"
     },
     {
       "path": "src/components/realm/greaterRealmVoxelPresentation.ts",
@@ -5150,7 +5150,7 @@
     {
       "path": "src/ptr/PtrGameplay04SurfaceHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e8e20ecc76ea48c965da6bc70027791e2cffd6ac4c212434dceea81d022657cf"
+      "sha256": "8ff68a1aebef73b11a3367d60a015a89d1535433c9de03c42b387d48e87a9b93"
     },
     {
       "path": "src/ptr/PtrRealmProvider.tsx",
@@ -5225,7 +5225,7 @@
     {
       "path": "src/ptr/ptrRealmPresentationPolicy.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "530f0528e2efb58fc0a7b3263c57b36a2afcbb18b12c16d48b2ece5e28e3a5b7"
+      "sha256": "414e648d0a0a6822821b628fc33034e32b30f8bdec98afc6fa2e1a5db828da71"
     },
     {
       "path": "src/release/admissionLaunchPolicy.ts",
