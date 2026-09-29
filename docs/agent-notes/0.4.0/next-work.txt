@@ -1,24 +1,30 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 12:08 CEST (10:08 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 12:30 CEST (10:30 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 12:08 CEST
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 12:30 CEST
 
-The exact code head tested locally is
-`b23d67f48755bbc2ae98d3152ba2751b6b7da690` on
-`fix/g001-census-admission-proxy`; Windows, origin, and WarpkeepRunner agreed
-there before this note refresh. PR #374 is open and mergeable against main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. No GitHub Actions were queried,
-dispatched, rerun or used during September. Keep #374 open and `/ptr/`
-unpublished through September 30; confirm direction before hosted checks on or
-after October 1.
+The checked code candidate `4e3d7cd30fd094183c5511ca569ef2cecf9d09fe` is
+synchronized across Windows, origin and WarpkeepRunner. PR #374 is open and
+mergeable against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. No GitHub
+Actions were queried, dispatched, rerun or used during September. Keep #374
+open and `/ptr/` unpublished through September 30.
 
-All four ordinary root-test shards passed locally. The isolated auth-bridge
-prepared workflow (164), production canary closure (3), PTR existing-update
-continuation (37), Greater Realm runtime release (36), and all sealed
-production activation-record cases (69) passed. Shard 2 reported 3,210 passed
-/ 48 skipped; shard 3 reported 2,398 passed / 13 skipped. Shards 1 and 4
-exited successfully, but their exact counts were not retained. The focused
-native closure suites also remain green at 227/227.
+All four ordinary root-test shards passed on predecessor `b23d67f`; no code
+changed between it and 4e3d. The isolated auth-bridge prepared workflow (164),
+production canary closure (3), PTR existing-update continuation (37), Greater
+Realm runtime release (36), and sealed activation-record cases (69) passed.
+Shard 2 reported 3,210 passed / 48 skipped; shard 3 reported 2,398 passed /
+13 skipped. Shards 1 and 4 passed, but their exact counts were not retained.
+Focused native closure suites remain green at 227/227.
+
+The exact 4e3d candidate passed the disposable Windows full-stack browser
+journey on Node 22.23.2 and SpacetimeDB CLI 2.6.1. It covers six responsive
+menu profiles, Keep construction, reload persistence, Worker re-entry/retry,
+all four resource returns, and cleanup. The checked-in sealed-launch verifier
+reports the expected predeployment state: Pages approval false, package
+`0.3.43`, live database identities unset, and PTR presentation disabled.
+Detailed synthetic/live evidence boundaries are in
+`docs/evidence/0.4.0/owner-journey.md`.
 
 WSL test commands must run as checkout owner `warpkeep` (UID 1000), since the
 distro defaults to root and the auth-bridge policy correctly rejects a
@@ -28,20 +34,22 @@ wrapper with the locked native binary. The pinned `npm rebuild esbuild` fixed
 only ignored `node_modules`; the greater-realm toolchain verifier then passed
 all 11 packages. Do not alter package locks to repair these local conditions.
 
-At tested head `b23d67f`, pinned Node 22.22.3 / npm 10.9.8 built the `/ptr/`
-variant successfully. Its exact-source payload check passed at 445 files /
-134,452,795 bytes (manifest SHA-256
-`7217ab3dcd9d0c9e744df19816f7769162fd604fc0bc18d73268451e54f746ab`; content
+At tested head `4e3d7cd`, pinned Node 22.22.3 / npm 10.9.8 built the `/ptr/`
+variant. The exact-source payload check passed at 445 files / 134,452,795 bytes
+(manifest SHA-256
+`3f6a0567636d81970adb37b03b9c84226cf980cc5c002cca1bab03088e350570`; content
 manifest SHA-256
-`a601d8862f39e018b1cf40129700e4d5932a2a595551adcb3c1c58d9d468e434`). The
-read-only plan preserves 341 Alpha-root entries and removes no obsolete
-generated paths. Rebuild and regenerate both ignored receipts after this note
-update is pushed, at the final docs-inclusive source.
+`28caca64cc72ebee26211869403d803f9417db958b4d590a122200751e5f268e`). The
+read-only plan preserves 341 Alpha-root entries, targets 799 files, and removes
+no obsolete generated paths (plan SHA-256
+`c813c43efa87253292c24eb0c7529c8ce73ef8320c137ae3f2416dea52666e40`).
+Regenerate and check both ignored receipts after this note update is pushed,
+at the final docs-inclusive source.
 
 No deployment is claimed. PTR remains unpublished through September 30.
 Physical-device and performance acceptance and review of the retained
-`browser-log-security` warning remain open. Resume hosted checks only after
-October 1 and after confirming the owner's direction.
+`browser-log-security` warning remain open. Resume hosted checks from the exact
+final head after September ends.
 
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 10:46 CEST
 

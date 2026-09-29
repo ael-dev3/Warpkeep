@@ -3,6 +3,27 @@
 Recorded 2026-09-09 from the Windows development checkout. This record is an
 evidence boundary, not a claim that the live owner journey is complete.
 
+## 2026-09-29 Windows candidate full-stack rerun
+
+Exact candidate `4e3d7cd30fd094183c5511ca569ef2cecf9d09fe` passed
+`scripts/qa-observer/local-fullstack-browser-probe.mjs` on the attested
+Windows Node 22.23.2 runtime and SpacetimeDB CLI 2.6.1. The disposable in-memory
+database and isolated Chrome run covered six responsive menu profiles, the
+exact-current server Terms continuity skip, City Mill construction/completion,
+discounted Lumber Camp construction with one Builder, hard-reload persistence,
+fresh-browser Worker re-entry, delayed and failing private reads, timeout and
+visibility seams, the canonical local realm fixture, four resource
+dispatch/return paths, recalls, automatic settlement, and released-node reuse.
+The probe completed successfully and removed its temporary database, CLI
+attestation, and browser profiles.
+
+This remains synthetic integration evidence. The current Terms fixture caused
+one continuity subcase to be skipped; the run does not establish real identity,
+the owner's atlas-route timing, production persistence, a physical-phone result,
+or live PTR acceptance. The checked-in sealed-launch verifier at this source
+still reports `pagesDeploymentApproved: false`, package `0.3.43`, no G001/G002/
+PTR database identities, and PTR presentation disabled.
+
 ## What is covered
 
 - `tests/fullstackLocalQaSecurity.test.ts`: 49/49 tests passed after the

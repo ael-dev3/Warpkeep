@@ -1,22 +1,32 @@
 # Continue Warpkeep 0.4
 
-## September no-Actions continuation — 29 September 2026, 12:08 CEST (10:08 UTC)
+## September no-Actions continuation — 29 September 2026, 12:30 CEST (10:30 UTC)
 
-The exact tested code head is `b23d67f48755bbc2ae98d3152ba2751b6b7da690` on
-`fix/g001-census-admission-proxy`; Windows, origin and WarpkeepRunner were
-synchronized there before this note update. PR #374 against main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` remains open and mergeable. No
-GitHub Actions were queried, dispatched, rerun or used during September. Keep
-the PR open and PTR unpublished through September 30; confirm direction before
-using hosted checks on or after October 1.
+Windows, origin and WarpkeepRunner agreed at exact candidate
+`4e3d7cd30fd094183c5511ca569ef2cecf9d09fe` on
+`fix/g001-census-admission-proxy` before this evidence update. PR #374 against
+main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` remains open and mergeable. No
+GitHub Actions were queried, dispatched, rerun or used during September.
 
-All four local root-test shards exited successfully. The separate protected
-lanes passed auth-bridge prepared workflow 164/164, production canary closure
-3/3, PTR existing-update continuation 37/37, Greater Realm runtime release
-36/36, and sealed production activation records 69/69. Shard 2 reported
-3,210 passed / 48 skipped and shard 3 reported 2,398 passed / 13 skipped;
-shards 1 and 4 passed, but their exact counts were not retained from the live
-dot output. Focused closure suites previously passed 227/227.
+All four local root-test shards passed on code-equivalent predecessor
+`b23d67f48755bbc2ae98d3152ba2751b6b7da690`; the intervening commit only
+refreshed documentation. The separate lanes passed auth-bridge prepared
+workflow 164/164, production canary closure 3/3, PTR existing-update
+continuation 37/37, Greater Realm runtime release 36/36, and sealed production
+activation records 69/69. Shard 2 reported 3,210 passed / 48 skipped and shard
+3 reported 2,398 passed / 13 skipped; shards 1 and 4 passed, but their exact
+counts were not retained from the live dot output. Focused closure suites
+previously passed 227/227.
+
+The exact 4e3d candidate passed the disposable Windows full-stack browser probe
+on Node 22.23.2 with SpacetimeDB CLI 2.6.1. It covered six menu profiles, Keep
+City Mill construction/completion and discounted Lumber Camp construction,
+reload persistence, Worker re-entry and retry seams, the local realm, all four
+resource-return paths and cleanup. See
+[`owner-journey.md`](../../evidence/0.4.0/owner-journey.md) for coverage and
+limits. The checked-in sealed-launch verifier also passed at 4e3d and correctly
+reported `pagesDeploymentApproved: false`, package `0.3.43`, all live database
+identities unset and PTR presentation disabled.
 
 Run repository-owner-enforcing tests from WSL as `warpkeep` (UID 1000), not
 the distro's default root account. Root invocation fails the intended checkout
@@ -28,19 +38,22 @@ as the JS wrapper instead of the pinned native binary. The pinned
 then verified all 11 packages, and the affected root shard passed. Do not
 modify lockfiles for either local setup issue.
 
-At tested code head `b23d67f`, the pinned Node 22.22.3 / npm 10.9.8 `/ptr/`
+At tested code head `4e3d7cd`, the pinned Node 22.22.3 / npm 10.9.8 `/ptr/`
 production build and payload check passed: 445 files / 134,452,795 bytes,
-manifest SHA-256 `7217ab3dcd9d0c9e744df19816f7769162fd604fc0bc18d73268451e54f746ab`,
+manifest SHA-256 `3f6a0567636d81970adb37b03b9c84226cf980cc5c002cca1bab03088e350570`,
 content-manifest SHA-256
-`a601d8862f39e018b1cf40129700e4d5932a2a595551adcb3c1c58d9d468e434`. The
-read-only mirror plan preserves 341 Alpha-root entries and removes no obsolete
-generated paths. Regenerate and check both ignored receipts after this note
-update is pushed, bound to the docs-inclusive head.
+`28caca64cc72ebee26211869403d803f9417db958b4d590a122200751e5f268e`. The
+read-only mirror plan preserves 341 Alpha-root entries, targets 799 files,
+removes no obsolete generated paths, and has SHA-256
+`c813c43efa87253292c24eb0c7529c8ce73ef8320c137ae3f2416dea52666e40`.
+Regenerate and check both ignored receipts after this evidence update is pushed,
+bound to the docs-inclusive head.
 
-This does not authorize deployment. PTR remains unpublished through September
-30; retain the owner/device, physical-phone performance, and browser-warning
-review gates. Continue from the prior checkpoint below for unchanged product,
-closure, and external-input details.
+The public root returned HTTP 200 and `/ptr/` HTTP 404; no 0.4 deployment
+occurred. Keep #374 open and PTR unpublished through September 30. Physical
+device/performance acceptance and review of the retained browser security
+warning remain open. Continue from the prior checkpoint below for unchanged
+product, closure, and external-input details.
 
 ## Previous September no-Actions continuation — 29 September 2026, 10:46 CEST (08:46 UTC)
 
