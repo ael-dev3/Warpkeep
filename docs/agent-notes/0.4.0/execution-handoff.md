@@ -1,6 +1,48 @@
 # Continue Warpkeep 0.4
 
-## September no-Actions continuation — 29 September 2026, 10:46 CEST (08:46 UTC)
+## September no-Actions continuation — 29 September 2026, 12:08 CEST (10:08 UTC)
+
+The exact tested code head is `b23d67f48755bbc2ae98d3152ba2751b6b7da690` on
+`fix/g001-census-admission-proxy`; Windows, origin and WarpkeepRunner were
+synchronized there before this note update. PR #374 against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` remains open and mergeable. No
+GitHub Actions were queried, dispatched, rerun or used during September. Keep
+the PR open and PTR unpublished through September 30; confirm direction before
+using hosted checks on or after October 1.
+
+All four local root-test shards exited successfully. The separate protected
+lanes passed auth-bridge prepared workflow 164/164, production canary closure
+3/3, PTR existing-update continuation 37/37, Greater Realm runtime release
+36/36, and sealed production activation records 69/69. Shard 2 reported
+3,210 passed / 48 skipped and shard 3 reported 2,398 passed / 13 skipped;
+shards 1 and 4 passed, but their exact counts were not retained from the live
+dot output. Focused closure suites previously passed 227/227.
+
+Run repository-owner-enforcing tests from WSL as `warpkeep` (UID 1000), not
+the distro's default root account. Root invocation fails the intended checkout
+owner guard and is not a product regression. For the root toolchain security
+suite, an incomplete local npm install had left `node_modules/esbuild/bin/esbuild`
+as the JS wrapper instead of the pinned native binary. The pinned
+`npm rebuild esbuild` postinstall repaired ignored dependency state;
+`node scripts/atlas/greater-realm-toolchain-bootstrap.mjs --verify-only`
+then verified all 11 packages, and the affected root shard passed. Do not
+modify lockfiles for either local setup issue.
+
+At tested code head `b23d67f`, the pinned Node 22.22.3 / npm 10.9.8 `/ptr/`
+production build and payload check passed: 445 files / 134,452,795 bytes,
+manifest SHA-256 `7217ab3dcd9d0c9e744df19816f7769162fd604fc0bc18d73268451e54f746ab`,
+content-manifest SHA-256
+`a601d8862f39e018b1cf40129700e4d5932a2a595551adcb3c1c58d9d468e434`. The
+read-only mirror plan preserves 341 Alpha-root entries and removes no obsolete
+generated paths. Regenerate and check both ignored receipts after this note
+update is pushed, bound to the docs-inclusive head.
+
+This does not authorize deployment. PTR remains unpublished through September
+30; retain the owner/device, physical-phone performance, and browser-warning
+review gates. Continue from the prior checkpoint below for unchanged product,
+closure, and external-input details.
+
+## Previous September no-Actions continuation — 29 September 2026, 10:46 CEST (08:46 UTC)
 
 PR #374 against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` remains open
 and is currently mergeable. The Windows checkout, origin branch and dedicated
