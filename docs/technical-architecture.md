@@ -95,10 +95,13 @@ The connected browser route runs through
 [`WarpkeepExperience`](../src/components/WarpkeepExperience.tsx),
 [`PtrRealmProvider`](../src/ptr/PtrRealmProvider.tsx) and
 [`PtrGameplay04SurfaceHost`](../src/ptr/PtrGameplay04SurfaceHost.tsx).
-PTR and Genesis 001 enter through separate lazy surfaces: the owner PTR route
-loads the 0.4 host directly, while `RealmMapScreen` remains the Genesis 001
-renderer. This keeps the large legacy renderer out of the PTR route's module
-load path.
+PTR and Genesis 001 enter through separate lazy surfaces: `WarpkeepExperience`
+chooses the owner PTR host or the Genesis 001 renderer, and
+`RealmMapScreenProps` contains no PTR authority or session fields.
+`PtrGameplay04SurfaceHost` owns validation of the branded owner authority,
+virtual anchor, provider bridge and gameplay capability. This keeps the large
+legacy renderer out of the PTR route's module load path and leaves one place
+responsible for PTR renderer admission.
 The provider obtains a scoped owner session and constructs the narrow atlas and
 gameplay capabilities in [`ptrRealmConnection.ts`](../src/ptr/ptrRealmConnection.ts).
 Views receive those capabilities rather than arbitrary RPC or credentials.

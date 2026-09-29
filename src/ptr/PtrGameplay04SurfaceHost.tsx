@@ -49,7 +49,7 @@ export function PtrGameplay04SurfaceHost(props: Props): ReactElement {
     return <main><p role="status">PTR is unavailable.</p><button onClick={props.onRequestReturn}>Return to Menu</button></main>;
   }
   if (bridge.presentationAllowed !== true
-    || !resolvePtrRealmPresentation({ authority, viewAnchor: anchor, legacySurfacePresent: false })
+    || !resolvePtrRealmPresentation({ authority, viewAnchor: anchor })
     || props.identity.fid !== authority.fid
     || !isCurrentPtrGameplay04Capability(capability, authority, bridge.sessionGeneration)
     || capability.scope.databaseIdentity !== authority.databaseIdentity

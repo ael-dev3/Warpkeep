@@ -165,17 +165,10 @@ import {
   type RealmQuality
 } from './realmQuality';
 import {
-  resolvePtrRealmWorldSceneStrategy,
   resolveRealmWorldSceneStrategy,
   resolveRealmWorldSceneStrategyForPolicy,
   type RealmWorldSceneStrategy
 } from './greaterRealmSceneStrategy';
-import type { PtrRealmAuthority } from '../../ptr/ptrRealmAuthClient';
-import { isCurrentPtrGameplay04Capability, type PtrGameplay04Capability } from '../../ptr/ptrRealmConnection';
-import {
-  resolvePtrRealmPresentation,
-  type PtrRealmViewAnchor
-} from '../../ptr/ptrRealmPresentationPolicy';
 import type { RealmIdentity } from './realmTypes';
 import type {
   RealmCastleProjectionFrame,
@@ -349,17 +342,6 @@ export type RealmMapScreenProps = Readonly<{
   realmContinuity?: WarpkeepRealmContinuityProjection;
   /** Generation-bound v17 bridge; literal gates currently force legacy presentation. */
   greaterRealm?: GreaterRealmProviderBridge;
-  /** Exact memory-branded owner authority for the isolated PTR renderer only. */
-  ptrRealmAuthority?: PtrRealmAuthority;
-  /** Server-projected virtual atlas anchor; it is never a player/castle row. */
-  ptrViewAnchor?: PtrRealmViewAnchor;
-  ptrGameplay04?: PtrGameplay04Capability;
-  /** Memory-only destination across PTR renewal; never a command or route stack. */
-  ptrInitialSurface?: 'world' | 'keep';
-  onPtrSurfaceChange?: (surface: 'world' | 'keep') => void;
-  onPtrCommandStateChange?: (unconfirmed: boolean) => void;
-  ptrContinuationNotice?: boolean;
-  onDismissPtrContinuationNotice?: () => void;
   /** Authenticated caller-only inventory, separate from the public snapshot. */
   resources?: ReadyRealmResourcePresentation;
   /** Exact caller-only Gold expedition procedure projection. */
@@ -589,19 +571,15 @@ const applyDevWorkerProjectionTelemetry = import.meta.env.DEV
   : undefined;
 
 function CanonicalRealmUnavailable({
-  onRequestReturn,
-  realm = 'Genesis 001'
+  onRequestReturn
 }: Readonly<{
   onRequestReturn: () => void;
-  realm?: 'Genesis 001' | 'PTR';
 }>) {
   return (
     <main className="realm-map-screen realm-map-screen--unavailable" role="alert">
       <div className="realm-map-screen__loading">
-        <strong>{realm} is unavailable</strong>
-        <span>{realm === 'PTR'
-          ? 'The owner authority or atlas anchor did not pass validation.'
-          : 'The canonical realm records did not pass validation.'}</span>
+        <strong>Genesis 001 is unavailable</strong>
+        <span>The canonical realm records did not pass validation.</span>
         <button type="button" onClick={onRequestReturn}>Return to Menu</button>
       </div>
     </main>
@@ -615,7 +593,7 @@ function RetiredRealmWorldHost({
   strategy: Exclude<RealmWorldSceneStrategy, { kind: 'legacy-lowlands' }>;
   props: RealmMapScreenProps;
 }>) {
-  const greaterRealmViewAnchor = props.ptrViewAnchor ?? props.realmContinuity?.ownCastle;
+  const greaterRealmViewAnchor = props.realmContinuity?.ownCastle;
   const greaterSceneKey = strategy.kind === 'greater-realm'
     && greaterRealmViewAnchor !== undefined
       ? [
@@ -886,67 +864,7 @@ function RetiredRealmWorldHost({
   );
 }
 
-/**
- * Keep the private canonical brand check outside the hook-heavy renderer.
- * Invalid or malformed runtime input must not be dereferenced, generate a
- * terrain surface, or register WebGL/browser effects before failing closed.
- */
-const PtrGameplay04SurfaceHost = lazy(() => import('../../ptr/PtrGameplay04SurfaceHost').then(module => ({ default: module.PtrGameplay04SurfaceHost })));
-
 export function RealmMapScreen(props: RealmMapScreenProps) {
-  const ptrBoundaryRequested = props.ptrRealmAuthority !== undefined
-    || props.ptrViewAnchor !== undefined
-    || props.ptrGameplay04 !== undefined;
-  const localQaSurfacePresent = import.meta.env.DEV && (
-    props.localQaWorkerProjectionTelemetry !== undefined
-    || props.localQaLivingVisualTimeSeconds !== undefined
-    || props.localQaGreaterRealmPresentationAllowed !== undefined
-  );
-  const legacySurfacePresent = props.snapshot !== undefined
-    || props.realmContinuity !== undefined
-    || props.resources !== undefined
-    || props.goldExpedition !== undefined
-    || props.onDispatchGoldExpedition !== undefined
-    || props.foodExpedition !== undefined
-    || props.onDispatchFoodExpedition !== undefined
-    || props.woodExpedition !== undefined
-    || props.onDispatchWoodExpedition !== undefined
-    || props.stoneExpedition !== undefined
-    || props.onDispatchStoneExpedition !== undefined
-    || props.workerProjection !== undefined
-    || props.workerRoster !== undefined
-    || props.workerResourceState !== undefined
-    || props.workerPrivateSync !== undefined
-    || props.onRetryWorkerPrivateSync !== undefined
-    || props.onDispatchWorker !== undefined
-    || props.onRecallWorker !== undefined
-    || props.onRecallAllWorkers !== undefined
-    || props.onReturnLegacyExpedition !== undefined
-    || props.innerKeep !== undefined
-    || props.onStartInnerKeepProject !== undefined
-    || props.onRequestInnerKeepSync !== undefined
-    || props.realmChat !== undefined
-    || props.onSendRealmChatMessage !== undefined
-    || props.onReportRealmChatMessage !== undefined
-    || props.onLoadEarlierRealmChat !== undefined
-    || props.presentationMode !== undefined
-    || localQaSurfacePresent;
-  const ptrPresentation = props.ptrRealmAuthority !== undefined
-    && props.ptrViewAnchor !== undefined
-      ? resolvePtrRealmPresentation({
-          authority: props.ptrRealmAuthority,
-          viewAnchor: props.ptrViewAnchor,
-          legacySurfacePresent
-        })
-      : null;
-  if (ptrBoundaryRequested && ptrPresentation === null) {
-    return (
-      <CanonicalRealmUnavailable
-        onRequestReturn={props.onRequestReturn}
-        realm="PTR"
-      />
-    );
-  }
   if (
     (props.snapshot !== undefined
       && !isCanonicalGenesisSnapshot(props.snapshot, props.identity.fid))
@@ -956,31 +874,15 @@ export function RealmMapScreen(props: RealmMapScreenProps) {
   }
   const strategyInput = {
     bridge: props.greaterRealm,
-    legacyAuthorityActive: ptrPresentation === null
-      && props.snapshot?.realm.active === true
+    legacyAuthorityActive: props.snapshot?.realm.active === true
   };
-  const worldSceneStrategy = ptrPresentation !== null
-    ? resolvePtrRealmWorldSceneStrategy(strategyInput, ptrPresentation.authority)
-    : import.meta.env.DEV
+  const worldSceneStrategy = import.meta.env.DEV
     && props.localQaGreaterRealmPresentationAllowed === true
     ? resolveRealmWorldSceneStrategyForPolicy(strategyInput, {
         clientPresentationAllowed: true,
         serverPresentationAllowed: true
       })
     : resolveRealmWorldSceneStrategy(strategyInput);
-  if (props.ptrGameplay04 !== undefined) {
-    if (ptrPresentation === null || worldSceneStrategy.kind !== 'greater-realm'
-      || props.identity.fid !== ptrPresentation.authority.fid
-      || !isCurrentPtrGameplay04Capability(props.ptrGameplay04, ptrPresentation.authority, worldSceneStrategy.bridge.sessionGeneration)
-      || props.ptrGameplay04.scope.databaseIdentity !== ptrPresentation.authority.databaseIdentity
-      || props.ptrGameplay04.scope.anchorQ !== ptrPresentation.viewAnchor.q
-      || props.ptrGameplay04.scope.anchorR !== ptrPresentation.viewAnchor.r) {
-      return <CanonicalRealmUnavailable onRequestReturn={props.onRequestReturn} realm="PTR" />;
-    }
-    return <Suspense fallback={<p role="status">Loading PTR…</p>}>
-      <PtrGameplay04SurfaceHost {...props} ptrGameplay04={props.ptrGameplay04} />
-    </Suspense>;
-  }
   if (worldSceneStrategy.kind !== 'legacy-lowlands') {
     return (
       <RetiredRealmWorldHost
