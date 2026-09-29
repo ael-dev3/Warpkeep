@@ -142,7 +142,23 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     } catch {
       baseFallback = fallback = 'voxel'; mesh(new THREE.BoxGeometry(96, 2, 80), groundMat, 0, -2, -4).name = 'simple-perimeter-fallback';
     }
-    mesh(new THREE.BoxGeometry(110, .5, 12), groundMat, 0, -5.25, -55).name = 'distant-forest-bank';
+    // One shallow U-shaped bank gives the existing forest bands somewhere to
+    // sit along the rear and side terraces. The south gate approach stays open.
+    const forestBankGeometry = new THREE.BoxGeometry(1, 1, 1);
+    geometries.add(forestBankGeometry);
+    const forestBank = new THREE.InstancedMesh(forestBankGeometry, groundMat, 3);
+    forestBank.name = 'forest-bank:perimeter'; forestBank.receiveShadow = true;
+    const bankTransform = new THREE.Matrix4();
+    [
+      { position: [0, -5.25, -55] as const, size: [110, .5, 12] as const },
+      { position: [-55, -5.25, -8] as const, size: [6, .5, 84] as const },
+      { position: [55, -5.25, -8] as const, size: [6, .5, 84] as const },
+    ].forEach(({ position, size }, index) => {
+      bankTransform.compose(new THREE.Vector3(...position), new THREE.Quaternion(), new THREE.Vector3(...size));
+      forestBank.setMatrixAt(index, bankTransform);
+    });
+    forestBank.instanceMatrix.needsUpdate = true;
+    instances.add(forestBank); scenery.add(forestBank);
     const spine = mesh(new THREE.BoxGeometry(6, .035, 35), masonry, 0, .02, 14.5); spine.name = 'open-gate-spine';
     const commons = mesh(new THREE.BoxGeometry(10, .04, 10), masonry, 0, .022, 2); commons.name = 'open-civic-commons';
     const seal = mesh(new THREE.CylinderGeometry(2.3, 2.3, .04, 24), mat(P.warpViolet), 0, .06, 2); seal.name = 'civic-seal';
@@ -179,7 +195,8 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     for (const id of [...KEEP04_BUILDING_IDS, ...KEEP04_TREE_IDS]) {
       const prefab = assets.staticPrefabs.get(id); if (prefab) admitPrefab(id, prefab);
     }
-    // Two sparse overlapping bands, always beyond the support rectangle, with no pick registration.
+    // Two sparse overlapping bands frame the back and sides, leaving the south
+    // approach open. Instancing keeps each tree species to one draw call.
     for (let band = 0; band < 2; band++) {
       const id = KEEP04_TREE_IDS[band]; const prefab = admitted.get(id); const count = budget.trees / 2;
       const sourceMeshes: THREE.Mesh[] = [];
@@ -200,15 +217,15 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         instances.add(forest);
         forest.name = `forest-band:${band}`; forest.castShadow = quality === 'high'; forest.receiveShadow = true;
         for (let i = 0; i < count; i++) {
-          // Each quality keeps all three crown groups; extra trees fill their
-          // edges instead of closing the quiet gaps between them.
+          // Each quality keeps one group on each open side of the U; higher
+          // budgets fill those groups without closing the gate approach.
           const cluster = i % 3; const slot = Math.floor(i / 3);
           const members = Math.ceil((count - cluster) / 3);
           const spread = members === 1 ? 0 : slot / (members - 1) - .5;
-          const anchors = band === 0 ? [-43, -6, 34] : [-38, 0, 39];
-          const x = anchors[cluster] + spread * (band === 0 ? 7.8 : 9.3);
-          const z = (band === 0 ? -48 : -55) - [0, 2, .8][cluster]
-            - [0, 2.3, .7][(slot + band) % 3];
+          const x = cluster === 0 ? spread * (band === 0 ? 68 : 74)
+            : (cluster === 1 ? -1 : 1) * (band === 0 ? 53 : 56);
+          const z = cluster === 0 ? (band === 0 ? -52 : -58) - [0, 2, .8][(slot + band) % 3]
+            : -8 + spread * (band === 0 ? 54 : 62) - [0, 2.3, .7][(slot + band) % 3];
           const size = prefab ? (band === 0 ? 1.5 : 1.92)
             + [.08, .3, 0, .18][(i + band) % 4] : 1;
           const transform = new THREE.Matrix4().compose(new THREE.Vector3(x, -2 - band, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), i * 1.7), new THREE.Vector3(size, size, size));

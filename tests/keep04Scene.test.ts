@@ -142,19 +142,25 @@ it.each(['high', 'balanced', 'reduced'] as const)('keeps all six maximum-level f
   expect(telemetry.buildingCount).toBe(6); expect(telemetry.drawCalls).toBeLessThanOrEqual({ high: 180, balanced: 120, reduced: 80 }[quality]);
   expect(telemetry.triangles).toBeLessThanOrEqual({ high: 300000, balanced: 180000, reduced: 90000 }[quality]); scene.dispose();
 });
-it('varies the flat legal deck material and staggers fixed-count forest instances without moving support height', () => {
+it('varies the flat legal deck and frames its rear and sides with a fixed-count forest while preserving support', () => {
   const scene = createKeep04Scene({ quality: 'balanced', reducedMotion: true, assets: empty() });
   const deck = scene.scene.getObjectByName('legal-support-y0') as THREE.Mesh;
   const colors = deck.geometry.getAttribute('color'); expect(colors).toBeDefined();
   const red = Array.from({ length: colors.count }, (_, i) => colors.getX(i));
   expect(Math.max(...red) - Math.min(...red)).toBeGreaterThan(.12);
   const bounds = new THREE.Box3().setFromObject(deck); expect(bounds.max.y).toBe(0);
+  const bank = scene.scene.getObjectByName('forest-bank:perimeter') as THREE.InstancedMesh;
+  expect(bank).toBeDefined(); expect(bank.count).toBe(3);
+  const bankBounds = new THREE.Box3().setFromObject(bank);
+  expect(bankBounds.min.x).toBeLessThan(-57); expect(bankBounds.max.x).toBeGreaterThan(57);
+  expect(bankBounds.min.z).toBeLessThan(-60); expect(bankBounds.max.z).toBeGreaterThan(30);
   for (const band of [0, 1]) {
     const forest = scene.scene.getObjectByName(`forest-band:${band}`) as THREE.InstancedMesh;
     const points = Array.from({ length: forest.count }, (_, i) => { const matrix = new THREE.Matrix4(); forest.getMatrixAt(i, matrix); return new THREE.Vector3().setFromMatrixPosition(matrix); });
-    const steps = points.slice(1).map((point, i) => Math.round((point.x - points[i].x) * 100));
-    expect(new Set(steps).size).toBeGreaterThan(1);
-    expect(points.every(point => point.z < -44)).toBe(true);
+    expect(points.some(point => point.z < -50)).toBe(true);
+    expect(points.some(point => point.x < -50)).toBe(true);
+    expect(points.some(point => point.x > 50)).toBe(true);
+    expect(points.every(point => Math.abs(point.x) > 44 || point.z < -48)).toBe(true);
   }
   scene.dispose();
 });

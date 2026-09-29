@@ -38,7 +38,7 @@ export function fitKeep04Camera(camera: THREE.OrthographicCamera, aspect: number
   camera.up.set(0, 1, 0); camera.lookAt(0, 0, -4);
   camera.near = 0.1; camera.far = 500; camera.updateMatrixWorld(true);
   let halfX = 0; let halfY = 0;
-  const corners = [[-56, -5, -64], [56, -5, -64], [-56, -5, 44], [56, -5, 44], [-56, 18, -64], [56, 18, -64]];
+  const corners = [[-58, -5, -64], [58, -5, -64], [-58, -5, 44], [58, -5, 44], [-58, 18, -64], [58, 18, -64]];
   for (const [x, y, z] of corners) {
     const p = new THREE.Vector3(x, y, z).applyMatrix4(camera.matrixWorldInverse);
     halfX = Math.max(halfX, Math.abs(p.x)); halfY = Math.max(halfY, Math.abs(p.y));
