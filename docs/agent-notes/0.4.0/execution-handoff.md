@@ -1,6 +1,40 @@
 # Continue Warpkeep 0.4
 
-## Current shipping continuation — 29 September 2026, 04:54 CEST (02:54 UTC)
+## Current shipping continuation — 29 September 2026, 05:10 CEST (03:10 UTC)
+
+The PTR payload preflight exposed a real allowlist gap after PR #378's tree
+catalog landed: Vite copies
+`public/models/greater-realm/biome-trees/v3/manifest.json` into production,
+while the payload boundary allowed model GLBs only. The exact manifest path is
+now admitted; unrelated model JSON and metadata remain rejected. Signed code
+commit [`23a73814`](https://github.com/ael-dev3/Warpkeep/commit/23a738144b47b7c12d76f6e97ce9c53460fd9b33)
+contains this narrow fix and regression coverage.
+
+Pinned Linux Node 22.22.3 / npm 10.9.8 verification passed: the payload suite
+passed 14/14, and the payload, mirror-plan, publication-operator and postflight
+suites passed 38/38. The full `/ptr/` production build on this source passed
+TypeScript, runtime assets, production exclusions, public boundary and Mini App
+integrity. `RealmMapScreen` remains 680.25 kB raw / 188.87 kB gzip, above the
+600 kB warning threshold; physical-device performance is still unmeasured.
+
+For source `23a73814`, the exact `/ptr/` payload recheck passed with 447 files
+and 134,454,617 bytes (manifest SHA-256
+`42e92578ee6faef7196236e13ace950b2d791e96f735bfc31a0f85a4e3d66aa0`). The
+read-only mirror plan against clean `Warpkeep-Live@b6afe92e` preserves 341
+Alpha-root files, targets 801 total files and has zero obsolete generated
+paths; plan SHA-256 is
+`2ee10b910b8fa1825c18c94e791b31d8d470b10aac81f858b470a944c8cd6b8a`. These
+receipts are local candidate evidence only. This handoff update advances the
+source commit, so rebuild and regenerate both ignored receipts against the
+resulting exact head before relying on them for publication.
+
+At 03:09 UTC, `https://warpkeep.com/` returned HTTP 200 and `/ptr/` returned
+HTTP 404. No Pages file was changed or deployed. No GitHub Actions workflow
+was dispatched, rerun or queried during September; commits continue to use
+`[skip actions]`, leaving hosted required checks pending. 0.4 is not merged,
+deployed or accepted.
+
+## Previous shipping continuation — 29 September 2026, 04:54 CEST (02:54 UTC)
 
 PR #374 remains open against `main` at `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
 Its current signed head is `53a8227c899f2b2abf9068817e11e46d836a2ee3`; the
