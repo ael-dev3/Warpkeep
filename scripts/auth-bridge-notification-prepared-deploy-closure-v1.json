@@ -360,7 +360,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5a57edbaa8250f8cf698051235cd4c9ac5f8637c908ac8e65d1574c2f19c5ce2"
+      "sha256": "cef373c061864a779876a24a69d4c0006bd3f0c447ce8b6e16d7608c5a0b18a4"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -1340,7 +1340,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "36c037c834e5adf498793e2c06fcab656ed606ef012bd95322ee50c3d4d71b89"
+      "sha256": "ea6a3b87b58cc89ea0e60514c921e82ccd83320f0c19923b1cec7e90229ecd52"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -3865,7 +3865,7 @@
     {
       "path": "src/components/keep04/createKeep04Buildings.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1191349fff700abb8f0e3859fb9c1c6c39c78078e3ea50ce71530cf2a939d3fc"
+      "sha256": "829b978b905b711a8c4aa9f9ba1b1418bf4091327a04884524da4103a4078ba1"
     },
     {
       "path": "src/components/keep04/createKeep04Scene.ts",
@@ -3876,6 +3876,11 @@
       "path": "src/components/keep04/formatKeep04Duration.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "e8c38a5f2754fc79c1a6625ac7718fd8b264ff81ea96b1d204f93492f2e0f064"
+    },
+    {
+      "path": "src/components/keep04/keep04CathedralRoofPalette.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "7ea99af022fad89f8d13fda2c4e99400bdce1e91c2eb82829850df59cfef7306"
     },
     {
       "path": "src/components/keep04/keep04DressingPlans.generated.ts",
