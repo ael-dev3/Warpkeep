@@ -1,59 +1,52 @@
 # Continue Warpkeep 0.4
 
-## September no-Actions continuation — 29 September 2026, 12:30 CEST (10:30 UTC)
+## September no-Actions continuation — 29 September 2026, 12:40 CEST (10:40 UTC)
 
-Windows, origin and WarpkeepRunner agreed at exact candidate
-`4e3d7cd30fd094183c5511ca569ef2cecf9d09fe` on
-`fix/g001-census-admission-proxy` before this evidence update. PR #374 against
-main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` remains open and mergeable. No
-GitHub Actions were queried, dispatched, rerun or used during September.
+Windows and origin are synchronized on `fix/g001-census-admission-proxy` at
+`0b44301c139356db866abcb3977d45662f7d0566`; WarpkeepRunner is clean at the same
+commit. PR #374 against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` is
+open and mergeable. The latest update is documentation-only after the fully
+tested product candidate `4e3d7cd`; no product code changed. No GitHub Actions
+were queried, dispatched, rerun or used during September.
 
 All four local root-test shards passed on code-equivalent predecessor
-`b23d67f48755bbc2ae98d3152ba2751b6b7da690`; the intervening commit only
-refreshed documentation. The separate lanes passed auth-bridge prepared
-workflow 164/164, production canary closure 3/3, PTR existing-update
+`b23d67f48755bbc2ae98d3152ba2751b6b7da690`; separate lanes passed auth-bridge
+prepared workflow 164/164, production canary closure 3/3, PTR existing-update
 continuation 37/37, Greater Realm runtime release 36/36, and sealed production
-activation records 69/69. Shard 2 reported 3,210 passed / 48 skipped and shard
-3 reported 2,398 passed / 13 skipped; shards 1 and 4 passed, but their exact
-counts were not retained from the live dot output. Focused closure suites
-previously passed 227/227.
+activation records 69/69. Shards 2 and 3 reported 3,210 passed / 48 skipped
+and 2,398 passed / 13 skipped; shards 1 and 4 passed, but their exact counts
+were not retained. Focused closure suites previously passed 227/227.
 
-The exact 4e3d candidate passed the disposable Windows full-stack browser probe
-on Node 22.23.2 with SpacetimeDB CLI 2.6.1. It covered six menu profiles, Keep
-City Mill construction/completion and discounted Lumber Camp construction,
+The product candidate passed the disposable Windows full-stack browser probe
+on Node 22.23.2 with SpacetimeDB CLI 2.6.1. It covered six menu profiles,
+City Mill construction/completion, discounted Lumber Camp construction,
 reload persistence, Worker re-entry and retry seams, the local realm, all four
-resource-return paths and cleanup. See
-[`owner-journey.md`](../../evidence/0.4.0/owner-journey.md) for coverage and
-limits. The checked-in sealed-launch verifier also passed at 4e3d and correctly
+resource-return paths and cleanup. See [`owner-journey.md`](../../evidence/0.4.0/owner-journey.md)
+for coverage and limits. The sealed-launch verifier passed and correctly
 reported `pagesDeploymentApproved: false`, package `0.3.43`, all live database
 identities unset and PTR presentation disabled.
 
-Run repository-owner-enforcing tests from WSL as `warpkeep` (UID 1000), not
-the distro's default root account. Root invocation fails the intended checkout
-owner guard and is not a product regression. For the root toolchain security
-suite, an incomplete local npm install had left `node_modules/esbuild/bin/esbuild`
-as the JS wrapper instead of the pinned native binary. The pinned
-`npm rebuild esbuild` postinstall repaired ignored dependency state;
-`node scripts/atlas/greater-realm-toolchain-bootstrap.mjs --verify-only`
-then verified all 11 packages, and the affected root shard passed. Do not
-modify lockfiles for either local setup issue.
+The exact `0b44301c139356db866abcb3977d45662f7d0566` `/ptr/` build passed with
+pinned Node 22.22.3 / npm 10.9.8, including TypeScript, runtime-asset and
+production-exclusion checks, the public-boundary scan, and Farcaster Mini App
+integrity. Its full source SHA is embedded in the build. The local payload
+receipt verifies 445 files / 134,452,795 bytes (receipt SHA-256
+`8e42f5af155325e435e4d5a76d89f8b0a96b1332ffbe4705a89baa63d4d16b31`, content
+manifest SHA-256 `44764b05dc7720a7ac0df0693eac91ed628731c16090c33eba56e02fd7c901a4`).
+The mirror plan preserves 341 Alpha-root entries, targets 799 files, removes
+zero obsolete generated paths, and has SHA-256
+`6dd57fb51abf7343a6cfbb75f4cd48bbe045c4abb39f7de0e4860f45985facdb`.
+Vite still warns that `RealmMapScreen` is 677.80 kB (188.23 kB gzip); actual
+phone performance has not been measured.
+These ignored receipts do not authorize publication. After this
+documentation-only checkpoint is pushed, rebuild and regenerate both receipts
+at its exact head.
 
-At tested code head `4e3d7cd`, the pinned Node 22.22.3 / npm 10.9.8 `/ptr/`
-production build and payload check passed: 445 files / 134,452,795 bytes,
-manifest SHA-256 `3f6a0567636d81970adb37b03b9c84226cf980cc5c002cca1bab03088e350570`,
-content-manifest SHA-256
-`28caca64cc72ebee26211869403d803f9417db958b4d590a122200751e5f268e`. The
-read-only mirror plan preserves 341 Alpha-root entries, targets 799 files,
-removes no obsolete generated paths, and has SHA-256
-`c813c43efa87253292c24eb0c7529c8ce73ef8320c137ae3f2416dea52666e40`.
-Regenerate and check both ignored receipts after this evidence update is pushed,
-bound to the docs-inclusive head.
-
-The public root returned HTTP 200 and `/ptr/` HTTP 404; no 0.4 deployment
-occurred. Keep #374 open and PTR unpublished through September 30. Physical
-device/performance acceptance and review of the retained browser security
-warning remain open. Continue from the prior checkpoint below for unchanged
-product, closure, and external-input details.
+The live root returned HTTP 200 and `/ptr/` HTTP 404 at 10:40 UTC; no 0.4
+deployment occurred. Keep #374 open and PTR unpublished through September 30.
+Physical-device/performance acceptance, authenticated owner journey, actual
+route timing and review of the retained browser security warning remain open.
+Continue from the previous checkpoint below for unchanged release gates.
 
 ## Previous September no-Actions continuation — 29 September 2026, 10:46 CEST (08:46 UTC)
 

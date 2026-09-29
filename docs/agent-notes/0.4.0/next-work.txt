@@ -1,7 +1,37 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 12:30 CEST (10:30 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 12:40 CEST (10:40 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 12:30 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 12:40 CEST
+
+Windows, origin and WarpkeepRunner are clean and synchronized at
+`0b44301c139356db866abcb3977d45662f7d0566` on
+`fix/g001-census-admission-proxy`. PR #374 is open and mergeable against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The product tree has not changed
+since the tested `4e3d7cd` candidate. No GitHub Actions were queried,
+dispatched, rerun or used during September. Keep #374 open and `/ptr/`
+unpublished through September 30.
+
+The exact `0b44301c139356db866abcb3977d45662f7d0566` `/ptr/` build passed with
+pinned Node 22.22.3 / npm 10.9.8, including asset, exclusion, public-boundary
+and Farcaster Mini App checks; its full source SHA is embedded in the output.
+The payload has 445 files / 134,452,795 bytes (receipt SHA-256
+`8e42f5af155325e435e4d5a76d89f8b0a96b1332ffbe4705a89baa63d4d16b31`, content
+manifest SHA-256 `44764b05dc7720a7ac0df0693eac91ed628731c16090c33eba56e02fd7c901a4`).
+The local read-only mirror plan preserves 341 Alpha entries, targets 799
+files, removes zero obsolete paths, and has SHA-256
+`6dd57fb51abf7343a6cfbb75f4cd48bbe045c4abb39f7de0e4860f45985facdb`.
+These ignored receipts are local evidence, not publication approval. Refresh
+the exact-head build and receipts after this documentation checkpoint is pushed.
+
+At 10:40 UTC the live root returned HTTP 200 and `/ptr/` returned HTTP 404;
+no 0.4 deployment occurred. The sealed-launch verifier leaves Pages approval
+false, package `0.3.43`, live database identities unset and PTR presentation
+disabled. Owner journey, actual route timing and physical-device/performance
+acceptance remain open. Vite still flags `RealmMapScreen` at 677.80 kB / 188.23
+kB gzip; review the retained browser security warning. Resume hosted checks only
+after September ends.
+
+PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 12:30 CEST
 
 The checked code candidate `4e3d7cd30fd094183c5511ca569ef2cecf9d09fe` is
 synchronized across Windows, origin and WarpkeepRunner. PR #374 is open and
