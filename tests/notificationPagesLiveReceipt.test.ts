@@ -1046,7 +1046,9 @@ describe('notification Pages ongoing live receipt', () => {
     expect(closure.size).toBeGreaterThan(180);
     expect(closure.size).toBeLessThanOrEqual(512);
     expect(closure.has('src/components/realm/GreaterRealmWorldScene.tsx'))
-      .toBe(false);
+      .toBe(true);
+    expect(closure.has('src/ptr/PtrGameplay04SurfaceHost.tsx')).toBe(true);
+    expect(closure.has('src/components/realm/RealmMapScreen.tsx')).toBe(false);
     expect(closure.has('src/components/menu/latestPatchNotes.ts')).toBe(true);
     for (const criticalPath of [
       '.github/workflows/deploy-pages.yml',
@@ -1088,13 +1090,14 @@ describe('notification Pages ongoing live receipt', () => {
     }
   });
 
-  it('rejects derived presentation mutations and permits one realm-exclusive descendant', () => {
+  it('protects the direct PTR renderer and excludes only the legacy Genesis edge', () => {
     for (const path of [
       'src/components/menu/SettingsPanel.tsx',
       'src/components/menu/SettingsPanel.css',
       'src/components/audio/WarpkeepAudioDirector.tsx',
       'src/components/menu/WarpkeepMenuWorld3D.tsx',
       'src/components/menu/menuWorldResources.ts',
+      'src/components/realm/GreaterRealmWorldScene.tsx',
       'public/audio/warpkeep-verdant-menu-theme.m4a',
       'public/models/menu/warplet-castle-hegemony-v2-meshopt-webp-181a847fe386859f.glb',
       'src/spacetime/WarpkeepSpacetimeProvider.tsx',
@@ -1105,12 +1108,12 @@ describe('notification Pages ongoing live receipt', () => {
         candidateSourceCommit: candidate,
       }), path).toThrow('NOTIFICATION_PAGES_LIVE_CANDIDATE_NOTIFICATION_DRIFT');
     }
-    const realmOnly = descendantCommitWithMutation(
-      'src/components/realm/GreaterRealmWorldScene.tsx',
+    const legacyRealmOnly = descendantCommitWithMutation(
+      'src/components/realm/RealmMapScreen.tsx',
     );
     expect(assertNotificationPagesLivePresentationSourceNoDrift({
       predecessorSourceCommit: HEAD_COMMIT,
-      candidateSourceCommit: realmOnly,
+      candidateSourceCommit: legacyRealmOnly,
     })).toContain('src/components/menu/SettingsPanel.tsx');
   // Several immutable trees each include the complete generated source inventory.
   }, 60_000);
