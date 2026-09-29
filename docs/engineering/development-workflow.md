@@ -156,6 +156,16 @@ The install populates only the ignored `spacetimedb/node_modules` tree. If it is
 missing, the probe fails closed with this exact recovery command; it never
 installs dependencies implicitly or changes a production module.
 
+On `WarpkeepRunner`, invoke native checks as `warpkeep` with
+`wsl -d WarpkeepRunner -u warpkeep`; the distro's default shell is root, and
+Chrome must keep its sandbox enabled. This image's `/usr/bin/google-chrome` is
+a symlink rejected by executable attestation, so select the attested binary
+with `WARPKEEP_QA_CHROME=/opt/google/chrome/chrome`. Linux headless QA opts into
+SwiftShader; high-DPI software rendering can still emit a GPU-stall diagnostic.
+Keep unknown browser warnings fail-closed and use the Windows Chrome full-stack
+run for integration evidence. Neither emulated run establishes phone
+performance.
+
 ## Output locations and retention
 
 The owner's September 11 instruction is to keep new Warpkeep output off the

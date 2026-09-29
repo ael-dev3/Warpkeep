@@ -1,84 +1,46 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 23:36 CEST (21:36 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 00:04 CEST (22:04 UTC), Europe/Budapest.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 23:36 CEST
+LATEST SHIPPING CHECKPOINT — 30 SEPTEMBER, 00:04 CEST
 
-Before this documentation refresh, the Windows checkout and `origin` agreed
-at signed head `c29cf8d0aa1694478e54ddda36c06187266d04a2` on
-`fix/g001-census-admission-proxy`; it is a notes-only successor to the last
-game-source head `48cd44af9642b346567cf64820cb0adab9ddd510`. PR #374 remains
-open. The dedicated WSL source checkout was clean at `48cd44af` with no process
-using it; after the exact notes-only push to `e84e9766`, it was advanced to that
-same clean detached head. Other active WSL verification worktrees were left
-untouched. No game source changed in this checkpoint.
-The 0.4 tree art from PR #378 is already in the candidate at `758d655b`, with
-the `/ptr/` base-path and transient-load retry fixes at `be04c322`. All 40
-runtime GLBs match PR #378; its branch does not need to be merged into #374.
-PRs #375–#378 remain open for provenance. Warpkeep-Assets PR #41 is open; its
-source archive release attachment remains unpublished while the compact
-runtime copies are already tracked in Warpkeep.
+Signed candidate `4123d3dd961b3653b4303275f5d5f15ab23e58a5` is synced across
+the Windows development checkout, GitHub branch `fix/g001-census-admission-proxy`
+and clean native `WarpkeepRunner` checkout. PR #374 remains open against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. This source checkpoint changes
+only Linux headless-browser QA configuration and its contract test: it opts
+into SwiftShader for Linux Chrome while keeping the browser sandbox and
+loopback-only policy. No gameplay code changed.
 
-No GitHub Actions workflow was dispatched or rerun. During PR metadata intake,
-read-only `statusCheckRollup` fields were inadvertently requested for #374 and
-#378; their stored results were not used as a release gate. Avoid further
-Actions/check-status queries through September 30. No provider, database,
-Pages, merge or public-repository writes occurred.
+`tests/renderedWebglBrowserProbe.test.ts` passed 45/45 on pinned Linux Node
+22.22.3; Windows Node 24.19.0 passed 44 with one platform skip. Pinned
+Gitleaks 8.30.1 scanned the single outgoing code commit (365 bytes): no leaks.
+The complete local full-stack browser probe passed on Windows with Node
+24.19.0, npm 11.7.0, Chrome 154.0.8037.58 and SpacetimeDB 2.6.1. It covered
+six responsive menu profiles, synthetic auth and Terms continuity, City Mill
+completion, discounted Lumber Camp construction, reload persistence, four-phase
+Worker recovery, private-read failure/visibility cases, a 10,000-cell local
+Realm, four-resource Worker dispatch/recall/settlement/return and the visual
+aggregate. Its database and identity were disposable synthetic fixtures. This
+is not actual-owner PTR, physical-phone or performance acceptance; probe-owned
+Chrome, SpacetimeDB and Vite processes were cleaned up.
 
-The documentation-only pushes `48cd44af..c29cf8d0` and
-`c29cf8d0..e84e9766` were scanned with pinned Gitleaks 8.30.1 and
-`.gitleaks.toml`: one commit each, about 6.39 KB and 1.80 KB, no leaks.
+WSL recovery: run native commands as `warpkeep` with
+`wsl -d WarpkeepRunner -u warpkeep`; the distro otherwise starts as root, and
+Chrome must remain sandboxed. `/usr/bin/google-chrome` is a symlink rejected by
+the attestor; use `WARPKEEP_QA_CHROME=/opt/google/chrome/chrome`. Linux unit
+tests then pass, but WSL's full 3× mobile emulation still fails closed on a
+software-OpenGL GPU-stall diagnostic. Do not silence or generalize browser
+warning filters to force a pass. Use Windows Chrome for the full local journey;
+this does not establish physical-device performance.
 
-At `48cd44af`, the `/ptr/` production build, license/file-size checks,
-sealed-launch preparation, exact payload manifest and read-only public mirror
-plan passed in the prior checkpoint. The later notes-only pushes change the
-candidate identity; rebuild and regenerate release receipts at the final
-notes-inclusive head before any release. The focused PTR source/contract tests
-passed 16/16. This turn's v3 tree asset verifier passed all 40 files
-(2,738,208 runtime bytes); four focused tree/runtime suites passed 51/51 on
-the bundled Windows Node 24 test runner. Node 24 is outside the repository's
-pinned Node 22 range, so this focused run supplements rather than replaces the
-full Node 22 run. The full 12,580-test suite passed at `0c6251b9`; changes from
-that test head to `48cd44af` are documentation-only.
-
-A synthetic 390×844 local Keep fixture displayed all six completed sites and
-their names in the placement list. At Fit grounds, the economy-building
-silhouettes still read small beside the Cathedral; one zoom step improves
-detail while cropping the full grounds. This does not justify changing the
-default camera without a better framing comparison. It is emulated visual
-inspection only, not physical-phone or performance acceptance.
-
-At approximately 22:51 CEST, the Windows and WarpkeepRunner SpacetimeDB 2.6.1
-profiles returned the same three production identities from `maincloud`:
-G001 `c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e`,
-G002 `c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194`, and
-PTR `c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e`.
-Schema-only `describe` returned 56 tables / 49 reducers for G001, 23 / 8 for
-G002 and 24 / 10 for PTR. PTR additionally exposes seven misc procedures.
-
-This identifies the live PTR deployment gap precisely. The checked-in PTR
-module defines 31 private tables and 12 procedures. The live PTR schema lacks
-the seven Keep/worker/construction tables `gameplay04_keep_v1`,
-`gameplay04_worker_v1`, `gameplay04_receipt_v1`,
-`gameplay04_reservation_v1`, `gameplay04_building_v1`,
-`gameplay04_project_v1` and `gameplay04_schedule_v1`. Its live procedure
-surface also lacks `dispatch_gameplay04_worker_v1`,
-`get_gameplay04_keep_v1`, `initialize_gameplay04_keep_v1`,
-`recall_gameplay04_worker_v1` and `start_gameplay04_building_v1`. The module's
-read-only repository contract tests passed 16/16 on the current candidate; this
-verifies local source expectations, not deployment or player data. The 0.4
-gameplay runtime therefore cannot yet be served by the existing PTR database.
-
-PTR is not live: the public Alpha root returns HTTP 200 and `/ptr/` returns
-HTTP 404. The live PTR still lacks the seven Keep/worker/construction tables
-and five procedures listed below, so it cannot serve the checked-in gameplay
-runtime. The sealed-launch binding remains release-disabled
-(`pagesDeploymentApproved: false`, identities and operational receipts unset,
-PTR presentation disabled). Keep #374 open and do not merge or publish during
-September. After October 1, confirm the owner's current direction, then resume
-the exact-head source/release gates, existing-PTR update and source-bound live
-readback before public Pages publication and owner/device acceptance. Rebuild
-and regenerate ignored payload/mirror receipts against the final notes-inclusive
-commit before any later release operation.
+No GitHub Actions were queried, dispatched, rerun or used. No provider,
+database, Pages, merge or public-repository writes occurred. The Alpha root
+remains HTTP 200; `/ptr/` remains HTTP 404. The live PTR lacks seven
+Keep/Worker tables and five procedures; sealed-launch approval remains false.
+Keep #374 open through September. After October 1, confirm the owner's current
+direction, then resume the exact-head hosted Verify, M1/M2, preservation,
+sealed-readback, PTR publication and owner/device acceptance sequence. Rebuild
+and regenerate release receipts at the final notes-inclusive candidate head.
 
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 22:37 CEST
 
