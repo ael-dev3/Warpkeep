@@ -1,36 +1,39 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 01:13 CEST (23:13 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 01:21 CEST (23:21 UTC), Europe/Budapest.
 
-LATEST SHIPPING CHECKPOINT — 30 SEPTEMBER, 01:13 CEST
+LATEST SHIPPING CHECKPOINT — 30 SEPTEMBER, 01:21 CEST
 
-Signed candidate `11b2ccbf3b809a44afdbfb47bf5c8d07d3061c1c` is clean and
+Signed candidate `bd0bb0f96bfce6357f4859e47b5035b786204b39` is clean and
 synchronized across Windows, GitHub and native `WarpkeepRunner` on
 `fix/g001-census-admission-proxy`; PR #374 remains open against main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. No Actions workflow or status was
 queried or used. The full native Linux root suite passed at this exact head:
-692 files passed / 1 skipped and 12,580 tests passed / 97 skipped, exit 0 in
-1,065.37 seconds using UID 1000, Node 22.22.3 / npm 10.9.8 and SpacetimeDB
-2.6.1. Two initial `spawnSync spacetime ENOENT` failures were resolved by
-exporting the pinned native Node path and `SPACETIME_BIN`; corrected full run
-passed with no source change. The PTR backend file passed 15/15.
+the test input was code-equivalent parent `11b2ccbf` because `bd0bb0f9` changes
+only notes. It passed with 692 files / 1 skipped, 12,580 tests / 97 skipped,
+exit 0 in 1,065.37 seconds using UID 1000, Node 22.22.3 / npm 10.9.8 and
+SpacetimeDB 2.6.1. Two initial `spawnSync spacetime ENOENT` failures were
+resolved by exporting the pinned native Node path and `SPACETIME_BIN`; the
+corrected full run passed without a source change.
 
-At `11b2ccbf`, the `/ptr/` build and type, runtime asset, production exclusion,
+At exact `bd0bb0f9`, the `/ptr/` build and type, runtime asset, production exclusion,
 public-boundary, Farcaster, license, file-size and sealed-launch checks passed.
 Payload: 446 files / 138,994,282 bytes; manifest SHA-256
-`73993c7d4d2f6456fd308d7f8309a39d65828c7e135e19a7cef31623533a8baa`, content
+`7454a1010308fc3f76b760c278d0364fdb44c05ef242e8bfcc42919c51714eef`, content
 manifest SHA-256
-`f9bd07a12847dfd51782488d0b4ef4191d041ab0438517957989f513dde96e97`, root
+`38bea726003a48a996afffb37812d6f786b8f25b9081623696c8ab72b725a83e`, root
 HTML SHA-256
-`893e7b6be7971f1ad8819d92c33fa44b48ac98717f6889c8a1c3408ac68c17d8`.
+`74a649ed8f6bd0d3748b9ffddfc2bb99796bb8e39877ed85a88faae4563eebc1`.
 Read-only mirror plan against `Warpkeep-Live/main@b6afe92`: 341 Alpha entries
 preserved, 800 targets, zero obsolete removals, plan SHA-256
-`4190afc4f8e921441c757ddb04591190222c29ec26d986b1538aa7357ef009c3`.
+`a80140759c1ca448132fb7b60aac7e8dfdc5d01b780d378782bf8f160a050974`.
 
 The Alpha root is HTTP 200; `/ptr/` is HTTP 404 and 0.4 is not published.
 Sealed launch is disabled (package 0.3.43, Pages approval false, realm
 identities unset, PTR presentation disabled). `RealmMapScreen` remains 677.80
 kB (188.23 kB gzip); physical-phone performance remains unmeasured. After this
-notes-only commit, rebuild and regenerate ignored receipts at the pushed head.
+notes-only commit, the ignored payload and mirror-plan receipts were refreshed
+at `bd0bb0f9`; after this next notes-only update, refresh them at the pushed
+head again.
 Keep #374 open through September 30. After October 1 confirm owner direction
 before hosted Verify, then complete M1/M2, preservation, sealed readback, PTR
 publication and owner/device acceptance.
