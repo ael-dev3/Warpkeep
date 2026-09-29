@@ -7,7 +7,31 @@ CI receipts. The dated engineering results below retain their original input;
 do not use an old passing run or Pages classification as a release grant for a
 later source. 0.4 remains unshipped.
 
-## Current PR candidate checkpoint — 29 September 2026
+## Current PR candidate checkpoint — 29 September 2026, 02:14 CEST
+
+Signed source
+[`83876cba`](https://github.com/ael-dev3/Warpkeep/commit/83876cba9d23b0cb61088a0ebedd3e83406ac69f)
+is synced to origin and open PR #374 against main `786c0b2b`. The change defers
+rare realm inspectors and Worker inspection until opened, with accessible
+loading fallbacks. Six focused test files passed 154 tests, `tsc -b` passed,
+and the full local production build passed. The `RealmMapScreen` entry dropped
+from 748.60 kB (202.67 kB gzip) to 680.22 kB (188.87 kB gzip); Vite still emits
+a >600 kB chunk warning. The build compiled the 838 source tree but had
+`VITE_WARPKEEP_BUILD_SHA=0754260d`, so its output is not valid source-bound
+payload evidence.
+
+A read-only derivation from exact source 838 returned 1,247 protected members,
+manifest SHA-256
+`65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35`, and 16
+generated outputs. They are not installed or independently policy-verified.
+The prior protected-workflow 164-test run was on source 0754260d and does not
+cover this head. No GitHub Actions were queried or run during September. At
+00:13 UTC, the public root was HTTP 200 and `/ptr/` was HTTP 404; 0.4 is not
+deployed. Exact-head hosted Verify and clean native M1/M2 preparation remain
+after October 1, followed by G001 preservation, sealed G002 readback, PTR
+publication and owner/device acceptance.
+
+## Previous PR candidate checkpoint — 29 September 2026, before 83876cba
 
 Product code commit
 [675d8294](https://github.com/ael-dev3/Warpkeep/commit/675d8294042786cea9e60bcae5ed52a73e12853f)

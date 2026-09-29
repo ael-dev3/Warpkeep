@@ -1,8 +1,41 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 01:46 CEST (23:46 UTC), Europe/Budapest.
-Candidate code and local release plan are bound to signed source 0754260d.
+Refreshed 29 September 2026, 02:14 CEST (00:14 UTC), Europe/Budapest.
+Candidate product source is signed commit 83876cba; local, origin and PR #374 match.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 01:46 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 02:14 CEST
+
+Signed source `83876cba9d23b0cb61088a0ebedd3e83406ac69f` is the exact head of
+`fix/g001-census-admission-proxy` and open PR #374 against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. GitHub readback confirms the PR is
+open at that head; `git ls-remote` matches it. No Actions were queried or run.
+
+This source defers the realm inspection panels until opened, including the
+Worker inspector in both realm screen and HUD, and gives each deferred surface
+an accessible loading state. Six focused test files passed 154 tests and
+`tsc -b` passed. The full production build also passed its asset, type/project,
+production-exclusion, public-boundary (3,300 tracked / 1,815 scanned) and Mini
+App checks. Its `RealmMapScreen` entry measures 680.22 kB raw / 188.87 kB gzip,
+down from 748.60 / 202.67 kB. Rare panels are split into separate chunks; Vite
+still reports a chunk above 600 kB. The build embedded SHA 0754260d while
+compiling the code now committed as 83876cba, so it is local build evidence,
+not a source-bound PTR payload or release candidate.
+
+A read-only derivation from exact source 83876cba returned the 1,247-member
+protected closure and manifest SHA-256
+`65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35` (16 output
+files). Those outputs have not been installed or independently verified; the
+prior 164-test protected-workflow result belongs to source 0754260d. The native
+Linux operating checkout is still at c1eb083b with five modified generated
+files, so it was left untouched. Exact-M1 native preparation must use a clean
+checkout of the reviewed source after the September pause.
+
+At 00:13 UTC, `warpkeep.com` returned HTTP 200 and `/ptr/` returned HTTP 404.
+The existing Alpha is live; 0.4 PTR remains unavailable. Resume hosted Verify
+after October 1, then complete source closure checks, exact M1/M2 preparation
+and verification, G001 preservation, sealed G002 readback, PTR publication,
+and owner/device acceptance.
+
+PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 01:46 CEST
 
 The open 0.4 candidate PR #374 is based on main 786c0b2b. Product guidance
 at code commit 675d8294 now names the City Mill in the first empty-keep step.

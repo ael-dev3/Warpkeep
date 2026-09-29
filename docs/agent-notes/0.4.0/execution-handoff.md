@@ -1,6 +1,27 @@
 # Continue Warpkeep 0.4
 
-## Shipping continuation — 29 September 2026, 01:46 CEST (23:46 UTC)
+## Current shipping continuation — 29 September 2026, 02:14 CEST (00:14 UTC)
+
+The signed product source `83876cba9d23b0cb61088a0ebedd3e83406ac69f` is synced
+locally, on origin and at open PR #374 against main `786c0b2b`. It defers realm
+inspection panels and Worker inspection until use, with accessible loading
+states. Six focused test files passed 154 tests; `tsc -b` and the full local
+production build passed. The realm screen entry fell from 748.60 kB / 202.67 kB
+gzip to 680.22 kB / 188.87 kB; the >600 kB warning remains. That build compiled
+the 838 code tree but embedded build SHA 0754260d, so it is not valid payload
+identity evidence.
+
+Read-only closure derivation at 838 returned 1,247 members and manifest
+`65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35`; the 16
+returned files are not installed or policy-verified. The dedicated Linux
+checkout remains at c1eb083b with five pre-existing generated-file edits; it
+was preserved. Do not use the older 0754260d temporary checkout as current
+source. No GitHub Actions were queried or run. At 00:13 UTC the public root was
+200 and `/ptr/` was 404. After October 1, use a clean checkout of reviewed M1
+for native preparation, verify exact M2 and live readbacks, then publish PTR
+and complete owner/device acceptance.
+
+## Previous shipping continuation — 29 September 2026, 01:46 CEST (23:46 UTC)
 
 Product guidance at code commit
 [675d8294](https://github.com/ael-dev3/Warpkeep/commit/675d8294042786cea9e60bcae5ed52a73e12853f)
