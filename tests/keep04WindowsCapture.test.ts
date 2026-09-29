@@ -151,6 +151,20 @@ it('retains only allowlisted cause and resource categories for actionable browse
     expect(['document', 'script', 'stylesheet', 'image', 'font', 'media', 'data', 'websocket', 'manifest', 'other', 'network', 'browser', 'rendering', 'unknown']).toContain(diagnostic.resource);
   }
 });
+it('classifies security log signals without retaining browser-controlled messages', () => {
+  const guard = createKeep04NetworkGuard();
+  const raw = 'The Content Security Policy sandbox allows allow-scripts and allow-same-origin; private-document-detail must not be retained.';
+  guard.event('Log.entryAdded', { entry: { source: 'security', level: 'warning', text: raw } }, {});
+  guard.event('Log.entryAdded', { entry: { source: 'security', level: 'warning', text: 'Unrecognized private security detail.' } }, {});
+  const snapshot = guard.snapshot() as { reviewRequired: boolean; diagnostics: readonly { kind: string; severity: string; signal?: string }[] };
+  expect(snapshot.reviewRequired).toBe(true);
+  expect(snapshot.diagnostics).toEqual([
+    { kind: 'browser-log-security', severity: 'warning', phase: 'capture', cause: 'browser-log', resource: 'document', signal: 'sandbox-script-origin-tokens' },
+    { kind: 'browser-log-security', severity: 'warning', phase: 'capture', cause: 'browser-log', resource: 'document', signal: 'other-security-policy' },
+  ]);
+  expect(JSON.stringify(snapshot)).not.toContain(raw);
+  expect(JSON.stringify(snapshot)).not.toContain('private-document-detail');
+});
 
 const qaDocument = 'http://127.0.0.1:4176/dev/keep04-qa.html?scenario=empty&quality=high';
 const policy = "sandbox allow-scripts allow-same-origin; worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'";

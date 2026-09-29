@@ -115,7 +115,7 @@ before/after launch and after capture, uses the existing inherited-pipe transpor
 and enables exact-loopback request guards before navigation. The exact QA Document
 response is paused before delivery and receives an additional enforced HTTP CSP:
 `sandbox allow-scripts allow-same-origin; worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'`.
-This synthetic-only policy natively denies auxiliary contexts and worker creation;
+The synthetic-only policy natively denies auxiliary contexts and worker creation;
 target discovery/closure is defense-in-depth, not prevention. Original bounded
 response headers/status are preserved. Readiness and screenshots require confirmed
 policy delivery for the exact requested document, reset on every navigation.
@@ -134,10 +134,14 @@ Each successful run writes 36 PNGs, `synthetic-render-observations.json`, and
 source commit/tree and substantive dirt (read-only CRLF input normalization, with
 no whitespace-equivalence diff flags, and untracked artifact/cache work areas
 excluded), diagnostic classes/counts, and verified
-owned-browser cleanup. HMR, navigation, output and cleanup failures cannot become
-accepted evidence. Warnings are counted without retaining console arguments or
-request bodies; absent metrics stay absent. Failed runs retain bounded failure
-stage/provenance when output remains writable. Cleanup uses fresh-profile and
+owned-browser cleanup. Security messages are reduced to a closed category such as
+`content-security-policy`, `mixed-content`, `certificate-policy`, or
+`sandbox-script-origin-tokens`; the raw text is never retained. These labels
+identify message content only and do not waive warning review. HMR, navigation,
+output and cleanup failures cannot become accepted evidence. Warnings are counted
+without retaining console arguments or request bodies; absent metrics stay
+absent. Failed runs retain bounded failure stage/provenance when output remains
+writable. Cleanup uses fresh-profile and
 process-creation identities, never global Chrome termination. Uncertain cleanup
 retains the profile and fails the run.
 
