@@ -618,8 +618,12 @@ it('viewport refresh removes dispatch until a current world snapshot and explici
   render(<PtrGameplay04SurfaceHost {...h.props} />);
   fireEvent.click(await screen.findByRole('button', { name: /food site at/ }));
   expect((screen.getByRole('button', { name: 'Dispatch Worker 1' }) as HTMLButtonElement).disabled).toBe(false);
-  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
-  fireEvent(window, new Event('resize'));
+  await act(async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    fireEvent(window, new Event('resize'));
+    await Promise.resolve();
+    await Promise.resolve();
+  });
   expect(screen.queryByRole('button', { name: 'Dispatch Worker 1' })).toBeNull();
   const next = h.ready();
   act(() => h.publish({ ...next, view: { ...next.view!, radius: 2 }, window: { ...next.window!, radius: 2 } }));
