@@ -60,7 +60,7 @@
     {
       "path": "package.json",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "4ecb3267a6a8dc681dc7110297522c713b2b36778769e780755f2bc3c376e973"
+      "sha256": "bf6869eddd502e1d3bb84296525065d94074db800f278c44af865f034008b675"
     },
     {
       "path": "public/.well-known/farcaster.json",
@@ -360,7 +360,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "aa955ab3a740d89ce1dae10629ef8e49a05c21b971d3c3f49337209a47bbbaf3"
+      "sha256": "5a57edbaa8250f8cf698051235cd4c9ac5f8637c908ac8e65d1574c2f19c5ce2"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -1340,7 +1340,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "1f878abe7346beea50f3a5a3f3500b7a17a5f20ac9f6a9157ec7913959e9b9c0"
+      "sha256": "36c037c834e5adf498793e2c06fcab656ed606ef012bd95322ee50c3d4d71b89"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -2165,7 +2165,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "24aa294613fb16cbf59ece847970011258012d516671b68baf68d1347494f7fe"
+      "sha256": "df654d44839a4c13a3b8cb5bb29a0f680476528d60ca58833537cbf5656fe0a4"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
@@ -4120,7 +4120,7 @@
     {
       "path": "src/components/realm/RealmMapScreen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "61ae33f6c59b6996323fb2570c3790e9763495a19da064ca7c3f0d5698d19942"
+      "sha256": "2a556b20cad261135813d24fcaea0a5805b587a0958bf2d7701f55e6e2127a3c"
     },
     {
       "path": "src/components/realm/RealmNodeWorkerDispatch.css",
@@ -5005,12 +5005,17 @@
     {
       "path": "src/greater-realm/biomeTreeGeometry.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "60f3f7e0029c6e0da75d1465a3db1604d442dd3ae8054e8a3102f334c3235643"
+      "sha256": "d091e424dcd30496fd799cd5f9d6837f8b552716e59779f9daf7d64018ed6ebf"
+    },
+    {
+      "path": "src/greater-realm/biomeTreeV3Catalog.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "5ce6088ed086d53d6ea54540bc7dbe7a3b02ec542ac163d0564e3f95b26ef365"
     },
     {
       "path": "src/greater-realm/createGreaterRealmSceneRuntime.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "09a39f83097cb87f94a065e2e4c082988402bdf222520f87078ca684023dc50d"
+      "sha256": "11b67abaa5927bebcd9e60e17b0a38ab232b74f70c2554e19aa8c50b00c3fb3d"
     },
     {
       "path": "src/greater-realm/greaterRealmChunkStream.ts",
@@ -5051,6 +5056,11 @@
       "path": "src/greater-realm/greaterRealmWorkerControl.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "ecdbc0935d7454fb45ac0261f9df5d6e163a73418827996b3f427f2a6aa97411"
+    },
+    {
+      "path": "src/greater-realm/loadGreaterRealmBiomeTreeAssets.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "28b3f245a5b25c052f570debd005c858bfd55ed72624d59d9671e8ca0c27a7ca"
     },
     {
       "path": "src/legal/alphaTermsPolicy.ts",

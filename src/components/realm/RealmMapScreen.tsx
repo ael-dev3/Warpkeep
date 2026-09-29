@@ -4727,9 +4727,8 @@ function CanonicalRealmMapScreen(
       const root = rootRef.current;
       if (root) {
         reservedUiRectsRef.current = measuredVisibleRealmUiRects(root);
-        const cameraNeutralInspectorOpen = root.querySelector(
-          '.realm-camera-neutral-inspector'
-        ) !== null;
+        const cameraNeutralInspectorOpen = interactionRef.current.inspectorOpen
+          || root.querySelector('.realm-camera-neutral-inspector') !== null;
         if (!cameraNeutralInspectorOpen) {
           stableCameraCompositionRef.current = measuredRealmComposition(root);
         }
