@@ -64,6 +64,18 @@ that realm has no player path in the owner PTR. Do not merge the older source
 PRs independently or add #377 audio to the PTR without a playable release
 scope.
 
+### Full-suite Linux runner correction — 29 September 2026, 14:40 CEST
+
+The first full run used Windows `spacetime.exe` from WSL. It finished with 690
+passed test files, two skipped files and one failed file (12,569 tests passed,
+103 skipped, two failed). Both failures were in `ptrRealmBackend.test.ts`:
+generated bundle sections contained `wsl.localhost` absolute module paths,
+and cleanup hit a root-owned file emitted by the Windows CLI. With the cached
+native Linux SpacetimeDB 2.6.1 executable, that exact test file passed 15/15.
+The development-sync guide now pins the right executable. Rerun the complete
+suite with that Linux tool before recording a full-suite result; the initial
+run is a toolchain mismatch, not a passing suite or source failure.
+
 ## September no-Actions continuation — 29 September 2026, 13:26 CEST (11:26 UTC)
 
 Signed product source `0c9447e299c607f4685735cfe44b55c17ba77199` is
