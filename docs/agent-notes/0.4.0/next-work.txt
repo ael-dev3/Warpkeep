@@ -1,7 +1,46 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 22:37 CEST (20:37 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 22:53 CEST (20:53 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 22:37 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 22:53 CEST
+
+The current candidate was clean and synchronized across the Windows checkout,
+origin and native WarpkeepRunner at signed head
+fd122154c9c0812f409264fa6eb67f1decd29293 on
+`fix/g001-census-admission-proxy`; PR #374 remains open. GitHub Actions remain
+unused in September, as requested. This checkpoint performed owner-authenticated,
+read-only SpacetimeDB identity and schema inspection; it read no application
+rows and made no provider, database, Pages, merge or public-repository writes.
+
+At approximately 22:51 CEST, the Windows and WarpkeepRunner SpacetimeDB 2.6.1
+profiles returned the same three production identities from `maincloud`:
+G001 `c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e`,
+G002 `c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194`, and
+PTR `c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e`.
+Schema-only `describe` returned 56 tables / 49 reducers for G001, 23 / 8 for
+G002 and 24 / 10 for PTR. PTR additionally exposes seven misc procedures.
+
+This identifies the live PTR deployment gap precisely. The checked-in PTR
+module defines 31 private tables and 12 procedures. The live PTR schema lacks
+the seven Keep/worker/construction tables `gameplay04_keep_v1`,
+`gameplay04_worker_v1`, `gameplay04_receipt_v1`,
+`gameplay04_reservation_v1`, `gameplay04_building_v1`,
+`gameplay04_project_v1` and `gameplay04_schedule_v1`. Its live procedure
+surface also lacks `dispatch_gameplay04_worker_v1`,
+`get_gameplay04_keep_v1`, `initialize_gameplay04_keep_v1`,
+`recall_gameplay04_worker_v1` and `start_gameplay04_building_v1`. The module's
+read-only repository contract tests passed 16/16 on the current candidate; this
+verifies local source expectations, not deployment or player data. The 0.4
+gameplay runtime therefore cannot yet be served by the existing PTR database.
+
+Do not publish or merge during September. The sealed-launch binding remains
+release-disabled (`pagesDeploymentApproved: false`, identities and operational
+receipts unset, PTR presentation disabled). After October 1, continue with the
+exact-head hosted verification and signed M1/M2, then the documented existing-
+PTR update and source-bound live readback before public Pages publication and
+owner/device acceptance. Rebuild and regenerate ignored payload/mirror receipts
+against the final notes-inclusive commit before any later release operation.
+
+PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 22:37 CEST
 
 At this recheck, the Windows checkout, origin and native WarpkeepRunner
 checkout are clean and synchronized at signed head
