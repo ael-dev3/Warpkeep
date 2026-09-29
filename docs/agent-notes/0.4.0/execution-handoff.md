@@ -1,5 +1,51 @@
 # Continue Warpkeep 0.4
 
+## September no-Actions continuation — 29 September 2026, 10:46 CEST (08:46 UTC)
+
+PR #374 against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` remains open
+and is currently mergeable. The Windows checkout, origin branch and dedicated
+WarpkeepRunner checkout are synchronized at closure-refresh commit
+`3e0f24a084264134bc07a0d9ea2ab0336547d99b` on
+`fix/g001-census-admission-proxy`. No GitHub Actions were queried, dispatched,
+rerun or used as evidence during September. Keep the PR open and PTR
+unpublished through September 30; confirm the owner's direction before using
+hosted checks on or after October 1.
+
+Product commit `9e07f475` adjusts Cathedral upward-facing roof facets through
+cloned materials, preserving the violet vertical banners and emblem. Focused
+Keep tests passed 403 tests across 21 files with one existing skip. Stable-source
+local Chrome QA covered 36 scenarios (32 WebGL, four fallback), with no
+horizontal overflow or recorded violation. The capture is flagged for review
+because each page emitted one `browser-log-security` class warning; the capture
+did not retain raw diagnostics. This is synthetic visual evidence and does not
+establish physical-device acceptance or performance.
+
+The prepared deployment closure was derived from `9e07f475` and refreshed in
+`3e0f24a`: 1,250 protected members, 16 installed outputs, manifest SHA-256
+`2421cc7be91fdbf84da0ebe8d5c2b857bb3d2e5f575347cda1ce21a773609726`. Fresh
+process output comparison and prepared-deployment policy verification passed.
+Seven native closure and release-projection suites passed 227/227, including
+the full one-byte mutation sweep. The candidate remains development source;
+this closure refresh does not prepare or authorize deployment.
+
+The pinned Node 22.22.3 / npm 10.9.8 `/ptr/` production build previously passed
+at product source `9e07f475`, with TypeScript, runtime-asset validation,
+production exclusions, public-boundary scan (3,347 tracked paths / 1,902
+scanned entries), and Farcaster Mini App integrity. Its existing
+`RealmMapScreen` chunk warning is 677.80 kB / 188.23 kB gzip, and physical-phone
+performance remains unmeasured. Rebuild and regenerate both ignored local
+receipts at the final docs-inclusive pushed head after updating this checkpoint.
+At 08:46 UTC on September 29, the public root returned HTTP 200 and `/ptr/`
+returned HTTP 404. No publication occurred.
+
+The private prepared-receipt input remains unavailable; do not create a
+placeholder or another recovery key. G002 remains sealed. PRs #375 and #378
+are represented in #374; #376 and #377 remain outside pending film/mobile
+playback and G002 scope/rights decisions. After October 1, confirm direction,
+then resume exact M1/M2 preparation and verification, G001 preservation, sealed
+G002 readback, PTR publication/readback, and owner/device acceptance. Keep
+scheduled automation paused and do not create Desktop files.
+
 ## September no-Actions continuation — 29 September 2026, 09:22 CEST (07:22 UTC)
 
 PR #374 is the open 0.4 source candidate against main

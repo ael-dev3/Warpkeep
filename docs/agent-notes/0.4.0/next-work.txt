@@ -1,65 +1,58 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 10:06 CEST (08:06 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 10:46 CEST (08:46 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 10:46 CEST
 
-PR #374 against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` is open and
-mergeable. Windows, origin and the dedicated WarpkeepRunner checkout agree at
-signed head `f6ef98bcec6beaa306412001a2e6d84271c30598` on
-`fix/g001-census-admission-proxy`. This September continuation does not query,
-dispatch, rerun or rely on GitHub Actions. Keep #374 open and PTR unpublished
-through September 30; confirm the owner's direction before hosted checks.
+PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` is open and GitHub currently reports
+it mergeable. Windows, origin and WarpkeepRunner agree at
+`3e0f24a084264134bc07a0d9ea2ab0336547d99b` on
+`fix/g001-census-admission-proxy`. Per the owner's September instruction, no
+GitHub Actions have been queried, dispatched, rerun or used as evidence. Keep
+#374 open and PTR unpublished through September 30; confirm direction before
+hosted checks on or after October 1.
 
-The push surfaced three moderate Dependabot alerts on the default branch for
-`undici` 7.29.0. The candidate replaces the root `jsdom` copy with 7.30.0 and
-pins Miniflare's copies to patched 7.29.1 in both Cloudflare service lockfiles.
-The root npm lock audit found zero vulnerabilities. Both service lockfiles pass
-the pinned pnpm supply-chain checks. Auth Bridge's typecheck and Worker tests
-pass (502 tests); Release Recovery's typechecks, Wrangler type check and tests
-pass (1,567 tests). The alerts remain open on `main` until the candidate can be
-merged; do not claim them resolved on the default branch.
+Product commit `9e07f475` adds the Cathedral roof palette adjustment on cloned
+materials only: upward-facing violet facets shift toward the existing teal while
+the vertical banners and emblem remain violet. Its focused Keep suites passed
+403 tests with one existing skip across 21 files. A fresh stable-source local
+Chrome capture covered 36 scenarios (32 WebGL, four fallback) with no
+horizontal overflow or recorded violation. The capture carries a review flag
+because each page logged one `browser-log-security` class warning and raw
+diagnostics were not retained. This is synthetic visual evidence, not physical
+device or performance acceptance.
 
-The protected prepared-deployment closure was regenerated from the updated
-`package-lock.json` and Auth Bridge lockfile. A fresh process reproduced all 16
-installed outputs byte-for-byte for 1,249 members; manifest SHA-256 is
-`2d71cdbbe6134b3b473bafa8c950af48aa458e3e198915c00f0ca45345f1e019`. The
-prepared-deployment policy check passed. Its five focused suites passed 193/193,
-including the full one-byte mutation sweep across all protected members. On the
-clean pushed source, the checked-in and preparation sealed-launch checks pass;
-both preserve package 0.3.43, unset Pages/G001/G002/PTR approval and identity,
-and PTR presentation disabled.
+The protected prepared-deployment closure was regenerated from source `9e07f475`
+and committed at `3e0f24a`. A fresh process reproduced all 16 installed outputs
+byte-for-byte for 1,250 members; manifest SHA-256 is
+`2421cc7be91fdbf84da0ebe8d5c2b857bb3d2e5f575347cda1ce21a773609726`. The
+prepared-deployment policy check passed, as did seven native closure and release
+projection suites (227/227), including the complete one-byte mutation sweep.
+The closure refresh changes generated hashes and regression pins for the
+source-file addition; it does not enable a workflow or release operation.
 
-The pinned Node 22.22.3 / npm 10.9.8 `/ptr/` production build passed at
-`f6ef98bc`, including TypeScript, asset validation, production exclusions,
-public-boundary scan (3,346 tracked paths / 1,901 scanned entries), and
-Farcaster Mini App integrity. The exact-source payload write/check and
-read-only mirror-plan generation passed: the plan preserves 341 Alpha-root
-entries, targets 799 files and removes zero obsolete generated paths. Vite's
-existing `RealmMapScreen` chunk warning remains (677.80 kB / 188.23 kB gzip);
-physical-device performance is unmeasured. The build and local receipts do not
-authorize publication. After committing this note, rebuild and regenerate both
-ignored receipts at the new exact pushed head.
+The pinned Node 22.22.3 / npm 10.9.8 `/ptr/` production build passed at product
+source `9e07f475`, including TypeScript, asset validation, production
+exclusions, public-boundary scan (3,347 tracked paths / 1,902 scanned entries),
+and Farcaster Mini App integrity. Vite's existing `RealmMapScreen` chunk
+warning remains (677.80 kB / 188.23 kB gzip); physical-device performance is
+unmeasured. The full build and exact-source receipts must now be regenerated
+after these notes are committed, at the final docs-inclusive head.
 
-The private prepared-receipt verifier requires
-`WARPKEEP_AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_PATH`; running it without
-the protected receipt fails with `AUTH_BRIDGE_PREPARED_RECEIPT_PATH_ENVIRONMENT_INVALID`.
-Do not invent a placeholder or create another recovery key. This is a later
-native-preparation gate, separate from the September local build. The visual
-capture at `3cb103d1` still shows Cathedral dominance, terrain/background
-cohesion and small-building glanceability as open art work; its synthetic
-timings are not device-performance evidence. The public root last returned
-HTTP 200 and `/ptr/` HTTP 404 on 29 September at 07:39 UTC; no 0.4 deployment
-is claimed.
+At 08:46 UTC on 29 September, `https://warpkeep.com/` returned HTTP 200 and
+`https://warpkeep.com/ptr/` returned HTTP 404. No 0.4 deployment is claimed.
+The private prepared-receipt verifier still requires
+`WARPKEEP_AUTH_BRIDGE_NOTIFICATION_PREPARED_RECEIPT_PATH`; do not invent a
+placeholder or create another recovery key. This is a later native-preparation
+gate, separate from the September local build. Keep G002 sealed; PRs #375 and
+#378 are represented in #374, while #376 and #377 remain outside pending
+film/mobile playback and G002 scope/rights decisions. After October 1, confirm
+direction, then resume exact M1/M2 preparation and verification, G001
+preservation, sealed G002 readback, PTR publication/readback, and owner/device
+acceptance. Keep scheduled automation paused, do not create Desktop files, and
+do not request or generate another recovery key.
 
-PRs #375 and #378 are represented in #374; #376 and #377 remain outside pending
-film/mobile playback and G002 scope/rights decisions. Keep G002 sealed. After
-October 1, confirm direction, then follow exact M1/M2 preparation and
-verification, G001 preservation, sealed G002 readback, PTR publication and
-readback, and owner/device acceptance. Use WarpkeepRunner as `warpkeep` with
-pinned Node 22.22.3 / npm 10.9.8 and the cached SpacetimeDB 2.6.1 CLI when
-required. Do not use DegenDogsRunner for production-admin operations. Keep
-scheduled automation paused, do not create Desktop files, and do not request
-or generate another recovery key.
+PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 10:06 CEST
 
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 09:39 CEST
 
