@@ -1,5 +1,29 @@
 # Continue Warpkeep 0.4
 
+## Candidate and live-site recheck — 29 September 2026
+
+At this check, local branch `fix/g001-census-admission-proxy` and GitHub PR
+[#374](https://github.com/ael-dev3/Warpkeep/pull/374) matched signed head
+`2044cc2b3be7918c9938588378791294449a3d11`. PR #374 remained OPEN,
+MERGEABLE and CLEAN against signed main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+The latest source fix is the in-flow realm-status explanation, verified by the
+four focused suites (59/59) and local rendered checks at portrait, desktop and
+short landscape sizes. The full root suite remains verified at
+`822a0f466e2f63fc28c9441445d857d4b864616d`; the `/ptr/` production build and
+production checks passed at `2044cc2b`.
+
+A direct HTTP read returned 200 for `https://warpkeep.com/` and 404 for
+`https://warpkeep.com/ptr/`. The existing ignored payload and mirror-plan
+receipts in `artifacts/delivery/0.4.0/` were inspected and found to bind to
+older source `5bd2435b`; they are stale and must not be used. This tracked-note
+refresh advances the candidate source again. After its push, rebuild `/ptr/`
+and rewrite/check both local receipts at the exact pushed commit.
+
+No GitHub Actions workflow, run, check or status was used. Keep PR #374 open,
+hosted Verify pending and `/ptr/` unpublished through September; confirm the
+owner's direction before hosted Verify on or after October 1. This local note
+refresh is not an M1, deployment grant or production operation.
+
 ## Realm chooser readability fix — 29 September 2026, 08:23 CEST (06:23 UTC)
 
 A rendered local `/ptr/` check exposed an overlap that source-only layout tests
