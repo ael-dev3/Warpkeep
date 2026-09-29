@@ -1,5 +1,46 @@
 # Continue Warpkeep 0.4
 
+## Exact `/ptr/` candidate build — 30 September 2026, 00:16 CEST (22:16 UTC)
+
+Windows, GitHub and native `WarpkeepRunner` are clean and synchronized at
+signed candidate `6e2b9ff9e7bfa40d7bdb00091d068e2075a7da7d` on
+`fix/g001-census-admission-proxy`; PR #374 remains open against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. A read-only remote-ref check
+confirmed GitHub has the same candidate. The runtime/gameplay source is
+unchanged from the previously recorded candidate.
+
+Pinned Linux Node 22.22.3 / npm 10.9.8 completed the full production `/ptr/`
+build with the exact source SHA and `umask 077`. TypeScript, runtime and
+production asset integrity, production exclusions, public boundary (3,350
+tracked paths / 1,907 scanned entries), and Farcaster integrity passed. The
+payload contains 446 files / 138,994,282 bytes; manifest SHA-256
+`54cfdb1dd63219ca5b311c80000c8bec729d638f6f5341d858f79813205604b2`, content
+manifest SHA-256
+`952492547e7ee10ed48de2502c25618fe7c65e2c2d046f8e32ff58ee7e42a733`, and
+root HTML SHA-256
+`b994e6f1660cddc1ffffd725b98091213887126322a44ae4095aa3b1d2bf944c`.
+Build-info embeds source 6e2b9ff9 and version 0.4.0-ptr.1. License and
+tracked file-size policies passed. Checked-in release state remains disabled:
+package 0.3.43, Pages approval false, G001/G002/PTR identities unset and PTR
+presentation disabled. The build retains the 677.80 kB RealmMapScreen chunk
+warning; actual-phone performance is not established.
+
+Read-only mirror planning against clean Warpkeep-Live `main`
+`b6afe92e7b09197b1578d992103ac3c8f916d8ad` passed: preserve 341 Alpha-root
+entries, target 800 files, remove zero obsolete paths. WSL needed an
+invocation-scoped exact-path Git ownership exception and `core.autocrlf=true`
+because the checkout lives on the Windows mount. See the development workflow
+for the recovery command. The stable ignored payload manifest has been
+refreshed locally and checked. The mirror plan remains read-only; regenerate
+both receipts after the notes-inclusive source commit.
+
+The production root returned HTTP 200 and `/ptr/` HTTP 404. No Actions,
+provider/public writes, merge or deployment occurred. Keep the September
+pause in force; after October 1, confirm owner direction before hosted Verify,
+then continue exact M1/M2, preservation, live readback, PTR and owner/device
+acceptance. This checkpoint's notes commit changes source identity; build and
+regenerate receipts again at its pushed head.
+
 ## Exact candidate browser-integration continuation — 30 September 2026, 00:04 CEST (22:04 UTC)
 
 Windows, GitHub and the clean native `WarpkeepRunner` checkout match signed

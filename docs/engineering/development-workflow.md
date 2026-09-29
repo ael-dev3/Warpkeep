@@ -166,6 +166,30 @@ Keep unknown browser warnings fail-closed and use the Windows Chrome full-stack
 run for integration evidence. Neither emulated run establishes phone
 performance.
 
+When the read-only public Pages mirror planner runs from WSL against the
+Windows-mounted `Warpkeep-Live` checkout, Git can reject its mounted ownership
+or report a CRLF `CNAME` as modified. Do not change global Git configuration
+or rewrite the checkout. First confirm the Windows checkout is clean on the
+expected `main` commit, then scope both compatibility settings to the single
+planner process, using the checkout's resolved WSL path:
+
+```bash
+export GIT_CONFIG_COUNT=2
+export GIT_CONFIG_KEY_0=safe.directory
+export WARPKEEP_LIVE_ROOT=/mnt/c/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep-live-pages
+export GIT_CONFIG_VALUE_0="$WARPKEEP_LIVE_ROOT"
+export GIT_CONFIG_KEY_1=core.autocrlf
+export GIT_CONFIG_VALUE_1=true
+node scripts/verify-public-pages-mirror-plan.mjs \
+  --public-root "$WARPKEEP_LIVE_ROOT" \
+  "$WARPKEEP_PUBLIC_SOURCE_COMMIT" "$WARPKEEP_LIVE_PARENT_COMMIT"
+```
+
+Replace the example mount path only after resolving the actual public checkout;
+keep `safe.directory` exact and process-scoped. The planner is read-only unless
+`--write-plan` is explicitly supplied. Check the public checkout identity and
+cleanliness again after planning.
+
 ## Output locations and retention
 
 The owner's September 11 instruction is to keep new Warpkeep output off the

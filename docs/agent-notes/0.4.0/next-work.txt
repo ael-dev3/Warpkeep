@@ -1,7 +1,51 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 00:04 CEST (22:04 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 00:16 CEST (22:16 UTC), Europe/Budapest.
 
-LATEST SHIPPING CHECKPOINT — 30 SEPTEMBER, 00:04 CEST
+LATEST SHIPPING CHECKPOINT — 30 SEPTEMBER, 00:16 CEST
+
+The signed candidate `6e2b9ff9e7bfa40d7bdb00091d068e2075a7da7d` is clean and
+synchronized across the Windows checkout, GitHub branch
+`fix/g001-census-admission-proxy` and native `WarpkeepRunner`; a read-only
+`git ls-remote` confirmed the exact GitHub ref. PR #374 remains open against
+main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The candidate includes only
+the Linux SwiftShader QA harness fix and its test, followed by workflow notes;
+gameplay source is unchanged.
+
+At exact source 6e2b9ff9, pinned Linux Node 22.22.3 / npm 10.9.8 completed the
+full production `/ptr/` build with `DEPLOY_BASE=/ptr/`, the exact source SHA,
+and `umask 077`. TypeScript, runtime and production asset integrity,
+production exclusions, public boundary (3,350 paths / 1,907 entries) and
+Farcaster integrity passed. The payload has 446 files / 138,994,282 bytes;
+manifest SHA-256 `54cfdb1dd63219ca5b311c80000c8bec729d638f6f5341d858f79813205604b2`,
+content-manifest SHA-256
+`952492547e7ee10ed48de2502c25618fe7c65e2c2d046f8e32ff58ee7e42a733`, and
+root HTML SHA-256
+`b994e6f1660cddc1ffffd725b98091213887126322a44ae4095aa3b1d2bf944c`. The
+build-info bundle embeds source 6e2b9ff9 and PTR version 0.4.0-ptr.1. License
+and tracked file-size checks passed. The checked-in sealed-launch check still
+reports package 0.3.43, Pages approval false, G001/G002/PTR identities unset,
+and PTR presentation disabled. Vite continues to warn that RealmMapScreen is
+677.80 kB (188.23 kB gzip); phone performance remains unmeasured.
+
+The independently read-only mirror plan against clean Warpkeep-Live `main`
+`b6afe92e7b09197b1578d992103ac3c8f916d8ad` preserves 341 Alpha-root entries,
+targets 800 files and removes zero obsolete generated paths. The payload
+manifest digest is `54cfdb1dd63219ca5b311c80000c8bec729d638f6f5341d858f79813205604b2`;
+preserved-root manifest digest is
+`32397edc2c9f7afed14f960f7d929b575dea00470a3368d7385cb4ead816832e`. WSL
+Git initially rejected the Windows-mounted checkout's ownership and CRLF
+setting; the no-write planner then passed with a process-only exact-path
+`safe.directory` plus `core.autocrlf=true` configuration. The recovery command
+is recorded in the development workflow.
+
+The public root returned HTTP 200 and `/ptr/` HTTP 404. No GitHub Actions,
+provider writes, merge, Warpkeep-Live write, or deployment occurred. Keep #374
+open through September. A notes commit will advance the source identity, so
+rebuild and regenerate ignored receipts at its pushed head. After October 1,
+confirm the owner's current direction before hosted Verify and continue the
+M1/M2, preservation, sealed-readback, PTR publication and owner/device gates.
+
+PREVIOUS SHIPPING CHECKPOINT — 30 SEPTEMBER, 00:04 CEST
 
 Signed candidate `4123d3dd961b3653b4303275f5d5f15ab23e58a5` is synced across
 the Windows development checkout, GitHub branch `fix/g001-census-admission-proxy`
