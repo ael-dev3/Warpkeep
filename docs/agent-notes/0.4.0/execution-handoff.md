@@ -1,5 +1,31 @@
 # Continue Warpkeep 0.4
 
+## Current shipping continuation — 29 September 2026, 04:54 CEST (02:54 UTC)
+
+PR #374 remains open against `main` at `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+Its current signed head is `53a8227c899f2b2abf9068817e11e46d836a2ee3`; the
+Windows checkout, fetched origin branch and GitHub PR metadata agree. The
+product-code source is `860370ab`; `53a8227c` adds only its verification
+checkpoint documentation.
+
+Both WSL checkouts used for shipping are now clean at the same exact head:
+`/home/warpkeep/Warpkeep-0.4` in the `WarpkeepRunner` distribution and
+`/home/warpkeep/warpkeep-closure-check-675d8294`. The latter is owned by the
+verification service account, so inspect it with a per-command
+`git -c safe.directory=/home/warpkeep/warpkeep-closure-check-675d8294` override;
+do not add this disposable path to global Git configuration. The former
+detached checkout's five superseded generated-closure edits were preserved in
+`stash@{0}` (`preserve superseded c1eb083 closure outputs`) before it was
+aligned to the candidate. No tracked edits were discarded.
+
+The September GitHub Actions pause remains in force. No workflow was
+dispatched, rerun, queried or used, and the pushed documentation update also
+uses `[skip actions]`. The skipped required checks keep #374 unmergeable. The
+public Alpha remains live while `/ptr/` is unavailable; Warpkeep 0.4 is not
+merged, deployed or accepted. Continue local review and preparation that do not
+depend on hosted checks; after October 1, confirm the owner's direction and
+resume the documented exact-head release gates.
+
 ## Current shipping continuation — 29 September 2026, 03:30 CEST (01:30 UTC)
 
 Open PR #374 now contains signed integration commit
