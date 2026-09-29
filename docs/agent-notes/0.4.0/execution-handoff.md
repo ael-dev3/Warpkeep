@@ -17,14 +17,15 @@ would miss assets in the `/ptr/` app. The loader now prefixes Vite's deployment
 base and evicts rejected requests from its cache so a later view can retry.
 Focused Node 22.22.3 / Vitest 4.1.11 coverage passed 51/51 across four Greater
 Realm suites, including base-path resolution and a failed-then-successful
-mobile fetch. A full `/ptr/` build script pass verified TypeScript, asset
-integrity, production exclusions, public boundary (3,345 tracked paths / 1,903
+mobile fetch. A source-SHA-bound `/ptr/` build at candidate head
+`5e3bc5b0ba39c86c0cf269007b7571ce1b0f23e7` verified TypeScript, asset
+integrity, production exclusions, public boundary (3,346 tracked paths / 1,903
 scanned entries), and Mini App integrity. The temporary worktree had no npm
 CLI, so the exact `scripts.build` command string was executed directly; its
 first attempt exposed a missing ignored auth-bridge dependency link, which was
 reused from the existing lock-matched checkout before the successful pass.
 
-The production bundle remains 680.36 kB / 188.78 kB gzip for
+The production bundle remains 680.36 kB / 188.79 kB gzip for
 `RealmMapScreen`, above the 600 kB warning threshold. Asset budgets and local
 build verification do not establish physical-phone performance. No PTR is
 available for owner play. Warpkeep-Assets PR #41's source-release attachment

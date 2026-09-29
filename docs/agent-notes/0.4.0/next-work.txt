@@ -1,11 +1,11 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 03:30 CEST (01:30 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 03:38 CEST (01:38 UTC), Europe/Budapest.
 The current product-code checkpoint is signed PR #374 commit be04c322,
 including the reviewed tree implementation from PR #378. The candidate remains
 unshipped; old a89798c5 payload and mirror-plan receipts are stale after the
 40-model addition.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 03:30 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 03:38 CEST
 
 PR #374 now contains signed commit 758d655 carrying PR #378's current tree
 implementation, followed by signed fix be04c322. Pinned Node 22.22.3 / Vitest
@@ -16,10 +16,10 @@ loader isolated, so expected missing-browser-URL warnings no longer pollute
 the result.
 
 The full root build script passed locally at DEPLOY_BASE=/ptr/, including
-TypeScript, all asset verifiers, production exclusions, public boundary (3,345
-tracked paths / 1,903 scanned entries), and Mini App integrity. It was run
-against the exact product-code tree but without a source-SHA-bound deployment
-environment. RealmMapScreen remains 680.36 kB / 188.78 kB gzip; Vite's
+TypeScript, all asset verifiers, production exclusions, public boundary (3,346
+tracked paths / 1,903 scanned entries), and Mini App integrity. It was bound to
+candidate head 5e3bc5b0; no release payload was generated. RealmMapScreen remains
+680.36 kB / 188.79 kB gzip; Vite's
 existing >600 kB warning remains. Warpkeep-Assets #41 has not published the
 v3 source-release attachment; its PR source remains the public provenance route.
 
