@@ -1,58 +1,60 @@
 # Continue Warpkeep 0.4
 
-## September no-Actions local release continuation — 29 September 2026, 20:41 CEST (18:41 UTC)
+## September no-Actions exact-head release continuation — 29 September 2026, 20:50 CEST (18:50 UTC)
 
-Signed development checkpoint 7aa95148a1837f767cec7249d20fdb201bb665b2 is on
-fix/g001-census-admission-proxy and synchronized between origin, WarpkeepRunner
-and the active Windows checkout; PR #374 remains open against signed main
-786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. The commit changes one native-test
-fixture only. No production/runtime source changed. No GitHub Actions were
-queried, dispatched, rerun or used; no provider mutation, public-repository
-write, merge or PTR publication occurred.
+The signed G001 test-fixture fix 7aa95148a1837f767cec7249d20fdb201bb665b2
+and notes-only checkpoint b7c1b5224340806ced542d96c93d31e0c220794c are on
+fix/g001-census-admission-proxy, with PR #374 open against signed main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. The runtime/product source is
+unchanged after 7aa. No GitHub Actions were queried, dispatched, rerun or used;
+no provider mutation, public-repository write, merge or PTR publication
+occurred.
 
-The privileged native preflight suite initially had one false failure: its
-simulated current production run used a fixed display name, while the workflow
-contract names runs as operation plus source commit. The fixture now matches
-the checked-in run-name expression. The workflow-evidence suite passed 118/118
-and the native Linux preflight suite passed 104/104 against the prepared
-candidate, including the success path and all 97 privileged cases. The test
-uses read-only simulated GitHub GET responses and verifies no private writes.
-The ordinary Linux suite passed at product source 2f1cc066: 692 files passed /
-1 skipped and 12,579 tests passed / 97 skipped.
+The remaining privileged preflight failure was a fixture mismatch: it supplied
+a fixed current-run title, while the checked-in workflow run-name is operation
+plus source commit. After correcting the fixture, the workflow-evidence suite
+passed 118/118 and the native Linux preflight suite passed 104/104 against the
+prepared candidate, including all 97 root-gated cases and the G001 success
+path. The simulated GitHub transport is GET-only and the test confirms there
+are no private writes. The ordinary native Linux suite passed on product
+source 2f1cc066: 692 files passed / 1 skipped; 12,579 tests passed / 97
+skipped.
 
 The documented local assembler prepare and independent check both passed at
-development source 2f1cc066. Candidate release-workspace-d2953d97bf5117d8ec29c0b2991657b8,
-transaction 48bcb949e37f411bc7968dfe054cf998: 102 generated outputs, 3,350
-source/candidate files checked, 3,248 preserved, 624 compiled bundle inputs
+development source 2f1cc066. Candidate
+release-workspace-d2953d97bf5117d8ec29c0b2991657b8, transaction
+48bcb949e37f411bc7968dfe054cf998: 102 generated outputs; 3,350
+source/candidate files checked; 3,248 preserved; 624 compiled bundle inputs
 and 7 recovery inputs. Journal SHA-256
 cb0a22b59e6ce6c7394e031b861ededa9170f55b7e70b0c1fc45ad7d54098954; generated
 family 7cc6fc1d4c6492100ddf3c3639a625a2a0009f532c338d488e891eb0b9f7c041;
 closure a6990b37d837e2d9450013e8606d7299166f6158c6b55a450040ac15a9ad75c1;
 scanner edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71.
-finalReleasePrepared remains false; this development candidate is not M1 or
-deployment authority.
+finalReleasePrepared remains false; this is development preparation, not M1
+or deployment authority.
 
-At product/test source 7aa95148, the pinned native Node 22.22.3 / npm 10.9.8
-/ptr/ build passed TypeScript, runtime asset verification, production
-exclusions, the public-boundary scan (3,350 paths / 1,907 entries) and
+At exact build input b7c1b522, pinned native Node 22.22.3 / npm 10.9.8
+/ptr/ production build passed TypeScript, runtime and production asset checks,
+production exclusions, public boundary (3,350 paths / 1,907 entries) and
 Farcaster integrity. Payload: 446 files / 138,994,282 bytes; manifest
-SHA-256 5fecc1e1c96259e8f9f15c6d84a3f621870c5966a0675986c188369a479ad10c;
+SHA-256 4a1d6ae1d53eb4078388e8e9343a8b9120ea6d37a3edca7d4bc4af9d0ab349eb;
 content manifest SHA-256
-c5ec40c8764c9e68ad93428a1e66676ca974b744e5994eedc49b6a18a6e6543c. The
+51d612417cc2dcafb4b164a44ac8cbccd6c496f2ec3379c887da80a05ddaa528. The
 read-only plan against Warpkeep-Live@b6afe92 has SHA-256
-dca11e66d5f20cff005af382f6d7f01df1efc1fc2a8e7b317de69a154a2a3ae9:
+acfeaf3a13cfdad0f6955e16e91fa806778f11ae26cb0860aea3eb082b0d5ca8:
 341 Alpha-root entries preserved, 800 target files and zero obsolete
-generated files. License and tracked file-size checks passed. The known
-RealmMapScreen chunk warning remains 677.80 kB raw / 188.23 kB gzip.
+generated files. License and file-size policies passed. Sealed-launch remains
+in preparation: package 0.3.43, Pages approval false, live realm IDs unset and
+PTR presentation disabled. The known RealmMapScreen warning remains 677.80 kB
+raw / 188.23 kB gzip.
 
-The local release store had 205 retained runs before this work; two new runs
-were retained by prepare/check, with historical and incomplete records left
-intact by design. About 1.1 TB remained free. No new Desktop file, sibling backup or archive was created; the existing
-next-work note is updated in place. The binding remains at package 0.3.43, Pages approval
-false, live realm IDs unset and PTR presentation disabled. Continue local
-candidate review without Actions through September; after October 1, confirm
-owner direction before hosted verification and exact M1/M2 release gates.
-Do not merge #374 or publish the PTR in September.
+The local release store had 205 retained run directories before this work;
+prepare/check added two retained runs. Historical and incomplete records remain
+intact by design; no automatic pruning occurred. About 1.1 TB remained free.
+No new Desktop file, sibling backup or archive was created; the existing
+next-work note is updated in place. Do not merge #374 or publish the PTR in
+September. After October 1, confirm owner direction before hosted verification
+and exact M1/M2 release gates.
 ## September no-Actions continuation — 29 September 2026, 17:46 CEST (15:46 UTC)
 
 Signed product commit `53c2bc42eeb98e5b896b08db249bbfee9e2807ea` is synced to

@@ -1,35 +1,36 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 20:41 CEST (18:41 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 20:50 CEST (18:50 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 20:41 CEST
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 20:50 CEST
 
-Signed test-fixture checkpoint 7aa95148a1837f767cec7249d20fdb201bb665b2 is
-synchronized across WarpkeepRunner, the Windows development checkout and
-origin on fix/g001-census-admission-proxy. PR #374 remains open against main
-786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. No GitHub Actions, provider write,
-public-repository write, merge or PTR publication occurred in September.
+The signed test-fixture fix 7aa95148a1837f767cec7249d20fdb201bb665b2 and
+notes-only checkpoint b7c1b5224340806ced542d96c93d31e0c220794c are synchronized
+on fix/g001-census-admission-proxy; PR #374 remains open against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. No GitHub Actions, provider writes,
+public-repository writes, merge or PTR publication occurred during September.
+The runtime/product source did not change after the test-fixture fix.
 
-The G001 native preflight failure was a stale simulated run title, not a
-production-code defect. The fixture now follows the workflow run-name contract.
-The focused workflow-evidence suite passed 118/118; the privileged Linux
-preflight suite passed 104/104, including its 97 root-gated cases. The ordinary
-native Linux suite passed on product source 2f1cc066: 692 files passed / 1
-skipped; 12,579 tests passed / 97 skipped.
+The native preflight fixture now matches the workflow's operation-plus-source
+run name. The workflow-evidence tests passed 118/118, and the privileged Linux
+preflight tests passed 104/104, including all 97 root-gated cases and the G001
+success path. The ordinary native Linux suite passed at source 2f1cc066: 692
+files passed / 1 skipped; 12,579 tests passed / 97 skipped. Local assembler
+prepare and independent check passed at 2f1cc066, with
+finalReleasePrepared=false; this development candidate is not M1.
 
-The local release assembler prepare and independent check passed on 2f1cc066;
-the candidate remains a development preparation, with finalReleasePrepared
-false. At product/test source 7aa95148, pinned Node 22.22.3 / npm 10.9.8
-built /ptr/ successfully: 446 files / 138,994,282 bytes, payload manifest
-SHA-256 5fecc1e1c96259e8f9f15c6d84a3f621870c5966a0675986c188369a479ad10c.
-The read-only mirror plan preserves 341 Alpha entries, targets 800 files and
-removes zero; plan SHA-256 dca11e66d5f20cff005af382f6d7f01df1efc1fc2a8e7b317de69a154a2a3ae9.
+The exact notes-inclusive /ptr/ build input b7c1b522 passed the pinned Linux
+Node 22.22.3 / npm 10.9.8 production build. Payload: 446 files /
+138,994,282 bytes; manifest SHA-256
+4a1d6ae1d53eb4078388e8e9343a8b9120ea6d37a3edca7d4bc4af9d0ab349eb. The
+read-only plan preserves 341 Alpha entries, targets 800 files and removes
+zero; SHA-256 acfeaf3a13cfdad0f6955e16e91fa806778f11ae26cb0860aea3eb082b0d5ca8.
 The known RealmMapScreen chunk warning remains.
 
 Keep #374 open and do not write Warpkeep-Live/main or publish /ptr/ during
-September. The release binding remains unapproved, with package 0.3.43 and
-all live realm IDs unset. After October 1, confirm current owner direction,
-then resume exact-head hosted Verify, M1/M2, live readback and owner/device
-acceptance. Current local candidate evidence is not deployment evidence.
+September. The sealed binding remains unapproved, package 0.3.43, live realm
+IDs unset and PTR presentation disabled. After October 1, confirm owner
+direction before hosted Verify and the exact M1/M2, live-readback and
+owner/device acceptance gates. Candidate evidence does not authorize release.
 
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 17:46 CEST
 

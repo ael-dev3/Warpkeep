@@ -2,59 +2,55 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Native no-Actions release candidate verification — 29 September 2026, 20:41 CEST
+## Exact notes-inclusive local release candidate — 29 September 2026, 20:50 CEST
 
-This is development evidence only. No GitHub Actions were queried, dispatched,
-rerun or used; no provider mutation, public-repository write, merge or PTR
-publication occurred.
+No GitHub Actions were queried, dispatched, rerun or used; no provider
+mutation, public-repository write, merge or PTR publication occurred.
 
-The native workflow-evidence suite passed 118/118. The privileged Linux
-preflight suite passed 104/104 against the locally prepared candidate. Its
-initial remaining failure came from a test fixture assigning the current
-production run a fixed workflow title; the real workflow contract is
-operation plus source commit. After the fixture matched the checked-in
-run-name, the G001 success path passed with read-only simulated GitHub GET
-responses and no private writes. All 97 privileged root-gated tests passed.
-No product/runtime source changed. The ordinary native Linux suite passed on
-product source 2f1cc066: 692 test files passed / 1 skipped and 12,579 tests
-passed / 97 skipped.
+The only source fix was the native test fixture's current-run title. It now
+matches the checked-in operation-plus-source workflow run-name. The focused
+workflow-evidence suite passed 118/118. The privileged native Linux preflight
+suite passed 104/104 against the locally prepared candidate, including its
+97 root-gated tests and the successful read-only G001 path. The fixture permits
+GET requests only and the test verifies no private writes. No production or
+runtime code changed after signed test fix 7aa95148.
 
-Local release assembler prepare and independent rebuilding check passed at
-development source 2f1cc066. Candidate
+The ordinary native Linux suite passed on product source 2f1cc066: 692 files
+passed / 1 skipped, 12,579 tests passed / 97 skipped. Local assembler prepare
+and independent rebuilding check passed at 2f1cc066. Candidate
 release-workspace-d2953d97bf5117d8ec29c0b2991657b8, transaction
-48bcb949e37f411bc7968dfe054cf998: 102 generated outputs; 3,350 source and
-candidate files checked; 3,248 preserved; 624 compiled bundle inputs and 7
-recovery inputs. Journal SHA-256
-cb0a22b59e6ce6c7394e031b861ededa9170f55b7e70b0c1fc45ad7d54098954; generated
-family 7cc6fc1d4c6492100ddf3c3639a625a2a0009f532c338d488e891eb0b9f7c041;
-closure a6990b37d837e2d9450013e8606d7299166f6158c6b55a450040ac15a9ad75c1;
-scanner edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71.
-The candidate is retained in the private run store and explicitly reports
-finalReleasePrepared false. It is not a reviewed M1 or deployment approval.
+48bcb949e37f411bc7968dfe054cf998: 102 outputs, 3,350 source/candidate files
+checked, 3,248 preserved, 624 compiled bundle inputs and 7 recovery inputs.
+Journal SHA-256
+cb0a22b59e6ce6c7394e031b861ededa9170f55b7e70b0c1fc45ad7d54098954; family
+7cc6fc1d4c6492100ddf3c3639a625a2a0009f532c338d488e891eb0b9f7c041; closure
+a6990b37d837e2d9450013e8606d7299166f6158c6b55a450040ac15a9ad75c1; scanner
+edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71. The
+candidate reports finalReleasePrepared=false and is not M1 or deployment
+authority.
 
-Pinned native Node 22.22.3 / npm 10.9.8 built the /ptr/ production source at
-7aa95148a1837f767cec7249d20fdb201bb665b2. TypeScript, runtime assets,
-production exclusions, public boundary (3,350 paths / 1,907 scanned entries)
-and Farcaster integrity passed. Payload has 446 files / 138,994,282 bytes;
-its manifest SHA-256 is
-5fecc1e1c96259e8f9f15c6d84a3f621870c5966a0675986c188369a479ad10c and content
-manifest SHA-256
-c5ec40c8764c9e68ad93428a1e66676ca974b744e5994eedc49b6a18a6e6543c. The
-read-only public plan against clean Warpkeep-Live@b6afe92 has SHA-256
-dca11e66d5f20cff005af382f6d7f01df1efc1fc2a8e7b317de69a154a2a3ae9,
-preserves 341 Alpha entries, targets 800 files and removes zero obsolete
-generated paths. License and file-size policies passed. Sealed-launch remains
-in preparation: package 0.3.43, Pages approval false, live identities unset,
-PTR presentation disabled. The 677.80 kB raw / 188.23 kB gzip RealmMapScreen
-warning remains.
+After a documentation-only checkpoint b7c1b522, the exact stamped /ptr/ build
+passed on pinned native Node 22.22.3 / npm 10.9.8. TypeScript, runtime asset
+verification, production exclusions, public boundary (3,350 paths / 1,907
+entries) and Farcaster integrity passed. Payload has 446 files /
+138,994,282 bytes; manifest SHA-256
+4a1d6ae1d53eb4078388e8e9343a8b9120ea6d37a3edca7d4bc4af9d0ab349eb and content
+manifest SHA-256 51d612417cc2dcafb4b164a44ac8cbccd6c496f2ec3379c887da80a05ddaa528.
+The read-only plan against clean Warpkeep-Live@b6afe92 has SHA-256
+acfeaf3a13cfdad0f6955e16e91fa806778f11ae26cb0860aea3eb082b0d5ca8:
+341 Alpha-root entries preserved, 800 target files, zero obsolete generated
+paths. License and file-size policies passed. Sealed-launch remains in
+preparation (package 0.3.43, Pages approval false, live IDs unset, PTR
+presentation disabled); the 677.80 kB / 188.23 kB RealmMapScreen chunk warning
+remains. This plan is preparation only; no public repository or site was
+changed.
 
-The release-preparation store contained 205 run directories at the start of
-this work and now contains two additional retained runs. Historical and
-incomplete runs were left intact according to retention policy; no automatic
-pruning occurred. WSL had about 1.1 TB free. No new Desktop file, sibling backup or archive was created; the existing
-next-work note is updated in place. Rebuild/refresh ignored payload receipts after future
-source changes. Development preparation does not replace exact reviewed-M1
-prepare/check or authorize an M2, provider operation or public write.
+The private release store had 205 run directories at the start of this
+work and two additional retained runs afterward. Historical/incomplete
+records remain untouched by policy; no automatic pruning occurred. About
+1.1 TB was free. No new Desktop file, sibling backup or archive was created;
+the existing next-work note is updated in place.
+
 
 ## Previous exact-head local PTR verification — 29 September 2026, 18:57 CEST
 
