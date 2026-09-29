@@ -2,6 +2,45 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## September local candidate verification — 29 September 2026, 15:18 CEST
+
+No GitHub Actions were queried, dispatched, rerun or used during September.
+The reviewed Windows checkout, origin and clean idle native Linux checkout
+match signed PR #374 head
+`148825a116ea167e07ebad8f3af0842958c2e4cd`; tested product source is
+`65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5`.
+
+Pinned Node 22.22.3 / npm 10.9.8 root and `/ptr/` production builds at that
+candidate passed TypeScript, runtime asset checks, production exclusions,
+public-boundary verification (3,347 tracked paths / 1,902 scanned entries)
+and Farcaster integrity. The exact `/ptr/` payload contains 445 files /
+134,453,821 bytes. Its payload-manifest SHA-256 is
+`cda1e8e0c7d441c0420e46cab58a7d42883273910526b12747502767408f67dc` and content
+manifest SHA-256 is
+`f1552bec6640c06e57ba45eef408a532a42fbe0182124fa95894aada2a45d268`. The
+read-only mirror plan against a clean shallow checkout of
+`Warpkeep-Live@b6afe92e7b09197b1578d992103ac3c8f916d8ad` preserves 341
+Alpha-root entries, targets 799 files, removes zero obsolete generated paths,
+and has plan SHA-256
+`0e2520bbf3718c95637fdbbf4b749571b6ffb50cbefb4f384bfbe1d122f7b078`. Its
+ignored local receipts are candidate evidence, not publication approval, and
+must be regenerated after a source or documentation commit.
+
+The full native Linux test run used source input
+`92fb93d0a89a84b90f108f248ec4b377415504dd`, user `warpkeep` UID 1000,
+Node 22.22.3 and native SpacetimeDB 2.6.1. Vitest listed 692 files passed / 1
+skipped and 12,577 tests passed / 97 skipped, but exited 1 after printing
+`context canceled`; treat the aggregate run as unresolved rather than green.
+The isolated `ptrRealmBackend.test.ts` and
+`ptrProductionExistingUpdateContinuation.test.ts` passed 15/15 and 37/37 with
+exit 0. The earlier WSL run with Windows `spacetime.exe` produced two
+environment-specific failures and is not product evidence.
+
+At 13:18 UTC, bounded direct HTTP GETs returned 200 for the Alpha root and 404
+for `/ptr/`. The checked-in sealed-launch preparation reports package
+`0.3.43`, Pages approval false, G001/G002/PTR identities unset and PTR
+presentation disabled. No deployment or provider mutation occurred.
+
 ## Current checkpoint — 27 September 2026
 
 The last validated operational main at this checkpoint is signed generated-only

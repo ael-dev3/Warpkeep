@@ -1,42 +1,45 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 13:26 CEST (11:26 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 15:18 CEST (13:18 UTC), Europe/Budapest.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 13:26 CEST
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 15:18 CEST
 
-Signed product source `0c9447e299c607f4685735cfe44b55c17ba77199` is
-synchronized across Windows, origin and WarpkeepRunner on
-`fix/g001-census-admission-proxy`. PR #374 against main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` is open and mergeable. The latest
-product change extends the Keep04 moat along the rear and side terraces while
-leaving the front gate approach open. Gameplay and legal support geometry are
-unchanged. No GitHub Actions were queried, dispatched, rerun or used during
-September; keep #374 and PTR unpublished through September 30.
+Signed candidate head `148825a116ea167e07ebad8f3af0842958c2e4cd` is synchronized
+across the Windows development checkout, GitHub origin and idle WarpkeepRunner
+on `fix/g001-census-admission-proxy`. PR #374 is open and not a draft against
+main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The tested product source is
+`65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5`. No GitHub Actions were queried,
+dispatched, rerun or used during September.
 
-The focused scene, voxel-dressing and Keep04 screen suites pass 97/97, and
-TypeScript build-mode checking passes. The 390×844 synthetic local render shows
-the water framing the settlement while the gate spine remains clear. This is
-visual evidence only, not authenticated owner play or phone/performance
-acceptance. See `docs/evidence/0.4.0/visuals.md`.
+Focused Keep04 suites pass 116/116 and TypeScript passes. The guarded synthetic
+Chrome capture covers 36 cases with no overflow or cleanup failures; its
+privacy-safe browser-log warning per document remains under review. No phone
+performance or real-owner gameplay claim follows from the browser capture.
 
-At exact product source `0c9447e299c607f4685735cfe44b55c17ba77199`, the pinned
-Node 22.22.3 / npm 10.9.8 `/ptr/` production build passed TypeScript, assets,
-production exclusions, public-boundary (3,347 tracked paths / 1,902 scanned
-entries) and Farcaster integrity checks, with the full SHA embedded. Payload:
-445 files / 134,453,359 bytes; manifest SHA-256
-`a50ee4a4f6a4b928229184474510d1beb34c7a21ebe02a4d1076072dd33a45ba`; content
-manifest `c1db4e3d1cad702ee14c0597f38c9d9b1941a7ee2de1725c11010ae3f1ac95ea`.
-The read-only mirror plan preserves 341 Alpha entries, targets 799 files,
-removes zero obsolete paths, and has SHA-256
-`ae12b90c68b6fb21200b9be3131193c2d74684ba341ad0e9ae00caa131c139cc`.
-Ignored receipts are evidence, not publication approval. Refresh after this
-evidence update is pushed, bound to the final exact head.
+A complete native Linux run on test input
+`92fb93d0a89a84b90f108f248ec4b377415504dd` reported 692 files passed / 1
+skipped and 12,577 tests passed / 97 skipped, but Vitest exited 1 after
+printing `context canceled`. Record this as unresolved runner status, not as a
+clean full-suite pass. Isolated `ptrRealmBackend.test.ts` and the slow
+`ptrProductionExistingUpdateContinuation.test.ts` passed 15/15 and 37/37 with
+exit 0, respectively. The preceding WSL run with the Windows SpacetimeDB
+binary is an invalid cross-OS result and is documented in the execution handoff.
 
-The sealed-launch verifier still leaves Pages approval false, package `0.3.43`,
-G001/G002/PTR identities unset and PTR presentation disabled. At 11:12 UTC the
-live root returned HTTP 200 and `/ptr/` HTTP 404; no 0.4 deployment occurred.
-The large `RealmMapScreen` warning belongs to the Genesis 001 renderer, not the
-PTR host. Physical-device performance and the retained browser-log warning
-remain open. Resume hosted Verify after September ends.
+At exact head `148825a1`, pinned Node 22.22.3 / npm 10.9.8 root and `/ptr/`
+production builds pass asset integrity, production exclusions, the 3,347-path /
+1,902-entry public-boundary scan and Farcaster integrity. The local `/ptr/`
+payload binds 445 files / 134,453,821 bytes to this source; the read-only plan
+preserves 341 live Alpha-root entries, targets 799 files and removes zero
+obsolete paths. Its ignored receipt hashes are in the execution handoff and
+must be regenerated after this documentation checkpoint.
+
+Sealed-launch preparation still has Pages approval false, package version
+`0.3.43`, no G001/G002/PTR release identities, and PTR presentation disabled.
+The Alpha root is HTTP 200 and `/ptr/` is HTTP 404; no 0.4 deployment occurred.
+Keep PR #374 open and do not publish `Warpkeep-Live/main` or PTR during the
+September pause. Remaining work: resolve the full-suite process exit; complete
+source-bound release M1/M2 and provider readback after the pause; review the
+browser diagnostic; obtain physical-device performance and actual owner-PTR
+acceptance. Continue local, exact-source work without Actions.
 
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 13:06 CEST
 

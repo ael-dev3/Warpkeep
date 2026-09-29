@@ -1,44 +1,65 @@
 # Continue Warpkeep 0.4
 
-## September no-Actions continuation — 29 September 2026, 14:27 CEST (12:27 UTC)
+## September no-Actions continuation — 29 September 2026, 15:18 CEST (13:18 UTC)
 
-The signed product source is `65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5` on
-`fix/g001-census-admission-proxy`; PR #374 is open against main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Windows, origin and WarpkeepRunner
-were synchronized at this code head before this documentation update. No
-GitHub Actions were queried, dispatched, rerun or used in September.
+Product source `65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5` remains the tested
+candidate on `fix/g001-census-admission-proxy`. Windows, origin, the clean idle
+WarpkeepRunner checkout and open PR #374 now match signed head
+`148825a116ea167e07ebad8f3af0842958c2e4cd`, against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. PR #374 is not a draft. No GitHub
+Actions were queried, dispatched, rerun or used in September.
 
-This product checkpoint frames the existing rear and side forest bands with a
-single-geometry, three-instance shallow bank and gives the scenic camera two
-units of additional horizontal room. Tree count, walkable/support geometry and
-game authority are unchanged. Five focused Keep04 suites passed 116/116, the
-TypeScript build-mode check passed, and the exact-source pinned Linux
-production build passed all runtime asset, production exclusion, public
-boundary and Farcaster integrity checks. The local Chrome guard captured 36
-stable-source scenarios over four viewport profiles, with no guard violation,
-overflow, lingering animation frame or cleanup failure. Review remains
-required for one privacy-safe browser-log security warning per document. I
-inspected representative desktop/mobile renders and the fallback; the capture
-is synthetic and does not establish phone performance or owner acceptance.
-See [visual evidence](../../evidence/0.4.0/visuals.md).
-The build retains a Vite warning for G001 `RealmMapScreen` at 677.78 kB raw /
-188.22 kB gzip; physical-device performance still needs direct measurement.
+The product change frames the existing rear and side forest bands with a
+single-geometry, three-instance shallow bank and adds two units of horizontal
+scenic-camera room. Tree count, support geometry and game authority are
+unchanged. Five focused Keep04 suites passed 116/116, TypeScript passed, and a
+guarded Chrome capture covered 36 stable-source scenarios over four viewport
+profiles with no guard violation, overflow or cleanup failure. Representative
+desktop/mobile renders and fallback were reviewed. One privacy-safe browser-log
+security warning per document still requires review; synthetic captures do not
+establish phone performance or owner acceptance. See
+[visual evidence](../../evidence/0.4.0/visuals.md). The G001
+`RealmMapScreen` warning remains 677.78 kB raw / 188.22 kB gzip.
 
-The full root Vitest suite is running on the synchronized Linux checkout as
-user `warpkeep`, pinned Node 22.22.3 / npm 10.9.8. A first root invocation
-triggered Git safe-directory errors in Git-backed tests and was stopped; treat
-it as an environment mistake. Do not add a root `safe.directory` exception.
-The corrected full run has not completed at this checkpoint.
+The corrected full Vitest run used `warpkeep` UID 1000, pinned Node 22.22.3,
+npm 10.9.8 and native Linux SpacetimeDB 2.6.1 at test input
+`92fb93d0a89a84b90f108f248ec4b377415504dd` (product source is unchanged from
+`65b3d6cd`). Vitest reported 692 files passed / 1 skipped and 12,577 tests
+passed / 97 skipped, with no failed test listed, but the overall process exited
+1 after printing `context canceled`. This is **not recorded as a clean full-suite
+pass**; its runner-level nonzero remains unresolved. The isolated slow
+`ptrProductionExistingUpdateContinuation.test.ts` rerun passed 37/37 with exit
+0 and no cancellation diagnostic. The native `ptrRealmBackend.test.ts` rerun
+passed 15/15. The earlier full run with Windows `spacetime.exe` remains invalid
+for WSL; its two path/cleanup failures are documented below. Do not hide either
+the cross-OS mistake or the corrected runner's unresolved exit code.
 
-The checked-in sealed-launch state remains Pages approval false, package
-`0.3.43`, release identity receipts unset and PTR presentation disabled. The
-public hosting repository `Warpkeep-Live` uses legacy Pages from `main`, so a
-write there is publication. Do not bypass the sealed launch state or create a
-direct publication during the September no-Actions window. The last verified
-public check at 12:32 UTC returned root HTTP 200 and `/ptr/` HTTP 404; 0.4 is
-not live.
-Continue local evidence and code review, then resume the exact approved release
-gates when the September Actions restriction ends.
+At exact PR head `148825a1`, pinned Node 22.22.3 / npm 10.9.8 root and `/ptr/`
+production builds passed TypeScript, asset integrity, production exclusions,
+the 3,347-path / 1,902-entry public-boundary scan and Farcaster integrity.
+`DEPLOY_BASE=/ptr/` used the full candidate SHA and disabled admission
+notifications. The candidate payload contains 445 files / 134,453,821 bytes;
+payload-manifest SHA-256 is
+`cda1e8e0c7d441c0420e46cab58a7d42883273910526b12747502767408f67dc` and content
+manifest SHA-256 is
+`f1552bec6640c06e57ba45eef408a532a42fbe0182124fa95894aada2a45d268`. The
+read-only mirror plan against clean `Warpkeep-Live@b6afe92e` preserves 341
+Alpha-root entries, targets 799 files, removes zero obsolete generated files,
+and has plan SHA-256
+`0e2520bbf3718c95637fdbbf4b749571b6ffb50cbefb4f384bfbe1d122f7b078`.
+These payload and plan files are ignored local receipts, not permission to
+publish; refresh them after this documentation commit because their source SHA
+is exact-head bound. The initial rebuild found root-owned files inside ignored
+`dist/`; after verifying that exact generated path had no symlinks, ownership
+was repaired only within `dist/`, and both builds passed on retry.
+
+The checked-in sealed-launch preparation still reports package `0.3.43`, Pages
+approval false, G001/G002/PTR identities unset and PTR presentation disabled.
+At 13:18 UTC the public root returned HTTP 200 and `/ptr/` returned HTTP 404.
+No 0.4 publication occurred. Keep PR #374 open and PTR unpublished through
+September. The full-suite runner exit, live receipts/operations, physical-device
+performance and owner PTR acceptance remain open; continue local work without
+Actions and preserve these release gates.
 
 ### Read-only provider and incoming PR check
 
@@ -82,9 +103,13 @@ passed test files, two skipped files and one failed file (12,569 tests passed,
 generated bundle sections contained `wsl.localhost` absolute module paths,
 and cleanup hit a root-owned file emitted by the Windows CLI. With the cached
 native Linux SpacetimeDB 2.6.1 executable, that exact test file passed 15/15.
-The development-sync guide now pins the right executable. Rerun the complete
-suite with that Linux tool before recording a full-suite result; the initial
-run is a toolchain mismatch, not a passing suite or source failure.
+The subsequent full run on pinned Linux at `92fb93d0` reported 692 test files
+passed / 1 skipped and 12,577 tests passed / 97 skipped, with no failing test
+listed, but Vitest exited 1 after printing `context canceled`. Do not mark this
+as a clean full-suite pass until the runner-level exit is explained or a clean
+full rerun succeeds. The slow isolated `ptrProductionExistingUpdateContinuation`
+suite passed 37/37 with exit 0 and no cancellation message. Keep the original
+cross-OS failure separate from this unresolved full-run status.
 
 ## September no-Actions continuation — 29 September 2026, 13:26 CEST (11:26 UTC)
 
