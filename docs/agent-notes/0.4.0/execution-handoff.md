@@ -18,14 +18,20 @@ queries against inspection panels intentionally loaded through React
 realm recreation file passes 59/59. These changes make the checks respect the
 UI's loading boundary without changing product behavior.
 
-The full root suite has not yet been rerun after those corrections. Run it on
-the final committed source before calling it green. For future local runs, use
-`WarpkeepRunner` as `warpkeep` with pinned Node 22.22.3 / npm 10.9.8, expose the
-cached SpacetimeDB 2.6.1 binary on `PATH`, and ensure `.git/yaml-2.9.0.tgz`
-exists with the committed manifest's expected digest. A missing CLI or archive
-is a runner setup failure, not evidence of a product regression. The earlier
-`DegenDogsRunner` root mode 0777 remains unsuitable for production-admin
-ancestor checks.
+The full suite was rerun on signed code/test commit
+`822a0f466e2f63fc28c9441445d857d4b864616d` after those corrections. Vitest
+4.1.11 completed in 888.36 seconds with no failures: 692 files passed, 1 was
+skipped; 12,577 tests passed and 97 were skipped. The run included the backend
+and YAML suites with their exact local prerequisites. This follow-up changes
+documentation only; the test evidence binds to exact `822a0f46`. The note
+commit advances the PR head, so rebuild `/ptr/` and regenerate both ignored
+receipts after pushing it. For future local runs, use `WarpkeepRunner` as
+`warpkeep` with pinned Node 22.22.3 / npm 10.9.8, expose the cached SpacetimeDB
+2.6.1 binary on `PATH`, and ensure `.git/yaml-2.9.0.tgz` exists with SHA-256
+`008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91`. A
+missing CLI or archive is a runner setup failure, not evidence of a product
+regression. The earlier `DegenDogsRunner` root mode 0777 remains unsuitable for
+production-admin ancestor checks.
 
 No GitHub Actions workflow, check, run or status was used in September; commits
 continue to carry `[skip actions]`. This source-only verification work does not
