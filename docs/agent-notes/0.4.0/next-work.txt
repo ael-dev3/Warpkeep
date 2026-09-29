@@ -1,12 +1,37 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 06:46 CEST (04:46 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 07:36 CEST (05:36 UTC), Europe/Budapest.
 PR #374 against `main` `786c0b2b` is the active source candidate. At the start
-of this refresh, GitHub and the local branch matched signed head `9cda070e`.
-This note update advances the source; its final pushed head is rechecked against
-GitHub, and its `/ptr/` build, payload and mirror plan are regenerated at that
-exact identity before further release operations.
+of this refresh, GitHub and the local branch matched signed head `5bd2435b`.
+The lazy-panel test correction and this note advance the source; the final
+pushed head must be rechecked against GitHub, then rebuilt with fresh payload
+and mirror-plan receipts at that exact identity.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 06:46 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 07:36 CEST
+
+The root Vitest run completed on exact source `5bd2435b` in `WarpkeepRunner`:
+693 files (688 passed, 3 failed, 2 skipped) and 12,551 tests passed, 20 failed,
+103 skipped. The six failures in `ptrRealmBackend.test.ts` and
+`localBindingYamlManifest.test.ts` came from the runner missing pinned
+SpacetimeDB CLI 2.6.1 and `.git/yaml-2.9.0.tgz`. After supplying those existing
+local prerequisites, both suites passed 19/19. The remaining 14 failures were
+synchronous queries racing the deliberately lazy inspection panels. Those
+assertions now use asynchronous accessible queries; the isolated
+`realmQualityRecreation.test.tsx` suite passes 59/59. Product behavior did not
+change. Rerun the complete root suite on the final committed source before
+claiming it green.
+
+Use the dedicated `WarpkeepRunner` distribution as `warpkeep` with Node
+22.22.3 / npm 10.9.8. Put the cached SpacetimeDB 2.6.1 CLI on `PATH` and verify
+the offline archive digest before the full run. Missing local prerequisites are
+setup errors. Do not use `DegenDogsRunner`, whose `/` mode 0777 is rejected by
+the production-admin ancestor guard.
+
+No GitHub Actions workflow, check, run or status was used during September; all
+candidate commits retain `[skip actions]`. Keep #374 open and PTR unpublished
+through September. Continue with the documented owner, M1/M2, G001/G002,
+publication/readback and device-acceptance gates when allowed.
+
+PREVIOUS SNAPSHOT — 29 SEPTEMBER, 06:46 CEST
 
 The PTR route loads `PtrGameplay04SurfaceHost` directly. Genesis
 `RealmMapScreen` has no PTR authority or gameplay props; its duplicate PTR

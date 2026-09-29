@@ -1,5 +1,37 @@
 # Continue Warpkeep 0.4
 
+## Local root-suite recovery — 29 September 2026, 07:36 CEST (05:36 UTC)
+
+The local candidate and PR #374 were synchronized at signed source `5bd2435b`
+when the full root test command completed in the dedicated `WarpkeepRunner`
+WSL distribution. Vitest 4.1.11 reported 693 files: 688 passed, 3 failed and
+2 skipped; 12,551 tests passed, 20 failed and 103 skipped. The 20 failures were
+fully accounted for across the three failing files.
+
+Six failures were missing local verification prerequisites: pinned SpacetimeDB
+CLI 2.6.1 was not on the test process PATH, and the expected offline YAML
+archive was absent from that checkout's Git metadata. The existing local tool
+cache and exact archive were provisioned without changing tracked files; the
+two suites then passed 19/19. Fourteen failures were immediate synchronous
+queries against inspection panels intentionally loaded through React
+`Suspense`. The tests now await their accessible panel or control; the isolated
+realm recreation file passes 59/59. These changes make the checks respect the
+UI's loading boundary without changing product behavior.
+
+The full root suite has not yet been rerun after those corrections. Run it on
+the final committed source before calling it green. For future local runs, use
+`WarpkeepRunner` as `warpkeep` with pinned Node 22.22.3 / npm 10.9.8, expose the
+cached SpacetimeDB 2.6.1 binary on `PATH`, and ensure `.git/yaml-2.9.0.tgz`
+exists with the committed manifest's expected digest. A missing CLI or archive
+is a runner setup failure, not evidence of a product regression. The earlier
+`DegenDogsRunner` root mode 0777 remains unsuitable for production-admin
+ancestor checks.
+
+No GitHub Actions workflow, check, run or status was used in September; commits
+continue to carry `[skip actions]`. This source-only verification work does not
+authorize publication. Keep PR #374 open and PTR unchanged until the existing
+owner, M1/M2, G001/G002, publication/readback and device-acceptance gates pass.
+
 ## Exact-source PTR preflight — 29 September 2026, 06:46 CEST (04:46 UTC)
 
 At the start of this checkpoint, PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374)
