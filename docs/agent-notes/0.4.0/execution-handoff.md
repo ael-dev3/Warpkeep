@@ -1,5 +1,49 @@
 # Continue Warpkeep 0.4
 
+## September no-Actions continuation — 29 September 2026, 17:46 CEST (15:46 UTC)
+
+Signed product commit `53c2bc42eeb98e5b896b08db249bbfee9e2807ea` is synced to
+the Windows development checkout and GitHub branch
+`fix/g001-census-admission-proxy`; PR #374 remains open against signed main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. It clarifies the empty Keep's
+first-return guidance: check City Mill costs, gather shortages with idle Workers
+in parallel, and spend only Realm-confirmed returns. It changes no economy or
+Worker rules. No GitHub Actions were used; keep the PR open and do not publish
+PTR or write `Warpkeep-Live/main` during the September pause.
+
+`Keep04Screen.test.tsx` passed 39/39 and `npm run typecheck` passed on this
+source (Windows Node 24.19.0 / npm 11.7.0). Guarded Chrome 154 capture
+`windows-run-A0VUGC` is stable at the exact source: 36 synthetic cases, 32
+WebGL and four intended fallback, zero horizontal overflow or guard violations,
+and verified Chrome cleanup. Manual 390×844 review confirms the updated copy
+and resource-location action fit in the first-journey card; the construction
+name and progress remain visible in the active-build view. Single render
+snapshots of all six level-five sites are within the current draw/triangle caps,
+but are not workload or percentile measurements. One `browser-log-security`
+warning remains classified only as a bounded document warning for each case;
+the raw message was not retained, so review is still open. The capture uses a
+desktop RTX 3080 Ti and a synthetic fixture, not a phone, production build,
+owner session or performance acceptance. The exact 53c2 `/ptr/` production
+build has not been rerun after this copy-only change; rebuild before final
+release freeze.
+
+The prior exact `/ptr/` production build is source `4e73261f`: 446 files /
+138,994,239 bytes, manifest SHA-256
+`f42b355ba042d912a10b3d47bfa8cfbcd70c1de25ac1e08bf52ee30a3e1393af`, content
+manifest SHA-256
+`c01eb7a7e786b045b46930269e68e1f2d6e4099c8e269ffe3e023fe4c4640741`. The
+read-only live-root plan preserves 341 Alpha entries, targets 800 files and
+removes zero obsolete files. These receipts predate 53c2 and do not attest its
+production payload.
+
+Read-only PR inventory at 15:39 UTC found no new Warpkeep code PR beyond #378;
+Warpkeep #374–#378 remain open. Relevant asset proposals #37–#41 remain open;
+older draft asset PRs #36, #29 and #28 are outside this 0.4 intake. A fresh
+HTTP read returned 200 at `https://warpkeep.com/` and 404 at `/ptr/`; the
+existing Alpha is available and 0.4 is not published. After October 1, resume
+with current owner direction, exact-head hosted Verify, final source-bound
+receipts, live readback, owner PTR play and physical-phone evidence.
+
 ## September no-Actions continuation — 29 September 2026, 17:12 CEST (15:12 UTC)
 
 Signed product-source commit `29e94dfa3ca396dcc75f74b4b63edc996971e888` is

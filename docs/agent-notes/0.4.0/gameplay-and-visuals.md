@@ -20,19 +20,20 @@ natural backdrop and final mobile/performance review remain open; see the
 
 The empty-keep prompt now says to start with a City Mill, names Food, Wood and
 Stone, notes City Goldworks also requires Gold, and tells the player to compare
-the existing costs under Buildings before sending an idle Worker to gather a
-shortage. Naming the building removes ambiguity without duplicating tunable
-prices or changing the existing costs panel, navigation, economy, route, Worker
-authority or construction timing.
+the existing costs under Buildings before sending idle Workers to gather
+shortages in parallel. It also makes clear that only confirmed returns can fund
+construction. Naming the building and clarifying parallel gathering supports
+the first-building pace without duplicating tunable prices or changing the
+existing costs panel, navigation, economy, route, Worker authority or
+construction timing.
 
-The focused Keep04Screen suite passed all 39 tests on code commit 675d8294.
-On exact source 0754260d, all 36 Windows Chrome synthetic captures completed
-with zero horizontal overflow. I inspected the 390x844 empty-keep screen: the
-first-journey card wraps cleanly and its action fits. The observer recorded one
-bounded browser-log-security warning per document but retained no raw message;
-its cause remains unclassified. Stderr had no warnings/errors and Chrome
-cleanup was verified. This is synthetic UI evidence, not phone or performance
-acceptance. Public /ptr/ returned HTTP 404 at 23:32 UTC.
+On signed source `53c2bc42`, the focused Keep04Screen suite passed 39/39 and
+`npm run typecheck` passed. The exact-source Windows Chrome matrix completed
+36 synthetic cases with no horizontal overflow; portrait review shows the
+first-journey action and active construction progress within the 390×844 view.
+One bounded `browser-log-security` warning per document remains unclassified;
+the raw message was not retained. This synthetic desktop-GPU capture is not
+phone, production or performance acceptance. See the [visual evidence](../../evidence/0.4.0/visuals.md).
 
 ## Construction progress in the first phone view — September 27, 2026
 

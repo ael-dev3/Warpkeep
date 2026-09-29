@@ -1,5 +1,34 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## Parallel-resource first-journey guidance — 29 September 2026
+
+The empty Keep now explains that idle Workers can gather missing City Mill
+resources in parallel and that construction spends only Realm-confirmed returns.
+This clarifies the existing command path without changing economy or Worker
+mechanics. At exact signed source `53c2bc42eeb98e5b896b08db249bbfee9e2807ea`,
+the Keep04Screen suite passed 39/39 and `npm run typecheck` passed.
+
+Guarded Windows Chrome capture `windows-run-A0VUGC` completed all 36 synthetic
+cases from that clean source on Chrome 154.0.8037.58 and an NVIDIA RTX 3080 Ti:
+32 cases rendered WebGL and four used the intended no-WebGL fallback. All had
+zero horizontal overflow; the network/document guard recorded no violation and
+the owned Chrome process tree exited cleanly. I inspected the 390×844 empty,
+active-construction and all-six-level-five captures. The first-journey text and
+action fit in the portrait card, and the active construction name, progress and
+remaining-time readout are visible. One-sample all-six-level-five snapshots
+reported 45 draws / 145,640 triangles at high, 30 / 38,804 at balanced, and 30
+/ 37,736 at reduced, within their existing snapshot caps; these observations
+are not frame-time percentiles, repeated workloads or GPU-upload measurements.
+
+Each document emitted one bounded `browser-log-security` warning. The collector
+retained only the warning class and allowlisted categories, not raw message or
+URL, so its cause remains unknown and the run remains review-required. Captures
+are local synthetic fixtures using desktop hardware; they are not production
+transfer, actual gameplay, physical-phone, authenticated-owner or performance
+acceptance. The 53c2 copy change has not yet had an exact-head production build.
+The ignored local report and images are under
+`artifacts/keep04-qa/windows-run-A0VUGC/`; they are not release artifacts.
+
 ## 29 September rear and side framing at product source `65b3d6cd`
 
 The existing two instanced forest bands now follow the rear and side terraces,

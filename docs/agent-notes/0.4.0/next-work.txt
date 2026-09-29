@@ -1,7 +1,36 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 17:12 CEST (15:12 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 17:46 CEST (15:46 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 17:12 CEST
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 17:46 CEST
+
+Signed product commit 53c2bc42eeb98e5b896b08db249bbfee9e2807ea is synced to
+the Windows development checkout and GitHub branch
+fix/g001-census-admission-proxy; PR #374 remains open against signed main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. The empty Keep now tells a new
+player to check City Mill costs, gather shortages with idle Workers in
+parallel, and wait for confirmed returns before funding construction. Economy,
+route, timing and Worker rules are unchanged. No GitHub Actions were used;
+keep #374 open and 0.4 unpublished during September.
+
+The focused Keep04Screen suite passed 39/39 and npm run typecheck passed at
+53c2bc42 (Windows Node 24.19.0 / npm 11.7.0). Guarded Chrome 154 capture
+windows-run-A0VUGC completed all 36 synthetic cases at the exact clean source:
+32 WebGL, four fallback, no horizontal overflow or guard violations, and
+verified process cleanup. Manual 390x844 review confirms the first-journey
+copy/action and active construction progress fit the portrait view. One
+privacy-safe browser-log-security warning per document remains unclassified;
+the raw text was intentionally not retained. The run used a desktop RTX 3080 Ti
+and does not establish production, phone, performance or owner acceptance.
+The 53c2 production build remains to be regenerated before final source freeze.
+
+Read-only inventory at 15:39 UTC found no new code PR beyond #378; Warpkeep
+#374–#378 and relevant asset proposals #37–#41 remain open. Older asset drafts
+#36, #29 and #28 are outside this 0.4 intake. Fresh HTTP checks returned 200 for
+the existing Alpha root and 404 for /ptr/. After October 1, confirm the owner's
+current direction before hosted Verify, then continue exact-source receipts,
+live readback, owner PTR play and physical-device evidence.
+
+PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 17:12 CEST
 
 Signed product-source commit 29e94dfa3ca396dcc75f74b4b63edc996971e888 is synced
 across the Windows checkout, origin and native Linux WarpkeepRunner on
@@ -516,36 +545,30 @@ ends; keep all source and notes synced in the meantime.
 
 NEXT ACTIONS
 
-1. Keep candidate source and tracked notes signed and synced to PR #374; do not
-   run GitHub Actions in September. Update the existing Desktop TXT in place;
-   do not create Desktop copies or candidate files.
-2. Keep the reviewed menu (#375), biome trees (#378) and owner film/mobile
-   castle-card change (#376) staged in candidate #374. Leave those PRs open for
-   provenance until #374 lands. Defer #377: it changes only G002 audio, while
-   G002 remains sealed and the score cannot be exercised through the owner PTR.
-   Assets #39 remains a source-archive proposal; #40 is study-only until
-   packed-image rights are verified, and #41 needs its published v3 attachment
-   plus local mobile budget/integration checks. Do not treat an open PR as an
-   approved asset.
-   Fresh PR inventory at 22:51 CEST found no new Warpkeep code PRs. Assets #41
-   is still open at `bc3d7ace`; its v3 Release is not published. Its near/mobile
-   GLB previews improve foliage detail, but the v3 set uses textured GLB assets
-   (311–1,098 near and 80–277 mobile triangles) while the integrated #378
-   runtime uses texture-free, instanced generated geometry with High/Balanced/
-   Reduced maxima of 276/166/132 triangles and explicit chunk byte/draw-call
-   budgets. Keep v3 out of the initial PTR candidate until its release archive
-   is published and a planned loader, tier mapping, chunk budget and mobile
-   capture are reviewed. It is a renderer/asset-pipeline migration, not a
-   drop-in visual replacement.
-3. Keep native release preparation tied to the exact reviewed M1: first pass
-   final-head Verify and merge the signed source, then prepare/check that exact
-   M1 and promote its generated-only M2. Do not create another diagnostic
-   workspace from the unmerged candidate; it cannot replace exact-M1 evidence.
-   Backend deploy/readback follows successful exact-M2 verification.
-4. After September, resume hosted Verify only on the exact live PR head and
-   only after confirming the account billing gate is clear. Complete PTR
-   publication and confirm its public URL on desktop and a phone; then record
-   owner acceptance. Until those checks pass, 0.4 is not shipped.
+1. Keep signed source and tracked notes synced to PR #374. Use `[skip actions]`
+   on September commits and keep the PR open. Update the existing Desktop TXT
+   in place; do not create Desktop copies or candidate files.
+2. PRs #375–#378 are already represented in #374; keep them open for provenance
+   until the candidate lands. G002 remains sealed, so its integrated soundtrack
+   has no playable PTR path. Assets #39–#41 are separate proposals, not
+   publication approval. #41's textured GLBs are a renderer/asset-pipeline
+   migration from the integrated instanced geometry; do not swap them into the
+   candidate until their archive, rights, tier mapping, chunk/mobile budgets
+   and capture are reviewed. Fresh read-only inventory at 15:39 UTC found no
+   new code PR beyond #378.
+3. After the final notes and product source are synced, run the exact `/ptr/`
+   local production build and refresh its ignored payload and read-only mirror
+   receipts. Keep the September build, payload, site and live-root observations
+   separate; do not deploy PTR or write `Warpkeep-Live/main` during this pause.
+4. Review the still-unclassified privacy-safe browser warning without weakening
+   capture policy. Finish the exact production transfer and repeated-workload
+   measurements, then obtain actual-owner PTR and physical-phone evidence; the
+   synthetic matrix does not close those gates.
+5. On or after October 1, confirm the owner's current direction before hosted
+   Verify. Read the current billing gate, then verify and integrate the exact
+   final PR head; proceed with source-bound M1/M2 preparation, backend/G001/G002
+   readback, PTR publication and owner acceptance only on their exact approved
+   inputs. Until live PTR and required evidence pass, 0.4 is not shipped.
 
 PREVIOUS SHIPPING CHECKPOINT — 28 SEPTEMBER, 09:15 CEST
 
@@ -766,31 +789,27 @@ retired title gateway while this app starts at `#menu`. It is not current menu
 visual evidence; do not call it a product failure or a pass. Retarget it to a
 live 0.4 transition before relying on that lane. See execution-handoff.md.
 
-NEXT ACTION — OWNER BILLING GATE, THEN DELIVERY
+POST-SEPTEMBER RELEASE SEQUENCE
 
-1. The account owner must resolve GitHub Billing & plans, including any
-   failed payment, and enable an Actions budget large enough to run Verify:
-   https://github.com/settings/billing/budgets
-   The Alpha QR now succeeds; do not repeat scans unless a regression appears.
-2. Rerun hosted Verify on the live final PR #374 head after billing is fixed.
-   Require every job to pass before integration; do not use the persistent
-   privileged production runner as a workaround.
-3. Keep #376 out until mobile media cost is acceptable and exact hosted Verify
-   passes. Defer #377 until G002 is in scope and source rights are confirmed.
-   Merge Assets #37 before retargeting/validating #38. Recheck newly opened PRs.
-4. Merge signed source/closure M1, confirm exact-main identity and Verify, and
-   repeat the provider-free G002 artifact build.
-5. On that exact M1, run native prepare and independent check; promote only
-   the authenticated generated family as M2 and require exact-main Verify.
-6. Run fresh preflight and G001 policy observation, then a new census identity.
-   Resolve any real admitted-set mismatch through the supported workflow;
-   never fabricate a baseline or reuse an incomplete attempt. A valid
-   baseline precedes provider mutation and G001 preservation readback.
-7. Use fresh exact-M2 authority for G002 inspect, then complete supported
-   deployment, sealed denial, actual owner PTR play and recovery evidence.
-   Use the signed public publication/rollback operator only after its gates;
-   verify exact public bytes and keep the existing Alpha root working until
-   release. No new recovery key is needed.
+1. After confirming the owner's current direction, check whether the recorded
+   GitHub billing/spend gate still blocks hosted Verify. Ask the owner for an
+   action only if the live gate requires it; do not request another QR scan or
+   recovery key for the already successful Alpha login.
+2. Run hosted Verify on the exact live PR #374 head. Require the full result on
+   that head before source integration; a pre-run billing rejection is not a
+   product-test failure.
+3. Integrate the signed source only after its reviewed checks pass, confirm the
+   exact main commit and run its required source/release verification.
+4. Prepare/check the exact source-bound M1 and promote only the authorized
+   generated M2 family. Never relabel prior receipts or prepare from the
+   unmerged candidate.
+5. On fresh exact-M2 authority, complete G001 preservation and readback, then
+   sealed G002 deployment/denial and no-unauthorized-write checks. Resolve any
+   census mismatch through its supported workflow; preserve failed attempts.
+6. Complete PTR deployment, public byte/readback verification, the actual
+   owner's isolated journey and recovery evidence, then physical-device and
+   performance acceptance. Keep the working Alpha available throughout.
+7. Finish the evidence ledger and the single credential-free delivery package.
 
 Operational details and current resumption point:
 C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep/docs/agent-notes/0.4.0/execution-handoff.md
