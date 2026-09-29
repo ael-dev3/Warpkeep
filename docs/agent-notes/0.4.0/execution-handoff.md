@@ -1,5 +1,30 @@
 # Continue Warpkeep 0.4
 
+## Exact-head local PTR preflight — 29 September 2026, 08:03 CEST (06:03 UTC)
+
+At signed source head `2ff579960af776345bdce32eaf52888e87c582c9`, the pinned
+Node 22.22.3 / npm 10.9.8 `/ptr/` production build passed TypeScript, runtime
+asset checks, production exclusions, the public-boundary scan (3,346 tracked
+paths / 1,901 scanned entries), and Farcaster Mini App integrity. The existing
+large-chunk warning remains: `RealmMapScreen` is 677.80 kB / 188.23 kB gzip;
+the PTR host is 106.32 kB / 32.62 kB gzip. Physical-phone performance remains
+unmeasured.
+
+The ignored local payload receipt binds to source tree `927f667f27eb0f944c779378c9121bb6fe5735e0`:
+445 files / 134,451,503 bytes, payload-manifest SHA-256
+`9cdcdc749f7068327fc57c0bfe0350b7faf270f355b4b6193ccac6f4139a20ea`, and
+content-manifest SHA-256
+`3a8dbca4aa7a4921bdc4d38b28c10e5ffea88558365620086483b2ee7fbb6aea`. Both
+the payload write and its immediate check passed. The read-only local mirror
+plan passed against existing `Warpkeep-Live` parent
+`b6afe92e7b09197b1578d992103ac3c8f916d8ad`; it preserves 341 root entries,
+targets 799 files, and removes zero obsolete generated paths. Its local plan
+SHA-256 is `d8b27c99dffbd6427dead2717b16cd7b397109a536a142787c0a071026653753`.
+These ignored receipts do not publish or modify the public repository. This
+note-only source commit advances PR #374, so rebuild and refresh both local
+receipts after pushing it. No GitHub Actions were used; all September commits
+carry `[skip actions]`.
+
 ## Local root-suite recovery — 29 September 2026, 07:36 CEST (05:36 UTC)
 
 The local candidate and PR #374 were synchronized at signed source `5bd2435b`
