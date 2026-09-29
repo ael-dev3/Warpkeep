@@ -64,6 +64,16 @@ that realm has no player path in the owner PTR. Do not merge the older source
 PRs independently or add #377 audio to the PTR without a playable release
 scope.
 
+### Default-branch dependency alert triage — 29 September 2026
+
+GitHub's read-only Dependabot alert endpoint reports three medium `undici`
+alerts on default `main`: the root `package-lock.json`, Auth Bridge lockfile and
+Release Recovery lockfile. The candidate diff already raises jsdom's nested
+root copy from 7.29.0 to 7.30.0 and both service Miniflare overrides from
+7.29.0 to the advisory's fixed 7.29.1. These are default-branch alerts; the
+candidate locks are patched, and the alerts should close when the source reaches
+main. They are not a reason to merge during the September no-Actions window.
+
 ### Full-suite Linux runner correction — 29 September 2026, 14:40 CEST
 
 The first full run used Windows `spacetime.exe` from WSL. It finished with 690
