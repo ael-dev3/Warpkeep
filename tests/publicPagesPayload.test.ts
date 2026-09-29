@@ -88,6 +88,7 @@ function createCandidate(publicationPath = '/') {
   write(join(dist, 'legal/warpkeep-legal.css'), 'body{color:white}');
   write(join(dist, 'warpkeep-boot.css'), 'body{background:black}');
   write(join(dist, 'warpkeep-noscript.css'), 'noscript{display:block}');
+  write(join(dist, 'audio/warpkeep-genesis-002-theme.m4a'), 'reviewed Genesis 002 soundtrack');
   write(join(dist, 'models/keep.glb'), Buffer.from([0x67, 0x6c, 0x54, 0x46]));
   write(join(dist, 'models/greater-realm/biome-trees/v3/manifest.json'),
     '{"schema":"warpkeep-greater-realm-biome-trees.runtime.v1"}');
@@ -101,8 +102,9 @@ afterEach(() => {
 });
 
 describe('public Pages candidate payload', () => {
-  it('permits only the reviewed menu M4A alongside existing MP3 audio', () => {
+  it('permits only the reviewed M4A tracks alongside existing MP3 audio', () => {
     expect(allowedPath('audio/warpkeep-verdant-menu-theme.m4a', false)).toBe(true);
+    expect(allowedPath('audio/warpkeep-genesis-002-theme.m4a', false)).toBe(true);
     expect(allowedPath('audio/warpkeep-title-theme-a.mp3', false)).toBe(true);
     expect(allowedPath('audio/other.m4a', false)).toBe(false);
     expect(allowedPath('audio/nested/warpkeep-verdant-menu-theme.m4a', false)).toBe(false);
@@ -147,6 +149,8 @@ describe('public Pages candidate payload', () => {
         candidate.dist, 'models/greater-realm/biome-trees/v3/manifest.json',
       ))),
     });
+    expect(first.manifest.files.map((entry: { path: string }) => entry.path))
+      .toContain('audio/warpkeep-genesis-002-theme.m4a');
     expect(first.manifest.files.map((entry: { path: string }) => entry.path))
       .toEqual([...first.manifest.files.map((entry: { path: string }) => entry.path)].sort());
     expect(existsSync(join(candidate.dist, '404.html'))).toBe(false);

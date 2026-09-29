@@ -140,7 +140,8 @@ export function allowedPath(path, directory) {
   const name = segments.at(-1);
   if (top === 'assets') return /\.(?:css|js)$/u.test(name);
   if (top === 'audio') return /\.mp3$/u.test(name)
-    || path === 'audio/warpkeep-verdant-menu-theme.m4a';
+    || path === 'audio/warpkeep-verdant-menu-theme.m4a'
+    || path === 'audio/warpkeep-genesis-002-theme.m4a';
   if (top === 'images') return /\.(?:png|webp)$/u.test(name);
   if (top === 'models') return MODEL_METADATA_PATHS.has(path) || /\.glb$/u.test(name);
   if (top === 'video') return /\.mp4$/u.test(name);
