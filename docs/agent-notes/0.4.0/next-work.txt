@@ -1,12 +1,15 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 23:27 CEST (21:27 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 23:33 CEST (21:33 UTC), Europe/Budapest.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 23:27 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 23:33 CEST
 
-The Windows checkout is clean and synchronized with `origin` at signed head
-`48cd44af9642b346567cf64820cb0adab9ddd510` on
-`fix/g001-census-admission-proxy`; PR #374 remains open. The last recorded WSL
-checkout was clean at the same head. No game source changed in this checkpoint.
+Before this documentation refresh, the Windows checkout and `origin` agreed
+at signed head `c29cf8d0aa1694478e54ddda36c06187266d04a2` on
+`fix/g001-census-admission-proxy`; it is a notes-only successor to the last
+game-source head `48cd44af9642b346567cf64820cb0adab9ddd510`. PR #374 remains
+open. The dedicated WSL source checkout was clean at `48cd44af`; no process was
+using that checkout, and it will be advanced after this notes-only push. No
+game source changed in this checkpoint.
 The 0.4 tree art from PR #378 is already in the candidate at `758d655b`, with
 the `/ptr/` base-path and transient-load retry fixes at `be04c322`. All 40
 runtime GLBs match PR #378; its branch does not need to be merged into #374.
@@ -20,9 +23,14 @@ read-only `statusCheckRollup` fields were inadvertently requested for #374 and
 Actions/check-status queries through September 30. No provider, database,
 Pages, merge or public-repository writes occurred.
 
+The prior documentation-only push `48cd44af..c29cf8d0` was scanned with pinned
+Gitleaks 8.30.1 and `.gitleaks.toml`: 1 commit / about 6.39 KB, no leaks.
+
 At `48cd44af`, the `/ptr/` production build, license/file-size checks,
 sealed-launch preparation, exact payload manifest and read-only public mirror
-plan passed in the prior checkpoint. The focused PTR source/contract tests
+plan passed in the prior checkpoint. The later notes-only pushes change the
+candidate identity; rebuild and regenerate release receipts at the final
+notes-inclusive head before any release. The focused PTR source/contract tests
 passed 16/16. This turn's v3 tree asset verifier passed all 40 files
 (2,738,208 runtime bytes); four focused tree/runtime suites passed 51/51 on
 the bundled Windows Node 24 test runner. Node 24 is outside the repository's
