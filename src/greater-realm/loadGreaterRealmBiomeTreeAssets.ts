@@ -25,6 +25,14 @@ const ASSET_REQUEST_TIMEOUT_MS = 20_000;
 const cache = new Map<string, Promise<GreaterRealmBiomeTreePrototype>>();
 const warned = new Set<string>();
 
+export function resolveGreaterRealmBiomeTreeAssetPath(
+  assetPath: string,
+  baseUrl: string = import.meta.env.BASE_URL || '/'
+) {
+  const normalizedBase = baseUrl.replace(/\/?$/, '/');
+  return `${normalizedBase}${assetPath.replace(/^\/+/, '')}`;
+}
+
 function assetFor(biomeClass: number, graphicsProfile: GreaterRealmGraphicsProfile): AssetRow {
   const biome = GREATER_REALM_BIOME_TREE_V3[biomeClass as keyof typeof GREATER_REALM_BIOME_TREE_V3];
   if (!biome) throw new Error(`GREATER_REALM_TREE_BIOME_MISSING:${biomeClass}`);
@@ -42,7 +50,7 @@ async function parseTreeAsset(asset: AssetRow): Promise<GreaterRealmBiomeTreePro
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ASSET_REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(asset.path, {
+    const response = await fetch(resolveGreaterRealmBiomeTreeAssetPath(asset.path), {
       credentials: 'same-origin',
       redirect: 'error',
       signal: controller.signal
@@ -119,5 +127,8 @@ export function loadGreaterRealmBiomeTreePrototype(
     throw error;
   });
   cache.set(key, promise);
+  void promise.catch(() => {
+    if (cache.get(key) === promise) cache.delete(key);
+  });
   return promise;
 }

@@ -15,6 +15,10 @@ import {
 } from '../src/greater-realm/greaterRealmPublicContract';
 import { GREATER_REALM_GRAPHICS_BUDGETS } from '../src/greater-realm/greaterRealmRuntimePolicy';
 
+vi.mock('../src/greater-realm/loadGreaterRealmBiomeTreeAssets', () => ({
+  loadGreaterRealmBiomeTreePrototype: vi.fn(() => new Promise(() => undefined))
+}));
+
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 
 function handle(ordinal: number) {
