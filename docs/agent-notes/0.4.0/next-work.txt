@@ -1,10 +1,10 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 18:38 CEST (16:38 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 18:50 CEST (16:50 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 18:38 CEST
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 18:50 CEST
 
 Windows, GitHub and the native Linux checkout are synchronized at signed head
-3157e0b09a35242f64a6b3a14da252cef02d8d84 on
+e37129b139517388ae337e7133f8db676cb1b71a on
 fix/g001-census-admission-proxy; PR #374 remains open against signed main
 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. No GitHub Actions or provider
 operations were used. Keep the September pause: do not merge #374, publish
@@ -12,14 +12,22 @@ PTR or write Warpkeep-Live/main.
 
 The exact-head /ptr/ production build and payload receipt check pass on pinned
 Node 22.22.3 / npm 10.9.8 with the required VITE_WARPKEEP_BUILD_SHA stamp.
-Payload: 446 files / 138,994,112 bytes. The read-only live-root plan preserves
-341 Alpha entries, targets 800 files and deletes zero. License and tracked
-file-size checks pass. Sealed-launch preparation stays closed with Pages
+Payload: 446 files / 138,994,112 bytes; manifest SHA-256
+cb5c2bff9c32bc19e0d76f5461139e91a2113db6e6a7a699be8881b3fb03b394. The
+read-only live-root plan preserves 341 Alpha entries, targets 800 files,
+deletes zero and has SHA-256
+bc1ab0de176759853335e8e14110b65d984c61caa1e0a357f68602875ae7b728. License
+and tracked file-size checks pass. Candidate-lock npm audit reports zero
+vulnerabilities. Auditing `origin/main` found moderate GHSA-3wwx-pv8p-q78v in
+nested Undici 7.29.0, updated to 7.30.0 in this candidate. GitHub reported
+three moderate alerts on default `main`; do not infer all are resolved from
+the single npm finding. Sealed-launch preparation stays closed with Pages
 approval false, package 0.3.43, live IDs unset and PTR presentation disabled.
 This is local candidate evidence only; refresh ignored receipts after the next
 notes sync.
 
-The full Linux suite is not green yet. The first attempt omitted the temporary
+The Linux full-suite input was `3157e0b` (product code unchanged at `e37129b`)
+and is not green yet. The first attempt omitted the temporary
 native SpacetimeDB CLI path and failed two PTR backend tests; that file passed
 15/15 once the path was fixed. A corrected full run passed 690 files and 12,577
 tests, with two timing-sensitive failures and 1 file / 97 tests skipped. Both
