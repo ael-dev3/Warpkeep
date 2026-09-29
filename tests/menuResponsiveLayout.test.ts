@@ -231,13 +231,18 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(buildStamp).toContain('justify-content: center;');
   });
 
-  it('stacks all realm choices and keeps tooltips bounded on narrow phones', () => {
+  it('stacks realm choices and expands tooltips in flow on narrow phones', () => {
     const css = readFileSync(
       resolve(process.cwd(), 'src/components/menu/RealmChoiceSelector.css'),
       'utf8'
     );
     const narrowPhone = readCssBlock(css, '@media (max-width: 720px)');
+    const choice = readCssBlock(css, '.realm-choice-selector__choice {');
     const tooltip = readCssBlock(css, '.realm-choice-selector__tooltip {');
+    const visibleTooltip = readCssBlock(
+      css,
+      '.realm-choice-selector__choice:hover .realm-choice-selector__tooltip,'
+    );
 
     expect(narrowPhone).toMatch(
       /\.realm-choice-selector__choices\s*\{[^}]*grid-template-columns:\s*1fr;/s
@@ -245,10 +250,13 @@ describe('Warpkeep main-menu responsive layout', () => {
     expect(narrowPhone).toMatch(
       /\.realm-choice-selector__button\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) auto;/s
     );
-    expect(narrowPhone).toMatch(
-      /\.realm-choice-selector__tooltip\s*\{[^}]*max-width:\s*calc\(100vw - 3rem\);/s
-    );
-    expect(tooltip).toContain('max-width: min(20rem, calc(100vw - 2rem));');
+    expect(choice).toContain('display: grid;');
+    expect(tooltip).toContain('display: block;');
+    expect(tooltip).toContain('max-height: 0;');
+    expect(tooltip).toContain('overflow: hidden;');
+    expect(tooltip).not.toContain('position: absolute;');
+    expect(visibleTooltip).toContain('max-height: 6rem;');
+    expect(visibleTooltip).toContain('margin-top: 0.55rem;');
   });
 
   it('presents all three realms as equal desktop cards', () => {

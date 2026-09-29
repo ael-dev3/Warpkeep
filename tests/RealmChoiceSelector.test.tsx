@@ -1,6 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,29 +9,9 @@ import {
   getRealmChoices
 } from '../src/components/menu/realmChoicePolicy';
 
-const SELECTOR_CSS = readFileSync(
-  resolve(import.meta.dirname, '../src/components/menu/RealmChoiceSelector.css'),
-  'utf8'
-);
-
 afterEach(cleanup);
 
 describe('RealmChoiceSelector', () => {
-  it('edge-aligns the outer tooltips at every viewport width', () => {
-    const responsiveRules = SELECTOR_CSS.indexOf('@media');
-    expect(responsiveRules).toBeGreaterThan(0);
-    const baseRules = SELECTOR_CSS.slice(0, responsiveRules);
-
-    expect(baseRules).toContain(
-      '.realm-choice-selector__choice:first-child .realm-choice-selector__tooltip {'
-    );
-    expect(baseRules).toContain(
-      '.realm-choice-selector__choice:last-child .realm-choice-selector__tooltip {'
-    );
-    expect(baseRules).toMatch(/first-child[\s\S]*?right:\s*auto;[\s\S]*?left:\s*0;/);
-    expect(baseRules).toMatch(/last-child[\s\S]*?right:\s*0;[\s\S]*?left:\s*auto;/);
-  });
-
   it('renders all three exact accessible realm names with visible, described admission marks', () => {
     render(
       <RealmChoiceSelector

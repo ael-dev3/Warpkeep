@@ -62,7 +62,8 @@
 }
 
 .realm-choice-selector__choice {
-  position: relative;
+  display: grid;
+  align-content: start;
   min-width: 0;
 }
 
@@ -156,16 +157,14 @@
 }
 
 .realm-choice-selector__tooltip {
-  position: absolute;
-  z-index: 12;
-  right: 0;
-  bottom: calc(100% + 0.55rem);
-  left: 0;
-  width: max-content;
-  max-width: min(20rem, calc(100vw - 2rem));
-  margin-inline: auto;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid rgba(226, 197, 139, 0.48);
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-height: 0;
+  margin-top: 0;
+  padding: 0 0.75rem;
+  overflow: hidden;
+  border: 1px solid transparent;
   border-radius: 0.4rem;
   color: #ead8b8;
   background: rgba(7, 9, 15, 0.98);
@@ -173,28 +172,20 @@
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: 0.7rem;
   line-height: 1.4;
-  pointer-events: none;
   opacity: 0;
   transform: translateY(0.2rem);
-  transition: opacity 140ms ease, transform 140ms ease;
+  transition: max-height 140ms ease, margin-top 140ms ease, padding 140ms ease,
+    border-color 140ms ease, opacity 140ms ease, transform 140ms ease;
 }
 
 .realm-choice-selector__choice:hover .realm-choice-selector__tooltip,
-.realm-choice-selector__choice:focus-within .realm-choice-selector__tooltip {
+.realm-choice-selector__button:focus-visible + .realm-choice-selector__tooltip {
+  max-height: 6rem;
+  margin-top: 0.55rem;
+  padding-block: 0.65rem;
+  border-color: rgba(226, 197, 139, 0.48);
   opacity: 1;
   transform: none;
-}
-
-.realm-choice-selector__choice:first-child .realm-choice-selector__tooltip {
-  right: auto;
-  left: 0;
-  margin-inline: 0;
-}
-
-.realm-choice-selector__choice:last-child .realm-choice-selector__tooltip {
-  right: 0;
-  left: auto;
-  margin-inline: 0;
 }
 
 .realm-choice-selector__status {
@@ -247,13 +238,6 @@
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     min-height: 5.4rem;
-  }
-
-  .realm-choice-selector__tooltip {
-    right: 0;
-    left: 0;
-    max-width: calc(100vw - 3rem);
-    margin-inline: auto;
   }
 
   .realm-choice-selector__admission {

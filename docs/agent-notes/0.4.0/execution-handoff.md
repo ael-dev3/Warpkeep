@@ -1,5 +1,32 @@
 # Continue Warpkeep 0.4
 
+## Realm chooser readability fix — 29 September 2026, 08:23 CEST (06:23 UTC)
+
+A rendered local `/ptr/` check exposed an overlap that source-only layout tests
+missed: the realm-status tooltip floated above its card, obscuring the directory
+heading on desktop and the preceding card at 390x844. The tooltip now expands
+in the grid below its own card on hover or keyboard-visible focus. Its
+`aria-describedby` explanation remains attached to each realm. On the updated
+local preview, the portrait explanation and both actions fit without covering
+another choice; at 936x672 it stays within the expanded directory panel. The
+568x320 landscape panel remains scrollable through its existing rail.
+
+The four focused menu/realm suites pass 59/59 after this change. The first
+browser attempt used bare `vite preview` at `/ptr/`; Vite returned the SPA HTML
+fallback for prefixed CSS, JavaScript and image paths, which made the page look
+blank and unstyled. A temporary local prefix mount served the same built files
+with their correct MIME types. This was a preview-host path issue, not an app
+asset failure. The repeatable mount command is in
+[`0.4.0-local-release-preparation.md`](../../operations/0.4.0-local-release-preparation.md).
+
+The full root suite remains green on code/test commit
+`822a0f466e2f63fc28c9441445d857d4b864616d`; this follow-up adds only menu CSS,
+layout-test assertions and removal of a superseded tooltip-position test. After
+committing this checkpoint, rebuild `/ptr/` and regenerate/check the ignored
+payload and mirror-plan receipts at the pushed head. No hosted Actions were
+used, the source PR remains open, and the PTR remains unpublished through
+September.
+
 ## Exact-head local PTR preflight — 29 September 2026, 08:03 CEST (06:03 UTC)
 
 At signed source head `2ff579960af776345bdce32eaf52888e87c582c9`, the pinned

@@ -1,21 +1,34 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 07:56 CEST (05:56 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 08:23 CEST (06:23 UTC), Europe/Budapest.
 PR #374 against `main` `786c0b2b` is the active source candidate. At the start
-of this refresh, GitHub and the local branch matched signed head `822a0f46`.
-This note update advances the source; recheck the final pushed head against
-GitHub, then rebuild and regenerate the payload and mirror-plan receipts at
-that exact identity.
+of this checkpoint, the local branch and GitHub matched signed head
+`9cf74d57c35c7caec0334400f812de3f27f5c8e0`; PR metadata reported OPEN,
+MERGEABLE and CLEAN. This refresh adds a small realm-tooltip layout correction
+and its focused tests. After pushing, verify the resulting branch/PR identity
+and rebuild and regenerate the ignored payload and mirror-plan receipts at
+that exact source head.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 07:56 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 08:23 CEST
 
-The first root run on `5bd2435b` exposed missing local prerequisites and
-synchronous queries racing lazy inspection panels. The runner now has the
-pinned SpacetimeDB CLI and offline archive, and the realm tests wait for the
-accessible panel. The complete root suite then passed on code/test head
+The complete root suite passed on code/test commit
 `822a0f466e2f63fc28c9441445d857d4b864616d`: Vitest 4.1.11, 888.36 seconds,
-692 files passed, 1 skipped, 12,577 tests passed and 97 skipped. Product code
-did not change. This checkpoint changes docs only; the new PR head must still
-receive an exact-source production build and fresh delivery receipts.
+692 files passed, 1 skipped, 12,577 tests passed and 97 skipped. The new
+realm-tooltip correction passes four focused menu/realm suites (59/59). A
+local rendered check at 390x844 and 936x672 confirms the explanation expands
+below its own realm card rather than obscuring the heading or another choice.
+The 568x320 landscape layout uses its existing scrollable realm rail.
+
+At the exact pre-fix source head `9cf74d57`, the `/ptr/` production build and
+all asset, production-exclusion, public-boundary and Mini App checks passed.
+The 445-file / 134,451,503-byte payload receipt was
+`d7d4b108b436fa754cc7fa9d356cac660d8633e8b2bf8ef02d947fa490ab5f50`; its
+content-manifest SHA-256 was
+`8b773794aef353025cc19fd3074aef8b1b46f702154ab658548ebad8869fa74c`. The
+read-only mirror plan against `Warpkeep-Live@b6afe92e` was
+`03319e6c992b9c679c83a5aab97ac0da73f2430eddffcb46143809649a71e459`; it
+preserves 341 Alpha-root entries, targets 799 files and removes zero obsolete
+generated paths. All these receipts are stale after the tooltip change and
+must be regenerated at the pushed source head before any future publication.
 
 Use the dedicated `WarpkeepRunner` distribution as `warpkeep` with Node
 22.22.3 / npm 10.9.8. Put the cached SpacetimeDB 2.6.1 CLI on `PATH` and verify
@@ -25,10 +38,12 @@ full run. Missing local prerequisites are setup errors. Do not use
 `DegenDogsRunner`, whose `/` mode 0777 is rejected by the production-admin
 ancestor guard.
 
-No GitHub Actions workflow, check, run or status was used during September; all
-candidate commits retain `[skip actions]`. Keep #374 open and PTR unpublished
-through September. Continue with the documented owner, M1/M2, G001/G002,
-publication/readback and device-acceptance gates when allowed.
+No GitHub Actions workflow, check, run or status was used during September;
+continue to skip them. Keep #374 open and the PTR unpublished through
+September. PRs #375, #376 and #378 are staged in #374 and remain open for
+provenance; do not merge their older source closures separately. On or after
+October 1, confirm the owner's direction before hosted Verify, then continue
+with M1/M2, G001/G002, publication/readback and device-acceptance gates.
 
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 06:46 CEST
 
