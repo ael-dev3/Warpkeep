@@ -2,6 +2,51 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Authenticated provider identity and PTR schema recheck — 30 September 2026, 01:40 CEST (23:40 UTC)
+
+Read-only checks were performed from the maintained candidate at signed head
+`cff791d8a8dd1e3e031f941b0e7e5e5df3a2b666`. No GitHub Actions, database,
+Cloudflare configuration, frontend publication, or production mutation was
+used.
+
+Cloudflare: pinned Node 22.22.3 and repository Wrangler 4.110.0 completed the
+existing `warpkeep-production` profile's identity and deployment reads. The
+profile remains bound to the existing `C:/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep`
+checkout; its selected account is the expected production account
+`c647739b4535010b0b13e6fc296e2c4e`. The newest `warpkeep-auth-bridge`
+deployment is `b338c098-a33e-4922-a3a4-1c2d92a3b035`, created
+2026-09-27 19:01:23.825605 UTC. Its only listed version,
+`2b28a266-862b-45da-a747-3cea0a0d858c`, is at 100 percent; the deployment
+annotation describes restoration of Alpha QR verification and names
+`79dfceec-9810-4868-afca-5b794d08a9a5` as its rollback. A fresh
+`GET https://auth.warpkeep.com/healthz` returned HTTP 200 with a 106-byte
+JSON response. This establishes the selected account, deployed version and
+basic Worker health; it does not establish the PTR-specific bindings, owner
+exchange, or database state.
+
+SpacetimeDB: the pinned Windows CLI and native `WarpkeepRunner` CLI both report
+2.6.1. `login show` succeeded for each without printing login contents; both
+Maincloud listings associate the expected publisher identity
+`c200431f50cf410304546489e2600c8446408f1aa727c91d86bc00aef6724d15` with the
+same three Warpkeep databases:
+
+| Database | Immutable Maincloud identity |
+| --- | --- |
+| `warpkeep` (G001) | `c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e` |
+| `warpkeep-genesis-002` (sealed G002) | `c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194` |
+| `warpkeep-ptr` | `c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e` |
+
+The Linux CLI configuration remains a regular single-link file owned by
+`1000:1000`, mode `0600`. A fresh read-only PTR schema description returned
+valid JSON containing 24 tables, 10 reducers, 49 types and 7 miscellaneous
+exports. It requested no rows. The checked-in candidate still defines seven
+additional `gameplay04_*` tables and five gameplay procedures; the exact names
+and live-release consequences are in the [current delivery record](../../operations/0.4.0-live-delivery-status.md).
+Publisher login and schema visibility are not permission to update the realm.
+The exact-source M1/M2 sequence, preservation evidence and supported PTR
+inspection remain necessary before any update; the live PTR does not yet serve
+the 0.4 keep.
+
 ## Exact-candidate full regression and preview — 29 September 2026, 22:21 CEST
 
 On exact candidate `0c6251b93644b9ea5df345dae42fd4d24a0cfbcb`, native Linux
