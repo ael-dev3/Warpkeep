@@ -1,5 +1,45 @@
 # Continue Warpkeep 0.4
 
+## Exact-source PTR preflight — 29 September 2026, 06:46 CEST (04:46 UTC)
+
+At the start of this checkpoint, PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374)
+and the local candidate were synchronized at signed head `9cda070e`, against
+operational main `786c0b2b`. PRs #375, #376 and #378 are represented in the
+candidate; #375 and #378 remain open as source provenance, #376 remains open
+until #374 lands, and Genesis 002 soundtrack PR #377 is deferred while G002 is
+sealed and has no player path on the owner PTR.
+
+Node 22.23.2 / npm 10.9.8 passed the exact `/ptr/` production build, all runtime
+asset checks, production exclusions, the public-boundary scan (3,346 tracked
+paths / 1,903 scanned entries), and Farcaster Mini App integrity. The PTR host
+is 106.32 kB / 32.62 kB gzip; `RealmMapScreen` is 677.80 kB / 188.23 kB gzip
+with 16.88 kB gzip CSS. The G001 chunk warning remains, and physical-phone
+performance is unmeasured.
+
+The exact-source payload write and recheck passed for 447 files / 134,507,691
+bytes. The read-only plan against clean `Warpkeep-Live@b6afe92e` preserves 341
+Alpha-root entries, targets 801 files and identifies no obsolete generated
+paths. The ignored payload manifest and plan bind their full source SHA and
+must be regenerated after every source commit. The checked-in sealed-launch
+verifier confirms preparation only; the prepared-deployment policy passes in
+the supported Linux environment. Pages approval is false, package version is
+`0.3.43`, and G001/G002/PTR identities remain unset.
+
+The Linux-only policy verifier initially rejected the Windows checkout because
+it requires POSIX ownership and mode checks. It passed from a temporary Linux
+worktree under `/tmp`; that worktree and its temporary dependency install were
+removed. No GitHub Actions workflow, check or run was queried or used, and no
+public file changed. The public root returned HTTP 200 and `/ptr/` returned
+HTTP 404 at the latest direct check.
+
+This documentation update advances PR #374's source identity. After it is
+pushed, read the new exact head from both `git rev-parse HEAD` and GitHub PR
+metadata, then rebuild `/ptr/` and regenerate/recheck the ignored payload and
+mirror plan at that SHA before further release operations. The root test suite
+remains incomplete: the 761-file run was stopped after more than eight minutes.
+Keep hosted Verify pending during September and retain the M1/M2, G001/G002,
+PTR readback and owner-device acceptance gates.
+
 ## PTR boundary and release-guard update — 29 September 2026, 06:26 CEST (04:26 UTC)
 
 At this checkpoint PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) was

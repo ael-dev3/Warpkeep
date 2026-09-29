@@ -59,13 +59,16 @@ PR #375 remains open as source provenance; its older branch must not be merged
 separately. The candidate is a polished visual foundation around the existing
 gather, dispatch, return and construction loop.
 
-Pinned Node 22.22.3 local verification on September 29 passed the full `/ptr/`
-production build at code checkpoint `b37e5a89`, including the v3 asset
-verifier, production exclusions, public-boundary scan (3,346 tracked paths /
-1,901 scanned entries), and Farcaster Mini App checks. The 40 runtime tree
+Pinned Node 22.23.2 / npm 10.9.8 verification on September 29 passed the full
+`/ptr/` production build, including the v3 asset verifier, production
+exclusions, public-boundary scan (3,346 tracked paths / 1,903 scanned
+entries), and Farcaster Mini App checks. The exact-source payload check and
+read-only public mirror plan passed; the plan preserves all 341 Alpha-root
+entries and targets the new experience only under `/ptr/`. The 40 runtime tree
 models total 2,738,208 bytes; Balanced and Reduced select the mobile meshes,
 asset URLs follow the `/ptr/` base, and the loader retries on a later view after
-a failed fetch.
+a failed fetch. Rebuild and regenerate the ignored payload and plan after every
+candidate commit, then match their source identity to the current PR #374 head.
 
 The PTR route lazy-loads the standalone `PtrGameplay04SurfaceHost` directly;
 `RealmMapScreenProps` contains no PTR authority or gameplay state, and its old

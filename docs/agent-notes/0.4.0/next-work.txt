@@ -1,12 +1,46 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 06:26 CEST (04:26 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 06:46 CEST (04:46 UTC), Europe/Budapest.
+PR #374 against `main` `786c0b2b` is the active source candidate. At the start
+of this refresh, GitHub and the local branch matched signed head `9cda070e`.
+This note update advances the source; its final pushed head is rechecked against
+GitHub, and its `/ptr/` build, payload and mirror plan are regenerated at that
+exact identity before further release operations.
+
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 06:46 CEST
+
+The PTR route loads `PtrGameplay04SurfaceHost` directly. Genesis
+`RealmMapScreen` has no PTR authority or gameplay props; its duplicate PTR
+branch and obsolete selector are removed. Both the direct PTR host and
+`GreaterRealmWorldScene` are protected in the release source closure. The
+prepared deployment family contains 1,249 members and 16 outputs; sealed-launch
+and prepared-deployment policy checks pass in the supported Linux environment.
+
+Node 22.23.2 / npm 10.9.8 passed the full `/ptr/` production build, asset
+validation, production exclusions, public-boundary scan (3,346 tracked paths /
+1,903 scanned entries), and Farcaster Mini App checks. The exact-source payload
+write/check passed. The read-only plan against clean `Warpkeep-Live@b6afe92e`
+preserves 341 Alpha-root entries, targets 801 files, and has no obsolete
+generated paths. Regenerate these ignored receipts after each commit and match
+their source SHA to the exact GitHub PR head. The G001 chunk warning remains;
+physical-phone performance is open.
+
+The 175 focused PTR/host/scene tests and complete 20-case live-receipt suite
+passed at the preceding product checkpoint. The 761-file root suite was
+stopped after more than eight minutes and is incomplete. No GitHub Actions
+workflow, check, run or status was queried or used during September. Alpha is
+live; `/ptr/` remains unavailable. Keep #374 open through September. After
+October 1, confirm the owner's direction before exact-head hosted Verify, then
+resume M1/M2, G001/G002, PTR publication/readback and owner/phone acceptance.
+
+PREVIOUS SNAPSHOT — 29 SEPTEMBER, 06:26 CEST
+
 The latest product-code checkpoint is PR #374 commit d52b5868; the latest
 candidate head at this checkpoint is signed commit 1c3504aa. The direct PTR
 surface remains isolated from Genesis 001, the prepared deployment family has
 been regenerated for this source, and the candidate remains unshipped. Earlier
 payload and mirror-plan receipts are stale and must not be reused.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 06:26 CEST
+PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 06:26 CEST
 
 PR #374 is open against `main` `786c0b2b`; GitHub confirmed candidate head
 `1c3504aa`. Product commit `fe8dc80f` removes the old PTR admission branch and
