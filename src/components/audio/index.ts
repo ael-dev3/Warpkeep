@@ -55,6 +55,8 @@ export {
   WARPKEEP_MENU_LOOP,
   WARPKEEP_MENU_TO_REALM_TRANSITION_MS,
   WARPKEEP_REALM_LOOP,
+  WARPKEEP_GENESIS_002_LOOP,
+  WARPKEEP_REALM_SOUNDTRACKS,
   WARPKEEP_REALM_TO_MENU_TRANSITION_MS,
   clampUnit,
   getEqualPowerGains,
@@ -66,6 +68,7 @@ export {
   getSceneMix,
   getScenePlaybackPlan,
   getSceneTransitionDuration,
+  getRealmSoundtrackId,
   type AudioLoopDefinition,
   type AudioLoopScene,
   type AudioLoopSchedule,
@@ -76,5 +79,7 @@ export {
   type MenuLoopSchedule,
   type MenuSourceIndex,
   type SceneMix,
-  type ScenePlaybackPlan
+  type ScenePlaybackPlan,
+  type WarpkeepAudioRealmId,
+  type WarpkeepRealmSoundtrackId
 } from './audioDirector';

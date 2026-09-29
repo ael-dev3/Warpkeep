@@ -10,7 +10,9 @@ import {
 import {
   WARPKEEP_AUDIO_LEVELS,
   WARPKEEP_MENU_LOOP,
+  WARPKEEP_REALM_SOUNDTRACKS,
   WARPKEEP_REALM_LOOP,
+  getRealmSoundtrackId,
   getEqualPowerGains,
   getLoopSchedule,
   getOtherSource,
@@ -20,6 +22,8 @@ import {
   type AudioLoopScene,
   type AudioScene,
   type AudioSourceIndex,
+  type WarpkeepAudioRealmId,
+  type WarpkeepRealmSoundtrackId,
   type SceneMix
 } from './audioDirector';
 
@@ -148,7 +152,7 @@ function playMedia(audio: HTMLAudioElement | null, onBlocked?: () => void) {
 export interface WarpkeepAudioDirectorHandle {
   ensurePlaybackFromGesture: () => void;
   unmuteFromGesture: () => void;
-  prepareScene: (scene: AudioLoopScene) => void;
+  prepareScene: (scene: AudioLoopScene, realmId?: WarpkeepAudioRealmId) => void;
   resetScene: (scene?: AudioLoopScene) => void;
   transitionTo: (scene: AudioScene) => void;
 }
@@ -182,12 +186,15 @@ export const WarpkeepAudioDirector = forwardRef<
   resumeFadeMs = 520
 }, forwardedRef) {
   const baseUrl = import.meta.env.BASE_URL;
+  const [realmSoundtrackId, setRealmSoundtrackId] = useState<WarpkeepRealmSoundtrackId>('lowlands');
+  const realmSoundtrackIdRef = useRef(realmSoundtrackId);
+  realmSoundtrackIdRef.current = realmSoundtrackId;
   const soundtrackUrls = useMemo(
     () => ({
       menu: `${baseUrl}${loopSceneDefinitions.menu.path}`,
-      realm: `${baseUrl}${loopSceneDefinitions.realm.path}`
+      realm: `${baseUrl}${WARPKEEP_REALM_SOUNDTRACKS[realmSoundtrackId].path}`
     }),
-    [baseUrl]
+    [baseUrl, realmSoundtrackId]
   );
   const titleTrack = useMemo(() => titleSoundtracks[getRandomTrackIndex()], []);
   const titleUrl = `${baseUrl}${titleTrack.path}`;
@@ -259,6 +266,12 @@ export const WarpkeepAudioDirector = forwardRef<
     return [title, ...loops].filter((audio): audio is HTMLAudioElement => audio !== null);
   }, [getLoopPair]);
 
+  const getLoopDefinition = useCallback((loopScene: AudioLoopScene) => (
+    loopScene === 'realm'
+      ? WARPKEEP_REALM_SOUNDTRACKS[realmSoundtrackIdRef.current]
+      : loopSceneDefinitions.menu
+  ), []);
+
   const applyVolumes = useCallback(() => {
     const titleAudio = titleAudioRef.current;
     const sceneMix = sceneMixRef.current;
@@ -270,7 +283,7 @@ export const WarpkeepAudioDirector = forwardRef<
     loopScenes.forEach((loopScene) => {
       const pair = getLoopPair(loopScene);
       const gains = loopGainsRef.current[loopScene];
-      const level = loopSceneDefinitions[loopScene].level * sceneMix[loopScene];
+      const level = getLoopDefinition(loopScene).level * sceneMix[loopScene];
 
       pair.forEach((audio, index) => {
         if (audio) {
@@ -278,7 +291,7 @@ export const WarpkeepAudioDirector = forwardRef<
         }
       });
     });
-  }, [getLoopPair]);
+  }, [getLoopDefinition, getLoopPair]);
 
   const clearLoopSchedule = useCallback((loopScene: AudioLoopScene) => {
     const timer = loopScheduleTimerRef.current[loopScene];
@@ -306,34 +319,6 @@ export const WarpkeepAudioDirector = forwardRef<
       });
     },
     [getLoopPair, soundtrackUrls]
-  );
-
-  const prepareScene = useCallback(
-    (loopScene: AudioLoopScene) => {
-      if (disposedRef.current || (deferUntilGesture && (!gestureSeenRef.current || mutedRef.current))) {
-        return;
-      }
-
-      const wasPrepared = preparedLoopScenesRef.current[loopScene];
-      preparedLoopScenesRef.current[loopScene] = true;
-      ensureLoopSources(loopScene);
-
-      const pair = getLoopPair(loopScene);
-      const activeIndex = loopStateRef.current[loopScene].activeIndex;
-      pair.forEach((audio, index) => {
-        if (audio) {
-          audio.preload = index === activeIndex ? 'auto' : 'none';
-        }
-      });
-
-      if (loopScene === 'menu' && !wasPrepared) {
-        setMenuPrepared(true);
-      }
-      if (loopScene === 'realm' && !wasPrepared) {
-        setRealmPrepared(true);
-      }
-    },
-    [deferUntilGesture, ensureLoopSources, getLoopPair]
   );
 
   const scheduleLoopRef = useRef<(loopScene: AudioLoopScene) => void>(() => undefined);
@@ -403,6 +388,48 @@ export const WarpkeepAudioDirector = forwardRef<
     [applyVolumes, clearLoopAnimation, clearLoopSchedule, getLoopPair]
   );
 
+  const prepareScene = useCallback(
+    (loopScene: AudioLoopScene, realmId: WarpkeepAudioRealmId = 'genesis-001') => {
+      if (disposedRef.current || (deferUntilGesture && (!gestureSeenRef.current || mutedRef.current))) {
+        return;
+      }
+
+      if (loopScene === 'realm') {
+        const nextSoundtrackId = getRealmSoundtrackId(realmId);
+        if (realmSoundtrackIdRef.current !== nextSoundtrackId) {
+          resetLoopScene('realm');
+          realmSoundtrackIdRef.current = nextSoundtrackId;
+          setRealmSoundtrackId(nextSoundtrackId);
+          const nextSourceUrl = `${baseUrl}${WARPKEEP_REALM_SOUNDTRACKS[nextSoundtrackId].path}`;
+          getLoopPair('realm').forEach((audio) => {
+            audio?.setAttribute('src', nextSourceUrl);
+          });
+          applyVolumes();
+        }
+      }
+
+      const wasPrepared = preparedLoopScenesRef.current[loopScene];
+      preparedLoopScenesRef.current[loopScene] = true;
+      ensureLoopSources(loopScene);
+
+      const pair = getLoopPair(loopScene);
+      const activeIndex = loopStateRef.current[loopScene].activeIndex;
+      pair.forEach((audio, index) => {
+        if (audio) {
+          audio.preload = index === activeIndex ? 'auto' : 'none';
+        }
+      });
+
+      if (loopScene === 'menu' && !wasPrepared) {
+        setMenuPrepared(true);
+      }
+      if (loopScene === 'realm' && !wasPrepared) {
+        setRealmPrepared(true);
+      }
+    },
+    [applyVolumes, baseUrl, deferUntilGesture, ensureLoopSources, getLoopPair, resetLoopScene]
+  );
+
   const finishLoopCrossfade = useCallback(
     (loopScene: AudioLoopScene) => {
       clearLoopAnimation(loopScene);
@@ -456,7 +483,7 @@ export const WarpkeepAudioDirector = forwardRef<
       }
 
       clearLoopSchedule(loopScene);
-      const definition = loopSceneDefinitions[loopScene];
+      const definition = getLoopDefinition(loopScene);
       const initialSchedule = getLoopSchedule(
         definition.loop,
         activeAudio.currentTime,
@@ -543,6 +570,7 @@ export const WarpkeepAudioDirector = forwardRef<
       clearLoopAnimation,
       clearLoopSchedule,
       finishLoopCrossfade,
+      getLoopDefinition,
       getLoopPair,
       markPlaybackBlocked
     ]
@@ -570,7 +598,7 @@ export const WarpkeepAudioDirector = forwardRef<
       }
 
       const schedule = getLoopSchedule(
-        loopSceneDefinitions[loopScene].loop,
+        getLoopDefinition(loopScene).loop,
         activeAudio.currentTime,
         activeAudio.paused,
         activeAudio.playbackRate
@@ -588,7 +616,7 @@ export const WarpkeepAudioDirector = forwardRef<
         }, schedule.delayMs);
       }
     },
-    [clearLoopSchedule, getActiveLoopAudio]
+    [clearLoopSchedule, getActiveLoopAudio, getLoopDefinition]
   );
 
   scheduleLoopRef.current = scheduleLoop;

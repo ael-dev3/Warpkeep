@@ -1,0 +1,55 @@
+{
+  "archive": "warpkeep-genesis-002-realm-score-2026-09-28",
+  "recordedAt": "2026-09-28",
+  "purpose": "Preserve the supplied Genesis 002 realm score and its browser-compatible AAC runtime derivative.",
+  "source": {
+    "suppliedBy": "Ael",
+    "suppliedFilename": "Genesis 002.m4a",
+    "authorization": "Ael requested official Genesis 002 realm playback and archival in Warpkeep-Assets.",
+    "creationDisclosure": "Source metadata says made with suno; ownership, license, and service rights are not inferred.",
+    "bytes": 4044476,
+    "sha256": "18e1ba7986bac220146d248ee863fd0020cbacc3e1e7661dd052f608d868b598",
+    "container": "MP4/M4A",
+    "codec": "Opus",
+    "sampleRateHz": 48000,
+    "channels": 2,
+    "durationSeconds": 223.6,
+    "integratedLufs": -17.8,
+    "loudnessRangeLu": 7.0,
+    "truePeakDbfs": -4.8
+  },
+  "runtimeDerivative": {
+    "gamePath": "public/audio/warpkeep-genesis-002-theme.m4a",
+    "bytes": 4539823,
+    "sha256": "6392e617b1c869ea81b211aebb10cdca42218377d0d0161232efa6f26dcced47",
+    "container": "MP4/M4A",
+    "codec": "AAC-LC",
+    "sampleRateHz": 48000,
+    "channels": 2,
+    "durationSeconds": 223.613,
+    "transformation": "FFmpeg 8.1.2 AAC-LC encode at 160 kbit/s, metadata stripped, fast-start MP4 metadata, no program trim or loudness normalization; complete output decode verified."
+  },
+  "runtimePlayback": {
+    "realmId": "genesis-002",
+    "targetGain": 0.58,
+    "loop": {
+      "crossfadeStartSeconds": 215.613,
+      "endSeconds": 223.613,
+      "overlapSeconds": 8,
+      "curve": "equal-power"
+    },
+    "startCondition": "Selected only by the existing authenticated realm-entry preparation flow; browser gesture, mute, visibility, and scene transitions remain owned by WarpkeepAudioDirector.",
+    "accessBoundary": "Genesis 002 remains sealed. This score does not enable entry, admissions, backend connection, or gameplay."
+  },
+  "licensePolicy": {
+    "spdx": null,
+    "status": "original-or-unresolved-terms",
+    "scope": "Exact official Genesis 002 game use and archive publication were requested by Ael. No source ownership, Suno service right, open-content grant, or broader reuse right is asserted."
+  },
+  "archiveRelease": {
+    "repository": "ael-dev3/Warpkeep-Assets",
+    "tag": "genesis-002-realm-score-2026-09-28",
+    "status": "draft",
+    "manifest": "releases/genesis-002-realm-score-2026-09-28/manifest.json"
+  }
+}

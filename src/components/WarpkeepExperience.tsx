@@ -611,15 +611,15 @@ export function WarpkeepExperience() {
     );
 
   useEffect(() => {
-    if (!realmMounted) {
+    if (!realmMounted || activeRealm === null) {
       return;
     }
     // Covers a direct #realm restoration, which has no click gesture. Browsers
     // may still block playback, but the authenticated realm source is ready
     // for the next real interaction and anonymous views never prepare it.
-    audioDirectorRef.current?.prepareScene('realm');
+    audioDirectorRef.current?.prepareScene('realm', activeRealm);
     audioDirectorRef.current?.transitionTo('realm');
-  }, [realmMounted]);
+  }, [activeRealm, realmMounted]);
 
   useEffect(() => {
     if (
@@ -699,7 +699,7 @@ export function WarpkeepExperience() {
     if (routeMode === 'push') {
       audioDirectorRef.current?.ensurePlaybackFromGesture();
     }
-    audioDirectorRef.current?.prepareScene('realm');
+    audioDirectorRef.current?.prepareScene('realm', realmId);
     audioDirectorRef.current?.transitionTo('realm');
     if (!hasRealmHash()) {
       const nextState = realmHistoryState(routeMode === 'replace', realmId);
