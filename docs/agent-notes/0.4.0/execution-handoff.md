@@ -1,9 +1,9 @@
 # Continue Warpkeep 0.4
 
-## Current exact-head continuation — 29 September 2026, 21:31 CEST
+## Current exact-head continuation — 29 September 2026, 21:41 CEST
 
-The signed candidate branch for PR #374 is synchronized at
-`ff0c5b518e54da1e24986ca680d8ba72dd883e60` against main
+At the start of this notes update, PR #374's signed candidate branch was at
+`83549312ce88e69acdf30f687a9918d178a95dac` against main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The committed change improves
 local CDP diagnostics only: Chrome security messages are reduced to a bounded,
 allowlisted signal without retaining raw text. Focused tests pass 91/91. A
@@ -14,11 +14,20 @@ warning per synthetic document; the report still requires review. A stricter
 opaque-origin experiment broke local script/network loading and was reverted.
 No production policy or gameplay changed.
 
+The exact `/ptr/` build was repeated twice at 83549312 using pinned Linux Node
+22.22.3 / npm 10.9.8; both runs exited 0. Asset, production-exclusion,
+public-boundary and Farcaster checks passed. Payload: 446 files / 138,994,282
+bytes, manifest SHA-256 `c3a821d4b048edd12c367c726c97193a322d5bfc971ff5308fc4d82d1e0fde10`.
+The independent read-only mirror plan against Warpkeep-Live@b6afe92 preserves
+341 Alpha entries, targets 800 generated paths and removes zero obsolete files.
+This documentation commit advances the source SHA, so rebuild and recheck the
+ignored receipts from its clean head before publication.
+
 No GitHub Actions, provider writes, public-repository writes, merge or PTR
-publication occurred. The exact `/ptr/` build and mirror-plan receipts are
-still source-bound to 7a5, before the current notes and QA-tooling commits; they
-must be refreshed at the final candidate head. The PTR remains unpublished,
-the owner/phone checks remain open, and no production performance is claimed.
+publication occurred. Sealed-launch remains preparation only: package 0.3.43,
+Pages approval false, live realm IDs unset and PTR presentation disabled. The
+PTR remains unpublished; owner/phone checks and physical-device performance
+remain open. No production performance is claimed.
 See the latest [next-work checkpoint](next-work.txt), [live delivery
 status](../../operations/0.4.0-live-delivery-status.md), and
 [local operations evidence](../../evidence/0.4.0/local-operations.md).

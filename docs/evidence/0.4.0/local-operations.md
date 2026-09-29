@@ -2,6 +2,40 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact candidate build and dependency readback — 29 September 2026, 21:41 CEST
+
+At signed candidate `83549312ce88e69acdf30f687a9918d178a95dac`, the pinned
+native Linux Node 22.22.3 / npm 10.9.8 `/ptr/` build completed twice with exit
+0. TypeScript, runtime assets, production exclusions, public-boundary
+verification (3,350 tracked paths / 1,907 scanned entries), Farcaster
+integrity, license and tracked file-size checks passed. The PTR host is 108.81
+kB / 33.54 kB gzip; `RealmMapScreen` remains 677.80 kB / 188.23 kB gzip.
+
+Payload write and independent `--check` passed: 446 files / 138,994,282 bytes,
+manifest SHA-256
+`c3a821d4b048edd12c367c726c97193a322d5bfc971ff5308fc4d82d1e0fde10`, content
+manifest SHA-256
+`7ebe6d25fe081aa0b82735b90f15870d4fa3caa032fd5b66cbbca9525d096791`. The
+read-only mirror plan write and independent check against clean
+`Warpkeep-Live@b6afe92e7b09197b1578d992103ac3c8f916d8ad` passed: 341 Alpha-root
+entries preserved, 800 target files, zero obsolete generated files; plan SHA
+`666880a8b1b1bdb0823766b06aa217754cc4c7fe8393b9df81f3e55a2aafd35f`. These
+are ignored local receipts, not a public write or deployment.
+
+Sealed-launch preparation remains closed as intended: package `0.3.43`, Pages
+approval false, G001/G002/PTR identities unset and PTR presentation disabled.
+The read-only Dependabot inventory returned three open moderate alerts on
+default `main`, all GHSA-3wwx-pv8p-q78v for Undici in root, auth-bridge and
+release-recovery lockfiles. The candidate has root `jsdom` nested Undici 7.30.0
+and patched service Undici 7.29.1, but the alerts remain open on `main` until
+the candidate lands. See [the GitHub advisory](https://github.com/advisories/GHSA-3wwx-pv8p-q78v).
+No GitHub Actions, provider mutation, public write, merge or deployment occurred.
+
+This notes commit changes the source SHA. Regenerate the exact `/ptr/` build,
+payload manifest and read-only mirror plan from the new clean head before
+publication. The QA capture at `ff0c5b5` remains relevant to unchanged product
+code, not deployment or phone/performance acceptance.
+
 ## Privacy-safe Keep QA diagnostics — 29 September 2026, 21:31 CEST
 
 Signed commit `ff0c5b518e54da1e24986ca680d8ba72dd883e60` updates the local

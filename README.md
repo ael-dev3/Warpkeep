@@ -59,15 +59,15 @@ PR #375 remains open as source provenance; its older branch must not be merged
 separately. The candidate is a polished visual foundation around the existing
 gather, dispatch, return and construction loop.
 
-At signed candidate source `7a5f0ef`, the pinned native Linux Node 22.22.3 / npm
-10.9.8 `/ptr/` build passed the v3 asset verifier, production exclusions,
-public-boundary scan (3,350 tracked paths / 1,907 scanned entries), and
-Farcaster Mini App checks. The exact-source payload contains 446 files /
+At pre-notes candidate source `83549312`, the pinned native Linux Node 22.22.3 /
+npm 10.9.8 `/ptr/` build passed TypeScript, the v3 asset verifier, production
+exclusions, public-boundary scan (3,350 tracked paths / 1,907 scanned entries),
+and Farcaster Mini App checks. The exact-source payload contains 446 files /
 138,994,282 bytes; its manifest SHA-256 is
-`6bc83b4235e62b3c2cb022c6c572195af1a29b7af2fee7136988e36d333b8950`. The
-read-only public mirror plan preserves all 341 Alpha-root entries, targets 800
-files only under `/ptr/`, removes zero obsolete generated files, and has SHA-256
-`20c81e4b6e2c4d4042ba71ffa8b63e16c563cadb08051a3d5823dd0bbaf53728`. The 40
+`c3a821d4b048edd12c367c726c97193a322d5bfc971ff5308fc4d82d1e0fde10`. The
+read-only mirror plan preserves all 341 Alpha-root entries, targets 800 files
+only under `/ptr/`, removes zero obsolete generated files, and has SHA-256
+`666880a8b1b1bdb0823766b06aa217754cc4c7fe8393b9df81f3e55a2aafd35f`. The 40
 runtime tree models total 2,738,208 bytes; Balanced and Reduced select the
 mobile meshes, asset URLs follow the `/ptr/` base, and the loader retries on a
 later view after a failed fetch. Rebuild and regenerate the ignored payload and
