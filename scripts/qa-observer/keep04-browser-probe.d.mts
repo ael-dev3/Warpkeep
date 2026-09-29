@@ -1,7 +1,11 @@
 export type Keep04ProbeCase = Readonly<{ id: string; scenario: string; quality: string; width: number; height: number; url: string; cpuRate: number; frameP95Ms: number }>;
+export type Keep04ProbeCapture = Readonly<Keep04ProbeCase & { synthetic: true; fault: 'none' | 'webgl-unavailable'; reducedMotion: boolean; mode: 'webgl' | 'fallback'; canvasCount: number; horizontalOverflow: boolean; observation: unknown; captureControlsCollapsed: true; screenshot: string; imageInspected: false }>;
+export type Keep04ProbePlan = Readonly<{ synthetic: true; status: string; output: string; contract: string; samples: Readonly<Record<string, number>>; cases: readonly Keep04ProbeCase[]; missing: readonly string[] }>;
+export type Keep04ProbeReport = Readonly<Omit<Keep04ProbePlan, 'status' | 'output'> & { status: string; output: string; observations: readonly Keep04ProbeCapture[] }>;
 export const KEEP04_QA_ORIGIN: 'http://127.0.0.1:4176';
 export type Keep04ProbeSession = { command: (method: string, parameters?: Record<string, unknown>) => Promise<unknown> };
-export function keep04ProbePlan(args: readonly string[]): { cases: readonly Keep04ProbeCase[] };
+export function keep04ProbePlan(args: readonly string[]): Keep04ProbePlan;
 export function readKeep04ProbeDom(entry: Keep04ProbeCase): unknown;
+export function collapseKeep04ProbeControls(entry: Keep04ProbeCase): { controlsCollapsed: true } | null;
 export function waitForKeep04ProbeObservation(session: Keep04ProbeSession, entry: Keep04ProbeCase, navigation: { frameId: string; loaderId: string }): Promise<unknown>;
-export function runKeep04BrowserProbe(session: Keep04ProbeSession, ownedRun?: object): Promise<unknown>;
+export function runKeep04BrowserProbe(session: Keep04ProbeSession, ownedRun?: object): Promise<Keep04ProbeReport>;

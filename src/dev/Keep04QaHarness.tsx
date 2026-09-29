@@ -158,7 +158,7 @@ export function Keep04QaHarness() {
     retainedContext.current = extension; extension.loseContext();
   }
   return <main data-qa-synthetic="true" data-qa-scenario={id} data-qa-quality={quality} data-qa-fault={fault} data-qa-reduced-motion={reducedMotion} style={{ margin: 0, background: '#102520', minHeight: '100vh', color: '#f2eddf', fontFamily: 'system-ui' }}>
-    <details style={{ padding: 12 }}>
+    <details data-qa-controls="true" style={{ padding: 12 }}>
       <summary>Synthetic controller · local visual QA only · Controls</summary>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         <label>Scenario <select disabled={capturing} aria-label="QA scenario" value={id} onChange={event => change(event.target.value as Keep04QaScenarioId)}>{KEEP04_QA_SCENARIOS.map(name => <option key={name}>{name}</option>)}</select></label>

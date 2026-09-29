@@ -1,5 +1,10 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { keep04ProbePlan, readKeep04ProbeDom, waitForKeep04ProbeObservation } from '../scripts/qa-observer/keep04-browser-probe.mjs';
+import { collapseKeep04ProbeControls, keep04ProbePlan, readKeep04ProbeDom, runKeep04BrowserProbe, waitForKeep04ProbeObservation } from '../scripts/qa-observer/keep04-browser-probe.mjs';
+
+vi.mock('../scripts/qa-observer/keep04-capture-output.mjs', () => ({
+  createKeep04CaptureRun: vi.fn(),
+  writeKeep04RunFile: vi.fn(async () => undefined),
+}));
 
 afterEach(() => { document.body.replaceChildren(); vi.unstubAllGlobals(); });
 const requested = () => keep04ProbePlan(['--base-url=http://127.0.0.1:4176']).cases[0];
@@ -39,6 +44,78 @@ it('accepts a matching terminal fallback, never a pending or previous frame obse
   output.dataset.lastObservation = JSON.stringify({ event: 'loading', renderCalls: null, renderTriangles: null }); expect(readKeep04ProbeDom(entry)).toBeNull();
   output.dataset.lastObservation = JSON.stringify({ event: 'fallback', renderCalls: null, renderTriangles: null });
   expect(readKeep04ProbeDom(entry)).toMatchObject({ mode: 'fallback', canvasCount: 0, observation: { event: 'fallback' } });
+});
+
+it('collapses only the controls disclosure on the exact requested QA document', () => {
+  const { entry, root } = readyDom();
+  const controls = document.createElement('details'); controls.dataset.qaControls = 'true'; controls.open = true;
+  const schematic = document.createElement('details'); schematic.open = true;
+  root.append(controls, schematic);
+
+  expect(collapseKeep04ProbeControls(entry)).toEqual({ controlsCollapsed: true });
+  expect(controls.open).toBe(false);
+  expect(schematic.open).toBe(true);
+
+  controls.open = true;
+  vi.stubGlobal('location', { origin: 'https://warpkeep.com', href: entry.url });
+  expect(collapseKeep04ProbeControls(entry)).toBeNull();
+  vi.stubGlobal('location', { origin: 'http://127.0.0.1:4176', href: `${entry.url}&stale=1` });
+  expect(collapseKeep04ProbeControls(entry)).toBeNull();
+  vi.stubGlobal('location', { origin: 'http://127.0.0.1:4176', href: entry.url });
+  root.dataset.qaScenario = 'mill-complete';
+  expect(collapseKeep04ProbeControls(entry)).toBeNull();
+  expect(controls.open).toBe(true);
+});
+
+it('collapses QA controls before every synthetic screenshot and marks capture provenance', async () => {
+  const cases = keep04ProbePlan(['--base-url=http://127.0.0.1:4176']).cases;
+  const root = document.createElement('main'); root.dataset.qaSynthetic = 'true';
+  const controls = document.createElement('details'); controls.dataset.qaControls = 'true';
+  const host = document.createElement('section'); host.setAttribute('aria-label', 'Verdant Citadel scene'); host.dataset.mode = 'webgl';
+  const keep = document.createElement('div'); keep.className = 'keep04'; keep.append(document.createElement('canvas')); host.append(keep);
+  const output = document.createElement('output'); output.dataset.qaObservation = 'true';
+  root.append(controls, host, output); document.body.append(root);
+
+  let current: (typeof cases)[number] | undefined;
+  let loader = 0;
+  const calls: Array<{ method: string; expression?: string }> = [];
+  const session = { command: async (method: string, parameters?: Record<string, unknown>) => {
+    calls.push({ method, expression: typeof parameters?.expression === 'string' ? parameters.expression : undefined });
+    if (method === 'Page.navigate') {
+      current = cases.find(entry => entry.url === parameters!.url)!; loader++;
+      vi.stubGlobal('location', { origin: 'http://127.0.0.1:4176', href: current.url });
+      vi.stubGlobal('innerWidth', current.width); vi.stubGlobal('innerHeight', current.height);
+      root.dataset.qaScenario = current.scenario; root.dataset.qaQuality = current.quality;
+      root.dataset.qaFault = current.scenario === 'fallback' ? 'webgl-unavailable' : 'none';
+      root.dataset.qaReducedMotion = String(current.scenario === 'reduced-motion');
+      host.dataset.mode = current.scenario === 'fallback' ? 'fallback' : 'webgl';
+      if (current.scenario === 'fallback') keep.replaceChildren(); else if (!keep.querySelector('canvas')) keep.append(document.createElement('canvas'));
+      output.dataset.lastObservation = JSON.stringify(current.scenario === 'fallback'
+        ? { event: 'fallback', renderCalls: null, renderTriangles: null }
+        : { event: 'frame', renderCalls: 10, renderTriangles: 20 });
+      return { frameId: 'main-frame', loaderId: `loader-${loader}` };
+    }
+    if (method === 'Page.getFrameTree') return { frameTree: { frame: { id: 'main-frame', loaderId: `loader-${loader}`, url: current!.url } } };
+    if (method === 'Runtime.evaluate') {
+      const expression = String(parameters!.expression);
+      const value = expression.includes('controlsCollapsed')
+        ? collapseKeep04ProbeControls(current!)
+        : readKeep04ProbeDom(current!);
+      return { result: { value } };
+    }
+    if (method === 'Page.captureScreenshot') return { data: Buffer.from('synthetic-png').toString('base64') };
+    return undefined;
+  } };
+
+  const report = await runKeep04BrowserProbe(session, { id: 'test-run' });
+  const captures = calls.flatMap((call, index) => call.method === 'Page.captureScreenshot' ? [index] : []);
+  expect(captures).toHaveLength(cases.length);
+  for (const capture of captures) {
+    expect(calls[capture - 1]?.method).toBe('Runtime.evaluate');
+    expect(calls[capture - 1]?.expression).toContain('controlsCollapsed');
+  }
+  expect(report.observations).toHaveLength(cases.length);
+  expect(report.observations.every((observation: { captureControlsCollapsed?: boolean }) => observation.captureControlsCollapsed)).toBe(true);
 });
 
 it('polls through the previous document, stale scenario and pre-frame WebGL before returning capture readiness', async () => {
