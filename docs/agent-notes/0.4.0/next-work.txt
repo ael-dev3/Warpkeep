@@ -1,51 +1,48 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, Europe/Budapest.
-PR #374 against `main` `786c0b2b` is the active source candidate. At the last
-remote check, local branch `fix/g001-census-admission-proxy` and GitHub matched
-signed head `e58d568a41c396a9d4759dbaceb036a717800281`; PR metadata was OPEN,
-MERGEABLE and CLEAN. The full root suite passed on code/test commit
-`822a0f466e2f63fc28c9441445d857d4b864616d` (Vitest 4.1.11; 692 files passed,
-1 skipped; 12,577 tests passed, 97 skipped). The current tooltip correction
-passes four focused menu/realm suites (59/59) and rendered checks at 390x844,
-936x672 and 568x320.
+Refreshed 29 September 2026, 09:22 CEST (07:22 UTC).
+PR #374 against main 786c0b2b is the active source candidate. The signed
+candidate head is 8a292056ef33fc9e81ad9bab9f57be1d4f1f0e17 on
+fix/g001-census-admission-proxy; local source and the pushed branch are synced.
+The PR remains open. During the owner's September pause, this workflow does not
+query, dispatch, rerun, or rely on GitHub Actions. Keep #374 unmerged and PTR
+unpublished through September 30; confirm the owner's direction before hosted
+checks on or after October 1.
 
-The pinned `/ptr/` production build passed at `e58d568a`: TypeScript, assets,
-exclusions, public-boundary (3,346 tracked paths / 1,901 scanned entries) and
-Mini App checks passed. The Genesis `RealmMapScreen` chunk is 677.80 kB /
-188.23 kB gzip; physical-device performance is unmeasured. The payload write
-and check passed with 445 files / 134,451,266 bytes, manifest SHA-256
-`f0a0e96314339e6d9377077177ff2412cd3d5d2685b5a428fc29cf2611f546e1` and
-content-manifest SHA-256
-`878c86346e53671edc5a87a496240c5be20241d78eb0a0860963d569a3b23f62`. The
-read-only plan SHA-256 is
-`3f0568cf4153b155603f8a90a46585f7006d09a8f421d3531a8774d1ec783028`; against
-`Warpkeep-Live@b6afe92e` it preserves 341 Alpha-root entries, targets 799
-files and removes zero obsolete generated paths.
+The mobile Keep follow-up enlarges existing economic craft signs and resource
+symbols within the current merged decoration layer. It adds no new gameplay
+system or draw layer. Five focused suites passed 124/124 on code source
+66d4e9cb; the tests cover Keep marker bounds and scene behavior plus prepared
+closure derivation/projection. The independent closure generator reproduced
+all installed outputs byte-for-byte: 1,249 members, 16 files,
+manifest SHA-256 5a8b1295765c4b7d1fb6dbd0a83062b260f3f45e40c196c2726df5620085a4fb.
+The clean 8a292056 candidate passes the prepared-deployment policy verifier
+and both checked-in and preparation sealed-launch verifiers. Release state is
+still package 0.3.43, Pages approval false, G001/G002/PTR identities unset,
+and PTR presentation disabled.
 
-The live root returned HTTP 200 and `/ptr/` returned HTTP 404. The e58 receipts
-were exact at creation but this handoff refresh changes the source tree; after
-committing and pushing it, rebuild `/ptr/` with
-`VITE_WARPKEEP_BUILD_SHA=$(git rev-parse HEAD)`, then rewrite/check the payload
-and write/check the read-only plan. Use only receipts whose source commit and
-tree equal the exact pushed candidate. No GitHub Actions were used. Keep #374
-open and `/ptr/` unpublished through September; confirm the owner's direction
-before hosted Verify on or after October 1.
+The pinned WarpkeepRunner Node 22.22.3 / npm 10.9.8 PTR production build
+passed at exact source 8a292056, including TypeScript, runtime asset checks,
+production exclusions, public-boundary scan (3,346 tracked paths / 1,901
+scanned entries), and Farcaster Mini App integrity. Vite retains the known
+RealmMapScreen chunk warning at 677.80 kB / 188.23 kB gzip; physical-device
+performance is unmeasured. On 29 September at 07:22 UTC, the public root
+returned HTTP 200 and PTR returned HTTP 404. No 0.4 deployment is claimed.
 
-Use the dedicated `WarpkeepRunner` distribution as `warpkeep` with Node
-22.22.3 / npm 10.9.8. Put the cached SpacetimeDB 2.6.1 CLI on `PATH` and verify
-the offline archive SHA-256
-`008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91` before a
-full run. Missing local prerequisites are setup errors. Do not use
-`DegenDogsRunner`, whose `/` mode 0777 is rejected by the production-admin
-ancestor guard.
+The build predates this handoff refresh. After committing this note, rebuild at
+the exact pushed candidate head and regenerate/check the ignored payload and
+read-only mirror plan. Do not reuse older receipts. The read-only plan must
+continue to preserve the 341 Alpha-root entries. PRs #375 and #378 have their
+integrated work staged in #374; #376 and #377 remain outside pending film/mobile
+playback and G002 scope/rights decisions. Keep G002 sealed. After October 1,
+follow the exact M1/M2 preparation and verification sequence, then G001
+preservation, sealed G002 readback, PTR publication/readback, and owner/device
+acceptance gates.
 
-No GitHub Actions workflow, check, run or status was used during September;
-continue to skip them. Keep #374 open and the PTR unpublished through
-September. PRs #375, #376 and #378 are staged in #374 and remain open for
-provenance; do not merge their older source closures separately. On or after
-October 1, confirm the owner's direction before hosted Verify, then continue
-with M1/M2, G001/G002, publication/readback and device-acceptance gates.
-
+Use the dedicated WarpkeepRunner checkout as warpkeep with pinned Node
+22.22.3 / npm 10.9.8 and the cached SpacetimeDB 2.6.1 CLI when the relevant
+local operation requires it. Do not use DegenDogsRunner for production-admin
+operations. Keep scheduled automation paused, do not create Desktop files, and
+do not request or generate another recovery key.
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 06:46 CEST
 
 The PTR route loads `PtrGameplay04SurfaceHost` directly. Genesis

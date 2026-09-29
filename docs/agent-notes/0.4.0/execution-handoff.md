@@ -1,38 +1,55 @@
 # Continue Warpkeep 0.4
 
-## Exact-source candidate preflight — 29 September 2026
+## September no-Actions continuation — 29 September 2026, 09:22 CEST (07:22 UTC)
 
-Signed source `e58d568a41c396a9d4759dbaceb036a717800281` passed the pinned
-`WarpkeepRunner` `/ptr/` production build (Node 22.22.3 / npm 10.9.8), including
-TypeScript, runtime assets, production exclusions, the public-boundary scan
-(3,346 tracked paths / 1,901 scanned entries) and Farcaster Mini App integrity.
-The `RealmMapScreen` chunk remains 677.80 kB / 188.23 kB gzip; the PTR host is
-106.32 kB / 32.62 kB gzip. Physical-device performance remains unmeasured.
+PR #374 is the open 0.4 source candidate against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. The signed pushed head is
+8a292056ef33fc9e81ad9bab9f57be1d4f1f0e17 on
+fix/g001-census-admission-proxy; the native Windows checkout was fast-forwarded
+to this exact head. This September pass does not query, dispatch, rerun, or rely
+on GitHub Actions. Keep #374 open and PTR unpublished through September 30;
+confirm the owner's direction before hosted checks on or after October 1.
 
-The exact-source payload write and immediate check passed: 445 files,
-134,451,266 bytes, source tree `a3499561b47ebd19c0ef50b79181d9b4884b9eef`,
-manifest SHA-256 `f0a0e96314339e6d9377077177ff2412cd3d5d2685b5a428fc29cf2611f546e1`,
-and content-manifest SHA-256
-`878c86346e53671edc5a87a496240c5be20241d78eb0a0860963d569a3b23f62`. The
-read-only mirror plan against clean `Warpkeep-Live@b6afe92e` passed with plan
-SHA-256 `3f0568cf4153b155603f8a90a46585f7006d09a8f421d3531a8774d1ec783028`;
-it preserves 341 Alpha-root entries, targets 799 files and removes zero
-obsolete generated paths. The checked-in sealed-launch preparation verifier
-still reports Pages approval false, package `0.3.43`, unset G001/G002/PTR
-identities and PTR presentation disabled.
+At product-code commit 66d4e9cb, the existing completed economic craft signs
+in the Inner Keep were enlarged for mobile legibility along with their resource
+symbols and craft-level marks. They remain in the existing merged decoration
+layer with one draw; this adds no new gameplay mechanic or scene layer. Five
+focused suites passed 124/124, including Keep marker geometry, Keep scene,
+prepared closure projection, closure-family derivation, and its 1,249-member
+source graph.
 
-A direct HTTP read returned 200 for `https://warpkeep.com/` and 404 for
-`https://warpkeep.com/ptr/`. These are local candidate receipts, not a
-deployment or owner-acceptance grant. This note refresh advances the source
-again, so the e58 receipts must not be used for the new commit; regenerate and
-check the payload and mirror plan at that exact pushed source before any later
-publication step.
+The closure generator returned 16 outputs for 1,249 protected members. A fresh
+Node process reproduced all 16 outputs and matched their installed bytes;
+manifest SHA-256 is
+5a8b1295765c4b7d1fb6dbd0a83062b260f3f45e40c196c2726df5620085a4fb.
+It corrected two stale protected-source pins: the updated Keep building source
+and an already-stale realm-choice stylesheet pin. The complete generated family
+was committed in signed commit 8a292056, pushed with [skip actions], and synced
+into the native checkout. The prepared-deployment policy verifier,
+checked-in sealed-launch verifier, and preparation verifier all pass on the
+clean commit. Sealed state remains package 0.3.43, Pages approval false,
+G001/G002/PTR identities unset, and PTR presentation disabled.
 
-No GitHub Actions workflow, run, check or status was used. Keep PR #374 open,
-hosted Verify pending and `/ptr/` unpublished through September; confirm the
-owner's direction before hosted Verify on or after October 1. This local note
-refresh is not an M1 or production operation.
+On exact source 8a292056, pinned Node 22.22.3 / npm 10.9.8 passed the PTR
+production build: TypeScript, runtime assets, production exclusions, public
+boundary (3,346 tracked paths / 1,901 scanned entries), and Farcaster Mini App
+integrity. The existing RealmMapScreen chunk is 677.80 kB / 188.23 kB gzip;
+physical-device performance is unmeasured. At 07:22 UTC on September 29,
+https://warpkeep.com/ returned HTTP 200 and /ptr/ returned HTTP 404.
+No public file changed or deployment occurred.
 
+Payload and read-only mirror-plan receipts have not yet been regenerated for
+the candidate after this change. Rebuild and regenerate/check both at the final
+docs-inclusive pushed source; preserve all 341 Alpha-root entries in the plan.
+PRs #375 and #378 have their integrated work staged in #374. PRs #376 and #377
+remain outside because click-to-load film/mobile behavior and G002 scope/rights
+remain unresolved. Keep G002 sealed. After October 1, follow exact M1/M2
+preparation and verification, then G001 preservation, sealed G002 readback,
+PTR publication/readback, and owner/device acceptance.
+
+Do not use the DegenDogsRunner for production-admin operations. Keep scheduled
+automation paused, do not create Desktop files, and do not request or generate
+another recovery key.
 ## Realm chooser readability fix — 29 September 2026, 08:23 CEST (06:23 UTC)
 
 A rendered local `/ptr/` check exposed an overlap that source-only layout tests
