@@ -1,7 +1,36 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 21:41 CEST (19:41 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 21:51 CEST (19:51 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 21:41 CEST
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 21:51 CEST
+
+Windows and origin are clean and synchronized at signed candidate
+7daea5f55e514f1c25e8b9a5e3258e3a5fa87729 on
+fix/g001-census-admission-proxy. PR #374 is open and reported mergeable
+against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. Open source PRs #375–
+#378 are already represented in the candidate; keep them open for source
+provenance. This checkpoint changes release notes and README only. No GitHub
+Actions, provider writes, public-repository writes, merge or PTR publication
+occurred.
+
+At exact 7daea5f5, pinned Linux Node 22.22.3 / npm 10.9.8 completed the `/ptr/`
+build successfully. TypeScript, runtime assets, production exclusions, public
+boundary (3,350 paths / 1,907 entries), Farcaster integrity, license policy,
+file-size policy and focused Keep04 document-policy/capture tests (91/91)
+passed. Sealed-launch preparation correctly remains unapproved: package
+0.3.43, Pages approval false, live identities unset and PTR presentation
+disabled.
+
+Payload at 7daea5f5: 446 files / 138,994,282 bytes; manifest SHA-256
+17e6f60ce7610dde8d5bc51ca00d6b81f715d82de1a219c855648b5e707b90f3; content
+manifest SHA-256 5941b9fc65625f0fe264a349362e790fd7c3c5977d2a8708263885ce8554c4b2;
+root HTML SHA-256 27e5004b41d16c968683871af6de416b18360a53b3b5c111cc3c082d9a7e804b.
+Independent read-only plan against Warpkeep-Live@b6afe92 preserves 341 Alpha
+entries, targets 800 generated paths, removes zero obsolete paths, and hashes
+to 5293912d89646974247b570a3c0964d586cc6305a5a10e6d4fb12d1ba0a4b6b1. These
+receipts must be regenerated at the pushed notes-inclusive head before
+publication. The root remains HTTP 200 and `/ptr/` HTTP 404.
+
+PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 21:41 CEST
 
 At the start of this notes update, Windows, origin and WarpkeepRunner were
 clean and synchronized at signed candidate

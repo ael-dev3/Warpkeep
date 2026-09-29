@@ -1,36 +1,41 @@
 # Continue Warpkeep 0.4
 
-## Current exact-head continuation — 29 September 2026, 21:41 CEST
+## Current exact-head continuation — 29 September 2026, 21:51 CEST
 
-At the start of this notes update, PR #374's signed candidate branch was at
-`83549312ce88e69acdf30f687a9918d178a95dac` against main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The committed change improves
-local CDP diagnostics only: Chrome security messages are reduced to a bounded,
-allowlisted signal without retaining raw text. Focused tests pass 91/91. A
-clean-source Chrome 154 capture completed all 36 synthetic cases (32 WebGL,
-four fallback), with no horizontal overflow, zero dropped diagnostics and
-verified cleanup. It records one `sandbox-script-origin-tokens` security
-warning per synthetic document; the report still requires review. A stricter
-opaque-origin experiment broke local script/network loading and was reverted.
-No production policy or gameplay changed.
+Windows and origin are clean and synchronized at signed candidate
+`7daea5f55e514f1c25e8b9a5e3258e3a5fa87729` on
+`fix/g001-census-admission-proxy`. PR #374 is open and reported mergeable
+against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The candidate also
+contains the code from open PRs #375–#378; keep those source PRs open for
+provenance during the September no-Actions pause.
 
-The exact `/ptr/` build was repeated twice at 83549312 using pinned Linux Node
-22.22.3 / npm 10.9.8; both runs exited 0. Asset, production-exclusion,
-public-boundary and Farcaster checks passed. Payload: 446 files / 138,994,282
-bytes, manifest SHA-256 `c3a821d4b048edd12c367c726c97193a322d5bfc971ff5308fc4d82d1e0fde10`.
-The independent read-only mirror plan against Warpkeep-Live@b6afe92 preserves
-341 Alpha entries, targets 800 generated paths and removes zero obsolete files.
-This documentation commit advances the source SHA, so rebuild and recheck the
-ignored receipts from its clean head before publication.
+At exact source 7daea5f5, the pinned Linux Node 22.22.3 / npm 10.9.8 `/ptr/`
+build exited 0. TypeScript, runtime-asset integrity, production exclusions,
+the public boundary (3,350 tracked paths / 1,907 scanned entries), Farcaster
+integrity, license policy and tracked-file-size policy passed. The focused
+Keep04 document-policy and Windows-capture suites passed 91/91. Sealed-launch
+preparation correctly remains disabled: package 0.3.43, Pages approval false,
+G001/G002/PTR identities unset and PTR presentation disabled.
 
-No GitHub Actions, provider writes, public-repository writes, merge or PTR
-publication occurred. Sealed-launch remains preparation only: package 0.3.43,
-Pages approval false, live realm IDs unset and PTR presentation disabled. The
-PTR remains unpublished; owner/phone checks and physical-device performance
-remain open. No production performance is claimed.
-See the latest [next-work checkpoint](next-work.txt), [live delivery
-status](../../operations/0.4.0-live-delivery-status.md), and
-[local operations evidence](../../evidence/0.4.0/local-operations.md).
+The build payload contained 446 files / 138,994,282 bytes. Its manifest SHA-256
+was `17e6f60ce7610dde8d5bc51ca00d6b81f715d82de1a219c855648b5e707b90f3`; its
+content manifest SHA-256 was
+`5941b9fc65625f0fe264a349362e790fd7c3c5977d2a8708263885ce8554c4b2`; and its
+root HTML SHA-256 was
+`27e5004b41d16c968683871af6de416b18360a53b3b5c111cc3c082d9a7e804b`. The
+independently checked read-only plan against clean Warpkeep-Live
+`b6afe92e7b09197b1578d992103ac3c8f916d8ad` preserves 341 Alpha-root entries,
+targets 800 generated paths, removes zero obsolete files, and hashes to
+`5293912d89646974247b570a3c0964d586cc6305a5a10e6d4fb12d1ba0a4b6b1`.
+
+The public Alpha root returned HTTP 200 and `/ptr/` returned HTTP 404. The
+candidate has not been deployed. No GitHub Actions, provider writes, public
+repository writes, merge or PTR publication occurred. The notes-only commit
+below requires a fresh stamped build and regenerated receipts at its pushed
+head before publication. Physical-phone performance and owner PTR acceptance
+remain unverified; no production performance claim is made. See the latest
+[next-work checkpoint](next-work.txt), [live delivery status](../../operations/0.4.0-live-delivery-status.md),
+and [local operations evidence](../../evidence/0.4.0/local-operations.md).
 
 ## September no-Actions exact-head release continuation — 29 September 2026, 21:11 CEST (19:11 UTC)
 

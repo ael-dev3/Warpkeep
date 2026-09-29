@@ -2,6 +2,37 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact-head local verification — 29 September 2026, 21:51 CEST
+
+At signed source `7daea5f55e514f1c25e8b9a5e3258e3a5fa87729`, the pinned native
+Linux Node 22.22.3 / npm 10.9.8 `/ptr/` production build exited 0. TypeScript,
+runtime-asset integrity, production exclusions, the public-boundary scan
+(3,350 tracked paths / 1,907 scanned entries), Farcaster integrity, license
+policy and tracked-file-size policy passed. The focused
+`keep04DocumentPolicy.test.ts` and `keep04WindowsCapture.test.ts` suites passed
+91/91. `verify:sealed-launch:preparation` completed and correctly reported the
+release disabled: package 0.3.43, Pages approval false, live G001/G002/PTR
+identities unset and PTR presentation disabled.
+
+The exact build emitted a 108.81 kB / 33.53 kB gzip PTR host and the existing
+677.80 kB / 188.23 kB gzip `RealmMapScreen` chunk. Payload: 446 files /
+138,994,282 bytes, manifest SHA-256
+`17e6f60ce7610dde8d5bc51ca00d6b81f715d82de1a219c855648b5e707b90f3`, content
+manifest SHA-256
+`5941b9fc65625f0fe264a349362e790fd7c3c5977d2a8708263885ce8554c4b2`, root
+HTML SHA-256
+`27e5004b41d16c968683871af6de416b18360a53b3b5c111cc3c082d9a7e804b`. An
+independent read-only plan against clean Warpkeep-Live
+`b6afe92e7b09197b1578d992103ac3c8f916d8ad` preserves 341 Alpha-root entries,
+targets 800 generated paths, removes zero obsolete files and hashes to
+`5293912d89646974247b570a3c0964d586cc6305a5a10e6d4fb12d1ba0a4b6b1`.
+
+These generated receipts are ignored local preparation, not release authority;
+regenerate them after the following notes-only checkpoint. No GitHub Actions,
+provider or public-repository writes, merge or deployment occurred. The public
+root remains HTTP 200 and `/ptr/` HTTP 404; physical-phone performance and owner
+PTR acceptance remain unverified.
+
 ## Exact candidate build and dependency readback — 29 September 2026, 21:41 CEST
 
 At signed candidate `83549312ce88e69acdf30f687a9918d178a95dac`, the pinned

@@ -59,20 +59,22 @@ PR #375 remains open as source provenance; its older branch must not be merged
 separately. The candidate is a polished visual foundation around the existing
 gather, dispatch, return and construction loop.
 
-At pre-notes candidate source `83549312`, the pinned native Linux Node 22.22.3 /
-npm 10.9.8 `/ptr/` build passed TypeScript, the v3 asset verifier, production
+At candidate source `7daea5f5`, the pinned native Linux Node 22.22.3 / npm
+10.9.8 `/ptr/` build passed TypeScript, runtime-asset checks, production
 exclusions, public-boundary scan (3,350 tracked paths / 1,907 scanned entries),
-and Farcaster Mini App checks. The exact-source payload contains 446 files /
-138,994,282 bytes; its manifest SHA-256 is
-`c3a821d4b048edd12c367c726c97193a322d5bfc971ff5308fc4d82d1e0fde10`. The
+and Farcaster Mini App integrity. License and tracked file-size checks passed.
+The payload contained 446 files / 138,994,282 bytes; its manifest SHA-256 was
+`17e6f60ce7610dde8d5bc51ca00d6b81f715d82de1a219c855648b5e707b90f3`, with
+content manifest SHA-256
+`5941b9fc65625f0fe264a349362e790fd7c3c5977d2a8708263885ce8554c4b2`. The
 read-only mirror plan preserves all 341 Alpha-root entries, targets 800 files
 only under `/ptr/`, removes zero obsolete generated files, and has SHA-256
-`666880a8b1b1bdb0823766b06aa217754cc4c7fe8393b9df81f3e55a2aafd35f`. The 40
+`5293912d89646974247b570a3c0964d586cc6305a5a10e6d4fb12d1ba0a4b6b1`. The 40
 runtime tree models total 2,738,208 bytes; Balanced and Reduced select the
 mobile meshes, asset URLs follow the `/ptr/` base, and the loader retries on a
-later view after a failed fetch. Rebuild and regenerate the ignored payload and
-plan after every candidate commit, then match their source identity to the
-current PR #374 head.
+later view after a failed fetch. These receipts were generated at 7daea5f5;
+regenerate the ignored payload and plan after this notes-only checkpoint and
+match their source identity to the pushed PR #374 head before publication.
 
 The PTR route lazy-loads the standalone `PtrGameplay04SurfaceHost` directly;
 `RealmMapScreenProps` contains no PTR authority or gameplay state, and its old
