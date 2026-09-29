@@ -1,5 +1,69 @@
 # Continue Warpkeep 0.4
 
+## September no-Actions continuation — 29 September 2026, 14:27 CEST (12:27 UTC)
+
+The signed product source is `65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5` on
+`fix/g001-census-admission-proxy`; PR #374 is open against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Windows, origin and WarpkeepRunner
+were synchronized at this code head before this documentation update. No
+GitHub Actions were queried, dispatched, rerun or used in September.
+
+This product checkpoint frames the existing rear and side forest bands with a
+single-geometry, three-instance shallow bank and gives the scenic camera two
+units of additional horizontal room. Tree count, walkable/support geometry and
+game authority are unchanged. Five focused Keep04 suites passed 116/116, the
+TypeScript build-mode check passed, and the exact-source pinned Linux
+production build passed all runtime asset, production exclusion, public
+boundary and Farcaster integrity checks. The local Chrome guard captured 36
+stable-source scenarios over four viewport profiles, with no guard violation,
+overflow, lingering animation frame or cleanup failure. Review remains
+required for one privacy-safe browser-log security warning per document. I
+inspected representative desktop/mobile renders and the fallback; the capture
+is synthetic and does not establish phone performance or owner acceptance.
+See [visual evidence](../../evidence/0.4.0/visuals.md).
+The build retains a Vite warning for G001 `RealmMapScreen` at 677.78 kB raw /
+188.22 kB gzip; physical-device performance still needs direct measurement.
+
+The full root Vitest suite is running on the synchronized Linux checkout as
+user `warpkeep`, pinned Node 22.22.3 / npm 10.9.8. A first root invocation
+triggered Git safe-directory errors in Git-backed tests and was stopped; treat
+it as an environment mistake. Do not add a root `safe.directory` exception.
+The corrected full run has not completed at this checkpoint.
+
+The checked-in sealed-launch state remains Pages approval false, package
+`0.3.43`, release identity receipts unset and PTR presentation disabled. The
+public hosting repository `Warpkeep-Live` uses legacy Pages from `main`, so a
+write there is publication. Do not bypass the sealed launch state or create a
+direct publication during the September no-Actions window. The last verified
+public check at 12:32 UTC returned root HTTP 200 and `/ptr/` HTTP 404; 0.4 is
+not live.
+Continue local evidence and code review, then resume the exact approved release
+gates when the September Actions restriction ends.
+
+### Read-only provider and incoming PR check
+
+At 12:31 UTC, authenticated SpacetimeDB CLI 2.6.1 listed the account's three
+production targets: G001 `c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e`,
+sealed G002 `c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194`,
+and PTR `c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e`.
+Read-only `describe` returned 56/49/140 tables, reducers and types for G001;
+23/8/35 for G002; and 24/10/49 for PTR. This verifies account access and that
+these database schemas are present. It does not establish source equality,
+live row-level seal/activation state, PTR atlas finalization or owner
+provisioning. The checked-in release binding still lacks the receipts that
+authorize these identities, so keep its identities unset and make no database
+writes until those proofs are verified.
+
+The open PR inventory contains #375, #376, #377 and #378 alongside #374.
+PR #375's menu and #376's castle-film commits are already ancestors of the
+candidate. PR #378's current head `394df3c6ba69900ddc881c4c4b1e5d6bcd2aa1d6`
+was cherry-picked into the candidate as signed commit `758d655b`; the original
+OID is therefore not an ancestor, but its v3 tree code and assets are already
+present. PR #377 adds a soundtrack for sealed G002 and remains deferred because
+that realm has no player path in the owner PTR. Do not merge the older source
+PRs independently or add #377 audio to the PTR without a playable release
+scope.
+
 ## September no-Actions continuation — 29 September 2026, 13:26 CEST (11:26 UTC)
 
 Signed product source `0c9447e299c607f4685735cfe44b55c17ba77199` is

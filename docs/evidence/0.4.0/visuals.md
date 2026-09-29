@@ -1,5 +1,38 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## 29 September rear and side framing at product source `65b3d6cd`
+
+The existing two instanced forest bands now follow the rear and side terraces,
+and a three-instance shallow bank frames that perimeter while leaving the gate
+approach open. The framing uses a single bank geometry and preserves the tree
+count, legal placement surface and support height. The scenic camera bounds
+extend from ±56 to ±58 to retain the new side framing at the existing fit.
+Scene and lifecycle regressions cover the perimeter, the clear front approach,
+all four scene-owned instanced meshes and disposal without disposing borrowed
+assets.
+
+The exact-source production build and runtime asset, exclusion, public-boundary
+and Farcaster checks passed on pinned Linux Node 22.22.3 / npm 10.9.8. The five
+focused Keep04 scene, screen, dressing and lifecycle test files passed 116/116;
+TypeScript build-mode checking passed. The full root suite is still running as
+the non-root `warpkeep` account after an initial root invocation hit Git's
+safe-directory ownership guard in receipt tests. That initial result is an
+environment invocation failure, not a product test result.
+
+Guarded local Chrome capture `windows-run-0PltSv` is bound to exact source
+`65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5`: 36 synthetic cases across desktop,
+portrait, landscape and reduced-motion profiles. It recorded stable source,
+one canvas for WebGL cases, no canvas for fallback, no horizontal overflow,
+cleanup completion and no guard violation. The runner still marks review
+required because every document records a privacy-safe browser-log security
+warning; its raw diagnostic was intentionally not retained. I manually
+inspected the desktop and mobile all-six overview, the fallback and isolated
+full-canvas desktop/mobile renders. The six buildings stay readable and the
+gate approach remains clear. This is synthetic review, not phone acceptance or
+performance evidence; the captured environment used a desktop RTX 3080 Ti. The
+production build still warns that the retained G001 `RealmMapScreen` chunk is
+677.78 kB raw / 188.22 kB gzip, and physical-device performance is unmeasured.
+
 ## 29 September U-shaped moat pass at product source `0c9447e2`
 
 The earlier rear-only water strip read as a thin line behind the keep. It now
