@@ -25,6 +25,8 @@ export type Scene04 = Readonly<{
   update: (elapsedSeconds: number) => boolean; telemetry: () => SceneTelemetry04; dispose: () => void;
 }>;
 
+const KEEP04_MOAT_SURFACE_Y = -0.98;
+
 export function createKeep04Scene(options: Readonly<{ quality: Quality04; reducedMotion: boolean; assets: InnerKeepRuntimeAssetBundle; qaVoxelFailure?: boolean }>): Scene04 {
   const { quality, assets } = options; const budget = P.budgets[quality];
   const scene = new THREE.Scene(); scene.background = new THREE.Color(P.distantHaze); scene.fog = new THREE.Fog(P.distantHaze, 150, 300);
@@ -66,20 +68,41 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     deckGeometry.setAttribute('color', new THREE.BufferAttribute(deckColors, 3));
     const deckMaterial = mat(P.ground); deckMaterial.vertexColors = true;
     mesh(deckGeometry, deckMaterial, 0, -.5, -4).name = 'legal-support-y0';
-    // A shallow, non-interactive moat gives the citadel a readable edge and
-    // carries the water reference into the actual 0.4 keep renderer without
-    // introducing a simulation, reflection pass, or extra interaction lane.
-    const waterGeometry = new THREE.PlaneGeometry(86, 8, quality === 'high' ? 12 : quality === 'balanced' ? 8 : 4, 2);
-    waterGeometry.rotateX(-Math.PI / 2);
-    const waterPositions = waterGeometry.getAttribute('position');
-    const waterColors = new Float32Array(waterPositions.count * 3);
-    for (let i = 0; i < waterPositions.count; i++) {
-      const x = waterPositions.getX(i);
-      const z = waterPositions.getZ(i);
-      const shimmer = .86 + Math.sin(x * .36 + z * .52) * .06 + Math.cos(x * .18 - z * .77) * .04;
-      waterColors.set([.28 * shimmer, .56 * shimmer, .60 * shimmer], i * 3);
-    }
-    waterGeometry.setAttribute('color', new THREE.BufferAttribute(waterColors, 3));
+    // The U-shaped moat sits just above the outer terrace course. It frames
+    // the back and sides while keeping the front gate and civic approach open.
+    // One merged mesh keeps the water static, non-pickable and inexpensive.
+    const waterGeometry = new THREE.BufferGeometry();
+    const waterPositions: number[] = [];
+    const waterNormals: number[] = [];
+    const waterColors: number[] = [];
+    const waterIndices: number[] = [];
+    const longSegments = quality === 'high' ? 12 : quality === 'balanced' ? 8 : 4;
+    const appendWaterStrip = (x0: number, x1: number, z0: number, z1: number, xSegments: number, zSegments: number) => {
+      const start = waterPositions.length / 3;
+      for (let row = 0; row <= zSegments; row++) for (let column = 0; column <= xSegments; column++) {
+        const x = x0 + (x1 - x0) * column / xSegments;
+        const z = z0 + (z1 - z0) * row / zSegments;
+        const shimmer = .86 + Math.sin(x * .36 + z * .52) * .06 + Math.cos(x * .18 - z * .77) * .04;
+        waterPositions.push(x, KEEP04_MOAT_SURFACE_Y, z);
+        waterNormals.push(0, 1, 0);
+        waterColors.push(.28 * shimmer, .56 * shimmer, .60 * shimmer);
+      }
+      for (let row = 0; row < zSegments; row++) for (let column = 0; column < xSegments; column++) {
+        const a = start + row * (xSegments + 1) + column;
+        const b = a + 1;
+        const d = a + xSegments + 1;
+        const c = d + 1;
+        // Winding faces upward in the X/Z plane.
+        waterIndices.push(a, d, b, b, d, c);
+      }
+    };
+    appendWaterStrip(-44, 44, -48, -40, longSegments, 2);
+    appendWaterStrip(-52, -44, -40, 32, 2, longSegments);
+    appendWaterStrip(44, 52, -40, 32, 2, longSegments);
+    waterGeometry.setAttribute('position', new THREE.Float32BufferAttribute(waterPositions, 3));
+    waterGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(waterNormals, 3));
+    waterGeometry.setAttribute('color', new THREE.Float32BufferAttribute(waterColors, 3));
+    waterGeometry.setIndex(waterIndices);
     const waterMaterial = new THREE.MeshStandardMaterial({
       color: '#5a9a9b',
       emissive: '#173d40',
@@ -91,8 +114,25 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
       vertexColors: true,
     });
     materials.add(waterMaterial);
-    mesh(waterGeometry, waterMaterial, 0, -1.03, -44.4).name = 'moat-water-surface';
-    mesh(new THREE.BoxGeometry(86, .08, .18), mat('#b7d2c1'), 0, -.94, -40.45).name = 'moat-water-edge';
+    mesh(waterGeometry, waterMaterial).name = 'moat-water-surface';
+    const waterEdgeGeometry = new THREE.BoxGeometry(1, .08, .18);
+    geometries.add(waterEdgeGeometry);
+    const waterEdge = new THREE.InstancedMesh(waterEdgeGeometry, mat('#b7d2c1'), 3);
+    waterEdge.name = 'moat-water-edge';
+    const edge = (index: number, x: number, z: number, length: number, rotationY: number) => {
+      const transform = new THREE.Matrix4().compose(
+        new THREE.Vector3(x, -.94, z),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotationY),
+        new THREE.Vector3(length, 1, 1),
+      );
+      waterEdge.setMatrixAt(index, transform);
+    };
+    edge(0, 0, -40.45, 86, 0);
+    edge(1, -44.45, -4, 72, Math.PI / 2);
+    edge(2, 44.45, -4, 72, Math.PI / 2);
+    waterEdge.instanceMatrix.needsUpdate = true;
+    instances.add(waterEdge);
+    scenery.add(waterEdge);
     try {
       if (import.meta.env.DEV && options.qaVoxelFailure) throw new Error('QA voxel preparation failure.');
       const preparationStart = performance.now();

@@ -158,21 +158,40 @@ it('varies the flat legal deck material and staggers fixed-count forest instance
   }
   scene.dispose();
 });
-it('keeps the shallow water treatment outside the legal support deck and within the scenic layer', () => {
+it('frames the keep with a shallow U-shaped moat while leaving the front approach open', () => {
   const scene = createKeep04Scene({ quality: 'balanced', reducedMotion: true, assets: empty() });
   const water = scene.scene.getObjectByName('moat-water-surface') as THREE.Mesh;
-  const edge = scene.scene.getObjectByName('moat-water-edge') as THREE.Mesh;
+  const edge = scene.scene.getObjectByName('moat-water-edge') as THREE.InstancedMesh;
   expect(water).toBeDefined();
   expect(edge).toBeDefined();
   const waterBounds = new THREE.Box3().setFromObject(water);
   expect(waterBounds.max.y).toBeLessThan(0);
-  expect(waterBounds.min.z).toBeLessThan(-40);
-  expect(waterBounds.max.z).toBeLessThan(-40);
+  expect(waterBounds.min.y).toBeCloseTo(-.98);
+  expect(waterBounds.min.x).toBeLessThan(-50);
+  expect(waterBounds.max.x).toBeGreaterThan(50);
+  expect(waterBounds.min.z).toBeLessThan(-47);
+  expect(waterBounds.max.z).toBe(32);
+  const waterPositions = water.geometry.getAttribute('position');
+  expect(Array.from({ length: waterPositions.count }, (_, index) => {
+    const x = waterPositions.getX(index);
+    const z = waterPositions.getZ(index);
+    return Math.abs(x) >= 44 || z <= -40 || z >= 32;
+  }).every(Boolean)).toBe(true);
   const colors = water.geometry.getAttribute('color');
   const blue = Array.from({ length: colors.count }, (_, index) => colors.getZ(index));
   expect(Math.max(...blue) - Math.min(...blue)).toBeGreaterThan(.04);
+  expect(edge.count).toBe(3);
+  const edgeBounds = new THREE.Box3().setFromObject(edge);
+  expect(edgeBounds.min.x).toBeLessThan(-44);
+  expect(edgeBounds.max.x).toBeGreaterThan(44);
+  expect(edgeBounds.min.z).toBeLessThan(-40);
+  expect(edgeBounds.max.z).toBeLessThan(32.2);
   expect(scene.telemetry().pickTargetCount).toBe(0);
+  const waterGeometryDispose = vi.spyOn(water.geometry, 'dispose');
+  const edgeGeometryDispose = vi.spyOn(edge.geometry, 'dispose');
   scene.dispose();
+  expect(waterGeometryDispose).toHaveBeenCalledOnce();
+  expect(edgeGeometryDispose).toHaveBeenCalledOnce();
 });
 it('rejects economics and identity at the visual boundary', () => {
   const scene = createKeep04Scene({ quality: 'reduced', reducedMotion: true, assets: empty() });
