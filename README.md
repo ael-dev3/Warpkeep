@@ -67,15 +67,17 @@ models total 2,738,208 bytes; Balanced and Reduced select the mobile meshes,
 asset URLs follow the `/ptr/` base, and the loader retries on a later view after
 a failed fetch.
 
-The PTR route now lazy-loads `PtrGameplay04SurfaceHost` independently of
-Genesis 001's `RealmMapScreen`. The production PTR host chunk is 105.92 kB
-(32.53 kB gzip). `RealmMapScreen` remains 680.14 kB (188.86 kB gzip) and its
-stylesheet is 16.88 kB gzip, but neither belongs to the PTR route's load path;
-the route integration test confirms it never imports that legacy screen. The
-G001 chunk remains available and Vite still reports its size warning. This is
-local build and route evidence, not physical-phone performance or release
-acceptance. The PTR publication has not happened, and the September GitHub
-Actions pause remains in effect.
+The PTR route lazy-loads the standalone `PtrGameplay04SurfaceHost` directly;
+`RealmMapScreenProps` contains no PTR authority or gameplay state, and its old
+PTR entry branch has been removed. The PTR host owns the branded authority,
+virtual-anchor, provider-bridge and gameplay-capability checks. The production
+PTR host chunk is 106.32 kB (32.62 kB gzip). `RealmMapScreen` remains 677.80 kB
+(188.23 kB gzip) with 16.88 kB gzip CSS, all outside the PTR route's load path.
+Route tests cover the separate lazy surfaces and the release-source guard now
+protects the direct PTR renderer while excluding only the legacy Genesis edge.
+The G001 chunk still triggers Vite's size warning. Build and route tests do not
+establish physical-phone performance or release acceptance. PTR publication
+has not happened, and the September GitHub Actions pause remains in effect.
 
 The public root serves Alpha 0.3.43 (HTTP 200), while
 `https://warpkeep.com/ptr/` returns HTTP 404. No 0.4 PTR has been published.

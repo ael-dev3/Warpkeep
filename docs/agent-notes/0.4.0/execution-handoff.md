@@ -1,5 +1,51 @@
 # Continue Warpkeep 0.4
 
+## PTR boundary and release-guard update — 29 September 2026, 06:26 CEST (04:26 UTC)
+
+At this checkpoint PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) was
+open against `main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; GitHub reported
+signed candidate head `1c3504aafb513b414c065f73890b50b88183c934`. Product commit
+`fe8dc80f` removed the duplicate PTR admission path from `RealmMapScreen`, its
+PTR-specific props and authority selector, and left owner, anchor, bridge and
+gameplay-capability checks in `PtrGameplay04SurfaceHost`. This makes the PTR
+host the single renderer boundary and keeps the Genesis component API free of
+PTR session state. The route and host tests now render the same standalone
+component used by `WarpkeepExperience`.
+
+Pinned Node 22.22.3 / npm 10.9.8 passed TypeScript and six affected suites
+(175/175). The test exposed an unwrapped async viewport refresh; `d52b5868`
+wrapped the resize and microtask settlement so the PTR host suite runs cleanly.
+The full Pages live-receipt suite passed all 20 tests after `14f0f7e1` updated
+its closure expectations. The direct production route now protects both
+`PtrGameplay04SurfaceHost` and `GreaterRealmWorldScene`; only the lazy Genesis
+`RealmMapScreen` edge is excluded from the menu presentation source closure.
+
+The `/ptr/` production build passed on product head `d52b5868`, including the
+runtime-asset and Mini App checks, public-boundary scan and production output
+exclusions. Vite emitted `PtrGameplay04SurfaceHost` at 106.32 kB / 32.62 kB
+gzip, and `RealmMapScreen` at 677.80 kB / 188.23 kB gzip with 16.88 kB gzip
+CSS. The G001 size warning remains; physical-device performance is unmeasured.
+The repository-wide 761-file Vitest run was stopped after more than eight
+minutes. It had exposed the two stale closure assertions fixed above, but it
+did not produce a complete root-suite result.
+
+Signed candidate commit `1c3504aa` refreshes the prepared closure outputs. The
+family has 1,249 members and 16 generated files, manifest SHA-256
+`3901d1cd779ce4690179a1ade87a4a73fb8a9350e28e4acd6a8c743ee2ea2968`. A fresh
+independent Linux checkout reproduced every byte; checked-in sealed-launch
+verification and the prepared-deployment policy verifier passed. The release
+remains in `preparation`, with package version `0.3.43`, Pages approval false,
+G001/G002/PTR identities unset and PTR presentation disabled.
+
+No GitHub Actions workflow, run, check or status was used in September; all
+candidate commits carry `[skip actions]`. No public file changed and no
+deployment occurred. The September pause leaves hosted Verify pending and PR
+#374 open. After October 1, confirm the owner's direction before exact-head
+Verify and the M1/M2 sequence. This handoff edit advances the source identity,
+so rebuild the `/ptr/` distribution and regenerate both ignored delivery
+receipts from the final clean commit before any publication. Do not reuse the
+older payload/plan hashes or treat local preparation as deployment authority.
+
 ## Current shipping continuation — 29 September 2026, 05:10 CEST (03:10 UTC)
 
 The PTR payload preflight exposed a real allowlist gap after PR #378's tree

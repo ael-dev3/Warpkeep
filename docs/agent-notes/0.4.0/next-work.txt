@@ -1,11 +1,61 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 05:49 CEST (03:49 UTC), Europe/Budapest.
-The latest product-code checkpoint is signed PR #374 commit b37e5a89, following
-the direct PTR surface split at caa70de7. The candidate remains unshipped; the
-previous 4fa6a071 payload and mirror-plan receipts are stale after this source
-change and must not be reused.
+Refreshed 29 September 2026, 06:26 CEST (04:26 UTC), Europe/Budapest.
+The latest product-code checkpoint is PR #374 commit d52b5868; the latest
+candidate head at this checkpoint is signed commit 1c3504aa. The direct PTR
+surface remains isolated from Genesis 001, the prepared deployment family has
+been regenerated for this source, and the candidate remains unshipped. Earlier
+payload and mirror-plan receipts are stale and must not be reused.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 05:49 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 06:26 CEST
+
+PR #374 is open against `main` `786c0b2b`; GitHub confirmed candidate head
+`1c3504aa`. Product commit `fe8dc80f` removes the old PTR admission branch and
+PTR-specific props from `RealmMapScreen`, drops the now-unused PTR scene
+selector, and leaves branded owner/session validation in
+`PtrGameplay04SurfaceHost`. PTR tests render that host directly. Commit
+`d52b5868` fixes an unwrapped async viewport refresh in the host test. Commit
+`14f0f7e1` aligns the Pages source-closure regression test with the production
+route: the directly loaded PTR host and `GreaterRealmWorldScene` are protected;
+only the lazy legacy Genesis `RealmMapScreen` edge stays exempt.
+
+Pinned Linux Node 22.22.3 / npm 10.9.8 TypeScript and six affected test files
+passed 175/175. The complete `notificationPagesLiveReceipt.test.ts` passed
+20/20. The direct PTR host tests are warning-free after the `act()` correction;
+existing world-scene and Genesis tests still print test-only React `act()`
+warnings while passing. The `/ptr/` production build passed at code head
+`d52b5868`, including asset validation, production exclusions, public-boundary
+scan and Mini App integrity. Vite reports PTR host 106.32 kB / 32.62 kB gzip;
+Genesis `RealmMapScreen` 677.80 kB / 188.23 kB gzip plus 16.88 kB gzip CSS.
+G001 still triggers the known chunk-size warning; physical-device profiling is
+open.
+
+The root test command covers 761 files and did not finish: it was stopped after
+more than eight minutes. It had exposed two stale Pages source-closure test
+expectations. Those expectations were corrected and the full 20-case release
+receipt file now passes; do not describe the interrupted root run as green.
+
+Signed candidate commit `1c3504aa` refreshes five changed outputs from the
+prepared deployment family. Independent pinned-Linux derivation matches all 16
+outputs byte-for-byte; 1,249 members, manifest SHA-256
+`3901d1cd779ce4690179a1ade87a4a73fb8a9350e28e4acd6a8c743ee2ea2968`. The
+checked-in sealed-launch and deployment-policy verifiers pass. The sealed
+release remains at `preparation`: package version `0.3.43`, Pages approval
+false, no G001/G002/PTR identity and PTR presentation disabled.
+
+No GitHub Actions workflow, check, run or status was used in September. All
+candidate commits carry `[skip actions]`; no public file was changed or
+deployed. Keep #374 open through the September pause. After October 1, confirm
+the owner's current direction before hosted Verify. Then continue exact-head
+Verify, source M1, fresh native preparation and independent check, generated
+M2, exact-M2 Verify, G001 preservation, sealed G002 readback, PTR publication
+and readback, and owner/phone acceptance.
+
+The latest build predates the documentation update in this checkpoint. Rebuild
+with `DEPLOY_BASE=/ptr/` and regenerate/check the ignored payload and mirror
+plan under `artifacts/delivery/0.4.0/` at the final committed source before any
+publication; local build success is not a deployment grant.
+
+PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 05:49 CEST
 
 PR #374 is open against main `786c0b2b`. The PTR route in
 `WarpkeepExperience` now lazy-loads the 0.4 host directly; Genesis 001 keeps its
