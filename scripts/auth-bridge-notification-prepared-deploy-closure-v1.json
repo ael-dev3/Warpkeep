@@ -55,7 +55,7 @@
     {
       "path": "package-lock.json",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "447350351fc934946bc88520275837d623f0260cbc0123c8d49b9a2ba4960ae9"
+      "sha256": "843e140d8d8a76c96c1f7db216b88f1ead1878e22f772445d31ec51577591d91"
     },
     {
       "path": "package.json",
@@ -2165,7 +2165,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "df654d44839a4c13a3b8cb5bb29a0f680476528d60ca58833537cbf5656fe0a4"
+      "sha256": "a55aab43d43a1cf5d6920a8bfd2204720e151d5e6b1d76f02c8f354dcdbc2e6e"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
@@ -2320,12 +2320,12 @@
     {
       "path": "services/auth-bridge/pnpm-lock.yaml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "369a7a6de6f874ffe7bb7a79617561daa771ce3dcfe79c35153a4446e614461b"
+      "sha256": "e1478d3eaaaf16505f4171f5c2570164f94a5abb17dcf592ed433c14ae524327"
     },
     {
       "path": "services/auth-bridge/pnpm-workspace.yaml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7c16b5a02088ac6f13b5a2fe267538b9a7347c3202d905fad028198a48fe6ca9"
+      "sha256": "f446fd22b741dfefa8614eb93fad169e1f6ff10529c06f455e8fa46519d8485b"
     },
     {
       "path": "services/auth-bridge/src/admissionNotifications.ts",
