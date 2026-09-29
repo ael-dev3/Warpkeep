@@ -214,7 +214,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       {showFirstJourney && firstIdleWorker !== undefined && <section className="keep04-first-journey" aria-label="First journey">
         <p className="keep04-eyebrow">YOUR FIRST RETURN</p>
         <h2>Start with one useful journey.</h2>
-        <p>Start with a City Mill. It needs Food, Wood, and Stone; City Goldworks also requires Gold. Compare the costs under Buildings, then send Worker {firstIdleWorker.ordinal + 1} to gather what you lack.</p>
+        <p>Start with a City Mill. It needs Food, Wood, and Stone; City Goldworks also requires Gold. Check costs under Buildings, then send idle Workers to gather missing resources in parallel. Only confirmed returns can fund construction.</p>
         <button type="button" onClick={() => onFindResources(null, firstIdleWorker.ordinal)}>Choose a resource location</button>
       </section>}
       {constructionStatuses.length === 1 ? constructionStatuses[0] : constructionStatuses.length > 1 ?

@@ -466,7 +466,7 @@ it('makes the first resource journey obvious for a new empty keep', () => {
   const firstJourney = screen.getByRole('region', { name: 'First journey' });
   expect(within(screen.getByRole('region', { name: 'Keep loop' })).getByRole('listitem', { name: 'Gather · active' })).toHaveAttribute('aria-current', 'step');
   expect(firstJourney).toHaveTextContent('Start with one useful journey.');
-  expect(firstJourney).toHaveTextContent('Start with a City Mill. It needs Food, Wood, and Stone; City Goldworks also requires Gold. Compare the costs under Buildings, then send Worker 1 to gather what you lack.');
+  expect(firstJourney).toHaveTextContent('Start with a City Mill. It needs Food, Wood, and Stone; City Goldworks also requires Gold. Check costs under Buildings, then send idle Workers to gather missing resources in parallel. Only confirmed returns can fund construction.');
   fireEvent.click(within(firstJourney).getByRole('button', { name: 'Choose a resource location' }));
   expect(find).toHaveBeenCalledWith(null, 0);
   expect(controller.submit).not.toHaveBeenCalled();
