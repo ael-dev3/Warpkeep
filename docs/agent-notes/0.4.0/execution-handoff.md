@@ -1,22 +1,22 @@
 # Continue Warpkeep 0.4
 
-## September no-Actions local release continuation — 29 September 2026, 18:50 CEST (16:50 UTC)
+## September no-Actions local release continuation — 29 September 2026, 18:57 CEST (16:57 UTC)
 
 Windows, GitHub and the clean native Linux checkout are synced at signed head
-`e37129b139517388ae337e7133f8db676cb1b71a` on
+`794dc6645dbe01975f4d3b1e2af3741fbd9bf8e3` on
 `fix/g001-census-admission-proxy`; PR #374 stays open against signed main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Product code is unchanged from
 `53c2bc42`. No GitHub Actions, provider mutation, public-repo write or PTR
 publication occurred. Keep the September pause in effect.
 
-At exact source `e37129b`, the native Node 22.22.3 / npm 10.9.8 `/ptr/` build
+At exact source `794dc664`, the native Node 22.22.3 / npm 10.9.8 `/ptr/` build
 passed TypeScript, all runtime asset checks, production exclusions, the public
 boundary (3,350 paths / 1,907 entries) and Farcaster integrity. It contains
 446 files / 138,994,112 bytes. The payload receipt write and independent check
 passed (manifest SHA-256
-`cb5c2bff9c32bc19e0d76f5461139e91a2113db6e6a7a699be8881b3fb03b394`). The
+`50ca98a51c230a36e42e03196fabc58c32fc9e1d1b484771e5202d5866b596ab`). The
 read-only plan against clean `Warpkeep-Live@b6afe92` passed with SHA-256
-`bc1ab0de176759853335e8e14110b65d984c61caa1e0a357f68602875ae7b728`: 341
+`49d972ed78600f17a8920b458126ccd6b20690cc5a492634a89ae84f1418cbd3`: 341
 Alpha-root entries preserved, 800 target files, zero obsolete files removed.
 The stamped build command must set VITE_WARPKEEP_BUILD_SHA to the exact HEAD.
 License, tracked file-size and sealed-launch preparation checks passed; the
@@ -31,6 +31,14 @@ the candidate lockfile updates that copy to 7.30.0. GitHub's push response
 reported three moderate alerts on default `main`; the local npm audit only
 explains the Undici finding, so do not claim that all three alerts are resolved.
 No dependency files were changed during this audit.
+
+The read-only open-PR inventory found #375, #376 and #377's exact head commits
+already in this candidate's history. PR #378's exact head is not an ancestor,
+but 48 of its 51 changed paths are byte-identical to the candidate; the other
+three candidate files retain compatible accumulated additions, including the
+tree license entry, build verifier and `/ptr/` asset-base resolution with
+failed-load retry. Do not duplicate or merge this work during September; keep
+the PRs open through the pause.
 
 The first full native test run omitted the CLI's temporary `spacetime` PATH
 alias; only `ptrRealmBackend.test.ts` failed (2 cases, spawnSync ENOENT). With

@@ -2,10 +2,10 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Exact-head local PTR verification — 29 September 2026, 18:50 CEST
+## Exact-head local PTR verification — 29 September 2026, 18:57 CEST
 
 Windows, GitHub and the native Linux WarpkeepRunner checkout are synchronized
-at signed head `e37129b139517388ae337e7133f8db676cb1b71a` on
+at signed head `794dc6645dbe01975f4d3b1e2af3741fbd9bf8e3` on
 `fix/g001-census-admission-proxy`; PR #374 remains open against signed main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. No GitHub Actions, provider
 mutation, `Warpkeep-Live` write or PTR publication occurred.
@@ -15,9 +15,9 @@ checks, production exclusions, the public-boundary scan (3,350 tracked paths /
 1,907 scanned entries) and Farcaster integrity using Node 22.22.3 / npm 10.9.8
 with VITE_WARPKEEP_BUILD_SHA set to the source head. Payload: 446 files /
 138,994,112 bytes; the ignored manifest write and independent check passed with
-SHA-256 `cb5c2bff9c32bc19e0d76f5461139e91a2113db6e6a7a699be8881b3fb03b394`.
+SHA-256 `50ca98a51c230a36e42e03196fabc58c32fc9e1d1b484771e5202d5866b596ab`.
 The read-only plan against clean `Warpkeep-Live@b6afe92` has SHA-256
-`bc1ab0de176759853335e8e14110b65d984c61caa1e0a357f68602875ae7b728`, preserves
+`49d972ed78600f17a8920b458126ccd6b20690cc5a492634a89ae84f1418cbd3`, preserves
 341 Alpha-root entries, targets 800 files and removes zero obsolete files.
 License and tracked file-size checks pass. A read-only npm registry audit of
 this candidate lockfile reports zero vulnerabilities (115 production, 204
@@ -26,13 +26,19 @@ lockfile identifies moderate advisory GHSA-3wwx-pv8p-q78v in `jsdom`'s nested
 Undici 7.29.0, with a fix available; the candidate updates that copy to 7.30.0.
 GitHub's push response reported three moderate alerts on default `main`; the
 local npm audit only explains the Undici finding, so do not claim the other
-alerts are resolved. No dependency files were changed during this audit.
+alerts are resolved. No dependency files were changed during this audit. The
+read-only open-PR inventory found #375, #376 and #377's exact head commits
+already in the candidate history. PR #378's exact head is not an ancestor, but
+48 of its 51 changed paths are byte-identical to the candidate; the other three
+files retain compatible accumulated additions, including its tree license
+entry, build verifier and `/ptr/` asset-base resolution with failed-load retry.
+Leave these PRs open during the September no-Actions pause.
 Sealed-launch preparation remains closed as intended: Pages approval false,
 package 0.3.43, live identities unset and PTR presentation disabled. The
 677.80 kB RealmMapScreen chunk warning remains. These receipts prepare a
 candidate and do not authorize deployment.
 
-The full Vitest input was `3157e0b` (product code unchanged at `e37129b`) and
+The full Vitest input was `3157e0b` (product code unchanged through `794dc664`) and
 required a temporary PATH alias for the pinned
 SpacetimeDB 2.6.1 CLI. Its first run without that alias failed two PTR backend
 tests with spawnSync ENOENT; the isolated PTR backend file then passed 15/15.
