@@ -1,35 +1,44 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 22:21 CEST (20:21 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 22:37 CEST (20:37 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 22:21 CEST
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 22:37 CEST
 
-At the start of this notes update, Windows, origin and the native
-WarpkeepRunner checkout were clean at signed head
-0c6251b93644b9ea5df345dae42fd4d24a0cfbcb. PR #374 is open and mergeable;
-source PRs #375–#378 remain open as provenance. The exact-head native Linux
-suite passed with Node 22.22.3, npm 10.9.8 and SpacetimeDB 2.6.1: 692 files
-passed / 1 skipped and 12,580 tests passed / 97 skipped, exit 0 in 979.68s.
-Vitest emitted context-canceled and expected negative-fixture Git diagnostics;
-post-run `git fsck --full --no-reflogs` exited 0 and the source checkout stayed
-clean.
+At this recheck, the Windows checkout, origin and native WarpkeepRunner
+checkout are clean and synchronized at signed head
+69c020a19cb81071ea1dbe602de1ec78fd8f9ab2 on
+`fix/g001-census-admission-proxy`. PR #374 is open and mergeable against
+`main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The open inventory contains
+only #374–#378; source PRs #375–#378 remain open as provenance and their changes
+are represented in #374. This check used read-only GitHub PR/ref and HTTP
+requests; no Actions workflow, check, run or status was queried or used.
 
-The 0c6251b9 exact `/ptr/` build passed. Payload: 446 files / 138,994,282
-bytes; manifest SHA-256 334952934371a167bbc321cd58fd5be68f0ef120e2e03285d348fddd66869647;
-content SHA-256 2f387cb659727815902cb58796d4651a245870c5680c37e4251c648eb2266527;
-root HTML SHA-256 52cd2ef0f351dd370de1bb36201ade775aa45098e2e5197ced84670b770ece92.
-The read-only plan hash is 84ce7e69ea095700cbe9a00e6455c19c5749b4a26a6b930c6f843fc5820a5e2c;
-it preserves 341 Alpha entries, targets 800 `/ptr/` files and removes zero
-obsolete generated paths. The local preview loaded at `/ptr/#menu`; retained
-390×844 menu and empty-Keep captures are readable without horizontal overflow.
-This remains synthetic desktop-emulation evidence, not physical-device or
-performance acceptance. The preview server and temporary `/tmp` link were
-removed. Live site remains Alpha root HTTP 200 and PTR HTTP 404.
+The full native Linux suite passed on runtime-identical source 0c6251b9 with
+Node 22.22.3, npm 10.9.8 and SpacetimeDB 2.6.1: 692 files passed / 1 skipped,
+12,580 tests passed / 97 skipped, exit 0 in 979.68s. The diff from 0c6251b9 to
+69c020a1 is documentation-only. The exact 69c020a1 `/ptr/` production build,
+license policy, tracked file-size policy and sealed-launch preparation check
+passed. Preparation correctly remains release-disabled: package version
+0.3.43, Pages approval false, G001/G002/PTR live identities unset and PTR
+presentation disabled.
 
-The notes-only commit below will advance the source stamp; rebuild and
-regenerate ignored delivery receipts after its push. No GitHub Actions,
-provider/public writes, merge or deployment occurred. Resume hosted checks
-after October 1, then complete M1/M2, live readback, PTR publication and owner
-device acceptance.
+At exact 69c020a1 the `/ptr/` payload contains 446 files / 138,994,282 bytes;
+content SHA-256 `77508a765c02e59bda87b5bae140189f43aa6f84b04cb907e7f6fabb5714839b`
+and root HTML SHA-256
+`e87c6ddd6a7ab88a62408eaf4fd40b77ba387aca57540a4cc724ac17492e85b`. The
+read-only plan hash is
+`7a03e97e7de43221d6bb2bce728478b9b33cc20d61045ba9493df4343dad380a`; it
+preserves 341 Alpha entries, targets 800 `/ptr/` files and removes zero
+obsolete generated paths. Its independent no-write verification passed.
+The local `/ptr/#menu` preview and 390×844 captures remain synthetic
+desktop-emulation evidence, not physical-device or performance acceptance.
+The preview server and temporary `/tmp` link were removed.
+
+Fresh public checks returned HTTP 200 for `https://warpkeep.com/` and HTTP 404
+for `https://warpkeep.com/ptr/`; 0.4 is not live. This note-only commit will
+advance the source SHA, so regenerate ignored build, payload and mirror receipts
+on its pushed head. No Actions, provider/public writes, merge or deployment
+occurred. After September, continue exact-head hosted verification, M1/M2,
+source-bound live readback, PTR publication and actual-owner/device acceptance.
 
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 21:51 CEST
 
