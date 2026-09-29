@@ -1,7 +1,7 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 20:50 CEST (18:50 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 21:11 CEST (19:11 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 20:50 CEST
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 21:11 CEST
 
 The signed test-fixture fix 7aa95148a1837f767cec7249d20fdb201bb665b2 and
 notes-only checkpoint b7c1b5224340806ced542d96c93d31e0c220794c are synchronized
@@ -18,13 +18,17 @@ files passed / 1 skipped; 12,579 tests passed / 97 skipped. Local assembler
 prepare and independent check passed at 2f1cc066, with
 finalReleasePrepared=false; this development candidate is not M1.
 
-The exact notes-inclusive /ptr/ build input b7c1b522 passed the pinned Linux
-Node 22.22.3 / npm 10.9.8 production build. Payload: 446 files /
-138,994,282 bytes; manifest SHA-256
-4a1d6ae1d53eb4078388e8e9343a8b9120ea6d37a3edca7d4bc4af9d0ab349eb. The
-read-only plan preserves 341 Alpha entries, targets 800 files and removes
-zero; SHA-256 acfeaf3a13cfdad0f6955e16e91fa806778f11ae26cb0860aea3eb082b0d5ca8.
-The known RealmMapScreen chunk warning remains.
+The exact signed `/ptr/` build input 7a5f0ef passed on pinned Linux Node
+22.22.3 / npm 10.9.8: TypeScript, runtime assets, production exclusions,
+public boundary (3,350 paths / 1,907 entries) and Farcaster integrity all passed.
+Payload: 446 files / 138,994,282 bytes; manifest SHA-256
+6bc83b4235e62b3c2cb022c6c572195af1a29b7af2fee7136988e36d333b8950; content
+manifest SHA-256 e223e894f3e01c00509f7eb9ab9f663f09aa76942dff1ba0bdc20c948e2e4150.
+The read-only mirror plan against Warpkeep-Live@b6afe92 preserves 341 Alpha
+entries, targets 800 files, removes zero obsolete files and has SHA-256
+20c81e4b6e2c4d4042ba71ffa8b63e16c563cadb08051a3d5823dd0bbaf53728. Vite
+reports the PTR host at 108.81 kB / 33.54 kB gzip and RealmMapScreen at
+677.80 kB / 188.23 kB gzip.
 
 Keep #374 open and do not write Warpkeep-Live/main or publish /ptr/ during
 September. The sealed binding remains unapproved, package 0.3.43, live realm

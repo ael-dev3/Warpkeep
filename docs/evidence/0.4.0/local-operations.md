@@ -2,7 +2,7 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Exact notes-inclusive local release candidate — 29 September 2026, 20:50 CEST
+## Exact notes-inclusive local release candidate — 29 September 2026, 21:11 CEST
 
 No GitHub Actions were queried, dispatched, rerun or used; no provider
 mutation, public-repository write, merge or PTR publication occurred.
@@ -29,21 +29,20 @@ edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71. The
 candidate reports finalReleasePrepared=false and is not M1 or deployment
 authority.
 
-After a documentation-only checkpoint b7c1b522, the exact stamped /ptr/ build
-passed on pinned native Node 22.22.3 / npm 10.9.8. TypeScript, runtime asset
-verification, production exclusions, public boundary (3,350 paths / 1,907
-entries) and Farcaster integrity passed. Payload has 446 files /
-138,994,282 bytes; manifest SHA-256
-4a1d6ae1d53eb4078388e8e9343a8b9120ea6d37a3edca7d4bc4af9d0ab349eb and content
-manifest SHA-256 51d612417cc2dcafb4b164a44ac8cbccd6c496f2ec3379c887da80a05ddaa528.
+At exact signed source `7a5f0ef04a69ec12eeb7b7d89af3904d3cd337ba`, the stamped
+/ptr/ production build passed on pinned native Node 22.22.3 / npm 10.9.8.
+TypeScript, runtime asset verification, production exclusions, public boundary
+(3,350 paths / 1,907 entries) and Farcaster integrity passed. Payload has 446
+files / 138,994,282 bytes; manifest SHA-256
+6bc83b4235e62b3c2cb022c6c572195af1a29b7af2fee7136988e36d333b8950 and content
+manifest SHA-256 e223e894f3e01c00509f7eb9ab9f663f09aa76942dff1ba0bdc20c948e2e4150.
 The read-only plan against clean Warpkeep-Live@b6afe92 has SHA-256
-acfeaf3a13cfdad0f6955e16e91fa806778f11ae26cb0860aea3eb082b0d5ca8:
-341 Alpha-root entries preserved, 800 target files, zero obsolete generated
-paths. License and file-size policies passed. Sealed-launch remains in
-preparation (package 0.3.43, Pages approval false, live IDs unset, PTR
-presentation disabled); the 677.80 kB / 188.23 kB RealmMapScreen chunk warning
-remains. This plan is preparation only; no public repository or site was
-changed.
+20c81e4b6e2c4d4042ba71ffa8b63e16c563cadb08051a3d5823dd0bbaf53728: 341
+Alpha-root entries preserved, 800 target files, zero obsolete generated paths.
+The PTR host chunk is 108.81 kB / 33.54 kB gzip; the 677.80 kB / 188.23 kB
+RealmMapScreen chunk warning remains. Sealed-launch remains in preparation
+(package 0.3.43, Pages approval false, live IDs unset, PTR presentation
+disabled). This plan is preparation only; no public repository or site changed.
 
 The private release store had 205 run directories at the start of this
 work and two additional retained runs afterward. Historical/incomplete

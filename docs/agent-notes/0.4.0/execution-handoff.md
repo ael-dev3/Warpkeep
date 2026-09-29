@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## September no-Actions exact-head release continuation — 29 September 2026, 20:50 CEST (18:50 UTC)
+## September no-Actions exact-head release continuation — 29 September 2026, 21:11 CEST (19:11 UTC)
 
 The signed G001 test-fixture fix 7aa95148a1837f767cec7249d20fdb201bb665b2
 and notes-only checkpoint b7c1b5224340806ced542d96c93d31e0c220794c are on
@@ -33,20 +33,20 @@ scanner edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71.
 finalReleasePrepared remains false; this is development preparation, not M1
 or deployment authority.
 
-At exact build input b7c1b522, pinned native Node 22.22.3 / npm 10.9.8
-/ptr/ production build passed TypeScript, runtime and production asset checks,
-production exclusions, public boundary (3,350 paths / 1,907 entries) and
-Farcaster integrity. Payload: 446 files / 138,994,282 bytes; manifest
-SHA-256 4a1d6ae1d53eb4078388e8e9343a8b9120ea6d37a3edca7d4bc4af9d0ab349eb;
+At signed source `7a5f0ef04a69ec12eeb7b7d89af3904d3cd337ba`, the pinned native
+Node 22.22.3 / npm 10.9.8 `/ptr/` production build passed TypeScript, runtime
+asset verification, production exclusions, public boundary (3,350 paths / 1,907
+entries) and Farcaster integrity. Payload: 446 files / 138,994,282 bytes;
+manifest SHA-256 `6bc83b4235e62b3c2cb022c6c572195af1a29b7af2fee7136988e36d333b8950`;
 content manifest SHA-256
-51d612417cc2dcafb4b164a44ac8cbccd6c496f2ec3379c887da80a05ddaa528. The
+`e223e894f3e01c00509f7eb9ab9f663f09aa76942dff1ba0bdc20c948e2e4150`. The
 read-only plan against Warpkeep-Live@b6afe92 has SHA-256
-acfeaf3a13cfdad0f6955e16e91fa806778f11ae26cb0860aea3eb082b0d5ca8:
-341 Alpha-root entries preserved, 800 target files and zero obsolete
-generated files. License and file-size policies passed. Sealed-launch remains
-in preparation: package 0.3.43, Pages approval false, live realm IDs unset and
-PTR presentation disabled. The known RealmMapScreen warning remains 677.80 kB
-raw / 188.23 kB gzip.
+`20c81e4b6e2c4d4042ba71ffa8b63e16c563cadb08051a3d5823dd0bbaf53728`:
+341 Alpha-root entries preserved, 800 target files and zero obsolete generated
+files. The PTR host chunk is 108.81 kB / 33.54 kB gzip; RealmMapScreen remains
+677.80 kB / 188.23 kB gzip. Sealed-launch remains in preparation: package
+0.3.43, Pages approval false, live realm IDs unset and PTR presentation
+disabled.
 
 The local release store had 205 retained run directories before this work;
 prepare/check added two retained runs. Historical and incomplete records remain

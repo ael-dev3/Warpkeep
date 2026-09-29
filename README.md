@@ -59,22 +59,26 @@ PR #375 remains open as source provenance; its older branch must not be merged
 separately. The candidate is a polished visual foundation around the existing
 gather, dispatch, return and construction loop.
 
-Pinned Node 22.23.2 / npm 10.9.8 verification on September 29 passed the full
-`/ptr/` production build, including the v3 asset verifier, production
-exclusions, public-boundary scan (3,346 tracked paths / 1,903 scanned
-entries), and Farcaster Mini App checks. The exact-source payload check and
-read-only public mirror plan passed; the plan preserves all 341 Alpha-root
-entries and targets the new experience only under `/ptr/`. The 40 runtime tree
-models total 2,738,208 bytes; Balanced and Reduced select the mobile meshes,
-asset URLs follow the `/ptr/` base, and the loader retries on a later view after
-a failed fetch. Rebuild and regenerate the ignored payload and plan after every
-candidate commit, then match their source identity to the current PR #374 head.
+At signed candidate source `7a5f0ef`, the pinned native Linux Node 22.22.3 / npm
+10.9.8 `/ptr/` build passed the v3 asset verifier, production exclusions,
+public-boundary scan (3,350 tracked paths / 1,907 scanned entries), and
+Farcaster Mini App checks. The exact-source payload contains 446 files /
+138,994,282 bytes; its manifest SHA-256 is
+`6bc83b4235e62b3c2cb022c6c572195af1a29b7af2fee7136988e36d333b8950`. The
+read-only public mirror plan preserves all 341 Alpha-root entries, targets 800
+files only under `/ptr/`, removes zero obsolete generated files, and has SHA-256
+`20c81e4b6e2c4d4042ba71ffa8b63e16c563cadb08051a3d5823dd0bbaf53728`. The 40
+runtime tree models total 2,738,208 bytes; Balanced and Reduced select the
+mobile meshes, asset URLs follow the `/ptr/` base, and the loader retries on a
+later view after a failed fetch. Rebuild and regenerate the ignored payload and
+plan after every candidate commit, then match their source identity to the
+current PR #374 head.
 
 The PTR route lazy-loads the standalone `PtrGameplay04SurfaceHost` directly;
 `RealmMapScreenProps` contains no PTR authority or gameplay state, and its old
 PTR entry branch has been removed. The PTR host owns the branded authority,
 virtual-anchor, provider-bridge and gameplay-capability checks. The production
-PTR host chunk is 106.32 kB (32.62 kB gzip). `RealmMapScreen` remains 677.80 kB
+PTR host chunk is 108.81 kB (33.54 kB gzip). `RealmMapScreen` remains 677.80 kB
 (188.23 kB gzip) with 16.88 kB gzip CSS, all outside the PTR route's load path.
 Route tests cover the separate lazy surfaces and the release-source guard now
 protects the direct PTR renderer while excluding only the legacy Genesis edge.
