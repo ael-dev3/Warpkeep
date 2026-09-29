@@ -1,5 +1,38 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 21:11 CEST (19:11 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 21:31 CEST (19:31 UTC), Europe/Budapest.
+
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 21:31 CEST
+
+Signed QA-diagnostics commit ff0c5b518e54da1e24986ca680d8ba72dd883e60 is
+synchronized between this Windows checkout and origin on
+fix/g001-census-admission-proxy. It changes no game/runtime behavior. No
+GitHub Actions, provider writes, public-repository writes, merge or PTR
+publication occurred.
+
+The focused Windows QA policy/capture suites passed 91/91. A clean-source
+Chrome 154 capture at ff0c5b5 completed all 36 synthetic profiles, with 32
+WebGL and four fallback cases, no horizontal overflow, zero dropped
+diagnostics, and verified owned-process cleanup. All 36 documents emit one
+privacy-safe `browser-log-security` warning categorized as
+`sandbox-script-origin-tokens`; the raw messages remain unrecorded and
+`reviewRequired` stays true. This identifies a recurring QA-only warning, not
+a product error or permission to suppress review. The captured images were
+not inspected in this run; earlier visual inspection applies to unchanged
+game source only. Performance and physical-device acceptance remain open.
+
+A bounded experiment that removed `allow-same-origin` from the synthetic QA
+CSP produced browser script/network errors and failed capture. The existing
+policy was restored. Do not repeat without a way to serve the local module
+graph under an opaque origin while preserving its strict loopback boundary.
+The failed run retained only safe stage/category evidence and verified Chrome
+cleanup. This experiment did not touch production policy or gameplay.
+
+Keep #374 open and do not use Actions during September. The latest candidate
+is a QA-tooling/evidence improvement only; earlier exact `/ptr/` build and
+delivery receipts remain bound to their recorded source. The sealed launch
+binding is still unapproved, package `0.3.43`, live realm IDs unset, and PTR
+presentation disabled. After October 1, confirm owner direction before hosted
+Verify and the exact M1/M2, live-readback, owner/device acceptance gates.
 
 CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 21:11 CEST
 

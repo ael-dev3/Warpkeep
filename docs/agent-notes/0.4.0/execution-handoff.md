@@ -1,5 +1,28 @@
 # Continue Warpkeep 0.4
 
+## Current exact-head continuation — 29 September 2026, 21:31 CEST
+
+The signed candidate branch for PR #374 is synchronized at
+`ff0c5b518e54da1e24986ca680d8ba72dd883e60` against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The committed change improves
+local CDP diagnostics only: Chrome security messages are reduced to a bounded,
+allowlisted signal without retaining raw text. Focused tests pass 91/91. A
+clean-source Chrome 154 capture completed all 36 synthetic cases (32 WebGL,
+four fallback), with no horizontal overflow, zero dropped diagnostics and
+verified cleanup. It records one `sandbox-script-origin-tokens` security
+warning per synthetic document; the report still requires review. A stricter
+opaque-origin experiment broke local script/network loading and was reverted.
+No production policy or gameplay changed.
+
+No GitHub Actions, provider writes, public-repository writes, merge or PTR
+publication occurred. The exact `/ptr/` build and mirror-plan receipts are
+still source-bound to 7a5, before the current notes and QA-tooling commits; they
+must be refreshed at the final candidate head. The PTR remains unpublished,
+the owner/phone checks remain open, and no production performance is claimed.
+See the latest [next-work checkpoint](next-work.txt), [live delivery
+status](../../operations/0.4.0-live-delivery-status.md), and
+[local operations evidence](../../evidence/0.4.0/local-operations.md).
+
 ## September no-Actions exact-head release continuation — 29 September 2026, 21:11 CEST (19:11 UTC)
 
 The signed G001 test-fixture fix 7aa95148a1837f767cec7249d20fdb201bb665b2

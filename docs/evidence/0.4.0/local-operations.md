@@ -2,6 +2,28 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Privacy-safe Keep QA diagnostics — 29 September 2026, 21:31 CEST
+
+Signed commit `ff0c5b518e54da1e24986ca680d8ba72dd883e60` updates the local
+Windows CDP capture's security-log record from a generic label to an
+allowlisted signal. The focused QA policy/capture suites passed 91/91. A
+stable-source Chrome 154 run at that exact commit completed all 36 synthetic
+documents: 32 WebGL and four fallback, zero horizontal overflow, no dropped
+diagnostics, and verified browser cleanup. Each document reported one
+`browser-log-security` warning categorized as `sandbox-script-origin-tokens`.
+Raw browser text is not stored. The warning still sets `reviewRequired`; the
+category describes the message tokens but does not establish harmlessness or
+production impact. Screenshots from this run remain uninspected and no device
+performance claim is made.
+
+Removing `allow-same-origin` was tested as a local-only CSP experiment. It
+caused browser script/network errors and the capture failed, so the existing
+working synthetic policy was restored. The failed run preserves bounded stage
+and category metadata only; owned Chrome cleanup was verified. No production
+policy or game behavior changed. No GitHub Actions, provider mutation, public
+repository write, merge or PTR publication occurred. The diagnostics commit
+was pushed to the existing candidate branch using `[skip actions]`.
+
 ## Exact notes-inclusive local release candidate — 29 September 2026, 21:11 CEST
 
 No GitHub Actions were queried, dispatched, rerun or used; no provider
