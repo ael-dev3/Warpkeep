@@ -74,7 +74,7 @@ stylesheet is 16.88 kB gzip, but neither belongs to the PTR route's load path;
 the route integration test confirms it never imports that legacy screen. The
 G001 chunk remains available and Vite still reports its size warning. This is
 local build and route evidence, not physical-phone performance or release
-acceptance. No publication payload was produced, and the September GitHub
+acceptance. The PTR publication has not happened, and the September GitHub
 Actions pause remains in effect.
 
 The public root serves Alpha 0.3.43 (HTTP 200), while

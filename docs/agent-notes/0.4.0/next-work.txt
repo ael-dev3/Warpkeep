@@ -1,11 +1,11 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 05:42 CEST (03:42 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 05:49 CEST (03:49 UTC), Europe/Budapest.
 The latest product-code checkpoint is signed PR #374 commit b37e5a89, following
 the direct PTR surface split at caa70de7. The candidate remains unshipped; the
 previous 4fa6a071 payload and mirror-plan receipts are stale after this source
 change and must not be reused.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 05:42 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 05:49 CEST
 
 PR #374 is open against main `786c0b2b`. The PTR route in
 `WarpkeepExperience` now lazy-loads the 0.4 host directly; Genesis 001 keeps its
@@ -35,9 +35,18 @@ import that legacy screen, avoiding about 205.74 kB gzip of JavaScript and CSS
 on that route. Vite's G001 chunk warning remains. Browser request tracing on a
 real mobile device has not been measured.
 
-No release payload, public-mirror plan or deployment was generated from this
-candidate. Regenerate the payload and read-only mirror plan from the final
-source checkpoint before any publication, preserving the existing Alpha root.
+The docs-inclusive source checkpoint `60b41761e50ec4aa29a8e9a5940ab6e359189e25`
+was rebuilt exactly and its local payload verified: 445 files / 134,454,116
+bytes; manifest SHA-256 `d507c7b74771a4475193603b419a3587e49831ac47b9491e1b94f4f1b4cdb698`;
+content-manifest SHA-256
+`986046cc00373fd8ab7988cabcbb8b0aa2d70e8c7b64e5d739f4f5842c35dfe7`. The
+read-only mirror plan against clean Warpkeep-Live `b6afe92e` preserves 341
+Alpha-root entries, targets 799 files and has zero obsolete paths; its plan
+SHA-256 is `b14253d79ceda4335a03dd703df66c41de71a643ece67f2cc8346dfb85501394`.
+These are local preparation receipts for source `60b41761`, not approval to
+publish. This note refresh changes the source identity; retain these hashes as
+history and verify the stable manifests under `artifacts/delivery/0.4.0/` at the
+current exact head before publication. No public write or deployment occurred.
 The live root returned HTTP 200 while `/ptr/` returned HTTP 404 at 03:41 UTC on
 29 September; 0.4 remains unshipped. No GitHub Actions were used for this
 checkpoint; both commits include `[skip actions]`. Keep PR #374 open. After
