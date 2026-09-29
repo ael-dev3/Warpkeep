@@ -11,7 +11,8 @@ later source. 0.4 remains unshipped.
 
 Signed source
 [`83876cba`](https://github.com/ael-dev3/Warpkeep/commit/83876cba9d23b0cb61088a0ebedd3e83406ac69f)
-is synced to origin and open PR #374 against main `786c0b2b`. The change defers
+is included in open PR #374 against main `786c0b2b`; this checkpoint is synced
+to origin. The change defers
 rare realm inspectors and Worker inspection until opened, with accessible
 loading fallbacks. Six focused test files passed 154 tests, `tsc -b` passed,
 and the full local production build passed. The `RealmMapScreen` entry dropped

@@ -1,13 +1,14 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 29 September 2026, 02:14 CEST (00:14 UTC), Europe/Budapest.
-Candidate product source is signed commit 83876cba; local, origin and PR #374 match.
+Candidate product source is signed 83876cba; this checkpoint is committed and pushed in PR #374.
 
 LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 02:14 CEST
 
-Signed source `83876cba9d23b0cb61088a0ebedd3e83406ac69f` is the exact head of
-`fix/g001-census-admission-proxy` and open PR #374 against main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. GitHub readback confirms the PR is
-open at that head; `git ls-remote` matches it. No Actions were queried or run.
+Signed product source `83876cba9d23b0cb61088a0ebedd3e83406ac69f` is included
+in the `fix/g001-census-admission-proxy` candidate PR #374 against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. GitHub readback confirms the PR
+is open, and the checkpoint is committed and synced to origin. No Actions were
+queried or run.
 
 This source defers the realm inspection panels until opened, including the
 Worker inspector in both realm screen and HUD, and gives each deferred surface

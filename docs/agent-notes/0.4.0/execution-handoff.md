@@ -2,8 +2,9 @@
 
 ## Current shipping continuation — 29 September 2026, 02:14 CEST (00:14 UTC)
 
-The signed product source `83876cba9d23b0cb61088a0ebedd3e83406ac69f` is synced
-locally, on origin and at open PR #374 against main `786c0b2b`. It defers realm
+The signed product source `83876cba9d23b0cb61088a0ebedd3e83406ac69f` is in
+open PR #374 against main `786c0b2b`; the checkpoint is committed and synced
+to origin. It defers realm
 inspection panels and Worker inspection until use, with accessible loading
 states. Six focused test files passed 154 tests; `tsc -b` and the full local
 production build passed. The realm screen entry fell from 748.60 kB / 202.67 kB
