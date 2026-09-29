@@ -1,6 +1,45 @@
 # Continue Warpkeep 0.4
 
-## September no-Actions continuation — 29 September 2026, 12:40 CEST (10:40 UTC)
+## September no-Actions continuation — 29 September 2026, 13:06 CEST (11:06 UTC)
+
+The exact-source candidate `d89a1acfe51237f709f63fe03b1a5e19dbd584d0` is
+synchronized across Windows, origin and WarpkeepRunner. PR #374 against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` is open and mergeable. This update
+changes integration-test settling and release evidence only; player code is
+unchanged. No GitHub Actions were queried, dispatched, rerun or used during
+September.
+
+The focused menu/PTR suites passed 51/51 across three files under pinned
+Windows Node 22.23.2. This removed two React `act(...)` warnings caused by the
+first lazy Farcaster presentation resolving after its integration test.
+The 390×844 local `/ptr/` production preview showed the menu and realm chooser
+without horizontal overflow or browser console errors. PTR correctly remained
+`ACCESS UNKNOWN`; the unauthenticated local preview made no realm connection.
+This does not prove owner authentication, live-route timing or physical-phone
+acceptance. See [`owner-journey.md`](../../evidence/0.4.0/owner-journey.md).
+
+The exact `d89a1acfe51237f709f63fe03b1a5e19dbd584d0` `/ptr/` production build
+passed with Node 22.22.3 / npm 10.9.8, asset/exclusion checks, the public
+boundary scan (3,347 tracked paths / 1,902 scanned entries), and Farcaster
+integrity. Its SHA is embedded. The local payload is 445 files / 134,452,795
+bytes (receipt SHA-256
+`d286184fe656646f16d40f3c0a7c25bd89afc3f825fb51dce5214532f6fc2666`; content
+manifest `51b5a0a24d1f2bc01cbb9423d1573d4b9e4d3e89539a159885b64f6534f9b13f`).
+The mirror plan preserves 341 Alpha-root entries, targets 799 files, removes
+zero obsolete paths, and has SHA-256
+`b39fe83b557f4cd171f18f6fed86bd5ed364b89fa1d4dcc2c47b6fb66ff20b7c`.
+These receipts are ignored local evidence, not publication approval. Regenerate
+them after this test/evidence update is pushed.
+
+The sealed-launch verifier reports Pages approval false, package `0.3.43`,
+G001/G002/PTR identities unset, and PTR presentation disabled. At 10:48 UTC,
+the live root was HTTP 200 and `/ptr/` HTTP 404; no 0.4 deployment occurred.
+Vite warns on the retained G001 `RealmMapScreen` bundle (677.80 kB / 188.23 kB
+gzip); this is not the standalone 0.4 PTR renderer. Physical-device performance
+and the retained browser security warning remain open. Keep #374 and PTR
+unpublished through September 30; continue hosted Verify after September.
+
+## Previous September no-Actions continuation — 29 September 2026, 12:40 CEST (10:40 UTC)
 
 Windows and origin are synchronized on `fix/g001-census-admission-proxy` at
 `0b44301c139356db866abcb3977d45662f7d0566`; WarpkeepRunner is clean at the same

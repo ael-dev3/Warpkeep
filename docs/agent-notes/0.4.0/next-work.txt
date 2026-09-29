@@ -1,7 +1,44 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 12:40 CEST (10:40 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 13:06 CEST (11:06 UTC), Europe/Budapest.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 12:40 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 13:06 CEST
+
+PR #374 against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` is open and
+mergeable. The latest verified product source is `d89a1acfe51237f709f63fe03b1a5e19dbd584d0`;
+Windows, origin and WarpkeepRunner agree there. This checkpoint adds an
+integration-test settle fix and current evidence. Player code is unchanged.
+No GitHub Actions were queried, dispatched, rerun or used during September.
+Keep #374 open and PTR unpublished through September 30.
+
+The focused menu/PTR tests pass 51/51 under pinned Windows Node 22.23.2. The
+first lazy Farcaster UI now settles inside `act(...)`, removing two React test
+warnings without weakening assertions. The exact-source local `/ptr/` preview
+rendered the menu and realm selector at 390×844 with no horizontal overflow
+or console errors. PTR remained `ACCESS UNKNOWN`; without an owner session the
+check properly made no realm connection. This is synthetic UI evidence only.
+
+At exact source `d89a1acfe51237f709f63fe03b1a5e19dbd584d0`, the pinned Node
+22.22.3 / npm 10.9.8 `/ptr/` production build passed TypeScript, asset,
+exclusion, public-boundary (3,347 tracked paths / 1,902 scanned entries), and
+Farcaster integrity checks, with the source SHA embedded. Payload: 445 files /
+134,452,795 bytes; receipt SHA-256
+`d286184fe656646f16d40f3c0a7c25bd89afc3f825fb51dce5214532f6fc2666`, content
+manifest SHA-256 `51b5a0a24d1f2bc01cbb9423d1573d4b9e4d3e89539a159885b64f6534f9b13f`.
+The read-only mirror plan preserves 341 Alpha entries, targets 799 files,
+removes zero obsolete paths, and has SHA-256
+`b39fe83b557f4cd171f18f6fed86bd5ed364b89fa1d4dcc2c47b6fb66ff20b7c`.
+Ignored receipts are evidence, not publication approval. Refresh them after
+this test/evidence update is pushed, bound to the exact head.
+
+The sealed-launch verifier leaves Pages approval false, package `0.3.43`,
+G001/G002/PTR identities unset, and PTR presentation disabled. At 10:48 UTC
+the live root returned HTTP 200 and `/ptr/` HTTP 404; no 0.4 deployment
+occurred. The large `RealmMapScreen` warning belongs to the Genesis 001
+renderer, not the separate PTR host; real phone performance and review of the
+retained browser security warning remain open. Resume hosted Verify after
+September ends.
+
+PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 12:40 CEST
 
 Windows, origin and WarpkeepRunner are clean and synchronized at
 `0b44301c139356db866abcb3977d45662f7d0566` on

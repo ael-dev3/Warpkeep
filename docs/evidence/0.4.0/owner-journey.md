@@ -3,6 +3,19 @@
 Recorded 2026-09-09 from the Windows development checkout. This record is an
 evidence boundary, not a claim that the live owner journey is complete.
 
+## 2026-09-29 local PTR mobile render review
+
+The exact-source `/ptr/` production build at `d89a1acfe51237f709f63fe03b1a5e19dbd584d0`
+was loaded in a local static preview with a 390×844 viewport. The Verdant
+Citadel menu and realm directory rendered with no horizontal overflow or
+browser-console errors. The selector showed the real access state as
+`ACCESS UNKNOWN`; activating its check without an owner session displayed the
+server-verification requirement and did not connect to a realm.
+
+This confirms responsive menu/entry presentation only. It is a local preview,
+not a production PTR visit, an authenticated owner journey, real route timing,
+or physical-device/performance acceptance.
+
 ## 2026-09-29 Windows candidate full-stack rerun
 
 Exact candidate `4e3d7cd30fd094183c5511ca569ef2cecf9d09fe` passed
