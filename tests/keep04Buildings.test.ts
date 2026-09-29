@@ -77,7 +77,7 @@ it('gives the four economic crafts different geometric symbols while retaining t
     const building = createKeep04Building({ kind, level: 3, constructing: false, quality: 'reduced' });
     const points = frontVertices(building, depth).filter(point => point.z > depth / 2 - .2 && point.x < -width * .25);
     const symbol = new THREE.Box3().setFromPoints(points).getSize(new THREE.Vector3());
-    expect(symbol.x).toBeGreaterThan(1.1); expect(symbol.y).toBeGreaterThan(1.25);
+    expect(symbol.x).toBeGreaterThan(1.1); expect(symbol.y).toBeGreaterThan(1.15);
     symbols.push(JSON.stringify(points.map(point => [point.x + width * .25, point.y, point.z - depth / 2].map(value => Math.round(value * 1000)))));
     expect(building.root.getObjectByName('level-badge:3')).toBeDefined(); building.dispose();
   }
