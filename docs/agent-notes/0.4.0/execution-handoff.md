@@ -1,65 +1,58 @@
 # Continue Warpkeep 0.4
 
-## September no-Actions local release continuation — 29 September 2026, 18:57 CEST (16:57 UTC)
+## September no-Actions local release continuation — 29 September 2026, 20:41 CEST (18:41 UTC)
 
-Windows, GitHub and the clean native Linux checkout are synced at signed head
-`794dc6645dbe01975f4d3b1e2af3741fbd9bf8e3` on
-`fix/g001-census-admission-proxy`; PR #374 stays open against signed main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Product code is unchanged from
-`53c2bc42`. No GitHub Actions, provider mutation, public-repo write or PTR
-publication occurred. Keep the September pause in effect.
+Signed development checkpoint 7aa95148a1837f767cec7249d20fdb201bb665b2 is on
+fix/g001-census-admission-proxy and synchronized between origin, WarpkeepRunner
+and the active Windows checkout; PR #374 remains open against signed main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. The commit changes one native-test
+fixture only. No production/runtime source changed. No GitHub Actions were
+queried, dispatched, rerun or used; no provider mutation, public-repository
+write, merge or PTR publication occurred.
 
-At exact source `794dc664`, the native Node 22.22.3 / npm 10.9.8 `/ptr/` build
-passed TypeScript, all runtime asset checks, production exclusions, the public
-boundary (3,350 paths / 1,907 entries) and Farcaster integrity. It contains
-446 files / 138,994,112 bytes. The payload receipt write and independent check
-passed (manifest SHA-256
-`50ca98a51c230a36e42e03196fabc58c32fc9e1d1b484771e5202d5866b596ab`). The
-read-only plan against clean `Warpkeep-Live@b6afe92` passed with SHA-256
-`49d972ed78600f17a8920b458126ccd6b20690cc5a492634a89ae84f1418cbd3`: 341
-Alpha-root entries preserved, 800 target files, zero obsolete files removed.
-The stamped build command must set VITE_WARPKEEP_BUILD_SHA to the exact HEAD.
-License, tracked file-size and sealed-launch preparation checks passed; the
-preparation report correctly keeps Pages approval false, package 0.3.43, live
-realm identities unset and PTR presentation disabled. This is local candidate
-evidence, not publication approval. The 677.80 kB RealmMapScreen warning
-remains. A read-only npm registry audit of this candidate lockfile reports zero
-vulnerabilities (115 production, 204 development and 110 optional dependency
-entries). The same audit against `origin/main` identifies moderate advisory
-GHSA-3wwx-pv8p-q78v in `jsdom`'s nested Undici 7.29.0, with a fix available;
-the candidate lockfile updates that copy to 7.30.0. GitHub's push response
-reported three moderate alerts on default `main`; the local npm audit only
-explains the Undici finding, so do not claim that all three alerts are resolved.
-No dependency files were changed during this audit.
+The privileged native preflight suite initially had one false failure: its
+simulated current production run used a fixed display name, while the workflow
+contract names runs as operation plus source commit. The fixture now matches
+the checked-in run-name expression. The workflow-evidence suite passed 118/118
+and the native Linux preflight suite passed 104/104 against the prepared
+candidate, including the success path and all 97 privileged cases. The test
+uses read-only simulated GitHub GET responses and verifies no private writes.
+The ordinary Linux suite passed at product source 2f1cc066: 692 files passed /
+1 skipped and 12,579 tests passed / 97 skipped.
 
-The read-only open-PR inventory found #375, #376 and #377's exact head commits
-already in this candidate's history. PR #378's exact head is not an ancestor,
-but 48 of its 51 changed paths are byte-identical to the candidate; the other
-three candidate files retain compatible accumulated additions, including the
-tree license entry, build verifier and `/ptr/` asset-base resolution with
-failed-load retry. Do not duplicate or merge this work during September; keep
-the PRs open through the pause.
+The documented local assembler prepare and independent check both passed at
+development source 2f1cc066. Candidate release-workspace-d2953d97bf5117d8ec29c0b2991657b8,
+transaction 48bcb949e37f411bc7968dfe054cf998: 102 generated outputs, 3,350
+source/candidate files checked, 3,248 preserved, 624 compiled bundle inputs
+and 7 recovery inputs. Journal SHA-256
+cb0a22b59e6ce6c7394e031b861ededa9170f55b7e70b0c1fc45ad7d54098954; generated
+family 7cc6fc1d4c6492100ddf3c3639a625a2a0009f532c338d488e891eb0b9f7c041;
+closure a6990b37d837e2d9450013e8606d7299166f6158c6b55a450040ac15a9ad75c1;
+scanner edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71.
+finalReleasePrepared remains false; this development candidate is not M1 or
+deployment authority.
 
-The first full native test run omitted the CLI's temporary `spacetime` PATH
-alias; only `ptrRealmBackend.test.ts` failed (2 cases, spawnSync ENOENT). With
-the native SpacetimeDB 2.6.1 CLI exposed under that command, the file passed
-15/15. The corrected full run passed 690 files / 12,577 tests and skipped 1
-file / 97 tests, but two load-sensitive cases failed: the concurrent journal
-readiness timeout and the 750 ms production-operator timeout classification.
-Each owning file then passed independently: 53/53 and 52/52. Do not label the
-full suite green; re-run with the native CLI path configured and lower suite
-contention when full-suite confidence is needed. The test logs printed damaged
-loose-object diagnostics, but a post-run connectivity check of this actual
-checkout reported only dangling commits and no corrupt objects; Git status is
-clean and the remote branch still equals this head.
+At product/test source 7aa95148, the pinned native Node 22.22.3 / npm 10.9.8
+/ptr/ build passed TypeScript, runtime asset verification, production
+exclusions, the public-boundary scan (3,350 paths / 1,907 entries) and
+Farcaster integrity. Payload: 446 files / 138,994,282 bytes; manifest
+SHA-256 5fecc1e1c96259e8f9f15c6d84a3f621870c5966a0675986c188369a479ad10c;
+content manifest SHA-256
+c5ec40c8764c9e68ad93428a1e66676ca974b744e5994eedc49b6a18a6e6543c. The
+read-only plan against Warpkeep-Live@b6afe92 has SHA-256
+dca11e66d5f20cff005af382f6d7f01df1efc1fc2a8e7b317de69a154a2a3ae9:
+341 Alpha-root entries preserved, 800 target files and zero obsolete
+generated files. License and tracked file-size checks passed. The known
+RealmMapScreen chunk warning remains 677.80 kB raw / 188.23 kB gzip.
 
-Rebuild the final pushed documentation head and refresh the ignored payload and
-mirror receipts before any post-pause release review. Do not merge #374, write
-`Warpkeep-Live/main` or publish `/ptr/` during September. After October 1,
-confirm current owner direction, complete exact-head hosted verification and
-the source-bound live receipts/readback, then obtain owner PTR and physical-
-device evidence.
-
+The local release store had 205 retained runs before this work; two new runs
+were retained by prepare/check, with historical and incomplete records left
+intact by design. About 1.1 TB remained free. No new Desktop file, sibling backup or archive was created; the existing
+next-work note is updated in place. The binding remains at package 0.3.43, Pages approval
+false, live realm IDs unset and PTR presentation disabled. Continue local
+candidate review without Actions through September; after October 1, confirm
+owner direction before hosted verification and exact M1/M2 release gates.
+Do not merge #374 or publish the PTR in September.
 ## September no-Actions continuation — 29 September 2026, 17:46 CEST (15:46 UTC)
 
 Signed product commit `53c2bc42eeb98e5b896b08db249bbfee9e2807ea` is synced to
