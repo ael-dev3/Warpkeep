@@ -1,5 +1,50 @@
 # Continue Warpkeep 0.4
 
+## September no-Actions local release continuation — 29 September 2026, 18:38 CEST (16:38 UTC)
+
+Windows, GitHub and the clean native Linux checkout are synced at signed head
+`3157e0b09a35242f64a6b3a14da252cef02d8d84` on
+`fix/g001-census-admission-proxy`; PR #374 stays open against signed main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Product code is unchanged from
+`53c2bc42`. No GitHub Actions, provider mutation, public-repo write or PTR
+publication occurred. Keep the September pause in effect.
+
+At exact source `3157e0b`, the native Node 22.22.3 / npm 10.9.8 `/ptr/` build
+passed TypeScript, all runtime asset checks, production exclusions, the public
+boundary (3,350 paths / 1,907 entries) and Farcaster integrity. It contains
+446 files / 138,994,112 bytes. The payload receipt write and independent check
+passed (manifest SHA-256
+`0b46c0c20faf1ef2f42ae45376ee2e4643fc4a12837eb4476ceb158be0c150fc`). The
+read-only plan against clean `Warpkeep-Live@b6afe92` passed with SHA-256
+`f86cbcaf6daa1af772704eea4d232ddbd789e6dcbb52d19fc408485d650165a7`: 341
+Alpha-root entries preserved, 800 target files, zero obsolete files removed.
+The stamped build command must set VITE_WARPKEEP_BUILD_SHA to the exact HEAD.
+License, tracked file-size and sealed-launch preparation checks passed; the
+preparation report correctly keeps Pages approval false, package 0.3.43, live
+realm identities unset and PTR presentation disabled. This is local candidate
+evidence, not publication approval. The 677.80 kB RealmMapScreen warning
+remains.
+
+The first full native test run omitted the CLI's temporary `spacetime` PATH
+alias; only `ptrRealmBackend.test.ts` failed (2 cases, spawnSync ENOENT). With
+the native SpacetimeDB 2.6.1 CLI exposed under that command, the file passed
+15/15. The corrected full run passed 690 files / 12,577 tests and skipped 1
+file / 97 tests, but two load-sensitive cases failed: the concurrent journal
+readiness timeout and the 750 ms production-operator timeout classification.
+Each owning file then passed independently: 53/53 and 52/52. Do not label the
+full suite green; re-run with the native CLI path configured and lower suite
+contention when full-suite confidence is needed. The test logs printed damaged
+loose-object diagnostics, but a post-run connectivity check of this actual
+checkout reported only dangling commits and no corrupt objects; Git status is
+clean and the remote branch still equals this head.
+
+Rebuild the final pushed documentation head and refresh the ignored payload and
+mirror receipts before any post-pause release review. Do not merge #374, write
+`Warpkeep-Live/main` or publish `/ptr/` during September. After October 1,
+confirm current owner direction, complete exact-head hosted verification and
+the source-bound live receipts/readback, then obtain owner PTR and physical-
+device evidence.
+
 ## September no-Actions continuation — 29 September 2026, 17:46 CEST (15:46 UTC)
 
 Signed product commit `53c2bc42eeb98e5b896b08db249bbfee9e2807ea` is synced to

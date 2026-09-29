@@ -2,6 +2,43 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact-head local PTR verification — 29 September 2026, 18:38 CEST
+
+Windows, GitHub and the native Linux WarpkeepRunner checkout are synchronized
+at signed head `3157e0b09a35242f64a6b3a14da252cef02d8d84` on
+`fix/g001-census-admission-proxy`; PR #374 remains open against signed main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. No GitHub Actions, provider
+mutation, `Warpkeep-Live` write or PTR publication occurred.
+
+The exact-source `/ptr/` production build passed TypeScript, runtime asset
+checks, production exclusions, the public-boundary scan (3,350 tracked paths /
+1,907 scanned entries) and Farcaster integrity using Node 22.22.3 / npm 10.9.8
+with VITE_WARPKEEP_BUILD_SHA set to the source head. Payload: 446 files /
+138,994,112 bytes; the ignored manifest write and independent check passed with
+SHA-256 `0b46c0c20faf1ef2f42ae45376ee2e4643fc4a12837eb4476ceb158be0c150fc`.
+The read-only plan against clean `Warpkeep-Live@b6afe92` has SHA-256
+`f86cbcaf6daa1af772704eea4d232ddbd789e6dcbb52d19fc408485d650165a7`, preserves
+341 Alpha-root entries, targets 800 files and removes zero obsolete files.
+License and tracked file-size checks pass. Sealed-launch preparation remains
+closed as intended: Pages approval false, package 0.3.43, live identities unset
+and PTR presentation disabled. The 677.80 kB RealmMapScreen chunk warning
+remains. These receipts prepare a candidate and do not authorize deployment.
+
+The exact-head full Vitest run required a temporary PATH alias for the pinned
+SpacetimeDB 2.6.1 CLI. Its first run without that alias failed two PTR backend
+tests with spawnSync ENOENT; the isolated PTR backend file then passed 15/15.
+With the alias, 690 files / 12,577 tests passed and 1 file / 97 tests skipped,
+while two timing-sensitive cases failed under full-suite load. Their isolated
+files passed 53/53 (cutover journal) and 52/52 (production bootstrap). Record
+the aggregate as incomplete, not green. The post-test actual-checkout
+connectivity check found no corrupt objects; the working tree was clean and
+the origin branch matched this head. Re-run with the native CLI path configured
+and reduced contention if an all-green aggregate is required.
+
+Regenerate the ignored receipts after this documentation sync so they bind to
+the final pushed head. The public root remains available and `/ptr/` is not
+published. No deployment or provider mutation occurred.
+
 ## September local candidate verification — 29 September 2026, 17:12 CEST
 
 Signed product-source commit `29e94dfa3ca396dcc75f74b4b63edc996971e888` is
