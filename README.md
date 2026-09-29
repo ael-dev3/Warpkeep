@@ -59,18 +59,23 @@ PR #375 remains open as source provenance; its older branch must not be merged
 separately. The candidate is a polished visual foundation around the existing
 gather, dispatch, return and construction loop.
 
-Pinned Node 22.22.3 local verification on September 29 passed the four focused
-Greater Realm suites (51 tests) and the complete `/ptr/` production build,
-including the v3 asset verifier, production exclusions, public-boundary scan
-(3,346 tracked paths / 1,903 scanned entries), and Farcaster Mini App checks.
-The 40 runtime tree models total 2,738,208 bytes; Balanced and Reduced select
-the mobile meshes, and asset URLs follow the `/ptr/` base. The loader also
-retries on a later view after a failed fetch. `RealmMapScreen` remains 680.36
-kB (188.79 kB gzip), above Vite's 600 kB warning threshold. This validates a
-source-SHA-bound local build of candidate head `5e3bc5b0`; it did not produce a
-publication payload or establish physical-phone performance, live provider
-state, or release acceptance. The owner paused GitHub Actions for September,
-so the candidate has no new hosted-check claim.
+Pinned Node 22.22.3 local verification on September 29 passed the full `/ptr/`
+production build at code checkpoint `b37e5a89`, including the v3 asset
+verifier, production exclusions, public-boundary scan (3,346 tracked paths /
+1,901 scanned entries), and Farcaster Mini App checks. The 40 runtime tree
+models total 2,738,208 bytes; Balanced and Reduced select the mobile meshes,
+asset URLs follow the `/ptr/` base, and the loader retries on a later view after
+a failed fetch.
+
+The PTR route now lazy-loads `PtrGameplay04SurfaceHost` independently of
+Genesis 001's `RealmMapScreen`. The production PTR host chunk is 105.92 kB
+(32.53 kB gzip). `RealmMapScreen` remains 680.14 kB (188.86 kB gzip) and its
+stylesheet is 16.88 kB gzip, but neither belongs to the PTR route's load path;
+the route integration test confirms it never imports that legacy screen. The
+G001 chunk remains available and Vite still reports its size warning. This is
+local build and route evidence, not physical-phone performance or release
+acceptance. No publication payload was produced, and the September GitHub
+Actions pause remains in effect.
 
 The public root serves Alpha 0.3.43 (HTTP 200), while
 `https://warpkeep.com/ptr/` returns HTTP 404. No 0.4 PTR has been published.

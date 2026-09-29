@@ -1,11 +1,52 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 03:38 CEST (01:38 UTC), Europe/Budapest.
-The current product-code checkpoint is signed PR #374 commit be04c322,
-including the reviewed tree implementation from PR #378. The candidate remains
-unshipped; old a89798c5 payload and mirror-plan receipts are stale after the
-40-model addition.
+Refreshed 29 September 2026, 05:42 CEST (03:42 UTC), Europe/Budapest.
+The latest product-code checkpoint is signed PR #374 commit b37e5a89, following
+the direct PTR surface split at caa70de7. The candidate remains unshipped; the
+previous 4fa6a071 payload and mirror-plan receipts are stale after this source
+change and must not be reused.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 03:38 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 05:42 CEST
+
+PR #374 is open against main `786c0b2b`. The PTR route in
+`WarpkeepExperience` now lazy-loads the 0.4 host directly; Genesis 001 keeps its
+separate lazy `RealmMapScreen` renderer. The host no longer imports Genesis
+props as a runtime type dependency and still fails closed when owner authority,
+anchor, bridge or gameplay capability is missing or stale.
+
+The Windows PTR/host suites passed 69/69 and TypeScript passed. Pinned Linux
+Node 22.22.3 / Vitest 4.1.11 then passed the PTR route, real host lifecycle and
+closure-family suites (76/76), plus the protected deployment boundary,
+source-projection and prepared-workflow suites (178/178). The slow prepared
+workflow suite completed its full 1,249-member mutation sweep. A fresh process
+reproduced all 16 prepared-closure outputs byte-for-byte; the native policy
+verifier passed. The derived family contains 1,249 members with manifest
+SHA-256 `deca06e3819039d84aff0aeaa9d5fba02abdfe091e808f708737fd446fe6e2fb`.
+The checked-in sealed-launch verifier remains at `preparation`, with live Pages
+approval false and G001/G002/PTR identities unset.
+
+The full root build passed at product-code checkpoint `b37e5a89` with
+`DEPLOY_BASE=/ptr/` and the source SHA embedded. TypeScript, all asset checks,
+production exclusions, the public boundary (3,346 tracked paths / 1,901 scanned
+entries), and Mini App integrity passed. The 40 runtime tree models total
+2,738,208 bytes. Vite emits the PTR host at 105.92 kB / 32.53 kB gzip; the
+separate Genesis `RealmMapScreen` remains 680.14 kB / 188.86 kB gzip and its
+stylesheet is 16.88 kB gzip. The PTR integration test confirms it does not
+import that legacy screen, avoiding about 205.74 kB gzip of JavaScript and CSS
+on that route. Vite's G001 chunk warning remains. Browser request tracing on a
+real mobile device has not been measured.
+
+No release payload, public-mirror plan or deployment was generated from this
+candidate. Regenerate the payload and read-only mirror plan from the final
+source checkpoint before any publication, preserving the existing Alpha root.
+The live root returned HTTP 200 while `/ptr/` returned HTTP 404 at 03:41 UTC on
+29 September; 0.4 remains unshipped. No GitHub Actions were used for this
+checkpoint; both commits include `[skip actions]`. Keep PR #374 open. After
+October 1, check the owner's current direction before hosted Verify, then
+complete the exact M1/M2 sequence, G001 preservation, sealed G002 readback, PTR
+publication and readback, and owner/device acceptance. Local build success is
+not release acceptance.
+
+PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 03:38 CEST
 
 PR #374 now contains signed commit 758d655 carrying PR #378's current tree
 implementation, followed by signed fix be04c322. Pinned Node 22.22.3 / Vitest
