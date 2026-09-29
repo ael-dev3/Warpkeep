@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { createKeep04Building, measureKeep04Object, KEEP04_FOOTPRINTS } from '../src/components/keep04/createKeep04Buildings';
+import { applyKeep04CathedralRoofPalette } from '../src/components/keep04/keep04CathedralRoofPalette';
 import type { Building04 } from '../spacetimedb/gameplay04/policy';
 import type { InnerKeepRuntimePrefab } from '../src/components/inner-keep/loadInnerKeepRuntimeAssets';
 
@@ -40,6 +41,49 @@ it.each([1, 5])('gives the authored cathedral a smaller body at level %s without
   expect(measureKeep04Object(building.root).drawCalls).toBe(2); building.dispose();
   expect(borrowedGeometryDispose).not.toHaveBeenCalled(); expect(borrowedMaterialDispose).not.toHaveBeenCalled();
   geometry.dispose(); material.dispose();
+});
+it('recolors only the Cathedral clone shader while preserving shared geometry and other assets', () => {
+  const positions = new Float32Array([0, 0, 0, 1, 1, 1, 2, 0, 2]);
+  const colors = new Float32Array([.27, .04, .45, .51, .17, .70, .91, .81, .65]);
+  const normals = new Float32Array([0, .8, 0, 0, 0, 1, 0, 1, 0]);
+  const geometry = new THREE.BufferGeometry(); geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3)); geometry.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  const sourceMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, color: '#ffffff' });
+  const emblemMaterial = new THREE.MeshStandardMaterial({ color: '#916dc8' });
+  const source = new THREE.Group(); const architectureSource = new THREE.Mesh(geometry, sourceMaterial);
+  architectureSource.name = 'architecture'; source.add(architectureSource);
+  const sourceEmblem = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), emblemMaterial); sourceEmblem.name = 'canonical-emblem'; source.add(sourceEmblem);
+  const prefab: InnerKeepRuntimePrefab = {
+    id: 'grand-covenant-cathedral', root: source, clips: [], boundsMeters: [2, 3, 2], triangles: 12,
+    drawCalls: 2, animated: false, mounted: false, clone: () => source.clone(true),
+  };
+
+  const building = createKeep04Building({ kind: 'grand-covenant-cathedral', level: 5, constructing: false, quality: 'balanced', prefab });
+  const architecture = building.root.getObjectByName('architecture') as THREE.Mesh;
+  const cathedralMaterial = architecture.material as THREE.MeshStandardMaterial;
+  const emblem = building.root.getObjectByName('canonical-emblem') as THREE.Mesh;
+  const clonedEmblemMaterial = emblem.material as THREE.MeshStandardMaterial;
+  expect(cathedralMaterial).not.toBe(sourceMaterial);
+  expect(cathedralMaterial.customProgramCacheKey()).toContain('keep04-cathedral-roof-teal-v1');
+  expect(clonedEmblemMaterial.customProgramCacheKey()).toBe(emblemMaterial.customProgramCacheKey());
+  expect(applyKeep04CathedralRoofPalette(new THREE.MeshStandardMaterial({ color: '#ffffff' }))).toBe(false);
+
+  const shader = {
+    uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader,
+    fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+  } as unknown as THREE.WebGLProgramParametersWithUniforms;
+  cathedralMaterial.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+  expect(shader.vertexShader.match(/varying float vKeep04RoofFacing;/g)).toHaveLength(1);
+  expect(shader.vertexShader).toContain('vKeep04RoofFacing = objectNormal.y;');
+  expect(shader.fragmentShader.match(/varying float vKeep04RoofFacing;/g)).toHaveLength(1);
+  expect(shader.fragmentShader).toContain('diffuseColor.b - diffuseColor.r');
+  expect(shader.fragmentShader).toContain('smoothstep(0.02, 0.20, vKeep04RoofFacing)');
+  expect(shader.fragmentShader).toContain('keep04SourceLuminance /');
+  expect(geometry.getAttribute('color').array).toEqual(colors);
+  expect(architecture.geometry).toBe(geometry);
+  expect(measureKeep04Object(building.root).drawCalls).toBe(3);
+  expect(measureKeep04Object(building.root).triangles).toBeGreaterThan(13);
+  building.dispose(); geometry.dispose(); sourceMaterial.dispose(); emblemMaterial.dispose();
 });
 it('reduces fallback cathedral architecture while retaining full-size construction and precinct details', () => {
   const complete = createKeep04Building({ kind: 'grand-covenant-cathedral', level: 5, constructing: false, quality: 'reduced' });

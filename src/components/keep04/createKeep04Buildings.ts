@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Building04 } from '../../../spacetimedb/gameplay04/policy';
 import type { InnerKeepRuntimePrefab } from '../inner-keep/loadInnerKeepRuntimeAssets';
 import { KEEP04_VISUAL_PROFILE as P, type Quality04 } from './keep04VisualProfile';
+import { applyKeep04CathedralRoofPalette } from './keep04CathedralRoofPalette';
 
 // Exact policy footprint dimensions in presentation metres. This never decides legality.
 export const KEEP04_FOOTPRINTS: Readonly<Record<Building04, readonly [number, number]>> = {
@@ -91,6 +92,7 @@ export function createKeep04Building(options: Readonly<{
           if (!copy) {
             copy = material.clone(); materialCopies.set(material, copy); ownedMaterials.add(copy);
             if (copy instanceof THREE.MeshStandardMaterial) { copy.color.multiply(new THREE.Color(P.masonry).lerp(new THREE.Color('#ffffff'), 0.65)); copy.roughness = Math.max(0.75, copy.roughness); }
+            if (kind === 'grand-covenant-cathedral') applyKeep04CathedralRoofPalette(copy);
           }
           return copy;
         };
