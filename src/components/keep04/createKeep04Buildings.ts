@@ -162,9 +162,12 @@ export function createKeep04Building(options: Readonly<{
   if (craft) {
     // Low craft signs share the existing merged decoration draw. Geometry makes
     // each resource distinct without recoloring a borrowed roof/wall mesh.
-    box(3.8, 2.1, .18, P.masonry, bx, by, bz);
-    box(3.6, 1.9, .06, P.timber, bx, by, bz + .12);
-    const glyph = (geometry: THREE.BufferGeometry, color: string, x = 0, y = 0) => part(geometry, color, bx - .88 + x, by + y, bz + .28);
+    box(4.8, 2.3, .18, P.masonry, bx, by, bz);
+    box(4.6, 2.1, .06, P.timber, bx, by, bz + .12);
+    const glyph = (geometry: THREE.BufferGeometry, color: string, x = 0, y = 0) => {
+      geometry.scale(1.4, 1.4, 1);
+      part(geometry, color, bx - 1.1 + x, by + y, bz + .28);
+    };
     const polygon = (points: readonly (readonly [number, number])[], color: string, x = 0, y = 0) => {
       const shape = new THREE.Shape(points.map(([px, py]) => new THREE.Vector2(px, py)));
       glyph(new THREE.ShapeGeometry(shape), color, x, y);
@@ -189,7 +192,10 @@ export function createKeep04Building(options: Readonly<{
   } else box(1.8, 1.8, .18, P.timber, bx, by, bz);
   const digits = ['abcdef', 'bc', 'abdeg', 'abcdg', 'bcfg', 'acdfg'];
   const segments: Record<string, readonly [number, number, number, number]> = { a: [0, .58, .72, .14], b: [.36, .29, .14, .58], c: [.36, -.29, .14, .58], d: [0, -.58, .72, .14], e: [-.36, -.29, .14, .58], f: [-.36, .29, .14, .58], g: [0, 0, .72, .14] };
-  for (const key of digits[level]) { const [x, y, w, h] = segments[key]; box(w, h, .06, P.masonry, bx + (craft ? .88 : 0) + x, by + y, bz + (craft ? .28 : .13)); }
+  for (const key of digits[level]) {
+    const [x, y, w, h] = segments[key]; const scale = craft ? 1.2 : 1;
+    box(w * scale, h * scale, .06, P.masonry, bx + (craft ? 1.1 : 0) + x * scale, by + y * scale, bz + (craft ? .28 : .13));
+  }
   for (let i = 0; i < Math.max(0, level - 1); i++) {
     const marker = new THREE.Group(); marker.name = `pennant:${i + 1}`; root.add(marker);
     const x = width * 0.12 + i * .65; box(.1, 2.6, .1, P.timber, x, 1.3, bz - .2);

@@ -57,7 +57,7 @@ it.each(economy)('gives completed %s a broad low craft fascia in its existing me
   const project = createKeep04Building({ kind, level: 0, constructing: true, quality: 'reduced' });
   const fascia = new THREE.Box3().setFromPoints(frontVertices(complete, depth));
   const oldNumeral = new THREE.Box3().setFromPoints(frontVertices(project, depth).filter(point => point.z > depth / 2 - .3 && point.y > .4));
-  expect(fascia.getSize(new THREE.Vector3()).x).toBeGreaterThan(3.5);
+  expect(fascia.getSize(new THREE.Vector3()).x).toBeGreaterThan(4.5);
   expect(fascia.max.y).toBeLessThanOrEqual(2.7); expect(fascia.min.x).toBeGreaterThan(-width / 2);
   expect(fascia.max.z).toBeLessThan(depth / 2); expect(oldNumeral.getSize(new THREE.Vector3()).x).toBeCloseTo(.86, 4);
   expect(oldNumeral.getCenter(new THREE.Vector3()).x).toBeCloseTo(-width * .3, 4);
@@ -77,7 +77,7 @@ it('gives the four economic crafts different geometric symbols while retaining t
     const building = createKeep04Building({ kind, level: 3, constructing: false, quality: 'reduced' });
     const points = frontVertices(building, depth).filter(point => point.z > depth / 2 - .2 && point.x < -width * .25);
     const symbol = new THREE.Box3().setFromPoints(points).getSize(new THREE.Vector3());
-    expect(symbol.x).toBeGreaterThan(.8); expect(symbol.y).toBeGreaterThan(1);
+    expect(symbol.x).toBeGreaterThan(1.1); expect(symbol.y).toBeGreaterThan(1.4);
     symbols.push(JSON.stringify(points.map(point => [point.x + width * .25, point.y, point.z - depth / 2].map(value => Math.round(value * 1000)))));
     expect(building.root.getObjectByName('level-badge:3')).toBeDefined(); building.dispose();
   }
