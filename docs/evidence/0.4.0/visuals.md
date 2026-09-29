@@ -1,5 +1,33 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## 29 September rendered review at candidate source `3cb103d1`
+
+The guarded Windows Chrome 154 capture in the ignored local directory
+`artifacts/keep04-qa/windows-run-4LtcTl/` recorded 36 synthetic cases across
+1440×900 desktop, 390×844 portrait, short landscape and reduced-motion
+profiles. Each profile exercised eight WebGL scenes and one WebGL-unavailable
+fallback. There was no horizontal overflow; WebGL cases exposed one canvas and
+zero pending animation frames, and fallback cases exposed no canvas. This is
+browser instrumentation, not physical-device performance or authenticated
+owner acceptance. The six missing measurements are listed in
+`performance.md`; do not treat the synthetic frame timings as acceptance.
+
+I inspected representative captures for the empty first journey, completed and
+constructing Mill, blocked placement, all-six mature overview, mobile reduced
+motion, desktop, short landscape and fallback. The entry card remains readable
+at portrait size, the fallback keeps its labeled schematic, and the six sites
+remain distinct. At overview scale, the Cathedral still outweighs the smaller
+economy buildings; sparse terrain and background treatment also remain visibly
+unfinished. The imported Cathedral architecture combines roof, wall and timber
+colors in one vertex-colored mesh, so a whole-material tint would damage its
+facades. Any palette change needs a targeted prototype and matched captures.
+
+The guarded runner reports `reviewRequired` because each captured document
+emits a browser-log security-category warning. No violation was reported and
+the run had no stderr errors or warnings; retain this review flag rather than
+silently converting it into a clean automated result. The capture and PNGs are
+ignored local evidence and do not enlarge the repository.
+
 ## 2026-09-23 construction progress readout
 
 The selected active-build panel showed its Realm completion deadline but no

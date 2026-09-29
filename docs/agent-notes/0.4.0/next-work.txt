@@ -1,48 +1,61 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 09:22 CEST (07:22 UTC).
-PR #374 against main 786c0b2b is the active source candidate. The signed
-candidate head is 8a292056ef33fc9e81ad9bab9f57be1d4f1f0e17 on
-fix/g001-census-admission-proxy; local source and the pushed branch are synced.
-The PR remains open. During the owner's September pause, this workflow does not
-query, dispatch, rerun, or rely on GitHub Actions. Keep #374 unmerged and PTR
-unpublished through September 30; confirm the owner's direction before hosted
-checks on or after October 1.
+Refreshed 29 September 2026, 09:39 CEST (07:39 UTC), Europe/Budapest.
 
-The mobile Keep follow-up enlarges existing economic craft signs and resource
-symbols within the current merged decoration layer. It adds no new gameplay
-system or draw layer. Five focused suites passed 124/124 on code source
-66d4e9cb; the tests cover Keep marker bounds and scene behavior plus prepared
-closure derivation/projection. The independent closure generator reproduced
-all installed outputs byte-for-byte: 1,249 members, 16 files,
-manifest SHA-256 5a8b1295765c4b7d1fb6dbd0a83062b260f3f45e40c196c2726df5620085a4fb.
-The clean 8a292056 candidate passes the prepared-deployment policy verifier
-and both checked-in and preparation sealed-launch verifiers. Release state is
-still package 0.3.43, Pages approval false, G001/G002/PTR identities unset,
-and PTR presentation disabled.
+CURRENT SHIPPING CHECKPOINT
 
-The pinned WarpkeepRunner Node 22.22.3 / npm 10.9.8 PTR production build
-passed at exact source 8a292056, including TypeScript, runtime asset checks,
+PR #374 against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32 is open and
+mergeable. Windows, origin and the dedicated WarpkeepRunner checkout agree at
+signed head `3cb103d16f54173668773e8fa4b609c0a153e287` on
+`fix/g001-census-admission-proxy`. The product-code checkpoint is `66d4e9cb`;
+the prepared-deployment closure refresh is `8a292056`; `3cb103d1` is the
+docs-inclusive head. This September continuation does not query, dispatch,
+rerun or rely on GitHub Actions. Keep #374 open and PTR unpublished through
+September 30, then confirm the owner's direction before hosted checks.
+
+The pinned WarpkeepRunner Node 22.22.3 / npm 10.9.8 `/ptr/` production build
+passed at `3cb103d1`, including TypeScript, runtime asset validation,
 production exclusions, public-boundary scan (3,346 tracked paths / 1,901
-scanned entries), and Farcaster Mini App integrity. Vite retains the known
-RealmMapScreen chunk warning at 677.80 kB / 188.23 kB gzip; physical-device
-performance is unmeasured. On 29 September at 07:22 UTC, the public root
-returned HTTP 200 and PTR returned HTTP 404. No 0.4 deployment is claimed.
+scanned entries) and Farcaster Mini App integrity. Vite retains the
+`RealmMapScreen` chunk warning (677.80 kB / 188.23 kB gzip); real-device
+performance is unmeasured. Sealed release state is still package 0.3.43,
+Pages approval false, no G001/G002/PTR identities, and PTR presentation
+disabled. A fresh live check on 29 September at 07:39 UTC returned HTTP 200
+for `/` and HTTP 404 for `/ptr/`; 0.4 is not deployed.
 
-The build predates this handoff refresh. After committing this note, rebuild at
-the exact pushed candidate head and regenerate/check the ignored payload and
-read-only mirror plan. Do not reuse older receipts. The read-only plan must
-continue to preserve the 341 Alpha-root entries. PRs #375 and #378 have their
-integrated work staged in #374; #376 and #377 remain outside pending film/mobile
-playback and G002 scope/rights decisions. Keep G002 sealed. After October 1,
-follow the exact M1/M2 preparation and verification sequence, then G001
-preservation, sealed G002 readback, PTR publication/readback, and owner/device
-acceptance gates.
+An independent guarded browser capture reviewed representative desktop,
+portrait, short-landscape, reduced-motion and fallback scenes at exact source
+`3cb103d1`. Its 36 synthetic cases had no horizontal overflow; all 32 WebGL
+cases had one canvas and zero pending animation frames, while each profile's
+fallback had no canvas. The six unresolved evidence items are actual GPU upload
+measurement, retained heap after GC, production full-world/Keep transfer and
+cycles, authenticated owner journey, physical phone, and G001 baseline
+comparison. Browser-log review remains flagged by one security-category
+warning per captured document, with no reported violation. Synthetic timings
+are diagnostic and are not performance acceptance.
 
-Use the dedicated WarpkeepRunner checkout as warpkeep with pinned Node
-22.22.3 / npm 10.9.8 and the cached SpacetimeDB 2.6.1 CLI when the relevant
-local operation requires it. Do not use DegenDogsRunner for production-admin
-operations. Keep scheduled automation paused, do not create Desktop files, and
-do not request or generate another recovery key.
+Audit found the ignored delivery receipts on disk still bind to `5bd2435b`, not
+the current `3cb103d1` source. They describe 447 files / 134,507,691 bytes and
+an 801-file mirror plan. Do not use them for release. After this documentation
+commit is pushed, rebuild at that exact final candidate head, rewrite and check
+the ignored payload receipt, and regenerate the read-only mirror plan against
+clean `Warpkeep-Live`; it must preserve the 341 Alpha-root entries and remove
+no obsolete generated paths. Do not deploy from these local receipts.
+
+The captured mobile overview still shows the Cathedral outweighing the smaller
+economy buildings; terrain/background cohesion and small-building glance
+readability remain visual work. Avoid a broad vertex-color tint because the
+imported architecture meshes mix roof, wall and timber colors. PRs #375 and
+#378 are represented in #374; #376 and #377 remain outside pending
+film/mobile playback and G002 scope/rights decisions. Keep G002 sealed. After
+October 1, confirm direction, then follow exact M1/M2 preparation and
+verification, G001 preservation, sealed G002 readback, PTR publication and
+readback, and owner/device acceptance.
+
+Use WarpkeepRunner as `warpkeep` with pinned Node 22.22.3 / npm 10.9.8 and
+the cached SpacetimeDB 2.6.1 CLI when required. Do not use DegenDogsRunner for
+production-admin operations. Keep scheduled automation paused, do not create
+Desktop files, and do not request or generate another recovery key.
+
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 06:46 CEST
 
 The PTR route loads `PtrGameplay04SurfaceHost` directly. Genesis
