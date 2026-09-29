@@ -1,6 +1,50 @@
 # Continue Warpkeep 0.4
 
-## Exact `/ptr/` candidate build — 30 September 2026, 00:16 CEST (22:16 UTC)
+## Current continuation — 30 September 2026, 01:13 CEST (23:13 UTC)
+
+Windows, GitHub and native `WarpkeepRunner` are clean and synchronized at
+signed candidate `11b2ccbf3b809a44afdbfb47bf5c8d07d3061c1c` on
+`fix/g001-census-admission-proxy`. PR #374 remains open against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; the open game PR inventory remains
+#374–#378. No Actions workflow, check, run or status was queried, dispatched,
+rerun or used during September.
+
+The exact-head full native Linux root suite passed on UID 1000 `warpkeep` with
+pinned Node 22.22.3 / npm 10.9.8 and native SpacetimeDB 2.6.1: 692 files passed
+/ 1 skipped, 12,580 tests passed / 97 skipped, exit 0 in 1,065.37 seconds. The
+first invocation lacked the local CLI path and failed two tests with
+`spawnSync spacetime ENOENT`; adding the repository's pinned Node directory to
+`PATH` and setting
+`SPACETIME_BIN=/home/warpkeep/.cache/warpkeep-0.4-local-toolchain/spacetime-2.6.1/spacetime`
+fixed the environment. The corrected full run passed with no source changes.
+Keep this explicit native environment for future WSL root-suite runs; do not
+invoke Windows `spacetime.exe` from WSL.
+
+At exact source `11b2ccbf`, the `/ptr/` production build, typecheck, runtime and
+production asset integrity, production exclusions, public boundary (3,350
+tracked paths / 1,907 scanned entries), Farcaster integrity, licenses,
+file-size checks and sealed-launch preflight passed. The payload contains 446
+files / 138,994,282 bytes; manifest SHA-256
+`73993c7d4d2f6456fd308d7f8309a39d65828c7e135e19a7cef31623533a8baa`, content
+manifest SHA-256
+`f9bd07a12847dfd51782488d0b4ef4191d041ab0438517957989f513dde96e97`, root
+HTML SHA-256
+`893e7b6be7971f1ad8819d92c33fa44b48ac98717f6889c8a1c3408ac68c17d8`.
+Read-only mirror planning against `Warpkeep-Live/main@b6afe92` preserves 341
+Alpha entries, targets 800 files, removes zero and hashes to
+`4190afc4f8e921441c757ddb04591190222c29ec26d986b1538aa7357ef009c3`.
+
+The root remains HTTP 200 and `/ptr/` HTTP 404; no Pages or other production
+write occurred. Package 0.3.43, Pages approval false, unset live realm
+identities and disabled PTR presentation keep launch sealed. Vite warns that
+`RealmMapScreen` is 677.80 kB (188.23 kB gzip); physical-phone performance is
+not established. After this notes-only push, rerun the exact-head `/ptr/` build
+and regenerate ignored delivery receipts. Keep #374 open and PTR unpublished
+through September 30; after October 1 confirm the owner's current direction
+before hosted Verify, then continue M1/M2, preservation, sealed readback, PTR
+publication and owner/device acceptance.
+
+## Previous exact `/ptr/` candidate build — 30 September 2026, 00:16 CEST (22:16 UTC)
 
 Windows, GitHub and native `WarpkeepRunner` are clean and synchronized at
 signed candidate `6e2b9ff9e7bfa40d7bdb00091d068e2075a7da7d` on
