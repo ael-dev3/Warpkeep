@@ -31,7 +31,7 @@ systems remain later milestones.
 
 The visual direction is an inviting town diorama: pale masonry, dark timber,
 oxidized-teal roofs, restrained violet warp accents and warm signs of activity.
-Layered forest, lightweight voxel scenery and flowing water frame the keep
+Layered forest, lightweight voxel scenery and shallow water frame the keep
 without obscuring the decisions inside it.
 
 We judge the result in the rendered game—its composition, readability, motion

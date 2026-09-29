@@ -1,43 +1,44 @@
 # Continue Warpkeep 0.4
 
-## September no-Actions continuation — 29 September 2026, 13:06 CEST (11:06 UTC)
+## September no-Actions continuation — 29 September 2026, 13:26 CEST (11:26 UTC)
 
-The exact-source candidate `d89a1acfe51237f709f63fe03b1a5e19dbd584d0` is
-synchronized across Windows, origin and WarpkeepRunner. PR #374 against main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` is open and mergeable. This update
-changes integration-test settling and release evidence only; player code is
-unchanged. No GitHub Actions were queried, dispatched, rerun or used during
-September.
+Signed product source `0c9447e299c607f4685735cfe44b55c17ba77199` is
+synchronized across Windows, origin and WarpkeepRunner on
+`fix/g001-census-admission-proxy`. PR #374 against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` remains open and mergeable. No
+GitHub Actions were queried, dispatched, rerun or used during September.
 
-The focused menu/PTR suites passed 51/51 across three files under pinned
-Windows Node 22.23.2. This removed two React `act(...)` warnings caused by the
-first lazy Farcaster presentation resolving after its integration test.
-The 390×844 local `/ptr/` production preview showed the menu and realm chooser
-without horizontal overflow or browser console errors. PTR correctly remained
-`ACCESS UNKNOWN`; the unauthenticated local preview made no realm connection.
-This does not prove owner authentication, live-route timing or physical-phone
-acceptance. See [`owner-journey.md`](../../evidence/0.4.0/owner-journey.md).
+The Keep04 scene now frames the rear and both side terraces with its existing
+shallow static moat while leaving the front gate approach open. The indexed
+water surface and instanced shoreline remain non-pickable; support height,
+placement and game authority are unchanged. The focused scene, voxel-dressing
+and screen suites passed 97/97, and TypeScript build-mode checking passed.
+The local 390×844 synthetic keep preview shows the new side/rear water and
+clear gate spine. This is visual fixture evidence only, not a phone, owner or
+performance acceptance result. See [visual evidence](../../evidence/0.4.0/visuals.md).
 
-The exact `d89a1acfe51237f709f63fe03b1a5e19dbd584d0` `/ptr/` production build
-passed with Node 22.22.3 / npm 10.9.8, asset/exclusion checks, the public
-boundary scan (3,347 tracked paths / 1,902 scanned entries), and Farcaster
-integrity. Its SHA is embedded. The local payload is 445 files / 134,452,795
-bytes (receipt SHA-256
-`d286184fe656646f16d40f3c0a7c25bd89afc3f825fb51dce5214532f6fc2666`; content
-manifest `51b5a0a24d1f2bc01cbb9423d1573d4b9e4d3e89539a159885b64f6534f9b13f`).
+The exact `0c9447e299c607f4685735cfe44b55c17ba77199` `/ptr/` production build
+passed on pinned Node 22.22.3 / npm 10.9.8, including asset integrity,
+production exclusions, the public-boundary scan (3,347 tracked paths / 1,902
+scanned entries) and Farcaster integrity. Its full source SHA is embedded.
+The local payload has 445 files / 134,453,359 bytes (receipt SHA-256
+`a50ee4a4f6a4b928229184474510d1beb34c7a21ebe02a4d1076072dd33a45ba`; content
+manifest `c1db4e3d1cad702ee14c0597f38c9d9b1941a7ee2de1725c11010ae3f1ac95ea`).
 The mirror plan preserves 341 Alpha-root entries, targets 799 files, removes
 zero obsolete paths, and has SHA-256
-`b39fe83b557f4cd171f18f6fed86bd5ed364b89fa1d4dcc2c47b6fb66ff20b7c`.
-These receipts are ignored local evidence, not publication approval. Regenerate
-them after this test/evidence update is pushed.
+`ae12b90c68b6fb21200b9be3131193c2d74684ba341ad0e9ae00caa131c139cc`.
+These receipts are ignored local evidence, not publication approval; refresh
+them after this evidence-only update is pushed.
 
-The sealed-launch verifier reports Pages approval false, package `0.3.43`,
-G001/G002/PTR identities unset, and PTR presentation disabled. At 10:48 UTC,
-the live root was HTTP 200 and `/ptr/` HTTP 404; no 0.4 deployment occurred.
-Vite warns on the retained G001 `RealmMapScreen` bundle (677.80 kB / 188.23 kB
-gzip); this is not the standalone 0.4 PTR renderer. Physical-device performance
-and the retained browser security warning remain open. Keep #374 and PTR
-unpublished through September 30; continue hosted Verify after September.
+The checked-in sealed-launch state remains Pages approval false, package
+`0.3.43`, G001/G002/PTR identities unset, and PTR presentation disabled. At
+11:12 UTC the live root returned HTTP 200 and `/ptr/` HTTP 404; no 0.4
+deployment occurred. Vite still warns on the retained G001 `RealmMapScreen`
+bundle (677.80 kB / 188.23 kB gzip); physical-device performance and the
+retained browser-log security warning remain open. Keep #374 and PTR
+unpublished through September 30; resume hosted Verify after September.
+
+## Previous September no-Actions continuation — 29 September 2026, 13:06 CEST (11:06 UTC)
 
 ## Previous September no-Actions continuation — 29 September 2026, 12:40 CEST (10:40 UTC)
 

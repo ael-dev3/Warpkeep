@@ -1,5 +1,21 @@
 # Gameplay and visual implementation notes
 
+## U-shaped Citadel moat — 29 September 2026
+
+The previous Keep04 water plane covered only the rear terrace and read as a
+thin far-side line. Product source `0c9447e2` extends that existing static
+water treatment around the rear and sides, lifts it above the outer terrace
+course, and leaves the front gate approach open. One indexed surface and one
+instanced stone lip preserve the two-object rendering cost. Water remains
+non-pickable and has no gameplay or collision authority.
+
+The 390×844 synthetic local preview showed the water framing the keep while
+the gate spine stayed clear. Focused Keep04 scene, dressing and screen suites
+passed 97/97, and build-mode TypeScript passed. This does not establish owner
+play, physical-device behavior or performance acceptance. Cathedral hierarchy,
+natural backdrop and final mobile/performance review remain open; see the
+[visual evidence](../../evidence/0.4.0/visuals.md).
+
 ## First economy journey guidance — 29 September 2026
 
 The empty-keep prompt now says to start with a City Mill, names Food, Wood and

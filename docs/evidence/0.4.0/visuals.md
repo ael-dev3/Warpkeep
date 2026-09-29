@@ -1,5 +1,33 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## 29 September U-shaped moat pass at product source `0c9447e2`
+
+The earlier rear-only water strip read as a thin line behind the keep. It now
+tracks the rear and both side terraces, with the gate and front approach left
+open. The surface sits above the outer terrace course; its stone lip is one
+instanced mesh, and the water remains one static, non-pickable mesh. The change
+does not affect support height, placement, routes, collision or gameplay state.
+
+I reviewed the local `/dev/keep04-qa.html?scenario=all-six-level-five&quality=balanced`
+render at desktop and 390×844. The teal edge now frames the settlement on the
+back and sides while the gate spine remains visible. This is a synthetic local
+render review only, not owner play, a physical-phone result or performance
+acceptance. The Cathedral hierarchy, sparse backdrop, retained browser-log
+warning and device measurements remain open.
+
+`tests/keep04Scene.test.ts`, `tests/keep04VoxelDressing.test.ts` and
+`tests/Keep04Screen.test.tsx` passed 97/97; TypeScript build-mode checking also
+passed. The exact `0c9447e299c607f4685735cfe44b55c17ba77199` `/ptr/` production
+build passed its pinned asset checks, production exclusions, public-boundary
+scan and Farcaster integrity. Its source SHA is embedded. At that product
+source, the local payload contains 445 files / 134,453,359 bytes (manifest
+SHA-256 `a50ee4a4f6a4b928229184474510d1beb34c7a21ebe02a4d1076072dd33a45ba`,
+content manifest `c1db4e3d1cad702ee14c0597f38c9d9b1941a7ee2de1725c11010ae3f1ac95ea`).
+The mirror plan preserves 341 Alpha-root entries, targets 799 files, removes
+zero obsolete paths, and has SHA-256
+`ae12b90c68b6fb21200b9be3131193c2d74684ba341ad0e9ae00caa131c139cc`. Receipts
+are ignored local evidence, not publication approval.
+
 ## 29 September rendered review at candidate source `3cb103d1`
 
 The guarded Windows Chrome 154 capture in the ignored local directory
