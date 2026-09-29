@@ -2,6 +2,42 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact-candidate full regression and preview — 29 September 2026, 22:21 CEST
+
+On exact candidate `0c6251b93644b9ea5df345dae42fd4d24a0cfbcb`, native Linux
+`npm test -- --reporter=dot` passed 692 test files / 1 skipped and 12,580
+tests / 97 skipped (Vitest 4.1.11, exit 0, 979.68 seconds). Environment:
+UID 1000 `warpkeep`, Node 22.22.3, npm 10.9.8 and the native SpacetimeDB 2.6.1
+executable. The exact `.git/yaml-2.9.0.tgz` test fixture passed its committed
+SHA-256 check; existing root and module dependencies were reused without an
+install.
+
+The raw test stream contains cancellation/React `act(...)` warnings and
+damaged-object errors from negative-path Git fixtures. The actual Runner
+checkout remained clean. Post-run `git fsck --full --no-reflogs` exited 0 and
+reported dangling commits only, so no loose-object corruption remained in the
+candidate repository.
+
+The exact-head `/ptr/` production build and payload write/check passed. Its
+manifest SHA-256 is
+`334952934371a167bbc321cd58fd5be68f0ef120e2e03285d348fddd66869647`; it covers
+446 files / 138,994,282 bytes. Content-manifest SHA-256 is
+`2f387cb659727815902cb58796d4651a245870c5680c37e4251c648eb2266527` and root
+HTML SHA-256 is
+`52cd2ef0f351dd370de1bb36201ade775aa45098e2e5197ced84670b770ece92`. The
+independent read-only plan SHA-256 is
+`84ce7e69ea095700cbe9a00e6455c19c5749b4a26a6b930c6f843fc5820a5e2c`; it
+preserves 341 Alpha entries, targets 800 `/ptr/` files and removes zero
+obsolete generated paths.
+
+The local production preview served the stamped menu at `/ptr/#menu`. Retained
+390×844 menu and empty-Keep screenshots were visually checked for readable
+primary actions and no horizontal overflow; the captures are synthetic
+desktop-browser emulation, not physical phone or performance acceptance. The
+server and exact temporary `/tmp` symlink were stopped and removed. Fresh public
+HTTP reads returned 200 for the Alpha root and 404 for `/ptr/`. No GitHub
+Actions, provider/public writes, merge or deployment occurred.
+
 ## Exact-head local verification — 29 September 2026, 21:51 CEST
 
 At signed source `7daea5f55e514f1c25e8b9a5e3258e3a5fa87729`, the pinned native

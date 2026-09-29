@@ -1,7 +1,37 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 21:51 CEST (19:51 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 22:21 CEST (20:21 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 21:51 CEST
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 22:21 CEST
+
+At the start of this notes update, Windows, origin and the native
+WarpkeepRunner checkout were clean at signed head
+0c6251b93644b9ea5df345dae42fd4d24a0cfbcb. PR #374 is open and mergeable;
+source PRs #375–#378 remain open as provenance. The exact-head native Linux
+suite passed with Node 22.22.3, npm 10.9.8 and SpacetimeDB 2.6.1: 692 files
+passed / 1 skipped and 12,580 tests passed / 97 skipped, exit 0 in 979.68s.
+Vitest emitted context-canceled and expected negative-fixture Git diagnostics;
+post-run `git fsck --full --no-reflogs` exited 0 and the source checkout stayed
+clean.
+
+The 0c6251b9 exact `/ptr/` build passed. Payload: 446 files / 138,994,282
+bytes; manifest SHA-256 334952934371a167bbc321cd58fd5be68f0ef120e2e03285d348fddd66869647;
+content SHA-256 2f387cb659727815902cb58796d4651a245870c5680c37e4251c648eb2266527;
+root HTML SHA-256 52cd2ef0f351dd370de1bb36201ade775aa45098e2e5197ced84670b770ece92.
+The read-only plan hash is 84ce7e69ea095700cbe9a00e6455c19c5749b4a26a6b930c6f843fc5820a5e2c;
+it preserves 341 Alpha entries, targets 800 `/ptr/` files and removes zero
+obsolete generated paths. The local preview loaded at `/ptr/#menu`; retained
+390×844 menu and empty-Keep captures are readable without horizontal overflow.
+This remains synthetic desktop-emulation evidence, not physical-device or
+performance acceptance. The preview server and temporary `/tmp` link were
+removed. Live site remains Alpha root HTTP 200 and PTR HTTP 404.
+
+The notes-only commit below will advance the source stamp; rebuild and
+regenerate ignored delivery receipts after its push. No GitHub Actions,
+provider/public writes, merge or deployment occurred. Resume hosted checks
+after October 1, then complete M1/M2, live readback, PTR publication and owner
+device acceptance.
+
+PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 21:51 CEST
 
 Windows and origin are clean and synchronized at signed candidate
 7daea5f55e514f1c25e8b9a5e3258e3a5fa87729 on

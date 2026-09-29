@@ -1,5 +1,49 @@
 # Continue Warpkeep 0.4
 
+## Exact candidate regression continuation — 29 September 2026, 22:21 CEST
+
+At the start of this notes update, Windows, GitHub and the pinned Linux
+WarpkeepRunner checkout were at signed candidate
+`0c6251b93644b9ea5df345dae42fd4d24a0cfbcb`; PR #374 was open and mergeable
+against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The full local native
+Linux root suite passed on this exact commit using Node 22.22.3, npm 10.9.8,
+and SpacetimeDB 2.6.1: 692 test files passed / 1 skipped; 12,580 tests passed /
+97 skipped; exit 0 in 979.68 seconds. The exact offline YAML archive had its
+expected SHA-256, and the root/module dependencies were already present; no
+install was needed.
+
+Vitest's raw stream included repeated `context canceled` and React `act(...)`
+warnings, plus corrupt-object and revision errors printed by negative-path
+Git fixtures. Afterward, `git fsck --full --no-reflogs` exited 0 on the actual
+Runner checkout; it reported dangling commits only, and the checkout remained
+clean at 0c6251b9. The fixture diagnostics did not corrupt the source object
+store.
+
+The exact 0c6251b9 `/ptr/` build and payload check passed; its payload manifest
+SHA-256 was
+`334952934371a167bbc321cd58fd5be68f0ef120e2e03285d348fddd66869647`, with 446
+files / 138,994,282 bytes, content manifest SHA-256
+`2f387cb659727815902cb58796d4651a245870c5680c37e4251c648eb2266527`, and root
+HTML SHA-256
+`52cd2ef0f351dd370de1bb36201ade775aa45098e2e5197ced84670b770ece92`. The
+independent read-only plan SHA-256 was
+`84ce7e69ea095700cbe9a00e6455c19c5749b4a26a6b930c6f843fc5820a5e2c`; it
+preserves 341 Alpha entries, targets 800 `/ptr/` files and removes zero
+obsolete generated paths.
+
+The local built preview loaded the stamped candidate at `/ptr/#menu`. Review of
+the retained 390×844 menu and mobile empty-Keep captures found the title,
+first-return guidance and primary action readable without horizontal overflow.
+These synthetic desktop-browser captures are not physical-phone or performance
+acceptance. The temporary local preview server and its `/tmp` symlink were
+stopped and removed. Public HTTP still returns 200 for the Alpha root and 404
+for `/ptr/`; 0.4 is not live.
+
+This documentation-only update requires another exact-head stamped build and
+receipt regeneration. No GitHub Actions, provider or public-repository writes,
+merge or deployment occurred. After October 1, follow the exact-head Verify,
+M1/M2, live-readback, PTR publication and owner-device acceptance gates below.
+
 ## Current exact-head continuation — 29 September 2026, 21:51 CEST
 
 Windows and origin are clean and synchronized at signed candidate
