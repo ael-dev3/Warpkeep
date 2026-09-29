@@ -60,6 +60,9 @@ const DIRECTORIES = new Set([
   '.well-known', 'assets', 'audio', 'images', 'legal', 'models',
   'owner-canary', 'privacy', 'social-contract', 'terms', 'video',
 ]);
+const MODEL_METADATA_PATHS = new Set([
+  'models/greater-realm/biome-trees/v3/manifest.json',
+]);
 
 export class PublicPagesPayloadError extends Error {
   constructor(code) {
@@ -139,7 +142,7 @@ export function allowedPath(path, directory) {
   if (top === 'audio') return /\.mp3$/u.test(name)
     || path === 'audio/warpkeep-verdant-menu-theme.m4a';
   if (top === 'images') return /\.(?:png|webp)$/u.test(name);
-  if (top === 'models') return /\.glb$/u.test(name);
+  if (top === 'models') return MODEL_METADATA_PATHS.has(path) || /\.glb$/u.test(name);
   if (top === 'video') return /\.mp4$/u.test(name);
   return false;
 }

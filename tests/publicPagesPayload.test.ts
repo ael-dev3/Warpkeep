@@ -89,6 +89,8 @@ function createCandidate(publicationPath = '/') {
   write(join(dist, 'warpkeep-boot.css'), 'body{background:black}');
   write(join(dist, 'warpkeep-noscript.css'), 'noscript{display:block}');
   write(join(dist, 'models/keep.glb'), Buffer.from([0x67, 0x6c, 0x54, 0x46]));
+  write(join(dist, 'models/greater-realm/biome-trees/v3/manifest.json'),
+    '{"schema":"warpkeep-greater-realm-biome-trees.runtime.v1"}');
   return { root, dist, expectedSourceCommit };
 }
 
@@ -105,6 +107,13 @@ describe('public Pages candidate payload', () => {
     expect(allowedPath('audio/other.m4a', false)).toBe(false);
     expect(allowedPath('audio/nested/warpkeep-verdant-menu-theme.m4a', false)).toBe(false);
     expect(allowedPath('audio/warpkeep-verdant-menu-theme.M4A', false)).toBe(false);
+  });
+
+  it('permits only the exact Greater Realm v3 tree manifest among model metadata', () => {
+    expect(allowedPath('models/greater-realm/biome-trees/v3/manifest.json', false)).toBe(true);
+    expect(allowedPath('models/other/manifest.json', false)).toBe(false);
+    expect(allowedPath('models/greater-realm/biome-trees/v3/manifest.txt', false)).toBe(false);
+    expect(allowedPath('models/unreviewed.json', false)).toBe(false);
   });
 
   it('derives stable source, tree, and every public file hash without modifying dist', () => {
@@ -131,6 +140,13 @@ describe('public Pages candidate payload', () => {
       .toBe(sha(JSON.stringify(first.manifest.files)));
     expect(first.manifest.files.find((entry: { path: string }) => entry.path === 'index.html'))
       .toMatchObject({ sha256: sha(readFileSync(join(candidate.dist, 'index.html'))) });
+    expect(first.manifest.files.find((entry: { path: string }) => (
+      entry.path === 'models/greater-realm/biome-trees/v3/manifest.json'
+    ))).toMatchObject({
+      sha256: sha(readFileSync(join(
+        candidate.dist, 'models/greater-realm/biome-trees/v3/manifest.json',
+      ))),
+    });
     expect(first.manifest.files.map((entry: { path: string }) => entry.path))
       .toEqual([...first.manifest.files.map((entry: { path: string }) => entry.path)].sort());
     expect(existsSync(join(candidate.dist, '404.html'))).toBe(false);
