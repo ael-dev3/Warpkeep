@@ -746,7 +746,7 @@ describe('RealmHud', () => {
     expect(commandCenter.textContent).not.toContain('Peer Keep');
 
     fireEvent.click(within(roster).getByRole('button', { name: /Worker 1/i }));
-    const inspector = screen.getByRole('dialog', { name: 'Worker 1' });
+    const inspector = await screen.findByRole('dialog', { name: 'Worker 1' });
     expect(inspector.id).toBe('realm-worker-inspection');
     expect(profileTrigger.getAttribute('aria-controls')).toBe('realm-worker-inspection');
     expect(within(inspector).queryByRole('combobox')).toBeNull();

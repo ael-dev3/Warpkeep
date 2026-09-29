@@ -66,6 +66,37 @@
   font-size: 0.82rem;
 }
 
+.realm-inspection-lazy-fallback {
+  position: fixed;
+  z-index: 45;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  display: grid;
+  gap: 0.3rem;
+  width: min(22rem, calc(100vw - 2rem));
+  box-sizing: border-box;
+  padding: 0.8rem 1rem;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgb(217 184 102 / 52%);
+  border-radius: 0.65rem;
+  background: rgb(13 8 18 / 94%);
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 38%);
+  color: var(--realm-ivory);
+  text-align: center;
+  pointer-events: none;
+}
+
+.realm-inspection-lazy-fallback strong {
+  color: var(--realm-electrum);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+}
+
+.realm-inspection-lazy-fallback span {
+  color: var(--realm-muted);
+  font-size: 0.82rem;
+}
+
 .realm-map-screen[data-realm-surface-presentation="fullscreen-destination"]
   :is(
     .realm-profile-menu__panel,

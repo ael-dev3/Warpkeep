@@ -46,7 +46,7 @@ describe('Realm read-only observer presentation', () => {
     expect(screen.queryByRole('main', { name: 'Hegemony realm QA observer' })).toBeNull();
   });
 
-  it('keeps map interaction while suppressing every player-auth and ownership semantic', () => {
+  it('keeps map interaction while suppressing every player-auth and ownership semantic', async () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
     const realm = observerRealm();
     render(
@@ -78,7 +78,7 @@ describe('Realm read-only observer presentation', () => {
     expect(firstCastle.textContent).not.toMatch(/your castle/i);
     fireEvent.click(firstCastle);
 
-    const record = screen.getByRole('dialog', { name: 'Northwatch Bastion' });
+    const record = await screen.findByRole('dialog', { name: 'Northwatch Bastion' });
     expect(record.textContent).toContain('@sentinel-one');
     expect(within(record).getByText('PUBLIC REALM RECORD')).not.toBeNull();
     expect(within(record).queryByRole('link')).toBeNull();
