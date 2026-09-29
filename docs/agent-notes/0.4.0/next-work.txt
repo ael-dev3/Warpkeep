@@ -1,15 +1,41 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 22:53 CEST (20:53 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 23:27 CEST (21:27 UTC), Europe/Budapest.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 22:53 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 23:27 CEST
 
-The current candidate was clean and synchronized across the Windows checkout,
-origin and native WarpkeepRunner at signed head
-fd122154c9c0812f409264fa6eb67f1decd29293 on
-`fix/g001-census-admission-proxy`; PR #374 remains open. GitHub Actions remain
-unused in September, as requested. This checkpoint performed owner-authenticated,
-read-only SpacetimeDB identity and schema inspection; it read no application
-rows and made no provider, database, Pages, merge or public-repository writes.
+The Windows checkout is clean and synchronized with `origin` at signed head
+`48cd44af9642b346567cf64820cb0adab9ddd510` on
+`fix/g001-census-admission-proxy`; PR #374 remains open. The last recorded WSL
+checkout was clean at the same head. No game source changed in this checkpoint.
+The 0.4 tree art from PR #378 is already in the candidate at `758d655b`, with
+the `/ptr/` base-path and transient-load retry fixes at `be04c322`. All 40
+runtime GLBs match PR #378; its branch does not need to be merged into #374.
+PRs #375–#378 remain open for provenance. Warpkeep-Assets PR #41 is open; its
+source archive release attachment remains unpublished while the compact
+runtime copies are already tracked in Warpkeep.
+
+No GitHub Actions workflow was dispatched or rerun. During PR metadata intake,
+read-only `statusCheckRollup` fields were inadvertently requested for #374 and
+#378; their stored results were not used as a release gate. Avoid further
+Actions/check-status queries through September 30. No provider, database,
+Pages, merge or public-repository writes occurred.
+
+At `48cd44af`, the `/ptr/` production build, license/file-size checks,
+sealed-launch preparation, exact payload manifest and read-only public mirror
+plan passed in the prior checkpoint. The focused PTR source/contract tests
+passed 16/16. This turn's v3 tree asset verifier passed all 40 files
+(2,738,208 runtime bytes); four focused tree/runtime suites passed 51/51 on
+the bundled Windows Node 24 test runner. Node 24 is outside the repository's
+pinned Node 22 range, so this focused run supplements rather than replaces the
+full Node 22 run. The full 12,580-test suite passed at `0c6251b9`; changes from
+that test head to `48cd44af` are documentation-only.
+
+A synthetic 390×844 local Keep fixture displayed all six completed sites and
+their names in the placement list. At Fit grounds, the economy-building
+silhouettes still read small beside the Cathedral; one zoom step improves
+detail while cropping the full grounds. This does not justify changing the
+default camera without a better framing comparison. It is emulated visual
+inspection only, not physical-phone or performance acceptance.
 
 At approximately 22:51 CEST, the Windows and WarpkeepRunner SpacetimeDB 2.6.1
 profiles returned the same three production identities from `maincloud`:
@@ -32,13 +58,17 @@ read-only repository contract tests passed 16/16 on the current candidate; this
 verifies local source expectations, not deployment or player data. The 0.4
 gameplay runtime therefore cannot yet be served by the existing PTR database.
 
-Do not publish or merge during September. The sealed-launch binding remains
-release-disabled (`pagesDeploymentApproved: false`, identities and operational
-receipts unset, PTR presentation disabled). After October 1, continue with the
-exact-head hosted verification and signed M1/M2, then the documented existing-
-PTR update and source-bound live readback before public Pages publication and
-owner/device acceptance. Rebuild and regenerate ignored payload/mirror receipts
-against the final notes-inclusive commit before any later release operation.
+PTR is not live: the public Alpha root returns HTTP 200 and `/ptr/` returns
+HTTP 404. The live PTR still lacks the seven Keep/worker/construction tables
+and five procedures listed below, so it cannot serve the checked-in gameplay
+runtime. The sealed-launch binding remains release-disabled
+(`pagesDeploymentApproved: false`, identities and operational receipts unset,
+PTR presentation disabled). Keep #374 open and do not merge or publish during
+September. After October 1, confirm the owner's current direction, then resume
+the exact-head source/release gates, existing-PTR update and source-bound live
+readback before public Pages publication and owner/device acceptance. Rebuild
+and regenerate ignored payload/mirror receipts against the final notes-inclusive
+commit before any later release operation.
 
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 22:37 CEST
 
