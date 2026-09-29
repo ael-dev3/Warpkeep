@@ -1,7 +1,46 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 15:56 CEST (13:56 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 17:12 CEST (15:12 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 15:56 CEST
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 17:12 CEST
+
+Signed product-source commit 29e94dfa3ca396dcc75f74b4b63edc996971e888 is synced
+across the Windows checkout, origin and native Linux WarpkeepRunner on
+fix/g001-census-admission-proxy. This continuation is documentation-only; PR
+#374 remains open against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. No GitHub Actions were used during
+September; commits carry [skip actions]. Do not merge, write Warpkeep-Live/main
+or publish the PTR before the month-end pause clears.
+
+PRs #375/#376 are integrated. #377's requested score is wired only for sealed
+Genesis 002, which remains inaccessible; G001/PTR continue to select Lowlands.
+The candidate contains #378's 40 Greater Realm v3 trees (2,738,208 bytes), and
+the loader preserves /ptr/ and retries after failed requests. Commit 29e94dfa
+also fixes the PTR payload policy to admit only the exact G002 soundtrack path;
+unrelated M4A files remain rejected.
+
+The full native Linux suite passed on immediate predecessor 53aa334d with
+Node 22.22.3, npm 10.9.8 and SpacetimeDB 2.6.1: 692 files passed / 1 skipped,
+12,579 tests passed / 97 skipped, exit 0 in 932.26 seconds. The four directly
+affected PTR, payload, mirror-plan and tree-loader suites passed 39/39 on
+29e94dfa.
+
+The 29e94dfa /ptr/ build passed all source, asset, exclusion, public-boundary,
+Farcaster, file-size and license checks. Payload: 446 files / 138,994,239
+bytes. The read-only live-root mirror plan preserves 341 Alpha entries, targets
+800 files and removes zero obsolete files. The final notes-only sync is
+followed by regenerated, exact-checkout receipts. The exact preparation state remains Pages approval
+false, package 0.3.43, all live realm identities unset and PTR presentation
+disabled. The root is HTTP 200 and /ptr/ is HTTP 404; this candidate is not
+published.
+
+Remaining release gates: after October 1, exact-head hosted Verify and signed
+M1/M2; source-bound provider receipts/readback; owner PTR acceptance; review
+the privacy-safe browser diagnostic; and physical-device performance. The
+existing RealmMapScreen chunk remains 677.80 kB raw / 188.23 kB gzip. Run
+local checks as checkout owner warpkeep (UID 1000) with the pinned Linux Node
+22.22.3 and SpacetimeDB 2.6.1 binary.
+
+PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 15:56 CEST
 
 Signed candidate head 8cdf8967c96897ea9c3b512b9d9b77f2a2feffdf is synchronized
 across the Windows checkout, GitHub origin and idle WarpkeepRunner on

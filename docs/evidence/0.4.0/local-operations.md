@@ -2,7 +2,43 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## September local candidate verification — 29 September 2026, 15:56 CEST
+## September local candidate verification — 29 September 2026, 17:12 CEST
+
+Signed product-source commit `29e94dfa3ca396dcc75f74b4b63edc996971e888` is
+synced across the Windows checkout, GitHub origin and native Linux WarpkeepRunner;
+this continuation is a notes-only update. No GitHub Actions were queried,
+dispatched, rerun or used during September. PR #374 stays open,
+`Warpkeep-Live/main` is untouched, and the live root remains HTTP 200 while
+`/ptr/` is HTTP 404.
+
+The exact no-Actions candidate includes #375's menu, #376's castle-film action,
+#377's owner-requested G002 soundtrack and #378's 40 v3 tree models. G002 is
+still sealed; its soundtrack has no current player entry path. The payload
+verifier had omitted that single exact M4A path. Commit `29e94dfa` adds only
+that approved path and a fixture proving it enters the manifest while arbitrary
+M4A paths remain blocked.
+
+Four focused suites on `29e94dfa` passed 39/39 under Node 22.22.3 and native
+SpacetimeDB 2.6.1. The complete native suite passed on immediate predecessor
+`53aa334d`: 692 files passed / 1 skipped, 12,579 tests passed / 97 skipped,
+exit 0 in 932.26 seconds. Fifteen raw context-canceled messages and existing
+React act warnings did not produce test failures.
+
+The exact `29e94dfa` `/ptr/` build passed TypeScript, all runtime assets,
+production exclusions, the public-boundary scan (3,350 paths / 1,907 entries),
+Farcaster integrity, file-size policy and license policy. Its local payload is
+446 files / 138,994,239 bytes. The read-only plan against clean
+`Warpkeep-Live@b6afe92` preserves 341 Alpha-root entries, targets 800 files
+and removes zero obsolete paths. Regenerated ignored receipts are checked
+after this notes sync against the final checkout. `verify:sealed-launch` still reports Pages approval false,
+package `0.3.43`, unset G001/G002/PTR identities and disabled PTR presentation.
+These checks prepare a candidate; they do not authorize deployment.
+
+The current `RealmMapScreen` chunk warning remains 677.80 kB raw / 188.23 kB
+gzip. The privacy-safe browser diagnostic still needs human review, and
+physical-device performance and owner PTR acceptance remain unmeasured.
+
+## Previous local candidate verification — 29 September 2026, 15:56 CEST
 
 No GitHub Actions were queried, dispatched, rerun or used during September.
 Windows, origin, PR #374 and the clean idle native Linux checkout match signed

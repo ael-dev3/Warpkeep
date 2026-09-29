@@ -1,6 +1,70 @@
 # Continue Warpkeep 0.4
 
-## September no-Actions continuation — 29 September 2026, 15:56 CEST (13:56 UTC)
+## September no-Actions continuation — 29 September 2026, 17:12 CEST (15:12 UTC)
+
+Signed product-source commit `29e94dfa3ca396dcc75f74b4b63edc996971e888` is
+synced across the Windows checkout, origin and native Linux WarpkeepRunner on
+`fix/g001-census-admission-proxy`. PR #374 remains open against signed main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. This checkpoint adds release notes
+only; final-head receipts are regenerated and checked after that sync. No
+GitHub Actions were queried, dispatched, rerun or used during September;
+source commits carry `[skip actions]`.
+
+The candidate includes the menu from #375 and castle-film action from #376.
+Signed commit `53aa334d` integrated #377's Genesis 002 soundtrack. Its exact
+runtime file is 4,539,823 bytes and uses the requested official-game path; the
+asset record keeps its unresolved source terms explicit. G002 remains sealed
+and inaccessible, so the new score does not open an entry path or affect the
+PTR/G001 Lowlands selection. The v3 tree catalog and 40 runtime models from
+#378 are present (2,738,208 bytes). The candidate loader prefixes assets with
+the configured deployment base and clears rejected requests from its cache so
+transient fetch failures can retry. The exact-path and retry regressions are
+covered in `tests/greaterRealmBiomeTreeAssetLoader.test.ts`.
+
+Shipping validation found that the checked-in Pages payload boundary rejected
+the newly approved G002 M4A. Signed fix `29e94dfa` now admits only the exact
+`audio/warpkeep-genesis-002-theme.m4a` path and includes it in the manifest
+fixture; unrelated M4A files remain rejected. The four focused PTR, payload,
+mirror-plan and tree-loader files pass 39/39 on pinned Linux Node 22.22.3 and
+native SpacetimeDB 2.6.1.
+
+The complete native Linux suite passed on immediate predecessor `53aa334d`
+before that release-validator-only fix: Vitest 4.1.11, Node 22.22.3, npm
+10.9.8 and native SpacetimeDB 2.6.1; 692 files passed / 1 skipped and 12,579
+tests passed / 97 skipped, exit 0 in 932.26 seconds. Raw output contained 15
+`context canceled` messages and existing React `act(...)` warnings, but no test
+failed. The subsequent change is limited to the exact payload allowlist and
+its regression fixture; its affected tests and the PTR build passed at 29e94.
+
+At exact source `29e94dfa`, the `/ptr/` production build passed TypeScript,
+runtime-asset checks, production exclusions, the public-boundary scan (3,350
+tracked paths / 1,907 scanned entries), Farcaster integrity, file-size policy
+and license policy. The payload contains 446 files / 138,994,239 bytes. The
+read-only mirror plan against clean `Warpkeep-Live@b6afe92` preserves 341
+Alpha-root entries, targets 800 files and removes zero obsolete paths. These
+ignored local receipts are regenerated and checked after this notes-only sync
+so they bind to the final checkout. The existing `RealmMapScreen` chunk warning
+remains 677.80 kB raw / 188.23 kB gzip.
+
+The exact-head sealed-launch verifier reports package `0.3.43`, Pages approval
+false, G001/G002/PTR identities unset and PTR presentation disabled. A fresh
+HTTP check returned 200 for the public root and 404 for `/ptr/`; no 0.4
+publication occurred. Keep #374 open and do not write `Warpkeep-Live/main` or
+publish PTR during September. Remaining gates are source-bound live release
+receipts and readback, owner PTR acceptance, review of the privacy-safe browser
+diagnostic, and physical-device performance. Resume hosted Verify only after
+the September pause ends.
+
+### PR intake status
+
+The current open main-repository PRs are #374–#378. #375/#376 code is already
+in the candidate, #377 is integrated while G002 stays sealed, and #378's v3
+models are present with the base-aware/retryable loader behavior. Keep those
+source PRs open for provenance; do not merge older heads separately. No newer
+Warpkeep PR was open at the last inventory. Warpkeep-Assets PRs #37–#41 remain
+separate source archives and are not publication approval.
+
+## Previous September no-Actions continuation — 29 September 2026, 15:56 CEST (13:56 UTC)
 
 Product source 65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5 remains the tested
 candidate on fix/g001-census-admission-proxy. Windows, origin, the clean idle

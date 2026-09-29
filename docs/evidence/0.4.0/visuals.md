@@ -14,10 +14,13 @@ assets.
 The exact-source production build and runtime asset, exclusion, public-boundary
 and Farcaster checks passed on pinned Linux Node 22.22.3 / npm 10.9.8. The five
 focused Keep04 scene, screen, dressing and lifecycle test files passed 116/116;
-TypeScript build-mode checking passed. The full root suite is still running as
-the non-root `warpkeep` account after an initial root invocation hit Git's
-safe-directory ownership guard in receipt tests. That initial result is an
-environment invocation failure, not a product test result.
+TypeScript build-mode checking passed. At the time of this visual capture, the
+full root suite was still running as the non-root `warpkeep` account after an
+initial root invocation hit Git's safe-directory ownership guard in receipt
+tests. The completed native Linux rerun and its exact totals are recorded in
+the current [execution handoff](../../agent-notes/0.4.0/execution-handoff.md);
+they supersede this in-progress status. That initial root invocation was an
+environment failure, not a product test result.
 
 Guarded local Chrome capture `windows-run-0PltSv` is bound to exact source
 `65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5`: 36 synthetic cases across desktop,
