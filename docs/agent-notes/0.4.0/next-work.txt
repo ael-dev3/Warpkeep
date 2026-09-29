@@ -1,24 +1,35 @@
 WARPKEEP 0.4 — NEXT WORK
 Refreshed 29 September 2026, Europe/Budapest.
-PR #374 against `main` `786c0b2b` is the active source candidate. Local branch
-`fix/g001-census-admission-proxy` and GitHub matched signed head
-`2044cc2b3be7918c9938588378791294449a3d11`; PR metadata reported OPEN,
-MERGEABLE and CLEAN. The complete root suite passed on code/test commit
+PR #374 against `main` `786c0b2b` is the active source candidate. At the last
+remote check, local branch `fix/g001-census-admission-proxy` and GitHub matched
+signed head `e58d568a41c396a9d4759dbaceb036a717800281`; PR metadata was OPEN,
+MERGEABLE and CLEAN. The full root suite passed on code/test commit
 `822a0f466e2f63fc28c9441445d857d4b864616d` (Vitest 4.1.11; 692 files passed,
 1 skipped; 12,577 tests passed, 97 skipped). The current tooltip correction
 passes four focused menu/realm suites (59/59) and rendered checks at 390x844,
 936x672 and 568x320.
 
-The `/ptr/` production build, TypeScript, asset, exclusion, public-boundary and
-Mini App checks passed at `2044cc2b`. The `RealmMapScreen` chunk warning remains
-and physical-device performance is unmeasured. Direct HTTP reads returned 200
-for `https://warpkeep.com/` and 404 for `https://warpkeep.com/ptr/`.
+The pinned `/ptr/` production build passed at `e58d568a`: TypeScript, assets,
+exclusions, public-boundary (3,346 tracked paths / 1,901 scanned entries) and
+Mini App checks passed. The Genesis `RealmMapScreen` chunk is 677.80 kB /
+188.23 kB gzip; physical-device performance is unmeasured. The payload write
+and check passed with 445 files / 134,451,266 bytes, manifest SHA-256
+`f0a0e96314339e6d9377077177ff2412cd3d5d2685b5a428fc29cf2611f546e1` and
+content-manifest SHA-256
+`878c86346e53671edc5a87a496240c5be20241d78eb0a0860963d569a3b23f62`. The
+read-only plan SHA-256 is
+`3f0568cf4153b155603f8a90a46585f7006d09a8f421d3531a8774d1ec783028`; against
+`Warpkeep-Live@b6afe92e` it preserves 341 Alpha-root entries, targets 799
+files and removes zero obsolete generated paths.
 
-The ignored payload and mirror-plan files currently present under
-`artifacts/delivery/0.4.0/` bind to `5bd2435b`, not this candidate; do not reuse
-them. After this tracked-note refresh is pushed, rebuild `/ptr/`, rewrite and
-immediately check the payload, then write/check the read-only plan against
-`Warpkeep-Live@b6afe92e` at the exact pushed source commit.
+The live root returned HTTP 200 and `/ptr/` returned HTTP 404. The e58 receipts
+were exact at creation but this handoff refresh changes the source tree; after
+committing and pushing it, rebuild `/ptr/` with
+`VITE_WARPKEEP_BUILD_SHA=$(git rev-parse HEAD)`, then rewrite/check the payload
+and write/check the read-only plan. Use only receipts whose source commit and
+tree equal the exact pushed candidate. No GitHub Actions were used. Keep #374
+open and `/ptr/` unpublished through September; confirm the owner's direction
+before hosted Verify on or after October 1.
 
 Use the dedicated `WarpkeepRunner` distribution as `warpkeep` with Node
 22.22.3 / npm 10.9.8. Put the cached SpacetimeDB 2.6.1 CLI on `PATH` and verify

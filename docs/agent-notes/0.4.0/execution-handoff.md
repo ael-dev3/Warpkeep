@@ -1,28 +1,37 @@
 # Continue Warpkeep 0.4
 
-## Candidate and live-site recheck — 29 September 2026
+## Exact-source candidate preflight — 29 September 2026
 
-At this check, local branch `fix/g001-census-admission-proxy` and GitHub PR
-[#374](https://github.com/ael-dev3/Warpkeep/pull/374) matched signed head
-`2044cc2b3be7918c9938588378791294449a3d11`. PR #374 remained OPEN,
-MERGEABLE and CLEAN against signed main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
-The latest source fix is the in-flow realm-status explanation, verified by the
-four focused suites (59/59) and local rendered checks at portrait, desktop and
-short landscape sizes. The full root suite remains verified at
-`822a0f466e2f63fc28c9441445d857d4b864616d`; the `/ptr/` production build and
-production checks passed at `2044cc2b`.
+Signed source `e58d568a41c396a9d4759dbaceb036a717800281` passed the pinned
+`WarpkeepRunner` `/ptr/` production build (Node 22.22.3 / npm 10.9.8), including
+TypeScript, runtime assets, production exclusions, the public-boundary scan
+(3,346 tracked paths / 1,901 scanned entries) and Farcaster Mini App integrity.
+The `RealmMapScreen` chunk remains 677.80 kB / 188.23 kB gzip; the PTR host is
+106.32 kB / 32.62 kB gzip. Physical-device performance remains unmeasured.
+
+The exact-source payload write and immediate check passed: 445 files,
+134,451,266 bytes, source tree `a3499561b47ebd19c0ef50b79181d9b4884b9eef`,
+manifest SHA-256 `f0a0e96314339e6d9377077177ff2412cd3d5d2685b5a428fc29cf2611f546e1`,
+and content-manifest SHA-256
+`878c86346e53671edc5a87a496240c5be20241d78eb0a0860963d569a3b23f62`. The
+read-only mirror plan against clean `Warpkeep-Live@b6afe92e` passed with plan
+SHA-256 `3f0568cf4153b155603f8a90a46585f7006d09a8f421d3531a8774d1ec783028`;
+it preserves 341 Alpha-root entries, targets 799 files and removes zero
+obsolete generated paths. The checked-in sealed-launch preparation verifier
+still reports Pages approval false, package `0.3.43`, unset G001/G002/PTR
+identities and PTR presentation disabled.
 
 A direct HTTP read returned 200 for `https://warpkeep.com/` and 404 for
-`https://warpkeep.com/ptr/`. The existing ignored payload and mirror-plan
-receipts in `artifacts/delivery/0.4.0/` were inspected and found to bind to
-older source `5bd2435b`; they are stale and must not be used. This tracked-note
-refresh advances the candidate source again. After its push, rebuild `/ptr/`
-and rewrite/check both local receipts at the exact pushed commit.
+`https://warpkeep.com/ptr/`. These are local candidate receipts, not a
+deployment or owner-acceptance grant. This note refresh advances the source
+again, so the e58 receipts must not be used for the new commit; regenerate and
+check the payload and mirror plan at that exact pushed source before any later
+publication step.
 
 No GitHub Actions workflow, run, check or status was used. Keep PR #374 open,
 hosted Verify pending and `/ptr/` unpublished through September; confirm the
 owner's direction before hosted Verify on or after October 1. This local note
-refresh is not an M1, deployment grant or production operation.
+refresh is not an M1 or production operation.
 
 ## Realm chooser readability fix — 29 September 2026, 08:23 CEST (06:23 UTC)
 
