@@ -1,31 +1,63 @@
 # Continue Warpkeep 0.4
 
-## Current shipping continuation — 29 September 2026, 02:33 CEST (00:33 UTC)
+## Current shipping continuation — 29 September 2026, 03:08 CEST (01:08 UTC)
 
-The signed product source `83876cba9d23b0cb61088a0ebedd3e83406ac69f` is in
-open PR #374 against main `786c0b2b`. This closure refresh derives from
-candidate tree `d9cd6258b8c7241b3ed70f1d29a7ffeccb86e7c9`. It defers realm
-inspection panels and Worker inspection until use, with accessible loading
-states. Six focused test files passed 154 tests; `tsc -b` and the full local
-production build passed. The realm screen entry fell from 748.60 kB / 202.67 kB
-gzip to 680.22 kB / 188.87 kB; the >600 kB warning remains. That build compiled
-the 838 code tree but embedded build SHA 0754260d, so it is not valid payload
-identity evidence.
+Current native workspaces are `/home/warpkeep/Warpkeep-0.4-verify-a89798c`
+(source) and `/home/warpkeep/Warpkeep-Live-plan-b6afe92` (public mirror).
+Recheck each exact HEAD and clean state before reuse. The source checkout uses
+pinned Node 22.22.3 and compatible ignored dependency links.
 
-Fresh derivation returned 1,247 members and manifest
-`65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35`; all 16
-returned bytes matched after installation, with five tracked files changed.
-Windows policy verification fails closed as `REPOSITORY_INVALID`. Five suites
-on unsupported Windows Node 24.19.0 / Vitest 4.1.11 reported 113 passes, 78
-environment failures and two skips; they need Linux paths and symlinks.
-Separate B0-closure and sealed-launch generator tests passed 15/15 on Windows.
-The repository requires Node 22.13–22.x. Dedicated Linux remains untouched at
-c1eb083b with its own five generated edits; do not use the older 0754260d
-checkout as current source. No GitHub Actions were queried or run. At 00:13
-UTC the public root was 200 and `/ptr/` was 404. After October 1, use a clean
-exact-source ext4 checkout for policy, tests and sealed-launch; then prepare
-and verify M1/M2 and live readbacks before PTR publication and owner/device
-acceptance.
+The latest verified code/closure source checkpoint is signed candidate
+[a89798c5](https://github.com/ael-dev3/Warpkeep/commit/a89798c559dee7d71ed110520615f71639cc6918)
+in open PR #374 against main 786c0b2b. Product code is 83876cba; the
+protected closure was refreshed from candidate tree
+`d9cd6258b8c7241b3ed70f1d29a7ffeccb86e7c9` with 1,247 members and manifest
+SHA-256 `65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35`.
+
+Exact-source native evidence on a clean ext4 checkout:
+- The guarded prepared-deployment policy passed with pinned Node 22.22.3.
+- The five protected suites passed 193/193 with Vitest 4.1.11. The prepared
+  workflow's 164-test mutation matrix took 291.94 seconds and completed.
+- Six focused UI files passed 123 tests. `realmMapScreen.test.tsx` emitted two
+  React `act()` warnings for `GreaterRealmWorldScene` and `RetiredRealmWorldHost`;
+  assertions passed, but the trigger is unclassified.
+- `tsc -b` and `verify:sealed-launch` passed. Run the verifier as the checkout
+  owner `warpkeep`; its Git subprocess intentionally rejects root against this
+  UID-1000 worktree.
+- Pages build configuration validation passed with current repository settings.
+  Read-only GETs supplied the variables; no workflow or run was used.
+
+A complete Node 22.22.3 production build passed with the public-release
+configuration: base `/ptr/`, exact source SHA a89798c5, shared Alpha enabled,
+admission notifications disabled, and current PTR/G001 target identities.
+Type/project, source/runtime/game-asset, production-exclusion, public-boundary
+(3,300 tracked / 1,813 scanned) and Mini App checks passed. `RealmMapScreen` is
+680.36 kB / 188.79 kB gzip; one chunk still exceeds 600 kB.
+
+The source-bound payload manifest write/check passed for 406 files and
+131,584,281 bytes, SHA-256
+`4c95453f6edbf9e774353684ce016448fff11243d0f04b45b463cd5bbaf7176f`. The
+read-only mirror plan against a clean ext4 clone of public
+`Warpkeep-Live@b6afe92` preserves 341 existing Alpha-root entries, targets 760
+files and has zero obsolete PTR output; preserved-root manifest SHA-256 is
+`7699d03b70c901e4fb8453b8b515af03376d398bf79e9eabea1c85f6e303c3ef`. The
+public repository remote still points at b6afe92. No public files changed.
+
+These payload and plan receipts are bound to source a89798c5. Rebuild and
+recheck them at the actual final candidate head after documentation or source
+commits. The initial payload attempt used the default root base and was
+correctly rejected; the successful run used the exact workflow configuration.
+The Windows-mounted public checkout also failed closed under WSL ownership/path
+checks, so future mirror planning should use an owner-matched ext4 checkout.
+
+No Actions workflow was dispatched or run, and no workflow run or check was
+queried during September. Read-only GETs to the Actions variables settings API
+provided the exact local build configuration. The last independent website
+check was 00:59 UTC: Alpha returned HTTP 200 and `/ptr/` returned HTTP 404.
+Warpkeep 0.4 remains unshipped. After October 1, run hosted
+Verify on the exact final PR head, then continue exact M1/M2 preparation,
+verification, G001 preservation, sealed G002 readback, PTR publication and
+owner/device acceptance.
 
 ## Previous shipping continuation — 29 September 2026, 01:46 CEST (23:46 UTC)
 

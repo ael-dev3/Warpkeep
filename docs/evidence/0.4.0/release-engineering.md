@@ -7,36 +7,55 @@ CI receipts. The dated engineering results below retain their original input;
 do not use an old passing run or Pages classification as a release grant for a
 later source. 0.4 remains unshipped.
 
-## Current PR candidate checkpoint — 29 September 2026, 02:33 CEST
+## Current PR candidate checkpoint — 29 September 2026, 03:08 CEST
 
-Signed source
-[`83876cba`](https://github.com/ael-dev3/Warpkeep/commit/83876cba9d23b0cb61088a0ebedd3e83406ac69f)
-is included in open PR #374 against main `786c0b2b`; this checkpoint is synced
-to origin. The change defers
-rare realm inspectors and Worker inspection until opened, with accessible
-loading fallbacks. Six focused test files passed 154 tests, `tsc -b` passed,
-and the full local production build passed. The `RealmMapScreen` entry dropped
-from 748.60 kB (202.67 kB gzip) to 680.22 kB (188.87 kB gzip); Vite still emits
-a >600 kB chunk warning. The build compiled the 838 source tree but had
-`VITE_WARPKEEP_BUILD_SHA=0754260d`, so its output is not valid source-bound
-payload evidence.
+The exact candidate source checkpoint is signed PR #374 head
+[a89798c5](https://github.com/ael-dev3/Warpkeep/commit/a89798c559dee7d71ed110520615f71639cc6918),
+against main 786c0b2b. Product code is signed 83876cba; the candidate also
+contains its refreshed protected closure family, derived from tree
+`d9cd6258b8c7241b3ed70f1d29a7ffeccb86e7c9` (1,247 members; manifest SHA-256
+`65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35`). Local,
+origin and PR head matched before these notes were edited.
 
-A fresh derivation from candidate tree `d9cd6258b8c7241b3ed70f1d29a7ffeccb86e7c9`
-returned 1,247 protected members, manifest SHA-256
-`65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35`, and 16
-generated outputs; all 16 bytes matched after installation, with five tracked
-files changed. Windows policy verification fails closed as `REPOSITORY_INVALID`.
-Five suites on unsupported Windows Node 24.19.0 / Vitest 4.1.11 reported 113
-passes, 78 environment failures and two skips; they need native Linux paths,
-permissions and symlinks. Separate B0-closure and sealed-launch generator tests
-passed 15/15 on Windows. Repository engines require Node 22.13–22.x. The prior
-protected-workflow 164-test result was on source 0754260d and does not cover
-this head. No GitHub Actions were queried or run during September. At 00:13
-UTC, the public root was HTTP 200 and `/ptr/` was HTTP 404; 0.4 is not deployed.
-Repeat closure policy, focused tests and sealed-launch checks in a clean exact
-source ext4 checkout; hosted Verify and M1/M2 preparation remain after October
-1, followed by G001 preservation, sealed G002 readback, PTR publication and
-owner/device acceptance.
+A clean exact-source ext4 checkout passed the guarded prepared deployment
+policy under pinned Node 22.22.3. Five protected release suites passed 193/193
+on Node 22.22.3 and Vitest 4.1.11; the prepared-workflow suite's 164 tests took
+291.94 seconds. Six focused UI files passed 123 tests. `realmMapScreen.test.tsx`
+emitted two React `act()` warnings for `GreaterRealmWorldScene` and
+`RetiredRealmWorldHost`; assertions passed, but the trigger is unclassified.
+`tsc -b` and checked-in sealed-launch verification passed. Run
+the sealed-launch verifier as the ext4 checkout owner (`warpkeep`), because its
+Git subprocess intentionally rejects a root-owned mismatch. The Windows Node
+24 run is not used as a source verdict.
+
+Repository build variables were fetched with read-only GETs to GitHub's Actions
+variables settings API. No Actions workflow, run or check was dispatched or
+queried. Pages configuration validation passed
+with shared Alpha enabled and admission notifications disabled. The pinned
+Node 22.22.3 production build used the exact `/ptr/` base and candidate SHA
+`a89798c559dee7d71ed110520615f71639cc6918`. Type/project, runtime and game
+assets, production exclusions, public boundary (3,300 tracked; 1,813 scanned),
+and Farcaster Mini App integrity checks passed. `RealmMapScreen` is 680.36 kB
+raw / 188.79 kB gzip; the >600 kB chunk warning remains.
+
+The source-bound public payload write and recheck passed: 406 files,
+131,584,281 bytes, manifest SHA-256
+`4c95453f6edbf9e774353684ce016448fff11243d0f04b45b463cd5bbaf7176f`. A fresh
+read-only mirror plan against clean public `Warpkeep-Live@b6afe92` preserves
+all 341 existing Alpha-root entries, targets 760 total files and finds zero
+obsolete PTR outputs. Preserved-root manifest SHA-256 is
+`7699d03b70c901e4fb8453b8b515af03376d398bf79e9eabea1c85f6e303c3ef`. The plan
+made no public change. The Windows-mounted mirror checkout is root-owned from
+WSL; use a clean ext4 checkout for this verifier.
+
+These build and manifest receipts identify source a89798c5. Any later PR-head
+commit, including this documentation refresh, needs a fresh exact-head build
+and payload check before publication. GitHub Actions remain unused through
+September by instruction. The last independent live check was 00:59 UTC on
+29 September: the existing Alpha root returned HTTP 200 and `/ptr/` HTTP 404.
+0.4 is not deployed. After October 1, require final-head hosted Verify, exact
+M1/M2 preparation and verification, G001 preservation, sealed G002 readback,
+PTR publication, and owner/device acceptance.
 
 ## Previous PR candidate checkpoint — 29 September 2026, before 83876cba
 

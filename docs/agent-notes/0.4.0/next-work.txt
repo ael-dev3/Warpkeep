@@ -1,44 +1,42 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 02:33 CEST (00:33 UTC), Europe/Budapest.
-Candidate product source is signed 83876cba; its closure refresh is staged in PR #374.
+Refreshed 29 September 2026, 03:08 CEST (01:08 UTC), Europe/Budapest.
+The latest verified code/closure checkpoint is signed PR #374 source a89798c5;
+product code is 83876cba. No Actions workflow, run or check was used in
+September; repository build variables were fetched read-only from GitHub
+settings for the exact local build.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 02:33 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 03:08 CEST
 
-Signed product source `83876cba9d23b0cb61088a0ebedd3e83406ac69f` is included
-in open candidate PR #374 against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
-This closure refresh derives from signed candidate tree
-`d9cd6258b8c7241b3ed70f1d29a7ffeccb86e7c9`. No Actions were queried or run.
+On the clean exact-source ext4 checkout, pinned Node 22.22.3 passed the
+prepared-deployment policy and five protected suites (193/193). The prepared
+workflow's 164-test matrix took 291.94 seconds. Six focused UI files passed 123
+tests. `realmMapScreen.test.tsx` emitted two React `act()` warnings for
+`GreaterRealmWorldScene` and `RetiredRealmWorldHost`. Assertions passed; the
+trigger is unclassified. `tsc -b` and checked-in sealed-launch verification
+passed. Run that verifier as worktree owner `warpkeep`; its Git trust checks
+reject root against this UID-1000 checkout.
 
-This source defers the realm inspection panels until opened, including the
-Worker inspector in both realm screen and HUD, and gives each deferred surface
-an accessible loading state. Six focused test files passed 154 tests and
-`tsc -b` passed. The full production build also passed its asset, type/project,
-production-exclusion, public-boundary (3,300 tracked / 1,815 scanned) and Mini
-App checks. Its `RealmMapScreen` entry measures 680.22 kB raw / 188.87 kB gzip,
-down from 748.60 / 202.67 kB. Rare panels are split into separate chunks; Vite
-still reports a chunk above 600 kB. The build embedded SHA 0754260d while
-compiling the code now committed as 83876cba, so it is local build evidence,
-not a source-bound PTR payload or release candidate.
+The production Pages configuration passed with current repository variables.
+The exact `/ptr/` source-bound build passed TypeScript/project, runtime/game
+asset, production-exclusion, public-boundary (3,300 tracked / 1,813 scanned) and
+Mini App checks. RealmMapScreen is 680.36 kB raw / 188.79 kB gzip, with the
+existing >600 kB chunk warning. Payload write/check passed for 406 files and
+131,584,281 bytes, manifest SHA-256
+4c95453f6edbf9e774353684ce016448fff11243d0f04b45b463cd5bbaf7176f.
 
-A fresh derivation returned the 1,247-member protected closure and manifest
-SHA-256 `65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35`;
-all 16 returned files matched after installation, with five tracked generated
-files changed. Writes were limited to those paths and each prior file matched
-its canonical Git blob. Native policy verification rejects the Windows tree as
-`REPOSITORY_INVALID`. Five suites ran under unsupported Windows Node 24.19.0 /
-Vitest 4.1.11: 113 passed, 78 failed and two skipped. Failures show Linux-only
-environment gaps (`/usr/bin/env`, `/usr/bin/git`, symlink permissions), so this
-is not a source verdict. Separate B0-closure and sealed-launch generator tests
-passed 15/15 on Windows. The repo pins Node >=22.13 <23. The native Linux
-checkout remains untouched at c1eb083b with its own five generated-file edits;
-obtain a clean exact-source ext4 checkout for policy, tests and
-`verify:sealed-launch` checks.
+A fresh read-only plan against clean public Warpkeep-Live main b6afe92 preserves
+341 existing Alpha-root entries, targets 760 files, and has zero obsolete PTR
+outputs. No public file changed. The plan and payload identify source a89798c5;
+rebuild at the final PR head after documentation or source commits. The
+Windows-mounted public checkout fails the Linux verifier's ownership boundary;
+reuse a clean ext4 public checkout. The initial default-root payload attempt
+failed closed; the workflow-matched `/ptr/` build and recheck passed.
 
-At 00:13 UTC, `warpkeep.com` returned HTTP 200 and `/ptr/` returned HTTP 404.
-The existing Alpha is live; 0.4 PTR remains unavailable. After October 1,
-resume hosted Verify and native exact-source checks, then complete exact M1/M2
-preparation and verification, G001 preservation, sealed G002 readback, PTR
-publication and owner/device acceptance.
+At 00:59 UTC, the last independent live check saw the Alpha root at HTTP 200
+and `/ptr/` at HTTP 404; 0.4 remains unshipped. After October 1, require hosted
+Verify on the exact final head, then complete exact M1/M2 preparation and
+verification, G001 preservation, sealed G002 readback, PTR publication, and
+owner/device acceptance.
 
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 01:46 CEST
 
