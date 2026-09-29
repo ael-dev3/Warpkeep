@@ -4,12 +4,15 @@ import type { Placement04 } from '../../spacetimedb/gameplay04/placement';
 import { Keep04Screen, type Keep04UiSelection } from '../components/keep04/Keep04Screen';
 import { GreaterRealmWorldScene, type WorldSelection04 } from '../components/realm/GreaterRealmWorldScene';
 import { lyricFilmCastleIdFromPtrAnchor } from '../components/realm/castleLyricFilmEligibility';
-import type { RealmMapScreenProps } from '../components/realm/RealmMapScreen';
+import type { RealmIdentity } from '../components/realm/realmTypes';
+import type { GraphicsQualityTier } from '../settings/graphicsPreference';
+import type { GreaterRealmProviderBridge } from '../spacetime/greaterRealmProviderBridge';
 import type { RealmSurfaceRoute } from '../components/realm/realmSurfaceNavigation';
 import { useRealmSurfaceNavigation } from '../components/realm/useRealmSurfaceNavigation';
 import { useReducedMotionPreference } from '../components/realm/realmMapPresentationHelpers';
 import { useMiniAppHost, useMiniAppBackNavigation } from '../farcaster/miniapp';
-import { resolvePtrRealmPresentation } from './ptrRealmPresentationPolicy';
+import { resolvePtrRealmPresentation, type PtrRealmViewAnchor } from './ptrRealmPresentationPolicy';
+import type { PtrRealmAuthority } from './ptrRealmAuthClient';
 import { isCurrentPtrGameplay04Capability, type PtrGameplay04Capability } from './ptrRealmConnection';
 import { useGameplay04Controller } from './gameplay04/useGameplay04Controller';
 import type { Controller04, Snapshot04 } from './gameplay04/createGameplay04Controller';
@@ -17,7 +20,22 @@ import type { WorkerView04 } from './gameplay04/gameplay04Presentation';
 import { PtrSessionRenewalNotice } from './PtrSessionContinuation';
 import { formatKeep04Duration } from '../components/keep04/formatKeep04Duration';
 
-type Props = RealmMapScreenProps & { ptrGameplay04: PtrGameplay04Capability };
+export type PtrGameplay04SurfaceProps = Readonly<{
+  identity: RealmIdentity;
+  ptrRealmAuthority?: PtrRealmAuthority;
+  ptrViewAnchor?: PtrRealmViewAnchor;
+  ptrGameplay04?: PtrGameplay04Capability;
+  ptrInitialSurface?: 'world' | 'keep';
+  onPtrSurfaceChange?: (surface: 'world' | 'keep') => void;
+  onPtrCommandStateChange?: (unconfirmed: boolean) => void;
+  ptrContinuationNotice?: boolean;
+  onDismissPtrContinuationNotice?: () => void;
+  greaterRealm?: GreaterRealmProviderBridge;
+  resolvedGraphicsQuality?: GraphicsQualityTier;
+  onLyricFilmOpenChange?: (open: boolean, requestClose?: () => void) => void;
+  onRequestReturn: () => void;
+}>;
+type Props = PtrGameplay04SurfaceProps;
 const BUILDINGS: readonly Building04[] = ['city-mill', 'lumber-camp', 'city-stoneworks', 'city-goldworks', 'city-barracks', 'grand-covenant-cathedral'];
 function buildingKind(value: string): value is Building04 { return BUILDINGS.includes(value as Building04); }
 function isWorkerOrdinal04(value: unknown): value is number {
@@ -27,7 +45,10 @@ function isWorkerOrdinal04(value: unknown): value is number {
 /** The outer boundary stays inert for an expired, copied or mismatched capability. */
 export function PtrGameplay04SurfaceHost(props: Props): ReactElement {
   const { ptrRealmAuthority: authority, ptrViewAnchor: anchor, greaterRealm: bridge, ptrGameplay04: capability } = props;
-  if (!authority || !anchor || !bridge || bridge.phase !== 'available' || bridge.presentationAllowed !== true
+  if (!authority || !anchor || !bridge || bridge.phase !== 'available' || !capability) {
+    return <main><p role="status">PTR is unavailable.</p><button onClick={props.onRequestReturn}>Return to Menu</button></main>;
+  }
+  if (bridge.presentationAllowed !== true
     || !resolvePtrRealmPresentation({ authority, viewAnchor: anchor, legacySurfacePresent: false })
     || props.identity.fid !== authority.fid
     || !isCurrentPtrGameplay04Capability(capability, authority, bridge.sessionGeneration)
@@ -36,10 +57,19 @@ export function PtrGameplay04SurfaceHost(props: Props): ReactElement {
     return <main><p role="status">PTR is unavailable.</p><button onClick={props.onRequestReturn}>Return to Menu</button></main>;
   }
   const identityKey = [capability.scope.generation, capability.scope.databaseIdentity, anchor.castleId, anchor.q, anchor.r, authority.fid].join(':');
-  return <CurrentSurface {...props} key={identityKey} identityKey={identityKey} />;
+  return <CurrentSurface {...props} ptrRealmAuthority={authority} ptrViewAnchor={anchor}
+    greaterRealm={bridge} ptrGameplay04={capability} key={identityKey} identityKey={identityKey} />;
 }
 
-function CurrentSurface(props: Props & { identityKey: string }) {
+type CurrentProps = Props & Readonly<{
+  ptrRealmAuthority: PtrRealmAuthority;
+  ptrViewAnchor: PtrRealmViewAnchor;
+  greaterRealm: AvailableBridge;
+  ptrGameplay04: PtrGameplay04Capability;
+  identityKey: string;
+}>;
+
+function CurrentSurface(props: CurrentProps) {
   const miniAppHost = useMiniAppHost();
   const reducedMotion = useReducedMotionPreference();
   const { controller, snapshot } = useGameplay04Controller(props.ptrGameplay04);
@@ -171,7 +201,7 @@ function CurrentSurface(props: Props & { identityKey: string }) {
   </main>;
 }
 
-type AvailableBridge = Extract<NonNullable<RealmMapScreenProps['greaterRealm']>, { phase: 'available' }>;
+type AvailableBridge = Extract<GreaterRealmProviderBridge, { phase: 'available' }>;
 const DURATIONS = [['60 seconds', 60_000_000n], ['10 minutes', 600_000_000n], ['1 hour', 3_600_000_000n], ['8 hours', 28_800_000_000n]] as const;
 
 function JourneyRoute({ worker }: { worker: WorkerView04 }) {

@@ -85,6 +85,11 @@ const RealmMapScreen = lazy(async () => {
   return { default: module.RealmMapScreen };
 });
 
+const PtrGameplay04SurfaceHost = lazy(async () => {
+  const module = await import('../ptr/PtrGameplay04SurfaceHost');
+  return { default: module.PtrGameplay04SurfaceHost };
+});
+
 const WarpkeepMenuWorld3D = lazy(async () => {
   const module = await import('./menu/WarpkeepMenuWorld3D');
   return { default: module.WarpkeepMenuWorld3D };
@@ -1273,7 +1278,7 @@ export function WarpkeepExperience() {
             && ptrRealm.authority !== null
             && ptrRealm.bridge !== null
             && ptrRealm.viewAnchor !== null ? (
-              <RealmMapScreen
+              <PtrGameplay04SurfaceHost
                 identity={realmIdentity}
                 ptrRealmAuthority={ptrRealm.authority}
                 ptrViewAnchor={ptrRealm.viewAnchor}
@@ -1284,14 +1289,9 @@ export function WarpkeepExperience() {
                 ptrContinuationNotice={ptrContinuationNotice}
                 onDismissPtrContinuationNotice={dismissPtrContinuationNotice}
                 greaterRealm={ptrRealm.bridge}
-                graphicsPreference={graphicsPreference}
                 resolvedGraphicsQuality={resolvedGraphicsQuality}
-                audioMuted={audioMuted}
                 onLyricFilmOpenChange={setLyricFilmOpen}
-                onGraphicsPreferenceChange={updateGraphicsPreference}
-                onAudioMutedChange={updateAudioMuted}
                 onRequestReturn={returnRealmToMenu}
-                qualityOverride={realmProfileForQuality(resolvedGraphicsQuality)}
               />
             ) : backend.state.realm || backend.state.legacyRealmAuthority === 'retired' ? (
               <RealmMapScreen

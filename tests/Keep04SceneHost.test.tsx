@@ -642,6 +642,15 @@ it('contains visual reconciliation failures without unmounting the React host', 
   expect(mounted.container.querySelector('[aria-label="Verdant Citadel scene"]')).not.toBeNull();
 });
 
+it('fails closed when the PTR route has no current gameplay capability', () => {
+  const onRequestReturn = vi.fn();
+  render(<PtrGameplay04SurfaceHost identity={{ fid: 1 }} onRequestReturn={onRequestReturn} />);
+  expect(screen.getByRole('status')).toHaveTextContent('PTR is unavailable.');
+  fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
+  expect(onRequestReturn).toHaveBeenCalledOnce();
+  expect(loader.loadKeep04Assets).not.toHaveBeenCalled();
+});
+
 it('cycles the real PTR world/keep host twice with one renderer, one controller refresh owner and no leaked listeners or assets', async () => {
   const now = Math.floor(Date.now() / 1000) * 1000; const databaseIdentity = 'd'.repeat(64); const anchor = { castleId: 1, q: -2, r: 1 };
   const segment = (value: unknown) => btoa(JSON.stringify(value)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '');

@@ -28,7 +28,10 @@ construction semantics. New 0.4 work starts in `components/keep04`,
 
 Start with [`App.tsx`](../../../src/App.tsx) and
 [`WarpkeepExperience.tsx`](../../../src/components/WarpkeepExperience.tsx) to see
-provider nesting, entry and realm selection. For a PTR Worker dispatch, follow:
+provider nesting, entry and realm selection. `WarpkeepExperience` lazily loads
+`PtrGameplay04SurfaceHost` for PTR and keeps `RealmMapScreen` on the Genesis 001
+route, so the 0.4 owner path does not download the legacy renderer. For a PTR
+Worker dispatch, follow:
 
 1. [`PtrRealmProvider.tsx`](../../../src/ptr/PtrRealmProvider.tsx) obtains owner
    access via [`ptrRealmAuthClient.ts`](../../../src/ptr/ptrRealmAuthClient.ts).

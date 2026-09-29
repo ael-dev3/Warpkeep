@@ -7,6 +7,7 @@ const hookState = vi.hoisted(() => ({
   miniApp: {} as Record<string, unknown>,
   miniAppBack: undefined as (() => void) | undefined,
   gameplayProbe: false,
+  legacyRealmScreenLoaded: false,
 }));
 
 vi.mock('../src/farcaster/FarcasterAuthProviderCore', () => ({
@@ -37,6 +38,14 @@ vi.mock('../src/components/menu/WarpkeepMenuWorld3D', async () => {
 });
 
 vi.mock('../src/components/realm/RealmMapScreen', async () => {
+  const { createElement } = await import('react');
+  hookState.legacyRealmScreenLoaded = true;
+  return {
+    RealmMapScreen: () => createElement('main', { 'aria-label': 'Legacy realm renderer' }),
+  };
+});
+
+vi.mock('../src/ptr/PtrGameplay04SurfaceHost', async () => {
   const { createElement, useLayoutEffect } = await import('react');
   function GameplayProbe(props: Record<string, unknown>) {
     const { controller, snapshot } = useGameplay04Controller(props.ptrGameplay04 as import('../src/ptr/ptrRealmConnection').PtrGameplay04Capability);
@@ -58,7 +67,7 @@ vi.mock('../src/components/realm/RealmMapScreen', async () => {
     );
   }
   return {
-    RealmMapScreen: (props: Record<string, unknown>) => createElement(
+    PtrGameplay04SurfaceHost: (props: Record<string, unknown>) => createElement(
       'main',
       {
         'aria-label': 'PTR realm test surface',
@@ -357,6 +366,7 @@ beforeEach(() => {
   installBrowserStubs();
   hookState.miniAppBack = undefined;
   hookState.gameplayProbe = false;
+  hookState.legacyRealmScreenLoaded = false;
   hookState.farcaster = Object.freeze({
     state: Object.freeze({ phase: 'anonymous' }),
     accessRequest: Object.freeze({ phase: 'request-available' }),
@@ -532,6 +542,7 @@ describe('Warpkeep PTR realm integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
 
     const ptrSurface = await screen.findByRole('main', { name: 'PTR realm test surface' });
+    expect(hookState.legacyRealmScreenLoaded).toBe(false);
     expect(ptrSurface.getAttribute('data-has-ptr-authority')).toBe('true');
     expect(ptrSurface.getAttribute('data-has-ptr-gameplay')).toBe('true');
     expect(ptrSurface.getAttribute('data-ptr-castle-id')).toBe(String(OWNER_FID));
