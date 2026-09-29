@@ -1,63 +1,49 @@
 # Continue Warpkeep 0.4
 
-## Current shipping continuation — 29 September 2026, 03:08 CEST (01:08 UTC)
+## Current shipping continuation — 29 September 2026, 03:30 CEST (01:30 UTC)
 
-Current native workspaces are `/home/warpkeep/Warpkeep-0.4-verify-a89798c`
-(source) and `/home/warpkeep/Warpkeep-Live-plan-b6afe92` (public mirror).
-Recheck each exact HEAD and clean state before reuse. The source checkout uses
-pinned Node 22.22.3 and compatible ignored dependency links.
+Open PR #374 now contains signed integration commit
+[`758d655b`](https://github.com/ael-dev3/Warpkeep/commit/758d655b2344cfdf0d51e00bd3153754a97cc071)
+carrying the current tree implementation from PR #378, plus signed product fix
+[`be04c322`](https://github.com/ael-dev3/Warpkeep/commit/be04c3221aaffa880d329ad26e495b13c2fae84d).
+The tested product-code tree is `be04c322`; this handoff update changes only
+documentation. The v3 set covers all 20 tree-bearing biomes and contains 40
+profile-specific GLBs totaling 2,738,208 bytes. High selects near geometry;
+Balanced and Reduced select mobile geometry. Their per-biome instancing and
+existing upload budgets remain in place.
 
-The latest verified code/closure source checkpoint is signed candidate
-[a89798c5](https://github.com/ael-dev3/Warpkeep/commit/a89798c559dee7d71ed110520615f71639cc6918)
-in open PR #374 against main 786c0b2b. Product code is 83876cba; the
-protected closure was refreshed from candidate tree
-`d9cd6258b8c7241b3ed70f1d29a7ffeccb86e7c9` with 1,247 members and manifest
-SHA-256 `65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35`.
+Review found that the incoming catalog used domain-root model URLs, which
+would miss assets in the `/ptr/` app. The loader now prefixes Vite's deployment
+base and evicts rejected requests from its cache so a later view can retry.
+Focused Node 22.22.3 / Vitest 4.1.11 coverage passed 51/51 across four Greater
+Realm suites, including base-path resolution and a failed-then-successful
+mobile fetch. A full `/ptr/` build script pass verified TypeScript, asset
+integrity, production exclusions, public boundary (3,345 tracked paths / 1,903
+scanned entries), and Mini App integrity. The temporary worktree had no npm
+CLI, so the exact `scripts.build` command string was executed directly; its
+first attempt exposed a missing ignored auth-bridge dependency link, which was
+reused from the existing lock-matched checkout before the successful pass.
 
-Exact-source native evidence on a clean ext4 checkout:
-- The guarded prepared-deployment policy passed with pinned Node 22.22.3.
-- The five protected suites passed 193/193 with Vitest 4.1.11. The prepared
-  workflow's 164-test mutation matrix took 291.94 seconds and completed.
-- Six focused UI files passed 123 tests. `realmMapScreen.test.tsx` emitted two
-  React `act()` warnings for `GreaterRealmWorldScene` and `RetiredRealmWorldHost`;
-  assertions passed, but the trigger is unclassified.
-- `tsc -b` and `verify:sealed-launch` passed. Run the verifier as the checkout
-  owner `warpkeep`; its Git subprocess intentionally rejects root against this
-  UID-1000 worktree.
-- Pages build configuration validation passed with current repository settings.
-  Read-only GETs supplied the variables; no workflow or run was used.
+The production bundle remains 680.36 kB / 188.78 kB gzip for
+`RealmMapScreen`, above the 600 kB warning threshold. Asset budgets and local
+build verification do not establish physical-phone performance. No PTR is
+available for owner play. Warpkeep-Assets PR #41's source-release attachment
+is still unpublished; Warpkeep's own runtime copies are hash-pinned and pass
+the build verifier without an external download. Retain #41 as the open
+long-term source archive/provenance follow-up.
 
-A complete Node 22.22.3 production build passed with the public-release
-configuration: base `/ptr/`, exact source SHA a89798c5, shared Alpha enabled,
-admission notifications disabled, and current PTR/G001 target identities.
-Type/project, source/runtime/game-asset, production-exclusion, public-boundary
-(3,300 tracked / 1,813 scanned) and Mini App checks passed. `RealmMapScreen` is
-680.36 kB / 188.79 kB gzip; one chunk still exceeds 600 kB.
+Payload and public-mirror plan receipts at a89798c5 predate the added tree
+models; they are stale and must be regenerated against the final candidate
+head. The last independent live check at 00:59 UTC saw Alpha return HTTP 200
+and `/ptr/` return HTTP 404. Warpkeep 0.4 remains unshipped.
 
-The source-bound payload manifest write/check passed for 406 files and
-131,584,281 bytes, SHA-256
-`4c95453f6edbf9e774353684ce016448fff11243d0f04b45b463cd5bbaf7176f`. The
-read-only mirror plan against a clean ext4 clone of public
-`Warpkeep-Live@b6afe92` preserves 341 existing Alpha-root entries, targets 760
-files and has zero obsolete PTR output; preserved-root manifest SHA-256 is
-`7699d03b70c901e4fb8453b8b515af03376d398bf79e9eabea1c85f6e303c3ef`. The
-public repository remote still points at b6afe92. No public files changed.
-
-These payload and plan receipts are bound to source a89798c5. Rebuild and
-recheck them at the actual final candidate head after documentation or source
-commits. The initial payload attempt used the default root base and was
-correctly rejected; the successful run used the exact workflow configuration.
-The Windows-mounted public checkout also failed closed under WSL ownership/path
-checks, so future mirror planning should use an owner-matched ext4 checkout.
-
-No Actions workflow was dispatched or run, and no workflow run or check was
-queried during September. Read-only GETs to the Actions variables settings API
-provided the exact local build configuration. The last independent website
-check was 00:59 UTC: Alpha returned HTTP 200 and `/ptr/` returned HTTP 404.
-Warpkeep 0.4 remains unshipped. After October 1, run hosted
-Verify on the exact final PR head, then continue exact M1/M2 preparation,
-verification, G001 preservation, sealed G002 readback, PTR publication and
-owner/device acceptance.
+No GitHub Actions workflow was dispatched, rerun, or queried in September.
+The current source commits include `[skip actions]` so pushes do not start the
+repository's `push` or `pull_request` workflows. Those skipped checks remain
+pending and do not allow PR #374 to merge. After October 1, first confirm the
+owner's current direction, then require Verify on the exact final head. Continue
+with exact M1/M2 preparation and verification, G001 preservation, sealed G002
+readback, PTR publication, and owner/device acceptance.
 
 ## Previous shipping continuation — 29 September 2026, 01:46 CEST (23:46 UTC)
 

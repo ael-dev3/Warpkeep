@@ -1,42 +1,40 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 03:08 CEST (01:08 UTC), Europe/Budapest.
-The latest verified code/closure checkpoint is signed PR #374 source a89798c5;
-product code is 83876cba. No Actions workflow, run or check was used in
-September; repository build variables were fetched read-only from GitHub
-settings for the exact local build.
+Refreshed 29 September 2026, 03:30 CEST (01:30 UTC), Europe/Budapest.
+The current product-code checkpoint is signed PR #374 commit be04c322,
+including the reviewed tree implementation from PR #378. The candidate remains
+unshipped; old a89798c5 payload and mirror-plan receipts are stale after the
+40-model addition.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 03:08 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 03:30 CEST
 
-On the clean exact-source ext4 checkout, pinned Node 22.22.3 passed the
-prepared-deployment policy and five protected suites (193/193). The prepared
-workflow's 164-test matrix took 291.94 seconds. Six focused UI files passed 123
-tests. `realmMapScreen.test.tsx` emitted two React `act()` warnings for
-`GreaterRealmWorldScene` and `RetiredRealmWorldHost`. Assertions passed; the
-trigger is unclassified. `tsc -b` and checked-in sealed-launch verification
-passed. Run that verifier as worktree owner `warpkeep`; its Git trust checks
-reject root against this UID-1000 checkout.
+PR #374 now contains signed commit 758d655 carrying PR #378's current tree
+implementation, followed by signed fix be04c322. Pinned Node 22.22.3 / Vitest
+4.1.11 passed four focused Greater Realm suites (51/51). Coverage includes all
+tree-bearing biomes, mobile geometry budgets, deployment-base URL resolution,
+and retry after a transient failed fetch. Runtime tests keep the asynchronous
+loader isolated, so expected missing-browser-URL warnings no longer pollute
+the result.
 
-The production Pages configuration passed with current repository variables.
-The exact `/ptr/` source-bound build passed TypeScript/project, runtime/game
-asset, production-exclusion, public-boundary (3,300 tracked / 1,813 scanned) and
-Mini App checks. RealmMapScreen is 680.36 kB raw / 188.79 kB gzip, with the
-existing >600 kB chunk warning. Payload write/check passed for 406 files and
-131,584,281 bytes, manifest SHA-256
-4c95453f6edbf9e774353684ce016448fff11243d0f04b45b463cd5bbaf7176f.
+The full root build script passed locally at DEPLOY_BASE=/ptr/, including
+TypeScript, all asset verifiers, production exclusions, public boundary (3,345
+tracked paths / 1,903 scanned entries), and Mini App integrity. It was run
+against the exact product-code tree but without a source-SHA-bound deployment
+environment. RealmMapScreen remains 680.36 kB / 188.78 kB gzip; Vite's
+existing >600 kB warning remains. Warpkeep-Assets #41 has not published the
+v3 source-release attachment; its PR source remains the public provenance route.
 
-A fresh read-only plan against clean public Warpkeep-Live main b6afe92 preserves
-341 existing Alpha-root entries, targets 760 files, and has zero obsolete PTR
-outputs. No public file changed. The plan and payload identify source a89798c5;
-rebuild at the final PR head after documentation or source commits. The
-Windows-mounted public checkout fails the Linux verifier's ownership boundary;
-reuse a clean ext4 public checkout. The initial default-root payload attempt
-failed closed; the workflow-matched `/ptr/` build and recheck passed.
+No new payload or public-mirror plan was created. The a89798c5 receipts predate
+these models and must not be reused. Rebuild both from the final candidate head
+with the current release configuration before publication; preserve the 341
+Alpha-root entries when planning the public mirror.
 
-At 00:59 UTC, the last independent live check saw the Alpha root at HTTP 200
-and `/ptr/` at HTTP 404; 0.4 remains unshipped. After October 1, require hosted
-Verify on the exact final head, then complete exact M1/M2 preparation and
-verification, G001 preservation, sealed G002 readback, PTR publication, and
-owner/device acceptance.
+At the latest live check (00:59 UTC), Alpha returned HTTP 200 and /ptr/ returned
+HTTP 404; 0.4 remains unshipped. No Actions workflow, run, or check was used in
+September. Keep [skip actions] on the final September push; the required hosted
+checks will remain pending, so do not merge #374. After October 1, check the
+owner's current direction, then require exact-head Verify before M1/M2
+preparation and verification, G001 preservation, sealed G002 readback, PTR
+publication/readback, and owner/device acceptance.
 
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 01:46 CEST
 

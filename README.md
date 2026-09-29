@@ -59,15 +59,18 @@ PR #375 remains open as source provenance; its older branch must not be merged
 separately. The candidate is a polished visual foundation around the existing
 gather, dispatch, return and construction loop.
 
-Local Windows verification on September 28 passed the disposable full-stack
-journey across six desktop/mobile profiles and the complete rendered-WebGL
-matrix across 15 cases. The production build also passed asset integrity,
-production exclusion, public-boundary and Farcaster Mini App checks. The
-`RealmMapScreen` bundle remains 748.56 kB (202.65 kB gzip), a measured mobile
-load follow-up. These are local synthetic checks; they do not establish live
-provider state, physical-phone comfort, or release acceptance. The owner has
-paused GitHub Actions for September, so this checkpoint makes no hosted-check
-claim.
+Pinned Node 22.22.3 local verification on September 29 passed the four focused
+Greater Realm suites (51 tests) and the complete `/ptr/` production build,
+including the v3 asset verifier, production exclusions, public-boundary scan
+(3,345 tracked paths / 1,903 scanned entries), and Farcaster Mini App checks.
+The 40 runtime tree models total 2,738,208 bytes; Balanced and Reduced select
+the mobile meshes, and asset URLs follow the `/ptr/` base. The loader also
+retries on a later view after a failed fetch. `RealmMapScreen` remains 680.36
+kB (188.78 kB gzip), above Vite's 600 kB warning threshold. This validates a
+local build of product code commit `be04c322`; it is not a source-SHA-bound
+release payload, physical-phone measurement, live provider check, or release
+acceptance. The owner paused GitHub Actions for September, so the candidate
+has no new hosted-check claim.
 
 The public root serves Alpha 0.3.43 (HTTP 200), while
 `https://warpkeep.com/ptr/` returns HTTP 404. No 0.4 PTR has been published.
@@ -83,10 +86,13 @@ current evidence and gates.
 
 Genesis 002 soundtrack PR #377 remains deferred because G002 is sealed and no
 current player path can exercise the new score on the owner PTR. Warpkeep-Assets
-PR #39 proposes a source archive; #40 is a study reference pending packed-image
-rights verification; #41 needs its published model attachment and local mobile
-budget/integration checks. Those archives are not needed for the current
-candidate's reviewed tree presentation.
+PR #41 still has an unpublished v3 source-release attachment; its source branch
+is linked from the tree provenance record. Warpkeep carries the reviewed,
+hash-pinned runtime copies and its production verifier passes without fetching
+that archive. Treat archive publication as an asset-source recovery and
+provenance follow-up; no physical-phone performance claim follows from the
+model triangle budgets. PR #40 remains a study reference pending packed-image
+rights verification.
 
 | Realm | Purpose |
 | --- | --- |
