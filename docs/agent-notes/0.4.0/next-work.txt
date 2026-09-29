@@ -1,45 +1,41 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 15:18 CEST (13:18 UTC), Europe/Budapest.
+Refreshed 29 September 2026, 15:56 CEST (13:56 UTC), Europe/Budapest.
 
-CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 15:18 CEST
+CURRENT SHIPPING CHECKPOINT — 29 SEPTEMBER, 15:56 CEST
 
-Signed candidate head `148825a116ea167e07ebad8f3af0842958c2e4cd` is synchronized
-across the Windows development checkout, GitHub origin and idle WarpkeepRunner
-on `fix/g001-census-admission-proxy`. PR #374 is open and not a draft against
-main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The tested product source is
-`65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5`. No GitHub Actions were queried,
+Signed candidate head 8cdf8967c96897ea9c3b512b9d9b77f2a2feffdf is synchronized
+across the Windows checkout, GitHub origin and idle WarpkeepRunner on
+fix/g001-census-admission-proxy. PR #374 is open and not a draft against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. Product source remains
+65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5. No GitHub Actions were queried,
 dispatched, rerun or used during September.
 
-Focused Keep04 suites pass 116/116 and TypeScript passes. The guarded synthetic
-Chrome capture covers 36 cases with no overflow or cleanup failures; its
-privacy-safe browser-log warning per document remains under review. No phone
-performance or real-owner gameplay claim follows from the browser capture.
+The full native Linux suite now completes successfully as UID 1000 warpkeep,
+with Node 22.22.3, npm 10.9.8 and SpacetimeDB 2.6.1: 692 files passed / 1
+skipped, 12,577 tests passed / 97 skipped, exit 0 in 871.42 seconds. The raw
+log has nine context canceled messages, but no test failures; the earlier exit-1
+run was not reproduced and its cause remains unknown. The earlier Windows CLI
+inside WSL result remains invalid cross-OS evidence.
 
-A complete native Linux run on test input
-`92fb93d0a89a84b90f108f248ec4b377415504dd` reported 692 files passed / 1
-skipped and 12,577 tests passed / 97 skipped, but Vitest exited 1 after
-printing `context canceled`. Record this as unresolved runner status, not as a
-clean full-suite pass. Isolated `ptrRealmBackend.test.ts` and the slow
-`ptrProductionExistingUpdateContinuation.test.ts` passed 15/15 and 37/37 with
-exit 0, respectively. The preceding WSL run with the Windows SpacetimeDB
-binary is an invalid cross-OS result and is documented in the execution handoff.
+At 8cdf8967 the exact /ptr/ build passed TypeScript, asset integrity, production
+exclusions, public-boundary verification (3,347 tracked paths / 1,902 scanned
+entries) and Farcaster integrity. Its payload contains 445 files / 134,453,821
+bytes; manifest SHA-256 188cdb42c41309199ca6faa357d3e25809c889fe2bddd1c2aa78ceaf2c15b1ec;
+content SHA-256 1121505aef6c8beb8a03d67298d1be0912c4adefcee6dc6c7beeb6f5311f44fd.
+The read-only mirror plan preserves 341 live Alpha-root entries, targets 799
+files, removes zero obsolete generated paths and has SHA-256
+a848eccfa559e74082c3198747b0e38f40a60a4f7cc2b7300fd523cf36686bdc. Refresh
+both ignored receipts after this documentation update and bind them to the final
+pushed head.
 
-At exact head `148825a1`, pinned Node 22.22.3 / npm 10.9.8 root and `/ptr/`
-production builds pass asset integrity, production exclusions, the 3,347-path /
-1,902-entry public-boundary scan and Farcaster integrity. The local `/ptr/`
-payload binds 445 files / 134,453,821 bytes to this source; the read-only plan
-preserves 341 live Alpha-root entries, targets 799 files and removes zero
-obsolete paths. Its ignored receipt hashes are in the execution handoff and
-must be regenerated after this documentation checkpoint.
-
-Sealed-launch preparation still has Pages approval false, package version
-`0.3.43`, no G001/G002/PTR release identities, and PTR presentation disabled.
-The Alpha root is HTTP 200 and `/ptr/` is HTTP 404; no 0.4 deployment occurred.
-Keep PR #374 open and do not publish `Warpkeep-Live/main` or PTR during the
-September pause. Remaining work: resolve the full-suite process exit; complete
-source-bound release M1/M2 and provider readback after the pause; review the
-browser diagnostic; obtain physical-device performance and actual owner-PTR
-acceptance. Continue local, exact-source work without Actions.
+The exact-head preparation verifier reports package 0.3.43, Pages approval
+false, G001/G002/PTR identities unset and PTR presentation disabled. The public
+root returned HTTP 200 and /ptr/ returned 404. No 0.4 deployment occurred.
+Keep PR #374 open and do not publish Warpkeep-Live/main or PTR during the
+September pause. Remaining work is final exact-head receipts, signed release
+M1/M2 and live provider readback after the pause, browser-warning review,
+physical-device performance and owner PTR acceptance. Continue local exact-
+source work without Actions.
 
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 13:06 CEST
 

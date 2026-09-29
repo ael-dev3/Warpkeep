@@ -1,65 +1,57 @@
 # Continue Warpkeep 0.4
 
-## September no-Actions continuation — 29 September 2026, 15:18 CEST (13:18 UTC)
+## September no-Actions continuation — 29 September 2026, 15:56 CEST (13:56 UTC)
 
-Product source `65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5` remains the tested
-candidate on `fix/g001-census-admission-proxy`. Windows, origin, the clean idle
-WarpkeepRunner checkout and open PR #374 now match signed head
-`148825a116ea167e07ebad8f3af0842958c2e4cd`, against main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. PR #374 is not a draft. No GitHub
-Actions were queried, dispatched, rerun or used in September.
+Product source 65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5 remains the tested
+candidate on fix/g001-census-admission-proxy. Windows, origin, the clean idle
+WarpkeepRunner checkout and open PR #374 match signed head
+8cdf8967c96897ea9c3b512b9d9b77f2a2feffdf against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. PR #374 is not a draft. No GitHub
+Actions were queried, dispatched, rerun or used during September.
 
-The product change frames the existing rear and side forest bands with a
-single-geometry, three-instance shallow bank and adds two units of horizontal
-scenic-camera room. Tree count, support geometry and game authority are
-unchanged. Five focused Keep04 suites passed 116/116, TypeScript passed, and a
-guarded Chrome capture covered 36 stable-source scenarios over four viewport
-profiles with no guard violation, overflow or cleanup failure. Representative
-desktop/mobile renders and fallback were reviewed. One privacy-safe browser-log
-security warning per document still requires review; synthetic captures do not
-establish phone performance or owner acceptance. See
-[visual evidence](../../evidence/0.4.0/visuals.md). The G001
-`RealmMapScreen` warning remains 677.78 kB raw / 188.22 kB gzip.
+The product change frames existing rear and side forest bands with a
+single-geometry, three-instance shallow bank and adds two units of scenic-camera
+room. Tree count, support geometry and game authority are unchanged. Five focused
+Keep04 suites passed 116/116, TypeScript passed, and a guarded Chrome capture
+covered 36 synthetic cases over four viewport profiles with no guard violation,
+overflow or cleanup failure. Synthetic evidence does not establish phone
+performance or owner acceptance. One privacy-safe browser-log warning per
+document remains under review; RealmMapScreen is 677.80 kB raw / 188.23 kB gzip.
 
-The corrected full Vitest run used `warpkeep` UID 1000, pinned Node 22.22.3,
-npm 10.9.8 and native Linux SpacetimeDB 2.6.1 at test input
-`92fb93d0a89a84b90f108f248ec4b377415504dd` (product source is unchanged from
-`65b3d6cd`). Vitest reported 692 files passed / 1 skipped and 12,577 tests
-passed / 97 skipped, with no failed test listed, but the overall process exited
-1 after printing `context canceled`. This is **not recorded as a clean full-suite
-pass**; its runner-level nonzero remains unresolved. The isolated slow
-`ptrProductionExistingUpdateContinuation.test.ts` rerun passed 37/37 with exit
-0 and no cancellation diagnostic. The native `ptrRealmBackend.test.ts` rerun
-passed 15/15. The earlier full run with Windows `spacetime.exe` remains invalid
-for WSL; its two path/cleanup failures are documented below. Do not hide either
-the cross-OS mistake or the corrected runner's unresolved exit code.
+The full native Linux suite was rerun from exact checkout head 8cdf8967 as
+UID 1000 warpkeep, with Node 22.22.3, npm 10.9.8 and native SpacetimeDB 2.6.1.
+Command: npm test -- --reporter=dot. Vitest 4.1.11 completed in 871.42 seconds
+with exit 0: 692 test files passed / 1 skipped; 12,577 tests passed / 97
+skipped; no test failed. The raw output still contained nine context canceled
+messages, but the completed process and test summary were successful. This clean
+repeat supersedes the earlier exit-1 run, whose cause was not isolated. The
+isolated ptrProductionExistingUpdateContinuation suite passed 37/37 and native
+ptrRealmBackend passed 15/15. The prior run using Windows spacetime.exe from WSL
+remains invalid cross-OS evidence; its two environment-specific failures remain
+documented.
 
-At exact PR head `148825a1`, pinned Node 22.22.3 / npm 10.9.8 root and `/ptr/`
-production builds passed TypeScript, asset integrity, production exclusions,
-the 3,347-path / 1,902-entry public-boundary scan and Farcaster integrity.
-`DEPLOY_BASE=/ptr/` used the full candidate SHA and disabled admission
-notifications. The candidate payload contains 445 files / 134,453,821 bytes;
-payload-manifest SHA-256 is
-`cda1e8e0c7d441c0420e46cab58a7d42883273910526b12747502767408f67dc` and content
-manifest SHA-256 is
-`f1552bec6640c06e57ba45eef408a532a42fbe0182124fa95894aada2a45d268`. The
-read-only mirror plan against clean `Warpkeep-Live@b6afe92e` preserves 341
-Alpha-root entries, targets 799 files, removes zero obsolete generated files,
-and has plan SHA-256
-`0e2520bbf3718c95637fdbbf4b749571b6ffb50cbefb4f384bfbe1d122f7b078`.
-These payload and plan files are ignored local receipts, not permission to
-publish; refresh them after this documentation commit because their source SHA
-is exact-head bound. The initial rebuild found root-owned files inside ignored
-`dist/`; after verifying that exact generated path had no symlinks, ownership
-was repaired only within `dist/`, and both builds passed on retry.
+At exact head 8cdf8967, pinned Node 22.22.3 / npm 10.9.8 DEPLOY_BASE=/ptr/
+production build passed TypeScript, asset integrity, production exclusions,
+the public-boundary scan (3,347 tracked paths / 1,902 scanned entries) and
+Farcaster integrity. Payload: 445 files / 134,453,821 bytes; manifest SHA-256
+188cdb42c41309199ca6faa357d3e25809c889fe2bddd1c2aa78ceaf2c15b1ec; content
+manifest SHA-256 1121505aef6c8beb8a03d67298d1be0912c4adefcee6dc6c7beeb6f5311f44fd.
+The read-only mirror plan against Warpkeep-Live parent
+b6afe92e7b09197b1578d992103ac3c8f916d8ad preserves 341 Alpha-root entries
+(manifest SHA-256 7699d03b70c901e4fb8453b8b515af03376d398bf79e9eabea1c85f6e303c3ef),
+targets 799 files and removes zero obsolete generated paths. Plan SHA-256:
+a848eccfa559e74082c3198747b0e38f40a60a4f7cc2b7300fd523cf36686bdc. These
+ignored receipts are local preparation evidence, not publication approval.
+Regenerate them after this documentation checkpoint for the exact final head.
 
-The checked-in sealed-launch preparation still reports package `0.3.43`, Pages
-approval false, G001/G002/PTR identities unset and PTR presentation disabled.
-At 13:18 UTC the public root returned HTTP 200 and `/ptr/` returned HTTP 404.
-No 0.4 publication occurred. Keep PR #374 open and PTR unpublished through
-September. The full-suite runner exit, live receipts/operations, physical-device
-performance and owner PTR acceptance remain open; continue local work without
-Actions and preserve these release gates.
+The exact-head preparation verifier, run as the checkout owner warpkeep UID
+1000, reports package 0.3.43, Pages approval false, G001/G002/PTR identities
+unset and PTR presentation disabled. A fresh direct HTTP check returned 200 for
+the public root and 404 for /ptr/. No 0.4 publication occurred. Keep PR #374
+open and continue local exact-source work without Actions during September.
+Remaining release evidence includes sealed G001/G002/PTR receipts and live
+readback, actual owner PTR acceptance, physical-device performance and review
+of the browser diagnostic. The full test suite now passes locally.
 
 ### Read-only provider and incoming PR check
 
@@ -109,7 +101,7 @@ listed, but Vitest exited 1 after printing `context canceled`. Do not mark this
 as a clean full-suite pass until the runner-level exit is explained or a clean
 full rerun succeeds. The slow isolated `ptrProductionExistingUpdateContinuation`
 suite passed 37/37 with exit 0 and no cancellation message. Keep the original
-cross-OS failure separate from this unresolved full-run status.
+cross-OS failure separate from the later successful run. The exact-head rerun at 8cdf8967 passed 692 files / 1 skipped and 12,577 tests / 97 skipped, exit 0 in 871.42 seconds. The earlier exit-1 cause remains unknown.
 
 ## September no-Actions continuation — 29 September 2026, 13:26 CEST (11:26 UTC)
 

@@ -2,44 +2,40 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## September local candidate verification — 29 September 2026, 15:18 CEST
+## September local candidate verification — 29 September 2026, 15:56 CEST
 
 No GitHub Actions were queried, dispatched, rerun or used during September.
-The reviewed Windows checkout, origin and clean idle native Linux checkout
-match signed PR #374 head
-`148825a116ea167e07ebad8f3af0842958c2e4cd`; tested product source is
-`65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5`.
+Windows, origin, PR #374 and the clean idle native Linux checkout match signed
+head 8cdf8967c96897ea9c3b512b9d9b77f2a2feffdf on
+fix/g001-census-admission-proxy. Product source remains
+65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5.
 
-Pinned Node 22.22.3 / npm 10.9.8 root and `/ptr/` production builds at that
-candidate passed TypeScript, runtime asset checks, production exclusions,
-public-boundary verification (3,347 tracked paths / 1,902 scanned entries)
-and Farcaster integrity. The exact `/ptr/` payload contains 445 files /
-134,453,821 bytes. Its payload-manifest SHA-256 is
-`cda1e8e0c7d441c0420e46cab58a7d42883273910526b12747502767408f67dc` and content
-manifest SHA-256 is
-`f1552bec6640c06e57ba45eef408a532a42fbe0182124fa95894aada2a45d268`. The
-read-only mirror plan against a clean shallow checkout of
-`Warpkeep-Live@b6afe92e7b09197b1578d992103ac3c8f916d8ad` preserves 341
-Alpha-root entries, targets 799 files, removes zero obsolete generated paths,
-and has plan SHA-256
-`0e2520bbf3718c95637fdbbf4b749571b6ffb50cbefb4f384bfbe1d122f7b078`. Its
-ignored local receipts are candidate evidence, not publication approval, and
-must be regenerated after a source or documentation commit.
+The full native Linux suite ran as UID 1000 warpkeep with Node 22.22.3,
+npm 10.9.8 and native SpacetimeDB 2.6.1. Vitest 4.1.11 completed in 871.42
+seconds with exit 0: 692 test files passed / 1 skipped and 12,577 tests passed /
+97 skipped. Nine context canceled messages appeared in the raw log, but no test
+failed. This supersedes the earlier aggregate exit-1 report, which was not
+reproduced; its cause is unknown. The first WSL run using Windows spacetime.exe
+remains an invalid cross-OS result. Isolated native runs passed 15/15 for
+ptrRealmBackend and 37/37 for ptrProductionExistingUpdateContinuation.
 
-The full native Linux test run used source input
-`92fb93d0a89a84b90f108f248ec4b377415504dd`, user `warpkeep` UID 1000,
-Node 22.22.3 and native SpacetimeDB 2.6.1. Vitest listed 692 files passed / 1
-skipped and 12,577 tests passed / 97 skipped, but exited 1 after printing
-`context canceled`; treat the aggregate run as unresolved rather than green.
-The isolated `ptrRealmBackend.test.ts` and
-`ptrProductionExistingUpdateContinuation.test.ts` passed 15/15 and 37/37 with
-exit 0. The earlier WSL run with Windows `spacetime.exe` produced two
-environment-specific failures and is not product evidence.
-
-At 13:18 UTC, bounded direct HTTP GETs returned 200 for the Alpha root and 404
-for `/ptr/`. The checked-in sealed-launch preparation reports package
-`0.3.43`, Pages approval false, G001/G002/PTR identities unset and PTR
-presentation disabled. No deployment or provider mutation occurred.
+At exact head 8cdf8967, pinned Node 22.22.3 / npm 10.9.8 root and /ptr/
+production builds passed TypeScript, runtime asset checks, production
+exclusions, public-boundary verification (3,347 tracked paths / 1,902 scanned
+entries) and Farcaster integrity. The /ptr/ payload contains 445 files /
+134,453,821 bytes; its manifest SHA-256 is
+188cdb42c41309199ca6faa357d3e25809c889fe2bddd1c2aa78ceaf2c15b1ec and content
+manifest SHA-256 is 1121505aef6c8beb8a03d67298d1be0912c4adefcee6dc6c7beeb6f5311f44fd.
+The read-only mirror plan against Warpkeep-Live@b6afe92e7b09197b1578d992103ac3c8f916d8ad
+preserves 341 Alpha-root entries (manifest SHA-256
+7699d03b70c901e4fb8453b8b515af03376d398bf79e9eabea1c85f6e303c3ef), targets
+799 files, removes zero obsolete generated paths and has SHA-256
+a848eccfa559e74082c3198747b0e38f40a60a4f7cc2b7300fd523cf36686bdc. The
+exact-head sealed-launch preparation reports Pages approval false, package
+0.3.43, live identities unset and PTR presentation disabled. Latest bounded
+HTTP GETs returned 200 for the Alpha root and 404 for /ptr/. No deployment or
+provider mutation occurred. Regenerate the ignored receipts after this
+documentation checkpoint.
 
 ## Current checkpoint — 27 September 2026
 
