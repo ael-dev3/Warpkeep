@@ -162,8 +162,8 @@ export function createKeep04Building(options: Readonly<{
   if (craft) {
     // Low craft signs share the existing merged decoration draw. Geometry makes
     // each resource distinct without recoloring a borrowed roof/wall mesh.
-    box(4.8, 2.3, .18, P.masonry, bx, by, bz);
-    box(4.6, 2.1, .06, P.timber, bx, by, bz + .12);
+    box(4.8, 2.28, .18, P.masonry, bx, by, bz);
+    box(4.6, 2.08, .06, P.timber, bx, by, bz + .12);
     const glyph = (geometry: THREE.BufferGeometry, color: string, x = 0, y = 0) => {
       geometry.scale(1.4, 1.4, 1);
       part(geometry, color, bx - 1.1 + x, by + y, bz + .28);
