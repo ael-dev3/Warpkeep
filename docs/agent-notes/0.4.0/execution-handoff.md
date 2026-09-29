@@ -4161,3 +4161,54 @@ Open candidates Warpkeep #376 (the large click-to-load castle film) and #377
 checked and remain intentionally outside this candidate while film/mobile
 playback, G002 scope and rights evidence remain unresolved. Re-list their
 current heads and checks before future integration; more 0.4 PRs are expected.
+
+## 29 September 2026 — protected closure refresh and inspector camera hold
+
+PR #374 is signed and synchronized at `860370ab6ca2b1473bd339f7617cc42388d57482`
+on `fix/g001-census-admission-proxy`, against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. This checkpoint contains the
+prepared deployment source-closure refresh and a camera-neutral inspector fix.
+
+The map previously decided whether to preserve the last camera composition by
+looking only for a rendered `.realm-camera-neutral-inspector` element. Opening a
+code-split water, resource or Worker panel sets `inspectorOpen` before the lazy
+panel finishes loading. A scheduled composition measurement could run in that
+gap, observe no panel element and replace the stable composition, allowing the
+camera to shift during a passive inspection. The measurement now also checks the
+current semantic inspector state. The recovery UI tests wait for each lazy panel
+to mount and retain the no-focus and stable-composition assertions.
+
+`tests/realmRendererRecoveryUi.test.tsx` passed 8/8; adjacent
+`realmMapScreen` and camera-controller suites passed 58/58; the QA agent's
+mutable build-contract test passed; TypeScript project build and full production
+build passed. The build completed all runtime asset, production exclusion,
+public-boundary and Farcaster Mini App checks. The production build used Windows
+Node 24.19, outside the repository's pinned Node 22 range. It retains the known
+`RealmMapScreen` chunk warning (680.22 kB raw / 188.87 kB gzip).
+
+`derivePreparedClosureFamily` returned 1,249 members and 16 outputs with
+manifest SHA-256
+`55894f834179e505739f83a4978b50310fb726ce9f1e4261feb79af6515e4f33`; a fresh
+process reproduced every installed byte. The clean committed checkout passed
+`verify:sealed-launch --phase=checked-in` and remains in preparation with
+package version `0.3.43`, Pages deployment approval false, and G001, G002 and
+PTR identities unset. On this exact head, the pinned Linux closure-policy and
+sealed-launch verifiers passed, as did six focused suites (216/216), including
+the full 164-case prepared-workflow mutation matrix. The test checkout reused
+its existing shared dependency link. A pinned Node 22 production-build attempt
+stopped before the build because that link resolves the Windows esbuild binary;
+the retained Linux npm cache is from 8 September and differs by 39 resolved
+package versions, so it was not substituted. The local Windows full build and
+TypeScript checks passed under Node 24, but the exact locked Linux build remains
+unverified. Earlier Windows attempts of the Linux-only policy tests reject the
+host's missing POSIX UID and `/usr/bin/git`; those were environment failures.
+
+Commit `860370ab` was pushed to PR #374; local `HEAD`, the remote branch, and the
+open PR head were confirmed equal. The commit uses `[skip actions]`. No GitHub
+Actions workflow was dispatched, rerun, queried or used during September, per
+the owner's instruction. At 02:47 UTC the public Alpha root returned HTTP 200
+and `/ptr/` returned HTTP 404. The PTR remains unavailable, no release is
+claimed, and skipped hosted checks remain pending. After October 1, confirm the
+owner's direction before resuming hosted checks; continue with exact-head M1/M2
+preparation, G001 preservation, sealed G002 readback, PTR publication/readback,
+and owner/device acceptance.
