@@ -1,10 +1,10 @@
 # Continue Warpkeep 0.4
 
-## Current shipping continuation — 29 September 2026, 02:14 CEST (00:14 UTC)
+## Current shipping continuation — 29 September 2026, 02:33 CEST (00:33 UTC)
 
 The signed product source `83876cba9d23b0cb61088a0ebedd3e83406ac69f` is in
-open PR #374 against main `786c0b2b`; the checkpoint is committed and synced
-to origin. It defers realm
+open PR #374 against main `786c0b2b`. This closure refresh derives from
+candidate tree `d9cd6258b8c7241b3ed70f1d29a7ffeccb86e7c9`. It defers realm
 inspection panels and Worker inspection until use, with accessible loading
 states. Six focused test files passed 154 tests; `tsc -b` and the full local
 production build passed. The realm screen entry fell from 748.60 kB / 202.67 kB
@@ -12,15 +12,20 @@ gzip to 680.22 kB / 188.87 kB; the >600 kB warning remains. That build compiled
 the 838 code tree but embedded build SHA 0754260d, so it is not valid payload
 identity evidence.
 
-Read-only closure derivation at 838 returned 1,247 members and manifest
-`65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35`; the 16
-returned files are not installed or policy-verified. The dedicated Linux
-checkout remains at c1eb083b with five pre-existing generated-file edits; it
-was preserved. Do not use the older 0754260d temporary checkout as current
-source. No GitHub Actions were queried or run. At 00:13 UTC the public root was
-200 and `/ptr/` was 404. After October 1, use a clean checkout of reviewed M1
-for native preparation, verify exact M2 and live readbacks, then publish PTR
-and complete owner/device acceptance.
+Fresh derivation returned 1,247 members and manifest
+`65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35`; all 16
+returned bytes matched after installation, with five tracked files changed.
+Windows policy verification fails closed as `REPOSITORY_INVALID`. Five suites
+on unsupported Windows Node 24.19.0 / Vitest 4.1.11 reported 113 passes, 78
+environment failures and two skips; they need Linux paths and symlinks.
+Separate B0-closure and sealed-launch generator tests passed 15/15 on Windows.
+The repository requires Node 22.13–22.x. Dedicated Linux remains untouched at
+c1eb083b with its own five generated edits; do not use the older 0754260d
+checkout as current source. No GitHub Actions were queried or run. At 00:13
+UTC the public root was 200 and `/ptr/` was 404. After October 1, use a clean
+exact-source ext4 checkout for policy, tests and sealed-launch; then prepare
+and verify M1/M2 and live readbacks before PTR publication and owner/device
+acceptance.
 
 ## Previous shipping continuation — 29 September 2026, 01:46 CEST (23:46 UTC)
 

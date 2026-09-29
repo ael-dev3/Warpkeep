@@ -1,14 +1,13 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 29 September 2026, 02:14 CEST (00:14 UTC), Europe/Budapest.
-Candidate product source is signed 83876cba; this checkpoint is committed and pushed in PR #374.
+Refreshed 29 September 2026, 02:33 CEST (00:33 UTC), Europe/Budapest.
+Candidate product source is signed 83876cba; its closure refresh is staged in PR #374.
 
-LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 02:14 CEST
+LATEST SHIPPING CHECKPOINT — 29 SEPTEMBER, 02:33 CEST
 
 Signed product source `83876cba9d23b0cb61088a0ebedd3e83406ac69f` is included
-in the `fix/g001-census-admission-proxy` candidate PR #374 against main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. GitHub readback confirms the PR
-is open, and the checkpoint is committed and synced to origin. No Actions were
-queried or run.
+in open candidate PR #374 against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+This closure refresh derives from signed candidate tree
+`d9cd6258b8c7241b3ed70f1d29a7ffeccb86e7c9`. No Actions were queried or run.
 
 This source defers the realm inspection panels until opened, including the
 Worker inspector in both realm screen and HUD, and gives each deferred surface
@@ -21,20 +20,25 @@ still reports a chunk above 600 kB. The build embedded SHA 0754260d while
 compiling the code now committed as 83876cba, so it is local build evidence,
 not a source-bound PTR payload or release candidate.
 
-A read-only derivation from exact source 83876cba returned the 1,247-member
-protected closure and manifest SHA-256
-`65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35` (16 output
-files). Those outputs have not been installed or independently verified; the
-prior 164-test protected-workflow result belongs to source 0754260d. The native
-Linux operating checkout is still at c1eb083b with five modified generated
-files, so it was left untouched. Exact-M1 native preparation must use a clean
-checkout of the reviewed source after the September pause.
+A fresh derivation returned the 1,247-member protected closure and manifest
+SHA-256 `65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35`;
+all 16 returned files matched after installation, with five tracked generated
+files changed. Writes were limited to those paths and each prior file matched
+its canonical Git blob. Native policy verification rejects the Windows tree as
+`REPOSITORY_INVALID`. Five suites ran under unsupported Windows Node 24.19.0 /
+Vitest 4.1.11: 113 passed, 78 failed and two skipped. Failures show Linux-only
+environment gaps (`/usr/bin/env`, `/usr/bin/git`, symlink permissions), so this
+is not a source verdict. Separate B0-closure and sealed-launch generator tests
+passed 15/15 on Windows. The repo pins Node >=22.13 <23. The native Linux
+checkout remains untouched at c1eb083b with its own five generated-file edits;
+obtain a clean exact-source ext4 checkout for policy, tests and
+`verify:sealed-launch` checks.
 
 At 00:13 UTC, `warpkeep.com` returned HTTP 200 and `/ptr/` returned HTTP 404.
-The existing Alpha is live; 0.4 PTR remains unavailable. Resume hosted Verify
-after October 1, then complete source closure checks, exact M1/M2 preparation
-and verification, G001 preservation, sealed G002 readback, PTR publication,
-and owner/device acceptance.
+The existing Alpha is live; 0.4 PTR remains unavailable. After October 1,
+resume hosted Verify and native exact-source checks, then complete exact M1/M2
+preparation and verification, G001 preservation, sealed G002 readback, PTR
+publication and owner/device acceptance.
 
 PREVIOUS SHIPPING CHECKPOINT — 29 SEPTEMBER, 01:46 CEST
 
