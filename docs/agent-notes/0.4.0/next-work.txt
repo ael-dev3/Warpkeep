@@ -1,9 +1,9 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 14:35 CEST (12:35 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 15:20 CEST (13:20 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
-Refreshed 30 September 2026, 14:35 CEST (12:35 UTC). PR #374 is the open,
+Refreshed 30 September 2026, 15:20 CEST (13:20 UTC). PR #374 is the open,
 unmerged candidate against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the live branch head and final exact-source receipts from PR #374.
@@ -11,11 +11,17 @@ Resolve the live branch head and final exact-source receipts from PR #374.
 Current recovery repair: Linux ps start displays can drift for the same process.
 Shared/bootstrap/envelope/publisher readers now use boot UUID plus kernel start
 tick; live legacy/digest mismatches remain unknown. Preserve ambiguous records.
-Portable checks and independent review pass; run coordinated native recovery
-integration and the full suite, then regenerate the complete source family and
-exact-source build/payload/mirror receipts. Do not create keys or delete locks.
+Native integration at signed a23b863c passes 276/276; independent review passes.
+The complete 16-output source family reproduces; native policy passes. The full
+native suite is running at this source; finish it, then refresh the exact-source
+build/payload/mirror receipts. Do not create keys or delete locks.
 Newly owned private test homes are cleaned after each test; historical temporary
-directories are not age-deleted. See the latest local-operations evidence.
+directories are unchanged, with zero new journal/operator residue. Inspect the
+actual birth-matching process through artifacts/qa/root-suite-process-birth-handle.json
+before restarting work; a lost tool handle alone is not proof of termination.
+The compiler inventory is 28 retained paths, all unchanged against main; the
+earlier 22-path summary was incomplete. Original input ancestry is preserved.
+See the latest local-operations evidence and PR #374 for actual source scopes.
 
 Existing gesture, confirmation, focus, menu contrast and mobile-control defects
 are repaired. Real server testing found the first-use keep read has a fixed
@@ -25,7 +31,9 @@ exact retry for unknown outcomes. Independent capability/controller tests passed
 
 CONNECTED QA PASSED: exact 98a561db, session 64935, exit 0 in 321,215ms (5m21s).
 All nine normal-clock outcomes passed, including gather/build/improved return,
-stale quote unsent, exact retry/single deduction, renewal and client reconnect.
+stale quote unsent, exact retry/single deduction, manual fixture-session renewal
+and client reconnect. Automatic Quick Auth/browser-provider expiry remains part
+of actual-owner acceptance; the smoke does not exercise that path.
 Cleanup and identical ignored Windows/native receipts are verified. Synthetic
 owner/atlas and a running in-memory database are separate from actual-owner
 production-atlas/browser/physical-phone acceptance and server restart.
@@ -48,7 +56,7 @@ Do not repeat the real gameplay loop merely for notes or release-tool changes.
 The new shared process-owner/recovery changes justify a fresh full native suite;
 otherwise reopen checks only for a concrete source change or failure.
 
-Alpha root HTTP 200; /ptr/ HTTP 404 at 12:25 CEST. No merge, provider/public
+Alpha root/auth health HTTP 200; /ptr/ HTTP 404 at 15:00 CEST. No merge, provider/public
 write or 0.4 publication occurred. Sealed preparation remains 0.3.43, Pages
 approval false, IDs unset and PTR presentation disabled. Actual-phone
 performance and the RealmMapScreen bundle warning remain open. Hosting,

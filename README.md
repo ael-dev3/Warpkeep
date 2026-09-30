@@ -69,11 +69,16 @@ world/keep focus and menu readability. Real client/server testing also found
 and fixed a new-keep initialization failure caused by the server's error format.
 Publication planning now preserves committed Alpha bytes across Windows line
 ending conversion, matching the existing signed publisher.
+Linux recovery now identifies owners by kernel birth, so clock changes cannot
+make an active owner look reused. Ambiguous legacy records remain preserved;
+private deployment tests clean only their newly allocated temporary homes.
 Independent affected tests and scoped rendered checks pass.
 
 The connected local PTR lane exercises the real module and client with normal
 server timers and synthetic authority/atlas. Gathering, construction, improved
-return, exact retry, renewal and client reconnection pass. Actual-owner play,
+return, exact retry, manual fixture-session renewal and client reconnection pass.
+Automatic Quick Auth expiry through the real browser host still needs the planned
+owner acceptance. Actual-owner play,
 production-atlas pacing and physical-phone performance remain release requirements. Earlier G001 browser fixtures and the
 12,603-test native pass retain their original source scopes. The build's existing
 RealmMapScreen size warning remains under measurement.

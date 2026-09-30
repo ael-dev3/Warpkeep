@@ -2,6 +2,54 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Native recovery verification and evidence audit — 30 September 2026, 15:20 CEST (13:20 UTC)
+
+Signed source a23b863c0093293195a7fbfe6477e9b9e2f93ee1 (tree
+9e6b075c8f10be154a126a1f10aae930fbdea186) is synced across Windows/native/GitHub.
+The UID-1000/Node 22.22.3 native selection passed 276/276 across seven files:
+shared ownership/budget, bootstrap, observation envelope, publisher, cutover
+journal, private-deploy journal and operator. Actual caller regressions preserve
+live partial-file bytes, and publisher supervision agrees with the shared birth
+reader. Before/after inventory records zero new homes and zero historical removals
+for both repaired private-deployment test helpers. The Windows journal attempt
+remains an unsupported POSIX-mode attempt, not behavioral evidence.
+Ignored process-birth-native source/result/log/retention reports retain this scope.
+
+Raw capture checked all 3353 tracked files against exact Git bytes (220047659
+bytes, maximum 12507408). All 16 closure outputs independently reproduce across
+1250 members; native policy passes with manifest SHA-256
+2fa6947c834facae128e82fc8f79113123194ca3610200b27bfee226479845a9.
+The source-only compiler audit derives 28 direct retained paths: 24 four-lane
+bundle/declaration/workflow-entry/lane-entry paths, both compiler manifests,
+the recovery claim bundle and its wrapper. Every raw blob equals main 786c0b2b.
+An earlier 22-path inventory summary was incomplete, not a complete compiler
+audit. Both manifests preserve original input 5d175edf/tree e7f36c6c; its raw
+repository input rows and graph digests verify, and it remains an ancestor of main.
+This is identity/metadata audit, not new compilation or archive attestation.
+
+Fresh pinned npm/root and pnpm 11.7.0 service/module audits return zero known
+vulnerabilities in all four package boundaries. Main's existing three moderate
+alerts await integration/rescan. Direct GETs at 13:00:38.949 UTC (15:00 CEST) show
+Alpha 200 with unchanged HTML SHA-256
+18658055f4fa1c2376fae34d9d34e400c4bb308f922de48aaeb604a1de0c3a4d,
+auth health 200 and unpublished /ptr/ 404. GitHub profile/repository descriptions,
+homepages, visibility and open PR identities match the documented boundaries.
+
+The initial full-suite observation stopped without a terminal report. Root
+confirmed the process was absent before retaining that interrupted source/log
+and starting one durable rerun. Its actual process is verified through the
+ignored root-suite-process-birth-handle.json birth token; native source remains
+pinned. Activation-record cases have passed; the full result remains pending.
+Do not infer termination from a missing UI/tool handle or launch duplicate work.
+Final exact-source build/payload/mirror refresh remains pending that run.
+
+Independent PTR review found no further demonstrated source defect in authority,
+selection, immutable retry or provider renewal. The existing connected smoke
+manually replaces fixture sessions at 80s; it does not exercise the production
+provider's automatic 120s expiry/Quick Auth callback through a real browser host.
+Synthetic provider/host tests cover those callers. Preserve actual-owner browser,
+server-restart and physical-phone acceptance as separate outstanding evidence.
+
 ## Stable process-birth repair — 30 September 2026, 14:35 CEST (12:35 UTC)
 
 The abandoned synthetic timeout fixture above exposed a separate current-source

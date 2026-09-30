@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current delivery checkpoint — 30 September 2026, 14:35 CEST (12:35 UTC)
+## Current delivery checkpoint — 30 September 2026, 15:20 CEST (13:20 UTC)
 
 PR #374 is the open, unmerged candidate on fix/g001-census-admission-proxy
 against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. It includes reviewed
@@ -12,10 +12,21 @@ Final workspace inspection repaired private test-home retention and found a
 real recovery defect: Linux wall-clock-derived process start displays can drift
 for the same active owner. New shared/bootstrap/envelope/publisher readers use
 kernel boot UUID and start tick. Live legacy/digest mismatches stay unknown;
-death requires stable birth mismatch or ESRCH. Portable checks and independent
-caller review pass; native integration/full-suite and final closure/build/plan
-refresh are pending this checkpoint. See the latest local evidence and PR #374.
+death requires stable birth mismatch or ESRCH. Native tests at signed a23b863c
+pass 276/276 across seven files, with no new journal/operator fixture residue
+or historical-directory removal. Independent caller review passes. The complete
+16-output source family reproduces and native policy passes. The full native
+suite is running at that source; final closure/build/plan refresh follows any
+further source change. See the latest local evidence and PR #374.
 Preserve ambiguous old records; do not delete locks or generate recovery keys.
+
+The source-only compiler inventory derives 28 retained paths, all unchanged
+against main; an earlier 22-path summary was incomplete. Both original
+compiler-input identities remain intact. Fresh audits are clean in all four
+package boundaries; GitHub's main alerts await merge. For the native full suite,
+inspect artifacts/qa/root-suite-process-birth-handle.json and the actual matching
+process plus terminal report. A missing tool observation handle alone is not
+termination; keep native source pinned while work is active.
 
 Existing mobile input, confirmation, focus and readability defects are repaired.
 World controls meet the scoped 44px minimum and opened drawers remain reachable
@@ -29,9 +40,11 @@ for source scopes and reproduction.
 Connected loop session 64935 passed at exact 98a561db in 321,215ms (5m21s),
 with all nine outcomes, normal timers and verified cleanup. It proves the
 real module/client gathering, construction, improved return, exact retry/single
-deduction, renewal and client reconnection. The synthetic owner/atlas and
+deduction, manual fixture-session renewal and client reconnection. The synthetic owner/atlas and
 running in-memory database do not establish production-owner play, server
-restart or physical-device acceptance.
+restart or physical-device acceptance. Actual Quick Auth expiry through the
+production browser provider remains part of owner acceptance; synthetic caller
+tests cover it, but this smoke does not.
 
 At exact e308a64d, affected menu/closure/capability/controller/QA tests passed
 315, zero failed, one platform-specific skip; native production build and
@@ -44,7 +57,7 @@ all ten planner regressions pass. The e308 mirror plan is superseded. Final
 source-family regeneration and exact-source build/plan receipts belong on PR #374.
 Keep retained compiled outputs and original input identities intact for M1.
 
-Alpha root returned HTTP 200 and /ptr/ HTTP 404 at 12:25 CEST. PTR is unpublished;
+Alpha root returned HTTP 200, auth health 200 and /ptr/ HTTP 404 at 15:00 CEST. PTR is unpublished;
 sealed preparation remains 0.3.43, Pages approval false, live IDs unset and PTR
 presentation disabled. No main merge or provider/public write occurred.
 During September use local checks and signed [skip actions] pushes. On October 1
