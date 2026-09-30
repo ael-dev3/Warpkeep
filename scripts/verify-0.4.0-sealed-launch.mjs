@@ -145,19 +145,23 @@ export const GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS = Object.freeze([
   'scripts/greater-realm-downstream-release-policy.ts',
   'docs/operations/greater-realm-production-launch-envelope.sh.txt',
 ]);
-// Four operator helpers were refactored after the historical G001 freeze while
-// the frozen module and its build recipe stayed unchanged. Keep the complete
-// adoption projection above as the historical contract, and require those
-// helpers to match this explicit reviewed refreeze checkpoint when validating
-// the current 0.4 source. A later helper change must move this checkpoint and
-// be reviewed as a new source refreeze; it cannot silently widen the exception.
+// The original four reviewed operator helpers retain their exact bytes. Three
+// additional operators now use kernel birth to preserve live recovery owners
+// across clock changes. The frozen module and build recipe stay unchanged.
+// Keep the complete adoption projection above as the historical contract and
+// require all seven helpers to match this signed, reviewed refreeze checkpoint.
+// A later helper change requires another explicit source refreeze; it cannot
+// silently widen the exception or change the frozen G001 contract.
 const GENESIS_001_OPERATOR_REFREEZE_SOURCE_COMMIT =
-  'bca5596defd9816930dd9af2431bfa6aec0f1735';
+  '580cd588776315de334cd81adddded80f49d06c7';
 const GENESIS_001_OPERATOR_REFREEZE_PROJECTION_PATHS = Object.freeze([
   'scripts/greater-realm-production-provenance.ts',
   'scripts/greater-realm-production-transport.ts',
   'scripts/hermes-admin.ts',
   'scripts/spacetime-cli-attestation.mjs',
+  'scripts/production-admin-token-budget.mjs',
+  'docs/operations/greater-realm-production-launch-envelope.sh.txt',
+  'scripts/publish-spacetime-dev.mjs',
 ]);
 const GENESIS_001_HISTORICAL_SOURCE_PROJECTION_PATHS = Object.freeze(
   GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS.filter(path => (
@@ -4736,7 +4740,7 @@ export function verifySealedLaunchActivationHistory({
     || !Array.isArray(parents)
     || parents.length !== 1
     || parents[0] !== binding.preparationSourceCommit
-    // The historical projection stays exact; the four reviewed operator bytes
+    // The historical projection stays exact; the seven reviewed operator bytes
     // are accepted only at the explicit refreeze checkpoint above.
     || !Buffer.isBuffer(historicalProjection)
     || historicalProjection.byteLength < 1

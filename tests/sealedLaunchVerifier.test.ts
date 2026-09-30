@@ -41,6 +41,7 @@ import {
   classifySealedLaunchPagesSources,
   sealedLaunchReceiptCommitment,
   verifyGenesis001AdmittedPlayerCensusBoundary,
+  verifyGenesis001PreparationProjection,
   shellSyntaxCheckCommand,
   verifySealedLaunchSources,
 } from '../scripts/verify-0.4.0-sealed-launch.mjs';
@@ -2792,12 +2793,15 @@ export function createPtrAtlasImportTransport(`,
 
   it('accepts the reviewed operator-helper refreeze while retaining the historical G001 projection', () => {
     const operatorRefreezeCommit =
-      'bca5596defd9816930dd9af2431bfa6aec0f1735';
+      '580cd588776315de334cd81adddded80f49d06c7';
     const operatorRefreezePaths = [
       'scripts/greater-realm-production-provenance.ts',
       'scripts/greater-realm-production-transport.ts',
       'scripts/hermes-admin.ts',
       'scripts/spacetime-cli-attestation.mjs',
+      'scripts/production-admin-token-budget.mjs',
+      'docs/operations/greater-realm-production-launch-envelope.sh.txt',
+      'scripts/publish-spacetime-dev.mjs',
     ];
     const sourceProjection = vi.fn((commit: string, paths: readonly string[]) => {
       if (paths.length === GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS.length) {
@@ -2843,6 +2847,55 @@ export function createPtrAtlasImportTransport(`,
       sourceProjection: driftedProjection,
     })).toThrow('SEALED_LAUNCH_ACTIVATION_HISTORY_INVALID');
   });
+
+  it('accepts the signed kernel-birth operator refreeze and rejects byte or mode drift in every reviewed helper', () => {
+    const operatorRefreezeCommit = '580cd588776315de334cd81adddded80f49d06c7';
+    const operatorRefreezePaths = [
+      'scripts/greater-realm-production-provenance.ts',
+      'scripts/greater-realm-production-transport.ts',
+      'scripts/hermes-admin.ts',
+      'scripts/spacetime-cli-attestation.mjs',
+      'scripts/production-admin-token-budget.mjs',
+      'docs/operations/greater-realm-production-launch-envelope.sh.txt',
+      'scripts/publish-spacetime-dev.mjs',
+    ];
+    const fixtureParent = mkdtempSync(resolve(tmpdir(), 'warpkeep-g001-operator-refreeze-'));
+    const fixtureRoot = resolve(fixtureParent, 'repository');
+    const inputs = {
+      repositoryRoot: fixtureRoot,
+      candidatePreparationCommit: operatorRefreezeCommit,
+      sources: checkedInSources(),
+    };
+    try {
+      fixtureGit(fixtureParent, [
+        'clone', '--quiet', '--shared', '--no-checkout', repositoryRoot, fixtureRoot,
+      ]);
+      fixtureGit(fixtureRoot, ['checkout', '--quiet', '--detach', operatorRefreezeCommit]);
+      expect(verifyGenesis001PreparationProjection(inputs)).toMatchObject({
+        candidatePreparationCommit: operatorRefreezeCommit,
+        genesis001FreezePublishSourceCommit: 'd945256b217fa13ade944b9ed9880e8463b46123',
+      });
+      for (const path of operatorRefreezePaths) {
+        for (const mutation of ['byte', 'mode']) {
+          fixtureGit(fixtureRoot, ['checkout', '--quiet', '--detach', operatorRefreezeCommit]);
+          if (mutation === 'byte') {
+            const absolute = resolve(fixtureRoot, path);
+            writeFileSync(absolute, Buffer.concat([readFileSync(absolute), Buffer.from(' ')]));
+            fixtureGit(fixtureRoot, ['add', '--', path]);
+          } else {
+            fixtureGit(fixtureRoot, ['update-index', '--chmod=+x', '--', path]);
+          }
+          fixtureGit(fixtureRoot, ['commit', '--quiet', '-m', `unreviewed ${mutation} drift in ${path}`]);
+          expect(() => verifyGenesis001PreparationProjection({
+            ...inputs,
+            candidatePreparationCommit: fixtureGit(fixtureRoot, ['rev-parse', 'HEAD']),
+          }), `${mutation}: ${path}`).toThrow('SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID');
+        }
+      }
+    } finally {
+      rmSync(fixtureParent, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  }, 60_000);
 
   it('rejects protected worktree drift hidden by tracked index flags', () => {
     const fixtureParent = mkdtempSync(resolve(tmpdir(), 'warpkeep-checkout-flags-'));

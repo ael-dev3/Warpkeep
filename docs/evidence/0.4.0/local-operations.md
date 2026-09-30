@@ -2,7 +2,7 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Native recovery verification and evidence audit — 30 September 2026, 15:20 CEST (13:20 UTC)
+## Native recovery verification and evidence audit — 30 September 2026, 16:23 CEST (14:23 UTC)
 
 Signed source a23b863c0093293195a7fbfe6477e9b9e2f93ee1 (tree
 9e6b075c8f10be154a126a1f10aae930fbdea186) is synced across Windows/native/GitHub.
@@ -57,8 +57,16 @@ Dispatcher fixtures reopen genuine raw Git blobs from the retained manifest's
 original compiler input instead of mixing current source with frozen compiled
 pins. The compiled outputs and original manifest remain unchanged. Their pinned
 Windows selection passes 114, with two platform skips and zero failures; native
-verification remains pending. Final exact-source family/build/payload/mirror
-refresh follows the repaired checks.
+verification initially returned 320 passed and one failed across 11 files at
+6d143a92. The remaining actual CLI failure correctly rejected current operator
+bytes against an older refreeze. Root and an independent reviewer checked the
+complete projection: all 134 remaining frozen blobs (including all 115 module
+blobs) retain exact bytes and modes. The original four reviewed operators are
+unchanged; only the stable-birth budget, legacy envelope and publisher differ.
+The reviewed operator subset now binds these seven exact files to signed
+580cd588. The complete historical contract and original freeze remain intact;
+new regressions reject byte/mode drift in every operator. Repeat actual native
+CLI/affected verification and refresh the complete family/build/plan afterward.
 
 Independent PTR review found no further demonstrated source defect in authority,
 selection, immutable retry or provider renewal. The existing connected smoke

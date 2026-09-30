@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current delivery checkpoint — 30 September 2026, 15:20 CEST (13:20 UTC)
+## Current delivery checkpoint — 30 September 2026, 16:23 CEST (14:23 UTC)
 
 PR #374 is the open, unmerged candidate on fix/g001-census-admission-proxy
 against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. It includes reviewed
