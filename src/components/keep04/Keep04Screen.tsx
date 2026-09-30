@@ -167,9 +167,9 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   function alignAndFocus(element: HTMLElement | SVGSVGElement | null) {
     element?.scrollIntoView?.({ block: 'start', behavior: 'instant' }); element?.focus({ preventScroll: true });
   }
-  function focusReview() { if (ready) alignAndFocus(reviewHeading.current); }
+  function focusReview() { if (visible) alignAndFocus(reviewHeading.current); }
   function viewSite() {
-    if (!ready || !schematic.current) return;
+    if (!visible || !schematic.current) return;
     schematic.current.open = true;
     alignAndFocus(schematic.current.querySelector('svg'));
   }
