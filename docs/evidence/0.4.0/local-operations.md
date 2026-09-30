@@ -2,6 +2,61 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Tervain comparison and local renderer verification — 30 September 2026
+
+Immutable Tervain source `db2a356c062f5e65fa29cf3f642fc6498f57c013` supplies the
+sibling-project comparison. All 209 shared archive GLBs match existing Warpkeep
+originals by size, SHA-256 and Git blob, so no duplicate asset copy was needed.
+The [ecosystem record](../../engineering/repository-ecosystem.md#sharing-with-tervain)
+records its separate product/lore, useful stable-population idea and provenance.
+Signed `13491c60` improves existing forest support, stable quality transforms,
+terrain color grouping, narrow-menu text and failed atlas-chunk cleanup. Windows
+combined checks pass 206/206 in seven actual files; app/build-mode types pass.
+
+The complete four-worker native root suite at `086fa02e`, tree `70f9eb22`, ran
+18:04:30.302–18:22:16.744 UTC: 12,694 passed, zero failed, 97 skipped, 694 actual
+files, exit 0, Node 22.22.3/UID 1000 and unchanged clean source. Retain the full
+report/log/source/summary/exit under ignored `artifacts/qa/tervain-native-full-*`.
+This precedes the camera and fixture changes below.
+
+Signed `7479e183` repairs the legal portrait atlas-window fit in the actual host:
+preserve the finite fit direction beyond the normal phone zoom ceiling, and scale
+distant fog against the normal fit. Two new actual-runtime regressions fail before
+repair; all 38 host tests pass on Windows and native Linux, with app types passing.
+Real local 320×844 browser terrain is visible; no authority/window/budget expansion
+or physical-phone performance claim is made. Evidence is retained in ignored
+`greater-realm-camera-fit-2026-09-30-*` and `tervain-camera-native*`.
+
+Signed `9d357e6e` gives ten synthetic test owners exact fixture-root retirement,
+guarding root identity and preserving borrowed linked targets. Native affected
+verification runs 18:49:06.719–18:49:18.696 UTC: 91 passed, zero failed/skipped,
+ten actual files, unchanged clean source, zero newly retained roots and zero
+historical removals. The full suite's 100 earlier allocated synthetic roots were
+separately audited against its immutable allocation ledger, ownership/filesystem
+identity and terminal actors; only those roots were removed at 18:57:30.259 UTC.
+No historical or unrelated root was removed. Provenance, cleanup and affected
+reports remain under ignored `artifacts/qa/tervain-native-fixture-*`.
+
+All 36 guarded PNGs in `artifacts/keep04-qa/windows-run-gwMDNz` were inspected at
+stable clean `9d357e6e`. Actual signed Chrome is 154.0.8037.58, hardware RTX 3080 Ti
+through ANGLE/D3D11, four viewport/quality profiles, no network shaping. No concrete
+visible regression was found. The report records one latest frame per case;
+constructing still has one pending loader. Viewport crops do not attest all lower
+content, motion/cadence or performed context restoration. Chrome closed normally
+with verified zero remaining owned actors. Its disposable fresh profile is retained
+because automatic approval review rejected deletion; original provenance is intact.
+
+Separate actual DEV smoke at `086fa02e` completed three warm-ups plus 20
+mount/dispose cycles each for balanced, reduced, reduced motion and fallback.
+The three WebGL profiles return to 30 geometries/two textures/11 listeners;
+fallback has no scene canvas/listeners. Disposal leaves zero scene-owned RAFs,
+loaders and listeners. Three performed context-loss/restore cycles return to one
+canvas and the same baseline. This is keep-only smoke, not world/realm cycles,
+retained-heap, cold-load/transfer, owner or phone acceptance. Initial creation's
+85–99ms submission long tasks remain recorded. Local further scroll review found
+missing invalid-placement guidance beside confirmation; its repair is underway.
+Final family/build/preservation receipts belong on PR #374 after the repairs.
+
 ## Native recovery verification and evidence audit — 30 September 2026, 18:21 CEST (16:21 UTC)
 
 The earlier signed source a23b863c0093293195a7fbfe6477e9b9e2f93ee1 (tree

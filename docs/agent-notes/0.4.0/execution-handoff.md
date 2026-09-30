@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current local checkpoint — 30 September 2026, 20:27 CEST (18:27 UTC)
+## Current local checkpoint — 30 September 2026
 
 Continue useful local development through September: repair observed defects,
 run affected checks, review rendered behavior and publish signed `[skip actions]`
@@ -20,8 +20,9 @@ so no duplicate models were copied. Gameplay and placement authority are unchang
 Windows affected checks passed 206 tests across seven actual files with no
 failures or skips; app and build-mode types passed. Actual DEV browser checks
 completed three warm-ups and 20 mount/dispose cycles each for balanced, reduced,
-reduced motion and fallback. The baseline stayed at 30 geometries, two textures
-and 11 listeners; disposal left zero scene RAFs, loaders and listeners. Three
+reduced motion and fallback. The three WebGL profiles stayed at 30 geometries,
+two textures and 11 listeners; fallback used no canvas or scene listeners.
+Disposal left zero scene RAFs, loaders and listeners. Three
 actual context-loss/restore cycles passed. These cover the existing renderer at
 `086fa02e`, not retained-heap, physical-phone or production-performance acceptance.
 
@@ -32,17 +33,33 @@ The full native suite completed successfully on frozen source
 terminal; that number is a process handle, not a source revision. The run started
 at 18:04:30 UTC and finished at 18:22:16 UTC with Node 22.22.3/UID 1000;
 `sameSource` and `nativeClean` are true. Source/report/log/handle/summary/exit
-evidence is retained under `artifacts/qa/tervain-native-full-*`. The runner's
-inventory records newly created synthetic fixture directories and no historical
-removals; their audit is underway, so no zero-temporary-directory claim is made.
-The source family reproduced cleanly. The new production build and scoped
-rendered captures remain pending; earlier receipts below retain their sources.
+evidence is retained under `artifacts/qa/tervain-native-full-*`.
 
-A reachable 320×844 portrait-camera NaN failure is being repaired in the actual
-Windows host and tests. Review that repair, run affected Windows/native checks,
-then complete production validation and rendered review before claiming it fixed.
-The completed full suite above does not attest that later change. Resolve the
-current development head from PR #374 separately from the tested native input.
+Signed `7479e183` fixes a reachable legal 320×844 atlas-window fit that formerly
+made the camera orientation NaN, plus excessive fog at that distant fit. Windows
+and native actual-host checks pass 38/38, app types pass, and browser terrain is
+visible. Near-view fog and server window/residency authority remain unchanged.
+Signed `9d357e6e` repairs exact owned fixture retirement across ten test owners:
+native 91/91, no failures/skips, zero new roots and zero historical removals.
+The earlier full suite's 100 new synthetic roots were independently proven and
+retired by exact filesystem identities after verifying terminal actors. No old or
+unrelated root was removed. Keep both later checks separate from the full pass.
+
+All 36 guarded PNGs at `9d357e6e` have been inspected: actual Chrome 154.0.8037.58,
+RTX 3080 Ti/D3D11 hardware, four viewport/quality profiles. No concrete visible
+regression was found. These are partial viewport/latest-frame observations, not
+cadence, settled loading, owner or phone acceptance; constructing retains one
+loader, and the context-cycle label does not perform a context transition. Actual
+keep-only transition checks above remain separately scoped. Full-page/scroll
+review found missing blocked-placement guidance beside mobile confirmation; the
+existing-feedback repair is underway. The disposable capture profile is retained
+because automatic approval review rejected its deletion; Chrome exit is verified.
+
+After integrating the reviewed feedback/QA repairs, derive the complete 16-output
+source family, verify native policy and prepare a new exact-source production
+build/payload/mirror plan. Inspect the built 320px menu before October integration.
+Resolve final development head and receipts from PR #374; old build hashes below
+remain bound to their recorded sources. No final release or 10/10 claim is made.
 
 ## Previous delivery checkpoint — 30 September 2026, 17:57 CEST (15:57 UTC)
 

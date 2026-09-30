@@ -24,6 +24,29 @@ DEV fixtures, production full-world/keep measurements, actual owner gameplay,
 and a physical phone are four distinct evidence lanes. A passing unit suite or
 synthetic screenshot does not prove the other lanes.
 
+## Current scoped review — 30 September 2026
+
+All 36 latest guarded PNGs in `artifacts/keep04-qa/windows-run-gwMDNz` have been
+inspected at stable clean `9d357e6e`. The actual signed Chrome version is
+154.0.8037.58 with hardware RTX 3080 Ti/ANGLE/D3D11, rather than the older reference
+profile below. No concrete regression was found in the visible pixels across
+desktop, mobile, reduced and landscape. Capture is DEV, one latest frame per
+case, CPU4 for emulated profiles and no network shaping. Constructing retains
+one loader. Crops do not prove all lower content or settlement; named context
+and motion cases do not perform transitions or record cadence.
+
+Separate actual DEV checks at `086fa02e` complete three warm-ups plus 20
+mount/dispose cycles for each of balanced, reduced, reduced motion and fallback,
+and three performed context-loss/restore cycles. WebGL profiles return to the
+same 30-geometry/two-texture/11-listener baseline with one canvas; fallback has
+no scene canvas/listeners, and disposal leaves no scene RAFs/loaders/listeners.
+This is keep-only lifecycle evidence; the production world/realm/heap, owner
+and phone gates remain open. Further narrow-screen scroll review found missing
+invalid-site guidance beside disabled confirmation, now under repair. The
+[current local evidence](../evidence/0.4.0/local-operations.md#tervain-comparison-and-local-renderer-verification--30-september-2026)
+preserves each source and result scope. Historical ledger entries below retain
+their original meaning.
+
 ## Reproduce synthetic presentation
 
 Use the existing task-owned Vite origin `http://127.0.0.1:4176`; do not start a
@@ -161,8 +184,9 @@ configuration, index or worktree normalization occurs. Inventory is bounded to
 inventory fails closed, never claims cleanliness. The controlled native-browser
 popup/worker negative check and actual capture remain controller review gates.
 
-The launcher is narrowly source-tested; its complete Windows navigation/capture
-run remains controller-owned and unexecuted during implementation. Successful
+At the historical implementation checkpoint, the launcher was narrowly
+source-tested and its complete Windows run was unexecuted. See the dated review
+above for current controller-owned capture and inspection. Successful
 capture still means images uninspected and performance not measured. Windows
 transport is available; macOS is not a final dependency. Full Task 8/R11 production
 measurements and the separate owner/phone/G001 lanes remain open.

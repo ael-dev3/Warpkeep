@@ -62,6 +62,12 @@ Record the actual browser version, graphics backend, OS and device scale in ever
 run. If software rendering is selected, label it and do not silently compare it
 to the hardware profile. Revalidate before measurement.
 
+The September 30 synthetic guarded capture separately observes Chrome
+154.0.8037.58 and NVIDIA RTX 3080 Ti through ANGLE/D3D11 hardware. Its DEV PNGs
+and latest-frame observations are not measurements against the table below;
+the older reference profile above remains dated context, not the current machine
+identity. Profile gates remain unchanged.
+
 | Profile | Viewport / quality | CPU/network shaping | Cold usable 0.4 scene p95 | Rendered frame interval p95 |
 | --- | --- | --- | --- | --- |
 | Desktop | 1440x900 / high | No CPU slowdown; 20Mbps down, 5Mbps up, 40ms RTT | <=10 seconds | <=33.4ms |

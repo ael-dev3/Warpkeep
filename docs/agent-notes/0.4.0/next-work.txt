@@ -1,5 +1,5 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 20:27 CEST (18:27 UTC), Europe/Budapest.
+Refreshed 30 September 2026, Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
@@ -18,8 +18,9 @@ Follow docs/engineering/repository-ecosystem.md for sharing and source ownership
 
 Windows affected checks passed 206/206 across seven files; app/build-mode types
 passed. Actual DEV keep checks passed three warm-ups plus 20 mount/dispose cycles
-EACH for balanced, reduced, reduced motion and fallback: stable 30 geometries,
-two textures and 11 listeners; disposal leaves zero scene RAFs/loaders/listeners.
+EACH for balanced, reduced, reduced motion and fallback: the three WebGL profiles
+retain 30 geometries, two textures and 11 listeners; fallback has no scene canvas
+or listeners. Disposal leaves zero scene RAFs/loaders/listeners.
 Three actual context-loss/restore cycles passed for the existing renderer at
 086fa02e. No heap, phone or production performance acceptance is claimed.
 
@@ -27,11 +28,18 @@ Full native suite is TERMINAL, exit 0: 12,694 passed, zero failed, 97 skipped ac
 694 actual files at source 086fa02e/tree 70f9eb22. Session 61492 is a process handle,
 not a revision. It ran 18:04:30–18:22:16 UTC with Node 22.22.3/UID 1000;
 sameSource/nativeClean are true. Evidence remains under artifacts/qa/tervain-native-full-*.
-The runner recorded new synthetic fixture directories with no historical removals;
-their audit remains underway. Source-family reproduction is clean. New production
-build and rendered captures remain pending. The execution handoff records full pins.
-A reachable 320×844 portrait-camera NaN failure is under repair in the actual host
-and tests; the completed suite does not attest that later change.
+Later camera/fog repair 7479e183 passes 38/38 actual-host checks on Windows/native
+and app types; the legal 320x844 fit renders terrain instead of NaN/near-black fog.
+Fixture cleanup 9d357e6e passes native 91/91 across ten owners, with zero new roots
+or historical removals. The full suite's 100 newly allocated synthetic roots were
+separately verified by exact run/filesystem identities and safely retired.
+All 36 guarded Windows images at 9d357e6e are inspected with no concrete visible
+regression, using actual Chrome 154/RTX 3080 Ti hardware. Partial viewport/latest
+frames cannot establish cadence, settled loading, context transitions or a phone
+pass. The constructing case retains one loader. Further mobile scroll review
+found missing invalid-site guidance beside confirmation; repair is underway.
+The completed full suite does not attest these later changes. Final source-family
+regeneration and newly scoped production build/menu review remain next.
 
 EARLIER SOURCE-BOUND RECEIPTS
 
@@ -114,9 +122,9 @@ source-bound evidence.
 
 NEXT ACTION
 
-Now: finish the runner fixture audit and review the in-progress portrait-camera
-repair. Run affected Windows/native checks, then complete the newly scoped local
-production build and rendered review. Publish each reviewable checkpoint with its
+Now: finish the existing mobile confirmation feedback and QA-script corrections.
+Run affected checks, derive the complete source family, then complete the newly
+scoped local production build/preservation and rendered review. Publish each reviewable checkpoint with its
 actual evidence. Use the local preparation checkpoint and repository ecosystem above;
 keep GitHub Actions unused and PTR unpublished throughout September.
 
