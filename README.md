@@ -62,15 +62,21 @@ dedicated lazy-loaded gameplay host that preserves /ptr/ routing and checks its
 owner/session capabilities. No candidate change opens Genesis 002 admissions
 or widens the Genesis 001 admission freeze.
 
-The latest candidate's exact native /ptr/ build, payload hashes, and read-only
-publication plan are recorded in PR #374. The latest full native Linux suite
-passed before the mobile gesture repairs; its final counts were not retained.
-The gesture repairs passed 143 tests across five affected host/lifecycle suites
-and independent review. Earlier Keep UI and accessibility tests passed 70/70.
-The candidate also passed a disposable local
+The latest candidate's exact source, native test results, /ptr/ build, payload
+hashes and read-only publication plan are recorded in PR #374. Independent
+reviews repaired camera gestures becoming selections, lost pan after a pinch,
+confirmation being disabled by a concurrent refresh, and destination focus
+being lost between world and keep. The affected UI/controller tests and app/
+Vite-config typechecks passed. Earlier Keep UI and accessibility tests passed
+70/70. The full native rerun uncovered a root-owned ignored build artifact;
+restoring only that file's ownership made its affected 199-test suite pass.
+Read the exact-source result on the PR before treating a historical full-suite
+pass as current acceptance.
+The candidate also passed a disposable local G001/legacy Inner Keep
 full-stack browser playthrough covering construction, persisted reload, Worker
 dispatch/recall/return, re-entry and recovery paths. That run used synthetic
-identity and an isolated local database. A 36-case Windows Chrome capture is
+identity and an isolated local database; it does not test the gameplay04/PTR
+journey. A 36-case Windows Chrome capture is
 also synthetic evidence, not authenticated owner gameplay or physical-phone
 acceptance. The build still reports a 677.80 kB RealmMapScreen chunk (188.23 kB
 gzip), outside the standalone PTR route's load path. Mobile performance budgets

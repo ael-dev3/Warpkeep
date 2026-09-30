@@ -1,31 +1,38 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 09:27 CEST (07:27 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 10:10 CEST (08:10 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
 PR #374 is the open, unmerged 0.4 candidate against unchanged main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Its branch contains reviewed work
 from open PRs #375–#378; do not merge those older heads separately. The current
-signed candidate before the mobile gesture repairs is
-`268495f067e155ab76f56977797553de7194a63f`. Greater Realm now excludes camera
+signed candidate before the latest confirmation/focus repairs is
+`d1474f11a7e7aa8d87267f3f078dce6fc311d094`. Greater Realm now excludes camera
 gestures from tap selection; Keep04 continues panning with the remaining finger
 after a pinch. Five affected host/lifecycle suites passed 143/143 on pinned
 Windows Node 22.22.3; independent reviews and app/Vite noEmit types passed.
 The separate authority review passed 85/85 at unchanged server source.
-See local-operations.md for repro, repair and evidence limits. Windows and
+The latest repairs release a confirmation declined during focus refresh and
+restore named destination focus between world and keep. Real-caller regressions,
+independent cross-reviews and app/Vite types passed. See local-operations.md
+for reproduction, repair and evidence limits. Windows and
 native WarpkeepRunner are the local development and Linux-build environments.
 The latest exact source, `/ptr/` build, payload check and read-only mirror plan
 are recorded on PR #374. The protected closure was refreshed from signed
 repair b696c3b7: all 16 outputs matched independent derivation and native
-UID-1000 policy verification passed. Verify the final signed source before
+UID-1000 policy verification passed. Refresh the complete family again after
+the latest signed source checkpoint. Verify the final signed source before
 resuming the hosted lane.
 When WSL reads the Windows public checkout, set per-process
 `safe.directory` to that exact checkout and `core.autocrlf=true`; do not alter
 the public checkout or persist a global workaround.
 
-The full native Linux root Vitest suite passed after the DEV-only recorder
-correction at code/test head `198377c6569c08dfe97a8613f8ed098e561784b4`
-(`npm test -- --reporter=dot`, exit 0); final counts were not retained. At
+The full native Linux root suite at d1474f11 exited 1: 12,591 tests passed,
+six failed, 97 skipped. All failures were fixture setup against one root-owned
+ignored bundle.js. Restoring only its ownership made the unchanged activation
+suite pass 199/199. The next full-suite result must be read on PR #374; do not
+turn a focused recovery into a full pass. The older full run at 198377c6 passed
+without retained counts. At
 `0269ef201c26e312fa0ec55c0548074ebb0ee905`, the SpacetimeDB module typecheck
 passed and `test:pure` passed 598/598 (0 failed, 0 skipped; 782.03 seconds)
 with Node 22.22.3 and pnpm 11.7.0 on native WarpkeepRunner. On the current
@@ -44,12 +51,13 @@ release-recovery pnpm audits each reported zero known vulnerabilities. GitHub
 still lists three moderate Undici alerts on default main; this candidate's
 root and service locks contain patched versions, pending integration/rescan.
 
-The current candidate also passed its disposable local full-stack browser
-playthrough for construction, persistent reload, Worker dispatch/return,
-re-entry and recovery seams. Its database and sign-in were synthetic; see the
-execution handoff for scope.
+The current candidate also passed its disposable local G001/legacy Inner Keep
+full-stack browser playthrough for construction, persistent reload, Worker
+dispatch/return, re-entry and recovery seams. Its database and sign-in were
+synthetic. This covers preservation, not gameplay04/PTR integration; see
+local operations for the verified caller and scope.
 
-Direct status checks at 08:50 CEST returned HTTP 200 for the production root
+Direct GET checks at 09:38 CEST returned HTTP 200 for the production root
 and HTTP 404 for `/ptr/`. Sealed-launch
 preparation remains in package 0.3.43 with Pages approval false,
 G001/G002/PTR identities unset and PTR presentation disabled. The auth-bridge
@@ -65,8 +73,8 @@ is made.
 
 NEXT ACTION
 
-On or after October 1, follow the recorded owner direction before resuming
-hosted exact-head Verify. Then follow the
+On or after October 1, resume the already-authorized hosted exact-head Verify
+lane. Follow the
 existing signed source-only M1, exact-M1 native prepare/check, generated-only
 M2 and exact-M2 Verify sequence. Only with
 fresh source-bound authority should the workflow capture and preserve G001,

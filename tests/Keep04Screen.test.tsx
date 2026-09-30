@@ -1,10 +1,11 @@
 import '@testing-library/jest-dom/vitest';
-import { useState, useSyncExternalStore } from 'react';
+import { useLayoutEffect, useState, useSyncExternalStore } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Keep04Screen, type Keep04UiSelection } from '../src/components/keep04/Keep04Screen';
 import { estimatedTime04 } from '../src/components/keep04/Keep04WorkerPanel';
 import { createGameplay04Controller, type Controller04, type Snapshot04 } from '../src/ptr/gameplay04/createGameplay04Controller';
+import { useGameplay04Controller } from '../src/ptr/gameplay04/useGameplay04Controller';
 import { Gameplay04ClientError } from '../src/ptr/gameplay04/ptrGameplay04Errors';
 import { presentState04 } from '../src/ptr/gameplay04/gameplay04Presentation';
 import { decodeState04 } from '../src/ptr/gameplay04/gameplay04State';
@@ -413,6 +414,51 @@ it('recovers repeated immediate rejections through the real controller and requi
     expect(screen.getByRole('button', { name: 'Confirm placement' })).toBeEnabled();
   }
   rendered.unmount(); controller.dispose();
+});
+
+it('declines a confirmation caught by a focus refresh and accepts the next genuine confirmation', async () => {
+  const wire = freshWire04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
+  const { capability, read, mutate } = scriptedCapability04(); read.mockResolvedValue(wire);
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+  let controller!: Controller04;
+  function Harness() {
+    const current = useGameplay04Controller(capability); controller = current.controller;
+    useLayoutEffect(() => current.controller.setAtlas(ATLAS04), [current.controller]);
+    const [selection, onSelectionChange] = useState<Keep04UiSelection>({ selectedKind: null, draft: null, panel: null });
+    return <Keep04Screen snapshot={current.snapshot} controller={current.controller} selection={selection} onSelectionChange={onSelectionChange}
+      onBack={vi.fn()} quality="balanced" reducedMotion={false} onFindResources={vi.fn()} onReturnToWorld={vi.fn()} />;
+  }
+  const rendered = render(<Harness />);
+  try {
+    await act(async () => {}); openMill();
+    const confirm = screen.getByRole('button', { name: 'Confirm placement' });
+    let finishRead!: () => void;
+    read.mockImplementationOnce(() => new Promise(resolve => { finishRead = () => resolve(wire); }));
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+      expect(controller.getSnapshot().phase).toBe('refreshing');
+      // A native click can arrive before React redraws the now-busy controller.
+      expect(confirm).toBeEnabled(); confirm.click();
+    });
+    expect(mutate).not.toHaveBeenCalled(); expect(confirm).toBeDisabled();
+    await act(async () => { finishRead(); });
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'ready', problem: 'none' });
+    expect(screen.queryByRole('button', { name: 'Review updated costs' })).not.toBeInTheDocument();
+    expect(confirm).toBeEnabled();
+    mutate.mockImplementationOnce(async command => {
+      if (command.kind !== 'build') throw new Error('Expected a building confirmation.');
+      const confirmed = constructingWire04();
+      Object.assign(confirmed.buildings[0], { x: command.input.x, z: command.input.z, rotation: command.input.rotation });
+      Object.assign(confirmed, { revision: 2n, lastAcceptedSequence: 2n, food: 980n, wood: 960n, stone: 980n, gold: 1000n });
+      read.mockResolvedValue(confirmed);
+      return { sequence: 2n, revision: 2n };
+    });
+    await act(async () => { confirm.click(); confirm.click(); });
+    expect(mutate).toHaveBeenCalledOnce();
+    expect(mutate.mock.calls[0][0]).toMatchObject({ kind: 'build', input: { sequence: 2n, expectedRevision: 1n } });
+    expect(screen.getByText('Resources for this construction are already committed.')).toBeVisible();
+    expect(controller.getSnapshot().phase).toBe('ready');
+  } finally { rendered.unmount(); visibility.mockRestore(); }
 });
 
 it('names each confirmed return resource independently of a new assignment and explains capped storage', () => {

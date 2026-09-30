@@ -103,6 +103,11 @@ Follow [the development workflow](docs/engineering/development-workflow.md) and
   exact offline YAML archive used by `localBindingYamlManifest.test.ts`. Missing
   archive, CLI, or locked package trees produce misleading test failures; fix
   the environment and rerun those tests before classifying them as source bugs.
+  Inspect any existing `spacetimedb/dist/bundle.js` with `lstat` too: a prior
+  root build can leave this ignored output unwritable by the test fixture's
+  writer even when Git is clean. Run native builds/tests as UID 1000. Verify
+  the exact regular file and idle build process before restoring its ownership;
+  do not recursively change permissions or run the suite as root.
 - For visual changes, inspect rendered views, progression, loading/failure,
   background/resume and cleanup. Distinguish fixtures, emulation, actual devices
   and authenticated owner play. Measure the agreed workloads before claiming

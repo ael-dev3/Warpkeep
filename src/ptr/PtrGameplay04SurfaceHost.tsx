@@ -124,6 +124,16 @@ function CurrentSurface(props: CurrentProps) {
   const route = surface.current;
   const knownRoute = route === undefined || route.kind === 'inner-keep' || route.kind === 'inner-keep-catalogue' || route.kind === 'workers'
     || ((route.kind === 'inner-keep-placement' || route.kind === 'inner-keep-building') && buildingKind(route.buildingKind));
+  const destination = route === undefined ? 'world' : 'keep';
+  const previousDestination = useRef<'world' | 'keep' | null>(null);
+  useLayoutEffect(() => {
+    if (restoringSurface || !knownRoute) return;
+    const previous = previousDestination.current;
+    previousDestination.current = destination;
+    // Switching surfaces removes the activated control. Restore a named
+    // destination once; keep panels and authoritative refreshes own their focus.
+    if (previous !== null && previous !== destination) content.current?.focus({ preventScroll: true });
+  }, [destination, knownRoute, restoringSurface]);
   useLayoutEffect(() => {
     if (!restoringSurface && knownRoute) props.onPtrSurfaceChange?.(route === undefined ? 'world' : 'keep');
   }, [knownRoute, restoringSurface, route, props.onPtrSurfaceChange]);
@@ -179,7 +189,8 @@ function CurrentSurface(props: CurrentProps) {
   return <main className="realm-map-screen realm-map-screen--greater-realm ptr-gameplay-surface" aria-label="PTR" data-realm-world-scene-strategy="greater-realm">
     {props.ptrContinuationNotice && !noticeDismissed && (snapshot.view !== null || snapshot.phase === 'uninitialized') &&
       <PtrSessionRenewalNotice onDismiss={() => { setNoticeDismissed(true); props.onDismissPtrContinuationNotice?.(); content.current?.focus({ preventScroll: true }); }} />}
-    <div ref={content} tabIndex={-1} className={`ptr-gameplay-surface__content${route === undefined ? '' : ' ptr-gameplay-surface__content--keep'}`}>
+    <div ref={content} role="group" aria-label={destination === 'world' ? 'Greater Realm' : 'Your keep'} tabIndex={-1}
+      className={`ptr-gameplay-surface__content${route === undefined ? '' : ' ptr-gameplay-surface__content--keep'}`}>
     {route === undefined ? <>
       <GreaterRealmWorldScene key={worldRevision} bridge={props.greaterRealm as AvailableBridge} identityFid={props.identity.fid}
         identityKey={props.identityKey} ownKeeperName={props.identity.displayName ?? props.identity.username}

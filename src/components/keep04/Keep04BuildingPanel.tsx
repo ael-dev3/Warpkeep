@@ -18,7 +18,7 @@ const costText = (cost: Cost04) => RESOURCES04.filter(resource => cost[resource]
 export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedKind, draft, enabled, problem, onSelect, onConfirm, onCancelDraft, onFindResources, onViewSite, reviewHeadingRef }: Readonly<{
   nowMs?: number;
   view: View04; selectedKind: Building04 | null; draft: Placement04 | null; enabled: boolean; problem: Snapshot04['problem'];
-  onSelect: (kind: Building04) => void; onConfirm: (quote: BuildQuote04) => void;
+  onSelect: (kind: Building04) => void; onConfirm: (quote: BuildQuote04) => boolean | void;
   onCancelDraft: () => void; onFindResources: (resource: Resource04) => void;
   onViewSite?: () => void; reviewHeadingRef?: Ref<HTMLHeadingElement>;
 }>) {
@@ -126,7 +126,11 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
       {!placement && <p role="status">No valid draft selected. Choose a building site.</p>}
       <button type="button" className="keep04-confirm" disabled={!canConfirm} onClick={() => {
         if (!canConfirm || sentRef.current || !reviewed.quote) return;
-        sentRef.current = true; setSent(true); onConfirm(reviewed.quote);
+        sentRef.current = true;
+        // Readiness can change before this rendered button receives its click.
+        // A declined submission must leave the reviewed quote available.
+        if (onConfirm(reviewed.quote) === false) { sentRef.current = false; return; }
+        setSent(true);
       }}>{existing ? 'Confirm upgrade' : 'Confirm placement'}</button>
       {!existing && <button type="button" onClick={onCancelDraft}>Cancel draft · free</button>}
       </>}

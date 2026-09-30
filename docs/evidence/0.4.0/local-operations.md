@@ -2,6 +2,67 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Confirmation and destination focus repair — 30 September 2026, 10:10 CEST (08:10 UTC)
+
+Independent review of d1474f11a7e7aa8d87267f3f078dce6fc311d094 found two
+reachable UI defects. In the real gameplay04 hook, window focus could begin
+a held read before React disabled a rendered confirmation button. A native
+click was declined by the busy controller but permanently marked the panel
+sent; a same-revision successful read offered neither confirmation nor updated
+cost review. The regression failed before repair. Keep04Screen now checks the
+current controller snapshot; a declined callback releases the panel's guard.
+Accepted commands retain immediate duplicate and reentrant-click protection.
+
+Switching between world and keep removed the activated control and left
+keyboard focus on BODY. The actual PTR host now focuses the named destination
+container on world/keep transitions, including browser Back/Forward, without
+stealing focus on initial restoration, healthy reads, panel changes or renewal
+notice rendering. Three navigation regressions failed before repair.
+
+Pinned Windows Node 22.22.3 passed 180/180 across seven Keep/controller/host
+suites for the confirmation repair and 65/65 across three focus suites.
+Independent cross-review passed 93/93 confirmation/controller tests and
+151/151 focus/navigation/outer-experience tests. An in-memory BuildingPanel
+probe also verified reentrant rejection, guard release and later acceptance.
+App and Vite-config noEmit typechecks passed. These overlapping runs are not
+one aggregate count. SDK/GPU boundaries are synthetic; neither repair claims
+physical-device or authenticated owner acceptance. A second authority and
+reconnect audit found no further demonstrated defect; renewed keep entry's
+explicit Return to world freshness gate remains intentional.
+
+## Full native suite artifact-ownership recovery — 30 September 2026, 10:07 CEST (08:07 UTC)
+
+At clean d1474f11, native UID 1000 ran the full root suite with Node 22.22.3,
+the pinned SpacetimeDB 2.6.1 CLI and exact offline YAML archive. It exited 1
+after 995.83 seconds: 691 files passed, one failed, one skipped; 12,591 tests
+passed, six failed, 97 skipped. Every failure was activationToolingSecurity's
+fixture write to spacetimedb/dist/bundle.js, before the intended assertion.
+The retained report is artifacts/qa/root-suite-last.json in the native checkout.
+
+The ignored bundle was a regular file owned by UID/GID 0 with mode 0644 and
+mtime 2026-09-30T06:18:42.609Z. Its parents were UID 1000; no build was running.
+Root ownership explains EACCES for the UID-1000 fixture writer. Only the
+verified exact file's owner/group was restored to warpkeep; bytes and mode
+were preserved (6,054,338 bytes, SHA-256
+bda5412a572574483ed12029e8c391fbe50704098660dfc572558d2fae98710e).
+The unchanged activation suite then passed 199/199, exit 0, in 1.98 seconds.
+Its separate report is artifacts/qa/activation-artifact-owner-recheck.json.
+No source test was weakened, recursive ownership change made or suite run as
+root. This focused repair is not a full-suite pass. The next full run must
+use the final reviewed candidate; its exact result belongs on PR #374.
+
+## Evidence scope correction — 30 September 2026
+
+qa:fullstack:local invokes local-fullstack-browser-probe.mjs and a disposable
+copy of spacetimedb/src/, then drives legacy Inner Keep/G001 construction,
+discounts, Worker dispatch, persistence and recovery with synthetic balances,
+clocks and identity. It is G001 preservation evidence, not the gameplay04/PTR
+Keep04 browser journey. Existing gameplay04KeepModules tests cover gather,
+persisted Mill completion, improved dispatch and credited return with a
+controlled clock; they do not establish owner-atlas travel or real pacing.
+The authenticated owner journey and physical-phone/performance acceptance
+remain open. Keep these distinct scopes in README, handoff and release notes.
+
 ## Mobile gesture repair — 30 September 2026, 09:27 CEST (07:27 UTC)
 
 Independent source reviews at signed candidate
@@ -187,14 +248,17 @@ synthetic instrumentation verification only; it is not a production workload,
 device measurement, input-feedback result or 0.4 performance pass. The full
 native suite result predates this change and is retained separately below.
 
-## Current-candidate full-stack browser QA — 30 September 2026, 06:02 CEST
+## Current-candidate G001 full-stack browser QA — 30 September 2026, 06:02 CEST
 
 Signed source `566d27286080424c6da235630e36723720f7f2a5` passed
 `scripts/qa-observer/local-fullstack-browser-probe.mjs` on Windows Node 22.23.2
 with the pinned SpacetimeDB CLI 2.6.1 and isolated headless Chrome profiles.
 The probe exited 0 and cleaned its disposable database, Vite server, browser
 processes and temporary profiles. No production database, credential or
-external service was used.
+external service was used. Source review on 30 September confirmed that this
+probe publishes the preserved `spacetimedb/` module and uses the legacy
+Inner Keep/G001 caller. It does not exercise `spacetimedb/ptr`, gameplay04,
+Keep04 or the new PTR surface. Treat it as G001 preservation evidence.
 
 The run covered the six direct-menu viewport profiles; restored server Terms
 continuity; authoritative City Mill construction/completion and discounted
@@ -204,7 +268,8 @@ four-phase Worker re-entry; delayed/failing private reads and timeout/missing/
 torn/visibility recovery seams; four-resource dispatch, recall, settlement and
 return completion. The visual aggregate passed its clipping and palette guards.
 Authentication and advanced state were synthetic. This is local integration
-evidence, not a production PTR journey, actual-owner acceptance, or phone
+evidence for G001, not gameplay04/PTR integration, a production PTR journey,
+actual-owner acceptance, or phone
 performance measurement.
 
 ## Exact candidate build and read-only mirror plan — 30 September 2026, 05:39 CEST

@@ -1,5 +1,29 @@
 # Continue Warpkeep 0.4
 
+## Confirmation, focus and evidence repair — 30 September 2026, 10:10 CEST (08:10 UTC)
+
+The next reviewed checkpoint fixes a confirmation swallowed by a concurrent
+focus refresh and lost destination focus between world and keep. Real caller
+regressions failed before repair; affected suites, independent cross-reviews
+and app/Vite-config types passed. Read the [scoped repair evidence](../../evidence/0.4.0/local-operations.md#confirmation-and-destination-focus-repair--30-september-2026-1010-cest-0810-utc).
+
+The full native root suite at d1474f11 exited 1: 12,591 passed, six failed,
+97 skipped. All six failures were fixture setup against one root-owned ignored
+SpacetimeDB bundle. Restoring that verified file's ownership made the unchanged
+activation suite pass 199/199; it does not turn the earlier full run into a
+pass. Native execution guidance now includes this recovery. Record the next
+exact-source full-suite result on PR #374, keeping its source scope explicit.
+
+The local full-stack browser playthrough described in older entries uses
+legacy Inner Keep/G001, synthetic identity, balances and clocks. It is
+preservation evidence, not gameplay04/PTR owner integration or real pacing.
+The new module tests and UI fixtures remain distinct from the owner journey.
+The candidate stays unmerged and PTR unpublished. Reproduce its complete
+prepared-closure family after the signed source checkpoint, then validate
+the final exact source/build/payload/mirror plan. On October 1 resume the
+existing authorized signed M1/exact-M1/M2 hosted release sequence. September
+remains free of GitHub Actions. Preserve Alpha and closed G002 admissions.
+
 ## Mobile gesture repair — 30 September 2026, 09:27 CEST (07:27 UTC)
 
 Independent reviews at 268495f067e155ab76f56977797553de7194a63f found

@@ -3,6 +3,16 @@
 Recorded 2026-09-09 from the Windows development checkout. This record is an
 evidence boundary, not a claim that the live owner journey is complete.
 
+## Scope clarified — 2026-09-30
+
+The qa:fullstack:local runs below exercise a disposable spacetimedb/src/ copy
+and legacy Inner Keep/G001 with synthetic identity, starting balances and
+accelerated clocks. They establish preservation integration, not the
+gameplay04/PTR Keep04 journey or first-session pacing. Module tests cover the
+new gather → build → improved return sequence with a controlled clock; actual
+owner-atlas route timing, production persistence and phone performance remain
+unverified. See [local operations](local-operations.md#evidence-scope-correction--30-september-2026).
+
 ## 2026-09-29 local PTR mobile render review
 
 The exact-source `/ptr/` production build at `d89a1acfe51237f709f63fe03b1a5e19dbd584d0`
@@ -16,7 +26,7 @@ This confirms responsive menu/entry presentation only. It is a local preview,
 not a production PTR visit, an authenticated owner journey, real route timing,
 or physical-device/performance acceptance.
 
-## 2026-09-29 Windows candidate full-stack rerun
+## 2026-09-29 Windows candidate G001 full-stack rerun
 
 Exact candidate `4e3d7cd30fd094183c5511ca569ef2cecf9d09fe` passed
 `scripts/qa-observer/local-fullstack-browser-probe.mjs` on the attested
@@ -30,8 +40,8 @@ dispatch/return paths, recalls, automatic settlement, and released-node reuse.
 The probe completed successfully and removed its temporary database, CLI
 attestation, and browser profiles.
 
-This remains synthetic integration evidence. The current Terms fixture caused
-one continuity subcase to be skipped; the run does not establish real identity,
+This remains synthetic G001 preservation integration evidence. The current Terms
+fixture caused one continuity subcase to be skipped; the run does not establish real identity,
 the owner's atlas-route timing, production persistence, a physical-phone result,
 or live PTR acceptance. The checked-in sealed-launch verifier at this source
 still reports `pagesDeploymentApproved: false`, package `0.3.43`, no G001/G002/
@@ -77,7 +87,7 @@ uses the fixed Chrome installation path, an isolated profile, offline resolver
 flags, numeric loopback CDP checks, and a bounded process-tree teardown. This
 removes the browser host mismatch without weakening the database attestation.
 
-## 2026-09-28 Windows candidate full-stack rerun
+## 2026-09-28 Windows candidate G001 full-stack rerun
 
 Candidate `12f7ba60` passed `npm run qa:fullstack:local` on the attested Windows
 toolchain. The current 0.4 client enters directly on the main menu, so the

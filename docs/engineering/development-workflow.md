@@ -143,8 +143,11 @@ prepare/check releases the input, rather than installing into shared Windows
 dependency junctions or making another clone. The [execution handoff](../agent-notes/0.4.0/execution-handoff.md)
 records current run identities and owning results.
 
-The connected local full-stack browser probe owns a disposable SpacetimeDB
-module copy. Before running `npm run qa:fullstack:local`, install the module's
+The connected local full-stack browser probe exercises preserved G001/legacy
+Inner Keep, using a disposable copy of `spacetimedb/src/`, synthetic sign-in,
+accelerated clocks and starting balances. It does not exercise the gameplay04
+PTR/Keep04 caller or establish its first-session pacing. Before running
+`npm run qa:fullstack:local`, install the module's
 locked dependencies in the existing checkout:
 
 ```powershell
@@ -163,8 +166,8 @@ a symlink rejected by executable attestation, so select the attested binary
 with `WARPKEEP_QA_CHROME=/opt/google/chrome/chrome`. Linux headless QA opts into
 SwiftShader; high-DPI software rendering can still emit a GPU-stall diagnostic.
 Keep unknown browser warnings fail-closed and use the Windows Chrome full-stack
-run for integration evidence. Neither emulated run establishes phone
-performance.
+run for G001 preservation integration evidence. Neither emulated run establishes
+phone performance.
 
 Verify `id -u` is `1000` and the native checkout is owned by `warpkeep` before
 running its Git, build, test or sealed-launch commands. The sealed-launch
@@ -174,6 +177,16 @@ fetch or build can also leave `.git`, tracked files and ignored outputs owned by
 root. If that happens, inventory the exact files created by the run and restore
 only those paths to `warpkeep`; do not hide the mismatch with `safe.directory`
 or a broad recursive ownership change.
+
+Before a full root suite, also inspect the ignored canonical artifact at
+`spacetimedb/dist/bundle.js` if it exists. A clean Git status does not establish
+its ownership. On 30 September it was a root-owned regular file, so six
+`activationToolingSecurity` cases failed at fixture setup with `EACCES`. With
+the build idle and the exact path verified inside the native checkout,
+restoring only that file to `warpkeep:warpkeep` preserved its bytes and made
+all 199 cases pass. Do not delete a referenced artifact, broadly relax modes,
+or rerun the suite as root. Rebuild release artifacts from the final exact
+source; a fixture-restored bundle is not a preparation receipt.
 
 When the read-only public Pages mirror planner runs from WSL against the
 Windows-mounted `Warpkeep-Live` checkout, Git can reject its mounted ownership

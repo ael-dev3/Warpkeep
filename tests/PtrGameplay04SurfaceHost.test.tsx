@@ -124,6 +124,77 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
+it.each([true, false])('restores destination focus when moving between world and keep (miniApp=%s)', async miniApp => {
+  hostValue = { ...hostValue, isMiniApp: miniApp };
+  const h = await setup();
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
+  const open = await screen.findByRole('button', { name: 'Open keep' });
+  const content = screen.getByRole('main', { name: 'PTR' }).querySelector('.ptr-gameplay-surface__content')!;
+  // Mounting and the initial read do not move focus into an unrequested view.
+  expect(content).not.toHaveFocus();
+  open.focus();
+  fireEvent.click(open);
+  await screen.findByRole('heading', { name: 'Your keep' });
+  expect(content).toHaveFocus();
+
+  const back = screen.getByRole('button', { name: 'Back' });
+  back.focus();
+  fireEvent.click(back);
+  await screen.findByRole('button', { name: 'Open keep' });
+  expect(content).toHaveFocus();
+  expect(h.props.onRequestReturn).not.toHaveBeenCalled();
+});
+
+it('restores destination focus through browser Back and Forward without reopening a keep panel', async () => {
+  hostValue = { ...hostValue, isMiniApp: false };
+  const h = await setup();
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
+  const open = await screen.findByRole('button', { name: 'Open keep' });
+  const content = screen.getByRole('main', { name: 'PTR' }).querySelector('.ptr-gameplay-surface__content')!;
+  const worldState = window.history.state;
+  fireEvent.click(open);
+  await screen.findByRole('heading', { name: 'Your keep' });
+  const keepState = window.history.state;
+  screen.getByRole('button', { name: 'Back' }).focus();
+  act(() => {
+    window.history.replaceState(worldState, '');
+    window.dispatchEvent(new PopStateEvent('popstate', { state: worldState }));
+  });
+  await screen.findByRole('button', { name: 'Open keep' });
+  expect(content).toHaveFocus();
+  screen.getByRole('button', { name: 'Open keep' }).focus();
+  act(() => {
+    window.history.replaceState(keepState, '');
+    window.dispatchEvent(new PopStateEvent('popstate', { state: keepState }));
+  });
+  await screen.findByRole('heading', { name: 'Your keep' });
+  expect(content).toHaveFocus();
+  expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull();
+});
+
+it.each(['world', 'keep'] as const)('preserves %s control focus through healthy refresh and notice rendering', async surface => {
+  const h = await setup();
+  const mounted = render(<PtrGameplay04SurfaceHost {...h.props} />);
+  const open = await screen.findByRole('button', { name: 'Open keep' });
+  let control: HTMLElement;
+  if (surface === 'keep') {
+    fireEvent.click(open);
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Workers' }));
+    control = screen.getByRole('button', { name: 'Close panel' });
+    expect(control).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'Open building catalog' }));
+    expect(control).toHaveFocus();
+  } else control = screen.getByTestId('greater-realm-world-canvas');
+  control.focus();
+  const reads = h.read.mock.calls.length;
+  await act(async () => window.dispatchEvent(new Event('focus')));
+  expect(h.read.mock.calls.length).toBeGreaterThan(reads);
+  expect(control).toHaveFocus();
+  mounted.rerender(<PtrGameplay04SurfaceHost {...h.props} ptrContinuationNotice />);
+  expect(screen.getByRole('region', { name: 'Session renewal' })).toBeVisible();
+  expect(control).toHaveFocus();
+});
+
 it('guides an uninitialized first-session World entry to the existing keep establishment flow', async () => {
   const h = await setup();
   h.setUninitialized(true);
