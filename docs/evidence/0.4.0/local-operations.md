@@ -2,6 +2,46 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## September 30 local verification bundle — 30 September 2026
+
+At signed candidate 9a24d455e3405308ce32e24ef01c9c600eb718a8, the root
+game/test sources are code-equivalent to 0269ef201c26e312fa0ec55c0548074ebb0ee905.
+The native WarpkeepRunner SpacetimeDB module typecheck passed and test:pure
+passed 598/598 (0 failed, 0 skipped; 782.03 seconds) as UID 1000 warpkeep,
+using Node 22.22.3 and pnpm 11.7.0. At the same code/test state, auth-bridge
+passed 484 Node and 18 workerd tests (502 total), and release-recovery passed
+1,499 Node and 68 workerd tests (1,567 total). Their TypeScript and workerd
+typechecks passed; Wrangler's release-recovery generated-type check was current.
+Genesis 002 and PTR module typechecks passed. Windows SpacetimeDB CLI 2.6.1
+builds passed for the root module, Genesis 002 and PTR. The PTR package-local
+Windows dependencies were installed from its frozen lock with the isolated
+command documented in development sync; this removed the earlier PTR CLI
+tsc-not-found warning. No source files changed during this environment repair.
+
+The full native root Vitest suite passed at code/test head
+198377c6569c08dfe97a8613f8ed098e561784b4 (exit 0; final counts were not
+retained). These root, module and service suites have distinct scopes and are
+not represented as one aggregate test count. The build's persistent
+RealmMapScreen warning is 677.80 kB raw / 188.23 kB gzip.
+
+At exact source 9a24d455e3405308ce32e24ef01c9c600eb718a8, the native /ptr/
+production build, production exclusions, public-boundary scan, Farcaster,
+license, file-size and sealed-launch preflight checks passed. The payload
+contains 446 files / 138,997,364 bytes; source-tree SHA-256
+94fc12bd2194ef502a7d7918b40d73975f0d0536; payload manifest SHA-256
+ab117c3f878b6af926407012063f30c3acb20a718494946de74a8c8ba09a2dc1; content
+manifest SHA-256
+1757e47922badceb7b69611b48ba1c74ed573bfbb99d88433c196fdec4371f99; root
+HTML SHA-256
+b9af2b46acab114e8ac002ced2d72acf36c6c77c51200419a2583e9c01867d74.
+Read-only mirror plan SHA-256
+73028928899dbc4b1e68034d4d0082ec4937b23b1ee89b8bedd1a83d0592ccb2 against
+Warpkeep-Live main@b6afe92e7b09197b1578d992103ac3c8f916d8ad preserves 341
+Alpha entries, targets 800 files and removes zero obsolete generated files.
+The payload and independent mirror recheck passed; the public checkout stayed
+untouched. These receipts are for 9a24d455; regenerate them after this
+documentation refresh at the final pushed head.
+
 ## SpacetimeDB module suite and build — 30 September 2026
 
 At code/test head `0269ef201c26e312fa0ec55c0548074ebb0ee905`, native

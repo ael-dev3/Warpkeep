@@ -1,51 +1,51 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 08:31 CEST (06:31 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 08:52 CEST (06:52 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
 PR #374 is the open, unmerged 0.4 candidate against unchanged main
-786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. Its branch contains the reviewed work
-from open PRs #375–#378; do not merge their older heads separately. The current
-signed code/test head before this evidence refresh is
-`0269ef201c26e312fa0ec55c0548074ebb0ee905`. Windows and native WarpkeepRunner
-are the local development and Linux-build environments. The frame-cadence
-recorder fix at `45d569db` remains covered by focused tests, typecheck and
-visible browser reproduction. At exact source `0269ef20`, the `/ptr/` build,
-payload writer/check and read-only Warpkeep-Live mirror plan passed; hashes and
-scope are in local operations and PR #374. This evidence-only refresh requires
-a new exact-head build and receipt before the hosted release lane resumes.
-For the mirror plan from WSL against the Windows checkout, set per-process
-`safe.directory` to that exact checkout and `core.autocrlf=true`; otherwise
-WSL sees the clean Windows `CNAME` as a line-ending change. Do not change the
-public checkout or its Git config to work around this.
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Its branch contains reviewed work
+from open PRs #375–#378; do not merge those older heads separately. The current
+signed candidate before this evidence refresh is
+`9a24d455e3405308ce32e24ef01c9c600eb718a8`; the code/test state is unchanged
+since `0269ef201c26e312fa0ec55c0548074ebb0ee905`. Windows and native
+WarpkeepRunner are the local development and Linux-build environments. The
+exact `/ptr/` build, payload check and read-only mirror plan passed at `9a24d455`;
+the receipt is below in local operations and on PR #374. This evidence refresh
+requires one more exact-head build and receipt before the hosted release lane
+resumes. When WSL reads the Windows public checkout, set per-process
+`safe.directory` to that exact checkout and `core.autocrlf=true`; do not alter
+the public checkout or persist a global workaround.
 
 The full native Linux root Vitest suite passed after the DEV-only recorder
 correction at code/test head `198377c6569c08dfe97a8613f8ed098e561784b4`
-(`npm test -- --reporter=dot`, exit 0); the terminal did not retain its final
-counts. At candidate code/test head
-`0269ef201c26e312fa0ec55c0548074ebb0ee905`, the separate SpacetimeDB module
-typecheck passed and `test:pure` passed all 598 tests (0 failures, 0 skipped;
-782.03 seconds) on native WarpkeepRunner as UID 1000 `warpkeep`, using Node
-22.22.3 and pnpm 11.7.0. The pinned CLI build returned success but logged that
-it could not find `tsc`; the independent module typecheck passed and this CLI
-tool-discovery warning is documented. Root Vitest, module, and service checks
-remain separate. On the current fix, focused Keep04 tests passed 19 active / 1
-skipped and typecheck passed. Keep UI/accessibility/placement suites passed
-70/70. A 36-case Windows Chrome capture found no horizontal overflow,
-network-boundary violation or cleanup issue; it is synthetic QA, not physical-
-phone or owner-PTR acceptance. The capture's CSP harness warning remains
-documented.
+(`npm test -- --reporter=dot`, exit 0); final counts were not retained. At
+`0269ef201c26e312fa0ec55c0548074ebb0ee905`, the SpacetimeDB module typecheck
+passed and `test:pure` passed 598/598 (0 failed, 0 skipped; 782.03 seconds)
+with Node 22.22.3 and pnpm 11.7.0 on native WarpkeepRunner. On the current
+code-equivalent candidate, auth-bridge passed 502 tests across Node and workerd,
+and release-recovery passed 1,567 across both runners; all TypeScript checks and
+the release-recovery Wrangler-types check passed. Genesis 002 and PTR
+SpacetimeDB typechecks and native 2.6.1 builds passed. Focused Keep04 tests
+passed 19 active / 1 skipped and typecheck passed; UI/accessibility/placement
+suites passed 70/70. A 36-case Windows Chrome capture found no horizontal
+overflow, network-boundary violation or cleanup issue; this is synthetic QA,
+not physical-phone or owner-PTR acceptance. The capture's CSP harness warning
+remains documented.
 
 The current candidate also passed its disposable local full-stack browser
 playthrough for construction, persistent reload, Worker dispatch/return,
 re-entry and recovery seams. Its database and sign-in were synthetic; see the
 execution handoff for scope.
 
-The Alpha root returned HTTP 200 and /ptr/ returned HTTP 404 at 07:08 CEST.
-Sealed launch remains disabled: package 0.3.43, Pages approval false,
-G001/G002/PTR identities unset and PTR presentation disabled. No
-provider/public write, merge or 0.4 publication occurred. The RealmMapScreen
-chunk remains 677.80 kB raw / 188.23 kB gzip.
+Direct status checks at 08:50 CEST returned HTTP 200 for the production root
+and HTTP 404 for `/ptr/`. Sealed-launch
+preparation remains in package 0.3.43 with Pages approval false,
+G001/G002/PTR identities unset and PTR presentation disabled. The auth-bridge
+private RPC-role attestation remains unavailable without the existing local
+admin credential; do not request its contents. No provider/public write,
+merge or 0.4 publication occurred. The RealmMapScreen chunk remains 677.80 kB
+raw / 188.23 kB gzip.
 
 September rule: do not query, dispatch, rerun or use GitHub Actions.
 Development commits are pushed with [skip actions]; use local validation and
@@ -54,7 +54,8 @@ is made.
 
 NEXT ACTION
 
-On or after October 1, resume hosted exact-head Verify. Then follow the
+On or after October 1, follow the recorded owner direction before resuming
+hosted exact-head Verify. Then follow the
 existing signed source-only M1, exact-M1 native prepare/check, generated-only
 M2 and exact-M2 Verify sequence. Only with
 fresh source-bound authority should the workflow capture and preserve G001,
