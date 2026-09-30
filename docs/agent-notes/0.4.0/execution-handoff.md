@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current continuation — 30 September 2026, 05:18 CEST (03:18 UTC)
+## Current continuation — 30 September 2026, 05:42 CEST (03:42 UTC)
 
 PR #374 remains open and unmerged against unchanged main
 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. It contains the signed 0.4 candidate
@@ -24,24 +24,24 @@ case. Portrait and landscape captures were inspected. One CSP sandbox warning
 per document remains a synthetic QA review item. These results are not
 actual-owner PTR, physical-phone, production-network or performance acceptance.
 
-The current exact-head native /ptr/ build and TypeScript, runtime asset,
-exclusion, public-boundary, Farcaster, file-size, license and sealed-launch
-results are recorded in PR #374. The RealmMapScreen chunk remains 677.80 kB raw
-/ 188.23 kB gzip.
+Exact-head native `/ptr/` build results are recorded in PR #374. The
+[local operations evidence](../../evidence/0.4.0/local-operations.md) also
+retains the preceding exact-build receipt. The RealmMapScreen chunk remains
+677.80 kB raw / 188.23 kB gzip.
 
-The latest direct status check at 05:05 CEST found the Alpha root at HTTP 200
+The latest direct status check at 05:39 CEST found the Alpha root at HTTP 200
 and /ptr/ at HTTP 404. Sealed launch remains disabled: package version 0.3.43,
 Pages deployment approval false, G001/G002/PTR identities unset and PTR
 presentation disabled. No merge, provider write, public Pages write or 0.4
 publication has occurred.
 
 No GitHub Actions workflow, run, check or status was queried, dispatched, rerun
-or used during September; development pushes use [skip actions]. After October
-1, confirm the owner's direction before resuming hosted exact-head Verify and
-the established signed sequence: source-only M1, exact-M1 native prepare/check,
-generated-only M2, exact-M2 Verify, fresh G001 preservation, sealed G002
-readback, approved PTR publication/readback, actual-owner journey and
-physical-device acceptance. Keep Alpha available and G002 admissions closed.
+or used during September; development pushes use [skip actions]. On or after
+October 1, resume hosted exact-head Verify and the established signed sequence:
+source-only M1, exact-M1 native prepare/check, generated-only M2, exact-M2
+Verify, fresh G001 preservation, sealed G002 readback, approved PTR
+publication/readback, actual-owner journey and physical-device acceptance.
+Keep Alpha available and G002 admissions closed.
 
 ## Superseded continuation — 30 September 2026, 04:23 CEST (02:23 UTC)
 

@@ -2,6 +2,41 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact candidate build and read-only mirror plan — 30 September 2026, 05:39 CEST
+
+At signed candidate
+`d800c468339cf1d3048c2f08f2270d5ef84700b8`, native WarpkeepRunner ran the
+full `/ptr/` build with `VITE_WARPKEEP_BUILD_SHA` bound to that commit.
+TypeScript, runtime asset catalogs, production exclusions, public-boundary scan
+(3,351 tracked paths / 1,908 scanned entries), and Farcaster integrity passed.
+License policy, tracked file-size policy, and sealed-launch preparation passed.
+The build retained the RealmMapScreen warning at 677.80 kB raw / 188.23 kB gzip.
+
+The exact payload contains 446 files / 138,997,364 bytes; source tree
+`24bdf4f4813cacbddbcec303bcc195cbd606361e`; payload manifest SHA-256
+`df4ed201f1140253342eb4305df7b3e1384d5fdffd9669279d352f20afc49b6f`;
+content manifest SHA-256
+`b8d47f765484503e289d2d90ab4c51b37f12be1d55ed8742cc761a6c1a87edfb`; root
+HTML SHA-256
+`f45ed3ed4e4b6111f4ef66fa9aaf895b07c16c9ec9d72a2139aead5146fa1330`.
+
+The read-only mirror plan against Warpkeep-Live main
+`b6afe92e7b09197b1578d992103ac3c8f916d8ad` (tree
+`746fbd4facb0ad520c9dac1276d27d7a168f53d0`) preserves 341 Alpha entries,
+targets 800 total files, and removes zero obsolete files. Its SHA-256 is
+`bfe4e4a7355f1a0d9bffb7970db840896712e02bbd0eadf3fc749c3b43bb3c72`;
+preserved-root manifest SHA-256 is
+`7699d03b70c901e4fb8453b8b515af03376d398bf79e9eabea1c85f6e303c3ef`. The
+writer re-read and verified the plan inputs; the public checkout was not
+modified.
+
+At 05:39 CEST the public Alpha root returned HTTP 200 and `/ptr/` returned HTTP
+404. Sealed launch remains disabled (package 0.3.43, Pages approval false, live
+G001/G002/PTR identities unset, PTR presentation disabled). No provider, merge,
+or public Pages write occurred. No GitHub Actions workflow, run, check, or
+status was queried or used during September. This receipt is bound to
+`d800c468`; later tracked changes require a fresh exact-head build and receipt.
+
 ## Exact candidate build and read-only mirror plan — 30 September 2026, 05:28 CEST
 
 At signed candidate
