@@ -145,6 +145,15 @@ current refs before publication. The 28 retained compiler outputs and original
 M1 inputs remain unchanged. These source corrections are not yet served; PTR
 publication preserves the existing Alpha root, including its historical pages.
 
+Browser QA of the prepared c221e3e8 build at 320×640 found the legal revision
+metadata used 11.2px bold, widely spaced uppercase text: Terms occupied 199.63px
+and Social Contract 235.93px. A subsequent CSS-only polish gives those existing
+version notices 12.8px type, tighter tracking and their canonical text casing;
+the decorative eyebrow retains its original presentation. Document wording and
+normalized text commitments are unchanged. Final rendered layouts and the new
+exact-source build receipts belong on PR #374; this style change is separate
+from the earlier native 86-case source scope and is not deployed to Alpha.
+
 Independent PTR review found no further demonstrated source defect in authority,
 selection, immutable retry or provider renewal. The existing connected smoke
 manually replaces fixture sessions at 80s; it does not exercise the production
