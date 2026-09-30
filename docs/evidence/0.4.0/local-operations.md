@@ -15,7 +15,7 @@ for both repaired private-deployment test helpers. The Windows journal attempt
 remains an unsupported POSIX-mode attempt, not behavioral evidence.
 Ignored process-birth-native source/result/log/retention reports retain this scope.
 
-Raw capture checked all 3353 tracked files against exact Git bytes (220047659
+At signed 580cd588, raw capture checked all 3353 tracked files against exact Git bytes (220047659
 bytes, maximum 12507408). All 16 closure outputs independently reproduce across
 1250 members; native policy passes with manifest SHA-256
 2fa6947c834facae128e82fc8f79113123194ca3610200b27bfee226479845a9.
@@ -52,7 +52,7 @@ server-restart and physical-phone acceptance as separate outstanding evidence.
 
 ## Stable process-birth repair — 30 September 2026, 14:35 CEST (12:35 UTC)
 
-The abandoned synthetic timeout fixture above exposed a separate current-source
+A separately documented abandoned synthetic timeout fixture exposed a current-source
 recovery defect. Its PID and kernel start tick stayed unchanged while `ps lstart`
 moved by ten seconds. Linux procps reconstructs that display from boot wall time
 and elapsed ticks ([procps 4.0.4 source](https://gitlab.com/procps-ng/procps/-/raw/v4.0.4/src/ps/output.c)).
