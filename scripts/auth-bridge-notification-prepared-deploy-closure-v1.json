@@ -3870,7 +3870,7 @@
     {
       "path": "src/components/keep04/createKeep04Scene.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "027312060602188ccecef882a020db5e6bf55c724ba713b2211eb362a659b85d"
+      "sha256": "ab7b69f633a293e590a3315b1861f37688b57d2b973bd1ca3d6ef932cb50b26e"
     },
     {
       "path": "src/components/keep04/formatKeep04Duration.ts",
@@ -3895,7 +3895,7 @@
     {
       "path": "src/components/keep04/keep04VoxelDressing.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b2ad27379704b82ddef1a290deca75e9c88dc77dd00fc6f377b8f8ec29911e2a"
+      "sha256": "951e97772a6c4dc0d31b2ed59f91886907f8dd908599e09a98265068e01bb7a2"
     },
     {
       "path": "src/components/keep04/loadKeep04Assets.ts",
@@ -3965,7 +3965,7 @@
     {
       "path": "src/components/menu/WarpkeepMainMenu.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f2c6095be9d43f4f8bfb8f25c576e1768ea8f196b87a2df75aba2dbd577e8cb8"
+      "sha256": "8350204427385ac42b2c00d491390f91332292af3a09f35b444a7656afda347b"
     },
     {
       "path": "src/components/menu/WarpkeepMainMenu.tsx",
@@ -5020,7 +5020,7 @@
     {
       "path": "src/greater-realm/createGreaterRealmSceneRuntime.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "11b67abaa5927bebcd9e60e17b0a38ab232b74f70c2554e19aa8c50b00c3fb3d"
+      "sha256": "7025ceef3434d8acfdfceb219c1702e5a6cad526408c45242eafcb8fad0f6fca"
     },
     {
       "path": "src/greater-realm/greaterRealmChunkStream.ts",
