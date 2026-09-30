@@ -1489,7 +1489,8 @@ a.warpkeep-menu-build-stamp__build:focus-visible {
 }
 
 .warpkeep-menu-waystone {
-  background: linear-gradient(125deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.02) 36%, rgba(255, 255, 255, 0.04));
+  /* Keep ivory labels readable over pale masonry without relying on backdrop filters. */
+  background: linear-gradient(125deg, rgba(9, 17, 22, 0.80), rgba(9, 17, 22, 0.84) 36%, rgba(9, 17, 22, 0.82));
   backdrop-filter: blur(5px) saturate(0.62) brightness(0.73);
   -webkit-backdrop-filter: blur(5px) saturate(0.62) brightness(0.73);
 }
@@ -1500,7 +1501,7 @@ a.warpkeep-menu-build-stamp__build:focus-visible {
   }
 
   .warpkeep-menu-waystone {
-    background: linear-gradient(145deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.025));
+    background: linear-gradient(145deg, rgba(9, 17, 22, 0.80), rgba(9, 17, 22, 0.84));
   }
 
   .warpkeep-menu-heading__emblem {

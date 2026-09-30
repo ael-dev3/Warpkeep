@@ -1,5 +1,29 @@
 # Continue Warpkeep 0.4
 
+## Native full pass and menu polish — 30 September 2026, 10:49 CEST (08:49 UTC)
+
+Native UID-1000 root Vitest at signed 15b88b57 exited 0: 12,603 passed, zero
+failed, 97 skipped across 693 files. This verifies the gesture/confirmation/
+focus repairs after the narrow bundle-ownership recovery. Its separate source
+receipt, report and log are retained under native artifacts/qa/; the earlier
+failed report remains historical. The full pass precedes only the CSS and
+archive-link repair below; keep its exact source scope.
+
+The current polish changes only the menu's two existing panel gradients so
+ivory controls remain readable over pale castle geometry. Existing menu tests
+passed 27/27; conservative command-label contrast is at least 5.53:1 without
+backdrop-filter assumptions. Source renders at mobile/desktop dimensions
+retained layout, target sizes and keyboard outline with no horizontal overflow
+or console warnings. Two broken G002 soundtrack links now identify its actual
+draft archive by an immutable manifest, without altering rights or publishing.
+The [local evidence](../../evidence/0.4.0/local-operations.md) holds exact scopes.
+
+After the signed polish checkpoint, reproduce the full derived closure family,
+run the affected native closure/menu checks and rebuild the exact /ptr/ payload
+and independent read-only mirror plan. Record final receipts on PR #374. Keep
+September free of Actions; continue the already-authorized M1/exact-M1/M2
+delivery lane on October 1, preserving Alpha and closed G002 admissions.
+
 ## Confirmation, focus and evidence repair — 30 September 2026, 10:10 CEST (08:10 UTC)
 
 The next reviewed checkpoint fixes a confirmation swallowed by a concurrent

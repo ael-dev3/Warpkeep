@@ -1,13 +1,13 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 10:10 CEST (08:10 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 10:49 CEST (08:49 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
 PR #374 is the open, unmerged 0.4 candidate against unchanged main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Its branch contains reviewed work
 from open PRs #375–#378; do not merge those older heads separately. The current
-signed candidate before the latest confirmation/focus repairs is
-`d1474f11a7e7aa8d87267f3f078dce6fc311d094`. Greater Realm now excludes camera
+signed candidate before the latest menu/archive-link polish is
+`15b88b578c118416c19f4d6ba92bd3a5f0327f75`. Greater Realm now excludes camera
 gestures from tap selection; Keep04 continues panning with the remaining finger
 after a pinch. Five affected host/lifecycle suites passed 143/143 on pinned
 Windows Node 22.22.3; independent reviews and app/Vite noEmit types passed.
@@ -15,7 +15,10 @@ The separate authority review passed 85/85 at unchanged server source.
 The latest repairs release a confirmation declined during focus refresh and
 restore named destination focus between world and keep. Real-caller regressions,
 independent cross-reviews and app/Vite types passed. See local-operations.md
-for reproduction, repair and evidence limits. Windows and
+for reproduction, repair and evidence limits. The menu panel now keeps labels
+readable over pale scenery; its 27 focused tests and mobile/desktop source
+render passed. Two incorrect published soundtrack references now link the
+actual draft archive's immutable manifest. Windows and
 native WarpkeepRunner are the local development and Linux-build environments.
 The latest exact source, `/ptr/` build, payload check and read-only mirror plan
 are recorded on PR #374. The protected closure was refreshed from signed
@@ -23,19 +26,20 @@ confirmation/focus repair 485e4ca6: all 3,351 raw source files matched Git,
 all 16 outputs matched independent derivation and native UID-1000 policy
 verification passed. Its manifest SHA-256 is
 c47d7d096ff500aeafc5b27a4bc8122002d3c287b0b9800f7dfcded9c4162dd7.
-Record the final exact signed source and its new receipts on PR #374 after
+Refresh the complete family after the menu polish. Record the final exact
+signed source and its new receipts on PR #374 after
 verification. Verify the final signed source before
 resuming the hosted lane.
 When WSL reads the Windows public checkout, set per-process
 `safe.directory` to that exact checkout and `core.autocrlf=true`; do not alter
 the public checkout or persist a global workaround.
 
-The full native Linux root suite at d1474f11 exited 1: 12,591 tests passed,
-six failed, 97 skipped. All failures were fixture setup against one root-owned
-ignored bundle.js. Restoring only its ownership made the unchanged activation
-suite pass 199/199. The next full-suite result must be read on PR #374; do not
-turn a focused recovery into a full pass. The older full run at 198377c6 passed
-without retained counts. At
+The full native Linux root suite at 15b88b57 exited 0: 12,603 passed, zero
+failed, 97 skipped across 693 files. This covers all runtime behavior repairs
+before the later CSS/archive-link polish. The earlier d1474f11 run's six
+fixture failures were caused by one root-owned ignored bundle.js; its narrow
+ownership recovery and failed report remain recorded. Final affected checks
+and exact-source build/payload/mirror receipts belong on PR #374. At
 `0269ef201c26e312fa0ec55c0548074ebb0ee905`, the SpacetimeDB module typecheck
 passed and `test:pure` passed 598/598 (0 failed, 0 skipped; 782.03 seconds)
 with Node 22.22.3 and pnpm 11.7.0 on native WarpkeepRunner. On the current

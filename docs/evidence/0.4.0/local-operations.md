@@ -2,6 +2,41 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Menu readability and source-link repair — 30 September 2026, 10:49 CEST (08:49 UTC)
+
+The full native root suite at clean signed 15b88b578c118416c19f4d6ba92bd3a5f0327f75
+exited 0: 12,603 tests passed, zero failed, 97 skipped across 693 files.
+Node 22.22.3 ran as UID 1000 with the pinned CLI and offline YAML archive.
+Source identity is retained in artifacts/qa/root-suite-ui-final-source.json;
+the separate result/log are root-suite-ui-final.json and .log. The earlier
+failed report and focused ownership recovery remain intact. This full pass
+covers the confirmation, focus and gesture repairs; it precedes the CSS-only
+and archive-link changes below. Do not relabel it as a later exact-head run.
+
+The real 390×844 menu preview showed ivory commands over pale castle geometry.
+The final CSS cascade's almost-white translucent panel could leave label
+contrast near 1.4–1.6:1. Replacing only its two existing gradient declarations
+with dark Verdant slate retains layout, scene, command states and 44px mobile
+targets. A conservative white-backdrop calculation using the actual cascade,
+without blur/brightness/vignette/shadow credit, gives normal labels 7.33:1,
+prominent 5.53:1 and hover/focus 6.35:1; the focus outline is 7.75:1.
+These are calculated bounds, not a physical-device pixel measurement.
+Existing menu/response-layout tests passed 27/27 under pinned Node 22.22.3.
+The updated source render was checked at 390×844 and 1365×900: no horizontal
+overflow, 44px mobile commands, a visible 2px keyboard focus outline, and
+no console errors/warnings. Preview servers and the owned tab were stopped;
+the temporary browser viewport override was reset. Final production build
+verification remains source-bound and belongs on PR #374.
+
+Two G002 soundtrack references incorrectly named a published release whose
+tag endpoint returned 404. Its source archive is a draft in Assets PR #38.
+ASSETS-LICENSE.md and the dated audio record now link immutable source
+manifest f0993b0b14e865922f739f9ac218334b4695b577, whose source/runtime hashes
+match the recorded exact files. Castle, emblem, menu-score and v3 tree links
+resolved to matching source records. No asset bytes, license grant or archive
+publication changed. The approved G002 audio is packaged by existing payload
+policy, while playback remains sealed; no broader reuse rights are inferred.
+
 ## Confirmation and destination focus repair — 30 September 2026, 10:10 CEST (08:10 UTC)
 
 Independent review of d1474f11a7e7aa8d87267f3f078dce6fc311d094 found two

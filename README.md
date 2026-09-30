@@ -68,10 +68,11 @@ reviews repaired camera gestures becoming selections, lost pan after a pinch,
 confirmation being disabled by a concurrent refresh, and destination focus
 being lost between world and keep. The affected UI/controller tests and app/
 Vite-config typechecks passed. Earlier Keep UI and accessibility tests passed
-70/70. The full native rerun uncovered a root-owned ignored build artifact;
-restoring only that file's ownership made its affected 199-test suite pass.
-Read the exact-source result on the PR before treating a historical full-suite
-pass as current acceptance.
+70/70. The full native root suite at `15b88b57` passed 12,603 tests with zero
+failures and 97 skips after a narrow ignored-artifact ownership repair.
+The subsequent menu contrast fix passed its 27 focused tests and rendered
+mobile/desktop review. Read the exact source scopes on the PR before treating
+local verification as release acceptance.
 The candidate also passed a disposable local G001/legacy Inner Keep
 full-stack browser playthrough covering construction, persisted reload, Worker
 dispatch/recall/return, re-entry and recovery paths. That run used synthetic
