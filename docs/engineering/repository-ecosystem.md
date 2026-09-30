@@ -95,6 +95,32 @@ authority without a general cross-project grant. Embedded creation metadata and
 lyrics are source content, not reuse authority or approved lore. Keep Warpkeep's
 existing score provenance and measured crossfade behavior with its own consumer.
 
+A further source-only review compares `18e33586` with Tervain
+`0dfc229276892bca4768442c70dfc4ef0216b533`, tree
+`53c30a95477d8df4ba4e42fbe4503449d76e28f2`
+([immutable comparison](https://github.com/ael-dev3/Tervain/compare/18e335867d532be278c85dfac0f23421c6b38d6d...0dfc229276892bca4768442c70dfc4ef0216b533)).
+The delta adds generated people, distant ships and score-led grove presentation.
+GitHub tree metadata confirms the entire `assets/warpkeep/` tree remains
+`83983a04a3200ecf8896540c618ceb9b135bddc6`, identical to the original `db2a356c`
+archive basis; its manifest and the emblem are unchanged. The shared-assets
+record, audio manifest and both score derivative blobs also match `18e33586`.
+`NOTICE` and `public/third-party-notices.txt` now retain precise Warpkeep source
+paths and upstream Apache attribution; `NOTICE` clarifies that the shared GLBs
+remain archived outside the published 0.0.5 site. The earlier unchanged-`NOTICE`
+statement applies only to its original comparison range.
+
+Useful existing-scene principles are seeded routes sampled at absolute time,
+retaining phase through nested forms and quality rebuilds (`menu/menuShips.ts`),
+reused instanced attributes and idempotent resource disposal
+(`menu/menuWisps.ts`), and releasing shared skeleton/bone
+textures once while retaining borrowed persistent rigs (`disposeScene.ts` and
+its tests), all under `src/presentation/`. Warpkeep already guards hidden-tab
+and reduced-motion animation and owns menu skeleton disposal. This review found
+no demonstrated current Warpkeep defect requiring these additions. It inspected
+text and asset metadata only: no binary downloads, preview rendering or Tervain
+checks, and no new Warpkeep features, assets or music. The original byte-reuse
+evidence and separate score authority remain unchanged.
+
 Both projects can exchange demonstrated renderer fixes and asset tooling while
 keeping dependency versions, tests, lifecycle ownership and performance checks
 in their real consumers. Extract a shared package only when both consumers

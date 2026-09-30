@@ -7,13 +7,56 @@ G002 and the owner's isolated PTR already exist. The current development path
 preserves their state through fixed update adapters and signed pre/post adoption
 evidence. V5 activation uses both retained proofs; it does not reconstruct missing
 original publication/import receipts or repeat an import over existing data.
-The implementation is published, but protected/live acceptance remains open.
+Current inline activation also binds the supported Linux G001 preservation
+evidence. The implementation is published, but protected/live acceptance remains
+open.
 Start from the [execution handoff](../agent-notes/0.4.0/execution-handoff.md),
 [connected plan](../superpowers/plans/2026-09-08-ptr-update-recovery.md#g002-adoption-consumer-contract)
 and [current recovery evidence](../evidence/0.4.0/recovery.md#g002-and-ptr-adoption-consumers--2026-09-13).
 Do not execute the historical initial-publication sequence as a continuation of
 that existing-state workflow. Preserve G001 progress and the admission freeze,
 G002's sealed zero-population state, and the actual owner's PTR isolation.
+
+For the current continuation, follow [source M1, exact-M1 native preparation/check
+and generated-only M2](0.4.0-local-release-preparation.md#source-only-m1-before-native-release-preparation).
+After exact-M2 Verify, use the operations in the current
+[Linux workflow](../../.github/workflows/sealed-realms-production.yml): preflight,
+G001 policy observation and the existing G002/PTR update-inspect/update-apply lanes.
+The [recovery bootstrap](0.4.0-recovery-bootstrap.md#build-fixtures-from-preserved-realm-updates)
+owns retained adoption, signer/gateway and signed-observer continuation. Resolve
+the actual source and completed evidence through the execution handoff before
+running anything; historical operation names below are not the current dispatch menu.
+
+After those source-bound prerequisites, `activation-evidence-generate` with
+`g001_census_attempt=inline` obtains its fresh G001 census after expensive
+preparation. Its public binding is fixed at
+`/home/warpkeep/.warpkeep/private/sealed-realms-v1/runtime/sealed-realms-v1/public/0.4.0-sealed-launch.json`.
+From the accepted Linux source checkout as `warpkeep` UID/GID 1000, the existing
+builtins verifier emits only that verified public binding:
+
+```sh
+/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node scripts/verify-sealed-realms-public-activation-artifact.mjs
+```
+
+Keep the separate activation-generation receipt private. Generation does not
+commit the binding or publish a frontend. Create the reviewed activation `A` as
+the direct, single-parent child of the binding's exact preparation source `S`:
+change only `config/releases/0.4.0-sealed-launch.json`, `package.json` and
+`package-lock.json`, with package versions moving from `0.3.43` to `0.4.0`.
+Do not insert notes, source changes or another commit between `S` and `A`; finish
+those before generation or restart from the newly accepted preparation source.
+The [source reader](../../scripts/recovery-attestation-source.mjs) verifies that
+three-file relation for the current versioned binding. Require exact-`A` Verify
+and binding/history checks before using its activated production bytes.
+
+Publish through the existing [public PTR handoff](0.4.0-infra-access.md#existing-alpha-frontend-restored):
+build and verify `/ptr/`, write/review the exact-source mirror plan, then use
+the [publication operator](../../scripts/public-pages-publication-operator.mjs)
+prepare/publish and its [live postflight](../../scripts/verify-public-pages-postflight.mjs).
+This creates a signed generated-only commit in `Warpkeep-Live` and preserves the
+Alpha root. The private repo's Pages workflow only verifies a public-mirror
+candidate; it does not publish either site. Owner play, realm readback and
+device/performance acceptance remain separate evidence.
 
 ## Historical initial-publication chronology
 
