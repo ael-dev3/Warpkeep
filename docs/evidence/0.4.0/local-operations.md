@@ -2,6 +2,27 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact candidate full-suite rerun — 30 September 2026, 05:05 CEST
+
+On signed code/test source
+`4350ae7a7c190bf65c5515cbb229e5b5485778b4`, the pinned native Linux run
+`npm test -- --reporter=dot` passed 692 test files / 1 skipped and 12,582
+tests / 97 skipped; exit 0 in 847.76 seconds. Environment: Node 22.22.3, npm
+10.9.8, SpacetimeDB 2.6.1, offline YAML fixture SHA-256
+`008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91`, and
+`umask 0022`.
+
+The first full run on the preceding source had one intermittent failure in
+`greaterRealmProductionBootstrap.test.ts`. That fixture spawned a real shell,
+recorded its now-dead PID, and immediately passed that PID/PGID to cleanup; a
+parallel test worker could reuse it before the assertion. The lifecycle test
+passed alone (52/52), and the full file passed alone (52/52). Commit `4350ae7a`
+replaces the fixture with `pid_max + 1`, outside Linux's allocatable PID range;
+the isolated full file then passed 52/52 and the repository-wide run passed.
+This is a deterministic test-fixture fix, not a production behavior change.
+The passing run emitted existing `context canceled` diagnostics but no test
+failures. No GitHub Actions workflow or status was used.
+
 ## Exact native rerun and environment correction — 30 September 2026, 03:08 CEST
 
 At signed candidate

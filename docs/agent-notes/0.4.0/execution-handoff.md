@@ -1,6 +1,43 @@
 # Continue Warpkeep 0.4
 
-## Current continuation — 30 September 2026, 04:23 CEST (02:23 UTC)
+## Current continuation — 30 September 2026, 05:05 CEST (03:05 UTC)
+
+PR #374 is open and mergeable from signed candidate head
+`4350ae7a7c190bf65c5515cbb229e5b5485778b4` onto unchanged main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The last gameplay/UI source change
+is signed commit `f289c3ad`; `4350ae7a` only makes a bootstrap lifecycle test
+fixture deterministic. The 05:05 documentation checkpoint changes no game or
+test code. Read PR #374 for the current head's exact production build and
+payload/mirror receipts.
+
+The current candidate's exact native Linux full suite passed on
+`4350ae7a`: 692 files passed / 1 skipped; 12,582 tests passed / 97 skipped;
+exit 0 in 847.76 seconds. It used Node 22.22.3, npm 10.9.8, SpacetimeDB 2.6.1,
+the verified offline YAML input and `umask 0022`. The immediately preceding
+full run had one failure in `greaterRealmProductionBootstrap.test.ts`: the
+fixture used a real recently-exited PID that another worker could reuse. The
+52-test file passed alone; the fixture now uses `pid_max + 1`, which cannot be
+reused. The full suite then passed. Vitest emitted existing `context canceled`
+diagnostics, with no failed tests in the passing run.
+
+The exact 36-case Windows Chrome capture remains source-bound to gameplay/UI
+commit `f289c3ad`, and no game source changed afterward. It rendered WebGL at
+844×390, had no horizontal overflow or network-boundary violation, and closed
+its owned browser cleanly. The evidence is
+`artifacts/keep04-qa/windows-run-qt9Ty7/`. The synthetic CSP sandbox warning is
+still present once per document and remains labeled as a QA harness review
+item, not production or phone evidence.
+
+At 05:05 CEST the Alpha root returned HTTP 200 and `/ptr/` HTTP 404. Sealed
+launch remains disabled (`0.3.43`, Pages approval false, G001/G002/PTR
+identities unset, PTR presentation disabled). No provider write, merge or
+publication occurred. GitHub Actions have not been queried, dispatched,
+rerun or used during September; pushes retain `[skip actions]`. Resume the
+exact-source hosted verification and signed release sequence after October 1
+with the owner's direction. Owner PTR gameplay and physical-phone acceptance
+remain open.
+
+## Superseded continuation — 30 September 2026, 04:23 CEST (02:23 UTC)
 
 The Keep layout source reviewed here is signed commit
 `f289c3adf65f7afed8b21059ac3231ea721db571` on
