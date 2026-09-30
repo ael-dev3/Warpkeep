@@ -109,7 +109,129 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function pointerInteractionHost() {
+  const canvas = document.createElement('canvas');
+  vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+  vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+    left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600,
+    x: 0, y: 0, toJSON: () => ({})
+  } as DOMRect);
+  const frames = new Map<number, FrameRequestCallback>();
+  let frameId = 0;
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    frames.set(++frameId, callback);
+    return frameId;
+  });
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => frames.delete(id));
+  const renderer = {
+    setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+  };
+  const runtime = {
+    group: new THREE.Group(), setView: vi.fn(), flushUploads: vi.fn(() => 0),
+    update: vi.fn(() => false), startAnimation: vi.fn(), stopAnimation: vi.fn(),
+    setReducedMotion: vi.fn(), setDocumentVisible: vi.fn(), bindCanvas: vi.fn(),
+    getCellAccess: vi.fn(), isCoordinatePassable: vi.fn(() => false),
+    ...vesselRuntimeMethods(), getTelemetry: vi.fn(() => EMPTY_TELEMETRY), dispose: vi.fn()
+  };
+  const onSelectionChange = vi.fn();
+  const host = createGreaterRealmWorldCanvasHost({
+    canvas, atlasQ: -2, atlasR: 1, ownCastleId: 1,
+    policy: resolveGreaterRealmWorldViewPolicy({
+      atlasQ: -2, atlasR: 1, viewportWidth: 800, coarsePointer: true,
+      farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: true
+    }),
+    rendererFactory: () => renderer, sceneRuntimeFactory: () => runtime,
+    onSelectionChange
+  })!;
+  host.applySnapshot(readySnapshot());
+  // Center a returned target so these tests exercise a real hit, not empty space.
+  host.control({ kind: 'select-next' });
+  host.control({ kind: 'clear-selection' });
+  onSelectionChange.mockClear();
+  for (const [id, callback] of [...frames]) {
+    frames.delete(id);
+    callback(1);
+  }
+  const camera = renderer.render.mock.calls.at(-1)![1] as THREE.PerspectiveCamera;
+  const pointer = (
+    type: string, pointerId = 1,
+    init: PointerEventInit = {}
+  ) => {
+    const event = new PointerEvent(type, {
+      pointerId, pointerType: 'touch', button: 0, clientX: 400, clientY: 300,
+      bubbles: true, cancelable: true, ...init
+    });
+    (type === 'pointerdown' || type === 'lostpointercapture' ? canvas : window)
+      .dispatchEvent(event);
+  };
+  return { host, pointer, camera, onSelectionChange };
+}
+
 describe('Greater Realm world canvas host', () => {
+  it('selects a returned target with a single primary tap', () => {
+    const { host, pointer, onSelectionChange } = pointerInteractionHost();
+    try {
+      pointer('pointerdown');
+      pointer('pointerup');
+      expect(onSelectionChange).toHaveBeenCalledOnce();
+      expect(onSelectionChange).toHaveBeenLastCalledWith(expect.objectContaining({
+        kind: 'region', label: 'The Hegemony Lowlands'
+      }));
+    } finally { host.dispose(); }
+  });
+
+  it.each([
+    'two-finger tap', 'drag then second finger', 'secondary button',
+    'shift orbit', 'release-only drag', 'cancelled touch', 'lost capture'
+  ])('does not select or recenter after %s', (gesture) => {
+    const { host, pointer, camera, onSelectionChange } = pointerInteractionHost();
+    try {
+      const init = gesture === 'secondary button' ? { button: 2, pointerType: 'mouse' }
+        : gesture === 'shift orbit' ? { shiftKey: true, pointerType: 'mouse' } : {};
+      pointer('pointerdown', 1, init);
+      if (gesture === 'drag then second finger') pointer('pointermove', 1, { clientX: 410 });
+      if (gesture === 'two-finger tap' || gesture === 'drag then second finger') {
+        pointer('pointerdown', 2);
+        pointer('pointerup', 2);
+      }
+      if (gesture === 'cancelled touch') pointer('pointercancel');
+      if (gesture === 'lost capture') pointer('lostpointercapture');
+      const beforeRelease = camera.position.clone();
+      pointer('pointerup', 1, {
+        ...init, clientX: gesture === 'release-only drag' || gesture === 'drag then second finger'
+          ? 410 : 400
+      });
+      expect(onSelectionChange).not.toHaveBeenCalled();
+      expect(camera.position.equals(beforeRelease)).toBe(true);
+      // A completed or cancelled gesture must not poison the next genuine tap.
+      pointer('pointerdown');
+      pointer('pointerup');
+      expect(onSelectionChange).toHaveBeenCalledOnce();
+      expect(onSelectionChange).toHaveBeenLastCalledWith(expect.objectContaining({
+        kind: expect.stringMatching(/^(region|castle|resource)$/)
+      }));
+    } finally { host.dispose(); }
+  });
+
+  it('retains pinch/orbit and remaining-finger pan without selecting', () => {
+    const { host, pointer, camera, onSelectionChange } = pointerInteractionHost();
+    try {
+      pointer('pointerdown', 1, { clientX: 350 });
+      pointer('pointerdown', 2, { clientX: 450 });
+      pointer('pointermove', 2, { clientX: 475 });
+      const beforePinch = camera.position.clone();
+      pointer('pointermove', 2, { clientX: 500, clientY: 320 });
+      expect(camera.position.equals(beforePinch)).toBe(false);
+      pointer('pointerup', 2, { clientX: 500, clientY: 320 });
+      pointer('lostpointercapture', 2);
+      const beforePan = camera.position.clone();
+      pointer('pointermove', 1, { clientX: 370 });
+      expect(camera.position.equals(beforePan)).toBe(false);
+      pointer('pointerup', 1, { clientX: 370 });
+      expect(onSelectionChange).not.toHaveBeenCalled();
+    } finally { host.dispose(); }
+  });
+
   it('updates responsive rendering policy in one host and retains a returned selection', () => {
     const canvas = document.createElement('canvas');
     vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);

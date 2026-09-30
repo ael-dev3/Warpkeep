@@ -593,6 +593,58 @@ it.each(['outside', 'drag', 'pinch', 'other-pointer', 'cancel'] as const)('does 
   expect(options.onPlacement).not.toHaveBeenCalled(); expect(options.onSelect).not.toHaveBeenCalled();
 });
 
+it.each([1, 2])('continues panning with the remaining touch after pinch pointer %s lifts', async liftedId => {
+  const options = props(); const mounted = render(<Keep04SceneHost {...options} />); await act(async () => {}); tick();
+  const canvas = mounted.container.querySelector('canvas')!; const camera = renderers[0].camera!;
+  pointer(canvas, 'pointerdown', 1, 400, 300); pointer(canvas, 'pointerdown', 2, 500, 300);
+  pointer(canvas, 'pointermove', 1, 380, 300); pointer(canvas, 'pointermove', 2, 524, 300);
+  expect(camera.zoom).toBeCloseTo(1.44);
+  const before = camera.position.clone();
+  const remainingId = liftedId === 1 ? 2 : 1; const remainingX = remainingId === 1 ? 380 : 524;
+  pointer(canvas, 'pointerup', liftedId, liftedId === 1 ? 380 : 524, 300);
+  // Browsers implicitly release the lifted finger's capture after pointerup.
+  // Its remaining peer keeps ownership and must start from its latest pinch position.
+  pointer(canvas, 'lostpointercapture', liftedId, 0, 0);
+  pointer(canvas, 'pointermove', remainingId, remainingX + 20, 315);
+  expect(camera.position.x).toBeCloseTo(before.x - 1.6);
+  expect(camera.position.z).toBeCloseTo(before.z - 1.2);
+  expect(camera.zoom).toBeCloseTo(1.44);
+  pointer(canvas, 'pointerup', remainingId, remainingX + 20, 315);
+  pointer(canvas, 'lostpointercapture', remainingId, 0, 0);
+  expect(options.onPlacement).not.toHaveBeenCalled(); expect(options.onSelect).not.toHaveBeenCalled();
+});
+
+it.each([1, 2])('does not interpret the remaining touch as a tap after pinch pointer %s lifts', async liftedId => {
+  const options = props(); const mounted = render(<Keep04SceneHost {...options} />); await act(async () => {}); tick();
+  const canvas = mounted.container.querySelector('canvas')!;
+  pointer(canvas, 'pointerdown', 1, 400, 300); pointer(canvas, 'pointerdown', 2, 500, 300);
+  pointer(canvas, 'pointerup', liftedId, liftedId === 1 ? 400 : 500, 300);
+  pointer(canvas, 'lostpointercapture', liftedId, 0, 0);
+  const remainingId = liftedId === 1 ? 2 : 1;
+  pointer(canvas, 'pointerup', remainingId, remainingId === 1 ? 400 : 500, 300);
+  expect(options.onPlacement).not.toHaveBeenCalled(); expect(options.onSelect).not.toHaveBeenCalled();
+});
+
+it.each(['hidden', 'disposed'] as const)('cancels the retained pinch touch when the keep is %s', async interruption => {
+  const options = props(); const mounted = render(<Keep04SceneHost {...options} />); await act(async () => {}); tick();
+  const canvas = mounted.container.querySelector('canvas')!; const camera = renderers[0].camera!;
+  pointer(canvas, 'pointerdown', 1, 400, 300); pointer(canvas, 'pointerdown', 2, 500, 300);
+  pointer(canvas, 'pointermove', 2, 520, 300);
+  pointer(canvas, 'pointerup', 2, 520, 300); pointer(canvas, 'lostpointercapture', 2, 0, 0);
+  if (interruption === 'hidden') {
+    hidden = true; fireEvent(document, new Event('visibilitychange'));
+    hidden = false; fireEvent(document, new Event('visibilitychange')); tick(1000);
+  } else mounted.unmount();
+  const before = camera.position.clone();
+  pointer(canvas, 'pointermove', 1, 420, 315); pointer(canvas, 'pointerup', 1, 420, 315);
+  expect(camera.position.toArray()).toEqual(before.toArray());
+  expect(options.onPlacement).not.toHaveBeenCalled(); expect(options.onSelect).not.toHaveBeenCalled();
+  if (interruption === 'hidden') {
+    pointer(canvas, 'pointerdown', 3, 400, 300); pointer(canvas, 'pointerup', 3, 400, 300);
+    expect(options.onPlacement).toHaveBeenCalledOnce();
+  }
+});
+
 it('quantizes a viewport click to half metres without confirming construction or changing rotation', async () => {
   const options = props(); const mounted = render(<Keep04SceneHost {...options} />); await act(async () => {});
   const canvas = mounted.container.querySelector('canvas')!;

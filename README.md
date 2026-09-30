@@ -63,9 +63,11 @@ owner/session capabilities. No candidate change opens Genesis 002 admissions
 or widens the Genesis 001 admission freeze.
 
 The latest candidate's exact native /ptr/ build, payload hashes, and read-only
-publication plan are recorded in PR #374. The native Linux full suite passed on
-code-equivalent source (12,582 passed, 97 skipped); focused Keep UI and
-accessibility tests passed 70/70. The candidate also passed a disposable local
+publication plan are recorded in PR #374. The latest full native Linux suite
+passed before the mobile gesture repairs; its final counts were not retained.
+The gesture repairs passed 143 tests across five affected host/lifecycle suites
+and independent review. Earlier Keep UI and accessibility tests passed 70/70.
+The candidate also passed a disposable local
 full-stack browser playthrough covering construction, persisted reload, Worker
 dispatch/recall/return, re-entry and recovery paths. That run used synthetic
 identity and an isolated local database. A 36-case Windows Chrome capture is

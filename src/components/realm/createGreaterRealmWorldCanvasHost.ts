@@ -983,12 +983,19 @@ export function createGreaterRealmWorldCanvasHost(
   }>;
   const pointers = new Map<number, PointerSample>();
   let pointerTravel = 0;
+  let tapEligible = false;
   let pinchDistance: number | undefined;
   let pinchAngle: number | undefined;
   const pointerDown = (event: PointerEvent) => {
     if (disposed || terminalFailure) return;
     fitRequested = false;
-    pointerTravel = 0;
+    if (pointers.size === 0) {
+      pointerTravel = 0;
+      tapEligible = event.button === 0 && !event.shiftKey;
+    } else {
+      // Once another pointer participates, the whole gesture is camera control.
+      tapEligible = false;
+    }
     pointers.set(event.pointerId, Object.freeze({
       x: event.clientX,
       y: event.clientY,
@@ -1014,6 +1021,7 @@ export function createGreaterRealmWorldCanvasHost(
     const dx = next.x - previous.x;
     const dy = next.y - previous.y;
     pointerTravel += Math.hypot(dx, dy);
+    if (event.shiftKey) tapEligible = false;
     const samples = [...pointers.values()];
     if (samples.length >= 2) {
       const first = samples[0]!;
@@ -1069,17 +1077,23 @@ export function createGreaterRealmWorldCanvasHost(
     }
   };
   const pointerUp = (event: PointerEvent) => {
-    if (!pointers.has(event.pointerId)) return;
+    const previous = pointers.get(event.pointerId);
+    if (previous === undefined) return;
+    // Browsers can deliver the final movement only on pointerup.
+    pointerTravel += Math.hypot(event.clientX - previous.x, event.clientY - previous.y);
     pointers.delete(event.pointerId);
     try { options.canvas.releasePointerCapture?.(event.pointerId); } catch { /* Optional. */ }
     if (pointers.size < 2) {
       pinchDistance = undefined;
       pinchAngle = undefined;
     }
-    if (pointers.size === 0 && pointerTravel < 5) pickAt(event.clientX, event.clientY);
+    if (pointers.size === 0 && tapEligible && !event.shiftKey && pointerTravel < 5) {
+      pickAt(event.clientX, event.clientY);
+    }
   };
   const pointerCancel = (event: PointerEvent) => {
-    pointers.delete(event.pointerId);
+    if (!pointers.delete(event.pointerId)) return;
+    tapEligible = false;
     try { options.canvas.releasePointerCapture?.(event.pointerId); } catch { /* Optional. */ }
     if (pointers.size < 2) {
       pinchDistance = undefined;
@@ -1307,6 +1321,7 @@ export function createGreaterRealmWorldCanvasHost(
     }
     window.removeEventListener('resize', resize);
     options.canvas.removeEventListener('pointerdown', pointerDown);
+    options.canvas.removeEventListener('lostpointercapture', pointerCancel);
     options.canvas.removeEventListener('wheel', wheel);
     options.canvas.removeEventListener('keydown', keyDown);
     options.canvas.removeEventListener('contextmenu', contextMenu);
@@ -1359,6 +1374,7 @@ export function createGreaterRealmWorldCanvasHost(
     }
     window.addEventListener('resize', resize);
     options.canvas.addEventListener('pointerdown', pointerDown);
+    options.canvas.addEventListener('lostpointercapture', pointerCancel);
     options.canvas.addEventListener('wheel', wheel, { passive: false });
     options.canvas.addEventListener('keydown', keyDown);
     options.canvas.addEventListener('contextmenu', contextMenu);

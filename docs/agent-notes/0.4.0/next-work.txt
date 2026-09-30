@@ -1,19 +1,23 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 09:00 CEST (07:00 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 09:27 CEST (07:27 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
 PR #374 is the open, unmerged 0.4 candidate against unchanged main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Its branch contains reviewed work
 from open PRs #375–#378; do not merge those older heads separately. The current
-signed candidate before this evidence refresh is
-`ac437ea35c708026f2a42b6785110fa6940d5202`; the code/test state is unchanged
-since `0269ef201c26e312fa0ec55c0548074ebb0ee905`. Windows and native
-WarpkeepRunner are the local development and Linux-build environments. The
-exact `/ptr/` build, payload check and read-only mirror plan passed at `ac437ea3`;
-the full receipt is on PR #374. This notes-only update
-requires one more exact-head build and receipt before the hosted release lane
-resumes. When WSL reads the Windows public checkout, set per-process
+signed candidate before the mobile gesture repairs is
+`268495f067e155ab76f56977797553de7194a63f`. Greater Realm now excludes camera
+gestures from tap selection; Keep04 continues panning with the remaining finger
+after a pinch. Five affected host/lifecycle suites passed 143/143 on pinned
+Windows Node 22.22.3; independent reviews and app/Vite noEmit types passed.
+The separate authority review passed 85/85 at unchanged server source.
+See local-operations.md for repro, repair and evidence limits. Windows and
+native WarpkeepRunner are the local development and Linux-build environments.
+The latest exact source, `/ptr/` build, payload check and read-only mirror plan
+are recorded on PR #374; regenerate the protected closure for these runtime
+changes and verify the final signed source before resuming the hosted lane.
+When WSL reads the Windows public checkout, set per-process
 `safe.directory` to that exact checkout and `core.autocrlf=true`; do not alter
 the public checkout or persist a global workaround.
 

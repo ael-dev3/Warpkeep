@@ -218,6 +218,15 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         removeRecovery = () => canvas.removeEventListener('webglcontextrestored', contextRestored);
         let pointer: { id: number; x: number; y: number; dragged: boolean } | null = null;
         const pointers = new Map<number, { x: number; y: number }>();
+        function releasePointer(id: number) {
+          // An implicit capture release follows pointerup; it must not discard
+          // the surviving finger or replay a placement after a pinch.
+          if (!pointers.delete(id)) return;
+          if (pointers.size === 1) {
+            const [remainingId, position] = pointers.entries().next().value!;
+            pointer = { id: remainingId, ...position, dragged: true };
+          } else if (pointer?.id === id || pointers.size === 0) pointer = null;
+        }
         listen(canvas, 'pointerdown', event => {
           if (event.button !== 0) return;
           pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -245,8 +254,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         listen(canvas, 'pointerup', event => {
           const click = pointers.size === 1 && pointer?.id === event.pointerId && !pointer.dragged
             && Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) < 6;
-          pointers.delete(event.pointerId);
-          if (pointer?.id === event.pointerId || pointers.size === 0) pointer = null;
+          releasePointer(event.pointerId);
           if (!click || !scene) return;
           const rect = canvas.getBoundingClientRect(); if (!rect.width || !rect.height) return;
           if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return;
@@ -259,7 +267,8 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
           }
         });
         const cancelPointer = () => { pointer = null; pointers.clear(); };
-        listen(canvas, 'pointercancel', cancelPointer); listen(canvas, 'lostpointercapture', cancelPointer);
+        listen(canvas, 'pointercancel', cancelPointer);
+        listen(canvas, 'lostpointercapture', event => releasePointer(event.pointerId));
         const wheel = (event: WheelEvent) => { if (!scene) return; event.preventDefault(); view.zoom = scene.camera.zoom = Math.max(.8, Math.min(2, scene.camera.zoom * Math.exp(-event.deltaY * .001))); scene.camera.updateProjectionMatrix(); request(); };
         canvas.addEventListener('wheel', wheel, { passive: false }); listeners.push(() => canvas.removeEventListener('wheel', wheel));
         const visibility = () => { if (document.hidden) { if (frame) cancelAnimationFrame(frame); frame = 0; cancelPointer(); }

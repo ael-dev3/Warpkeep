@@ -1,5 +1,23 @@
 # Continue Warpkeep 0.4
 
+## Mobile gesture repair — 30 September 2026, 09:27 CEST (07:27 UTC)
+
+Independent reviews at 268495f067e155ab76f56977797553de7194a63f found
+Greater Realm camera gestures becoming selections and Keep04 pinch-to-pan
+losing the remaining touch. The repaired real hosts retain valid tap/pan/orbit
+controls, suppress post-pinch placement/selection and retain lifecycle
+cancellation. Five focused suites passed 143/143 with Node 22.22.3;
+app/Vite noEmit checks and independent source reviews passed. Reproductions,
+rendered fixture scope and unchanged server-authority checks are in
+[local operations](../../evidence/0.4.0/local-operations.md#mobile-gesture-repair--30-september-2026-0927-cest-0727-utc).
+
+These runtime files belong to the protected prepared closure. Refresh the
+complete derived family and independently verify it on native Linux, then
+record the final signed source and exact build/payload/mirror receipt on PR
+#374. The candidate is still unmerged and unpublished. Keep September free
+of GitHub Actions; preserve Alpha and keep G002 admissions closed. Final
+owner PTR play, physical-device performance and release evidence remain open.
+
 ## Continuation refresh — 30 September 2026, 09:00 CEST (07:00 UTC)
 
 PR #374 remains open and unmerged against unchanged main

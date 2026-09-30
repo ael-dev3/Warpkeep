@@ -2,6 +2,41 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Mobile gesture repair — 30 September 2026, 09:27 CEST (07:27 UTC)
+
+Independent source reviews at signed candidate
+268495f067e155ab76f56977797553de7194a63f found two reachable input defects.
+Greater Realm reset accumulated drag travel on every finger down and treated
+the final release as a tap. A drag followed by a second finger, an unmoved
+two-finger gesture, secondary-button/Shift input and release-only travel could
+select a returned target and recenter the camera. Lost capture also left the
+gesture active. Six regression cases failed before the repair. Gesture-wide
+tap eligibility now excludes those inputs, counts final-release travel, and
+retires lost capture without cancelling a normally released peer.
+
+Keep04 discarded all pointers on any capture loss and failed to rebase the
+remaining finger after a pinch. Both lifted-finger variants failed before
+the repair. Pointer release now retains the surviving finger's latest
+coordinates with tapping suppressed. Pointer cancellation, backgrounding and
+disposal still cancel interaction. Six regression cases cover continuation,
+tap suppression and lifecycle interruption.
+
+On the repaired source, pinned Windows Node 22.22.3 / Vitest 4.1.11 passed
+36/36 Greater Realm host tests and 107/107 across Keep04SceneHost,
+Keep04SceneVisualPoll, keep04SceneLifecycle and PtrGameplay04SurfaceHost.
+App and Vite-config noEmit typechecks passed. Independent reviewers repeated
+the Greater Realm host 36/36 and Keep04 host 56/56 and found no concrete
+regression. The separate server review passed 85/85 construction, Worker,
+journey, policy and Keep-module tests at the unchanged authority source.
+
+The rendered loopback fixture retained desktop panning without selection;
+a secondary click left selection clear. Its 390 × 844 layout kept controls
+available. These are synthetic desktop/browser checks, not physical touch
+acceptance. The prior full native root-suite result remains historical;
+do not reuse an older retained total for the later run whose counts were lost.
+Current source and exact build/payload/mirror receipts belong on PR #374.
+No GitHub Actions, provider deployment or public-mirror write was performed.
+
 ## September 30 local verification bundle — 30 September 2026
 
 At candidate head ac437ea35c708026f2a42b6785110fa6940d5202,
@@ -36,7 +71,7 @@ RealmMapScreen warning is 677.80 kB raw / 188.23 kB gzip.
 At exact source 9a24d455e3405308ce32e24ef01c9c600eb718a8, the native /ptr/
 production build, production exclusions, public-boundary scan, Farcaster,
 license, file-size and sealed-launch preflight checks passed. The payload
-contains 446 files / 138,997,364 bytes; source-tree SHA-256
+contains 446 files / 138,997,364 bytes; Git source-tree ID
 94fc12bd2194ef502a7d7918b40d73975f0d0536; payload manifest SHA-256
 ab117c3f878b6af926407012063f30c3acb20a718494946de74a8c8ba09a2dc1; content
 manifest SHA-256
