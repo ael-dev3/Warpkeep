@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { link, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { cleanupGameplay04LocalSmoke, gameplay04LocalAdditionalForbiddenIdentities, gameplay04LocalSmokeReceipt, invalidateGameplay04LocalSmokeReceipt } from '../scripts/qa-observer/ptr-gameplay04-local-smoke';
+import { cleanupGameplay04LocalSmoke, createGameplay04LocalTargetSelector, gameplay04LocalAdditionalForbiddenIdentities, gameplay04LocalSmokeReceipt, invalidateGameplay04LocalSmokeReceipt } from '../scripts/qa-observer/ptr-gameplay04-local-smoke';
 import { ptrProductionImportConfirmationDigest, PTR_PRODUCTION_IMPORT_TARGET } from '../scripts/ptr-production-import-core';
+import { createPtrGreaterRealmRuntimeRelease } from '../scripts/atlas/greater-realm-runtime-release';
+import { createGreaterRealmRuntimeReleaseFixtureSource, greaterRealmRuntimeReleaseFixtureSeed } from '../scripts/atlas/greater-realm-runtime-release-test-fixture';
+import { planPtrTreeRoute } from '../spacetimedb/ptr/src/atlasReadPolicy';
 
 async function withReceiptFixture(run: (directory: string) => Promise<void>) {
   const parent = await realpath(tmpdir());
@@ -18,6 +21,36 @@ async function withReceiptFixture(run: (directory: string) => Promise<void>) {
 }
 
 describe('PTR gameplay04 local smoke evidence and failure containment', () => {
+  it('selects bounded routes for the actual private PTR component-zero root instead of global node zero', () => {
+    const source = createGreaterRealmRuntimeReleaseFixtureSource();
+    try {
+      const artifacts = createPtrGreaterRealmRuntimeRelease({ source, sourceCommit: 'a'.repeat(40),
+        releaseSeed: greaterRealmRuntimeReleaseFixtureSeed() });
+      const select = createGameplay04LocalTargetSelector(artifacts);
+      const cells = new Map(artifacts.chunks.flatMap(chunk => chunk.payload.cells).map(cell => [cell.cellKey,
+        { ...cell, componentKey: cell.componentKey, routeDepth: cell.routeDepth, routeParentDirection: cell.routeParentDirection }]));
+      const coordinates = new Map([...cells.values()].map(cell => [`${cell.atlasQ},${cell.atlasR}`, cell]));
+      const oldNodes = artifacts.chunks.flatMap(chunk => chunk.payload.resourceNodes)
+        .filter(node => node.nodeOrdinal === 0 && node.resourceKind === 'food');
+      // requirePtrReadyAtlas chooses componentOrdinal 0's root for every owner,
+      // rather than allocating any of the still-inactive public castle slots.
+      const components = artifacts.manifest.components as Array<{ componentOrdinal: number; componentKey: string; rootCellKey: string }>;
+      const ownerComponent = components.find(value => value.componentOrdinal === 0)!;
+      const targets = select(ownerComponent.rootCellKey);
+      expect(targets.map(value => value.resource)).toEqual(['food', 'wood', 'stone']);
+      expect(targets.map(value => value.routeLength)).toEqual([5, 6, 12]);
+      for (const target of targets) {
+        expect(target.routeLength).toBeLessThanOrEqual(31);
+        expect(target.node.componentKey).toBe(ownerComponent.componentKey);
+        expect(target.node.resourceKind).toBe(target.resource);
+      }
+      const oldNode = oldNodes.find(node => node.componentKey === ownerComponent.componentKey)!;
+      const oldRoute = planPtrTreeRoute(cells.get(ownerComponent.rootCellKey)!, cells.get(oldNode.cellKey)!,
+        (q, r) => coordinates.get(`${q},${r}`) ?? null);
+      expect(oldRoute.length).toBe(56);
+    } finally { source.grid.clearIndex?.(); }
+  }, 60_000);
+
   it('removes an old same-source pass before a failed new attempt', async () => {
     await withReceiptFixture(async directory => {
       const path = join(directory, 'ptr-gameplay04-local-smoke.json');

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DbConnection } from '../../spacetimedb/ptr/generated-bindings';
+import { planPtrTreeRoute, type PtrRouteNode } from '../../spacetimedb/ptr/src/atlasReadPolicy';
 import type { BridgeConfig } from '../../services/auth-bridge/src/config';
 import { ptrAdminClaims, ptrAtlasAdminClaims, ptrOwnerClaims } from '../../services/auth-bridge/src/jwt';
 import { createPtrRealmAuthClient, retirePtrRealmAuthority, type PtrRealmAuthority } from '../../src/ptr/ptrRealmAuthClient';
@@ -37,6 +38,33 @@ const MODULE_INPUTS = ['spacetimedb/ptr/src', 'spacetimedb/gameplay04', 'spaceti
 const OUTCOMES = ['initialized', 'gathered', 'staleQuoteUnsent', 'exactRetry', 'deductedOnce',
   'completed', 'improvedReturn', 'renewed', 'reconnected'] as const;
 type Outcome = typeof OUTCOMES[number];
+
+/** Rank complete verified tree routes from the owner's anchor, not from root. */
+export function createGameplay04LocalTargetSelector(artifacts: GreaterRealmRuntimeReleaseArtifacts) {
+  const cells = new Map(artifacts.chunks.flatMap(chunk => chunk.payload.cells).map(cell => [cell.cellKey,
+    { ...cell, componentKey: cell.componentKey, routeDepth: cell.routeDepth,
+      routeParentDirection: cell.routeParentDirection } satisfies GreaterRealmRuntimeCell & PtrRouteNode]));
+  const coordinates = new Map([...cells.values()].map(cell => [`${cell.atlasQ},${cell.atlasR}`, cell]));
+  const locations = new Map<string, { node: GreaterRealmRuntimeResourceNode; cell: GreaterRealmRuntimeCell & PtrRouteNode; handle: string }>();
+  for (const chunk of artifacts.chunks) for (const node of chunk.payload.resourceNodes) {
+    if (locations.has(node.locationId)) continue;
+    const cell = cells.get(node.cellKey); assert.ok(cell);
+    locations.set(node.locationId, { node, cell, handle: chunk.payload.chunkHandle });
+  }
+  return (anchorCellKey: string) => {
+    const anchor = cells.get(anchorCellKey); assert.ok(anchor);
+    return Object.freeze((['food', 'wood', 'stone'] as const).map(resource => {
+      const candidates = [...locations.values()].filter(value => value.node.resourceKind === resource
+        && value.node.componentKey === anchor.componentKey).map(value => ({ ...value,
+          resource, routeLength: planPtrTreeRoute(anchor, value.cell,
+            (q, r) => coordinates.get(`${q},${r}`) ?? null).length }))
+        .sort((a, b) => a.routeLength - b.routeLength || a.node.locationId.localeCompare(b.node.locationId));
+      const nearest = candidates[0]; assert.ok(nearest);
+      assert.ok(nearest.routeLength <= 31, 'PTR_GAMEPLAY04_LOCAL_FIXTURE_ROUTE_TOO_LONG');
+      return Object.freeze(nearest);
+    }));
+  };
+}
 
 /** Remove only the previous owned receipt, so a failed rerun has no stale pass. */
 export async function invalidateGameplay04LocalSmokeReceipt(path = RECEIPT) {
@@ -368,31 +396,41 @@ export async function runPtrGameplay04LocalSmoke() {
     progress('real-controller-initialized-read'); observeController();
     const initialized = await refresh(); assert.equal(initialized.state.lastAcceptedSequence, 1n); assert.equal(initialized.workers.length, 4); completed.push('initialized');
     const bootstrap = await connection!.procedures.getRealmAtlasBootstrapV1({});
-    const cells = new Map(artifacts.chunks.flatMap(chunk => chunk.payload.cells).map(cell => [cell.cellKey, cell]));
-    const anchorCell = cells.get(bootstrap.myCellKey)!; assert.ok(anchorCell);
     const targets = new Map<string, Target04>();
-    for (const resource of ['food', 'wood', 'stone'] as const) {
-      const candidates: Array<{ node: GreaterRealmRuntimeResourceNode; cell: GreaterRealmRuntimeCell; handle: string }> = artifacts.chunks.flatMap(chunk => chunk.payload.resourceNodes
-        .filter(node => node.resourceKind === resource && node.componentKey === anchorCell.componentKey && node.nodeOrdinal === 0)
-        .map(node => ({ node, cell: cells.get(node.cellKey)!, handle: chunk.payload.chunkHandle })))
-        .sort((a, b) => a.cell.routeDepth! - b.cell.routeDepth!);
-      const candidate = candidates[0]; assert.ok(candidate);
+    progress('fixture-target-preflight');
+    for (const candidate of createGameplay04LocalTargetSelector(artifacts)(bootstrap.myCellKey)) {
+      const { resource } = candidate;
       const route = await connection!.procedures.planRealmRouteV1({ originCellKey: bootstrap.myCellKey, destinationCellKey: candidate.cell.cellKey, offset: 0, limit: 128, expectedRevision: atlas!.revision });
-      assert.ok(route.totalLength <= 31, 'PTR_GAMEPLAY04_LOCAL_FIXTURE_ROUTE_TOO_LONG');
+      assert.equal(route.totalLength, candidate.routeLength); assert.ok(route.complete);
       const live = await connection!.procedures.getRealmAtlasResourceLocationsV1({ chunkHandles: [candidate.handle], expectedRevision: atlas!.revision });
       const location = live.resourceLocations.find(row => row.locationId === candidate.node.locationId); assert.ok(location); assert.equal(location.resourceKind, resource);
+      assert.ok(location.nodeCount > 0); assert.equal(location.atlasQ, candidate.cell.atlasQ); assert.equal(location.atlasR, candidate.cell.atlasR);
       targets.set(resource, { ...atlas!, locationId: location.locationId, resource, q: location.atlasQ, r: location.atlasR });
+    }
+    const placement = { kind: 'city-mill' as const, x: -15_000_000n, z: 15_000_000n, rotation: 0 };
+    const plannedQuote = quoteBuilding04(initialized, 'city-mill', placement);
+    assert.equal(plannedQuote.durationMicros, 120_000_000n);
+    for (const resource of ['food', 'wood', 'stone', 'gold'] as const) {
+      assert.ok(plannedQuote.cost[resource] <= (resource === 'gold' ? 0n : 60n));
+    }
+    async function dispatch(ordinal: number, resource: 'food' | 'wood' | 'stone', yieldPerQuantum: bigint) {
+      const before = controller!.getSnapshot().view!.state;
+      await controller!.submit({ kind: 'dispatch', workerOrdinal: ordinal, target: targets.get(resource)!, durationMicros: 60_000_000n });
+      assert.equal(controller!.getSnapshot().phase, 'ready');
+      const after = controller!.getSnapshot().view!.state;
+      assert.equal(after.lastAcceptedSequence, before.lastAcceptedSequence + 1n);
+      const worker = after.workers.find(value => value.ordinal === ordinal); assert.ok(worker?.assignment);
+      assert.equal(worker.assignment.locationId, targets.get(resource)!.locationId);
+      assert.equal(worker.assignment.resource, resource); assert.equal(worker.assignment.yieldPerQuantum, yieldPerQuantum);
     }
     progress('real-clock-gather');
     for (const [ordinal, resource] of ['food', 'wood', 'stone'].entries()) {
-      await controller!.submit({ kind: 'dispatch', workerOrdinal: ordinal, target: targets.get(resource)!, durationMicros: 60_000_000n });
-      assert.equal(controller!.getSnapshot().phase, 'ready');
+      await dispatch(ordinal, resource as 'food' | 'wood' | 'stone', 10n);
     }
     const gathered = await waitUntil(view => view.workers.every(worker => worker.phase === 'idle') && view.balances.food >= 60n && view.balances.wood >= 60n && view.balances.stone >= 60n, 200_000);
     completed.push('gathered');
-    const placement = { kind: 'city-mill' as const, x: -15_000_000n, z: 15_000_000n, rotation: 0 };
     const oldQuote = quoteBuilding04(gathered, 'city-mill', placement);
-    await controller!.submit({ kind: 'dispatch', workerOrdinal: 3, target: targets.get('wood')!, durationMicros: 60_000_000n });
+    await dispatch(3, 'wood', 10n);
     const mutationCount = mutations.length; await controller!.submit({ kind: 'build', quote: oldQuote });
     assert.equal(mutations.length, mutationCount); assert.equal(controller!.getSnapshot().phase, 'ready'); completed.push('staleQuoteUnsent');
     const before = controller!.getSnapshot().view!; const quote = quoteBuilding04(before, 'city-mill', placement);
@@ -409,7 +447,7 @@ export async function runPtrGameplay04LocalSmoke() {
     assert.equal(built.state.completedEffects.foodYieldPerQuantum, 12n); completed.push('completed');
     progress('real-clock-improved-return');
     const foodBefore = built.balances.food;
-    await controller!.submit({ kind: 'dispatch', workerOrdinal: 0, target: targets.get('food')!, durationMicros: 60_000_000n });
+    await dispatch(0, 'food', 12n);
     assert.equal(controller!.getSnapshot().view!.workers[0]!.capturedYield, 12n);
     const improved = await waitUntil(view => view.workers[0]!.phase === 'idle' && view.workers[0]!.lastCredited === 72n, 200_000);
     assert.equal(improved.balances.food, foodBefore + 72n); completed.push('improvedReturn');
