@@ -1,6 +1,7 @@
 import { act, cleanup, render } from '@testing-library/react';
 import * as THREE from 'three';
 import type { GLTF } from 'three/addons/loaders/GLTFLoader.js';
+import { WebGLShadowMap } from 'three/src/renderers/webgl/WebGLShadowMap.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WarpkeepMenuWorld3D } from '../src/components/menu/WarpkeepMenuWorld3D';
 
@@ -14,6 +15,8 @@ type MockRenderer = {
 const harness = vi.hoisted(() => ({
   renderers: [] as MockRenderer[],
   parseRequests: [] as Array<{ resolve: (model: GLTF) => void }>,
+  resizeCallbacks: [] as Array<() => void>,
+  exerciseShadowTargets: false,
 }));
 
 vi.mock('three', async (importOriginal) => {
@@ -23,9 +26,39 @@ vi.mock('three', async (importOriginal) => {
     shadowMap = { enabled: false, type: original.PCFShadowMap };
     dispose = vi.fn();
     forceContextLoss = vi.fn();
-    render = vi.fn();
+    render = vi.fn((scene: THREE.Scene, camera: THREE.Camera) => {
+      if (!harness.exerciseShadowTargets) return;
+      const lights: THREE.DirectionalLight[] = [];
+      scene.updateMatrixWorld(true);
+      scene.traverse(node => {
+        if (node instanceof original.DirectionalLight && node.castShadow) lights.push(node);
+      });
+      // Exercise Three's real allocation/viewport path with no GPU draw calls.
+      // An empty draw scene keeps the test focused on the existing light target.
+      this.nativeShadowMap.enabled = this.shadowMap.enabled;
+      this.nativeShadowMap.type = this.shadowMap.type;
+      this.nativeShadowMap.render(lights, new original.Scene(), camera);
+    });
     setPixelRatio = vi.fn();
     setSize = vi.fn();
+    nativeShadowMap = new WebGLShadowMap({
+      getRenderTarget: () => null,
+      getActiveCubeFace: () => 0,
+      getActiveMipmapLevel: () => 0,
+      setRenderTarget: vi.fn(),
+      clear: vi.fn(),
+      state: {
+        setBlending: vi.fn(),
+        setScissorTest: vi.fn(),
+        viewport: vi.fn(),
+        buffers: {
+          color: { setClear: vi.fn() },
+          depth: { getReversed: () => false, setTest: vi.fn() },
+        },
+      },
+    } as unknown as THREE.WebGLRenderer,
+    {} as ConstructorParameters<typeof WebGLShadowMap>[1],
+    { maxTextureSize: 16384 } as ConstructorParameters<typeof WebGLShadowMap>[2]);
 
     constructor() {
       harness.renderers.push(this);
@@ -78,8 +111,11 @@ describe('menu 3D lifecycle', () => {
   beforeEach(() => {
     harness.renderers.length = 0;
     harness.parseRequests.length = 0;
+    harness.resizeCallbacks.length = 0;
+    harness.exerciseShadowTargets = false;
     vi.stubGlobal('ImageBitmap', SyntheticImageBitmap);
     vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: () => void) { harness.resizeCallbacks.push(callback); }
       observe() {}
       disconnect() {}
     });
@@ -234,6 +270,91 @@ describe('menu 3D lifecycle', () => {
     const afterUnmount = request.mock.calls.length;
     act(() => document.dispatchEvent(new Event('visibilitychange')));
     expect(request).toHaveBeenCalledTimes(afterUnmount);
+  });
+
+  it.each([
+    { quality: 'balanced' as const, narrow: 1024, wide: 1536 },
+    { quality: 'cinematic' as const, narrow: 1536, wide: 2048 },
+  ])('resizes and retires the real $quality shadow target across phone rotation', ({ quality, narrow, wide }) => {
+    harness.exerciseShadowTargets = true;
+    const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(390);
+    const height = vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(844);
+    const view = render(<WarpkeepMenuWorld3D active reducedMotion quality={quality} guardianUrl={null} />);
+    const renderer = harness.renderers[0];
+    const scene = renderer.render.mock.calls[0][0] as THREE.Scene;
+    const key = scene.children.find(node => node instanceof THREE.DirectionalLight && node.castShadow) as THREE.DirectionalLight;
+    const target = key.shadow.map!;
+    expect([target.width, target.height]).toEqual([narrow, narrow]);
+    const dispose = vi.fn();
+    target.addEventListener('dispose', dispose);
+
+    width.mockReturnValue(844);
+    height.mockReturnValue(390);
+    act(() => harness.resizeCallbacks[0]());
+    expect([key.shadow.map!.width, key.shadow.map!.height]).toEqual([wide, wide]);
+    expect(dispose).toHaveBeenCalledOnce();
+    act(() => harness.resizeCallbacks[0]());
+    expect(dispose).toHaveBeenCalledOnce();
+
+    width.mockReturnValue(390);
+    height.mockReturnValue(844);
+    act(() => harness.resizeCallbacks[0]());
+    expect([key.shadow.map!.width, key.shadow.map!.height]).toEqual([narrow, narrow]);
+    expect(dispose).toHaveBeenCalledTimes(2);
+    view.unmount();
+    expect(dispose).toHaveBeenCalledTimes(3);
+    expect(renderer.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('keeps Performance free of shadow targets when the phone rotates', () => {
+    harness.exerciseShadowTargets = true;
+    const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(390);
+    const view = render(<WarpkeepMenuWorld3D active reducedMotion quality="performance" guardianUrl={null} />);
+    const scene = harness.renderers[0].render.mock.calls[0][0] as THREE.Scene;
+    const lights = scene.children.filter(node => node instanceof THREE.DirectionalLight) as THREE.DirectionalLight[];
+    expect(lights.every(light => light.shadow.map === null)).toBe(true);
+    width.mockReturnValue(844);
+    act(() => harness.resizeCallbacks[0]());
+    expect(lights.every(light => light.shadow.map === null)).toBe(true);
+    view.unmount();
+  });
+
+  it('clears a failed preview when a quality retry successfully loads the castle', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 503 } as Response);
+    const view = render(<WarpkeepMenuWorld3D active reducedMotion quality="balanced" guardianUrl={null} />);
+    const mount = view.container.firstElementChild as HTMLElement;
+    await vi.waitFor(() => expect(mount.dataset.modelState).toBe('castle-unavailable'));
+
+    view.rerender(<WarpkeepMenuWorld3D active reducedMotion quality="performance" guardianUrl={null} />);
+    expect(view.container.firstElementChild).toBe(mount);
+    expect(mount.dataset.modelState).toBeUndefined();
+    expect(mount.dataset.modelReady).toBeUndefined();
+    await vi.waitFor(() => expect(harness.parseRequests).toHaveLength(1));
+    const castle = parsedModel();
+    await act(async () => harness.parseRequests[0].resolve(castle.gltf));
+    expect(mount.dataset.modelReady).toBe('true');
+    expect(mount.dataset.modelState).toBeUndefined();
+    view.unmount();
+    expectReleased(castle);
+  });
+
+  it('clears old readiness while rebuilding and releases a late castle after navigation', async () => {
+    const view = render(<WarpkeepMenuWorld3D active reducedMotion quality="performance" guardianUrl={null} />);
+    const mount = view.container.firstElementChild as HTMLElement;
+    await vi.waitFor(() => expect(harness.parseRequests).toHaveLength(1));
+    const castle = parsedModel();
+    await act(async () => harness.parseRequests[0].resolve(castle.gltf));
+    expect(mount.dataset.modelReady).toBe('true');
+    view.rerender(<WarpkeepMenuWorld3D active reducedMotion quality="cinematic" guardianUrl={null} />);
+    expect(mount.dataset.modelReady).toBeUndefined();
+    expectReleased(castle);
+    await vi.waitFor(() => expect(harness.parseRequests).toHaveLength(2));
+    view.unmount();
+    const lateCastle = parsedModel();
+    await act(async () => harness.parseRequests[1].resolve(lateCastle.gltf));
+    expectReleased(lateCastle);
+    expect(mount.dataset.modelReady).toBeUndefined();
   });
 
   it('cancels animation behind a menu overlay, keeps its still and WebGL context, then resumes', () => {

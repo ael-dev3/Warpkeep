@@ -217,6 +217,8 @@ export function WarpkeepMenuWorld3D({ active, reducedMotion, quality = 'balanced
   useLayoutEffect(() => {
     const mount = mountRef.current;
     if (!mount) return;
+    delete mount.dataset.modelState;
+    delete mount.dataset.modelReady;
     const abortController = new AbortController();
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x3e5751);
@@ -370,6 +372,9 @@ export function WarpkeepMenuWorld3D({ active, reducedMotion, quality = 'balanced
       const shadowSize = quality === 'cinematic' ? (width < 700 ? 1536 : 2048)
         : quality === 'balanced' ? (width < 700 ? 1024 : 1536) : 512;
       key.shadow.mapSize.set(shadowSize, shadowSize);
+      // Three allocates once; changing mapSize alone leaves its old target size.
+      // setSize retires changed allocations and is a no-op at the current size.
+      key.shadow.map?.setSize(shadowSize, shadowSize);
       renderer.setSize(width, height, false);
       setCameraFrame(camera, width, height);
       if (motionReduced || !isActive) render();
