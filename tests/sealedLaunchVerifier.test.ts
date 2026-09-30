@@ -2883,6 +2883,9 @@ export function createPtrAtlasImportTransport(`,
             writeFileSync(absolute, Buffer.concat([readFileSync(absolute), Buffer.from(' ')]));
             fixtureGit(fixtureRoot, ['add', '--', path]);
           } else {
+            // Keep POSIX worktree/index modes aligned so the next checkout is
+            // clean; the committed executable-bit drift remains the rejection.
+            if (process.platform !== 'win32') chmodSync(resolve(fixtureRoot, path), 0o755);
             fixtureGit(fixtureRoot, ['update-index', '--chmod=+x', '--', path]);
           }
           fixtureGit(fixtureRoot, ['commit', '--quiet', '-m', `unreviewed ${mutation} drift in ${path}`]);
