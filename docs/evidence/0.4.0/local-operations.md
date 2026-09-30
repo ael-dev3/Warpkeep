@@ -22,6 +22,20 @@ The root Vitest suite is separate: its full native rerun exited 0 at
 `198377c6569c08dfe97a8613f8ed098e561784b4`, without retained final counts.
 Neither suite invokes GitHub Actions.
 
+## WSL mirror-plan check against the Windows public checkout — 30 September 2026
+
+The `Warpkeep-live-pages` checkout is clean on Windows at `main` commit
+`b6afe92e7b09197b1578d992103ac3c8f916d8ad`, tree
+`746fbd4facb0ad520c9dac1276d27d7a168f53d0`. WSL initially rejected the
+checkout because it saw the Windows `CNAME` line endings as a local edit and
+refused the NTFS checkout as dubious ownership. Recheck from WSL using a
+per-process Git config: `safe.directory` set to the exact `/mnt/c/.../Warpkeep-live-pages`
+path and `core.autocrlf=true`. This keeps the public checkout read-only, keeps
+the status and index guards active, and does not alter global or repository
+Git config. The corrected mirror-plan write and independent recheck passed at
+source head `70f42c22e571cb34ddd2962d3e1e97aadd94d283`; the source-root artifact
+is ignored and no public mirror files were changed.
+
 ## Full native Linux root Vitest rerun — 30 September 2026, 07:51 CEST
 
 At code/test head `198377c6569c08dfe97a8613f8ed098e561784b4`, native

@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Continuation refresh — 30 September 2026, 08:21 CEST (06:21 UTC)
+## Continuation refresh — 30 September 2026, 08:31 CEST (06:31 UTC)
 
 At signed code/test head
 `0269ef201c26e312fa0ec55c0548074ebb0ee905`, native WarpkeepRunner passed the
@@ -19,6 +19,12 @@ passed; the CLI's own TypeScript discovery remains unverified. No publish was
 run. The exact `/ptr/` build, payload check and read-only mirror plan were
 verified at source `0269ef20`; this documentation refresh requires a new
 exact-head build/payload/mirror receipt. September remains a no-Actions period.
+When the WSL verifier reads the Windows public checkout, set per-process
+`safe.directory` to that exact checkout and `core.autocrlf=true`; otherwise
+WSL reports the clean Windows `CNAME` as changed and refuses the mount as
+unsafe. The exact read-only commands and reason are in [local
+operations](../../evidence/0.4.0/local-operations.md). Do not weaken the
+checkout-cleanliness check or persist this workaround globally.
 
 ## Current continuation — 30 September 2026, 07:51 CEST (05:51 UTC)
 

@@ -1,5 +1,5 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 08:21 CEST (06:21 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 08:31 CEST (06:31 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
@@ -14,6 +14,10 @@ visible browser reproduction. At exact source `0269ef20`, the `/ptr/` build,
 payload writer/check and read-only Warpkeep-Live mirror plan passed; hashes and
 scope are in local operations and PR #374. This evidence-only refresh requires
 a new exact-head build and receipt before the hosted release lane resumes.
+For the mirror plan from WSL against the Windows checkout, set per-process
+`safe.directory` to that exact checkout and `core.autocrlf=true`; otherwise
+WSL sees the clean Windows `CNAME` as a line-ending change. Do not change the
+public checkout or its Git config to work around this.
 
 The full native Linux root Vitest suite passed after the DEV-only recorder
 correction at code/test head `198377c6569c08dfe97a8613f8ed098e561784b4`
