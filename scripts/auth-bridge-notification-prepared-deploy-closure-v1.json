@@ -2165,7 +2165,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a6558a644207a913c66e6c7d7a21b0f7afd713ce43e03829a2a5c30111f5e5f4"
+      "sha256": "4131b21e08079c47b40c93311f34d85a3583901a16fcfc3adc90e475382e4ae3"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
