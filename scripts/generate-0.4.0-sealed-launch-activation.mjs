@@ -34,7 +34,7 @@ const CANONICAL_ORIGIN_URL = 'https://github.com/ael-dev3/Warpkeep.git';
 const BOOTSTRAP_SOURCE_PATH =
   'scripts/greater-realm-production-bootstrap.mjs';
 const EXPECTED_BOOTSTRAP_SHA256 =
-  'be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a';
+  '8f4cc5b2127b9558d483ae8287869a325f9446594f21de578b0a17ec606ea1ba';
 const COMMIT = /^[0-9a-f]{40}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 const PUBLIC_RELEASE_ID = /^GRR-[A-Z2-7]{26}$/u;

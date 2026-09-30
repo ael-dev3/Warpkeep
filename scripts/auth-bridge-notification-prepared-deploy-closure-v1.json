@@ -35,12 +35,12 @@
     {
       "path": "docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cd06f32e7a479c4e9de3504029a994f6e7a18033d3d6766c2baac3ef59ce2624"
+      "sha256": "004f443a3e66c66b09919e8726b655110ee4810c9accce3fd92cff3036a35597"
     },
     {
       "path": "docs/operations/greater-realm-production-launch-envelope.sh.txt",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ffaa86e602b08d5a3b5994120a822194860b64d8ee117dea4d454b28fde7594a"
+      "sha256": "4b6bea0dcf41bc1a582dec09c186af3d2c88d48208cd47cb970a2b4bcafed001"
     },
     {
       "path": "index.html",
@@ -475,7 +475,7 @@
     {
       "path": "scripts/generate-0.4.0-sealed-launch-activation.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "885c49d3566c49a9725667134a2c4115fb83e81eef61c780b47f288907a661bf"
+      "sha256": "aea8e6f0373b98e2f76dad34b35bf52a296c5d0631f8079d565d69bf121b8a30"
     },
     {
       "path": "scripts/generate-warpkeep-deployment-attestation.d.mts",
@@ -950,7 +950,7 @@
     {
       "path": "scripts/greater-realm-cutover-operation-journal.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7660e77de4b640a85628d75c6f49ed576dbc1c2741f3eccd75b5a624afb249c3"
+      "sha256": "495712181cae325c6a50ecc6f84f7316f083953ba4f4e9d236ee9ae99d5bac25"
     },
     {
       "path": "scripts/greater-realm-cutover-receipts.ts",
@@ -990,7 +990,7 @@
     {
       "path": "scripts/greater-realm-production-bootstrap.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a"
+      "sha256": "8f4cc5b2127b9558d483ae8287869a325f9446594f21de578b0a17ec606ea1ba"
     },
     {
       "path": "scripts/greater-realm-production-immutable-artifact.ts",
@@ -1265,7 +1265,7 @@
     {
       "path": "scripts/notification-pages-private-deploy-journal.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b8241e73be8a172935b8e7cb7229ce95fed10464f24a1c2465e7a6eba1330bd5"
+      "sha256": "e75927e0457a049b6a1d8e50fd89be2c7863cde13998550d549ea749673458f0"
     },
     {
       "path": "scripts/notification-pages-private-deploy-launcher.d.mts",
@@ -1330,12 +1330,12 @@
     {
       "path": "scripts/production-admin-token-budget.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "081e381def77b755d408c6b20807bd224e0a0d26f353b6db83370ab0e03e647b"
+      "sha256": "4a7c54f9ec3bccfc7f21e2aa06d59f0df622a0dd98b500d9ae11296e9fdd0b1f"
     },
     {
       "path": "scripts/production-admin-token-budget.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0ac956518ebbed5e893adcb8159c2a4c287d684850921249b18ba6bc9352648e"
+      "sha256": "d08de6d7d709eadf9132d815b6c81df34ffe3460475b212954c360475894533e"
     },
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
@@ -1605,12 +1605,12 @@
     {
       "path": "scripts/publish-spacetime-dev.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8104965443c2ffca615b9142732eb7020261a903564de4bf4dbc34b52842c358"
+      "sha256": "820045e76aad2ebf97dcaae0e4802f2d42fd1a04189af510f84f775096e3564a"
     },
     {
       "path": "scripts/publish-spacetime-dev.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "83e2aa6765bc2cd62bc0b18fa0482c96318c590557344daac49989d5a51c3ff4"
+      "sha256": "a5a99338a421fd56dee1ec24bd19eeb020c2049f88705ee28a744caa7bcd7b3e"
     },
     {
       "path": "scripts/qa-observer/keep04-document-policy.d.mts",
@@ -2165,7 +2165,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e216036ffd40decc6f86a3ead885937677955742c08b5d31bfedb452bafdea8a"
+      "sha256": "c454dd62012dfbfb2d52776147e21c4e20cc251e24359f74e8ff80802081b9d6"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
