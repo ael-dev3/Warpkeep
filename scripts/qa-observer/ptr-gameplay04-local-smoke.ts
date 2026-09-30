@@ -21,7 +21,7 @@ import { createPtrGreaterRealmRuntimeRelease, verifyPtrGreaterRealmRuntimeReleas
   type GreaterRealmRuntimeReleaseArtifacts, type GreaterRealmRuntimeCell,
   type GreaterRealmRuntimeResourceNode } from '../atlas/greater-realm-runtime-release';
 import { createGreaterRealmRuntimeReleaseFixtureSource, greaterRealmRuntimeReleaseFixtureSeed } from '../atlas/greater-realm-runtime-release-test-fixture';
-import { executePtrProductionImport } from '../ptr-production-import-core';
+import { executePtrProductionImport, PTR_PRODUCTION_IMPORT_TARGET } from '../ptr-production-import-core';
 import { createPtrAtlasImportTransport, createPtrOwnerProvisionTransport } from '../ptr-production-transport';
 import { attestPinnedSpacetimeCli, type AttestedSpacetimeCli } from '../spacetime-cli-attestation.mjs';
 import { runDisposableLocalFullstackCli, terminateLocalFullstackProcessGroup } from './local-fullstack-spacetime.mjs';
@@ -37,6 +37,15 @@ const MODULE_INPUTS = ['spacetimedb/ptr/src', 'spacetimedb/gameplay04', 'spaceti
 const OUTCOMES = ['initialized', 'gathered', 'staleQuoteUnsent', 'exactRetry', 'deductedOnce',
   'completed', 'improvedReturn', 'renewed', 'reconnected'] as const;
 type Outcome = typeof OUTCOMES[number];
+
+/** The import guard already excludes Genesis 001; these are additional targets. */
+export function gameplay04LocalAdditionalForbiddenIdentities(databaseIdentity: string) {
+  assert.match(databaseIdentity, HASH);
+  const additional = Object.freeze(['c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194',
+    'c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e']);
+  assert.ok(![PTR_PRODUCTION_IMPORT_TARGET.genesis001DatabaseIdentity, ...additional].includes(databaseIdentity));
+  return additional;
+}
 
 /** The receipt contains fixture evidence only, never credentials or player identity. */
 export function gameplay04LocalSmokeReceipt(sourceCommit: string, completed: readonly Outcome[], elapsedMs: number) {
@@ -234,8 +243,7 @@ export async function runPtrGameplay04LocalSmoke() {
     progress('private-module-publish'); await command([`--config-path=${config}`, 'publish', '--server', server, '--js-path', join(moduleDirectory, 'dist/bundle.js'), '--delete-data=never', '--no-config', DATABASE], [owner.token]);
     progress('local-database-identity');
     const identity = await databaseIdentity(server);
-    const disallowed = ['c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e', 'c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194', 'c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e'];
-    assert.ok(!disallowed.includes(identity));
+    const disallowed = gameplay04LocalAdditionalForbiddenIdentities(identity);
     // This config is consumed only by pure claim producers. Its synthetic FID,
     // target and signing key never enter the production bridge or provider.
     const claimConfig = { issuer: 'https://auth.warpkeep.com', ptrEnabled: true,
