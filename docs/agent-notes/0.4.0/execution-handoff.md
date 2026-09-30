@@ -1,5 +1,28 @@
 # Continue Warpkeep 0.4
 
+## Current continuation — 30 September 2026, 07:10 CEST (05:10 UTC)
+
+PR #374 remains open and unmerged against unchanged main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; its pushed candidate branch now
+contains `45d569db`, a DEV-only fix to Keep04 cadence reporting. Visible local
+Chrome had exposed a false ~30.8-second p95: event-driven one-shot redraws were
+separated by user-idle time, but the old collector treated the gap as a dropped
+frame. Cadence now continues only when the previous frame reported a scheduled
+successor RAF. The focused contract test passes 19 active cases (1 skipped),
+typecheck passes, and a corrected visible repro with two isolated redraws
+returns zero cadence samples/null percentiles. This confirms recorder behavior,
+not a production performance result.
+
+The full native suite result remains at pre-fix code/test commit
+`4350ae7a7c190bf65c5515cbb229e5b5485778b4`: 692 files passed / 1 skipped,
+12,582 tests passed / 97 skipped, 847.76 seconds. It has not been rerun after
+this DEV-only source change. Rebuild the exact notes-inclusive candidate in
+native WarpkeepRunner and update the PR #374 exact-head receipt. The public
+Alpha root returned HTTP 200 and `/ptr/` HTTP 404 in a direct check at 07:08
+CEST. September remains a no-Actions period; no Actions workflow or status was
+queried, dispatched, rerun or used. Keep the PTR sealed and resume hosted
+verification only on or after 1 October.
+
 ## Current continuation — 30 September 2026, 06:02 CEST (04:02 UTC)
 
 PR #374 remains open and unmerged against unchanged main

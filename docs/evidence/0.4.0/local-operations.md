@@ -2,6 +2,23 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Keep04 cadence recorder regression — 30 September 2026, 06:50 CEST
+
+Signed source `45d569db` fixes a DEV-only measurement defect in
+`summarizeKeep04FrameIntervals`. A visible local Chrome capture initially
+recorded five event-driven fixture redraws; the old collector treated an idle
+gap of about 30.8 seconds between user actions as a rendered-frame interval.
+The corrected collector continues a cadence series only when the preceding
+frame reports a pending successor RAF. Loading/fallback/disposal and malformed
+records still break the series.
+
+`npm test -- tests/keep04QaContract.test.ts` passed 19 tests / 1 skipped and
+`npm run typecheck` passed. A second visible Chrome check produced two isolated
+redraws and correctly reported `sampleCount: 0` with null p50/p95/p99. This is
+synthetic instrumentation verification only; it is not a production workload,
+device measurement, input-feedback result or 0.4 performance pass. The full
+native suite result predates this change and is retained separately below.
+
 ## Current-candidate full-stack browser QA — 30 September 2026, 06:02 CEST
 
 Signed source `566d27286080424c6da235630e36723720f7f2a5` passed

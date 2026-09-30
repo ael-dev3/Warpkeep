@@ -74,7 +74,7 @@ acceptance. The build still reports a 677.80 kB RealmMapScreen chunk (188.23 kB
 gzip), outside the standalone PTR route's load path. Mobile performance budgets
 are established, but final production measurements remain pending.
 
-The public Alpha root returned HTTP 200 and /ptr/ returned HTTP 404 at 06:02
+The public Alpha root returned HTTP 200 and /ptr/ returned HTTP 404 at 07:08
 CEST on 30 September. The sealed-launch verifier still reports package
 0.3.43, Pages approval false, unset G001/G002/PTR identities and disabled PTR
 presentation. No 0.4 production publication or owner PTR journey is claimed.

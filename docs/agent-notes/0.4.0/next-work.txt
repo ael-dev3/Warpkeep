@@ -1,5 +1,5 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 06:02 CEST (04:02 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 07:10 CEST (05:10 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
@@ -8,12 +8,17 @@ PR #374 is the open, unmerged 0.4 candidate against unchanged main
 from open PRs #375–#378; do not merge their older heads separately. Read #374
 for the current signed candidate SHA and exact build/mirror receipts. Windows
 and native WarpkeepRunner are the local development and Linux-build
-environments.
+environments. The candidate branch now includes the frame-cadence recorder
+correction at `45d569db`; the focused test, typecheck and visible browser
+reproduction passed. Refresh the exact production build after this notes
+commit; the current exact-head receipt belongs in PR #374.
 
-The full native Linux suite passed at code/test commit 4350ae7a, which remains
-code-equivalent to the candidate: 692 files passed / 1 skipped, 12,582 tests
+The full native Linux suite passed at code/test commit 4350ae7a before the
+DEV-only recorder correction: 692 files passed / 1 skipped, 12,582 tests
 passed / 97 skipped, exit 0 in 847.76 seconds on Node 22.22.3, npm 10.9.8 and
-SpacetimeDB 2.6.1. Keep UI/accessibility/placement suites passed 70/70. A
+SpacetimeDB 2.6.1. On the current fix, `npm test --
+tests/keep04QaContract.test.ts` passed 19 tests / 1 skipped and `npm run
+typecheck` passed. Keep UI/accessibility/placement suites passed 70/70. A
 36-case Windows Chrome capture found no horizontal overflow, network-boundary
 violation or cleanup issue; it is synthetic QA, not physical-phone or owner-PTR
 acceptance. The capture's CSP harness warning remains documented.
@@ -23,7 +28,7 @@ playthrough for construction, persistent reload, Worker dispatch/return,
 re-entry and recovery seams. Its database and sign-in were synthetic; see the
 execution handoff for scope.
 
-The Alpha root returned HTTP 200 and /ptr/ returned HTTP 404 at 06:02 CEST.
+The Alpha root returned HTTP 200 and /ptr/ returned HTTP 404 at 07:08 CEST.
 Sealed launch remains disabled: package 0.3.43, Pages approval false,
 G001/G002/PTR identities unset and PTR presentation disabled. No
 provider/public write, merge or 0.4 publication occurred. The RealmMapScreen
@@ -113,6 +118,13 @@ No final physical-phone result is established in the current evidence.
 
 Canonical measurements/methodology:
 C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep/docs/evidence/0.4.0/performance.md
+
+The cadence recorder's visible Chrome regression was a synthetic one-shot
+sequence: five redraws included a roughly 30.8-second user-idle gap, which the
+old summary misreported as a slow frame. The fix connects only frames whose
+predecessor scheduled a successor RAF. The corrected two-redraw repro reports
+zero cadence samples/null percentiles; this is observer QA, not performance
+acceptance.
 
 HOW TO USE THE INSPIRATIONS
 
