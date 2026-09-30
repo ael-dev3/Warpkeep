@@ -2,6 +2,41 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact candidate build and read-only mirror plan — 30 September 2026, 05:28 CEST
+
+At signed candidate
+c48e2d9478f46d18c0a2187f9318e62bc30c57e3, native WarpkeepRunner ran the full
+/ptr/ build with VITE_WARPKEEP_BUILD_SHA bound to that commit. TypeScript,
+runtime asset catalogs, production exclusions, public-boundary scan (3,351
+tracked paths / 1,908 scanned entries), and Farcaster integrity passed. License
+policy, tracked file-size policy, and sealed-launch preparation passed. The
+build retained the RealmMapScreen warning at 677.80 kB raw / 188.23 kB gzip.
+
+The exact payload contains 446 files / 138,997,364 bytes; source tree
+c0b4e1787d670668fbfa0abb10cf065d5ef76185; payload manifest SHA-256
+036f849ad775b46e21ea3783dc5349024e8dee043f994741f1899e138008f2df;
+content manifest SHA-256
+2421d7c62e4cbdc5d8d5c0d8c0dcf70b735a112e350f3de8c8fb5e5abf5f5a21; root
+HTML SHA-256
+bcd82bf55b9f20b46407b7dc6c0fb5696845fb2f38ee179ed92b725a4d1d165b.
+
+The read-only mirror plan against Warpkeep-Live main
+b6afe92e7b09197b1578d992103ac3c8f916d8ad (tree
+746fbd4facb0ad520c9dac1276d27d7a168f53d0) preserves 341 Alpha entries,
+targets 800 total files, and removes zero obsolete files. Its SHA-256 is
+02336041d32169baebd84febad756a9d497bb3234cf789572c840f2617915eea;
+preserved-root manifest SHA-256 is
+7699d03b70c901e4fb8453b8b515af03376d398bf79e9eabea1c85f6e303c3ef. Payload
+and plan were checked against their exact-source inputs; the public checkout
+was not modified.
+
+At 05:27 CEST the public Alpha root returned HTTP 200 and /ptr/ returned HTTP
+404. Sealed launch remains disabled (package 0.3.43, Pages approval false, live
+G001/G002/PTR identities unset, PTR presentation disabled). No provider,
+merge, or public Pages write occurred. No GitHub Actions workflow, run, check,
+or status was queried or used during September. This receipt is bound to
+c48e2d94; later tracked changes require a fresh exact-head build and receipt.
+
 ## Exact candidate full-suite rerun — 30 September 2026, 05:05 CEST
 
 On signed code/test source
