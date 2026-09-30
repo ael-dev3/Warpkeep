@@ -133,14 +133,15 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     waterEdge.instanceMatrix.needsUpdate = true;
     instances.add(waterEdge);
     scenery.add(waterEdge);
+    let forestTerrace: THREE.Mesh;
     try {
       if (import.meta.env.DEV && options.qaVoxelFailure) throw new Error('QA voxel preparation failure.');
       const preparationStart = performance.now();
       const dressing = createKeep04Dressing(quality); voxelPreparationMs = performance.now() - preparationStart; voxelQuads = dressing.quads;
       const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }); materials.add(material);
-      mesh(dressing.geometry, material).name = 'voxel-terracing';
+      forestTerrace = mesh(dressing.geometry, material); forestTerrace.name = 'voxel-terracing';
     } catch {
-      baseFallback = fallback = 'voxel'; mesh(new THREE.BoxGeometry(96, 2, 80), groundMat, 0, -2, -4).name = 'simple-perimeter-fallback';
+      baseFallback = fallback = 'voxel'; forestTerrace = mesh(new THREE.BoxGeometry(96, 2, 80), groundMat, 0, -2, -4); forestTerrace.name = 'simple-perimeter-fallback';
     }
     // One shallow U-shaped bank gives the existing forest bands somewhere to
     // sit along the rear and side terraces. The south gate approach stays open.
@@ -159,6 +160,17 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     });
     forestBank.instanceMatrix.needsUpdate = true;
     instances.add(forestBank); scenery.add(forestBank);
+    // Read only the actual decorative support once while building the scene;
+    // this ray is separate from the legal placement plane and gameplay picks.
+    forestTerrace.updateMatrixWorld(true); forestBank.updateMatrixWorld(true);
+    const forestSupportRay = new THREE.Raycaster(undefined, new THREE.Vector3(0, -1, 0), 0, 32);
+    const forestSupport = [forestTerrace, forestBank];
+    const forestGroundAt = (x: number, z: number) => {
+      forestSupportRay.ray.origin.set(x, 8, z);
+      const support = forestSupportRay.intersectObjects(forestSupport, false)[0];
+      if (!support) throw new RangeError('Keep forest root has no rendered support.');
+      return support.point.y;
+    };
     const spine = mesh(new THREE.BoxGeometry(6, .035, 35), masonry, 0, .02, 14.5); spine.name = 'open-gate-spine';
     const commons = mesh(new THREE.BoxGeometry(10, .04, 10), masonry, 0, .022, 2); commons.name = 'open-civic-commons';
     const seal = mesh(new THREE.CylinderGeometry(2.3, 2.3, .04, 24), mat(P.warpViolet), 0, .06, 2); seal.name = 'civic-seal';
@@ -201,11 +213,26 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
       const id = KEEP04_TREE_IDS[band]; const prefab = admitted.get(id); const count = budget.trees / 2;
       const sourceMeshes: THREE.Mesh[] = [];
       if (prefab) { prefab.root.updateMatrixWorld(true); prefab.root.traverse(o => { if (o instanceof THREE.Mesh) sourceMeshes.push(o); }); }
+      const rootMinY = sourceMeshes.length ? new THREE.Box3().setFromObject(prefab!.root).min.y : 0;
       if (!sourceMeshes.length) {
         const geometry = new THREE.ConeGeometry(2.3, 9, 7); geometry.translate(0, 4.5, 0);
         geometries.add(geometry); sourceMeshes.push(new THREE.Mesh(geometry, mat(band === 0 ? P.forestNear : '#81917a')));
         if (baseFallback === 'none') baseFallback = fallback = 'asset';
       }
+      // Adapt the stable population/quality selection idea from Tervain
+      // floraPopulation.ts @db2a356: detail thins a fixed authored population.
+      // The first three ranks retain the back and both sides at every quality.
+      const transforms = Array.from({ length: count }, (_, i) => {
+        const cluster = i % 3; const slot = Math.floor(i / 3);
+        const spread = [0, -.5, .5][slot];
+        const x = cluster === 0 ? spread * (band === 0 ? 68 : 74)
+          : (cluster === 1 ? -1 : 1) * (band === 0 ? 53 : 56);
+        const z = cluster === 0 ? (band === 0 ? -52 : -58) - [0, 2, .8][(slot + band) % 3]
+          : -8 + spread * (band === 0 ? 54 : 62) - [0, 2.3, .7][(slot + band) % 3];
+        const size = prefab ? (band === 0 ? 1.5 : 1.92) + [.08, .3, 0, .18][(i + band) % 4] : 1;
+        return new THREE.Matrix4().compose(new THREE.Vector3(x, forestGroundAt(x, z) - rootMinY * size, z),
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), i * 1.7), new THREE.Vector3(size, size, size));
+      });
       for (const source of sourceMeshes) {
         const geometry = source.geometry.clone().applyMatrix4(source.matrixWorld); geometries.add(geometry);
         const copies = (Array.isArray(source.material) ? source.material : [source.material]).map(original => {
@@ -216,21 +243,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         const forest = new THREE.InstancedMesh(geometry, Array.isArray(source.material) ? copies : copies[0], count);
         instances.add(forest);
         forest.name = `forest-band:${band}`; forest.castShadow = quality === 'high'; forest.receiveShadow = true;
-        for (let i = 0; i < count; i++) {
-          // Each quality keeps one group on each open side of the U; higher
-          // budgets fill those groups without closing the gate approach.
-          const cluster = i % 3; const slot = Math.floor(i / 3);
-          const members = Math.ceil((count - cluster) / 3);
-          const spread = members === 1 ? 0 : slot / (members - 1) - .5;
-          const x = cluster === 0 ? spread * (band === 0 ? 68 : 74)
-            : (cluster === 1 ? -1 : 1) * (band === 0 ? 53 : 56);
-          const z = cluster === 0 ? (band === 0 ? -52 : -58) - [0, 2, .8][(slot + band) % 3]
-            : -8 + spread * (band === 0 ? 54 : 62) - [0, 2.3, .7][(slot + band) % 3];
-          const size = prefab ? (band === 0 ? 1.5 : 1.92)
-            + [.08, .3, 0, .18][(i + band) % 4] : 1;
-          const transform = new THREE.Matrix4().compose(new THREE.Vector3(x, -2 - band, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), i * 1.7), new THREE.Vector3(size, size, size));
-          forest.setMatrixAt(i, transform);
-        }
+        transforms.forEach((transform, index) => forest.setMatrixAt(index, transform));
         forest.instanceMatrix.needsUpdate = true; scenery.add(forest);
       }
     }

@@ -5,7 +5,7 @@ import { act, cleanup, render, screen, fireEvent } from '@testing-library/react'
 import { Keep04SceneHost } from '../src/components/keep04/Keep04SceneHost';
 import { Keep04QaHarness, createKeep04QaSnapshot } from '../src/dev/Keep04QaHarness';
 import { createKeep04Scene, type VisualState04 } from '../src/components/keep04/createKeep04Scene';
-import type { InnerKeepRuntimeAssetBundle } from '../src/components/inner-keep/loadInnerKeepRuntimeAssets';
+import type { InnerKeepRuntimeAssetBundle, InnerKeepRuntimePrefab } from '../src/components/inner-keep/loadInnerKeepRuntimeAssets';
 import * as assetsLoader from '../src/components/keep04/loadKeep04Assets';
 
 vi.mock('three', async importOriginal => {
@@ -17,6 +17,83 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const empty = (): InnerKeepRuntimeAssetBundle => ({ staticPrefabs: new Map(), populationPrefabs: new Map(), failures: [], dispose: vi.fn() });
 const mill = { kind: 'city-mill', placement: { kind: 'city-mill', x: -24_000_000n, z: -20_000_000n, rotation: 0 }, completedLevel: 0, targetLevel: 1, phase: 'constructing', startsAtMicros: 5n, completesAtMicros: 120_000_005n } as const;
 const visual: VisualState04 = { buildings: [mill], selectedKind: 'city-mill', draft: null, draftValid: true };
+
+function forestFixture(loaded: boolean) {
+  const assets = empty(); const sources: THREE.Group[] = [];
+  if (loaded) for (const id of assetsLoader.KEEP04_TREE_IDS) {
+    // Like the loader's normalized prefabs, the complete root starts at y=0;
+    // separate canopy meshes retain their original height above the trunk.
+    const root = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.BoxGeometry(.5, 6, .5), new THREE.MeshStandardMaterial()); trunk.position.y = 3;
+    const canopy = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 3), new THREE.MeshStandardMaterial()); canopy.position.y = 6;
+    root.add(trunk, canopy); root.updateMatrixWorld(true); sources.push(root);
+    const prefab: InnerKeepRuntimePrefab = { id, root, clips: [], boundsMeters: [3, 7, 3], triangles: 24,
+      drawCalls: 2, animated: false, mounted: false, clone: () => root.clone(true) };
+    (assets.staticPrefabs as Map<string, InnerKeepRuntimePrefab>).set(id, prefab);
+  }
+  return { assets, sources, dispose: () => sources.forEach(root => root.traverse(object => {
+    if (object instanceof THREE.Mesh) { object.geometry.dispose(); (object.material as THREE.Material).dispose(); }
+  })) };
+}
+
+function forestTransforms(scene: THREE.Scene, band: number) {
+  const forest = scene.getObjectByName(`forest-band:${band}`) as THREE.InstancedMesh;
+  return Array.from({ length: forest.count }, (_, index) => {
+    const matrix = new THREE.Matrix4(); forest.getMatrixAt(index, matrix); return matrix;
+  });
+}
+
+it.each([false, true])('keeps ranked forest transforms stable when quality thins the existing population (loaded=%s)', loaded => {
+  const fixture = forestFixture(loaded);
+  const scenes = (['high', 'balanced', 'reduced'] as const).map(quality => createKeep04Scene({ quality, reducedMotion: true, assets: fixture.assets }));
+  try {
+    for (const band of [0, 1]) {
+      const high = forestTransforms(scenes[0].scene, band);
+      for (const scene of scenes.slice(1)) {
+        const retained = forestTransforms(scene.scene, band);
+        retained.forEach((transform, index) => expect(transform.elements).toEqual(high[index].elements));
+        const positions = retained.map(transform => new THREE.Vector3().setFromMatrixPosition(transform));
+        expect(positions.some(point => point.z < -50)).toBe(true);
+        expect(positions.some(point => point.x < -50)).toBe(true);
+        expect(positions.some(point => point.x > 50)).toBe(true);
+      }
+    }
+  } finally { scenes.forEach(scene => scene.dispose()); fixture.dispose(); }
+});
+
+it.each((['high', 'balanced', 'reduced'] as const).flatMap(quality => [false, true].flatMap(loaded => [false, true].map(qaVoxelFailure => ({ quality, loaded, qaVoxelFailure })))))
+('grounds every existing forest root on the rendered terrace or bank ($quality, loaded=$loaded, voxelFallback=$qaVoxelFailure)', ({ quality, loaded, qaVoxelFailure }) => {
+  const fixture = forestFixture(loaded); const scene = createKeep04Scene({ quality, reducedMotion: true, assets: fixture.assets, qaVoxelFailure });
+  const sourceGeometryDisposals = fixture.sources.flatMap(root => root.children.map(object => vi.spyOn((object as THREE.Mesh).geometry, 'dispose')));
+  try {
+    scene.scene.updateMatrixWorld(true);
+    expect(scene.scene.getObjectByName(qaVoxelFailure ? 'simple-perimeter-fallback' : 'voxel-terracing')).toBeDefined();
+    const surfaces = ['voxel-terracing', 'simple-perimeter-fallback', 'forest-bank:perimeter']
+      .map(name => scene.scene.getObjectByName(name)).filter((object): object is THREE.Object3D => object !== undefined);
+    const supportRay = new THREE.Raycaster(undefined, new THREE.Vector3(0, -1, 0), 0, 32);
+    for (const band of [0, 1]) {
+      const parts: THREE.InstancedMesh[] = [];
+      scene.scene.traverse(object => { if (object instanceof THREE.InstancedMesh && object.name === `forest-band:${band}`) parts.push(object); });
+      expect(parts).toHaveLength(loaded ? 2 : 1);
+      for (const [index, transform] of forestTransforms(scene.scene, band).entries()) {
+        const root = new THREE.Vector3().setFromMatrixPosition(transform);
+        supportRay.set(new THREE.Vector3(root.x, 8, root.z), new THREE.Vector3(0, -1, 0));
+        const support = supportRay.intersectObjects(surfaces, false)[0];
+        expect(support, `forest root ${root.x},${root.z} must have visible support`).toBeDefined();
+        expect(root.y).toBeCloseTo(support.point.y, 5);
+        // Ground the complete tree, never each leaf/trunk mesh independently.
+        for (const part of parts) {
+          const partTransform = new THREE.Matrix4(); part.getMatrixAt(index, partTransform);
+          expect(partTransform.elements).toEqual(transform.elements);
+        }
+      }
+    }
+    expect(scene.telemetry().pickTargetCount).toBe(0);
+    expect(scene.telemetry().sceneryInstances).toBe({ high: 18, balanced: 12, reduced: 6 }[quality]);
+    if (loaded) for (const root of fixture.sources) expect(new THREE.Box3().setFromObject(root).min.y).toBe(0);
+  } finally { scene.dispose(); sourceGeometryDisposals.forEach(dispose => expect(dispose).not.toHaveBeenCalled()); fixture.dispose(); }
+});
+
 it('frames only occupied settled sites and existing civic landmarks, without changing scene work or picking', () => {
   const scene = createKeep04Scene({ quality: 'reduced', reducedMotion: false, assets: empty() });
   scene.reconcile({ buildings: [], selectedKind: 'city-mill', draft: mill.placement, draftValid: true });

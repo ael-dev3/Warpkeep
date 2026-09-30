@@ -11,6 +11,7 @@ competing sources of gameplay truth.
 | [Warpkeep-Live](https://github.com/ael-dev3/Warpkeep-Live) | Public hosting repository for generated frontend assets and published legal/provenance records | Alpha 0.3.43 is served at [warpkeep.com](https://warpkeep.com/). This repository contains no private development source or unpublished 0.4 build. PTR publication remains part of the game repository's release workflow. |
 | [Warpkeep Assets](https://github.com/ael-dev3/Warpkeep-Assets) | Private visual source archive, dated releases, manifests, provenance, and file-specific reuse terms | Existing archive. A stored asset is not automatically approved, optimized, or integrated into the game. Runtime adoption needs game-side validation and attribution. |
 | [Warpkeep Water Engine](https://github.com/ael-dev3/Warpkeep-Water-Engine) | Planned home for reusable water rendering work | Placeholder repository. Current water implementation and tests live in Warpkeep; no standalone engine package or public demo is established here. |
+| [Tervain](https://github.com/ael-dev3/Tervain) | Private sibling single-player fantasy RPG; suitable original environment art, asset tools and renderer techniques can be shared | Developed alongside Warpkeep with its own player experience, saves and visual identity. Use the source and asset records below before adapting work; it does not own Warpkeep accounts, realms or release authority. |
 | Ael's GitHub profile | Introduce the person, selected public projects, and links to their canonical documentation | Public presentation. Keep descriptions consistent with project evidence; avoid private project information and unsupported release claims. |
 
 ## Runtime and infrastructure remain together
@@ -42,6 +43,37 @@ For 0.4 water, start at `src/greater-realm/createGreaterRealmSceneRuntime.ts` an
 the atlas chunks it constructs. `src/components/realm/realmWaterLayer.ts` belongs to G001.
 Extracting a reusable engine is a future decision based on demonstrated need;
 the placeholder repository does not change runtime ownership.
+
+## Sharing with Tervain
+
+The owner requested parallel development and suitable reuse on 30 September
+2026. The initial study binds Tervain's immutable source
+`db2a356c062f5e65fa29cf3f642fc6498f57c013`, especially
+`docs/engineering/shared-assets.md`, `assets/warpkeep/manifest.json`,
+`src/presentation/floraPopulation.ts` and the recorded menu-vigil scene.
+The existing local Tervain checkout was older; do not treat its working HEAD
+as evidence for these newer assets or renderer utilities.
+
+Its archived GLBs and emblem match existing Warpkeep sources, so this study
+adds no duplicate models or texture downloads. Preserve the canonical source,
+hash, preparation and file-specific terms rather than importing an archive
+back into its originating game. Tervain has no blanket project licence;
+the owner's reuse request does not invent new terms for third-party media.
+
+The useful visual lessons are grounded vegetation, clear material/value groups
+and a consistent foreground-to-distance hierarchy. Warpkeep adapts the stable
+population/quality-selection idea for its existing keep forest: lower detail
+retains important authored placements, with roots on the actual terrace/bank.
+Broad terrain color variation uses existing vertex buffers. Tervain's dark RPG
+vigil, faction story and expensive postprocessing are not mobile strategy
+acceptance criteria. Keep the bright masonry, teal roofs, readable approach
+and authoritative placement surface of the Verdant Citadel.
+
+Both projects can exchange demonstrated renderer fixes and asset tooling while
+keeping dependency versions, tests, lifecycle ownership and performance checks
+in their real consumers. Extract a shared package only when both consumers
+need and verify the same implementation; do not add an unused framework to
+make the relationship appear complete.
 
 ## Keep the ecosystem understandable
 

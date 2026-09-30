@@ -14,6 +14,7 @@ import {
   decodeGreaterRealmChunkDto
 } from '../src/greater-realm/greaterRealmPublicContract';
 import { GREATER_REALM_GRAPHICS_BUDGETS } from '../src/greater-realm/greaterRealmRuntimePolicy';
+import * as treeAssets from '../src/greater-realm/loadGreaterRealmBiomeTreeAssets';
 
 vi.mock('../src/greater-realm/loadGreaterRealmBiomeTreeAssets', () => ({
   loadGreaterRealmBiomeTreePrototype: vi.fn(() => new Promise(() => undefined))
@@ -253,6 +254,62 @@ function voxelDisposalProbe(runtime: ReturnType<typeof createGreaterRealmSceneRu
 }
 
 describe('Greater Realm scene runtime', () => {
+  it.each(['canopy', 'grass'] as const)('retires an incomplete chunk after a %s instance setup failure, including late tree arrivals', async failure => {
+    let resolveTree!: (value: Awaited<ReturnType<typeof treeAssets.loadGreaterRealmBiomeTreePrototype>>) => void;
+    const tree = new Promise<Awaited<ReturnType<typeof treeAssets.loadGreaterRealmBiomeTreePrototype>>>(resolve => { resolveTree = resolve; });
+    const loader = vi.mocked(treeAssets.loadGreaterRealmBiomeTreePrototype);
+    const previousLoader = loader.getMockImplementation()!;
+    loader.mockImplementation(() => tree);
+    const invalidate = vi.fn();
+    const runtime = createGreaterRealmSceneRuntime({ deviceClass: 'mobile', graphicsProfile: 'reduced', onInvalidate: invalidate });
+    runtime.setView({ revision: 1n, cellSize: 1, chunks: viewChunks().slice(0, 1) });
+    const geometryDisposals = new Map<THREE.BufferGeometry, ReturnType<typeof vi.spyOn>>();
+    const materialDisposals = new Map<THREE.Material, ReturnType<typeof vi.spyOn>>();
+    const instanceDisposals = new Map<THREE.InstancedMesh, ReturnType<typeof vi.spyOn>>();
+    const track = (object: THREE.Object3D) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      if (!geometryDisposals.has(object.geometry)) geometryDisposals.set(object.geometry, vi.spyOn(object.geometry, 'dispose'));
+      for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+        if (!materialDisposals.has(material)) materialDisposals.set(material, vi.spyOn(material, 'dispose'));
+      }
+      if (object instanceof THREE.InstancedMesh && !instanceDisposals.has(object)) instanceDisposals.set(object, vi.spyOn(object, 'dispose'));
+    };
+    const add = THREE.Object3D.prototype.add;
+    const addSpy = vi.spyOn(THREE.Object3D.prototype, 'add').mockImplementation(function (this: THREE.Object3D, ...objects) {
+      if (this.name.startsWith('greater-realm-chunk:')) objects.forEach(track);
+      return add.apply(this, objects);
+    });
+    const setMatrixAt = THREE.InstancedMesh.prototype.setMatrixAt;
+    const matrixSpy = vi.spyOn(THREE.InstancedMesh.prototype, 'setMatrixAt').mockImplementation(function (this: THREE.InstancedMesh, index, matrix) {
+      track(this);
+      if (this.name.startsWith(`greater-realm-${failure}`)) throw new Error('INJECTED_CHUNK_INSTANCE_SETUP_FAILURE');
+      return setMatrixAt.call(this, index, matrix);
+    });
+    const sharedGeometry = new THREE.BoxGeometry(); sharedGeometry.userData.greaterRealmSharedTreeAsset = true;
+    const sharedMaterial = new THREE.MeshStandardMaterial(); sharedMaterial.userData.greaterRealmSharedTreeAsset = true;
+    const borrowedGeometryDispose = vi.spyOn(sharedGeometry, 'dispose');
+    const borrowedMaterialDispose = vi.spyOn(sharedMaterial, 'dispose');
+    try {
+      expect(() => runtime.flushUploads()).toThrow('INJECTED_CHUNK_INSTANCE_SETUP_FAILURE');
+      expect(runtime.getTelemetry().uploadedChunkCount).toBe(0);
+      expect(geometryDisposals.size).toBeGreaterThan(3); expect(instanceDisposals.size).toBeGreaterThan(1);
+      runtime.dispose(); runtime.dispose();
+      resolveTree({ geometry: sharedGeometry, material: sharedMaterial, scale: 1, triangles: 12, geometryBytes: 840 });
+      const invalidations = invalidate.mock.calls.length;
+      await Promise.resolve(); await Promise.resolve();
+      expect(invalidate).toHaveBeenCalledTimes(invalidations);
+      geometryDisposals.forEach(dispose => expect(dispose).toHaveBeenCalledOnce());
+      materialDisposals.forEach(dispose => expect(dispose).toHaveBeenCalledOnce());
+      instanceDisposals.forEach(dispose => expect(dispose).toHaveBeenCalledOnce());
+      expect(borrowedGeometryDispose).not.toHaveBeenCalled(); expect(borrowedMaterialDispose).not.toHaveBeenCalled();
+    } finally {
+      runtime.dispose(); addSpy.mockRestore(); matrixSpy.mockRestore();
+      geometryDisposals.forEach(dispose => dispose.mockRestore()); materialDisposals.forEach(dispose => dispose.mockRestore());
+      instanceDisposals.forEach(dispose => dispose.mockRestore()); loader.mockImplementation(previousLoader);
+      borrowedGeometryDispose.mockRestore(); borrowedMaterialDispose.mockRestore(); sharedGeometry.dispose(); sharedMaterial.dispose();
+    }
+  });
+
   it('renders separate instanced tree silhouettes for the biomes present in a chunk', () => {
     const raw = structuredClone(GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.chunks[0]) as any;
     const savannaCell = raw.coreCells.find((cell: any) => (

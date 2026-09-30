@@ -1520,8 +1520,9 @@ a.warpkeep-menu-build-stamp__build:focus-visible {
   .warpkeep-menu .warpkeep-menu-tagline {
     max-width: 100%;
     padding-inline: 0.15rem;
-    font-size: clamp(0.56rem, 2.25vw, 0.68rem);
-    letter-spacing: 0.07em;
+    font-size: clamp(0.75rem, 2.25vw, 0.8125rem);
+    letter-spacing: 0.035em;
+    overflow-wrap: anywhere;
   }
 
   .warpkeep-menu-build-stamp {
@@ -1530,7 +1531,16 @@ a.warpkeep-menu-build-stamp__build:focus-visible {
     width: auto;
     max-width: none;
     justify-content: center;
-    font-size: clamp(0.52rem, 2.25vw, 0.62rem);
-    letter-spacing: 0.06em;
+    font-size: 0.8rem;
+    letter-spacing: 0.025em;
+    line-height: 1.35;
+    white-space: normal;
+  }
+
+  .warpkeep-menu-build-stamp__version,
+  .warpkeep-menu-build-stamp__build {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: center;
   }
 }
