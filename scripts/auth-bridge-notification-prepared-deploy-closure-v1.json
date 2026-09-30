@@ -3965,7 +3965,7 @@
     {
       "path": "src/components/menu/WarpkeepMainMenu.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ecd82777a3cd49eb95db13f35dd5ba4c4e6828db8efb9fa463179da657d1d3d7"
+      "sha256": "f2c6095be9d43f4f8bfb8f25c576e1768ea8f196b87a2df75aba2dbd577e8cb8"
     },
     {
       "path": "src/components/menu/WarpkeepMainMenu.tsx",

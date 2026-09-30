@@ -37,6 +37,14 @@ resolved to matching source records. No asset bytes, license grant or archive
 publication changed. The approved G002 audio is packaged by existing payload
 policy, while playback remains sealed; no broader reuse rights are inferred.
 
+Signed polish d4465897ed9d2670cdd35e2f241d913244a8e8a2 passed its outgoing
+Gitleaks scan and was pushed. All 3,351 native tracked files matched raw Git
+before the full 16-output family was derived, independently reproduced and
+checked by the UID-1000 policy verifier. Its manifest SHA-256 is
+8c637963331d7c899f695788aaf3b95d9983d4ab54bc5813b5f1c1bb4334de6b.
+Record the final signed source and affected native checks/build/payload/mirror
+receipts on PR #374 after execution; do not claim another full run at that head.
+
 ## Confirmation and destination focus repair — 30 September 2026, 10:10 CEST (08:10 UTC)
 
 Independent review of d1474f11a7e7aa8d87267f3f078dce6fc311d094 found two

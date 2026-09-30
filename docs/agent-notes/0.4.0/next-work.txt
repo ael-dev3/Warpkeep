@@ -22,11 +22,11 @@ actual draft archive's immutable manifest. Windows and
 native WarpkeepRunner are the local development and Linux-build environments.
 The latest exact source, `/ptr/` build, payload check and read-only mirror plan
 are recorded on PR #374. The protected closure was refreshed from signed
-confirmation/focus repair 485e4ca6: all 3,351 raw source files matched Git,
+menu/provenance polish d4465897: all 3,351 raw source files matched Git,
 all 16 outputs matched independent derivation and native UID-1000 policy
 verification passed. Its manifest SHA-256 is
-c47d7d096ff500aeafc5b27a4bc8122002d3c287b0b9800f7dfcded9c4162dd7.
-Refresh the complete family after the menu polish. Record the final exact
+8c637963331d7c899f695788aaf3b95d9983d4ab54bc5813b5f1c1bb4334de6b.
+Record the final exact
 signed source and its new receipts on PR #374 after
 verification. Verify the final signed source before
 resuming the hosted lane.

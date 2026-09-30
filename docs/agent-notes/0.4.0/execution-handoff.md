@@ -18,8 +18,11 @@ or console warnings. Two broken G002 soundtrack links now identify its actual
 draft archive by an immutable manifest, without altering rights or publishing.
 The [local evidence](../../evidence/0.4.0/local-operations.md) holds exact scopes.
 
-After the signed polish checkpoint, reproduce the full derived closure family,
-run the affected native closure/menu checks and rebuild the exact /ptr/ payload
+Signed polish d4465897 passed its outgoing Gitleaks scan and was pushed. All
+3,351 raw native files matched Git; the full 16-output family reproduced
+independently and UID-1000 policy verification passed. Its manifest SHA-256 is
+8c637963331d7c899f695788aaf3b95d9983d4ab54bc5813b5f1c1bb4334de6b.
+Run the final affected native closure/menu checks and rebuild the exact /ptr/ payload
 and independent read-only mirror plan. Record final receipts on PR #374. Keep
 September free of Actions; continue the already-authorized M1/exact-M1/M2
 delivery lane on October 1, preserving Alpha and closed G002 admissions.
