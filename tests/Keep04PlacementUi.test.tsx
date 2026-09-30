@@ -44,6 +44,39 @@ it.each(['busy', 'shortage'] as const)('does not present a legal site as build-r
   expect(screen.getByText('Placement is valid.')).toBeVisible();
 });
 
+it.each([
+  ['busy builder', 'Wait for City Mill construction to complete before starting another construction.'],
+  ['missing Realm details', 'Return to world to refresh Realm details before confirming construction.'],
+] as const)('explains %s beside a funded legal draft and requires a fresh review after recovery', (cause, message) => {
+  const wire = cause === 'busy builder' ? constructingWire04() : freshWire04();
+  Object.assign(wire, { food: 10000n, wood: 10000n, stone: 10000n, gold: 10000n });
+  let snapshot: Snapshot04 = { phase: 'ready', problem: 'none',
+    view: presentState04(decodeState04(wire, SCOPE04), cause === 'missing Realm details' ? null : ATLAS04, Date.now()) };
+  const controller: Controller04 = { getSnapshot: () => snapshot, subscribe: () => () => {}, refresh: vi.fn(async () => {}),
+    setAtlas: vi.fn(), submit: vi.fn(async () => {}), retryPending: vi.fn(async () => {}), dispose: vi.fn() };
+  function scene() {
+    return <Keep04Screen snapshot={snapshot} controller={controller}
+      selection={{ panel: 'buildings', selectedKind: 'lumber-camp', draft: { kind: 'lumber-camp', x: 20_000_000n, z: -20_000_000n, rotation: 0 } }}
+      onSelectionChange={vi.fn()} onBack={vi.fn()} quality="reduced" reducedMotion onFindResources={vi.fn()} onReturnToWorld={vi.fn()} />;
+  }
+  const rendered = render(scene());
+  const review = within(screen.getByRole('region', { name: 'Place Lumber Camp' }));
+  const confirm = review.getByRole('button', { name: 'Confirm placement' });
+  expect(review.getByText('Resources ready')).toBeVisible(); expect(screen.getByText('Placement is valid.')).toBeVisible();
+  expect(confirm).toBeDisabled(); fireEvent.click(confirm); expect(controller.submit).not.toHaveBeenCalled();
+  expect(review.getByText(message)).toBeVisible(); expect(confirm).toHaveAccessibleDescription(message);
+  if (cause === 'busy builder') {
+    const completed = wireWithBuilding04(); Object.assign(completed, { revision: 2n, food: 10000n, wood: 10000n, stone: 10000n, gold: 10000n });
+    snapshot = { ...snapshot, view: presentState04(decodeState04(completed, SCOPE04), ATLAS04, Date.now()) };
+  } else snapshot = { ...snapshot, view: { ...snapshot.view!, atlas: ATLAS04 } };
+  rendered.rerender(scene());
+  expect(review.queryByText(message)).not.toBeInTheDocument(); expect(confirm).not.toHaveAttribute('aria-describedby');
+  expect(confirm).toBeDisabled(); fireEvent.click(confirm); expect(controller.submit).not.toHaveBeenCalled();
+  fireEvent.click(review.getByRole('button', { name: 'Review updated costs' })); expect(confirm).toBeEnabled();
+  fireEvent.click(confirm); expect(controller.submit).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: 'build',
+    quote: expect.objectContaining({ kind: 'lumber-camp', revision: snapshot.view!.state.revision, atlasRevision: ATLAS04.revision }) }));
+});
+
 it('maps taps to the half-meter grid, exposes exclusions and gives keyboard/touch equivalent nudges and rotations', () => {
   let latest: Placement04 | null = MILL_PLACEMENT04;
   function Harness() {

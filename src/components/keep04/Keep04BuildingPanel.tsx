@@ -35,7 +35,12 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
   const placementResult = placement ? evaluatePlacement04(placement,
     view.buildings.filter(building => building.kind !== selectedKind).map(building => building.placement)) : null;
   const placementProblem = placementResult && !placementResult.valid ? placementMessage04(placementResult.reason) : null;
-  const placementProblemId = `${reviewId}-placement`;
+  const confirmationProblem = view.atlas === null
+    ? 'Return to world to refresh Realm details before confirming construction.'
+    : view.state.project !== undefined
+      ? `Wait for ${BUILDING_NAMES04[view.state.project.kind]} construction to complete before starting another construction.`
+      : placementProblem;
+  const confirmationProblemId = `${reviewId}-confirmation`;
   const candidate = useMemo(() => {
     if (!selectedKind || !placement) return null;
     try { return quoteBuilding04(view, selectedKind, placement); } catch { return null; }
@@ -129,8 +134,8 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
       <p>Permanent placement: construction cannot be cancelled and spent resources are not refunded.</p>
       {changedRealm && <><p role="status">Review updated costs and confirm again</p><button type="button" disabled={!enabled} onClick={review}>Review updated costs</button></>}
       {!placement && <p role="status">No valid draft selected. Choose a building site.</p>}
-      {placementProblem && <p id={placementProblemId} role="status">{placementProblem}</p>}
-      <button type="button" className="keep04-confirm" disabled={!canConfirm} aria-describedby={placementProblem ? placementProblemId : undefined} onClick={() => {
+      {confirmationProblem && <p id={confirmationProblemId} role="status">{confirmationProblem}</p>}
+      <button type="button" className="keep04-confirm" disabled={!canConfirm} aria-describedby={confirmationProblem ? confirmationProblemId : undefined} onClick={() => {
         if (!canConfirm || sentRef.current || !reviewed.quote) return;
         sentRef.current = true;
         // Readiness can change before this rendered button receives its click.
