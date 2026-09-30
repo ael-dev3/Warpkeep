@@ -40,96 +40,75 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The existing Alpha 0.3.43 is live; 0.4 has not shipped.** The owner confirmed
-a successful phone-approved sign-in after the Alpha QR RPC repair; the
-[timestamped incident report](docs/evidence/0.4.0/qr-auth-incident-2026-09-27.md)
-records the evidence limits. The reviewed Verdant Citadel menu and native
-Hegemony banners from [PR #375](https://github.com/ael-dev3/Warpkeep/pull/375)
-are already integrated into the open 0.4 candidate,
-[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374), together with the
-mobile/WebGL corrections and the reviewed Greater Realm tree presentation from
-[#378](https://github.com/ael-dev3/Warpkeep/pull/378). PTR sign-in and framed-
-host fallbacks now preserve `/ptr/` instead of routing owners to the Alpha root.
-The candidate also stages the owner-commissioned FID 539854 castle-film action
-and narrow-screen castle focus improvements from
-[#376](https://github.com/ael-dev3/Warpkeep/pull/376); the film player code is
-lazy-loaded for that eligible castle, and its 289 MB video remains external and
-click-to-load. PR #376 stays open as source provenance until #374 lands.
-PR #375 remains open as source provenance; its older branch must not be merged
-separately. The candidate is a polished visual foundation around the existing
-gather, dispatch, return and construction loop.
+**Alpha 0.3.43 is live; Warpkeep 0.4 is an open, unpublished candidate.** The
+candidate is assembled on [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374).
+It includes the reviewed work from still-open PRs #375–#378; those older heads
+must not be merged separately while their changes are already in #374.
 
-At candidate source `7daea5f5`, the pinned native Linux Node 22.22.3 / npm
-10.9.8 `/ptr/` build passed TypeScript, runtime-asset checks, production
-exclusions, public-boundary scan (3,350 tracked paths / 1,907 scanned entries),
-and Farcaster Mini App integrity. License and tracked file-size checks passed.
-The payload contained 446 files / 138,994,282 bytes; its manifest SHA-256 was
-`17e6f60ce7610dde8d5bc51ca00d6b81f715d82de1a219c855648b5e707b90f3`, with
-content manifest SHA-256
-`5941b9fc65625f0fe264a349362e790fd7c3c5977d2a8708263885ce8554c4b2`. The
-read-only mirror plan preserves all 341 Alpha-root entries, targets 800 files
-only under `/ptr/`, removes zero obsolete generated files, and has SHA-256
-`5293912d89646974247b570a3c0964d586cc6305a5a10e6d4fb12d1ba0a4b6b1`. The 40
-runtime tree models total 2,738,208 bytes; Balanced and Reduced select the
-mobile meshes, asset URLs follow the `/ptr/` base, and the loader retries on a
-later view after a failed fetch. These receipts were generated at 7daea5f5;
-regenerate the ignored payload and plan after this notes-only checkpoint and
-match their source identity to the pushed PR #374 head before publication.
+The candidate brings together:
 
-The PTR route lazy-loads the standalone `PtrGameplay04SurfaceHost` directly;
-`RealmMapScreenProps` contains no PTR authority or gameplay state, and its old
-PTR entry branch has been removed. The PTR host owns the branded authority,
-virtual-anchor, provider-bridge and gameplay-capability checks. The production
-PTR host chunk is 108.81 kB (33.54 kB gzip). `RealmMapScreen` remains 677.80 kB
-(188.23 kB gzip) with 16.88 kB gzip CSS, all outside the PTR route's load path.
-Route tests cover the separate lazy surfaces and the release-source guard now
-protects the direct PTR renderer while excluding only the legacy Genesis edge.
-The G001 chunk still triggers Vite's size warning. Build and route tests do not
-establish physical-phone performance or release acceptance. PTR publication
-has not happened, and the September GitHub Actions pause remains in effect.
+- The Verdant Citadel 3D menu, castle presentation and Hegemony banners ([#375](https://github.com/ael-dev3/Warpkeep/pull/375)).
+- The eligible FID 539854 castle-film action ([#376](https://github.com/ael-dev3/Warpkeep/pull/376)). Its 289 MB video remains
+  external and click-to-load.
+- Sealed Genesis 002 soundtrack wiring ([#377](https://github.com/ael-dev3/Warpkeep/pull/377)). G002 remains inaccessible;
+  the soundtrack derivative's source terms are unresolved.
+- Forty hash-pinned Greater Realm tree models ([#378](https://github.com/ael-dev3/Warpkeep/pull/378)). The app uses local runtime
+  copies; the open Warpkeep-Assets source archive is a provenance record, not a
+  runtime download dependency.
 
-The public root serves Alpha 0.3.43 (HTTP 200), while
-`https://warpkeep.com/ptr/` returns HTTP 404. No 0.4 PTR has been published.
-After the September pause, Verify must pass on the exact candidate head before
-source M1 integration. Native preparation and independent checking then run on
-that exact main source; promote only the generated M2 and require its exact-head
-Verify before protected operations. Finish G001 preservation/readback, sealed
-G002 verification, PTR publication/readback, and owner acceptance on a phone.
-The initial 0.4 PTR is required; opening live admissions is not. The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md),
-[delivery status](docs/operations/0.4.0-live-delivery-status.md), and
-[release checklist](docs/operations/0.4.0-release-checklist.md) track the
-current evidence and gates.
+The existing gather, Worker dispatch and return, building, construction and
+persistent-progress loop remains the gameplay foundation. The PTR has a
+dedicated lazy-loaded gameplay host that preserves /ptr/ routing and checks its
+owner/session capabilities. No candidate change opens Genesis 002 admissions
+or widens the Genesis 001 admission freeze.
 
-Genesis 002 soundtrack PR #377 remains deferred because G002 is sealed and no
-current player path can exercise the new score on the owner PTR. Warpkeep-Assets
-PR #41 still has an unpublished v3 source-release attachment; its source branch
-is linked from the tree provenance record. Warpkeep carries the reviewed,
-hash-pinned runtime copies and its production verifier passes without fetching
-that archive. Treat archive publication as an asset-source recovery and
-provenance follow-up; no physical-phone performance claim follows from the
-model triangle budgets. PR #40 remains a study reference pending packed-image
-rights verification.
+The latest candidate's exact native /ptr/ build, payload hashes, and read-only
+publication plan are recorded in PR #374. The native Linux full suite passed on
+code-equivalent source (12,582 passed, 97 skipped); focused Keep UI and
+accessibility tests passed 70/70. A 36-case Windows Chrome capture is synthetic
+browser evidence, not authenticated owner gameplay or physical-phone
+acceptance. The build still reports a 677.80 kB RealmMapScreen chunk (188.23 kB
+gzip), outside the standalone PTR route's load path. Mobile performance budgets
+are established, but final production measurements remain pending.
+
+The public Alpha root returned HTTP 200 and /ptr/ returned HTTP 404 at 05:39
+CEST on 30 September. The sealed-launch verifier still reports package
+0.3.43, Pages approval false, unset G001/G002/PTR identities and disabled PTR
+presentation. No 0.4 production publication or owner PTR journey is claimed.
+Hosted exact-head verification and the signed M1/M2 release sequence remain
+pending under the September GitHub Actions pause; resume the hosted release
+lane on or after October 1. G001 preservation, sealed G002
+readback, PTR publication/readback, the actual-owner journey and physical-phone
+acceptance are all release requirements.
 
 | Realm | Purpose |
 | --- | --- |
-| **Genesis 001** | Preserve the established world, existing player progress and agreed admission freeze. |
-| **Genesis 002** | Prepare the successor realm as a sealed launch; its future admissions remain undecided. |
+| **Genesis 001** | Preserve the established world, player progress and agreed admission freeze. |
+| **Genesis 002** | Keep the successor realm sealed while its future admissions remain undecided. |
 | **Owner PTR** | Exercise the new playable experience in an isolated realm before broader release. |
 
-The [current development notes](docs/agent-notes/0.4.0/README.md) and tracked
-[daily action brief](docs/agent-notes/0.4.0/next-work.txt) distinguish
-implemented behavior, verified results, open integration work and live observations.
-The [roadmap](docs/design/roadmap.md) explains how the first complete loop supports
-future exploration, cooperation and strategy without promising unfinished features.
+The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md),
+[delivery status](docs/operations/0.4.0-live-delivery-status.md), and
+[release checklist](docs/operations/0.4.0-release-checklist.md) track current
+evidence and exact gates. The [development brief](docs/agent-notes/0.4.0/next-work.txt)
+keeps the next action concise; release status belongs to the linked handoff and
+checklist.
+
+The open [Warpkeep-Assets PR #41](https://github.com/ael-dev3/Warpkeep-Assets/pull/41)
+carries the source archive for the biome trees; [PR #40](https://github.com/ael-dev3/Warpkeep-Assets/pull/40)
+is a study reference with rights still unverified. Their open status does not
+block the app's hash-pinned local runtime models. The Genesis 002 soundtrack
+archive is tracked separately in [Warpkeep-Assets PR #38](https://github.com/ael-dev3/Warpkeep-Assets/pull/38).
+Review the linked provenance records before changing or republishing any source
+asset.
 
 ## Build with us
 
 `main` contains an earlier integrated 0.4 development baseline; the active
 0.4 changes are on PR #374. The running game remains at a different
 release stage, and the 0.4 owner PTR is not live. Follow the
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) for the live
-checkpoint and next action, then inspect any open pull requests for their exact
-source and check status.
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) for the
+current candidate, local verification and remaining hosted release gates.
 
 For a fresh independent checkout, use Git, Node 22 (22.13 or newer within that
 major) and npm 10.9.8:
