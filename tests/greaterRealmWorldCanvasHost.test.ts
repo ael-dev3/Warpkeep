@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
+import { axialToWorld } from '../src/game/map/hexCoordinates';
 
 import {
   createGreaterRealmWorldCanvasHost,
@@ -10,13 +11,14 @@ import {
 } from '../src/components/realm/createGreaterRealmWorldCanvasHost';
 import { resolveGreaterRealmWorldViewPolicy } from '../src/components/realm/greaterRealmWorldViewPolicy';
 import * as voxelPresentation from '../src/components/realm/greaterRealmVoxelPresentation';
-import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE } from '../src/dev/greaterRealmSyntheticTierOneFixture';
+import { GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE, greaterRealmSyntheticCellKey } from '../src/dev/greaterRealmSyntheticTierOneFixture';
 import {
   createGreaterRealmSceneRuntime,
   type GreaterRealmSceneTelemetry
 } from '../src/greater-realm/createGreaterRealmSceneRuntime';
 import type { GreaterRealmClientSnapshot } from '../src/greater-realm/greaterRealmClientRuntime';
-import { decodeGreaterRealmChunkDto } from '../src/greater-realm/greaterRealmPublicContract';
+import { assertGreaterRealmChunkMatchesDescriptor, decodeGreaterRealmChunkDto, decodeGreaterRealmWindowDto } from '../src/greater-realm/greaterRealmPublicContract';
+import { isCurrentGreaterRealmSceneSnapshot } from '../src/components/realm/greaterRealmWorldSnapshotAuthority';
 import { GREATER_REALM_GRAPHICS_BUDGETS } from '../src/greater-realm/greaterRealmRuntimePolicy';
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -168,6 +170,138 @@ function pointerInteractionHost() {
 }
 
 describe('Greater Realm world canvas host', () => {
+  it.each(['balanced', 'performance'] as const)(
+    'frames a reachable radius-two window on a narrow portrait %s canvas',
+    (quality) => {
+      const canvas = document.createElement('canvas');
+      vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+      vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+        left: 0, top: 0, right: 320, bottom: 844, width: 320, height: 844,
+        x: 0, y: 0, toJSON: () => ({})
+      } as DOMRect);
+      const frames = new Map<number, FrameRequestCallback>();
+      let nextFrame = 1;
+      vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+        const id = nextFrame++;
+        frames.set(id, callback);
+        return id;
+      });
+      vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => frames.delete(id));
+      const renderer = {
+        setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn()
+      };
+      const ownCastle = { castleId: 1, q: -2, r: 1 };
+      const policy = resolveGreaterRealmWorldViewPolicy({
+        atlasQ: ownCastle.q, atlasR: ownCastle.r, viewportWidth: 320,
+        coarsePointer: true, farcasterMiniApp: false,
+        resolvedGraphicsQuality: quality, reducedMotion: true
+      });
+      const base = readySnapshot();
+      const sourceCell = base.chunks[0]!.chunk.coreCells.find((cell) => (
+        cell.atlasQ === ownCastle.q && cell.atlasR === ownCastle.r
+      ))!;
+      const ownCell = { ...sourceCell, canopyBasisPoints: 0, groundcoverBasisPoints: 0,
+        wildflowerBasisPoints: 0, featureClass: 0 };
+      // Bin (1,2) lies within the caller's radius-two window centered at (-1,0).
+      // Sparse returned windows are legal; this far core cell is not an invented
+      // out-of-window landmark or an enlarged render-only coordinate.
+      const farCell = { ...ownCell, cellKey: greaterRealmSyntheticCellKey(29, 44),
+        chunkHandle: base.chunks[1]!.chunk.chunkHandle, atlasQ: 29, atlasR: 44 };
+      const cells = [ownCell, farCell];
+      const chunks = cells.map((cell, index) => ({
+        chunk: decodeGreaterRealmChunkDto({
+          atlasId: base.bootstrap!.atlasId, revision: base.bootstrap!.revision,
+          chunkHandle: cell.chunkHandle, lod: policy.lod, sourceCellCount: 1,
+          coreCells: [cell], apronCells: [], resourceLocations: []
+        }),
+        distanceChunks: index === 0 ? 0 : 4
+      }));
+      const windowDto = decodeGreaterRealmWindowDto({
+        ...base.window, centerQ: policy.centerQ, centerR: policy.centerR,
+        radius: policy.radius,
+        chunks: cells.map((cell) => ({
+          chunkHandle: cell.chunkHandle, binQ: Math.floor(cell.atlasQ / 15),
+          binR: Math.floor(cell.atlasR / 15), coreCellCount: 1, apronCellCount: 0,
+          lod0CellCount: 1, lod1CellCount: 1, lod2CellCount: 1, lod3CellCount: 1
+        })),
+        castles: base.window!.castles.filter((castle) => castle.castleId === 1n)
+      });
+      chunks.forEach(({ chunk }, index) => (
+        assertGreaterRealmChunkMatchesDescriptor(chunk, windowDto.chunks[index]!)
+      ));
+      const snapshot: GreaterRealmClientSnapshot = {
+        ...base, deviceClass: policy.deviceClass, graphicsProfile: policy.graphicsProfile,
+        view: { centerQ: policy.centerQ, centerR: policy.centerR, radius: policy.radius, lod: policy.lod },
+        window: windowDto, chunks, selectedChunkCount: chunks.length, resourceLocations: []
+      };
+      expect(isCurrentGreaterRealmSceneSnapshot({ snapshot, sessionGeneration: 17,
+        ownCastle, view: policy })).toBe(true);
+      const host = createGreaterRealmWorldCanvasHost({
+        canvas, atlasQ: ownCastle.q, atlasR: ownCastle.r, ownCastleId: ownCastle.castleId,
+        policy, rendererFactory: () => renderer,
+        sceneRuntimeFactory: (options) => createGreaterRealmSceneRuntime(options)
+      })!;
+      try {
+        for (const [id, callback] of [...frames]) {
+          frames.delete(id);
+          callback(1);
+        }
+        const [normalScene, normalCamera] = renderer.render.mock.calls.at(-1)! as [THREE.Scene, THREE.PerspectiveCamera];
+        const normalFogDensity = (normalScene.fog as THREE.FogExp2).density;
+        const ownWorld = axialToWorld(ownCastle, 1);
+        const target = new THREE.Vector3(ownWorld.x, 0, ownWorld.z);
+        const normalTargetTransmission = Math.exp(-Math.pow(normalCamera.position.distanceTo(target) * normalFogDensity, 2));
+        expect(normalFogDensity).toBe(0.0075);
+        host.applySnapshot(snapshot);
+        for (let time = 16; frames.size > 0 && time <= 320; time += 16) {
+          for (const [id, callback] of [...frames]) {
+            frames.delete(id);
+            callback(time);
+          }
+        }
+        expect(host.getTelemetry().scene.uploadedChunkCount).toBe(2);
+        const [scene, camera] = renderer.render.mock.calls.at(-1)! as [THREE.Scene, THREE.PerspectiveCamera];
+        expect(camera.position.toArray().every(Number.isFinite)).toBe(true);
+        expect(camera.quaternion.toArray().every(Number.isFinite)).toBe(true);
+        camera.updateMatrixWorld(true);
+        // Check emitted geometry, rather than hypothetical corners formed by
+        // combining opposite edges of this deliberately sparse public window.
+        let vertexCount = 0; let maxX = 0; let maxY = 0; let minZ = Infinity; let maxZ = -Infinity;
+        scene.getObjectByName('greater-realm-world')!.traverse((object) => {
+          if (!(object instanceof THREE.Mesh)) return;
+          const positions = object.geometry.getAttribute('position');
+          const instances = object instanceof THREE.InstancedMesh ? object.count : 1;
+          for (let instance = 0; instance < instances; instance++) {
+            const matrix = new THREE.Matrix4();
+            if (object instanceof THREE.InstancedMesh) object.getMatrixAt(instance, matrix);
+            for (let vertex = 0; vertex < positions.count; vertex++) {
+              const projected = new THREE.Vector3().fromBufferAttribute(positions, vertex)
+                .applyMatrix4(matrix).applyMatrix4(object.matrixWorld).project(camera);
+              vertexCount++;
+              maxX = Math.max(maxX, Math.abs(projected.x)); maxY = Math.max(maxY, Math.abs(projected.y));
+              minZ = Math.min(minZ, projected.z); maxZ = Math.max(maxZ, projected.z);
+            }
+          }
+        });
+        expect(vertexCount).toBeGreaterThan(0);
+        expect(maxX).toBeLessThanOrEqual(1);
+        expect(maxY).toBeLessThanOrEqual(1);
+        expect(minZ).toBeGreaterThanOrEqual(-1);
+        expect(maxZ).toBeLessThanOrEqual(1);
+        const fog = scene.fog as THREE.FogExp2;
+        const fittedTargetTransmission = Math.exp(-Math.pow(camera.position.distanceTo(target) * fog.density, 2));
+        expect(fittedTargetTransmission).toBeGreaterThanOrEqual(normalTargetTransmission - Number.EPSILON);
+        host.control({ kind: 'zoom', direction: 'in' });
+        expect(Number.isFinite(fog.density)).toBe(true);
+        expect(fog.density).toBeLessThanOrEqual(normalFogDensity);
+        host.control({ kind: 'reset' });
+        expect(fog.density).toBe(normalFogDensity);
+      } finally {
+        host.dispose();
+      }
+    }
+  );
+
   it('selects a returned target with a single primary tap', () => {
     const { host, pointer, onSelectionChange } = pointerInteractionHost();
     try {

@@ -655,7 +655,9 @@ export function createGreaterRealmWorldCanvasHost(
   const worldGroup = new THREE.Group();
   worldGroup.name = 'greater-realm-world';
   scene.background = new THREE.Color('#11171b');
-  scene.fog = new THREE.FogExp2('#172126', 0.0075);
+  const normalFogDensity = 0.0075;
+  const fog = new THREE.FogExp2('#172126', normalFogDensity);
+  scene.fog = fog;
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 2_000);
   const center = axialToWorld({ q: options.atlasQ, r: options.atlasR }, 1);
   let span = Math.max(32, (currentPolicy.radius * 2 + 1) * 15 * 1.08);
@@ -665,6 +667,7 @@ export function createGreaterRealmWorldCanvasHost(
   let cameraDistance = span;
   const minimumCameraDistance = 4;
   let maximumCameraDistance = Math.max(96, span * 4);
+  let normalViewDistance = Math.hypot(span * 0.48, span * 0.72, span * 0.74);
   const applyCamera = () => {
     const horizontal = Math.cos(cameraPitch) * cameraDistance;
     camera.position.set(
@@ -673,18 +676,21 @@ export function createGreaterRealmWorldCanvasHost(
       cameraTarget.z + Math.cos(cameraYaw) * horizontal
     );
     camera.lookAt(cameraTarget);
+    // Preserve the normal view's atmosphere without obscuring a distant
+    // portrait fit. Near zoom keeps the authored density; far zoom scales it.
+    fog.density = normalFogDensity * Math.min(1, normalViewDistance / cameraDistance);
   };
   const frameCamera = (viewSpan: number) => {
     cameraTarget.set(center.x, 0, center.z);
     const offsetX = viewSpan * 0.48;
     const offsetY = viewSpan * 0.72;
     const offsetZ = viewSpan * 0.74;
-    cameraDistance = Math.min(
-      maximumCameraDistance,
-      Math.max(minimumCameraDistance, Math.hypot(offsetX, offsetY, offsetZ))
-    );
+    cameraDistance = Math.max(minimumCameraDistance, Math.hypot(offsetX, offsetY, offsetZ));
+    // A narrow portrait fit can exceed the radius-based zoom heuristic. Keep
+    // that returned scene visible and retain a finite zoom ceiling at its fit.
+    maximumCameraDistance = Math.max(maximumCameraDistance, cameraDistance);
     cameraYaw = Math.atan2(offsetX, offsetZ);
-    cameraPitch = Math.asin(offsetY / cameraDistance);
+    cameraPitch = Math.atan2(offsetY, Math.hypot(offsetX, offsetZ));
     applyCamera();
   };
   frameCamera(span);
@@ -1261,6 +1267,7 @@ export function createGreaterRealmWorldCanvasHost(
       pendingPolicy = undefined;
       span = Math.max(32, (currentPolicy.radius * 2 + 1) * 15 * 1.08);
       maximumCameraDistance = Math.max(96, span * 4);
+      normalViewDistance = Math.hypot(span * 0.48, span * 0.72, span * 0.74);
       camera.userData.greaterRealmReducedMotion = currentPolicy.reducedMotion;
       appliedSignature = undefined;
       try { previousRuntime.stopAnimation(); } catch { /* Continue replacement. */ }
