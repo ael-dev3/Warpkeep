@@ -1,5 +1,25 @@
 # Continue Warpkeep 0.4
 
+## Current continuation — 30 September 2026, 07:51 CEST (05:51 UTC)
+
+The full native Linux root Vitest suite was rerun after the DEV-only Keep04
+cadence-recorder fix at code/test head `198377c6569c08dfe97a8613f8ed098e561784b4`.
+`npm test -- --reporter=dot` exited 0 on WarpkeepRunner as UID 1000 `warpkeep`
+with Node 22.22.3 / npm 10.9.8, SpacetimeDB 2.6.1 and the hash-verified YAML
+fixture. The terminal stream did not retain final test totals; older counts do
+not describe this rerun. The isolated corrupt-Git-object negative fixture
+emitted its rejection diagnostics. Recurring `context canceled` messages also
+appeared in the output, but no test failed. The detailed result is in [local
+operations](../../evidence/0.4.0/local-operations.md).
+
+Windows, origin and PR #374 remain at signed code/test head `198377c`; the
+native checkout is clean. This tracked evidence update creates a new exact
+documentation head; its `/ptr/` production build, payload verification and
+read-only mirror plan are recorded on PR #374. September remains a no-Actions
+period. The public Alpha root is HTTP 200 and `/ptr/` is HTTP 404, so no 0.4 PTR
+is live. Sealed-launch preparation still reports package 0.3.43, Pages
+approval false, no G001/G002/PTR identities and PTR presentation disabled.
+
 ## Current continuation — 30 September 2026, 07:17 CEST (05:17 UTC)
 
 PR #374 remains open and unmerged against unchanged main

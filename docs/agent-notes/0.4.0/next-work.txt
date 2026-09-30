@@ -1,5 +1,5 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 07:17 CEST (05:17 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 07:51 CEST (05:51 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
@@ -16,10 +16,13 @@ evidence. The final exact head and its refreshed receipt are in PR #374; any
 later tracked edit requires a new exact-head build and receipt before the
 hosted release lane resumes.
 
-The full native Linux suite passed at code/test commit 4350ae7a before the
-DEV-only recorder correction: 692 files passed / 1 skipped, 12,582 tests
-passed / 97 skipped, exit 0 in 847.76 seconds on Node 22.22.3, npm 10.9.8 and
-SpacetimeDB 2.6.1. On the current fix, `npm test --
+The full native Linux root Vitest suite passed after the DEV-only recorder
+correction at code/test head `198377c6569c08dfe97a8613f8ed098e561784b4`
+(`npm test -- --reporter=dot`, exit 0). It used Node 22.22.3 / npm 10.9.8,
+SpacetimeDB 2.6.1 and the SHA-verified offline YAML fixture as UID 1000
+`warpkeep`. Final per-file/test counts were not retained for this run; do not
+reuse older counts. It covers the root `tests/**` Vitest suite; module and
+service checks remain separate. On the current fix, `npm test --
 tests/keep04QaContract.test.ts` passed 19 tests / 1 skipped and `npm run
 typecheck` passed. Keep UI/accessibility/placement suites passed 70/70. A
 36-case Windows Chrome capture found no horizontal overflow, network-boundary

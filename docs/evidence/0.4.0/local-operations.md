@@ -2,6 +2,19 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Full native Linux root Vitest rerun — 30 September 2026, 07:51 CEST
+
+At code/test head `198377c6569c08dfe97a8613f8ed098e561784b4`, native
+WarpkeepRunner (UID 1000 `warpkeep`) ran `npm test -- --reporter=dot` with
+Node 22.22.3, npm 10.9.8, Vitest 4.1.11 and SpacetimeDB CLI 2.6.1. The pinned
+`.git/yaml-2.9.0.tgz` fixture matched SHA-256
+`008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91`.
+The full root `tests/**` suite exited 0, closing the post-cadence-fix
+full-suite verification gap. Module and service runners are separate. The
+terminal stream did not retain final test totals, so no count is asserted here.
+The exact notes-inclusive `/ptr/` build and read-only mirror-plan receipt are
+tracked on PR #374.
+
 ## Exact notes-inclusive candidate build and read-only mirror plan — 30 September 2026, 07:17 CEST
 
 At source `e86230ac70de5aa34f206d7d6c0cf65561d4274e`, native WarpkeepRunner
