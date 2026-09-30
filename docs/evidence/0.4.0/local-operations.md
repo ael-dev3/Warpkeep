@@ -2,6 +2,26 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## SpacetimeDB module suite and build — 30 September 2026
+
+At code/test head `0269ef201c26e312fa0ec55c0548074ebb0ee905`, native
+WarpkeepRunner ran the module TypeScript check and pure-test suite as UID 1000
+`warpkeep`, with Node 22.22.3 and pnpm 11.7.0. `typecheck` exited 0;
+`test:pure` passed all 598 tests, with 0 failures, 0 skipped and a reported
+duration of 782,026.786905 ms (13m 2.027s).
+
+SpacetimeDB CLI 2.6.1 ran `spacetime build --module-path .` and printed
+`Build finished successfully`, while also warning `tsc not found in
+node_modules`. The Linux module has `node_modules/.bin/tsc`, and its independent
+typecheck passed. The CLI was invoked as a Windows executable from WSL, so its
+own TypeScript discovery remains unverified; do not treat the warning as a
+TypeScript failure or claim that this discovery path was verified. No module
+was published.
+
+The root Vitest suite is separate: its full native rerun exited 0 at
+`198377c6569c08dfe97a8613f8ed098e561784b4`, without retained final counts.
+Neither suite invokes GitHub Actions.
+
 ## Full native Linux root Vitest rerun — 30 September 2026, 07:51 CEST
 
 At code/test head `198377c6569c08dfe97a8613f8ed098e561784b4`, native

@@ -1,5 +1,25 @@
 # Continue Warpkeep 0.4
 
+## Continuation refresh — 30 September 2026, 08:21 CEST (06:21 UTC)
+
+At signed code/test head
+`0269ef201c26e312fa0ec55c0548074ebb0ee905`, native WarpkeepRunner passed the
+separate SpacetimeDB module typecheck and all 598 pure tests (0 failed, 0
+skipped; 782.03 seconds), as UID 1000 `warpkeep` with Node 22.22.3 / pnpm
+11.7.0. The current module result is recorded in [local
+operations](../../evidence/0.4.0/local-operations.md). The native Linux root
+Vitest suite also passed at code/test head
+`198377c6569c08dfe97a8613f8ed098e561784b4`; its terminal stream did not retain
+counts.
+
+SpacetimeDB CLI 2.6.1 reported `Build finished successfully` and a `tsc not
+found in node_modules` warning when invoked as the Windows executable from
+WSL. The installed Linux `.bin/tsc` exists and the separate module typecheck
+passed; the CLI's own TypeScript discovery remains unverified. No publish was
+run. The exact `/ptr/` build, payload check and read-only mirror plan were
+verified at source `0269ef20`; this documentation refresh requires a new
+exact-head build/payload/mirror receipt. September remains a no-Actions period.
+
 ## Current continuation — 30 September 2026, 07:51 CEST (05:51 UTC)
 
 The full native Linux root Vitest suite was rerun after the DEV-only Keep04
