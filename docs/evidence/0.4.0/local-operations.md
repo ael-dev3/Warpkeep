@@ -2,6 +2,30 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Test-fixture retention repair — 30 September 2026
+
+Final workspace inspection found that notificationPagesPrivateDeployOperator's
+test home helper allocated a private temporary directory without registering
+cleanup. Repeated checks therefore retained synthetic journals. The repair
+registers each newly allocated root immediately, restores mocks, verifies its
+canonical temporary parent/name/type/ownership, and removes only those owned
+roots after each test. It does not scan/delete historical directories by age,
+name alone, or alter production journals and retention policy.
+
+The native UID-1000/Node 22.22.3 focused suite passed 32/32 at byte-identical
+test SHA-256 a10dc3fc5c87c0d3e46f4ce369e51124ff3eaf06edc3fd494e463a8d25ec571d.
+Before/after inventory showed zero new fixture directories retained; historical
+native and Windows directories were unchanged. Independent cleanup review
+passed. The native test was restored to its committed source after this run;
+the signed source checkpoint retains the tested bytes.
+
+A separate abandoned synthetic timeout shell had no surviving fixture directory
+or test owner. Its exact executable/argv, UID, isolated group/session, deleted
+working directory and unchanged kernel birth tick were rechecked before killing
+only that fixture group. Group absence was verified; the persistent production
+runner was untouched. This is local fixture cleanup, not a production recovery
+operation or evidence of a live provider failure.
+
 ## Public mirror line-ending repair — 30 September 2026, 13:19 CEST (11:19 UTC)
 
 Exact candidate e308a64d passed the native production build and local payload/
