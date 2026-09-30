@@ -2,6 +2,50 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact native rerun and environment correction — 30 September 2026, 03:08 CEST
+
+At signed candidate
+1b333d0e56629266223dc090f37d87ea880672ce, Windows, GitHub and the native
+release checkout matched the same branch head. The exact native Linux full
+suite passed with Node 22.22.3, npm 10.9.8, SpacetimeDB 2.6.1 and the offline
+YAML fixture SHA-256
+008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91: 692 files
+passed / 1 skipped, 12,582 tests passed / 97 skipped, exit 0 in 849.11
+seconds. A first attempt used umask 077; that changed intentionally wrong-mode
+0644 receipts into 0600, causing 62 file-mode test failures across 11 files.
+The focused production canary authority suite passed 25/25 under umask 0022,
+followed by the full 0022 suite passing. This was a local test invocation
+error, not a source defect. Negative-path tests emitted corrupt-object
+diagnostics from their temporary Git fixtures. Post-run fsck of the actual
+candidate exited 0; it reported dangling commits but no object errors.
+
+An initial Linux build attempt through the Windows-mounted development
+checkout stopped before Vite because its shared node_modules exposed only
+esbuild win32-x64. No source or dependency tree was changed by the failed
+attempt. The documented native build checkout is
+/home/warpkeep/Warpkeep-0.4, with its Linux dependencies. At exact source
+1b333d0e there, the /ptr/ production build, typecheck, runtime and
+production-asset integrity, exclusions, public-boundary scan (3,350 tracked
+paths / 1,907 entries), Farcaster integrity, sealed-launch preparation,
+license policy and tracked file-size policy passed.
+
+The payload covers 446 files / 138,994,282 bytes: manifest SHA-256
+d75d95af2f4f717834fe1338ecfe62edfe277cc97cdd7ecbbc8d98e9f084e26e, content
+manifest SHA-256 fb040b483ab42a982801c6735f08b96dd0e491db2f4d36f1d957e1acd08189b
+and root HTML SHA-256
+1a4fab449bea72b777630cc12ab304f7b167036eca2604183e032d3c0ad81539. The
+read-only plan against clean Warpkeep-Live main
+b6afe92e7b09197b1578d992103ac3c8f916d8ad preserves 341 Alpha-root entries,
+targets 800 /ptr/ files, removes zero obsolete generated paths, and hashes to
+76415981696deb8e1cc74297625c1fcb857986208fc0b40313f7f5ee781b931f.
+
+Sealed-launch preparation still reports package 0.3.43, Pages approval false,
+live identities unset and PTR presentation disabled. The public root is HTTP
+200; /ptr/ is HTTP 404. The 677.80 kB RealmMapScreen chunk warning remains,
+and physical-device performance is unverified. No Actions, provider/public
+write, merge or deployment occurred. These notes alter only documentation;
+rebuild and refresh ignored receipts at the notes-inclusive pushed head.
+
 ## Pre-refresh exact candidate receipt — 30 September 2026, 02:25 CEST
 
 Windows, GitHub and native WarpkeepRunner matched signed candidate

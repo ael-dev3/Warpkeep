@@ -1,6 +1,58 @@
 # Continue Warpkeep 0.4
 
-## Current continuation — 30 September 2026, 02:25 CEST (00:25 UTC)
+## Current continuation — 30 September 2026, 03:08 CEST (01:08 UTC)
+
+The reviewed Windows checkout, GitHub branch and idle native release checkout
+are synchronized at signed commit
+1b333d0e56629266223dc090f37d87ea880672ce on
+fix/g001-census-admission-proxy. PR #374 remains open against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32; PRs #374–#378 remain open. No
+GitHub Actions workflow, check, run or status was queried or used during
+September. Development commits carry the Actions-skip marker.
+
+The exact native full suite passed at source 1b333d0e: 692 files passed /
+1 skipped, 12,582 tests passed / 97 skipped, exit 0 in 849.11 seconds.
+Environment was UID 1000 warpkeep, Node 22.22.3, npm 10.9.8, SpacetimeDB
+2.6.1 and the verified offline YAML input
+008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91. A first
+run with umask 077 failed 62 file-mode assertions because that mask changed
+deliberate 0644 rejection fixtures into 0600. The affected focused canary
+authority suite then passed 25/25 with normal umask 0022, and the full suite
+passed with 0022. These were test-environment failures, not source defects.
+Negative-path Git tests printed malformed-object diagnostics for their
+temporary fixtures; a post-run fsck of the actual checkout exited 0 with only
+dangling commits reported.
+
+At exact source 1b333d0e, the native Linux /ptr/ production build, typecheck,
+runtime and production asset integrity, production exclusions,
+public-boundary scan (3,350 tracked paths / 1,907 entries), Farcaster
+integrity, sealed-launch preparation, license policy and file-size policy
+passed. The payload is 446 files / 138,994,282 bytes; payload manifest
+d75d95af2f4f717834fe1338ecfe62edfe277cc97cdd7ecbbc8d98e9f084e26e,
+content manifest fb040b483ab42a982801c6735f08b96dd0e491db2f4d36f1d957e1acd08189b
+and root HTML 1a4fab449bea72b777630cc12ab304f7b167036eca2604183e032d3c0ad81539.
+The read-only mirror plan against Warpkeep-Live main
+b6afe92e7b09197b1578d992103ac3c8f916d8ad preserves 341 Alpha entries,
+targets 800 PTR files, removes zero obsolete paths and hashes to
+76415981696deb8e1cc74297625c1fcb857986208fc0b40313f7f5ee781b931f.
+
+The production root remains HTTP 200 and /ptr/ HTTP 404. Sealed-launch
+preparation still reports package 0.3.43, Pages approval false, unset G001,
+G002 and PTR identities, and disabled PTR presentation. No merge, provider
+mutation, public write or deployment occurred. The 677.80 kB
+RealmMapScreen chunk (188.23 kB gzip) remains; physical-phone performance is
+unverified.
+
+One initial WSL build attempt used the Windows-mounted development checkout
+and stopped before Vite because its shared node_modules only contained the
+win32-x64 esbuild binary. No dependency tree or source was changed. The
+documented native ext4 checkout at /home/warpkeep/Warpkeep-0.4 has the Linux
+dependencies and is the build owner. This documentation-only checkpoint
+changes source identity; after its push, regenerate exact-head build and
+ignored receipts there. Keep PTR sealed and continue without Actions in
+September.
+
+## Superseded continuation — 30 September 2026, 02:25 CEST (00:25 UTC)
 
 Before this documentation-only refresh, Windows, GitHub and native
 WarpkeepRunner were clean and synchronized at signed candidate
