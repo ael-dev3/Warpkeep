@@ -19,9 +19,12 @@ for reproduction, repair and evidence limits. Windows and
 native WarpkeepRunner are the local development and Linux-build environments.
 The latest exact source, `/ptr/` build, payload check and read-only mirror plan
 are recorded on PR #374. The protected closure was refreshed from signed
-repair b696c3b7: all 16 outputs matched independent derivation and native
-UID-1000 policy verification passed. Refresh the complete family again after
-the latest signed source checkpoint. Verify the final signed source before
+confirmation/focus repair 485e4ca6: all 3,351 raw source files matched Git,
+all 16 outputs matched independent derivation and native UID-1000 policy
+verification passed. Its manifest SHA-256 is
+c47d7d096ff500aeafc5b27a4bc8122002d3c287b0b9800f7dfcded9c4162dd7.
+Record the final exact signed source and its new receipts on PR #374 after
+verification. Verify the final signed source before
 resuming the hosted lane.
 When WSL reads the Windows public checkout, set per-process
 `safe.directory` to that exact checkout and `core.autocrlf=true`; do not alter

@@ -30,6 +30,16 @@ physical-device or authenticated owner acceptance. A second authority and
 reconnect audit found no further demonstrated defect; renewed keep entry's
 explicit Return to world freshness gate remains intentional.
 
+Signed repair 485e4ca6b7b83926a50ad599f6d7854a434873f7 was pushed after the
+entire outgoing one-commit range passed pinned Gitleaks 8.30.1 (nonzero scan).
+All 3,351 native tracked files matched raw Git blobs before deriving the full
+prepared family. Its 16 outputs reproduced in a fresh process; the native
+UID-1000 policy verifier passed for 1,250 members and manifest SHA-256
+c47d7d096ff500aeafc5b27a4bc8122002d3c287b0b9800f7dfcded9c4162dd7.
+Only the manifest and four generated workflow commitments changed. The final
+signed candidate and exact-source test/build/payload/mirror receipts are to
+be recorded on PR #374 after execution. No Actions workflow was used.
+
 ## Full native suite artifact-ownership recovery — 30 September 2026, 10:07 CEST (08:07 UTC)
 
 At clean d1474f11, native UID 1000 ran the full root suite with Node 22.22.3,

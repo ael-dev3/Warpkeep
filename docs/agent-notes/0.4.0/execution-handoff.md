@@ -20,7 +20,13 @@ preservation evidence, not gameplay04/PTR owner integration or real pacing.
 The new module tests and UI fixtures remain distinct from the owner journey.
 The candidate stays unmerged and PTR unpublished. Reproduce its complete
 prepared-closure family after the signed source checkpoint, then validate
-the final exact source/build/payload/mirror plan. On October 1 resume the
+the final exact source/build/payload/mirror plan. Signed source repair 485e4ca6
+passed the outgoing Gitleaks scan and was pushed. Its 3,351 raw source files
+matched Git; all 16 family outputs reproduced independently and native
+UID-1000 policy verification passed. The new manifest SHA-256 is
+c47d7d096ff500aeafc5b27a4bc8122002d3c287b0b9800f7dfcded9c4162dd7.
+Record the final candidate's exact-source receipts on PR #374 after execution.
+On October 1 resume the
 existing authorized signed M1/exact-M1/M2 hosted release sequence. September
 remains free of GitHub Actions. Preserve Alpha and closed G002 admissions.
 
