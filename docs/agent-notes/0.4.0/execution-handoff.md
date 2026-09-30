@@ -15,9 +15,12 @@ kernel boot UUID and start tick. Live legacy/digest mismatches stay unknown;
 death requires stable birth mismatch or ESRCH. Native tests at signed a23b863c
 pass 276/276 across seven files, with no new journal/operator fixture residue
 or historical-directory removal. Independent caller review passes. The complete
-16-output source family reproduces and native policy passes. The full native
-suite is running at that source; final closure/build/plan refresh follows any
-further source change. See the latest local evidence and PR #374.
+16-output source family reproduces and native policy passes. Its complete native
+report now records 12,558 passed, 110 failed and 97 skipped across 694 files.
+The run is terminal. Repairs address an omitted legacy-envelope source pin and
+incoherent historical/current test bindings; current-byte recovery fixtures pass
+27/27 on pinned Windows Node. Native validation and final closure/build/plan
+refresh remain pending. See the latest local evidence and PR #374.
 Preserve ambiguous old records; do not delete locks or generate recovery keys.
 
 The source-only compiler inventory derives 28 retained paths, all unchanged

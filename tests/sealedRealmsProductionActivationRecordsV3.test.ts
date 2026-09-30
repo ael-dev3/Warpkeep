@@ -48,8 +48,9 @@ afterEach(() => {
 function corpus(
   mutate?: (receipt: Record<string, any>) => void,
   wrapperMutate?: (record: Record<string, any>) => void,
+  bootstrapBytes?: Uint8Array,
 ) {
-  const f = ptrV3ActivationFixture();
+  const f = ptrV3ActivationFixture({ bootstrapBytes });
   mutate?.(f.receipts);
   const source = f.candidate.preparationSourceCommit;
   const authority = authenticateSealedRealmsProductionSourceAuthority({
@@ -280,14 +281,14 @@ it.each(["attempt", "reconciliation-run"])(
 );
 
 it("derives real V3 corpus facts and reports the remaining producer inputs without minting a complete candidate", () => {
-  const f = corpus(),
-    bootstrap = f.receipts.g001PolicyObservationBootstrapReceipt;
   const bytes = readFileSync(
     new URL(
       "../scripts/greater-realm-production-bootstrap.mjs",
       import.meta.url,
     ),
   );
+  const f = corpus(undefined, undefined, bytes),
+    bootstrap = f.receipts.g001PolicyObservationBootstrapReceipt;
   expect(createHash("sha256").update(bytes).digest("hex")).toBe(
     bootstrap.bootstrapSha256,
   );

@@ -49,7 +49,11 @@ function corpus(
   mutate?: (receipt: Record<string, any>) => void,
   wrapperMutate?: (record: Record<string, any>) => void,
 ) {
-  const f = ptrV3ActivationFixture();
+  const f = ptrV3ActivationFixture({
+    bootstrapBytes: readFileSync(
+      new URL("../scripts/greater-realm-production-bootstrap.mjs", import.meta.url),
+    ),
+  });
   mutate?.(f.receipts);
   const source = f.candidate.preparationSourceCommit;
   const authority = authenticateSealedRealmsProductionSourceAuthority({

@@ -35,13 +35,24 @@ Alpha 200 with unchanged HTML SHA-256
 auth health 200 and unpublished /ptr/ 404. GitHub profile/repository descriptions,
 homepages, visibility and open PR identities match the documented boundaries.
 
-The initial full-suite observation stopped without a terminal report. Root
-confirmed the process was absent before retaining that interrupted source/log
-and starting one durable rerun. Its actual process is verified through the
-ignored root-suite-process-birth-handle.json birth token; native source remains
-pinned. Activation-record cases have passed; the full result remains pending.
-Do not infer termination from a missing UI/tool handle or launch duplicate work.
-Final exact-source build/payload/mirror refresh remains pending that run.
+The complete native report at a23b863c finished at 13:55:45.765 UTC:
+12,558 passed, 110 failed and 97 skipped across 694 files. No Vitest processes
+remain; zero new private-home directories or historical removals were retained.
+The serial run exceeded its wrapper's timeout. The wrapper ended before the
+still-running child wrote its report; the child exit status was not retained.
+The report is a failed full run, not a successful verification. Source, log,
+report and recovered summary remain in ignored root-suite-process-birth files.
+The next full run must use bounded parallel workers and a timeout that supervises
+the whole owned process group; a wrapper exit alone is not child termination.
+
+Diagnosis separates an omitted legacy-envelope source pin from historical
+compiled-dispatcher fixtures and six current-bootstrap recovery cases. The
+seven-path fixture repair derives current SHA-256, Git blob, length-framed link
+and receipt digest from actual bytes only when opted in. Historical defaults,
+original corpus, validators and equality assertions remain intact. Pinned Windows
+Node 22.22.3 selection passes 27/27 across six files; native verification and the
+source-pin/dispatcher repairs are still pending. Final exact-source family,
+build/payload/mirror refresh follows the repaired checks.
 
 Independent PTR review found no further demonstrated source defect in authority,
 selection, immutable retry or provider renewal. The existing connected smoke

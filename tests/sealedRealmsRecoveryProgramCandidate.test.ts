@@ -91,7 +91,11 @@ function sourceBoundFixture(sourceCoordinates: {
   tree: string;
   blob: string;
 }) {
-  const f = ptrV3ActivationFixture();
+  const f = ptrV3ActivationFixture({
+    bootstrapBytes: readFileSync(
+      new URL("../scripts/greater-realm-production-bootstrap.mjs", import.meta.url),
+    ),
+  });
   const moduleSha = createHash("sha256")
     .update("synthetic G002 bytes")
     .digest("hex");

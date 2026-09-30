@@ -12,9 +12,13 @@ Current recovery repair: Linux ps start displays can drift for the same process.
 Shared/bootstrap/envelope/publisher readers now use boot UUID plus kernel start
 tick; live legacy/digest mismatches remain unknown. Preserve ambiguous records.
 Native integration at signed a23b863c passes 276/276; independent review passes.
-The complete 16-output source family reproduces; native policy passes. The full
-native suite is running at this source; finish it, then refresh the exact-source
-build/payload/mirror receipts. Do not create keys or delete locks.
+The complete 16-output source family reproduces; native policy passes. Its full
+native report is terminal: 12,558 passed, 110 failed, 97 skipped, 694 files.
+Correct the omitted legacy-envelope source pin and historical/current fixture
+bindings, then run native affected and bounded parallel full checks. The current-
+byte recovery fixture repair passes 27/27 on Windows; native proof is pending.
+Refresh exact-source family/build/payload/mirror receipts after repair.
+Do not create keys or delete locks.
 Newly owned private test homes are cleaned after each test; historical temporary
 directories are unchanged, with zero new journal/operator residue. Inspect the
 actual birth-matching process through artifacts/qa/root-suite-process-birth-handle.json

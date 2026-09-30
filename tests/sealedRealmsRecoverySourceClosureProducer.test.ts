@@ -103,7 +103,11 @@ function sourceBoundFixture(sourceCoordinates: {
   tree: string;
   blob: string;
 }) {
-  const f = ptrV3ActivationFixture();
+  const f = ptrV3ActivationFixture({
+    bootstrapBytes: readFileSync(
+      new URL("../scripts/greater-realm-production-bootstrap.mjs", import.meta.url),
+    ),
+  });
   f.candidate.preparationSourceCommit = sourceCoordinates.commit;
   f.candidate.preparationSourceTree = sourceCoordinates.tree;
   const rewrite = (value: any): void => {
