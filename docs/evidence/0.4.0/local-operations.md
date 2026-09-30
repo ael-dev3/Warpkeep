@@ -2,7 +2,7 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Native recovery verification and evidence audit — 30 September 2026, 17:57 CEST (15:57 UTC)
+## Native recovery verification and evidence audit — 30 September 2026, 18:21 CEST (16:21 UTC)
 
 The earlier signed source a23b863c0093293195a7fbfe6477e9b9e2f93ee1 (tree
 9e6b075c8f10be154a126a1f10aae930fbdea186) passed its scoped UID-1000/Node 22.22.3
@@ -139,7 +139,7 @@ are scoped separately from the 3d47d05e full pass. The complete 16-output family
 was raw-captured at 1e1cad71 (3353 files, 220079849 bytes, 16 MiB/file and 256 MiB
 aggregate caps) and independently reproduced; native policy passes. Manifest
 862f68eb675632273d2541a82b9b2f9d816c633e83eafc294524ea50e7c35399.
-The owning source checkpoint is signed 601635cd. PR #374 maintains the final
+The initial owning source-family checkpoint is signed 601635cd. PR #374 maintains the final
 exact-source production-build/payload/mirror receipts; resolve those receipts and
 current refs before publication. The 28 retained compiler outputs and original
 M1 inputs remain unchanged. These source corrections are not yet served; PTR
@@ -153,6 +153,15 @@ the decorative eyebrow retains its original presentation. Document wording and
 normalized text commitments are unchanged. Final rendered layouts and the new
 exact-source build receipts belong on PR #374; this style change is separate
 from the earlier native 86-case source scope and is not deployed to Alpha.
+
+The subsequent legal-only native checks passed 15/15, zero failures/skips, exit 0,
+at signed 490d67d3 / tree dcb8978d14743c766933d78f6f75de4db6459d3e.
+Node 22.22.3/UID 1000 source/report/log/exit records are under
+`artifacts/qa/public-legal-style-native-*`. A fresh raw capture of that source
+covered 3353 files / 220084480 bytes and independently reproduced all 16
+outputs with the same 862f68eb675632273d2541a82b9b2f9d816c633e83eafc294524ea50e7c35399
+manifest; native policy passes. Document text pins and acceptance versions stay
+unchanged. PR #374 owns final build and rendered readbacks for the final source.
 
 Independent PTR review found no further demonstrated source defect in authority,
 selection, immutable retry or provider renewal. The existing connected smoke
