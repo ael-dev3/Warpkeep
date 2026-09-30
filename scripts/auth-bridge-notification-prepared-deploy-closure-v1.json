@@ -4015,7 +4015,7 @@
     {
       "path": "src/components/menu/useModalFocusBoundary.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2f190126c27eff1f7a45fda935c379d84f2d9e51e444f9f1a63f9573d1176aee"
+      "sha256": "7b4b616a35eb1a56d7ffbf01d02dc0a9096ed5aafdaa6e8d6257e79bfd5b8503"
     },
     {
       "path": "src/components/profile/StaticProfileImageCanvas.tsx",
