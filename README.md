@@ -62,36 +62,26 @@ dedicated lazy-loaded gameplay host that preserves /ptr/ routing and checks its
 owner/session capabilities. No candidate change opens Genesis 002 admissions
 or widens the Genesis 001 admission freeze.
 
-The latest candidate's exact source, native test results, /ptr/ build, payload
-hashes and read-only publication plan are recorded in PR #374. Independent
-reviews repaired camera gestures becoming selections, lost pan after a pinch,
-confirmation being disabled by a concurrent refresh, and destination focus
-being lost between world and keep. The affected UI/controller tests and app/
-Vite-config typechecks passed. Earlier Keep UI and accessibility tests passed
-70/70. The full native root suite at `15b88b57` passed 12,603 tests with zero
-failures and 97 skips after a narrow ignored-artifact ownership repair.
-The subsequent menu contrast fix passed its 27 focused tests and rendered
-mobile/desktop review. Read the exact source scopes on the PR before treating
-local verification as release acceptance.
-The candidate also passed a disposable local G001/legacy Inner Keep
-full-stack browser playthrough covering construction, persisted reload, Worker
-dispatch/recall/return, re-entry and recovery paths. That run used synthetic
-identity and an isolated local database; it does not test the gameplay04/PTR
-journey. A 36-case Windows Chrome capture is
-also synthetic evidence, not authenticated owner gameplay or physical-phone
-acceptance. The build still reports a 677.80 kB RealmMapScreen chunk (188.23 kB
-gzip), outside the standalone PTR route's load path. Mobile performance budgets
-are established, but final production measurements remain pending.
+The latest exact source, test/build receipts and publication-plan receipts are maintained on
+[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374). Recent repairs improve
+mobile gestures, reachable controls, short-landscape drawers, confirmation,
+world/keep focus and menu readability. Real client/server testing also found
+and fixed a new-keep initialization failure caused by the server's error format.
+Independent affected tests and scoped rendered checks pass.
 
-The public Alpha root returned HTTP 200 and /ptr/ returned HTTP 404 at 07:08
-CEST on 30 September. The sealed-launch verifier still reports package
-0.3.43, Pages approval false, unset G001/G002/PTR identities and disabled PTR
-presentation. No 0.4 production publication or owner PTR journey is claimed.
-Hosted exact-head verification and the signed M1/M2 release sequence remain
-pending under the September GitHub Actions pause; resume the hosted release
-lane on or after October 1. G001 preservation, sealed G002
-readback, PTR publication/readback, the actual-owner journey and physical-phone
-acceptance are all release requirements.
+The connected local PTR lane exercises the real module and client with normal
+server timers and synthetic authority/atlas. Gathering, construction, improved
+return, exact retry, renewal and client reconnection pass. Actual-owner play,
+production-atlas pacing and physical-phone performance remain release requirements. Earlier G001 browser fixtures and the
+12,603-test native pass retain their original source scopes. The build's existing
+RealmMapScreen size warning remains under measurement.
+
+Alpha returned HTTP 200 and the unpublished /ptr/ HTTP 404 on 30 September.
+Sealed preparation remains disabled. After the owner's September Actions pause,
+resume exact-head verification, the signed M1/M2 sequence, preservation/readbacks
+and PTR publication on or after October 1. Current [delivery status](docs/operations/0.4.0-live-delivery-status.md)
+and [the handoff](docs/agent-notes/0.4.0/execution-handoff.md) identify the next action.
+
 
 | Realm | Purpose |
 | --- | --- |

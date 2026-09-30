@@ -172,6 +172,11 @@ minutes rather than changing the clock or treating startup as completion.
 The bounded runner tests the real generated client, controller, persistence,
 stale quotes, exact retry, resource deduction and improved return. It writes
 `artifacts/qa/ptr-gameplay04-local-smoke.json` only after successful cleanup.
+Each attempt invalidates its exact owned prior receipt before runtime/source
+checks; unexpected linked objects are preserved and rejected. Record the command
+exit code and exact source from the fresh result. Rerun this real wire boundary
+when the SDK/server pin changes; a synthetic bare-code response does not establish
+the server's actual error format.
 A failed run reports its bounded stage; fix that failure before claiming a
 pass. This is connected local integration evidence, not a browser playthrough,
 actual-owner PTR journey, production-atlas pacing or phone acceptance.

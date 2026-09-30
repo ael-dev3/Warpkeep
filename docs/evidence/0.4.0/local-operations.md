@@ -2,6 +2,64 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Real PTR first-entry repair and connected smoke — 30 September 2026, 12:50 CEST (10:50 UTC)
+
+A real attested SpacetimeDB 2.6.1 procedure rejected its first keep read with
+"The module instance encountered a fatal error: GAMEPLAY04_NOT_INITIALIZED".
+The generated SDK returns this entire string. The client recognized only the
+bare code, producing failed/unknown instead of uninitialized; the controller
+then refused initialization. The older synthetic protocol test injected a bare
+code and had not established the actual server envelope.
+
+Signed repair 6d1c08c9449df30e26120228efecbdcfff9eb808 accepts only the exact
+observed prefix followed by an entire existing allowed code. Error objects,
+unknown prefixes/codes, multiline strings and extra tails remain uncertain.
+A generated-SDK frame through the branded capability and real controller
+failed before the repair and passed afterward. It also verifies definite
+rejection clears pending work while an unknown outcome retains the same frozen
+command for retry. The implementer passed 95 capability cases; independent
+capability/controller checks passed 143/143. Script types and diff checks passed.
+The connected rerun at that exact source proved uninitialized -> ready against
+the actual module; it then exposed an unrelated harness route-selection error.
+
+The local runner now uses complete owner-to-location tree routes, with a real
+procedure cross-check, rather than global node ordinal zero/root depth. At the
+supported private PTR fixture anchor, selected food/wood/stone routes contain
+5/6/12 cells; the old food choice contained 56. The existing <=31-cell budget,
+normal travel/gather timers and 120-second construction remain intact. Each
+dispatch must advance the accepted sequence once and expose the matching
+assignment and captured yield. The fixture's inactive/unassigned resource
+policy is preserved. Seven focused harness tests and its dedicated types pass;
+independent review checked capacity, cost, placement, retry and renewal.
+
+The first harness setup failure incorrectly repeated the inherently forbidden
+G001 identity in the importer's additional exclusion list; the production
+guard remains unchanged, and all three production targets remain excluded.
+The runner also clears only its exact owned prior success receipt before a
+new attempt, preserving unexpected linked objects. A failure cannot leave a
+stale same-source pass. Its loopback transport, synthetic atlas/owner and
+private ephemeral fixture keys never contact the production bridge or realms.
+
+Connected runtime PASS: native session 64935 exited 0 at signed
+98a561dbfc36574ed0ce80ff699b62f35c36d22a, elapsed 321,215ms (5m21s). All nine
+outcomes passed: initialization, credited gathering, stale quote unsent, exact
+immutable retry, single deduction, natural completion, improved 72-food return,
+authority renewal and fresh-connection readback. The running in-memory database
+retained the completed state across client reconnection; server restart is not
+part of this run. The receipt explicitly records productionPtrVerified:false
+and cleanupComplete:true. Root readback verified mode 0600/UID 1000, clean native
+source and no owned temporary fixture directories. The identical Windows/native
+ignored artifacts/qa/ptr-gameplay04-local-smoke.json hashes to
+78da5e7efe2024ba1251e9b12b86961c4136a58f9444c7089490d8de7c12f002.
+This is connected local integration with synthetic authority/atlas and normal
+clocks. Actual-owner production-atlas pacing, browser play and physical-phone
+acceptance remain open.
+
+All reviewable checkpoints were signed, outgoing-range scanned and pushed with
+[skip actions]. No Actions runs/checks were queried or used. Refresh the full
+16-output source-closure family, preserving retained compiled identities, then
+record the final exact-head build/payload/read-only mirror receipts on PR #374.
+
 ## World touch targets and short-landscape drawers — 30 September 2026, 11:39 CEST (09:39 UTC)
 
 Independent review of candidate d7bcd820 found 35.2px gathering buttons,

@@ -1,5 +1,46 @@
 # Continue Warpkeep 0.4
 
+## Current delivery checkpoint — 30 September 2026, 12:50 CEST (10:50 UTC)
+
+The latest signed runtime repair is 6d1c08c9; candidate source and improved
+connected QA are pushed through 98a561dbfc36574ed0ce80ff699b62f35c36d22a on
+fix/g001-census-admission-proxy. PR #374 is open against unchanged main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. The branch already includes the
+reviewed source from PRs #375–#378; keep their older heads separate.
+
+Real server testing found and repaired a first-entry blocker hidden by bare-code
+fixtures: the expected uninitialized keep response has a fixed module-error
+prefix. The narrowly repaired classifier restores Establish keep and keeps
+unknown outcomes on exact retry. Independent capability/controller tests passed
+143/143. World gathering/select/navigation controls now meet the scoped 44px
+minimum; opened narrow drawers remain touchable in short landscape. Their
+81 host tests and rendered mobile/desktop checks passed. Read [local evidence](../../evidence/0.4.0/local-operations.md)
+for source scopes and limits.
+
+Native connected loop session 64935 passed at exact 98a561db in 321,215ms
+(5m21s). All nine outcomes passed with normal server timers: gather/build/improved
+return, stale quote, exact retry/single deduction, renewal and persisted client
+reconnection. Cleanup and identical native/Windows ignored receipts are verified;
+the operating checkout is released. This uses a synthetic owner/atlas and a
+running in-memory database, not a server restart or production-owner acceptance.
+The source-bound full native suite remains 15b88b57: 12,603 passed, zero failed,
+97 skipped; it predates the subsequent CSS and real-wire repair.
+
+Publish these notes, synchronize the idle native source,
+reproduce all 16 source-closure outputs and check native UID-1000 policy, then
+validate the final exact-head /ptr/ build, payload and read-only mirror plan.
+Keep retained compiled bundles/input identities unchanged for source-only M1.
+Put final hashes and current head on PR #374. Existing ignored receipts retain
+their original source; do not relabel them for new notes or closure commits.
+
+Alpha root returned HTTP 200 and /ptr/ HTTP 404 at 12:25 CEST. PTR is unpublished;
+sealed preparation remains 0.3.43, Pages approval false, live IDs unset and PTR
+presentation disabled. During September use local validation and signed
+[skip actions] pushes. On October 1 resume the already-authorized exact-head
+Verify -> signed M1 -> exact-M1 native prepare/check -> generated-only M2 ->
+exact-M2 Verify -> preservation/readbacks/PTR publication -> owner/device
+acceptance. No new blanket approval or recovery keys are needed to resume.
+
 ## Native full pass and menu polish — 30 September 2026, 10:49 CEST (08:49 UTC)
 
 Native UID-1000 root Vitest at signed 15b88b57 exited 0: 12,603 passed, zero

@@ -5,13 +5,22 @@ evidence boundary, not a claim that the live owner journey is complete.
 
 ## Scope clarified — 2026-09-30
 
-The qa:fullstack:local runs below exercise a disposable spacetimedb/src/ copy
-and legacy Inner Keep/G001 with synthetic identity, starting balances and
-accelerated clocks. They establish preservation integration, not the
-gameplay04/PTR Keep04 journey or first-session pacing. Module tests cover the
-new gather → build → improved return sequence with a controlled clock; actual
-owner-atlas route timing, production persistence and phone performance remain
-unverified. See [local operations](local-operations.md#evidence-scope-correction--30-september-2026).
+Earlier qa:fullstack:local browser runs use a disposable spacetimedb/src/ copy
+and legacy Inner Keep/G001 with synthetic identity, balances and accelerated
+clocks. They establish preservation integration. The new qa:ptr:local runner
+instead uses the real PTR module, generated client, capability and controller
+with a synthetic atlas/owner and normal server travel/gather/construction timers.
+It reproduces the actual module-error envelope and verified first-use repair.
+
+Session 64935 passed at signed 98a561db in 321,215ms (5m21s), exit 0, with all
+nine outcomes true and verified cleanup. This covers natural credited gathering,
+construction and improved return, stale quote, single deduction/exact retry,
+authority renewal and fresh-client state readback in the running in-memory
+database. No server restart was exercised. The identical native/Windows ignored
+receipt is artifacts/qa/ptr-gameplay04-local-smoke.json and explicitly records
+productionPtrVerified:false. Production owner-atlas pacing, authenticated browser
+play and phone performance remain unverified. Read [local operations](local-operations.md)
+for exact receipt, failure and repair details.
 
 ## 2026-09-29 local PTR mobile render review
 
@@ -123,6 +132,6 @@ not inferred from synthetic checks:
 - the ten-minute first-building and improved-return target;
 - live-device mobile rendering and integrated performance acceptance.
 
-The release checklist keeps R02 and R07 open until those owner-run artifacts are
+The release checklist keeps R02 and R07 open until those authenticated owner-session artifacts are
 captured. No owner token, FID, private profile, or production credential was
 written to this repository or this record.

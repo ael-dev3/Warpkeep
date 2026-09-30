@@ -1,82 +1,62 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 10:49 CEST (08:49 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 12:50 CEST (10:50 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
-PR #374 is the open, unmerged 0.4 candidate against unchanged main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Its branch contains reviewed work
-from open PRs #375–#378; do not merge those older heads separately. The current
-signed candidate before the latest menu/archive-link polish is
-`15b88b578c118416c19f4d6ba92bd3a5f0327f75`. Greater Realm now excludes camera
-gestures from tap selection; Keep04 continues panning with the remaining finger
-after a pinch. Five affected host/lifecycle suites passed 143/143 on pinned
-Windows Node 22.22.3; independent reviews and app/Vite noEmit types passed.
-The separate authority review passed 85/85 at unchanged server source.
-The latest repairs release a confirmation declined during focus refresh and
-restore named destination focus between world and keep. Real-caller regressions,
-independent cross-reviews and app/Vite types passed. See local-operations.md
-for reproduction, repair and evidence limits. The menu panel now keeps labels
-readable over pale scenery; its 27 focused tests and mobile/desktop source
-render passed. Two incorrect published soundtrack references now link the
-actual draft archive's immutable manifest. Windows and
-native WarpkeepRunner are the local development and Linux-build environments.
-The latest exact source, `/ptr/` build, payload check and read-only mirror plan
-are recorded on PR #374. The protected closure was refreshed from signed
-menu/provenance polish d4465897: all 3,351 raw source files matched Git,
-all 16 outputs matched independent derivation and native UID-1000 policy
-verification passed. Its manifest SHA-256 is
-8c637963331d7c899f695788aaf3b95d9983d4ab54bc5813b5f1c1bb4334de6b.
-Record the final exact
-signed source and its new receipts on PR #374 after
-verification. Verify the final signed source before
-resuming the hosted lane.
-When WSL reads the Windows public checkout, set per-process
-`safe.directory` to that exact checkout and `core.autocrlf=true`; do not alter
-the public checkout or persist a global workaround.
+Refreshed 30 September 2026, 12:50 CEST (10:50 UTC). PR #374 is the open, unmerged candidate against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. The branch contains reviewed work
+from PRs #375–#378; do not merge their older heads independently. Latest signed
+product repair: 6d1c08c9449df30e26120228efecbdcfff9eb808. Latest connected-QA
+checkpoint: 98a561dbfc36574ed0ce80ff699b62f35c36d22a. Resolve the live branch
+head and final exact-source receipts from PR #374 before operating.
 
-The full native Linux root suite at 15b88b57 exited 0: 12,603 passed, zero
-failed, 97 skipped across 693 files. This covers all runtime behavior repairs
-before the later CSS/archive-link polish. The earlier d1474f11 run's six
-fixture failures were caused by one root-owned ignored bundle.js; its narrow
-ownership recovery and failed report remain recorded. Final affected checks
-and exact-source build/payload/mirror receipts belong on PR #374. At
-`0269ef201c26e312fa0ec55c0548074ebb0ee905`, the SpacetimeDB module typecheck
-passed and `test:pure` passed 598/598 (0 failed, 0 skipped; 782.03 seconds)
-with Node 22.22.3 and pnpm 11.7.0 on native WarpkeepRunner. On the current
-code-equivalent candidate, auth-bridge passed 502 tests across Node and workerd,
-and release-recovery passed 1,567 across both runners; all TypeScript checks and
-the release-recovery Wrangler-types check passed. Genesis 002 and PTR
-SpacetimeDB typechecks and native 2.6.1 builds passed. Focused Keep04 tests
-passed 19 active / 1 skipped and typecheck passed; UI/accessibility/placement
-suites passed 70/70. A 36-case Windows Chrome capture found no horizontal
-overflow, network-boundary violation or cleanup issue; this is synthetic QA,
-not physical-phone or owner-PTR acceptance. The capture's CSP harness warning
-remains documented.
+Fixed existing defects: camera gestures becoming selections, lost pan after
+pinch, confirmation blocked by refresh, lost world/keep focus, menu contrast,
+small phone targets and drawer disclosures covered in short landscape.
+A real server test also found that the module-host error prefix made a new
+keep look failed, hiding initialization. The client now recognizes only that
+verified wrapper plus a complete known code; unrelated failures retain their
+existing uncertain outcome and exact retry. Capability/controller tests passed
+143/143 independently; WorldScene/PTR host tests passed 81/81 and scoped rendered
+checks passed. Local operations holds reproduction and verification limits.
 
-Candidate lockfile audits are clear: root npm audit and the auth-bridge and
-release-recovery pnpm audits each reported zero known vulnerabilities. GitHub
-still lists three moderate Undici alerts on default main; this candidate's
-root and service locks contain patched versions, pending integration/rescan.
+CONNECTED QA PASSED: session 64935 exited 0 at exact 98a561db in 321,215ms
+(5m21s). All nine outcomes passed: initialize, gather, stale quote unsent, exact
+retry, deduct once, natural completion, improved 72-food return, authority renewal
+and fresh-client persisted read. Cleanup is verified and native source released.
+Identical Windows/native receipts remain ignored in artifacts/qa/. This is a
+synthetic atlas/owner and running in-memory database with normal timers; actual
+production-owner/browser/phone acceptance remains open. Seven focused harness
+tests and dedicated types pass; stale receipts and rejected dispatches cannot
+be counted as success.
 
-The current candidate also passed its disposable local G001/legacy Inner Keep
-full-stack browser playthrough for construction, persistent reload, Worker
-dispatch/return, re-entry and recovery seams. Its database and sign-in were
-synthetic. This covers preservation, not gameplay04/PTR integration; see
-local operations for the verified caller and scope.
+The earlier full native suite at 15b88b57 passed 12,603, zero failed, 97 skipped
+across 693 files. That source predates the later CSS and wire-classification
+fixes; affected checks and the real loop validate those separately. Unchanged
+module pure tests passed 598/598, auth-bridge 502 and release-recovery 1,567.
+Candidate audits reported zero known vulnerabilities; main's three moderate
+Undici alerts await integration/rescan.
 
-Direct GET checks at 09:38 CEST returned HTTP 200 for the production root
-and HTTP 404 for `/ptr/`. Sealed-launch
-preparation remains in package 0.3.43 with Pages approval false,
-G001/G002/PTR identities unset and PTR presentation disabled. The auth-bridge
-private RPC-role attestation remains unavailable without the existing local
-admin credential; do not request its contents. No provider/public write,
-merge or 0.4 publication occurred. The RealmMapScreen chunk remains 677.80 kB
-raw / 188.23 kB gzip.
+After the notes checkpoint, refresh all 16 source-closure
+outputs from exact raw Git bytes, independently reproduce them and check native
+UID-1000 policy. Preserve retained compiled lane bundles, compiler manifests and
+original input identities. Then rebuild/check the final exact /ptr/ payload and
+read-only Warpkeep-Live mirror plan. Record final head/hashes on PR #374.
+Do not repeat the whole earlier review or full suite merely for notes changes.
+Reopen checks only for new source changes, failures or unresolved concerns.
 
-September rule: do not query, dispatch, rerun or use GitHub Actions.
-Development commits are pushed with [skip actions]; use local validation and
-read-only Git/PR information only. No hosted-check, merge or deployment claim
-is made.
+Alpha root HTTP 200; /ptr/ HTTP 404 at 12:25 CEST. Sealed preparation still has
+package 0.3.43, Pages approval false, live IDs unset and PTR presentation disabled.
+No merge, provider/public write or 0.4 publication occurred. The RealmMapScreen
+bundle warning and actual-phone measurements remain open. Existing public host,
+payload/mirror planner and publication/rollback operator are implemented; follow
+them rather than rebuilding hosting from historical notes. For resumed blockers,
+use docs/operations/0.4.0-infra-access.md, match the actual failing boundary and
+ask the owner only for an action the agent cannot complete.
+
+September: do not query, dispatch, rerun or use GitHub Actions. Continue local
+checks and signed [skip actions] source synchronization. All dates/hashes in
+historical sections remain source-bound evidence rather than current authority.
 
 NEXT ACTION
 
