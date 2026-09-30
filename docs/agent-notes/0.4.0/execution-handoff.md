@@ -76,9 +76,26 @@ because automatic approval review rejected its deletion; Chrome exit is verified
 Seven synthetic QA fixture directories are also retained after a rejected cleanup;
 they total 95,685 bytes. Do not retry cleanup through a different mechanism.
 
-Next, derive the complete 16-output
-source family, verify native policy and prepare a new exact-source production
-build/payload/mirror plan. Inspect the built 320px menu before October integration.
+At `926f2ce8`, the full 16-output family reproduces independently and native
+policy passes. Native affected verification passes 435/435 in 16 actual files,
+with clean unchanged source and no new fixture roots or historical removals.
+The prepared production build, payload and mirror checks pass; all existing
+Alpha entries remain preserved. All four current production menu images were
+inspected, and the separately gated production QA exclusion check passes 20/20.
+Actual 320px scrolling then found Settings' internal horizontal overflow:
+panel client width 276px versus scroll width 320px, clipping descriptions.
+Its CSS repair passes four existing behavior tests; rebuilt visual verification
+and refreshed source-family/build receipts are next. The earlier preparation
+metadata remains in `artifacts/qa/tervain-prior-preparation.json`.
+
+The separate menu-only measurement completed its desktop sample, but mobile
+failed at an observer evaluation. The original failure is retained; no full
+performance, phone or actual-owner pass is inferred. The observer is being
+repaired before another measurement.
+
+After this layout repair, derive the complete source family and prepare the
+refreshed exact-source production build/payload/mirror plan. Inspect Settings
+at narrow, landscape and desktop sizes before October integration.
 Resolve final development head and receipts from PR #374; old build hashes below
 remain bound to their recorded sources. No final release or 10/10 claim is made.
 

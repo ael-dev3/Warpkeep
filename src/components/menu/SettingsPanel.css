@@ -12,6 +12,7 @@
 
 .warpkeep-settings__panel {
   width: min(46rem, 100%);
+  min-inline-size: 0;
   max-height: 100%;
   overflow: auto;
   padding: clamp(1.1rem, 3vw, 2.25rem);
@@ -51,6 +52,7 @@
 
 .warpkeep-settings__choices {
   display: grid;
+  min-inline-size: 0;
   gap: 0.65rem;
   margin: 1.5rem 0 0;
   padding: 0;
@@ -67,7 +69,7 @@
 
 .warpkeep-settings__choice {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 0.85rem;
   align-items: start;
   min-height: 3.25rem;
@@ -110,12 +112,17 @@
 
 .warpkeep-settings__choice span {
   display: grid;
+  min-inline-size: 0;
   gap: 0.3rem;
+  overflow-wrap: anywhere;
 }
 
 .warpkeep-settings__choice strong {
-  padding-right: 4.5rem;
   letter-spacing: 0.12em;
+}
+
+.warpkeep-settings__choice[data-default="true"] strong {
+  padding-right: 4.5rem;
 }
 
 .warpkeep-settings__choice small {
@@ -169,6 +176,14 @@
 
   .warpkeep-settings__panel {
     width: 100%;
+  }
+
+  .warpkeep-settings__choice[data-default="true"] {
+    padding-top: 1.9rem;
+  }
+
+  .warpkeep-settings__choice[data-default="true"] strong {
+    padding-right: 0;
   }
 
   .warpkeep-settings__actions button {

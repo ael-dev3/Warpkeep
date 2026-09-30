@@ -98,6 +98,34 @@ approval review rejected removal of seven synthetic fixture directories totaling
 95,685 bytes; they remain retained, without a cleanup workaround.
 Final family/build/preservation receipts belong on PR #374 after the repairs.
 
+At signed `926f2ce8`, tree `bd70cb24790b8c73239c2a99272b59812710b605`,
+fresh native family reproduction/policy passes. The affected selection ran
+20:32:09.174–20:37:43.824 UTC: 435 passed, zero failed/skipped, 16 actual files,
+exit 0, clean unchanged source, zero newly retained fixture roots and zero
+historical removals. The prepared build and independent Alpha preservation pass;
+the actual production menu runner passes four viewports and root inspects all
+four saved images. Native production QA exclusion checks pass 20/20 in one file.
+Retain `tervain-final-ui-*`, `tervain-final-family-verification.json`,
+`tervain-production-qa-boundary.*` and `tervain-production-menu-inspection.json`;
+PR #374 owns exact build/payload/mirror hashes. Historical preparation metadata
+is preserved in `tervain-prior-preparation.json` before refreshing fixed outputs.
+
+Further actual 320×844 production Settings inspection reproduces internal
+horizontal overflow: panel client width 276px, scroll width 320px; the fieldset
+extends beyond the panel, clipping descriptions and the STANDARD badge. The CSS
+repair removes intrinsic minima, lets the text track shrink and reserves badge
+space only where used. Four existing Settings behavior tests pass in
+`tervain-settings-narrow-behavior.*`; this is not rendered layout acceptance.
+Rebuild and remeasure the panel before declaring the defect closed.
+
+The first separate menu-only startup attempt retains a complete desktop sample
+and a failed mobile observer evaluation in
+`tervain-menu-performance-20260930T204808870Z-325fcd04-4a4f-490c-9e27-01fea7a9da07.json`.
+Both recorded Chrome roots are independently absent afterward; the uncertain
+failed profile remains retained. The historical receipt lacks exact expression
+diagnostics, so a reproduced provisional-document observer failure is not asserted
+as its proven cause. No R06, phone, repeated-switch heap or owner pass is claimed.
+
 ## Native recovery verification and evidence audit — 30 September 2026, 18:21 CEST (16:21 UTC)
 
 The earlier signed source a23b863c0093293195a7fbfe6477e9b9e2f93ee1 (tree

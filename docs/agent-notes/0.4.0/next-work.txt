@@ -48,8 +48,15 @@ Confirmation repair 997a3575 passes 88 affected UI checks; typed-kind correction
 The corrected direct-menu production QA has 18 passing caller/boundary tests,
 including /ptr/, 320px and lost-context rejection. Actual final-build captures
 remain next; synthetic cleanup records only successfully created directories.
-The completed full suite does not attest these later changes. Final source-family
-regeneration and newly scoped production build/menu review remain next.
+The completed full suite does not attest these later changes. At 926f2ce8 the
+native affected selection passes 435/435 across 16 files with no new fixture roots
+or historical removals. Family reproduction/policy and prepared build/payload/
+preservation pass; four built menu images are inspected, and production QA
+exclusion checks pass 20/20. Actual 320px Settings review found internal overflow
+(276px client versus 320px scroll width). Its CSS repair passes four behavior
+tests; refreshed preparation and rendered verification remain next.
+The menu-only desktop measurement completed; mobile observer evaluation failed.
+Preserve that attempt and repair the observer before remeasuring; no R06 pass.
 
 EARLIER SOURCE-BOUND RECEIPTS
 
@@ -132,9 +139,10 @@ source-bound evidence.
 
 NEXT ACTION
 
-Now: derive the complete source family after the reviewed source/QA repairs,
-then complete the newly
-scoped local production build/preservation and rendered review. Publish each reviewable checkpoint with its
+Now: derive the complete source family after the reviewed Settings layout repair,
+then complete the refreshed production build/preservation and rendered review.
+Verify narrow/landscape/desktop Settings, then resume the bounded menu measurement.
+Publish each reviewable checkpoint with its
 actual evidence. Use the local preparation checkpoint and repository ecosystem above;
 keep GitHub Actions unused and PTR unpublished throughout September.
 
