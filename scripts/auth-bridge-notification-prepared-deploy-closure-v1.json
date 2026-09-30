@@ -60,7 +60,7 @@
     {
       "path": "package.json",
       "digestProfile": "reviewed-release-transition-projection-sha256-v1",
-      "sha256": "b90fe11eb8c2a4ed6f830510c0db28e63c95b957874b93fb4839b1eb2b47f8e4"
+      "sha256": "a1372d768903e7a6615ddb6a42e79e7cd5a0e7fb81d28d6feccb6377f9975403"
     },
     {
       "path": "public/.well-known/farcaster.json",
@@ -2165,7 +2165,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4131b21e08079c47b40c93311f34d85a3583901a16fcfc3adc90e475382e4ae3"
+      "sha256": "34e449ed974a1fc0baa0e377f57aff18250e0a10718e0c184594df9c2ec16eb7"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
@@ -3825,7 +3825,7 @@
     {
       "path": "src/components/keep04/Keep04BuildingPanel.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cdcf14dea4a9504cc1b2bd828727a0a71349e3c68d2cc85bb30a44f40a188ce4"
+      "sha256": "f9e362cb0734d1c58383f91572b138d4085ae0561bf133f090f914121aee3f58"
     },
     {
       "path": "src/components/keep04/Keep04LoopRail.tsx",
@@ -3850,7 +3850,7 @@
     {
       "path": "src/components/keep04/Keep04Screen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6d2322ad6efb67571d469089a20366bca343540281dd8bfd16d0ef2aa3d9b0f9"
+      "sha256": "6b886d75239617c31217467778fcb07029a29c3cfafea7998b7a16cf13942557"
     },
     {
       "path": "src/components/keep04/Keep04WorkerPanel.tsx",
@@ -3980,7 +3980,7 @@
     {
       "path": "src/components/menu/WarpkeepMenuWorld3D.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3238cec255438275fb4a5cf5f53cc151b19f23d99d2df205b999242aa488cd44"
+      "sha256": "d2d23adf5f12707f6c1c53997af721a5770fbd4b4012e95572331a9c5db1f26f"
     },
     {
       "path": "src/components/menu/createMenuLandscape3D.ts",
@@ -4260,7 +4260,7 @@
     {
       "path": "src/components/realm/createGreaterRealmWorldCanvasHost.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "cc3097ca5edfa4ef9ad0a9b4248af1b5b1d8edd68492a29937fd83ed1907dc28"
+      "sha256": "a01992845385ab771d7a3a3e90a2477ffb2add28c78cbd7578faf7fce2b3f7ae"
     },
     {
       "path": "src/components/realm/createLowPolyGrassGeometry.ts",
