@@ -2,6 +2,40 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact-source QA framing and PTR build — 30 September 2026
+
+Signed candidate commit
+[`570112ade8b95c3bccb50f87fc2fe06a2121caf0`](https://github.com/ael-dev3/Warpkeep/commit/570112ade8b95c3bccb50f87fc2fe06a2121caf0)
+fixes synthetic mobile evidence framing. The browser probe now collapses only
+the QA controller disclosure after verifying the requested local origin,
+document URL, scenario and quality profile; it fails closed if the controls are
+missing. The game schematic disclosure is left alone. The report records that
+the controller was collapsed before each screenshot. The focused browser-probe
+suite passed 5/5 under native Linux Node 22.22.3 / npm 10.9.8, including all 36
+planned case captures through the mocked browser transport. No new screenshot
+run was taken, so this proves the capture ordering and guard, not the rendered
+appearance of a fresh capture or physical-device comfort.
+
+At that exact source commit, the `/ptr/` production build passed TypeScript,
+runtime asset checks, production exclusions, public-boundary verification
+(3,350 tracked paths / 1,907 scanned entries) and Farcaster integrity. The
+existing `RealmMapScreen` chunk warning remains 677.80 kB / 188.23 kB gzip.
+The payload manifest covers 446 files / 138,994,282 bytes: manifest SHA-256
+`91744f95c5d6b8d567ecad1f236f9630ca4ee505480d2d4f9aaf46bc76f45c28`, content
+manifest SHA-256
+`6dd14e8c11c3a857d5427f41e6399285b3359c65728d80908313d68a881f8cf5` and root
+HTML SHA-256
+`87c5cf9db7b65cd2e1b97443fdc1f77a7f5fcc047d7455e23a40fa0dcdda07df`. The
+independent plan against clean
+[`Warpkeep-Live@b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad)
+preserves 341 Alpha-root entries, targets 800 `/ptr/` files, removes zero
+obsolete generated paths and hashes to
+`4050afe1a4bb081421decd4aa69e415ce5b2e684820745b0c9f56dac4e66ddd2`.
+The generated manifest and plan are ignored local receipts. The outgoing source
+commit passed Gitleaks 8.30.1 with one commit / about 7.20 KB scanned and no
+leaks. GitHub Actions were skipped for September. No public write, merge,
+provider mutation or deployment occurred; `/ptr/` remains unshipped.
+
 ## Authenticated provider identity and PTR schema recheck — 30 September 2026, 01:40 CEST (23:40 UTC)
 
 Read-only checks were performed from the maintained candidate at signed head
