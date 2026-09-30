@@ -69,7 +69,7 @@ Keep retained compiled outputs and original input identities intact for M1.
 
 Alpha root returned HTTP 200, auth health 200 and /ptr/ HTTP 404 at 15:00 CEST. PTR is unpublished;
 sealed preparation remains 0.3.43, Pages approval false, live IDs unset and PTR
-presentation disabled. No main merge or provider/public write occurred.
+presentation disabled. No main merge or game-provider/public-hosting write occurred.
 During September use local checks and signed [skip actions] pushes. On October 1
 resume already-authorized exact-head Verify -> signed source-only M1 -> exact-M1
 native prepare/check -> generated-only M2 -> exact-M2 Verify -> preservation/

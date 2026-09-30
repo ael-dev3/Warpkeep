@@ -52,8 +52,8 @@ The candidate brings together:
   external and click-to-load.
 - Sealed Genesis 002 soundtrack wiring ([#377](https://github.com/ael-dev3/Warpkeep/pull/377)). G002 remains inaccessible;
   the soundtrack derivative's source terms are unresolved.
-- Forty hash-pinned Greater Realm tree models ([#378](https://github.com/ael-dev3/Warpkeep/pull/378)). The app uses local runtime
-  copies; the open Warpkeep-Assets source archive is a provenance record, not a
+- Hash-pinned Greater Realm tree models ([#378](https://github.com/ael-dev3/Warpkeep/pull/378)). The app uses local runtime
+  copies; the private Warpkeep-Assets source archive is a provenance record, not a
   runtime download dependency.
 
 The existing gather, Worker dispatch and return, building, construction and

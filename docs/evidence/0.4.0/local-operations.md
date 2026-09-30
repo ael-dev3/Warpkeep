@@ -93,6 +93,16 @@ Both outgoing ranges passed Gitleaks 8.30.1 and explicit non-forced pushes have
 matching remote readbacks. These documentation/metadata corrections do not
 change the served game, publish PTR, or establish engine implementation.
 
+The existing Explore feedback action exposed the private GitHub issue chooser to
+public players. The actual rendered regression failed before repair. The footer
+now has one PROPOSE / REPORT action to the existing public Farcaster channel,
+matching accessible text and preserved new-tab/no-referrer attributes. Its single
+column fills the existing community area. Windows Node 22.22.3 checks passed
+60/60 across the drawer, actual realm host, CSS contracts and intake/link tests;
+zero failures or skips. Before/interim/final reports are retained separately under
+`artifacts/qa/public-feedback-route-*`. This later scoped UI repair is not included
+in the 3d47d05e full-suite scope and is not deployed to Alpha or PTR.
+
 Independent PTR review found no further demonstrated source defect in authority,
 selection, immutable retry or provider renewal. The existing connected smoke
 manually replaces fixture sessions at 80s; it does not exercise the production

@@ -2,10 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { createRef, useState, type RefObject } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  WARPKEEP_FARCASTER_CHANNEL_URL,
-  WARPKEEP_GITHUB_ISSUE_INTAKE_URL
-} from '../src/farcaster/farcasterProjectLinks';
+import { WARPKEEP_FARCASTER_CHANNEL_URL } from '../src/farcaster/farcasterProjectLinks';
 import {
   RealmAccessibilityControls,
   type RealmNavigatorCameraPreset,
@@ -245,22 +242,16 @@ describe('RealmAccessibilityControls', () => {
       .not.toBe(0);
     expect(community.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING)
       .not.toBe(0);
-    const feedbackLink = within(community).getByRole('link', {
-      name: 'Open the Warpkeep Farcaster channel to share feedback (opens in a new tab)'
-    });
-    expect(feedbackLink.getAttribute('href')).toBe(WARPKEEP_FARCASTER_CHANNEL_URL);
-    expect(feedbackLink.getAttribute('target')).toBe('_blank');
-    expect(feedbackLink.getAttribute('rel')).toBe('noopener noreferrer');
-    expect(feedbackLink.getAttribute('referrerpolicy')).toBe('no-referrer');
+    expect(within(community).getAllByRole('link')).toHaveLength(1);
     const intakeLink = within(community).getByRole('link', {
-      name: 'Propose / report a Warpkeep bug or realm wish on GitHub (opens in a new tab)'
+      name: 'Propose / report a Warpkeep bug or realm wish on Farcaster (opens in a new tab)'
     });
-    expect(intakeLink.getAttribute('href')).toBe(WARPKEEP_GITHUB_ISSUE_INTAKE_URL);
+    // Public players cannot open the private development repository's chooser.
+    // Exercise the rendered report action, not just the contributor URL constant.
+    expect(intakeLink.getAttribute('href')).toBe(WARPKEEP_FARCASTER_CHANNEL_URL);
     expect(intakeLink.getAttribute('target')).toBe('_blank');
     expect(intakeLink.getAttribute('rel')).toBe('noopener noreferrer');
     expect(intakeLink.getAttribute('referrerpolicy')).toBe('no-referrer');
-    expect(feedbackLink.compareDocumentPosition(intakeLink) & Node.DOCUMENT_POSITION_FOLLOWING)
-      .not.toBe(0);
     expect(search.getAttribute('placeholder')).toBe(
       'Player, castle, worker, resource, or water'
     );
