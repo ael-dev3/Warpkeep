@@ -90,6 +90,7 @@
     "report:inner-keep-affordability": "tsx scripts/inner-keep-affordability-report.ts",
     "qa:agent": "node scripts/qa/agent.mjs",
     "qa:fullstack:local": "node scripts/qa-observer/local-fullstack-browser-probe.mjs",
+    "qa:ptr:local": "tsx scripts/qa-observer/ptr-gameplay04-local-smoke.ts",
     "qa:inner-keep": "node scripts/qa-observer/inner-keep-browser-probe.mjs",
     "qa:rendered-webgl": "node scripts/qa-observer/rendered-webgl-browser-probe.mjs",
     "qa:title-transition": "npm run build && node scripts/qa-observer/title-transition-frame-browser-probe.mjs",

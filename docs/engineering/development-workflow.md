@@ -67,9 +67,11 @@ October 1, 2026. Publish reviewable source checkpoints with `[skip actions]` in
 the commit message so synchronization does not start workflows. GitHub will
 leave the skipped required checks pending; local test results are useful
 evidence but do not waive hosted Verify or authorize merging. Keep affected PRs
-open and continue independent local work. After September, check the owner's
-current direction before resuming Actions; this dated pause does not grant
-automatic authorization to start workflows.
+open and continue independent local work. On or after October 1, resume the
+already-authorized exact-head Verify and signed M1/M2 delivery sequence unless
+the owner changes that direction. The end of this dated pause does not require
+another blanket approval; hosted verification and operation-specific evidence
+still apply.
 
 For a maintenance-only request, keep the agreed mechanics and feature set. Fix
 demonstrated defects and inconsistencies through their existing callers. A review
@@ -158,6 +160,21 @@ npm run qa:fullstack:local
 The install populates only the ignored `spacetimedb/node_modules` tree. If it is
 missing, the probe fails closed with this exact recovery command; it never
 installs dependencies implicitly or changes a production module.
+
+For the new gameplay04 client/server path, use `npm run qa:ptr:local` from
+the clean committed native checkout as `warpkeep` with pinned Node 22.22.3,
+the existing locked `spacetimedb/node_modules`, and `SPACETIME_BIN` selecting
+the attested 2.6.1 CLI. It builds a private copy of the PTR module and uses a
+disposable numeric-loopback database, synthetic atlas and ephemeral signed
+fixture sessions. Production connection/authentication guards remain intact.
+Construction and gathering use their normal server timers; allow several
+minutes rather than changing the clock or treating startup as completion.
+The bounded runner tests the real generated client, controller, persistence,
+stale quotes, exact retry, resource deduction and improved return. It writes
+`artifacts/qa/ptr-gameplay04-local-smoke.json` only after successful cleanup.
+A failed run reports its bounded stage; fix that failure before claiming a
+pass. This is connected local integration evidence, not a browser playthrough,
+actual-owner PTR journey, production-atlas pacing or phone acceptance.
 
 On `WarpkeepRunner`, invoke native checks as `warpkeep` with
 `wsl -d WarpkeepRunner -u warpkeep`; the distro's default shell is root, and
