@@ -1,6 +1,50 @@
 # Continue Warpkeep 0.4
 
-## Current delivery checkpoint — 30 September 2026, 17:57 CEST (15:57 UTC)
+## Current local checkpoint — 30 September 2026, 20:27 CEST (18:27 UTC)
+
+Continue useful local development through September: repair observed defects,
+run affected checks, review rendered behavior and publish signed `[skip actions]`
+checkpoints to the active PR #374 branch. Do not query or use GitHub Actions;
+keep the candidate unmerged and PTR unpublished through September. The
+[local preparation checkpoint](../../operations/0.4.0-local-release-preparation.md#current-local-development-checkpoint--30-september-2026)
+owns the current local direction. Resume the already-authorized hosted
+Verify/M1/exact-M1 preparation/M2/PTR sequence on or after October 1.
+
+Signed repair `13491c60` grounds the existing forest on its rendered support,
+keeps retained tree transforms stable across quality settings, groups terrain
+colors, improves narrow-menu readability and disposes failed atlas chunks.
+The [Tervain study and sharing guidance](../../engineering/repository-ecosystem.md#sharing-with-tervain)
+bind source `db2a356c`; all 209 archived GLBs match existing Warpkeep originals,
+so no duplicate models were copied. Gameplay and placement authority are unchanged.
+
+Windows affected checks passed 206 tests across seven actual files with no
+failures or skips; app and build-mode types passed. Actual DEV browser checks
+completed three warm-ups and 20 mount/dispose cycles each for balanced, reduced,
+reduced motion and fallback. The baseline stayed at 30 geometries, two textures
+and 11 listeners; disposal left zero scene RAFs, loaders and listeners. Three
+actual context-loss/restore cycles passed. These cover the existing renderer at
+`086fa02e`, not retained-heap, physical-phone or production-performance acceptance.
+
+The full native suite completed successfully on frozen source
+`086fa02e08149b11f35b8454062ae9f7f4e75626`, tree
+`70f9eb22fe01892515d3473ee9a5f0ed78681b70`: 12,694 passed, zero failed and
+97 skipped across 694 actual files, exit 0. Unified execution session `61492` is
+terminal; that number is a process handle, not a source revision. The run started
+at 18:04:30 UTC and finished at 18:22:16 UTC with Node 22.22.3/UID 1000;
+`sameSource` and `nativeClean` are true. Source/report/log/handle/summary/exit
+evidence is retained under `artifacts/qa/tervain-native-full-*`. The runner's
+inventory records newly created synthetic fixture directories and no historical
+removals; their audit is underway, so no zero-temporary-directory claim is made.
+The source family reproduced cleanly. The new production build and scoped
+rendered captures remain pending; earlier receipts below retain their sources.
+
+A reachable 320×844 portrait-camera NaN failure is being repaired in the actual
+Windows host and tests. Review that repair, run affected Windows/native checks,
+then complete production validation and rendered review before claiming it fixed.
+The completed full suite above does not attest that later change. Resolve the
+current development head from PR #374 separately from the tested native input.
+
+## Previous delivery checkpoint — 30 September 2026, 17:57 CEST (15:57 UTC)
 
 PR #374 is the open, unmerged candidate on fix/g001-census-admission-proxy
 against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. It includes reviewed

@@ -1,12 +1,39 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 17:57 CEST (15:57 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 20:27 CEST (18:27 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
-Refreshed 30 September 2026, 17:57 CEST (15:57 UTC). PR #374 is the open,
-unmerged candidate against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32.
+PR #374 is the open, unmerged candidate against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the live branch head and final exact-source receipts from PR #374.
+
+Continue useful local development through September, with affected checks,
+rendered review and signed [skip actions] publication. The current direction is
+docs/operations/0.4.0-local-release-preparation.md. Hosted release remains October.
+Repair 13491c60 grounds the stable ranked forest, groups terrain colors, improves
+narrow-menu readability and cleans failed atlas chunks. The Tervain study binds
+db2a356c; 209 archived GLBs match existing originals and none were copied.
+Follow docs/engineering/repository-ecosystem.md for sharing and source ownership.
+
+Windows affected checks passed 206/206 across seven files; app/build-mode types
+passed. Actual DEV keep checks passed three warm-ups plus 20 mount/dispose cycles
+EACH for balanced, reduced, reduced motion and fallback: stable 30 geometries,
+two textures and 11 listeners; disposal leaves zero scene RAFs/loaders/listeners.
+Three actual context-loss/restore cycles passed for the existing renderer at
+086fa02e. No heap, phone or production performance acceptance is claimed.
+
+Full native suite is TERMINAL, exit 0: 12,694 passed, zero failed, 97 skipped across
+694 actual files at source 086fa02e/tree 70f9eb22. Session 61492 is a process handle,
+not a revision. It ran 18:04:30–18:22:16 UTC with Node 22.22.3/UID 1000;
+sameSource/nativeClean are true. Evidence remains under artifacts/qa/tervain-native-full-*.
+The runner recorded new synthetic fixture directories with no historical removals;
+their audit remains underway. Source-family reproduction is clean. New production
+build and rendered captures remain pending. The execution handoff records full pins.
+A reachable 320×844 portrait-camera NaN failure is under repair in the actual host
+and tests; the completed suite does not attest that later change.
+
+EARLIER SOURCE-BOUND RECEIPTS
 
 Recovery now uses boot UUID plus kernel start tick; live legacy/digest mismatches
 remain unknown. Preserve ambiguous records and historical private directories.
@@ -86,6 +113,12 @@ hosted release sequence on October 1. Historical hashes and dates remain
 source-bound evidence.
 
 NEXT ACTION
+
+Now: finish the runner fixture audit and review the in-progress portrait-camera
+repair. Run affected Windows/native checks, then complete the newly scoped local
+production build and rendered review. Publish each reviewable checkpoint with its
+actual evidence. Use the local preparation checkpoint and repository ecosystem above;
+keep GitHub Actions unused and PTR unpublished throughout September.
 
 On or after October 1, resume the already-authorized hosted exact-head Verify
 lane. Follow the
