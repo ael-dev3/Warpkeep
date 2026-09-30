@@ -55,6 +55,32 @@ describe('SettingsPanel', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('allows keyboard boundary focus to reveal controls in a scrollable panel', () => {
+    renderSettings();
+
+    const selectedPreference = screen.getByDisplayValue('balanced');
+    const back = screen.getByRole('button', { name: 'BACK TO THE MENU' });
+    const selectedFocus = vi.spyOn(selectedPreference, 'focus');
+    const backFocus = vi.spyOn(back, 'focus');
+
+    // jsdom cannot lay out the overflowing phone panel. Verify that the real
+    // caller permits the browser to scroll its focused control into view.
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(back);
+    expect(backFocus).toHaveBeenCalledTimes(1);
+    expect(backFocus.mock.lastCall?.[0]?.preventScroll).not.toBe(true);
+
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(selectedPreference);
+    expect(selectedFocus).toHaveBeenCalledTimes(1);
+    expect(selectedFocus.mock.lastCall?.[0]?.preventScroll).not.toBe(true);
+
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(back);
+    expect(backFocus).toHaveBeenCalledTimes(2);
+    expect(backFocus.mock.lastCall?.[0]?.preventScroll).not.toBe(true);
+  });
+
   it('offers an accessible soundtrack switch', () => {
     const { onAudioMutedChange } = renderSettings();
     const soundtrack = screen.getByRole('switch', { name: /music & effects/i });

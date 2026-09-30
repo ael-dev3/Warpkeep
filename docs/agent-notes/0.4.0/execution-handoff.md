@@ -7,23 +7,33 @@ on `fix/g001-census-admission-proxy`. It includes reviewed PRs #375–#378;
 do not merge their older heads separately. Main remains `786c0b2b`.
 Resolve the current exact development head and final build receipts from the PR.
 
-The full native root suite at `1ab86add`, tree `ee5804e3` is terminal, exit 0:
-12,720 passed, zero failed, 97 skipped across 694 actual files.
-It ran 2026-09-30T21:25:17.987Z–2026-09-30T21:42:32.282Z with Node 22.22.3/UID 1000;
-clean unchanged source, zero new fixture roots and zero historical removals.
-Retain `artifacts/qa/tervain-final-root-*`; skips keep their recorded platform,
-privilege and opt-in scope. The later preview-label clarification has separate
-caller checks and does not relabel that full-suite input.
+At `8d3b4c38`, tree `b91995a6`, the prepared `/ptr/` production build is
+terminal, exit 0, with clean unchanged input, UID 1000/Node 22.22.3 and verified
+absent owned actor/group. All 16 source-family outputs independently reproduce;
+native policy passes with 1,250 closure members. The payload and mirror checks
+pass, preserving all 341 Alpha entries and removing none. Retain
+`artifacts/qa/ptr-final-build-summary.json` and
+`artifacts/qa/tervain-final-family-verification.json`; these are development
+preparation receipts, not exact-M1/M2 integration or deployment.
 
-At the same source, complete family reproduction/native policy and prepared
-`/ptr/` build/payload/mirror checks pass. The plan preserves every existing
-Alpha entry. Four actual production menu images are inspected. Settings now
-contains its text and Standard badge at 320px, short landscape and desktop;
-lower controls remain reachable and Back restores focus. Bounded desktop and
-4× CPU-throttled phone-size menu startup/RAF callback measurements complete.
-These do not establish full world/keep R06, physical-phone or owner acceptance.
-The [local evidence](../../evidence/0.4.0/local-operations.md#prepared-menu-settings-and-full-suite-verification--30-september-2026)
-owns exact sources, receipts, before/after failures and remaining limits.
+The full native suite remains separately bound to `1ab86add`, tree `ee5804e3`:
+12,720 passed, zero failed, 97 skipped across 694 actual files, exit 0.
+Its input stayed clean and unchanged, with zero new fixture roots or historical
+removals. Retain `artifacts/qa/tervain-final-root-*`. Later preview-label checks
+pass 17/17 in two actual files, with app types; they do not relabel the full run.
+The four production-menu images, narrow/landscape/desktop Settings geometry and
+bounded desktop/4× CPU phone-size menu measurements remain scoped to `1ab86add`.
+They do not establish full world/keep R06, physical-phone or owner acceptance.
+
+Further actual `8d3b4c38` inspection at 320×640 found that Shift+Tab can focus a
+Settings or Terms control hidden below the fold. The shared focus-hook repair
+has two failing caller regressions before repair and 124 passing affected tests
+across nine actual files afterward (76 menu/modal, 48 realm/worker/chat/lyrics),
+with pinned Node 22.22.3 app types passing. Fresh production keyboard inspection
+is still pending; the earlier layout/focus-return checks do not close this new
+visibility defect. The
+[local evidence](../../evidence/0.4.0/local-operations.md#final-prepared-source-and-keyboard-visibility--1-october-2026) owns exact receipts,
+retained before/after failures and the final focused result.
 
 The [Tervain study](../../engineering/repository-ecosystem.md#sharing-with-tervain)
 adapts grounded vegetation, stable detail selection and material grouping.
@@ -31,16 +41,24 @@ Existing shared models already match; no duplicates were copied. Its separate
 menu score remains project-specific. Independent world/keep lifetime and
 background/resume source review found no further demonstrated defect.
 
-Publish this reviewed label/documentation checkpoint, derive its complete
-source family and prepare the final
-exact-source production receipts. Keep primary, idle native and GitHub source
-synchronized; an active run retains its immutable input.
+Publish the reviewed focus repair/current notes, derive and independently
+verify the complete source family, then prepare fresh exact-source production
+receipts and recheck the actual short-portrait
+Settings/Terms keyboard path. Keep primary, idle native and GitHub synchronized;
+an active run retains its immutable input. Earlier receipts keep their sources.
 
-Use no GitHub Actions during September. The existing Alpha stays available;
-G002 remains closed and PTR unpublished. From **October 1, 00:00 UTC / 02:00 CEST**,
-resume already-authorized exact-head Verify → signed M1 → exact-M1 native
-prepare/check → generated-only M2 and exact-main Verify → live preservation,
-sealed-realm/owner-PTR operations → owner/device acceptance and delivery ledger.
+Use no GitHub Actions until **October 1, 00:00 UTC / 02:00 CEST**, when both
+calendars are October. Then inspect repository-wide queued/running work and
+applicable completed evidence before a remote action. The current HEAD carries
+`[skip actions]` and Verify has no manual dispatch trigger. If no applicable
+exact-head run exists, publish one signed unskipped checkpoint and use its
+normal PR Verify; reopening or dispatching the same skipped head is insufficient.
+Refresh SHA-bound receipts for that head. Continue exact-head Verify → signed M1
+→ exact-M1 native prepare/check → generated-only M2 and exact-main Verify → live
+preservation, sealed-realm/owner-PTR operations → owner/device acceptance and
+delivery ledger. The existing Alpha stays available; G002 remains closed.
+PTR publication follows its source, activated configuration and deployment
+gates; final release acceptance still requires owner/device evidence.
 Complete expensive preparation before activation's fresh **inline** G001 census.
 Use the existing [connection/recovery paths](../../operations/0.4.0-infra-access.md#resume-without-guessing)
 and [PTR publisher](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored);

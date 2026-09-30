@@ -229,6 +229,32 @@ describe('AlphaParticipationTermsDialog', () => {
     expect(storageWrite).not.toHaveBeenCalled();
   });
 
+  it('allows keyboard boundary focus to reveal controls without accepting or cancelling', () => {
+    const { onCancel, onContinue } = renderDialog();
+    const close = screen.getByRole('button', { name: 'Close Alpha Participation Terms' });
+    const cancel = screen.getByRole('button', { name: 'CANCEL' });
+    const closeFocus = vi.spyOn(close, 'focus');
+    const cancelFocus = vi.spyOn(cancel, 'focus');
+
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(cancel);
+    expect(cancelFocus).toHaveBeenCalledTimes(1);
+    expect(cancelFocus.mock.lastCall?.[0]?.preventScroll).not.toBe(true);
+
+    fireEvent.keyDown(document, { key: 'Tab' });
+    expect(document.activeElement).toBe(close);
+    expect(closeFocus).toHaveBeenCalledTimes(1);
+    expect(closeFocus.mock.lastCall?.[0]?.preventScroll).not.toBe(true);
+
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
+    expect(document.activeElement).toBe(cancel);
+    expect(cancelFocus).toHaveBeenCalledTimes(2);
+    expect(cancelFocus.mock.lastCall?.[0]?.preventScroll).not.toBe(true);
+    expect((screen.getByRole('checkbox') as HTMLInputElement).checked).toBe(false);
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onContinue).not.toHaveBeenCalled();
+  });
+
   it('clears checked acceptance synchronously when the document enters pagehide', () => {
     const { onCancel } = renderDialog();
     const checkbox = screen.getByRole('checkbox') as HTMLInputElement;

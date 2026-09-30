@@ -2,6 +2,55 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Final prepared source and keyboard visibility — 1 October 2026
+
+This local checkpoint starts at 00:03 CEST on October 1, while UTC remains
+September 30. The September Actions pause therefore remains in force until
+00:00 UTC / 02:00 CEST; no Actions requests or provider writes are performed.
+
+Signed source `8d3b4c38`, tree `b91995a6`, independently reproduces all 16
+generated outputs / 1,250 members. Authored input `d2520f21` captures 3,355
+tracked raw files matching Git bytes; closure manifest is
+`c79498414f4cca4a055bb0fb6688fa9e97cff6b815c9a774d1f26bd8d8bb1cc7`.
+Native policy passes. Exact production preparation starts at
+2026-09-30T21:55:43.011Z and has terminal readback at 22:03:51.774 UTC:
+exit 0, UID 1000/Node 22.22.3, unchanged clean source and absent owned actor
+and process group. Build, types, asset/public boundary, Farcaster integrity,
+license, file-size, sealed preparation, payload and mirror-plan checks pass.
+
+The payload contains 446 files / 139,001,757 bytes; SHA-256 is
+`7c277dacc6a70c59b93d75ac3b56dfa5edc5bd9a6a325fb5a256b2bcd8056fe3`,
+content manifest is `3af7388d286b0cc1622f51cfdee238a66ac9f3b2ef998471820b54d3065cb914`
+and HTML is `303a5b4270b7fd31b01d8feab686cf1ae73fa71d1ab0cdb27d882766a35997a3`.
+Independent plan `644edab285d2f277273b5444e780c5479cca7a873d36edb42d782eb609854e10`
+binds public parent `b6afe92e7b09197b1578d992103ac3c8f916d8ad`, preserving all
+341 Alpha entries with the previously recorded canonical digest, 800 target
+paths and zero removals. Current small `ptr-final-*` receipts are copied and
+raw-byte verified in Windows; the earlier `1ab86add` preparation metadata is
+retained separately. These are prepared development receipts, not M2 or deployment.
+
+Actual `8d3b4c38` production review at 320×640 reproduces a keyboard defect in
+the shared modal hook. Shift+Tab from Settings' initially focused heading
+focuses Back at y=1,142–1,186 while the panel occupies y=16–624 and remains at
+scrollTop 0. Terms similarly focuses Cancel at y=1,095–1,139 while its panel
+occupies y=8–632. Both controls are entirely below the visible panel. DOM and
+screenshots confirm the defect; no legal acceptance or authentication occurs.
+The exact owned preview is stopped, the task tab blank and viewport reset.
+`tervain-modal-focus-before.json` retains these actual observations separately
+from the failing test report.
+
+The minimal follow-up permits scrolling only for handled keyboard focus entry
+and boundary wrapping. Initial heading focus, fallback focus and restoration
+behavior stay unchanged. Both Settings/Terms caller regressions fail before
+repair, then 76 menu/modal tests in five files and 48 shared Realm/worker/chat/
+lyric caller tests in four files pass, zero failures/skips. App noEmit types
+pass on Node 22.22.3. Retain `tervain-modal-focus-tests-before/after.*`,
+`tervain-modal-focus-realm-tests.*` and `tervain-modal-focus-types.log`.
+This follow-up is tested against the `8d3b4c38` base with only its hook/caller
+changes; fresh committed-family/build and actual-browser visibility readback
+remain necessary. The earlier full suite and image/performance receipts below
+keep their original source scopes.
+
 ## Prepared menu, Settings and full-suite verification — 30 September 2026
 
 Source `1ab86add`, tree `ee5804e3` independently reproduces all 16 generated family outputs;
