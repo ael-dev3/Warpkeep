@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import { createHash, generateKeyPairSync, randomBytes, sign } from 'node:crypto';
-import { chmod, cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, cp, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DbConnection } from '../../spacetimedb/ptr/generated-bindings';
 import type { BridgeConfig } from '../../services/auth-bridge/src/config';
@@ -37,6 +37,24 @@ const MODULE_INPUTS = ['spacetimedb/ptr/src', 'spacetimedb/gameplay04', 'spaceti
 const OUTCOMES = ['initialized', 'gathered', 'staleQuoteUnsent', 'exactRetry', 'deductedOnce',
   'completed', 'improvedReturn', 'renewed', 'reconnected'] as const;
 type Outcome = typeof OUTCOMES[number];
+
+/** Remove only the previous owned receipt, so a failed rerun has no stale pass. */
+export async function invalidateGameplay04LocalSmokeReceipt(path = RECEIPT) {
+  const unsafe = () => { throw new Error('PTR_GAMEPLAY04_LOCAL_RECEIPT_UNSAFE'); };
+  if (path !== resolve(path) || basename(path) !== basename(RECEIPT)) unsafe();
+  const before = await lstat(path, { bigint: true }).catch(error => {
+    if (error?.code === 'ENOENT') return undefined;
+    throw error;
+  });
+  if (!before) return;
+  if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1n
+    || before.uid !== BigInt(process.getuid?.() ?? 0)
+    || await realpath(path) !== path) unsafe();
+  const current = await lstat(path, { bigint: true });
+  if (['dev', 'ino', 'uid', 'mode', 'nlink', 'size', 'mtimeNs', 'ctimeNs'].some(key =>
+    before[key as keyof typeof before] !== current[key as keyof typeof current])) unsafe();
+  await unlink(path);
+}
 
 /** The import guard already excludes Genesis 001; these are additional targets. */
 export function gameplay04LocalAdditionalForbiddenIdentities(databaseIdentity: string) {
@@ -188,6 +206,7 @@ async function connectLocal(server: string, identity: string, token: string): Pr
 
 export async function runPtrGameplay04LocalSmoke() {
   assert.equal(process.platform, 'linux'); assert.equal(process.getuid?.(), 1_000);
+  await invalidateGameplay04LocalSmokeReceipt();
   assert.equal(process.version, 'v22.22.3');
   assert.equal(execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: ROOT, encoding: 'utf8', timeout: 10_000 }).trim(), '', 'PTR_GAMEPLAY04_LOCAL_DIRTY_SOURCE');
   const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8', timeout: 10_000 }).trim();

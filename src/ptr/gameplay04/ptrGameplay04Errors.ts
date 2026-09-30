@@ -6,7 +6,9 @@ type Gameplay04ErrorCode = Gameplay04KeepErrorCode | Gameplay04WorkerErrorCode |
 type Gameplay04ErrorKind = 'authority' | 'not-initialized' | 'rejected' | 'uncertain' | 'invalid-state';
 
 // Exhaustive against the shared unions; neither Error.message nor object fields
-// are transport codes. The SDK rejects procedure result.value directly.
+// are transport codes. The SDK rejects procedure result.value directly; JS
+// procedure errors from server 2.6.1 carry this exact module-host envelope.
+const MODULE_ERROR_PREFIX = 'The module instance encountered a fatal error: ';
 const errorKinds = Object.freeze({
   GAMEPLAY04_NOT_INITIALIZED: 'not-initialized',
   GAMEPLAY04_INPUT_INVALID: 'rejected',
@@ -45,7 +47,10 @@ export class Gameplay04ClientError extends Error {
 }
 
 export function classifyGameplay04Error(error: unknown): Gameplay04ClientError {
-  return isGameplay04ErrorCode(error)
-    ? new Gameplay04ClientError(errorKinds[error], error)
+  const code = typeof error === 'string' && error.startsWith(MODULE_ERROR_PREFIX)
+    && error.length <= MODULE_ERROR_PREFIX.length + 64
+    ? error.slice(MODULE_ERROR_PREFIX.length) : error;
+  return isGameplay04ErrorCode(code)
+    ? new Gameplay04ClientError(errorKinds[code], code)
     : new Gameplay04ClientError('uncertain');
 }
