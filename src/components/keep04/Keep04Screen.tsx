@@ -189,7 +189,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     </section>}
     {phase === 'refreshing' && visible && <p role="status">Refreshing keep from the Realm… Commands are temporarily unavailable.</p>}
     {ready && view.atlas === null && <p role="status">Return to world to refresh the Realm before building or recalling Workers.</p>}
-    {view !== null && <div hidden={!visible}>
+    {view !== null && <div className="keep04-ready" hidden={!visible}>
       <div ref={decisionHeader} className="keep04-decision-header">
         <section className="keep04-resources" aria-label="Resources">
           {RESOURCES04.map(resource => {
@@ -222,8 +222,8 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
           <summary>{constructionStatuses.length} constructions underway · View progress</summary>
           {constructionStatuses}
         </details> : null}
-      {problem === 'capacity' && <p role="status">That resource location is full. Find another location.</p>}
-      {problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}
+      {problem === 'capacity' && <p className="keep04-problem" role="status">That resource location is full. Find another location.</p>}
+      {problem === 'target' && <p className="keep04-problem" role="status">That resource location changed. Choose a current Realm location.</p>}
       <div className="keep04-workspace" data-panel-open={selection.panel !== null}>
         <div className="keep04-scene-region">
           {visible && <Keep04SceneHost quality={quality} reducedMotion={reducedMotion} onMode={setSceneMode}
