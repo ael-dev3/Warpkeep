@@ -15,6 +15,8 @@ Repair 13491c60 grounds the stable ranked forest, groups terrain colors, improve
 narrow-menu readability and cleans failed atlas chunks. The Tervain study binds
 db2a356c; 209 archived GLBs match existing originals and none were copied.
 Follow docs/engineering/repository-ecosystem.md for sharing and source ownership.
+The separate Tervain 18e33586 delta review preserves the original byte evidence;
+its new project-specific menu score is not a shared Warpkeep asset.
 
 Windows affected checks passed 206/206 across seven files; app/build-mode types
 passed. Actual DEV keep checks passed three warm-ups plus 20 mount/dispose cycles
@@ -37,7 +39,15 @@ All 36 guarded Windows images at 9d357e6e are inspected with no concrete visible
 regression, using actual Chrome 154/RTX 3080 Ti hardware. Partial viewport/latest
 frames cannot establish cadence, settled loading, context transitions or a phone
 pass. The constructing case retains one loader. Further mobile scroll review
-found missing invalid-site guidance beside confirmation; repair is underway.
+found missing invalid-site guidance beside confirmation. Repair f1a967c8 passes
+80 affected UI checks and actual 320px browser review; navigation repair 328404b9
+passes 136 checks while command guards remain intact. Menu repair cec57240 fixes
+resident shadow resize and stale recovery flags, with 42 menu checks/app types.
+Confirmation repair 997a3575 passes 88 affected UI checks; typed-kind correction
+5b7b50ee passes app types and both recovery/reconfirmation regressions.
+The corrected direct-menu production QA has 18 passing caller/boundary tests,
+including /ptr/, 320px and lost-context rejection. Actual final-build captures
+remain next; synthetic cleanup records only successfully created directories.
 The completed full suite does not attest these later changes. Final source-family
 regeneration and newly scoped production build/menu review remain next.
 
@@ -122,8 +132,8 @@ source-bound evidence.
 
 NEXT ACTION
 
-Now: finish the existing mobile confirmation feedback and QA-script corrections.
-Run affected checks, derive the complete source family, then complete the newly
+Now: derive the complete source family after the reviewed source/QA repairs,
+then complete the newly
 scoped local production build/preservation and rendered review. Publish each reviewable checkpoint with its
 actual evidence. Use the local preparation checkpoint and repository ecosystem above;
 keep GitHub Actions unused and PTR unpublished throughout September.

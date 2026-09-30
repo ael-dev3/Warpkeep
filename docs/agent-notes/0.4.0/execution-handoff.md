@@ -16,6 +16,9 @@ colors, improves narrow-menu readability and disposes failed atlas chunks.
 The [Tervain study and sharing guidance](../../engineering/repository-ecosystem.md#sharing-with-tervain)
 bind source `db2a356c`; all 209 archived GLBs match existing Warpkeep originals,
 so no duplicate models were copied. Gameplay and placement authority are unchanged.
+The separate `18e33586` delta review preserves that original byte-verification
+scope. Tervain's new menu score has project-specific terms and is not a shared
+Warpkeep asset; follow the ecosystem record before reuse.
 
 Windows affected checks passed 206 tests across seven actual files with no
 failures or skips; app and build-mode types passed. Actual DEV browser checks
@@ -51,11 +54,29 @@ regression was found. These are partial viewport/latest-frame observations, not
 cadence, settled loading, owner or phone acceptance; constructing retains one
 loader, and the context-cycle label does not perform a context transition. Actual
 keep-only transition checks above remain separately scoped. Full-page/scroll
-review found missing blocked-placement guidance beside mobile confirmation; the
-existing-feedback repair is underway. The disposable capture profile is retained
+review found missing blocked-placement guidance beside mobile confirmation.
+Signed `f1a967c8` adds the canonical reason and accessible button description:
+80 affected UI tests pass; actual 320px browser inspection shows the reason and
+Adjust placement focuses the schematic. Signed `328404b9` repairs enabled
+navigation during retained-view refresh/pending while keeping commands disabled;
+136 affected tests pass. Signed `cec57240` corrects shadow-target resizing on
+rotation and clears stale model failure/readiness on rebuild: four regressions
+fail before, 42 affected menu tests and app types pass after. Tests exercise
+Three's real allocation/disposal semantics with GPU draws stubbed. `997a3575`
+also explains occupied-builder and unavailable-atlas confirmation: 88 affected
+UI tests pass. `5b7b50ee` narrows the wire project kind before display-name lookup;
+app types and both recovery/reconfirmation regressions pass afterward.
+The production menu QA correction has 18 passing caller/boundary tests. It now
+checks direct menu entry and the fixed native `/ptr/` build, including 320px,
+instead of grading the retired title gateway. A regression rejects a lost WebGL
+context; cleanup records only successfully created fixture directories.
+Actual built captures remain next.
+The disposable capture profile is retained
 because automatic approval review rejected its deletion; Chrome exit is verified.
+Seven synthetic QA fixture directories are also retained after a rejected cleanup;
+they total 95,685 bytes. Do not retry cleanup through a different mechanism.
 
-After integrating the reviewed feedback/QA repairs, derive the complete 16-output
+Next, derive the complete 16-output
 source family, verify native policy and prepare a new exact-source production
 build/payload/mirror plan. Inspect the built 320px menu before October integration.
 Resolve final development head and receipts from PR #374; old build hashes below

@@ -9,6 +9,8 @@ sibling-project comparison. All 209 shared archive GLBs match existing Warpkeep
 originals by size, SHA-256 and Git blob, so no duplicate asset copy was needed.
 The [ecosystem record](../../engineering/repository-ecosystem.md#sharing-with-tervain)
 records its separate product/lore, useful stable-population idea and provenance.
+The separate source-only delta review to Tervain `18e33586` does not replace
+this byte-verification baseline; its new menu score remains Tervain-specific.
 Signed `13491c60` improves existing forest support, stable quality transforms,
 terrain color grouping, narrow-menu text and failed atlas-chunk cleanup. Windows
 combined checks pass 206/206 in seven actual files; app/build-mode types pass.
@@ -54,7 +56,46 @@ loaders and listeners. Three performed context-loss/restore cycles return to one
 canvas and the same baseline. This is keep-only smoke, not world/realm cycles,
 retained-heap, cold-load/transfer, owner or phone acceptance. Initial creation's
 85–99ms submission long tasks remain recorded. Local further scroll review found
-missing invalid-placement guidance beside confirmation; its repair is underway.
+missing invalid-placement guidance beside confirmation. Signed `f1a967c8`
+repairs it using canonical validation/messages and an accessible description;
+three new regressions fail before and 80 affected UI tests pass after. Actual
+320×844 browser inspection at `328404b9` shows the reason beside disabled
+confirmation, with Adjust placement focusing the open schematic and no overflow.
+Signed `328404b9` separately repairs enabled placement navigation during healthy
+refresh/pending; four regressions fail before and 136 tests in four affected
+suites pass after, retaining disabled commands and terminal-scope guards.
+Before/after logs remain under ignored `artifacts/qa/keep04-placement-feedback-*`
+and `keep04-retained-navigation-*`.
+
+Signed `cec57240` fixes menu shadow targets retaining their former size after
+rotation, plus stale castle failure/readiness flags surviving quality rebuild.
+Four meaningful regressions fail before repair; 42 tests in lifecycle, responsive
+layout, media and main-menu suites pass after under pinned Windows Node 22.22.3.
+The shadow tests exercise Three 0.185.1's real allocation/viewport/dispose code
+with GPU draws stubbed. Same-size resizes and Performance allocate no extra
+targets; late parsed models retire correctly. App typecheck passes. These menu
+checks are retained in the collaborator's tool output, not an invented report;
+the forthcoming native final-source checks will have separate retained receipts.
+
+Signed `997a3575` explains confirmation blocked by an existing construction or
+missing Realm details. Both recovery regressions fail before repair; 88 affected
+UI tests pass after. App types then identified an unsafe wire-string name lookup;
+signed `5b7b50ee` narrows it through the canonical UI kinds. App noEmit and both
+recovery/reconfirmation tests pass after that correction. Retain the actual
+`keep04-confirmation-causes-*`, `tervain-confirmation-types.log` and
+`tervain-confirmation-typed.*` receipts; do not relabel the earlier full suite.
+
+The current direct-menu QA correction passes 18 caller/boundary tests in one
+actual file, with no failures/skips, exit 0: `tervain-menu-entry-final.json`.
+Independent review reproduced a lost WebGL context passing as healthy; the
+new caller regression fails before correction and passes afterward, with
+`tervain-menu-lost-context-before/after.*` receipts. The fixture inventory now
+records only successfully created directories, preserving preexisting paths.
+It waits for castle/guardian readiness and serves the generated `/ptr/` namespace
+from the fixed native build. Optional scenery, image inspection and performance
+remain outside those tests. Failed diagnosis receipts remain retained. Automatic
+approval review rejected removal of seven synthetic fixture directories totaling
+95,685 bytes; they remain retained, without a cleanup workaround.
 Final family/build/preservation receipts belong on PR #374 after the repairs.
 
 ## Native recovery verification and evidence audit — 30 September 2026, 18:21 CEST (16:21 UTC)

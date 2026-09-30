@@ -139,6 +139,14 @@ or establish live gameplay acceptance. Follow [Contributing](CONTRIBUTING.md)
 and [the development workflow](docs/engineering/development-workflow.md) for
 setup, verification, and existing-worktree guidance.
 
+After building a reviewed candidate, `npm run qa:menu-entry` checks its current
+production menu across desktop and mobile layouts. Inspect the saved views;
+this check does not establish authenticated gameplay or phone performance.
+Warpkeep and Tervain share suitable assets and rendering techniques while keeping
+their game rules and worlds separate; follow the
+[repository ecosystem](docs/engineering/repository-ecosystem.md#sharing-with-tervain)
+for source ownership, provenance and reuse.
+
 Stop the development server with `Ctrl+C` in its terminal.
 
 | I want to… | Start here |

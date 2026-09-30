@@ -93,6 +93,7 @@
     "qa:ptr:local": "tsx scripts/qa-observer/ptr-gameplay04-local-smoke.ts",
     "qa:inner-keep": "node scripts/qa-observer/inner-keep-browser-probe.mjs",
     "qa:rendered-webgl": "node scripts/qa-observer/rendered-webgl-browser-probe.mjs",
+    "qa:menu-entry": "node scripts/qa-observer/title-transition-frame-browser-probe.mjs",
     "qa:title-transition": "npm run build && node scripts/qa-observer/title-transition-frame-browser-probe.mjs",
     "verify:runtime-assets": "node scripts/verify-runtime-assets.mjs && node scripts/verify-inner-keep-runtime-assets.mjs && node scripts/verify-inner-keep-population-assets.mjs && node scripts/verify-inner-keep-rabbit-assets.mjs",
     "verify:inner-keep-assets": "node scripts/verify-inner-keep-runtime-assets.mjs && node scripts/verify-inner-keep-population-assets.mjs && node scripts/verify-inner-keep-rabbit-assets.mjs",

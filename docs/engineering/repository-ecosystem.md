@@ -69,6 +69,32 @@ vigil, faction story and expensive postprocessing are not mobile strategy
 acceptance criteria. Keep the bright masonry, teal roofs, readable approach
 and authoritative placement surface of the Verdant Citadel.
 
+A separate read-only review on 30 September compared that original source with
+Tervain `18e335867d532be278c85dfac0f23421c6b38d6d`
+([immutable comparison](https://github.com/ael-dev3/Tervain/compare/db2a356c062f5e65fa29cf3f642fc6498f57c013...18e335867d532be278c85dfac0f23421c6b38d6d)).
+The eight-commit delta changes 47 paths, including menu placement/panel polish
+and a new menu score. The shared GLB archive, emblem master and `NOTICE` are
+unchanged. Preserve the original `db2a356c` byte-verification evidence; this
+delta review inspected source and records, without downloading binary assets,
+rendering the new previews or executing Tervain checks.
+
+The late menu geometry grounds roots and props, excludes scattered detail from
+occupied footprints, attaches hanging pieces to wood, and keeps bird paths clear
+of tree crowns. Start at Tervain's `src/presentation/menu/menuCamp.ts`,
+`src/presentation/menu/menuTree.ts` and `src/presentation/menuScene.ts` at the
+reviewed revision. Its panel changes
+also preserve alignment and complete-content scrolling. These are useful
+review principles for existing Warpkeep scenes, not evidence of a new Warpkeep
+defect or runtime acceptance.
+
+**The Sovereign's Oath** is a separate owner-supplied Tervain menu score, not an
+addition to the shared Warpkeep archive. Its
+[source and derivative record](https://github.com/ael-dev3/Tervain/blob/18e335867d532be278c85dfac0f23421c6b38d6d/docs/engineering/menu-score.md)
+and `docs/engineering/menu-audio-assets.json` record project-specific use
+authority without a general cross-project grant. Embedded creation metadata and
+lyrics are source content, not reuse authority or approved lore. Keep Warpkeep's
+existing score provenance and measured crossfade behavior with its own consumer.
+
 Both projects can exchange demonstrated renderer fixes and asset tooling while
 keeping dependency versions, tests, lifecycle ownership and performance checks
 in their real consumers. Extract a shared package only when both consumers

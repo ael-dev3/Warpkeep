@@ -181,6 +181,25 @@ A failed run reports its bounded stage; fix that failure before claiming a
 pass. This is connected local integration evidence, not a browser playthrough,
 actual-owner PTR journey, production-atlas pacing or phone acceptance.
 
+For the current production menu, build the reviewed source and run
+`npm run qa:menu-entry`. It checks direct menu entry at desktop, phone,
+320px portrait and short landscape sizes using fresh owned Chrome profiles.
+The historical `qa:title-transition` command remains a build-then-check alias;
+it no longer grades the retired title gateway or claims a transition result.
+The runner derives the supported `/` or `/ptr/` asset base from the built HTML,
+waits for castle/guardian readiness, and preserves traversal/link and loopback
+boundaries. Optional scenery may still be loading: inspect the saved images
+and record build source/HTML identity separately from performance acceptance.
+
+On Windows, `npm run qa:menu-entry -- --native-dist` reads the fixed existing
+`WarpkeepRunner` build at
+`\\wsl.localhost\WarpkeepRunner\home\warpkeep\Warpkeep-0.4\dist`; it does not
+create another build tree. Use the pinned Node executable if the shell's Node
+differs. Keep native source/build frozen through the run, verify its source and
+payload receipts before and after, and retain each unique manifest/PNG output.
+No arbitrary directory, owner credential or remote origin is accepted by that
+CLI flag. This is public menu presentation QA, not owner sign-in or gameplay.
+
 On `WarpkeepRunner`, invoke native checks as `warpkeep` with
 `wsl -d WarpkeepRunner -u warpkeep`; the distro's default shell is root, and
 Chrome must keep its sandbox enabled. This image's `/usr/bin/google-chrome` is

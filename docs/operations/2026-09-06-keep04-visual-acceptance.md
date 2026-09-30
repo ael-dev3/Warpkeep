@@ -42,7 +42,10 @@ same 30-geometry/two-texture/11-listener baseline with one canvas; fallback has
 no scene canvas/listeners, and disposal leaves no scene RAFs/loaders/listeners.
 This is keep-only lifecycle evidence; the production world/realm/heap, owner
 and phone gates remain open. Further narrow-screen scroll review found missing
-invalid-site guidance beside disabled confirmation, now under repair. The
+invalid-site guidance beside disabled confirmation; signed `f1a967c8` repairs
+it with 80 affected UI tests and scoped actual 320px browser review. Navigation
+repair `328404b9` retains usable site/review controls during refresh/pending
+without enabling commands, with 136 affected tests. The
 [current local evidence](../evidence/0.4.0/local-operations.md#tervain-comparison-and-local-renderer-verification--30-september-2026)
 preserves each source and result scope. Historical ledger entries below retain
 their original meaning.

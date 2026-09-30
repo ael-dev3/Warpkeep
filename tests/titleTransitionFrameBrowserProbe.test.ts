@@ -1,6 +1,7 @@
 import { deflateSync } from 'node:zlib';
 import {
   mkdtemp,
+  mkdir,
   rm,
   symlink,
   writeFile
@@ -8,7 +9,7 @@ import {
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   TITLE_TRANSITION_FRAME_CASES,
@@ -16,6 +17,7 @@ import {
   createProductionDistLoopbackServer,
   isAllowedTitleTransitionBrowserUrl,
   productionAssetRelativePath,
+  runTitleTransitionFrameBrowserProbe,
   titleTransitionBrowserZoomLevel,
   titleTransitionCssViewport,
   validateTitleGatewayGeometry,
@@ -26,6 +28,93 @@ import {
   analyzeTitleTransitionFirstVisibleFrame,
   analyzeTitleTransitionFramePair
 } from '../scripts/qa-observer/title-transition-frame-analysis.mjs';
+
+const entryProbe = vi.hoisted(() => ({
+  fixtureDist: '',
+  createdRuns: [] as string[],
+  methods: [] as string[],
+  navigations: [] as string[],
+  viewports: [] as { width: number; height: number }[],
+  viewport: { width: 1440, height: 900 },
+  screenshot: undefined as undefined | ((width: number, height: number) => string),
+  beforeObservation: undefined as undefined | (() => void),
+  observations: 0,
+  cleaned: 0
+}));
+
+// Drive the public production runner without starting Chrome or reading the
+// current build. Only its fixed dist input is replaced by this test's fixture.
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>();
+  const normal = (path: unknown) => String(path).replaceAll('\\', '/');
+  const dist = () => `${normal(process.cwd())}/dist`;
+  const mocked = {
+    ...actual,
+    lstat: (path: Parameters<typeof actual.lstat>[0], ...args: unknown[]) => actual.lstat(
+      entryProbe.fixtureDist && normal(path) === dist() ? entryProbe.fixtureDist : path,
+      ...args as []
+    ),
+    realpath: (path: Parameters<typeof actual.realpath>[0], ...args: unknown[]) => actual.realpath(
+      entryProbe.fixtureDist && normal(path) === dist() ? entryProbe.fixtureDist : path,
+      ...args as []
+    ),
+    readFile: (path: Parameters<typeof actual.readFile>[0], ...args: unknown[]) => {
+      return actual.readFile(
+        entryProbe.fixtureDist && normal(path) === `${dist()}/index.html`
+          ? `${entryProbe.fixtureDist}/index.html` : path,
+        ...args as [BufferEncoding]
+      );
+    },
+    mkdir: async (path: Parameters<typeof actual.mkdir>[0], ...args: unknown[]) => {
+      const result = await actual.mkdir(path, ...args as []);
+      if (entryProbe.fixtureDist && /\/title-transition\/[0-9A-Za-z-]+$/.test(normal(path))) {
+        entryProbe.createdRuns.push(String(path));
+      }
+      return result;
+    }
+  };
+  return { ...mocked, default: mocked };
+});
+
+vi.mock('../scripts/qa-observer/rendered-webgl-browser-probe.mjs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../scripts/qa-observer/rendered-webgl-browser-probe.mjs')>();
+  const identity = { fixture: 'reviewed-chrome' };
+  class FixtureSession {
+    async open() {}
+    async attachToPage() {}
+    async browserCommand() { return { targetInfos: [{ targetId: 'fixture-page', type: 'page', url: 'about:blank', title: '', attached: false }] }; }
+    async command(method: string, params: any = {}) {
+      entryProbe.methods.push(method);
+      if (method === 'Page.navigate') entryProbe.navigations.push(params.url);
+      if (method === 'Emulation.setDeviceMetricsOverride') {
+        entryProbe.viewport = { width: params.width, height: params.height };
+        entryProbe.viewports.push(entryProbe.viewport);
+        vi.stubGlobal('innerWidth', params.width); vi.stubGlobal('innerHeight', params.height);
+      }
+      if (method === 'Page.addScriptToEvaluateOnNewDocument') return { identifier: 'fixture-injection' };
+      if (method === 'Runtime.evaluate') {
+        entryProbe.observations++;
+        entryProbe.beforeObservation?.();
+        return { result: { value: Function(`return ${params.expression}`)() } };
+      }
+      if (method === 'Page.captureScreenshot') return {
+        data: entryProbe.screenshot!(entryProbe.viewport.width, entryProbe.viewport.height)
+      };
+      return {};
+    }
+  }
+  return { ...actual, DevtoolsPipeSession: FixtureSession,
+    attestStableHeadlessChromeExecutable: async () => identity,
+    readReviewedChromeExecutableIdentity: async () => identity,
+    exactChromeExecutableIdentity: () => true,
+    spawnHeadlessChromeProbe: () => ({ fixture: true }),
+    cleanupRenderedWebglProbeResources: async ({ removeProfile }: { removeProfile: () => Promise<void> }) => {
+      entryProbe.cleaned++; await removeProfile();
+    }
+  };
+});
+
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); document.body.innerHTML = ''; });
 
 function crc32(value: Buffer) {
   let crc = 0xffff_ffff;
@@ -113,6 +202,151 @@ function ownerGeometryObservation() {
     }
   };
 }
+
+async function withDirectMenuFixture(run: () => Promise<void>, base = '/') {
+  const fixtureDist = await mkdtemp(join(tmpdir(), 'warpkeep-menu-entry-test-'));
+  entryProbe.fixtureDist = fixtureDist;
+  entryProbe.createdRuns = []; entryProbe.methods = []; entryProbe.navigations = []; entryProbe.viewports = []; entryProbe.cleaned = 0;
+  entryProbe.beforeObservation = undefined; entryProbe.observations = 0;
+  entryProbe.screenshot = (width, height) => syntheticPng(width, height, () => [32, 68, 61]).toString('base64');
+  await writeFile(join(fixtureDist, 'index.html'), `<!doctype html><div id="root"></div><script type="module" src="${base}assets/menu-entry.js"></script>\n`);
+  document.body.innerHTML = `<div id="root"><div class="warpkeep-experience" data-phase="menu" data-presented-screen="menu">
+    <section class="warpkeep-experience__screen--menu" data-presented="true" aria-hidden="false">
+      <main class="warpkeep-menu" data-visible="true" data-active="true" aria-hidden="false">
+        <h1 id="warpkeep-menu-title">WARPKEEP</h1>
+        <div class="warpkeep-menu-world-3d" data-model-ready="true"><canvas width="320" height="844"></canvas></div>
+        <button data-command="enter-realm" tabindex="0">Enter Realm</button>
+      </main>
+    </section></div></div>`;
+  vi.spyOn(document, 'readyState', 'get').mockReturnValue('complete');
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ isContextLost: () => false } as WebGLRenderingContext);
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({
+    x: 20, y: 120, left: 20, top: 120, right: 300, bottom: 164, width: 280, height: 44, toJSON() {}
+  }));
+  const previousElementFromPoint = document.elementFromPoint;
+  document.elementFromPoint = () => document.querySelector('button[data-command="enter-realm"]');
+  vi.spyOn(window, 'getComputedStyle').mockReturnValue({
+    display: 'block', visibility: 'visible', opacity: '1', getPropertyValue: () => ''
+  } as unknown as CSSStyleDeclaration);
+  let clock = 0; vi.spyOn(Date, 'now').mockImplementation(() => clock += 1000);
+  try { await run(); }
+  finally {
+    entryProbe.fixtureDist = ''; document.elementFromPoint = previousElementFromPoint;
+    const artifactRoot = resolve(process.cwd(), '.cache', 'warpkeep-qa', 'title-transition');
+    for (const path of entryProbe.createdRuns) {
+      if (!resolve(path).startsWith(`${artifactRoot}\\`) && !resolve(path).startsWith(`${artifactRoot}/`)) {
+        throw new Error('Test artifact escaped its owned root');
+      }
+      await rm(path, { recursive: true, force: true });
+    }
+    await rm(fixtureDist, { recursive: true, force: true });
+  }
+}
+
+describe('current production menu entry caller', () => {
+  it('selects the direct-menu path and includes the reachable 320px profile', async () => {
+    await withDirectMenuFixture(async () => {
+      const result = await runTitleTransitionFrameBrowserProbe();
+      expect(result.caseCount).toBe(4); expect(result.passCount).toBe(4);
+      expect(entryProbe.viewports).toContainEqual({ width: 320, height: 844 });
+      expect(entryProbe.methods).toContain('Page.captureScreenshot');
+      expect(entryProbe.methods).not.toContain('Page.addScriptToEvaluateOnNewDocument');
+      expect(entryProbe.methods).not.toContain('Page.startScreencast');
+      expect(entryProbe.cleaned).toBe(4);
+      expect(entryProbe.navigations).toHaveLength(4);
+      expect(entryProbe.navigations.map((url) => new URL(url).pathname)).toEqual(['/ptr/', '/ptr/', '/ptr/', '/ptr/']);
+      const manifest = JSON.parse(readFileSync(join(result.artifactDirectory, 'manifest.json'), 'utf8'));
+      expect(manifest.scope).toBe('production direct-menu entry; images require inspection; performance not measured');
+      expect(manifest).toMatchObject({ deploymentBase: '/ptr/', stableDistIndex: true, distInput: 'repository-dist' });
+      expect(manifest.cases.every((entry: any) => entry.passes[0]?.kind === 'direct-menu-entry')).toBe(true);
+      expect(manifest.cases.every((entry: any) => entry.transitionMeasured === false)).toBe(true);
+    }, '/ptr/');
+  });
+
+  it('rejects a disabled primary control instead of treating a menu node as usable', async () => {
+    await withDirectMenuFixture(async () => {
+      document.querySelector<HTMLButtonElement>('button[data-command="enter-realm"]')!.disabled = true;
+      await expect(runTitleTransitionFrameBrowserProbe({ ownerOnly: true })).rejects.toMatchObject({
+        message: 'Production menu entry case desktop-menu-entry failed.',
+        cause: { message: 'Production menu entry remained unusable.' }
+      });
+      expect(entryProbe.methods).not.toContain('Page.captureScreenshot');
+      expect(entryProbe.cleaned).toBe(1);
+    });
+  });
+
+  it('rejects a lost WebGL context even when the castle and primary control are ready', async () => {
+    await withDirectMenuFixture(async () => {
+      vi.mocked(HTMLCanvasElement.prototype.getContext).mockReturnValue({ isContextLost: () => true } as WebGLRenderingContext);
+      await expect(runTitleTransitionFrameBrowserProbe({ ownerOnly: true })).rejects.toMatchObject({
+        message: 'Production menu entry case desktop-menu-entry failed.',
+        cause: { message: 'Production menu entry remained unusable.' }
+      });
+      expect(entryProbe.methods).not.toContain('Page.captureScreenshot');
+      expect(entryProbe.cleaned).toBe(1);
+    });
+  });
+
+  it('waits for the existing castle readiness signal before capturing a WebGL entry', async () => {
+    await withDirectMenuFixture(async () => {
+      const mount = document.querySelector<HTMLElement>('.warpkeep-menu-world-3d')!;
+      delete mount.dataset.modelReady;
+      entryProbe.beforeObservation = () => {
+        if (entryProbe.observations === 3) mount.dataset.modelReady = 'true';
+      };
+      const capture = vi.fn(entryProbe.screenshot!);
+      entryProbe.screenshot = (...args) => {
+        expect(entryProbe.observations).toBe(3);
+        return capture(...args);
+      };
+      const result = await runTitleTransitionFrameBrowserProbe({ ownerOnly: true });
+      expect(entryProbe.observations).toBe(3); expect(capture).toHaveBeenCalledOnce();
+      const manifest = JSON.parse(readFileSync(join(result.artifactDirectory, 'manifest.json'), 'utf8'));
+      expect(manifest.cases[0].passes[0]).toMatchObject({ modelReady: true, modelState: '' });
+      expect(manifest.modelReadinessScope).toBe('castle and guardian ready; optional scenery settlement not measured');
+      expect(entryProbe.cleaned).toBe(1);
+    });
+  });
+
+  it('rejects a failed castle model even when canvas and primary control remain usable', async () => {
+    await withDirectMenuFixture(async () => {
+      document.querySelector<HTMLElement>('.warpkeep-menu-world-3d')!.dataset.modelState = 'castle-unavailable';
+      await expect(runTitleTransitionFrameBrowserProbe({ ownerOnly: true })).rejects.toMatchObject({
+        message: 'Production menu entry case desktop-menu-entry failed.',
+        cause: { message: 'Production menu model unavailable.', cause: 'castle-unavailable' }
+      });
+      expect(entryProbe.methods).not.toContain('Page.captureScreenshot');
+      expect(entryProbe.cleaned).toBe(1);
+    });
+  });
+
+  it('serves a PTR build at its generated prefix without leaking root aliases or symlinks', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'warpkeep-menu-ptr-dist-test-'));
+    let server: Awaited<ReturnType<typeof createProductionDistLoopbackServer>> | undefined;
+    try {
+      await mkdir(join(directory, 'assets'));
+      await writeFile(join(directory, 'index.html'), '<script type="module" src="/ptr/assets/app.js"></script>');
+      await writeFile(join(directory, 'assets', 'app.js'), 'export {};\n');
+      await symlink(join(directory, 'assets', 'app.js'), join(directory, 'assets', 'linked.js'));
+      server = await createProductionDistLoopbackServer(directory);
+      expect((await fetch(`${server.origin}/ptr/`)).status).toBe(200);
+      const asset = await fetch(`${server.origin}/ptr/assets/app.js`);
+      expect(asset.status).toBe(200); expect(asset.headers.get('content-type')).toContain('javascript');
+      expect((await fetch(`${server.origin}/`)).status).toBe(404);
+      expect((await fetch(`${server.origin}/assets/app.js`)).status).toBe(404);
+      expect((await fetch(`${server.origin}/ptr/assets/linked.js`)).status).toBe(404);
+      expect((await fetch(`${server.origin}/ptr/assets/app.js?cache=1`)).status).toBe(404);
+    } finally { await server?.close(); await rm(directory, { force: true, recursive: true }); }
+  });
+
+  it('rejects an ambiguous mixed-root/PTR entry instead of silently serving the wrong base', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'warpkeep-menu-base-dist-test-'));
+    try {
+      await writeFile(join(directory, 'index.html'), '<script src="/assets/app.js"></script><link href="/ptr/assets/app.css">');
+      await expect(createProductionDistLoopbackServer(directory)).rejects.toThrow('deployment bases disagreed');
+    } finally { await rm(directory, { force: true, recursive: true }); }
+  });
+});
 
 describe('production title transition frame browser lane', () => {
   it('contains the release-blocking owner case and pairwise matrix axes', () => {
