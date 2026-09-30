@@ -35,10 +35,11 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
   const placementResult = placement ? evaluatePlacement04(placement,
     view.buildings.filter(building => building.kind !== selectedKind).map(building => building.placement)) : null;
   const placementProblem = placementResult && !placementResult.valid ? placementMessage04(placementResult.reason) : null;
+  const currentProjectKind = KINDS04.find(kind => kind === view.state.project?.kind);
   const confirmationProblem = view.atlas === null
     ? 'Return to world to refresh Realm details before confirming construction.'
     : view.state.project !== undefined
-      ? `Wait for ${BUILDING_NAMES04[view.state.project.kind]} construction to complete before starting another construction.`
+      ? `Wait for ${currentProjectKind ? BUILDING_NAMES04[currentProjectKind] : 'the current building'} construction to complete before starting another construction.`
       : placementProblem;
   const confirmationProblemId = `${reviewId}-confirmation`;
   const candidate = useMemo(() => {
