@@ -50,9 +50,15 @@ compiled-dispatcher fixtures and six current-bootstrap recovery cases. The
 seven-path fixture repair derives current SHA-256, Git blob, length-framed link
 and receipt digest from actual bytes only when opted in. Historical defaults,
 original corpus, validators and equality assertions remain intact. Pinned Windows
-Node 22.22.3 selection passes 27/27 across six files; native verification and the
-source-pin/dispatcher repairs are still pending. Final exact-source family,
-build/payload/mirror refresh follows the repaired checks.
+Node 22.22.3 selection passes 27/27 across six files. The source-pin generator
+now owns the missing legacy envelope hash; its real-policy regression fails
+before the repair and rejects drift in either paired envelope after derivation.
+Dispatcher fixtures reopen genuine raw Git blobs from the retained manifest's
+original compiler input instead of mixing current source with frozen compiled
+pins. The compiled outputs and original manifest remain unchanged. Their pinned
+Windows selection passes 114, with two platform skips and zero failures; native
+verification remains pending. Final exact-source family/build/payload/mirror
+refresh follows the repaired checks.
 
 Independent PTR review found no further demonstrated source defect in authority,
 selection, immutable retry or provider renewal. The existing connected smoke

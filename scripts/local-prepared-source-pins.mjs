@@ -37,6 +37,7 @@ const SOURCE_PINS = [
   ['SEALED_REALMS_SOURCE_AUTHORITY_SOURCE_SHA256', 'scripts/sealed-realms-production-source-authority.mjs'],
   ['SEALED_REALMS_SOURCE_AUTHORITY_DECLARATION_SHA256', 'scripts/sealed-realms-production-source-authority.d.mts'],
   ['GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_SOURCE_SHA256', BOOTSTRAP],
+  ['GENESIS_001_LEGACY_LAUNCH_ENVELOPE_SHA256', 'docs/operations/greater-realm-production-launch-envelope.sh.txt'],
   ['GENESIS_001_POLICY_OBSERVATION_SOURCE_SHA256', 'scripts/genesis001-policy-observation-receipt.mjs'],
   ['GENESIS_001_ADMISSION_MONITOR_CURRENT_STATE_SOURCE_SHA256', 'scripts/genesis001-admission-monitor-current-state.mjs'],
   ['GENESIS_001_SEALED_LAUNCH_ADOPTION_SOURCE_SHA256', 'scripts/genesis001-sealed-launch-adoption.mjs'],

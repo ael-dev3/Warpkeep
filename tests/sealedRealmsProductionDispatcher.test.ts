@@ -3,7 +3,7 @@ import { sealedRealmsPrivateBase } from './helpers/sealedRealmsPrivateRoots';
 // @vitest-environment node
 
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import {
   chmodSync,
   mkdirSync,
@@ -15,7 +15,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 const nativePolicyFixture = vi.hoisted(() => ({ execute: vi.fn(), preparation: Object.freeze({}), evidence: Object.freeze({}) }));
@@ -70,19 +70,42 @@ void task6eUnavailableStatus;
 const SOURCE = 'a'.repeat(40);
 const SWAPPED_SOURCE = 'c'.repeat(40);
 const MODULE_TREE = 'b'.repeat(40);
-const BOOTSTRAP_BLOB = 'c'.repeat(40);
-const BOOTSTRAP_SHA256 = 'be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a';
 const ADMIN_SECRET_PATH = '/private/warpkeep/admin-secret';
 const POLICY_RECORD_PATH = 'activation-evidence/records/g001-policy-observation-bootstrap-receipt.json';
 const privateCleanups = new Set<() => void>();
 afterEach(() => { for (const cleanup of privateCleanups) cleanup(); });
-const BOOTSTRAP_BYTES = readFileSync(
-  new URL('../scripts/greater-realm-production-bootstrap.mjs', import.meta.url),
-);
-const ENVELOPE_BLOB = '62690134fd5de632e7831eca0b213eab101d4275';
-const ENVELOPE_BYTES = readFileSync(
-  new URL('../docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt', import.meta.url),
-);
+// The source-only candidate retains its previously compiled dispatcher until
+// the native M2 promotion. Pair this dispatcher fixture with its genuine input
+// blobs instead of mixing current source bytes with historical compiled pins.
+const compilerManifest = JSON.parse(readFileSync(
+  new URL('../scripts/sealed-realms-production-bundle-manifest-v1.json', import.meta.url), 'utf8',
+)) as { sourceCommit: string; sourceTree: string };
+expect(compilerManifest.sourceCommit).toMatch(/^[0-9a-f]{40}$/u);
+expect(compilerManifest.sourceTree).toMatch(/^[0-9a-f]{40}$/u);
+function compilerGit(args: readonly string[]): Buffer {
+  return execFileSync(process.platform === 'win32' ? 'git.exe' : '/usr/bin/git',
+    ['--no-replace-objects', ...args], {
+      cwd: resolve(import.meta.dirname, '..'), maxBuffer: 4 * 1024 * 1024,
+      timeout: 30_000, windowsHide: true,
+    });
+}
+expect(compilerGit(['rev-parse', '--verify', `${compilerManifest.sourceCommit}^{tree}`]).toString('ascii').trim())
+  .toBe(compilerManifest.sourceTree);
+function compilerSource(path: string) {
+  const blob = compilerGit(['rev-parse', '--verify', `${compilerManifest.sourceCommit}:${path}`])
+    .toString('ascii').trim();
+  expect(blob).toMatch(/^[0-9a-f]{40}$/u);
+  const bytes = compilerGit(['cat-file', 'blob', blob]);
+  expect(createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')).toBe(blob);
+  return { blob, bytes, sha256: createHash('sha256').update(bytes).digest('hex') };
+}
+const bootstrapInput = compilerSource('scripts/greater-realm-production-bootstrap.mjs');
+const BOOTSTRAP_BLOB = bootstrapInput.blob;
+const BOOTSTRAP_BYTES = bootstrapInput.bytes;
+const BOOTSTRAP_SHA256 = bootstrapInput.sha256;
+const envelopeInput = compilerSource('docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt');
+const ENVELOPE_BLOB = envelopeInput.blob;
+const ENVELOPE_BYTES = envelopeInput.bytes;
 
 function lifecycleSummary(runId: string, input: Readonly<{
   authorityPhase?: string | null;
