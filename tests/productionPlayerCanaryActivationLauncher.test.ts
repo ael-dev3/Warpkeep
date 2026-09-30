@@ -5,18 +5,18 @@ import {
   chmodSync,
   closeSync,
   fstatSync,
-  mkdtempSync,
   openSync,
   readFileSync,
   readSync,
   realpathSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { createOwnedTemporaryFixtures } from './helpers/ownedTemporaryFixture';
 
 import {
   EXPECTED_PROTECTED_SOURCE_CLOSURE_MEMBER_COUNT,
@@ -39,6 +39,9 @@ import {
   defaultProductionPlayerCanaryReceiptDirectory,
   inspectSettledProductionPlayerCanaryReceipt,
 } from '../scripts/production-player-canary-receipt.mjs';
+
+const temporaryFixtures = createOwnedTemporaryFixtures();
+afterEach(() => temporaryFixtures.cleanup());
 
 const CANDIDATE = 'a'.repeat(40);
 const PREDECESSOR = 'b'.repeat(40);
@@ -469,7 +472,7 @@ describe('production player canary activation request launcher', () => {
   });
 
   it('accepts only exact canonical owner-private regular-file stdin', () => {
-    const directory = mkdtempSync(join(tmpdir(), 'warpkeep-activation-launch-'));
+    const directory = temporaryFixtures.create('warpkeep-activation-launch-');
     chmodSync(directory, 0o700);
     const path = join(directory, 'launch.json');
     writeFileSync(path, `${JSON.stringify(launch, null, 2)}\n`, { mode: 0o600 });

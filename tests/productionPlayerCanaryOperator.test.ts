@@ -5,15 +5,14 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readdirSync,
-  realpathSync,
   unlinkSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { createOwnedTemporaryFixtures } from './helpers/ownedTemporaryFixture';
 
 import {
   productionPlayerCanaryApprovalReconciliationTestSeams,
@@ -42,6 +41,9 @@ import {
 import {
   productionPlayerCanaryOperatorJournalTestSeams,
 } from '../scripts/production-player-canary-operator-journal.mjs';
+
+const temporaryFixtures = createOwnedTemporaryFixtures();
+afterEach(() => temporaryFixtures.cleanup());
 
 const NOW = new Date('2026-08-13T12:00:00.000Z');
 const NONCE = 'a'.repeat(64);
@@ -86,15 +88,9 @@ const commandAuthority = deriveProductionPlayerCanaryCommandAuthorityV2({
 });
 
 function privateFixture() {
-  const home = mkdtempSync(join(
-    realpathSync(tmpdir()),
-    'warpkeep-canary-operator-',
-  ));
+  const home = temporaryFixtures.create('warpkeep-canary-operator-');
   chmodSync(home, 0o700);
-  const repositoryRoot = mkdtempSync(join(
-    realpathSync(tmpdir()),
-    'warpkeep-canary-operator-repository-',
-  ));
+  const repositoryRoot = temporaryFixtures.create('warpkeep-canary-operator-repository-');
   chmodSync(repositoryRoot, 0o700);
   const directories = Object.fromEntries([
     'founder-plans', 'owner-approvals', 'receipts',

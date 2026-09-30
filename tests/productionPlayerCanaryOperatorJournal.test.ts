@@ -3,24 +3,26 @@
 import {
   chmodSync,
   existsSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
-  realpathSync,
   statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { createOwnedTemporaryFixtures } from './helpers/ownedTemporaryFixture';
 
 import {
   productionPlayerCanaryOperatorConfirmationDigest,
   productionPlayerCanaryOperatorEffectDigest,
   productionPlayerCanaryOperatorJournalTestSeams,
 } from '../scripts/production-player-canary-operator-journal.mjs';
+
+const temporaryFixtures = createOwnedTemporaryFixtures();
+afterEach(() => temporaryFixtures.cleanup());
 
 const journalTestSeams = productionPlayerCanaryOperatorJournalTestSeams!;
 const withProductionPlayerCanaryOperatorJournal =
@@ -34,10 +36,7 @@ const COMMAND = 'e'.repeat(64);
 const REGISTRATION = 'f'.repeat(64);
 
 function privateHome() {
-  const directory = mkdtempSync(join(
-    realpathSync(tmpdir()),
-    'warpkeep-canary-operator-home-',
-  ));
+  const directory = temporaryFixtures.create('warpkeep-canary-operator-home-');
   chmodSync(directory, 0o700);
   return directory;
 }

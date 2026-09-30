@@ -5,21 +5,23 @@ import {
   chmodSync,
   lstatSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
-  realpathSync,
   renameSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { createOwnedTemporaryFixtures } from './helpers/ownedTemporaryFixture';
 
 import {
   executeGenesis001CensusPrivacySafeReceipt,
 } from '../scripts/genesis001-census-privacy-safe-receipt.mjs';
+
+const temporaryFixtures = createOwnedTemporaryFixtures();
+afterEach(() => temporaryFixtures.cleanup());
 
 const COMMIT = '7'.repeat(40);
 const BASENAME = 'warpkeep-access-request-census-20260827T123456Z.txt';
@@ -44,7 +46,7 @@ function censusText() {
 }
 
 function fixture() {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'warpkeep-census-proof-')));
+  const root = temporaryFixtures.create('warpkeep-census-proof-');
   chmodSync(root, 0o700);
   const censusPath = join(root, BASENAME);
   const exporterReceiptPath = join(root, EXPORT_REFERENCE_BASENAME);
