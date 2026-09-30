@@ -166,6 +166,15 @@ Keep unknown browser warnings fail-closed and use the Windows Chrome full-stack
 run for integration evidence. Neither emulated run establishes phone
 performance.
 
+Verify `id -u` is `1000` and the native checkout is owned by `warpkeep` before
+running its Git, build, test or sealed-launch commands. The sealed-launch
+verifier deliberately clears user/global Git configuration; invoking it as
+root against this checkout fails with `SEALED_LAUNCH_CHECKOUT_INVALID`. A root
+fetch or build can also leave `.git`, tracked files and ignored outputs owned by
+root. If that happens, inventory the exact files created by the run and restore
+only those paths to `warpkeep`; do not hide the mismatch with `safe.directory`
+or a broad recursive ownership change.
+
 When the read-only public Pages mirror planner runs from WSL against the
 Windows-mounted `Warpkeep-Live` checkout, Git can reject its mounted ownership
 or report a CRLF `CNAME` as modified. Do not change global Git configuration

@@ -36,6 +36,18 @@ commit passed Gitleaks 8.30.1 with one commit / about 7.20 KB scanned and no
 leaks. GitHub Actions were skipped for September. No public write, merge,
 provider mutation or deployment occurred; `/ptr/` remains unshipped.
 
+The `WarpkeepRunner` WSL distro defaults to `root`. An initial preparation
+check invoked that way failed with `SEALED_LAUNCH_CHECKOUT_INVALID`: the
+verifier clears global Git configuration and correctly rejected the executor
+against the `warpkeep`-owned checkout. No release configuration or provider
+state changed. Use `wsl -d WarpkeepRunner -u warpkeep -e bash -lc ...` and verify
+UID 1000 before native operations. The root invocation in this session had
+created root-owned Git metadata, the five updated tracked files, 146 build
+entries and two ignored receipts; those exact outputs were restored to
+`warpkeep`. The preparation check then passed at source
+`72d9e3eef386f83b95610085b2a6267303a71a04`, reporting package `0.3.43`, Pages
+approval false, G001/G002/PTR identities unset and PTR presentation disabled.
+
 ## Authenticated provider identity and PTR schema recheck — 30 September 2026, 01:40 CEST (23:40 UTC)
 
 Read-only checks were performed from the maintained candidate at signed head
