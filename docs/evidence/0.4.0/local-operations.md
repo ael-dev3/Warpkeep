@@ -2,7 +2,7 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Native recovery verification and evidence audit — 30 September 2026, 17:03 CEST (15:03 UTC)
+## Native recovery verification and evidence audit — 30 September 2026, 17:57 CEST (15:57 UTC)
 
 The earlier signed source a23b863c0093293195a7fbfe6477e9b9e2f93ee1 (tree
 9e6b075c8f10be154a126a1f10aae930fbdea186) passed its scoped UID-1000/Node 22.22.3
@@ -80,8 +80,8 @@ reported duration from wall-clock timestamp subtraction. Zero new private
 fixture homes or historical removals remain. Root verified the job is terminal.
 Source/report/log/summary and actual test/wrapper exit records are retained
 under ignored artifacts/qa/root-suite-recovery-final-* and copied to Windows.
-The failed full/affected attempts remain separate. Final source-bound family,
-build/payload/mirror receipts follow this pass.
+The failed full/affected attempts remain separate. The current source-family and scoped checks are recorded below; PR #374 owns
+final exact-source build/payload/mirror receipts.
 
 Public presentation readbacks also identified private source/archive links that
 returned 404 for anonymous readers. Signed profile checkpoint
@@ -129,6 +129,21 @@ strict text/version tests remain intact. Windows Node 22.22.3 legal checks passe
 before repair. Source/readback/review reports are under `artifacts/qa/public-legal-*`.
 These source corrections remain unpublished, and the PTR plan preserves the
 existing Alpha root bytes; do not label the served Alpha pages as corrected.
+
+Later bounded source repairs correct public feedback/legal contact routes, dated
+project descriptions and the private-source build link. Native checks at signed
+601635cd passed 86/86 across nine files, zero failures/skips, exit 0. Exact tree
+3e0a56f001d7ddc00a7b31b6005af65a0fcb319c; Node 22.22.3/UID 1000 and clean source
+are retained under artifacts/qa/public-route-native-final-*. These later repairs
+are scoped separately from the 3d47d05e full pass. The complete 16-output family
+was raw-captured at 1e1cad71 (3353 files, 220079849 bytes, 16 MiB/file and 256 MiB
+aggregate caps) and independently reproduced; native policy passes. Manifest
+862f68eb675632273d2541a82b9b2f9d816c633e83eafc294524ea50e7c35399.
+The owning source checkpoint is signed 601635cd. PR #374 maintains the final
+exact-source production-build/payload/mirror receipts; resolve those receipts and
+current refs before publication. The 28 retained compiler outputs and original
+M1 inputs remain unchanged. These source corrections are not yet served; PTR
+publication preserves the existing Alpha root, including its historical pages.
 
 Independent PTR review found no further demonstrated source defect in authority,
 selection, immutable retry or provider renewal. The existing connected smoke

@@ -1,9 +1,9 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 17:03 CEST (15:03 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 17:57 CEST (15:57 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
-Refreshed 30 September 2026, 17:03 CEST (15:03 UTC). PR #374 is the open,
+Refreshed 30 September 2026, 17:57 CEST (15:57 UTC). PR #374 is the open,
 unmerged candidate against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the live branch head and final exact-source receipts from PR #374.
@@ -23,12 +23,21 @@ The four-worker full native suite passed at signed 3d47d05e, exit 0:
 clean source and zero new/historical-removed private fixture homes are recorded.
 The job is terminal. Its exact source/report/log/summary/exit records are under
 artifacts/qa/root-suite-recovery-final-*; preserve earlier failed evidence.
-Complete source-family reproduction and native policy pass. Refresh final
-family/build/payload/mirror receipts, then follow the October delivery sequence.
+Complete source-family reproduction and native policy pass. Resolve final
+build/payload/mirror receipts on PR #374, then follow the October delivery sequence.
 For any future job, inspect actual stable birth/group before restarting or
 moving source. A lost tool handle or wrapper exit alone is not child termination.
 The compiler inventory is 28 unchanged retained paths, preserving original inputs.
 See current local-operations evidence and PR #374 for exact source scopes.
+
+Later public-feedback/legal-contact, project-status and build-stamp repairs pass
+86/86 native checks at signed 601635cd, separate from the 3d47d05e full pass.
+The complete 16-output family independently reproduces and native policy passes.
+See docs/evidence/0.4.0/local-operations.md for exact scope and capture.
+PR #374 maintains final exact-source build/payload/mirror receipts. The 28 retained
+compiler paths and original inputs remain unchanged. These source corrections
+are not yet served; the PTR plan preserves the existing Alpha root.
+
 
 Existing gesture, confirmation, focus, menu contrast and mobile-control defects
 are repaired. Real server testing found the first-use keep read has a fixed

@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current delivery checkpoint — 30 September 2026, 17:03 CEST (15:03 UTC)
+## Current delivery checkpoint — 30 September 2026, 17:57 CEST (15:57 UTC)
 
 PR #374 is the open, unmerged candidate on fix/g001-census-admission-proxy
 against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. It includes reviewed
@@ -30,8 +30,16 @@ checkout are recorded. Zero new private fixture homes or historical removals
 remain. The job is terminal. Retained source/report/log/summary/exit evidence is
 under artifacts/qa/root-suite-recovery-final-*; keep the earlier failed attempts
 separate. The complete source family independently reproduces after refreeze
-and native policy passes. Final exact-source family/build/payload/mirror refresh
-follows this result; PR #374 owns the final head and receipts.
+and native policy passes. PR #374 owns the final exact-source build/payload/mirror receipts.
+
+Later public-feedback/legal-contact, project-status and build-stamp repairs pass
+86/86 native checks at signed 601635cd, separate from the 3d47d05e full pass.
+The complete 16-output family independently reproduces and native policy passes.
+See [local evidence](../../evidence/0.4.0/local-operations.md) for exact scope and capture.
+PR #374 maintains final exact-source build/payload/mirror receipts. The 28 retained
+compiler paths and original inputs remain unchanged. These source corrections
+are not yet served; the PTR plan preserves the existing Alpha root.
+
 
 The source-only compiler inventory derives 28 retained paths, all unchanged
 against main; the earlier 22-path summary was incomplete. Original compiler
