@@ -200,7 +200,7 @@
   .keep04 .keep04-ready .keep04-scene-region { min-width: 0; padding: 8px; }
   .keep04 .keep04-ready .keep04-scene-toolbar { display: grid; grid-template-columns: 44px 44px minmax(88px, .8fr) minmax(0, 1.4fr); gap: 5px; padding-bottom: 5px; }
   .keep04 .keep04-ready .keep04-scene-toolbar button { min-height: 44px; padding: 4px 6px; font-size: 12px; line-height: 1.15; }
-  .keep04 .keep04-ready .keep04-scene-canvas { height: clamp(156px, 56dvh, 224px); }
+  .keep04 .keep04-ready .keep04-scene-canvas { height: clamp(144px, 42dvh, 180px); }
   .keep04 .keep04-ready .keep04-panel { width: 100%; max-height: min(68dvh, 300px); }
   .keep04 .keep04-ready > .keep04-loop-rail { grid-area: rail; margin: 0; }
   .keep04 .keep04-ready > .keep04-dock { grid-area: dock; margin-top: 0; }
