@@ -3565,12 +3565,12 @@
     {
       "path": "src/components/WarpkeepExperience.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4365d7d71d20d7355c3b5f94baf6432b51664a198a790f99832a9d364c5a0bb5"
+      "sha256": "cae021c9b5eda8e2093c496c486657e00f1d7a695b9854e5dc511e802afb2b3c"
     },
     {
       "path": "src/components/audio/WarpkeepAudioDirector.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f8257345d3979c92c79bf4eeb3a0b2c83e4d69f723ef20c033915af323b769d3"
+      "sha256": "a0b2e6fa7c59b8add44334a75b37bbd64a9ec72ef00c64d8fea1bae0501c3a11"
     },
     {
       "path": "src/components/audio/WarpkeepHapticsDirector.tsx",
@@ -3585,12 +3585,12 @@
     {
       "path": "src/components/audio/audioDirector.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b4d6662cde354bcbaa0ea7097ff3b4a2a358b4d4adc4d05db5ab99252b938247"
+      "sha256": "13731b47528d8532578ce518416234ffc9ef5114e24066e98ed90b9f4337e887"
     },
     {
       "path": "src/components/audio/index.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f6222584fed3fb3996b7a9f898cfc5d1f77a92508d14bdf0589d769162dd3209"
+      "sha256": "9fa7ee501ccd6a6cf2e1de475171d4f98572b10b5c749ffba09a78b1f286510a"
     },
     {
       "path": "src/components/audio/proceduralSfxEngine.ts",
@@ -3835,7 +3835,7 @@
     {
       "path": "src/components/keep04/Keep04SceneHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6ea84aee32175d23a5d44c76a727c4e5768a69d8d4488584b4e531b7cf6fafa9"
+      "sha256": "44a45bc623bd5fd7647aa9ad697b2b1501584e4c0d7ae3cd7c98952f0f443562"
     },
     {
       "path": "src/components/keep04/Keep04Schematic.tsx",
@@ -3845,12 +3845,12 @@
     {
       "path": "src/components/keep04/Keep04Screen.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "77f5e16a9ff0bf01b505394824413993485869ec6f09c76a86bfc6d68ddfe184"
+      "sha256": "50186a5384f837b780259d0e755d5a40abb09acd931401169f81c433f127c0df"
     },
     {
       "path": "src/components/keep04/Keep04Screen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "fc63a6c339a24db0707996e76d35b1853bf72f9b4319162cd465856da9268739"
+      "sha256": "4a539eb2ec23e6bbe3a303e4a6238577a9a51325b31a87b2f365eedb8e3c5321"
     },
     {
       "path": "src/components/keep04/Keep04WorkerPanel.tsx",
@@ -3870,7 +3870,7 @@
     {
       "path": "src/components/keep04/createKeep04Scene.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6cbf5750cde9d7bf372a7d91b40eafcb467f23e0f9440d2a7afe0b9322bc5b66"
+      "sha256": "027312060602188ccecef882a020db5e6bf55c724ba713b2211eb362a659b85d"
     },
     {
       "path": "src/components/keep04/formatKeep04Duration.ts",
@@ -3885,12 +3885,12 @@
     {
       "path": "src/components/keep04/keep04DressingPlans.generated.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e4b1f82e0667f555defa87cb8176a25700ae1816eb94c09a6bc9f9dc1f08d2ba"
+      "sha256": "4c673625dc76d40f5fdbfd818e9605c06e34d7afc32a942491b067bee5c95e36"
     },
     {
       "path": "src/components/keep04/keep04VisualProfile.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "00762e3245b693bd8db57467faad03ed11eec54696ae705c5ac6bab2b5ce40e7"
+      "sha256": "96f33ebfaf30a025a85c3ca7f2cb2b97effd9478fa6328c3c818a2de2b0228d2"
     },
     {
       "path": "src/components/keep04/keep04VoxelDressing.ts",
@@ -4260,7 +4260,7 @@
     {
       "path": "src/components/realm/createGreaterRealmWorldCanvasHost.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a8779ed482c2624b35b4733b290b7bc81ff5ba565ac21208f5058974a7d65562"
+      "sha256": "cc3097ca5edfa4ef9ad0a9b4248af1b5b1d8edd68492a29937fd83ed1907dc28"
     },
     {
       "path": "src/components/realm/createLowPolyGrassGeometry.ts",

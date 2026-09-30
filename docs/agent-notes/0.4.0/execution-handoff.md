@@ -11,10 +11,13 @@ app/Vite noEmit checks and independent source reviews passed. Reproductions,
 rendered fixture scope and unchanged server-authority checks are in
 [local operations](../../evidence/0.4.0/local-operations.md#mobile-gesture-repair--30-september-2026-0927-cest-0727-utc).
 
-These runtime files belong to the protected prepared closure. Refresh the
-complete derived family and independently verify it on native Linux, then
-record the final signed source and exact build/payload/mirror receipt on PR
-#374. The candidate is still unmerged and unpublished. Keep September free
+These runtime files belong to the protected prepared closure. The complete
+family was refreshed from signed repair b696c3b7: all 3,351 source files
+matched raw Git blobs, all 16 derived outputs reproduced independently and
+the 1,250-member native UID-1000 policy passed. Its manifest SHA-256 is
+9a28bb82a32e4f7af2aa212285245e65b30ec8145c42f552b09751bfd5b1d8d0.
+The final signed source and exact build/payload/mirror receipt are recorded
+on PR #374. The candidate is still unmerged and unpublished. Keep September free
 of GitHub Actions; preserve Alpha and keep G002 admissions closed. Final
 owner PTR play, physical-device performance and release evidence remain open.
 

@@ -37,6 +37,15 @@ do not reuse an older retained total for the later run whose counts were lost.
 Current source and exact build/payload/mirror receipts belong on PR #374.
 No GitHub Actions, provider deployment or public-mirror write was performed.
 
+The signed repair checkpoint is b696c3b7fad97de28632aac0085344ddb985ce5b.
+All 3,351 native tracked files matched its raw Git blobs. The complete
+prepared-closure family was rederived: 1,250 members, 16 outputs, manifest
+SHA-256 9a28bb82a32e4f7af2aa212285245e65b30ec8145c42f552b09751bfd5b1d8d0.
+A fresh process reproduced all outputs and the UID-1000 Linux policy verifier
+passed. Only the manifest and four generated workflow commitments changed;
+no workflow was run. This refresh is candidate verification, not M1/M2 or
+production acceptance.
+
 ## September 30 local verification bundle — 30 September 2026
 
 At candidate head ac437ea35c708026f2a42b6785110fa6940d5202,
