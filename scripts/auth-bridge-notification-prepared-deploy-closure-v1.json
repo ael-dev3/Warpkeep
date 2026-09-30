@@ -3550,7 +3550,7 @@
     {
       "path": "src/build/buildInfo.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "eef7e6f5eaa993d9c29a496ce6f76585d20a30921f4da1728d8766630973cfdd"
+      "sha256": "ef8d4a35da3bc1807f318a9162627743b45ded509bb276fe9f6e0201f41dc110"
     },
     {
       "path": "src/build/buildInfoTypes.ts",
@@ -3960,7 +3960,7 @@
     {
       "path": "src/components/menu/WarpkeepBuildStamp.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2b0c931d31d0f884f843c24781e54cd0833f06f5c7900082fb733aa829a9d58b"
+      "sha256": "e3df10fb0945beebac46616aabe0a4a73b35f0dc71317e4b1dfee8359a58e1cf"
     },
     {
       "path": "src/components/menu/WarpkeepMainMenu.css",
@@ -4080,7 +4080,7 @@
     {
       "path": "src/components/realm/RealmAccessibilityControls.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e00e4ef1d2bc6b7ddb59dab4ce6b378f478d0fed4e424a33d008fa94b2f77b05"
+      "sha256": "3cd7642a52202d009946a015bf9b53e6b25df8d286cbf39d5ca08ee0ee9bba90"
     },
     {
       "path": "src/components/realm/RealmCastleLabels.tsx",
@@ -4120,7 +4120,7 @@
     {
       "path": "src/components/realm/RealmMapScreen.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "929b624971b3eec04b7f3b3ab353a4d6aa92f932cde8237be9a8e73153f2e709"
+      "sha256": "4a21ec94f54b7e35d11a4c02f624eaf3d1260afaa070213ff69bedc859752f9a"
     },
     {
       "path": "src/components/realm/RealmMapScreen.tsx",
@@ -5070,7 +5070,7 @@
     {
       "path": "src/legal/alphaTermsPolicy.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "bde17bc20e64f9cdebda91528f6b51a6df16603bc63759c307e6a98ba9fc0194"
+      "sha256": "12461df5b604b9ae3cf4ecf0dcd9a791669093383a0f9eb251cd1dcbece56cb7"
     },
     {
       "path": "src/legal/publicDocuments.ts",
