@@ -272,15 +272,14 @@ async function runLifecycleAsync(mode: string, ...arguments_: string[]): Promise
 }
 
 function deadProcessIdentity(): Readonly<{ pid: number; start: string }> {
-  const result = spawnSync('/bin/sh', [
-    '-c', '/usr/bin/printf "%s\\n" "$$"; /bin/ps -o lstart= -p "$$"',
-  ], {
-    encoding: 'utf8',
-    env: { PATH: '/usr/bin:/bin' },
-  });
-  if (result.status !== 0) throw new Error('failed to create dead process identity');
-  const [pid, ...start] = result.stdout.trim().split('\n');
-  return Object.freeze({ pid: Number(pid), start: start.join(' ').trim() });
+  const maximumPid = Number(readFileSync('/proc/sys/kernel/pid_max', 'utf8').trim());
+  const pid = maximumPid + 1;
+  if (!Number.isSafeInteger(maximumPid) || maximumPid < 1 || pid > 0x7fffffff) {
+    throw new Error('failed to create impossible process identity');
+  }
+  // A recently exited PID can be reused by another full-suite worker before
+  // the lifecycle check runs, making a dead-process fixture nondeterministic.
+  return Object.freeze({ pid, start: 'Synthetic absent process' });
 }
 
 function processStart(pid: number): string {
