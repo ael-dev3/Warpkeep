@@ -1,14 +1,18 @@
 # Continue Warpkeep 0.4
 
-## Current continuation — 30 September 2026, 03:37 CEST (01:37 UTC)
+## Current continuation — 30 September 2026, 03:48 CEST (01:48 UTC)
 
-Windows, GitHub and the idle native release checkout are clean and synchronized
-at signed commit `7d12e0168bc8b935910ef08a4d05abbd7f45b9bc` on
-`fix/g001-census-admission-proxy`. The source between `1b333d0e` and `7d12e016`
-is documentation-only. PR #374 is open and mergeable against `main`
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; #375–#378 remain open. No GitHub
-Actions workflow, run, check or status was queried or used during September.
-Development commits retain `[skip actions]`.
+The release candidate's game source is signed commit
+`4613bd04904050ab80e91b4e5eae2e6062da79b4` on
+`fix/g001-census-admission-proxy`. PR #374 remains open and mergeable against
+unchanged `main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; this continuation
+only refreshes release documentation. Its commit list already contains the
+reviewed source commits from #375 (menu), #376 (castle film), #377 (sealed G002
+soundtrack), and #378 (Greater Realm biome trees).
+Do not merge or cherry-pick those feature branches separately while #374
+contains their exact commits; reassess their open PRs after #374 lands. No
+GitHub Actions workflow, run, check or status was queried, dispatched, rerun or
+used during September. Development commits retain `[skip actions]`.
 
 The full native Linux suite passed at code-equivalent source `1b333d0e`:
 692 files passed / 1 skipped; 12,582 tests passed / 97 skipped. The exact
@@ -18,18 +22,14 @@ continuity, City Mill and discounted Lumber Camp construction, hard-reload
 persistence, Worker recovery and resource dispatch/return. No production
 identity, data or service was used by that playthrough.
 
-The exact `/ptr/` production build passed at `7d12e016`, including typecheck,
+The exact `/ptr/` production build passed at `4613bd04`, including typecheck,
 runtime assets, production exclusions, public-boundary, Farcaster, sealed-launch
-preparation, license and file-size checks. Its payload is 446 files /
-138,994,282 bytes; payload manifest SHA-256
-`210e859740fd0c7b248d7ae6b9878685d278e1c72b39bd9172dd1bd59f739a9b`, content
-manifest SHA-256
-`62cfc907b909ddd945cdd42c51dd50e2d9378f37d82e76ce42fd2eb16e97ea50`, and root
-HTML SHA-256
-`6133927f664b03a5a2b60539b713fa46f169e85d5368e58745986e0d4e3a732a`. The
+preparation, license and file-size checks. The source-bound payload manifest
+SHA-256 is
+`8da0b8ad506b757eedd8bdd2d55b6e2f72b991197c487aca8b55b4df7c5cf004`. The
 read-only mirror plan against `Warpkeep-Live/main@b6afe92` preserves 341 Alpha
-entries, targets 800 PTR files, removes none and hashes to
-`d344beed0070be95a3751ad6ee8333650a8b123ad4595eebed5c9ae9049008e9`.
+entries, targets 800 PTR entries, removes none and hashes to
+`82abc6cacb6dc62e688f03ddb34bf445d15657f21c7ff867f8b2cc93993528fd`.
 
 A direct top-level Chromium preview of the exact production `/ptr/` output
 rendered the 0.4 menu and loaded its 3D scene. After it settled, the cold
