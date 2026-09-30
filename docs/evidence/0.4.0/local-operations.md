@@ -113,6 +113,23 @@ menu tests. Before/final reports are separate under `artifacts/qa/private-build-
 No private source SHA was substituted into the public generated-assets repository.
 This later scoped presentation repair is not included in the 3d47d05e full pass.
 
+Anonymous readbacks of the served Terms, Social Contract and Privacy pages
+confirmed private repository/security links returned 404. Their source now uses
+the observed-200 public channel for ordinary feedback and owner profile contact
+links to request a private reporting channel before sharing details. Privacy
+no longer tells public visitors to open an inaccessible repository issue. The
+source also corrects the open-source and absent-gameplay descriptions: development
+is private and Alpha systems remain unfinished, without claiming unpublished PTR
+capabilities are live. Dated correction notices preserve the agreement/notice
+revision IDs; admission, conduct, reward, privacy and material-change obligations,
+server policy and historical acceptance remain unchanged. Root independently
+recomputed all three normalized visible-text SHA commitments from actual HTML;
+strict text/version tests remain intact. Windows Node 22.22.3 legal checks passed
+15/15 with zero failures/skips; genuine contact and status regressions failed
+before repair. Source/readback/review reports are under `artifacts/qa/public-legal-*`.
+These source corrections remain unpublished, and the PTR plan preserves the
+existing Alpha root bytes; do not label the served Alpha pages as corrected.
+
 Independent PTR review found no further demonstrated source defect in authority,
 selection, immutable retry or provider renewal. The existing connected smoke
 manually replaces fixture sessions at 80s; it does not exercise the production
