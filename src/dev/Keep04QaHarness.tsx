@@ -19,15 +19,29 @@ const EMPTY_FRAME_INTERVAL_SUMMARY: Keep04FrameIntervalSummary = Object.freeze({
 export function summarizeKeep04FrameIntervals(records: readonly unknown[]): Keep04FrameIntervalSummary {
   if (!Array.isArray(records)) return EMPTY_FRAME_INTERVAL_SUMMARY;
   const intervals: number[] = [];
-  let previous: number | null = null;
+  let previousScheduledFrame: number | null = null;
   for (const record of records) {
-    if (record === null || typeof record !== 'object' || Array.isArray(record)) continue;
+    if (record === null || typeof record !== 'object' || Array.isArray(record)) {
+      previousScheduledFrame = null;
+      continue;
+    }
     const event = Object.getOwnPropertyDescriptor(record, 'event')?.value;
-    if (event !== 'frame') continue;
+    if (event !== 'frame') {
+      previousScheduledFrame = null;
+      continue;
+    }
     const timestampMs = Object.getOwnPropertyDescriptor(record, 'timestampMs')?.value;
-    if (typeof timestampMs !== 'number' || !Number.isFinite(timestampMs) || timestampMs < 0) { previous = null; continue; }
-    if (previous !== null && timestampMs >= previous) intervals.push(timestampMs - previous);
-    previous = timestampMs;
+    if (typeof timestampMs !== 'number' || !Number.isFinite(timestampMs) || timestampMs < 0) {
+      previousScheduledFrame = null;
+      continue;
+    }
+    if (previousScheduledFrame !== null && timestampMs >= previousScheduledFrame) intervals.push(timestampMs - previousScheduledFrame);
+    // `pendingRafs` is sampled after this draw schedules its successor. An
+    // event-driven one-shot render ends the cadence sequence; do not interpret
+    // the next user-triggered render after an idle period as a dropped frame.
+    const pendingRafs = Object.getOwnPropertyDescriptor(record, 'pendingRafs')?.value;
+    previousScheduledFrame = typeof pendingRafs === 'number' && Number.isFinite(pendingRafs) && pendingRafs > 0
+      ? timestampMs : null;
   }
   if (intervals.length === 0) return EMPTY_FRAME_INTERVAL_SUMMARY;
   intervals.sort((left, right) => left - right);

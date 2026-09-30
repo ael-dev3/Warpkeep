@@ -65,17 +65,24 @@ it('serializes only bounded numeric observations, never arbitrary credentials, o
   expect(JSON.parse(json).rendererTextures).toBeNull();
 });
 
-it('summarizes rendered frame cadence with nearest-rank percentiles and ignores terminal observations', () => {
+it('summarizes scheduled rendered-frame cadence without counting event-driven idle gaps', () => {
   expect(summarizeKeep04FrameIntervals([
-    { event: 'loading', timestampMs: 2 },
-    { event: 'frame', timestampMs: 10 },
-    { event: 'frame', timestampMs: 30 },
-    { event: 'frame', timestampMs: 60 },
-    { event: 'disposed', timestampMs: 90 },
+    { event: 'loading', timestampMs: 2, pendingRafs: 0 },
+    { event: 'frame', timestampMs: 10, pendingRafs: 1 },
+    { event: 'frame', timestampMs: 30, pendingRafs: 1 },
+    { event: 'frame', timestampMs: 60, pendingRafs: 0 },
+    // This later draw follows an event-driven idle period, not a scheduled RAF.
+    { event: 'frame', timestampMs: 30791.9, pendingRafs: 0 },
+    { event: 'disposed', timestampMs: 30792, pendingRafs: 0 },
   ])).toEqual({ sampleCount: 2, p50Ms: 20, p95Ms: 30, p99Ms: 30 });
-  expect(summarizeKeep04FrameIntervals([{ event: 'frame', timestampMs: 12 }, { event: 'fallback', timestampMs: 20 }]))
+  expect(summarizeKeep04FrameIntervals([
+    { event: 'frame', timestampMs: 12, pendingRafs: 0 },
+    { event: 'frame', timestampMs: 30000, pendingRafs: 0 },
+  ]))
     .toEqual({ sampleCount: 0, p50Ms: null, p95Ms: null, p99Ms: null });
-  expect(summarizeKeep04FrameIntervals([{ event: 'frame', timestampMs: -1 }, { event: 'frame', timestampMs: 4 }]))
+  expect(summarizeKeep04FrameIntervals([{ event: 'frame', timestampMs: 12, pendingRafs: 1 }, { event: 'fallback', timestampMs: 20, pendingRafs: 0 }]))
+    .toEqual({ sampleCount: 0, p50Ms: null, p95Ms: null, p99Ms: null });
+  expect(summarizeKeep04FrameIntervals([{ event: 'frame', timestampMs: 12, pendingRafs: 1 }, { event: 'frame', timestampMs: -1, pendingRafs: 1 }, { event: 'frame', timestampMs: 14, pendingRafs: 0 }]))
     .toEqual({ sampleCount: 0, p50Ms: null, p95Ms: null, p99Ms: null });
 });
 

@@ -27,6 +27,20 @@ profiles below, but it is still synthetic instrumentation. It does not measure
 GPU upload, retained heap, production transfer, physical devices or the required
 owner journey, and it does not change any acceptance result.
 
+Cadence intervals connect only consecutive frames where the previous rendered
+frame reported a scheduled successor RAF (`pendingRafs > 0`). One-shot,
+event-driven renders break the sequence, so the idle time before a later user
+action cannot be misreported as a slow frame. A workload that produces no
+continuous RAF sequence correctly reports a null cadence percentile; measure
+input-to-visible feedback separately.
+
+During a visible local Chrome check on 2026-09-30, five fixture redraws were
+separated by user-driven idle periods; the earlier collector incorrectly
+reported a roughly 30.8-second p95 interval. After the correction, two isolated
+event-driven redraws correctly produced zero cadence samples and null
+percentiles. This validates the DEV recorder's idle-gap handling only; it is
+not a production frame-rate measurement or a 0.4 performance pass.
+
 The automated 36-case Windows screenshot launcher does not start or stop this
 bounded recorder. Its synthetic-render-observations.json output contains one
 latest-frame snapshot per case, not a cadence series or p50/p95/p99 result.
