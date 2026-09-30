@@ -2,6 +2,34 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact notes-inclusive candidate build and read-only mirror plan — 30 September 2026, 07:17 CEST
+
+At source `e86230ac70de5aa34f206d7d6c0cf65561d4274e`, native WarpkeepRunner
+ran the full production build with Node 22.22.3 / npm 10.9.8,
+`DEPLOY_BASE=/ptr/` and `VITE_WARPKEEP_BUILD_SHA` bound to that commit. Type,
+build, runtime-asset/catalog integrity, production exclusions, Greater Realm
+public-boundary scan (3,351 tracked paths / 1,908 entries), and Farcaster
+integrity passed. The RealmMapScreen warning remains 677.80 kB raw / 188.23 kB
+gzip.
+
+Payload: 446 files / 138,997,364 bytes; source tree
+`0774f9eae7edd6838deec54170d47b890eff691a`; manifest SHA-256
+`3500461d6373e6079ccf96e4d4be662a9026d20c702a48ba499fabdc47b8a5ba`; content
+manifest SHA-256
+`6a3cc4d20e17487a5b1c73f8d8b201f43cacd82761eaba92264bc340f2780f63`; root
+HTML SHA-256
+`0fee6bac0b65afedb914fcb6df6ba2c4f57c423857d8ac1fbfdffe0726623f5d`. Payload
+write and immediate check passed.
+
+Read-only mirror plan SHA-256
+`8ba1d5c3aee8454475a379bdf3bf6bd03bc97205af3e5c0a47ea387c888d1535` against
+Warpkeep-Live `main@b6afe92e7b09197b1578d992103ac3c8f916d8ad`, tree
+`746fbd4facb0ad520c9dac1276d27d7a168f53d0`: preserves 341 Alpha-root entries,
+targets 800 files and removes zero obsolete generated files. Independent
+read-only recheck passed; the public checkout was not modified. This receipt is
+bound to source `e86230ac`; the documentation-only head refresh that follows
+requires a final exact-head build, recorded on PR #374.
+
 ## Keep04 cadence recorder regression — 30 September 2026, 06:50 CEST
 
 Signed source `45d569db` fixes a DEV-only measurement defect in

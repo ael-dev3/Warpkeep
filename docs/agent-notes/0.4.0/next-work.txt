@@ -1,5 +1,5 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 07:10 CEST (05:10 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 07:17 CEST (05:17 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
@@ -8,10 +8,13 @@ PR #374 is the open, unmerged 0.4 candidate against unchanged main
 from open PRs #375–#378; do not merge their older heads separately. Read #374
 for the current signed candidate SHA and exact build/mirror receipts. Windows
 and native WarpkeepRunner are the local development and Linux-build
-environments. The candidate branch now includes the frame-cadence recorder
-correction at `45d569db`; the focused test, typecheck and visible browser
-reproduction passed. Refresh the exact production build after this notes
-commit; the current exact-head receipt belongs in PR #374.
+environments. The candidate branch includes the frame-cadence recorder fix at
+`45d569db`; focused tests, typecheck and visible browser reproduction passed.
+The exact `/ptr/` build and read-only mirror receipt passed at notes-inclusive
+source `e86230ac` and are recorded in the PR #374 snapshot and local operations
+evidence. The final exact head and its refreshed receipt are in PR #374; any
+later tracked edit requires a new exact-head build and receipt before the
+hosted release lane resumes.
 
 The full native Linux suite passed at code/test commit 4350ae7a before the
 DEV-only recorder correction: 692 files passed / 1 skipped, 12,582 tests

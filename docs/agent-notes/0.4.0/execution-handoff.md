@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current continuation — 30 September 2026, 07:10 CEST (05:10 UTC)
+## Current continuation — 30 September 2026, 07:17 CEST (05:17 UTC)
 
 PR #374 remains open and unmerged against unchanged main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; its pushed candidate branch now
@@ -12,6 +12,14 @@ successor RAF. The focused contract test passes 19 active cases (1 skipped),
 typecheck passes, and a corrected visible repro with two isolated redraws
 returns zero cadence samples/null percentiles. This confirms recorder behavior,
 not a production performance result.
+
+At exact notes-inclusive candidate `e86230ac70de5aa34f206d7d6c0cf65561d4274e`,
+the native `/ptr/` production build passed with Node 22.22.3 / npm 10.9.8 and
+`DEPLOY_BASE=/ptr/`. Payload write/check and independently rechecked read-only
+Warpkeep-Live mirror planning passed; exact hashes and scope are in the local
+operations record and PR #374 snapshot. This handoff refresh is documentation-
+only. The final exact head and refreshed build/mirror receipt are recorded on
+PR #374; regenerate them after any further tracked change.
 
 The full native suite result remains at pre-fix code/test commit
 `4350ae7a7c190bf65c5515cbb229e5b5485778b4`: 692 files passed / 1 skipped,
