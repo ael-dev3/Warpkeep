@@ -2,6 +2,34 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## World touch targets and short-landscape drawers — 30 September 2026, 11:39 CEST (09:39 UTC)
+
+Independent review of candidate d7bcd820 found 35.2px gathering buttons,
+34.4px camera buttons and 36px narrow navigation buttons. Resource buttons
+also overrode the generic disclosure minimum through selector specificity.
+The existing resource controls and Worker picker now have a 44px minimum;
+narrow/coarse camera controls are at least 44×44px, and navigation/disclosures
+are at least 44px high. Desktop camera density remains unchanged.
+
+Rendered review of the existing synthetic Greater Realm host at 320×640,
+390×844 and 700×390 found no horizontal overflow. Closed drawer plaques now
+have an 11.12px gap at the standard 16px root size. At 700×390, the navigation
+card previously covered the open drawer's disclosure, preventing a touch
+close. Open narrow/coarse drawers now render above that card; DOM hit-tests
+and actual open/close actions verified both resource and camera disclosures.
+Camera controls measured at least 44×44px, with a 187px scrolling body over
+237px of content. Existing scroll limits remain unchanged. The source-scoped
+Worker-picker rule was reviewed; this legacy-host fixture does not render the
+new PTR picker. These viewport checks do not establish physical-phone or
+authenticated-owner acceptance.
+
+The existing WorldScene/PTR host suites passed 81/81 under pinned Windows
+Node 22.22.3. Only the existing world stylesheet changes game presentation.
+The separate source-only M1 audit found the retained compiled bundles and
+their original input identities unchanged and within native capture limits.
+Current source closure/build receipts still need refresh after the signed
+checkpoint; September's Actions pause and live release requirements remain.
+
 ## Menu readability and source-link repair — 30 September 2026, 10:49 CEST (08:49 UTC)
 
 The full native root suite at clean signed 15b88b578c118416c19f4d6ba92bd3a5f0327f75

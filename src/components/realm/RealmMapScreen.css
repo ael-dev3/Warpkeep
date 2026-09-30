@@ -893,7 +893,7 @@
 }
 
 .greater-realm-world__resources button {
-  min-height: 2.2rem;
+  min-height: 44px;
   padding: 0.42rem 0.5rem;
   border: 1px solid rgb(155 190 163 / 42%);
   border-radius: 0.34rem;
@@ -902,6 +902,11 @@
   font: 650 0.7rem/1.25 Inter, ui-sans-serif, system-ui, sans-serif;
   text-transform: uppercase;
   cursor: pointer;
+}
+
+.greater-realm-world__resources select {
+  min-height: 44px;
+  max-width: 100%;
 }
 
 .greater-realm-world__resources button[aria-pressed="true"] {
@@ -956,6 +961,7 @@
   }
 
   .greater-realm-world__controls[data-open="true"] {
+    z-index: 11;
     right: max(0.65rem, var(--realm-safe-right));
     bottom: calc(max(0.65rem, var(--realm-safe-bottom)) + 4.25rem);
     width: auto;
@@ -968,6 +974,11 @@
     padding: 0.14rem;
     overflow: auto;
     overscroll-behavior: contain;
+  }
+
+  .greater-realm-world__controls button {
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .greater-realm-world__helm {
@@ -1029,7 +1040,7 @@
   }
 
   .greater-realm-world__continuity button {
-    min-height: 2.25rem;
+    min-height: 44px;
     padding-inline: 0.46rem;
     font-size: 0.66rem;
   }
@@ -1037,13 +1048,14 @@
   .greater-realm-world__resources {
     top: auto;
     right: auto;
-    bottom: calc(max(0.65rem, var(--realm-safe-bottom)) + 3.15rem);
+    bottom: calc(max(0.65rem, var(--realm-safe-bottom)) + 4.25rem);
     left: max(0.65rem, var(--realm-safe-left));
     width: min(15.5rem, calc(100vw - 5.4rem));
     padding: 0.34rem;
   }
 
   .greater-realm-world__resources[data-open="true"] {
+    z-index: 11;
     right: max(0.65rem, var(--realm-safe-right));
     bottom: calc(max(0.65rem, var(--realm-safe-bottom)) + 4.25rem);
     width: auto;
@@ -1058,7 +1070,7 @@
   }
 
   .greater-realm-world__disclosure-trigger {
-    min-height: 2.35rem;
+    min-height: 44px;
     padding: 0.42rem 0.55rem;
     text-align: start;
   }
