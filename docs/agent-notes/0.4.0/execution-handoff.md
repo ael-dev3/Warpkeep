@@ -1,6 +1,47 @@
 # Continue Warpkeep 0.4
 
-## Current continuation — 30 September 2026, 03:48 CEST (01:48 UTC)
+## Current continuation — 30 September 2026, 04:23 CEST (02:23 UTC)
+
+The Keep layout source reviewed here is signed commit
+`f289c3adf65f7afed8b21059ac3231ea721db571` on
+`fix/g001-census-admission-proxy`, with PR #374 still open. This checkpoint's
+documentation commit changes no game source; PR #374 records the exact current
+head and its final build receipts. The reviewed feature commits from #375–#378
+remain present in #374; do not merge older feature heads separately.
+
+The existing Keep screen now uses a two-column short-landscape layout at
+761–960 CSS pixels wide and at most 500 pixels tall. Resource/status/navigation
+content stays beside the scene, controls keep 44-pixel minimum targets, an open
+inspection panel stacks below the scene, and the canvas is capped at 180 pixels
+with a 144-pixel minimum. This is presentation work only; it changes no Realm
+authority, interactions, building rules, or resource behavior.
+
+On the exact layout source, `npm run typecheck` passed and the Keep screen,
+accessibility and placement UI suites passed 70/70. Windows Chrome 154 captured
+all 36 synthetic desktop, portrait, landscape, loading, placement, construction,
+completion, fallback and reduced-motion cases with stable source, 0 horizontal
+overflow, no network-boundary violation, WebGL in the 844×390 all-buildings
+case, and verified browser cleanup. The landscape and 390×844 portrait captures
+were visually inspected. These are DEV fixtures, not production gameplay or
+physical-phone acceptance. The capture retains `reviewRequired: true` because
+each document reports the QA CSP sandbox warning (`sandbox-script-origin-tokens`);
+the raw browser text is intentionally not retained. No capture error or boundary
+violation occurred.
+
+At 04:20 CEST the public Alpha root returned HTTP 200 and `/ptr/` HTTP 404.
+Sealed-launch preparation still reports package `0.3.43`, Pages approval false,
+unset G001/G002/PTR identities and disabled PTR presentation. No provider write,
+merge or public release occurred. Do not query, dispatch, rerun or use GitHub
+Actions during September; keep `[skip actions]` on repository pushes. After
+October 1, resume the exact-source verification and signed publication sequence
+only with the owner's direction. Physical-phone performance, production PTR
+gameplay and owner acceptance remain open.
+
+The retained exact-source capture is
+`artifacts/keep04-qa/windows-run-qt9Ty7/`; its report explicitly distinguishes
+render capture from performance or device acceptance.
+
+## Superseded continuation — 30 September 2026, 03:48 CEST (01:48 UTC)
 
 The release candidate's game source is signed commit
 `4613bd04904050ab80e91b4e5eae2e6062da79b4` on
