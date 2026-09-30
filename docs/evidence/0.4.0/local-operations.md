@@ -2,11 +2,11 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Native recovery verification and evidence audit — 30 September 2026, 16:23 CEST (14:23 UTC)
+## Native recovery verification and evidence audit — 30 September 2026, 16:41 CEST (14:41 UTC)
 
-Signed source a23b863c0093293195a7fbfe6477e9b9e2f93ee1 (tree
-9e6b075c8f10be154a126a1f10aae930fbdea186) is synced across Windows/native/GitHub.
-The UID-1000/Node 22.22.3 native selection passed 276/276 across seven files:
+The earlier signed source a23b863c0093293195a7fbfe6477e9b9e2f93ee1 (tree
+9e6b075c8f10be154a126a1f10aae930fbdea186) passed its scoped UID-1000/Node 22.22.3
+native selection: 276/276 across seven files:
 shared ownership/budget, bootstrap, observation envelope, publisher, cutover
 journal, private-deploy journal and operator. Actual caller regressions preserve
 live partial-file bytes, and publisher supervision agrees with the shared birth
@@ -15,10 +15,11 @@ for both repaired private-deployment test helpers. The Windows journal attempt
 remains an unsupported POSIX-mode attempt, not behavioral evidence.
 Ignored process-birth-native source/result/log/retention reports retain this scope.
 
-At signed 580cd588, raw capture checked all 3353 tracked files against exact Git bytes (220047659
-bytes, maximum 12507408). All 16 closure outputs independently reproduce across
-1250 members; native policy passes with manifest SHA-256
-2fa6947c834facae128e82fc8f79113123194ca3610200b27bfee226479845a9.
+After reviewed refreeze, raw capture at signed 8b9a2d38 checked all 3353 tracked
+files against exact Git bytes (220069143 bytes, maximum 12507408). All 16 closure
+outputs independently reproduce across 1250 members; native policy passes with
+manifest SHA-256 1ba229ec3135301c822a6db3d6f6ec79623b8ec2cdb2e3015a359c025be89fb0.
+Earlier family 2fa6947c at 580cd588 is superseded.
 The source-only compiler audit derives 28 direct retained paths: 24 four-lane
 bundle/declaration/workflow-entry/lane-entry paths, both compiler manifests,
 the recovery claim bundle and its wrapper. Every raw blob equals main 786c0b2b.
@@ -65,8 +66,15 @@ blobs) retain exact bytes and modes. The original four reviewed operators are
 unchanged; only the stable-birth budget, legacy envelope and publisher differ.
 The reviewed operator subset now binds these seven exact files to signed
 580cd588. The complete historical contract and original freeze remain intact;
-new regressions reject byte/mode drift in every operator. Repeat actual native
-CLI/affected verification and refresh the complete family/build/plan afterward.
+new regressions reject byte/mode drift in every operator. Native checks at
+5edbce26 passed 321, including the actual V2/V4/V5 release CLI, and failed only
+the new test's POSIX worktree/index mode mismatch. That synthetic setup now
+sets the actual executable bit as well; its single targeted native regression
+passes with all 14 byte/mode drift refusals (169 cases filtered, not platform skips).
+Signed 3d47d05e contains the test repair. Its durable four-worker full suite
+started 14:38:55.959 UTC and is active with a birth-matching handle at
+artifacts/qa/root-suite-recovery-final-handle.json. Source remains pinned;
+final source-bound build/payload/mirror receipts follow the completed report.
 
 Independent PTR review found no further demonstrated source defect in authority,
 selection, immutable retry or provider renewal. The existing connected smoke

@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current delivery checkpoint — 30 September 2026, 16:23 CEST (14:23 UTC)
+## Current delivery checkpoint — 30 September 2026, 16:41 CEST (14:41 UTC)
 
 PR #374 is the open, unmerged candidate on fix/g001-census-admission-proxy
 against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. It includes reviewed
@@ -8,28 +8,31 @@ work from PRs #375–#378; do not merge their older heads separately. Resolve
 the current exact head and final closure/build/publication-plan hashes from
 PR #374 before acting.
 
-Final workspace inspection repaired private test-home retention and found a
-real recovery defect: Linux wall-clock-derived process start displays can drift
-for the same active owner. New shared/bootstrap/envelope/publisher readers use
-kernel boot UUID and start tick. Live legacy/digest mismatches stay unknown;
-death requires stable birth mismatch or ESRCH. Native tests at signed a23b863c
-pass 276/276 across seven files, with no new journal/operator fixture residue
-or historical-directory removal. Independent caller review passes. The complete
-16-output source family reproduces and native policy passes. Its complete native
-report now records 12,558 passed, 110 failed and 97 skipped across 694 files.
-The run is terminal. Repairs address an omitted legacy-envelope source pin and
-incoherent historical/current test bindings; current-byte recovery fixtures pass
-27/27 on pinned Windows Node. Native validation and final closure/build/plan
-refresh remain pending. See the latest local evidence and PR #374.
-Preserve ambiguous old records; do not delete locks or generate recovery keys.
+Linux recovery now uses kernel boot UUID and start tick rather than a driftable
+wall-clock display. Live legacy/digest mismatches remain unknown. Scoped native
+caller tests pass 276/276 at a23b863c, with zero new private test homes or
+historical removals. Preserve ambiguous records; do not delete locks or create keys.
+
+The complete native run at a23b863c found 110 failures. Repairs now derive the
+missing paired-envelope source pin, bind current-byte recovery fixtures and
+pair retained compiled dispatcher fixtures with their original Git input.
+The actual native release CLI also exposed an older operator refreeze. The
+reviewed seven-helper reference now binds signed 580cd588; all 134 remaining
+frozen blobs, including the module/build recipe, are unchanged. New tests reject
+byte or mode drift in each helper. All previous failure boundaries pass focused
+native checks; a new POSIX test-mode setup issue is repaired and its regression
+passes. The failed attempts remain retained, separately scoped.
+
+The complete 16-output family independently reproduces after refreeze, and native
+policy passes. The full four-worker suite is active at signed 3d47d05e; inspect
+artifacts/qa/root-suite-recovery-final-handle.json and the actual matching birth,
+process group and terminal report before moving native source or restarting.
+Final exact-source family/build/payload/mirror refresh follows the result.
 
 The source-only compiler inventory derives 28 retained paths, all unchanged
-against main; an earlier 22-path summary was incomplete. Both original
-compiler-input identities remain intact. Fresh audits are clean in all four
-package boundaries; GitHub's main alerts await merge. For the native full suite,
-inspect artifacts/qa/root-suite-process-birth-handle.json and the actual matching
-process plus terminal report. A missing tool observation handle alone is not
-termination; keep native source pinned while work is active.
+against main; the earlier 22-path summary was incomplete. Original compiler
+inputs remain intact. Fresh audits are clean in all four package boundaries;
+GitHub's main alerts await merge. See the latest local evidence and PR #374.
 
 Existing mobile input, confirmation, focus and readability defects are repaired.
 World controls meet the scoped 44px minimum and opened drawers remain reachable

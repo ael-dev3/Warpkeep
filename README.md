@@ -72,6 +72,8 @@ ending conversion, matching the existing signed publisher.
 Linux recovery now identifies owners by kernel birth, so clock changes cannot
 make an active owner look reused. Ambiguous legacy records remain preserved;
 private deployment tests clean only their newly allocated temporary homes.
+Release preparation also verifies the paired launch scripts and binds reviewed
+operator corrections while preserving the frozen G001 module and build recipe.
 Independent affected tests and scoped rendered checks pass.
 
 The connected local PTR lane exercises the real module and client with normal

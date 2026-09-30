@@ -1,31 +1,30 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 16:23 CEST (14:23 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 16:41 CEST (14:41 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
-Refreshed 30 September 2026, 16:23 CEST (14:23 UTC). PR #374 is the open,
+Refreshed 30 September 2026, 16:41 CEST (14:41 UTC). PR #374 is the open,
 unmerged candidate against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the live branch head and final exact-source receipts from PR #374.
 
-Current recovery repair: Linux ps start displays can drift for the same process.
-Shared/bootstrap/envelope/publisher readers now use boot UUID plus kernel start
-tick; live legacy/digest mismatches remain unknown. Preserve ambiguous records.
-Native integration at signed a23b863c passes 276/276; independent review passes.
-The complete 16-output source family reproduces; native policy passes. Its full
-native report is terminal: 12,558 passed, 110 failed, 97 skipped, 694 files.
-Correct the omitted legacy-envelope source pin and historical/current fixture
-bindings, then run native affected and bounded parallel full checks. The current-
-byte recovery fixture repair passes 27/27 on Windows; native proof is pending.
-Refresh exact-source family/build/payload/mirror receipts after repair.
-Do not create keys or delete locks.
-Newly owned private test homes are cleaned after each test; historical temporary
-directories are unchanged, with zero new journal/operator residue. Inspect the
-actual birth-matching process through artifacts/qa/root-suite-process-birth-handle.json
-before restarting work; a lost tool handle alone is not proof of termination.
-The compiler inventory is 28 retained paths, all unchanged against main; the
-earlier 22-path summary was incomplete. Original input ancestry is preserved.
-See the latest local-operations evidence and PR #374 for actual source scopes.
+Recovery now uses boot UUID plus kernel start tick; live legacy/digest mismatches
+remain unknown. Preserve ambiguous records and historical private directories.
+Scoped native caller tests pass 276/276. The subsequent full report's 110 failures
+identified a missing paired-envelope source pin, historical/current fixture
+mismatches and an older operator refreeze. Repairs are signed and pushed.
+All original failure boundaries now pass native focused checks. The new POSIX
+mode fixture is also repaired and its actual byte/mode rejection test passes.
+The seven reviewed operator helpers bind signed 580cd588; all other frozen
+G001 module/build authority stays unchanged. No keys or manual lock deletion.
+
+Complete source family reproduction and native policy pass. The four-worker
+full suite is active at signed 3d47d05e. Inspect its actual stable birth/group and
+artifacts/qa/root-suite-recovery-final-handle.json before moving native source or
+restarting. A lost tool handle or wrapper exit alone is not child termination.
+Finish the full run, then refresh final family/build/payload/mirror receipts.
+The compiler inventory is 28 unchanged retained paths, preserving original inputs.
+See current local-operations evidence and PR #374 for exact source scopes.
 
 Existing gesture, confirmation, focus, menu contrast and mobile-control defects
 are repaired. Real server testing found the first-use keep read has a fixed
