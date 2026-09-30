@@ -1,9 +1,9 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 16:41 CEST (14:41 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 17:03 CEST (15:03 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
-Refreshed 30 September 2026, 16:41 CEST (14:41 UTC). PR #374 is the open,
+Refreshed 30 September 2026, 17:03 CEST (15:03 UTC). PR #374 is the open,
 unmerged candidate against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the live branch head and final exact-source receipts from PR #374.
@@ -18,11 +18,15 @@ mode fixture is also repaired and its actual byte/mode rejection test passes.
 The seven reviewed operator helpers bind signed 580cd588; all other frozen
 G001 module/build authority stays unchanged. No keys or manual lock deletion.
 
-Complete source family reproduction and native policy pass. The four-worker
-full suite is active at signed 3d47d05e. Inspect its actual stable birth/group and
-artifacts/qa/root-suite-recovery-final-handle.json before moving native source or
-restarting. A lost tool handle or wrapper exit alone is not child termination.
-Finish the full run, then refresh final family/build/payload/mirror receipts.
+The four-worker full native suite passed at signed 3d47d05e, exit 0:
+12,670 passed, zero failed, 97 skipped across 694 files. Node 22.22.3/UID 1000,
+clean source and zero new/historical-removed private fixture homes are recorded.
+The job is terminal. Its exact source/report/log/summary/exit records are under
+artifacts/qa/root-suite-recovery-final-*; preserve earlier failed evidence.
+Complete source-family reproduction and native policy pass. Refresh final
+family/build/payload/mirror receipts, then follow the October delivery sequence.
+For any future job, inspect actual stable birth/group before restarting or
+moving source. A lost tool handle or wrapper exit alone is not child termination.
 The compiler inventory is 28 unchanged retained paths, preserving original inputs.
 See current local-operations evidence and PR #374 for exact source scopes.
 
@@ -56,10 +60,10 @@ The e308 saved mirror plan is superseded. PR #374 maintains the final complete
 16-output closure and exact-head build/payload/mirror receipts. Refresh these
 after any further source change, preserving compiled lane/input ancestry.
 Do not repeat the real gameplay loop merely for notes or release-tool changes.
-The new shared process-owner/recovery changes justify a fresh full native suite;
-otherwise reopen checks only for a concrete source change or failure.
+The shared process-owner/recovery changes are covered by the 3d47d05e full pass.
+Reopen checks only for a concrete source change or failure.
 
-Alpha root/auth health HTTP 200; /ptr/ HTTP 404 at 15:00 CEST. No merge, provider/public
+Alpha root/auth health HTTP 200; /ptr/ HTTP 404 at 15:00 CEST. No main merge, game-provider/public-hosting
 write or 0.4 publication occurred. Sealed preparation remains 0.3.43, Pages
 approval false, IDs unset and PTR presentation disabled. Actual-phone
 performance and the RealmMapScreen bundle warning remain open. Hosting,

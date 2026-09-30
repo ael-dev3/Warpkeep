@@ -2,7 +2,7 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Native recovery verification and evidence audit — 30 September 2026, 16:41 CEST (14:41 UTC)
+## Native recovery verification and evidence audit — 30 September 2026, 17:03 CEST (15:03 UTC)
 
 The earlier signed source a23b863c0093293195a7fbfe6477e9b9e2f93ee1 (tree
 9e6b075c8f10be154a126a1f10aae930fbdea186) passed its scoped UID-1000/Node 22.22.3
@@ -71,10 +71,27 @@ new regressions reject byte/mode drift in every operator. Native checks at
 the new test's POSIX worktree/index mode mismatch. That synthetic setup now
 sets the actual executable bit as well; its single targeted native regression
 passes with all 14 byte/mode drift refusals (169 cases filtered, not platform skips).
-Signed 3d47d05e contains the test repair. Its durable four-worker full suite
-started 14:38:55.959 UTC and is active with a birth-matching handle at
-artifacts/qa/root-suite-recovery-final-handle.json. Source remains pinned;
-final source-bound build/payload/mirror receipts follow the completed report.
+Signed 3d47d05e contains the test repair. Its durable four-worker native suite
+exited 0: 12,670 passed, zero failed and 97 skipped across 694 files. Exact tree
+5a65e56567fe64c80a177326ced7a8015729d0f5, Node 22.22.3, UID 1000 and clean
+native source are retained. Source capture started 14:38:56.000 UTC; summary
+finished 14:55:44.068 UTC. Vitest reports 937.31 seconds; distinguish that
+reported duration from wall-clock timestamp subtraction. Zero new private
+fixture homes or historical removals remain. Root verified the job is terminal.
+Source/report/log/summary and actual test/wrapper exit records are retained
+under ignored artifacts/qa/root-suite-recovery-final-* and copied to Windows.
+The failed full/affected attempts remain separate. Final source-bound family,
+build/payload/mirror receipts follow this pass.
+
+Public presentation readbacks also identified private source/archive links that
+returned 404 for anonymous readers. Signed profile checkpoint
+`d64f4ab65352a5c1191f9776dfdd8f5ac76953fb` now uses the playable Alpha and public
+release assets. Signed Water Engine checkpoint
+`5bb43525859f02569099f7d8c973a8c73d48a878` clarifies the placeholder and private
+implementation boundary; its homepage now resolves to `https://warpkeep.com/`.
+Both outgoing ranges passed Gitleaks 8.30.1 and explicit non-forced pushes have
+matching remote readbacks. These documentation/metadata corrections do not
+change the served game, publish PTR, or establish engine implementation.
 
 Independent PTR review found no further demonstrated source defect in authority,
 selection, immutable retry or provider renewal. The existing connected smoke

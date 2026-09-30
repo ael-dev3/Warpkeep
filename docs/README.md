@@ -5,10 +5,11 @@ contributors. This page routes deeper work without duplicating it.
 
 ## Current 0.4 — start here
 
-These links describe the 0.4 development source integrated into `main`.
-Follow the [execution handoff](agent-notes/0.4.0/execution-handoff.md), current refs
-and open pull requests for active work. Source integration does not establish
-a live 0.4 release; check dated evidence before following a development guide.
+These links route the earlier integrated 0.4 foundation on `main` and the active,
+unmerged candidate on [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374).
+Follow the [execution handoff](agent-notes/0.4.0/execution-handoff.md) and current
+refs before continuing that work. Alpha 0.3.43 is live; the 0.4 PTR is unpublished.
+Check each guide's source and dated evidence before using it.
 
 - [Agent guide](../AGENTS.md) — durable repository rules, authority boundaries,
   verification and handoff expectations

@@ -5,10 +5,10 @@ attest the deployed frontend, service or realm.
 
 | Source | Where to begin |
 | --- | --- |
-| [Public main](https://github.com/ael-dev3/Warpkeep/tree/main) | Integrated 0.4 development source and preserved G001 implementation. Start new changes from main on a working branch; source integration does not establish a live 0.4 release. |
-| Active development work | [README](../../README.md), [current handoff](../agent-notes/0.4.0/README.md) and [execution handoff](../agent-notes/0.4.0/execution-handoff.md). Resolve the working branch and its evidence from current refs and open pull requests. |
+| [Private development main](https://github.com/ael-dev3/Warpkeep/tree/main) | Earlier integrated 0.4 foundation and preserved G001 implementation. Independent new work can start from main; continuing the release candidate requires its actual working branch. Source integration does not establish a live release. |
+| Active 0.4 candidate | [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374), [README](../../README.md) and [execution handoff](../agent-notes/0.4.0/execution-handoff.md). Resolve the current head, working branch and evidence before extending the candidate. |
 | Generated release candidate | The source identities, closure and manifests produced by the [local preparation components](../superpowers/specs/2026-09-05-warpkeep-local-release-preparation-design.md). A candidate is not a deployed release. |
-| Live deployment | The exact deployed artifacts and configured realm/service identities, checked through the [release acceptance record](../operations/0.4.0-release-checklist.md). |
+| Live deployment | [Warpkeep-Live](https://github.com/ael-dev3/Warpkeep-Live) publishes generated Alpha 0.3.43 assets at [warpkeep.com](https://warpkeep.com/). The 0.4 PTR remains unpublished. Check artifacts and realm/service identities through the [release acceptance record](../operations/0.4.0-release-checklist.md). |
 
 ## Find the owner of a question
 

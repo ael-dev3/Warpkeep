@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current delivery checkpoint — 30 September 2026, 16:41 CEST (14:41 UTC)
+## Current delivery checkpoint — 30 September 2026, 17:03 CEST (15:03 UTC)
 
 PR #374 is the open, unmerged candidate on fix/g001-census-admission-proxy
 against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. It includes reviewed
@@ -23,11 +23,15 @@ byte or mode drift in each helper. All previous failure boundaries pass focused
 native checks; a new POSIX test-mode setup issue is repaired and its regression
 passes. The failed attempts remain retained, separately scoped.
 
-The complete 16-output family independently reproduces after refreeze, and native
-policy passes. The full four-worker suite is active at signed 3d47d05e; inspect
-artifacts/qa/root-suite-recovery-final-handle.json and the actual matching birth,
-process group and terminal report before moving native source or restarting.
-Final exact-source family/build/payload/mirror refresh follows the result.
+The complete four-worker native suite passed at signed 3d47d05e: 12,670 passed,
+zero failed and 97 skipped across 694 files, exit 0. Source tree is
+5a65e56567fe64c80a177326ced7a8015729d0f5; Node 22.22.3/UID 1000 and a clean
+checkout are recorded. Zero new private fixture homes or historical removals
+remain. The job is terminal. Retained source/report/log/summary/exit evidence is
+under artifacts/qa/root-suite-recovery-final-*; keep the earlier failed attempts
+separate. The complete source family independently reproduces after refreeze
+and native policy passes. Final exact-source family/build/payload/mirror refresh
+follows this result; PR #374 owns the final head and receipts.
 
 The source-only compiler inventory derives 28 retained paths, all unchanged
 against main; the earlier 22-path summary was incomplete. Original compiler
