@@ -7,13 +7,13 @@ on `fix/g001-census-admission-proxy`. It includes reviewed PRs #375–#378;
 do not merge their older heads separately. Main remains `786c0b2b`.
 Resolve the current exact development head and final build receipts from the PR.
 
-At `8d3b4c38`, tree `b91995a6`, the prepared `/ptr/` production build is
-terminal, exit 0, with clean unchanged input, UID 1000/Node 22.22.3 and verified
-absent owned actor/group. All 16 source-family outputs independently reproduce;
-native policy passes with 1,250 closure members. The payload and mirror checks
-pass, preserving all 341 Alpha entries and removing none. Retain
-`artifacts/qa/ptr-final-build-summary.json` and
-`artifacts/qa/tervain-final-family-verification.json`; these are development
+At `789933e2`, tree `a157a78d`, the prepared `/ptr/` production build is
+terminal, exit 0: 2026-09-30T22:47:24.509Z–22:52:25.880Z, with clean unchanged
+input, UID 1000/Node 22.22.3 and verified absent owned actor/group. All 16
+source-family outputs independently reproduce; native policy passes with 1,250
+closure members. Payload and mirror checks pass, preserving all 341 Alpha
+entries and removing none. Retain `artifacts/qa/ptr-final-build-summary.json`
+and `artifacts/qa/tervain-final-family-verification.json`; these are development
 preparation receipts, not exact-M1/M2 integration or deployment.
 
 The full native suite remains separately bound to `1ab86add`, tree `ee5804e3`:
@@ -23,17 +23,31 @@ removals. Retain `artifacts/qa/tervain-final-root-*`. Later preview-label checks
 pass 17/17 in two actual files, with app types; they do not relabel the full run.
 The four production-menu images, narrow/landscape/desktop Settings geometry and
 bounded desktop/4× CPU phone-size menu measurements remain scoped to `1ab86add`.
-They do not establish full world/keep R06, physical-phone or owner acceptance.
 
-Further actual `8d3b4c38` inspection at 320×640 found that Shift+Tab can focus a
-Settings or Terms control hidden below the fold. The shared focus-hook repair
-has two failing caller regressions before repair and 124 passing affected tests
-across nine actual files afterward (76 menu/modal, 48 realm/worker/chat/lyrics),
-with pinned Node 22.22.3 app types passing. Fresh production keyboard inspection
-is still pending; the earlier layout/focus-return checks do not close this new
-visibility defect. The
-[local evidence](../../evidence/0.4.0/local-operations.md#final-prepared-source-and-keyboard-visibility--1-october-2026) owns exact receipts,
-retained before/after failures and the final focused result.
+The actual `8d3b4c38` 320×640 Shift+Tab defect is repaired: two caller
+regressions fail before repair and 124 affected tests across nine actual files
+pass afterward (76 menu/modal, 48 realm/worker/chat/lyrics), with pinned app
+types. Fresh `789933e2` production DOM and screenshot review confirms fully
+visible focused controls after reverse entry and both boundary wraps in
+Settings and Terms. Escape restores the correct caller, Terms remains unchecked
+and there is no horizontal overflow. The tab is blank, viewport reset and exact owned
+preview stopped/absent. This closes the built keyboard visibility check;
+it does not establish legal or owner acceptance.
+
+The separate `8d3b4c38` DEV Keep04 retained-switch heap/context diagnostic
+passes its bounded local comparisons and independently verified cleanup.
+Production world/keep/realm R06, actual-owner and physical-phone acceptance
+remain open. The [performance contract](../../evidence/0.4.0/performance.md)
+and [local evidence](../../evidence/0.4.0/local-operations.md#completed-keyboard-readback-and-keep-lifecycle-heap--1-october-2026)
+own exact measurements, receipts and their limits; keep earlier sources separate.
+
+Fresh provider reads at 22:33–22:39 UTC verify the documented Cloudflare
+production profile/account, existing native private-config permissions and
+immutable realm targets. CLI/login, deployment and PTR schema reads all succeed;
+no human login is required by this readback. The live PTR still lacks all seven
+required gameplay tables and five procedures. This is a pending source-bound
+existing update, not a demonstrated authentication failure. Metadata reads do
+not prove secret values, update permission, owner-row/session or release acceptance.
 
 The [Tervain study](../../engineering/repository-ecosystem.md#sharing-with-tervain)
 adapts grounded vegetation, stable detail selection and material grouping.
@@ -41,11 +55,12 @@ Existing shared models already match; no duplicates were copied. Its separate
 menu score remains project-specific. Independent world/keep lifetime and
 background/resume source review found no further demonstrated defect.
 
-Publish the reviewed focus repair/current notes, derive and independently
-verify the complete source family, then prepare fresh exact-source production
-receipts and recheck the actual short-portrait
-Settings/Terms keyboard path. Keep primary, idle native and GitHub synchronized;
-an active run retains its immutable input. Earlier receipts keep their sources.
+Publish the current notes and synchronize primary, idle native and GitHub.
+Independently verify the complete family at the notes-inclusive head; if its
+derived bytes remain identical, no additional generated-output commit is needed.
+Refresh exact-head production receipts and PR #374. An active run retains its
+immutable input; earlier receipts keep their original sources. Do not repeat
+the closed keyboard/heap diagnostics merely because notes changed.
 
 Use no GitHub Actions until **October 1, 00:00 UTC / 02:00 CEST**, when both
 calendars are October. Then inspect repository-wide queued/running work and

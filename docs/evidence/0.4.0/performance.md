@@ -1,8 +1,26 @@
 # 0.4 performance acceptance contract
 
 Established 2026-09-06 before final visual implementation/measurement.
-Status: **budgets established; synthetic cadence reporting added; no final measurements or pass claimed**.
+Status: **budgets established; bounded menu and DEV Keep diagnostics recorded; final production acceptance incomplete**.
 Scope: final production-build 0.4 world/keep path, not a standalone demo.
+
+## Bounded DEV Keep heap lifecycle — 2026-10-01
+
+Frozen native `8d3b4c38` completes actual Chrome 154/RTX 3080 Ti measurement at
+390×844/4× CPU, with unshaped DEV loopback and the in-page recorder off.
+Balanced, reduced, reduced-motion and fallback each complete three warmups,
+a baseline and 20 post-GC samples. Fitted growth is 0.0566, 0.0556, 0.0556
+and 0.0083 MiB/cycle respectively; final growth is about 1.36, 1.33, 1.35
+and 0.27 MiB. All meet the existing local heap comparison limits below.
+WebGL resources remain stable through nine real context restorations; final
+scene disposal and actual owned process/profile cleanup are independently
+verified. Raw observations, independently recomputed values and the retained
+first teardown attempt are in the
+[source-bound record](local-operations.md#completed-keyboard-readback-and-keep-lifecycle-heap--1-october-2026).
+
+This measures a DEV Keep-only mount/disposal path. It does not measure production
+world/keep switching, realm re-entry, app sockets/subscriptions, physical phones
+or driver GPU memory. Full R06 remains incomplete; budgets are unchanged.
 
 ## Bounded production-menu observation — 2026-09-30
 

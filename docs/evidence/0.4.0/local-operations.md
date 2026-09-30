@@ -2,6 +2,84 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Completed keyboard readback and Keep lifecycle heap — 1 October 2026
+
+At signed `789933e2`, tree `a157a78d`, all 16 family outputs / 1,250 members
+independently reproduce and native policy passes. Manifest is
+`53e470d8cd41565e7dea2998b7f5b8a57e1ff5e605e5fdeb4c8554eb95cd8c57`;
+the only changed protected member is the reviewed modal focus hook. Exact
+production preparation runs 2026-09-30T22:47:24.509Z with terminal readback at
+22:52:25.880 UTC, exit 0, UID 1000/Node 22.22.3, unchanged clean source and absent
+owned actor/group. Payload has 446 files / 139,001,703 bytes, SHA-256
+`a2a26511240742221dc49f4e3d8d0574c4e19977d62e908c9908c31696e3304c`;
+content is `faf0ad16ea033128feecd62a3ea07b9daf8f1394c624c8830d6640f1c81a2a61`
+and HTML is `3033dd6e104e9001f4a9c380a3af82dda1e129410ba31ffbe7e57755fc1a51b4`.
+Independent plan `9d9bf35453fb192b34ae52a6cc88f0b34f0677cf41c38fee1d1ed3828e22c799`
+preserves all 341 Alpha entries, the same public parent/canonical digest,
+800 target paths and zero removals. No public or provider mutation occurs.
+
+Actual rebuilt 320×640 production inspection closes the demonstrated keyboard
+visibility defect. Settings' Shift+Tab target Back occupies y=561.61–605.61
+inside its y=16–624 panel; scrolling reaches 580.5px. Forward wrap reveals the
+selected radio at y=310.06–327.66, scrollTop 4.5px, and reverse wrap reveals
+Back again. Terms' Cancel occupies y=568.44–612.44 inside y=8–632, scrollTop
+526.5px; forward wrap reveals Close at y=19.40–63.40 and scrollTop 0, and reverse
+wrap reveals Cancel. Escape restores each correct caller. Terms stays unchecked;
+document client/scroll widths both remain 320px. Screenshots and DOM are inspected
+through Cua; no local screenshot path is invented. Retain
+`tervain-modal-focus-after.json`. Exact owned preview is stopped/absent, the task
+tab blank and viewport reset. No legal acceptance or owner login is performed.
+The 124 affected caller tests and app types retain their separate repair scope;
+the earlier full-suite source is not relabeled.
+
+The frozen-native `8d3b4c38` DEV Keep-only lifecycle diagnostic completes
+22:29:47–22:32:12 UTC. Actual signed Chrome 154.0.8037.58 / RTX 3080 Ti uses
+390×844, 4× CPU and unshaped loopback; the in-page recorder stays off and raw
+samples are retained outside the page. Each of balanced, reduced, reduced-motion
+and fallback performs three warmups, then a baseline and 20 precise post-GC
+samples: 24 mounts/disposals per mode. `HeapProfiler.collectGarbage` precedes
+finite `Runtime.getHeapUsage` readings. All meet the established local comparison
+limits of final ≤ baseline +8 MiB and fitted growth ≤0.25 MiB/cycle:
+
+| Mode | Final minus warmed baseline | Fitted bytes/cycle |
+| --- | ---: | ---: |
+| Balanced | 1,426,400 B | 59,350.84 |
+| Reduced | 1,396,264 B | 58,259.61 |
+| Reduced motion | 1,410,696 B | 58,348.11 |
+| Fallback | 286,056 B | 8,696.63 |
+
+WebGL counts stay at 30 geometries / two textures. Three real
+`WEBGL_lose_context` restoration cycles per WebGL mode preserve those counts;
+fallback deliberately has no WebGL context. Every final disposal has zero
+canvas, scene-owned RAF, active loader and listener. Observer-owned byte
+estimates are not driver GPU-memory measurements. Root independently recomputes
+all slopes/growth from raw samples and checks resources and cleanup. Receipt
+`tervain-keep04-dev-heap-20260930T222947141Z-5340dda6-8445-44c9-a5e6-9c6df35b2cd1.json`
+has SHA-256 `8ed60ec26e56b5e1cf574a308fbdc4c1d037febc5ce44bb3d7291f089272f45e`;
+retain `tervain-keep04-dev-heap-independent.json`. This diagnostic does not close
+production world/keep, realm re-entry, owner, device or full R06 acceptance.
+
+The first complete heap attempt is retained. Its adapter closed the CDP pipe
+immediately after Browser.close acknowledgement and recorded unverified normal
+close/nonzero exit diagnostics despite independently confirmed OS cleanup.
+The ignored adapter now waits for actual close before closing transport; the
+controlled retry verifies all four normal exits 0, no forced close, all 32
+recorded Chrome PIDs and four new owned profiles absent, native PID/process group
+absent and port 4176 clear. Native source and browser executable remain stable.
+The known DEV sandbox-script-origin-tokens diagnostic remains visible.
+
+Fresh read-only provider inventory completes nine successful calls at
+22:33:36–22:39:28 UTC. Node 22.22.3, Wrangler 4.110.0 and SpacetimeDB 2.6.1 are
+verified. The documented production Cloudflare account/profile, QR-recovery
+deployment and all three immutable realm targets match. The native private CLI
+config is regular, single-link, UID:GID 1000:1000/mode 600; parent mode is 700.
+The live PTR still lacks all seven required gameplay tables and five procedures.
+That is the pending source-bound update; read authentication works and requires
+no owner login action. Schema access does not establish update permission,
+secret values or an owner row/session. Sanitized ignored receipts are
+`ptr-provider-readiness-e2337099-summary.json` and `-metadata.json`; no player
+rows, credential bytes, Actions requests or provider writes are collected.
+
 ## Final prepared source and keyboard visibility — 1 October 2026
 
 This local checkpoint starts at 00:03 CEST on October 1, while UTC remains

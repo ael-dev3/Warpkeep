@@ -8,24 +8,36 @@ Continue PR #374 on fix/g001-census-admission-proxy; main remains 786c0b2b.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the final exact development head and build receipts from PR #374.
 
-Prepared /ptr/ build at 8d3b4c38/tree b91995a6 is terminal, exit 0:
+Prepared /ptr/ build at 789933e2/tree a157a78d is terminal, exit 0:
 clean unchanged UID-1000/Node-22.22.3 input and absent owned actor/group.
 Its 16-output family independently reproduces; native policy and payload/mirror
 checks preserve all Alpha entries. Retain artifacts/qa/ptr-final-build-summary.json
 and artifacts/qa/tervain-final-family-verification.json.
 Full native suite stays bound to 1ab86add/tree ee5804e3: 12,720 passed,
 zero failed, 97 skipped, 694 actual files; zero new roots/historical removals.
-Four menu images, Settings geometry and bounded menu measurements retain that
-source. Later preview-label checks pass 17/17 in two actual files plus app types.
-New actual 320x640 review at 8d3b4c38 found hidden focused Settings/Terms controls
-on Shift+Tab. Two caller regressions fail before the reviewed shared-hook repair;
-124 affected tests in nine actual files and pinned app types pass afterward.
-Fresh built keyboard review remains required. Do not relabel earlier evidence.
+Four menu images, broader Settings geometry and bounded menu measurements retain
+that source. Later preview-label checks pass 17/17 in two files plus app types.
 
-Bounded desktop and CPU-throttled phone-size menu measurements complete;
-full world/keep R06, retained-switch heap, owner and physical-phone acceptance
-remain open. Actual values and retained attempts belong in local-operations
-and performance evidence, rather than duplicated daily status summaries.
+The shared Settings/Terms focus repair retains two failing caller regressions
+before repair and passes 124 affected tests in nine actual files plus app types.
+Fresh 789933e2 production review at 320x640 closes the actual keyboard defect:
+reverse entry and both wraps keep focused controls fully visible. Escape restores
+callers, Terms remains unchecked and there is no horizontal overflow.
+The task tab is blank, viewport reset and exact owned preview absent.
+Keep the earlier 8d3b4c38 failure evidence separate.
+
+Bounded menu measurements and the separate 8d3b4c38 DEV Keep04 retained-switch
+heap/context diagnostic complete with independently verified local cleanup.
+Full production world/keep/realm R06, owner and physical-phone acceptance remain
+open. Exact values and retained attempts belong in local-operations and
+performance evidence, rather than duplicated daily status summaries.
+
+Fresh provider reads at 22:33–22:39 UTC verify the documented production
+profile/account, native private-config permissions and immutable realm targets.
+Login, bridge deployment and PTR schema reads succeed; no human login is
+required by this readback. Live PTR still lacks seven gameplay tables and five
+procedures, pending the gated source-bound existing update. Read access does not
+prove secret values, update permission or owner rows/session/acceptance.
 
 The Tervain study adapts grounded vegetation, stable detail selection and
 material grouping. Shared models already match existing originals; none were
@@ -118,12 +130,12 @@ source-bound evidence.
 
 NEXT ACTION
 
-Now: publish the reviewed shared Settings/Terms focus repair with current notes,
-derive and independently reproduce the complete source family,
-then prepare fresh exact-source receipts and inspect the built short-portrait
-keyboard path. Keep native/GitHub source synchronized when idle. Do not repeat
-settled menu/performance checks for notes alone; the new focus defect needs its
-own before/after proof. The execution handoff owns the actual result and next step.
+Now: publish these current notes and synchronize idle native/GitHub source.
+Independently verify the complete family remains unchanged, then refresh
+exact-head production receipts and PR #374. If a notes-only checkpoint derives
+identical family bytes, no additional generated-output commit is needed.
+Do not repeat the closed keyboard/DEV heap diagnostics merely for notes.
+The execution handoff owns the actual result and next step.
 
 After October 1, 00:00 UTC / 02:00 CEST, inspect repository-wide queued/running
 work and applicable completed evidence. Current HEAD has [skip actions] and
