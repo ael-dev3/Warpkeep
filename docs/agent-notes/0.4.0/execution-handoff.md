@@ -1,41 +1,47 @@
 # Continue Warpkeep 0.4
 
-## Current continuation — 30 September 2026, 05:05 CEST (03:05 UTC)
+## Current continuation — 30 September 2026, 05:18 CEST (03:18 UTC)
 
-PR #374 is open and mergeable from signed candidate head
-`4350ae7a7c190bf65c5515cbb229e5b5485778b4` onto unchanged main
-`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The last gameplay/UI source change
-is signed commit `f289c3ad`; `4350ae7a` only makes a bootstrap lifecycle test
-fixture deterministic. The 05:05 documentation checkpoint changes no game or
-test code. Read PR #374 for the current head's exact production build and
-payload/mirror receipts.
+PR #374 remains open and unmerged against unchanged main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. It contains the signed 0.4 candidate
+on fix/g001-census-admission-proxy, including reviewed changes from still-open
+PRs #375–#378. Do not merge their older heads separately. Read PR #374 for the
+current signed candidate SHA and its exact-head build and mirror-plan receipts.
 
-The current candidate's exact native Linux full suite passed on
-`4350ae7a`: 692 files passed / 1 skipped; 12,582 tests passed / 97 skipped;
-exit 0 in 847.76 seconds. It used Node 22.22.3, npm 10.9.8, SpacetimeDB 2.6.1,
-the verified offline YAML input and `umask 0022`. The immediately preceding
-full run had one failure in `greaterRealmProductionBootstrap.test.ts`: the
-fixture used a real recently-exited PID that another worker could reuse. The
-52-test file passed alone; the fixture now uses `pid_max + 1`, which cannot be
-reused. The full suite then passed. Vitest emitted existing `context canceled`
-diagnostics, with no failed tests in the passing run.
+The candidate game and test code is code-equivalent to signed commit
+4350ae7a7c190bf65c5515cbb229e5b5485778b4; subsequent changes are release notes
+only. The full native Linux suite passed at 4350ae7a: 692 files passed / 1
+skipped; 12,582 tests passed / 97 skipped; exit 0 in 847.76 seconds. It used
+Node 22.22.3, npm 10.9.8, SpacetimeDB 2.6.1, the pinned offline YAML fixture
+and umask 0022. A deterministic impossible-PID fixture removed the previously
+observed parallel PID-reuse flake.
 
-The exact 36-case Windows Chrome capture remains source-bound to gameplay/UI
-commit `f289c3ad`, and no game source changed afterward. It rendered WebGL at
-844×390, had no horizontal overflow or network-boundary violation, and closed
-its owned browser cleanly. The evidence is
-`artifacts/keep04-qa/windows-run-qt9Ty7/`. The synthetic CSP sandbox warning is
-still present once per document and remains labeled as a QA harness review
-item, not production or phone evidence.
+The last Keep/gameplay change is f289c3adf65f7afed8b21059ac3231ea721db571.
+Focused Keep UI, accessibility and placement suites passed 70/70. A 36-case
+Windows Chrome synthetic capture had no horizontal overflow, network-boundary
+violation or cleanup issue, and rendered WebGL in the 844×390 all-buildings
+case. Portrait and landscape captures were inspected. One CSP sandbox warning
+per document remains a synthetic QA review item. These results are not
+actual-owner PTR, physical-phone, production-network or performance acceptance.
 
-At 05:05 CEST the Alpha root returned HTTP 200 and `/ptr/` HTTP 404. Sealed
-launch remains disabled (`0.3.43`, Pages approval false, G001/G002/PTR
-identities unset, PTR presentation disabled). No provider write, merge or
-publication occurred. GitHub Actions have not been queried, dispatched,
-rerun or used during September; pushes retain `[skip actions]`. Resume the
-exact-source hosted verification and signed release sequence after October 1
-with the owner's direction. Owner PTR gameplay and physical-phone acceptance
-remain open.
+The current exact-head native /ptr/ build and TypeScript, runtime asset,
+exclusion, public-boundary, Farcaster, file-size, license and sealed-launch
+results are recorded in PR #374. The RealmMapScreen chunk remains 677.80 kB raw
+/ 188.23 kB gzip.
+
+The latest direct status check at 05:05 CEST found the Alpha root at HTTP 200
+and /ptr/ at HTTP 404. Sealed launch remains disabled: package version 0.3.43,
+Pages deployment approval false, G001/G002/PTR identities unset and PTR
+presentation disabled. No merge, provider write, public Pages write or 0.4
+publication has occurred.
+
+No GitHub Actions workflow, run, check or status was queried, dispatched, rerun
+or used during September; development pushes use [skip actions]. After October
+1, confirm the owner's direction before resuming hosted exact-head Verify and
+the established signed sequence: source-only M1, exact-M1 native prepare/check,
+generated-only M2, exact-M2 Verify, fresh G001 preservation, sealed G002
+readback, approved PTR publication/readback, actual-owner journey and
+physical-device acceptance. Keep Alpha available and G002 admissions closed.
 
 ## Superseded continuation — 30 September 2026, 04:23 CEST (02:23 UTC)
 
