@@ -2,6 +2,37 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Pre-refresh exact candidate receipt — 30 September 2026, 02:25 CEST
+
+Windows, GitHub and native WarpkeepRunner matched signed candidate
+0fc189cf2126b0f283f01f042ed5ab41549b6b81 on
+fix/g001-census-admission-proxy. The exact-source /ptr/ production build,
+typecheck, runtime and production-asset integrity, production exclusions,
+public-boundary scan (3,350 tracked paths / 1,907 scanned entries), Farcaster
+integrity and sealed-launch preflight passed. The ignored payload receipt
+covers 446 files / 138,994,282 bytes: manifest SHA-256
+fb22fa1a356e6704bfac1850b4ab95b58599cffa551f2c924595fd25759b58e6, content
+manifest SHA-256 36d7e2cb950665e0259f68ebc0e311a946cf4a131f52bdfa3dca46ed2276c02e
+and root HTML SHA-256
+dd60c63d2ddcb77be4058ddb13a2210114960db1d3124aa246bc3391b82862b0. The
+read-only mirror plan against Warpkeep-Live main at
+b6afe92e7b09197b1578d992103ac3c8f916d8ad preserves 341 Alpha entries,
+targets 800 /ptr/ files, removes zero obsolete paths and hashes to
+5aef11f8fbcd36338914dabb7b821a711375d0c71e08a5104bd9df2c7cfbdb49.
+
+The tested full-suite code identity remains 11b2ccbf (12,580 passed / 97
+skipped); the later QA-controller source change 570112ad passed its focused
+tests 5/5. Commits through 0fc after that source change contain documentation
+only. No new screenshot or physical-device run was taken. The 677.80 kB
+RealmMapScreen warning remains; the root is HTTP 200 and /ptr/ HTTP 404.
+Sealed-launch preflight still reports package 0.3.43, Pages approval false,
+live identities unset and PTR presentation disabled. No provider/public write,
+merge or deployment occurred. GitHub Actions remain out of the September
+workflow.
+The documentation-only changes recorded above this evidence are not part of
+that build identity; rebuild and refresh the ignored receipts at their pushed
+head.
+
 ## Exact-source QA framing and PTR build — 30 September 2026
 
 Signed candidate commit

@@ -1,6 +1,50 @@
 # Continue Warpkeep 0.4
 
-## Current continuation — 30 September 2026, 01:21 CEST (23:21 UTC)
+## Current continuation — 30 September 2026, 02:25 CEST (00:25 UTC)
+
+Before this documentation-only refresh, Windows, GitHub and native
+WarpkeepRunner were clean and synchronized at signed candidate
+0fc189cf2126b0f283f01f042ed5ab41549b6b81 on
+fix/g001-census-admission-proxy. PR #374 remains open against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32; PRs #374–#378 are open. This
+continuation uses no GitHub Actions during September: no workflow, check,
+run, status or hosted gate is queried, dispatched, rerun or used.
+
+The full native Linux suite evidence remains tied to tested code
+11b2ccbf3b809a44afdbfb47bf5c8d07d3061c1c: 692 files passed / 1 skipped,
+12,580 tests passed / 97 skipped. The later QA-controller code change at
+570112ade8b95c3bccb50f87fc2fe06a2121caf0 passed its focused browser-probe
+tests 5/5 under Node 22.22.3 / npm 10.9.8. Subsequent commits through 0fc
+are documentation-only. No fresh browser capture or physical-phone test was
+performed.
+
+At exact source 0fc189cf, the native /ptr/ production build and typecheck,
+runtime and production-asset integrity, production exclusions,
+public-boundary scan (3,350 tracked paths / 1,907 scanned entries),
+Farcaster integrity and sealed-launch preflight passed. The payload contains
+446 files / 138,994,282 bytes; payload-manifest SHA-256
+fb22fa1a356e6704bfac1850b4ab95b58599cffa551f2c924595fd25759b58e6,
+content-manifest SHA-256
+36d7e2cb950665e0259f68ebc0e311a946cf4a131f52bdfa3dca46ed2276c02e and root
+HTML SHA-256 dd60c63d2ddcb77be4058ddb13a2210114960db1d3124aa246bc3391b82862b0.
+The read-only plan against Warpkeep-Live main at
+b6afe92e7b09197b1578d992103ac3c8f916d8ad preserves 341 Alpha entries,
+targets 800 PTR files, removes zero obsolete paths and hashes to
+5aef11f8fbcd36338914dabb7b821a711375d0c71e08a5104bd9df2c7cfbdb49.
+
+The public root is HTTP 200 and /ptr/ is HTTP 404. Release preflight remains
+sealed: package version 0.3.43, Pages approval false, live realm identities
+unset and PTR presentation disabled. No merge, provider/public write or
+deployment occurred. The 677.80 kB RealmMapScreen chunk (188.23 kB gzip)
+remains a known load-cost concern; physical-phone performance is unverified.
+Continue local QA and exact-source release preparation without Actions in
+September. Keep PTR unpublished until the release gates and owner/device
+acceptance are satisfied. The 0fc build and mirror receipts are ignored local
+outputs; regenerate them after each subsequent source-changing commit.
+This documentation refresh changes the notes-only source identity; rerun the
+exact-source build and regenerate receipts at its pushed head.
+
+## Superseded continuation — 30 September 2026, 01:21 CEST (23:21 UTC)
 
 Windows, GitHub and native `WarpkeepRunner` are clean and synchronized at
 signed candidate `bd0bb0f96bfce6357f4859e47b5035b786204b39` on
