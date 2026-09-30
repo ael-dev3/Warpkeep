@@ -27,6 +27,13 @@ profiles below, but it is still synthetic instrumentation. It does not measure
 GPU upload, retained heap, production transfer, physical devices or the required
 owner journey, and it does not change any acceptance result.
 
+The automated 36-case Windows screenshot launcher does not start or stop this
+bounded recorder. Its synthetic-render-observations.json output contains one
+latest-frame snapshot per case, not a cadence series or p50/p95/p99 result.
+Do not infer frame-cadence acceptance from those screenshots. Use the recorder
+controls to obtain bounded synthetic cadence evidence; the production workload
+and device acceptance below still require their separately specified runs.
+
 The same current-head Windows probe (`npm run qa:inner-keep`) passed all 18
 synthetic cases, including the emulated 390x844 responsive path. The probe
 confirms scenario, renderer and overflow contracts only; it does not supply
