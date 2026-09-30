@@ -26,7 +26,7 @@ const observationEnvelopePath = resolve(
 );
 
 const LEGACY_SHA256 =
-  'ffaa86e602b08d5a3b5994120a822194860b64d8ee117dea4d454b28fde7594a';
+  '4b6bea0dcf41bc1a582dec09c186af3d2c88d48208cd47cb970a2b4bcafed001';
 const BODY_MARKER = Buffer.from('set -eu\n');
 const OBSERVATION_HEADER = Buffer.from(
   [

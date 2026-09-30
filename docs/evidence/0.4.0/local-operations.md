@@ -2,6 +2,38 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Stable process-birth repair — 30 September 2026, 14:35 CEST (12:35 UTC)
+
+The abandoned synthetic timeout fixture above exposed a separate current-source
+recovery defect. Its PID and kernel start tick stayed unchanged while `ps lstart`
+moved by ten seconds. Linux procps reconstructs that display from boot wall time
+and elapsed ticks ([procps 4.0.4 source](https://gitlab.com/procps-ng/procps/-/raw/v4.0.4/src/ps/output.c)).
+That display cannot reliably prove PID reuse. The old shared owner helper and
+digest-only partial-file callers could misclassify a live owner and remove its
+record; bootstrap lifecycle recovery could also treat the same process as reused.
+The clock-drift owner regression failed before repair (`true` instead of unknown).
+The current timeout test passed; this does not prove why the historical fixture
+became orphaned, and the finding is not a production incident claim.
+
+New Linux records use `linux-v1:<boot UUID>:<kernel start tick>`, read from bounded
+proc files without wall time or timezone. Bootstrap, both launch envelopes,
+publisher supervision and shared journal helpers use the same critical-field
+validation while allowing arbitrary process-name bytes. Existing schemas and
+legacy records remain readable. An exact legacy match remains live; a live legacy
+or digest-only mismatch remains unknown. Only kernel birth mismatch for complete
+stable identities, or `kill(pid, 0)` returning ESRCH, proves the recorded owner
+is gone. Missing, inaccessible or malformed proc evidence alone is insufficient.
+
+Portable pinned Node 22 identity checks and independent caller reviews passed;
+actual private-deploy and both cutover temporary-file regressions now require
+preservation of the live record bytes. Native integration and full-suite checks,
+source-family regeneration and exact-source build/plan refresh are pending this
+source checkpoint. PR #374 will record their actual source and results. No
+private production record was inspected, rewritten or deleted by this repair.
+For an ambiguous historical record, preserve it and the active owner; use the
+supported inspector after proven owner exit, rather than deleting a lock,
+repeatedly retrying a provider write or requesting another recovery key.
+
 ## Test-fixture retention repair — 30 September 2026
 
 Final workspace inspection found that notificationPagesPrivateDeployOperator's
@@ -25,6 +57,13 @@ working directory and unchanged kernel birth tick were rechecked before killing
 only that fixture group. Group absence was verified; the persistent production
 runner was untouched. This is local fixture cleanup, not a production recovery
 operation or evidence of a live provider failure.
+
+The adjacent private-deployment journal tests had the same missing home cleanup.
+Their helper now registers each new root and uses the same bounded cleanup;
+the new preservation regression no longer needs separate removal. The Windows
+attempt reached the existing POSIX ancestor-mode refusal before journal behavior,
+so it is not a functional pass. Cleanup still retained zero new roots. The full
+native journal suite and before/after inventory remain pending this checkpoint.
 
 ## Public mirror line-ending repair — 30 September 2026, 13:19 CEST (11:19 UTC)
 

@@ -22,7 +22,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'nod
 
 import {
   assertProductionAdminTrustedAncestors,
-  probeProductionAdminProcessIdentity,
+  productionAdminRecordedOwnerDigestIsDead,
   productionAdminRecordedOwnerIsDead,
   type ProductionAdminProcessIdentityProbe,
 } from './production-admin-token-budget.mjs';
@@ -539,12 +539,9 @@ function recoverDeadOwnerUnlinkedFirstAuthorityTemporaries(directory: string): v
       if (!Number.isSafeInteger(encodedPid) || encodedPid < 1) {
         fail('GREATER_REALM_CUTOVER_JOURNAL_LINKED_TEMPORARY_INVALID');
       }
-      const observed = probeProductionAdminProcessIdentity(encodedPid);
-      const ownerDead = observed.state === 'absent'
-        || (observed.state === 'present'
-          && createHash('sha256').update(observed.identity, 'utf8').digest('hex')
-            !== lockTemporary[3]);
-      if (!ownerDead) continue;
+      if (productionAdminRecordedOwnerDigestIsDead({
+        pid: encodedPid, processStartIdentityDigest: lockTemporary[3],
+      }) !== true) continue;
       unlinkExact(temporaryPath, { dev: status.dev, ino: status.ino });
       fsyncDirectory(directory);
       continue;
@@ -561,12 +558,9 @@ function recoverDeadOwnerUnlinkedFirstAuthorityTemporaries(directory: string): v
       if (!Number.isSafeInteger(encodedPid) || encodedPid < 1) {
         fail('GREATER_REALM_CUTOVER_JOURNAL_LINKED_TEMPORARY_INVALID');
       }
-      const observed = probeProductionAdminProcessIdentity(encodedPid);
-      const ownerDead = observed.state === 'absent'
-        || (observed.state === 'present'
-          && createHash('sha256').update(observed.identity, 'utf8').digest('hex')
-            !== recoveryOwnerTemporary[5]);
-      if (!ownerDead) continue;
+      if (productionAdminRecordedOwnerDigestIsDead({
+        pid: encodedPid, processStartIdentityDigest: recoveryOwnerTemporary[5],
+      }) !== true) continue;
       unlinkExact(temporaryPath, { dev: status.dev, ino: status.ino });
       fsyncDirectory(directory);
       continue;

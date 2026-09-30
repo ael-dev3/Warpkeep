@@ -22,6 +22,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import {
   ensureCanonicalProductionAdminStateDirectory,
   probeProductionAdminProcessIdentity,
+  productionAdminRecordedOwnerDigestIsDead,
   productionAdminRecordedOwnerIsDead,
   requireCurrentProductionAdminProcessIdentity,
 } from './production-admin-token-budget.mjs';
@@ -826,13 +827,11 @@ function repairLockTemporaries(directory, uid, processIdentityProbe) {
       paired = true;
     } else if (temporary.nlink === 1) {
       const pid = Number(match[1]);
-      const observed = processIdentityProbe(pid);
-      if (
-        observed?.state === 'present'
-        && typeof observed.identity === 'string'
-        && processIdentityDigest(observed.identity) === match[2]
-      ) continue;
-      if (observed?.state === 'ambiguous') {
+      const dead = productionAdminRecordedOwnerDigestIsDead({
+        pid, processStartIdentityDigest: match[2], probe: processIdentityProbe,
+      });
+      if (dead === false) continue;
+      if (dead !== true) {
         fail('NOTIFICATION_PAGES_DEPLOY_JOURNAL_LOCK_AMBIGUOUS');
       }
       if ((temporary.mode & 0o7777) !== FILE_MODE) chmodSync(path, FILE_MODE);

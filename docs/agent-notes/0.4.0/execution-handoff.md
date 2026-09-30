@@ -1,12 +1,21 @@
 # Continue Warpkeep 0.4
 
-## Current delivery checkpoint — 30 September 2026, 13:20 CEST (11:20 UTC)
+## Current delivery checkpoint — 30 September 2026, 14:35 CEST (12:35 UTC)
 
 PR #374 is the open, unmerged candidate on fix/g001-census-admission-proxy
 against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. It includes reviewed
 work from PRs #375–#378; do not merge their older heads separately. Resolve
 the current exact head and final closure/build/publication-plan hashes from
 PR #374 before acting.
+
+Final workspace inspection repaired private test-home retention and found a
+real recovery defect: Linux wall-clock-derived process start displays can drift
+for the same active owner. New shared/bootstrap/envelope/publisher readers use
+kernel boot UUID and start tick. Live legacy/digest mismatches stay unknown;
+death requires stable birth mismatch or ESRCH. Portable checks and independent
+caller review pass; native integration/full-suite and final closure/build/plan
+refresh are pending this checkpoint. See the latest local evidence and PR #374.
+Preserve ambiguous old records; do not delete locks or generate recovery keys.
 
 Existing mobile input, confirmation, focus and readability defects are repaired.
 World controls meet the scoped 44px minimum and opened drawers remain reachable

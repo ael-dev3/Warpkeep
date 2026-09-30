@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
@@ -20,6 +21,10 @@ import {
   defaultProductionAdminStateDirectory,
   ensureProductionAdminTokenReservation,
   inspectProductionAdminTokenBudget,
+  productionAdminRecordedOwnerIsDead,
+  productionAdminRecordedOwnerDigestIsDead,
+  productionAdminTokenBudgetTestSeams,
+  probeProductionAdminProcessIdentity,
   recordProductionAdminTokenAttempt,
   releaseProductionAdminTokenReservation,
   reserveProductionAdminTokenBudget,
@@ -31,6 +36,131 @@ import {
 
 const temporaryDirectories: string[] = [];
 const NOW = Date.parse('2026-08-11T17:45:00.000Z');
+
+describe('production administrator process identities', () => {
+  const boot = '12345678-1234-1234-1234-123456789abc';
+  const stable = `linux-v1:${boot}:8573835`;
+  const legacy = 'Tue Sep 29 17:50:47 2026';
+  const livePid = () => true;
+  const digest = (value: string, length: number) => createHash('sha256')
+    .update(value, 'utf8').digest('hex').slice(0, length);
+  const stat = (pid = 1234, ticks = '8573835', comm = 'worker') => (
+    `${pid} (${comm}) ${['S', ...Array<string>(18).fill('0'), ticks, '0', '0'].join(' ')}\n`
+  );
+
+  it('does not treat a live legacy owner as dead when its displayed start time drifts', () => {
+    const original = 'Tue Sep 29 17:50:47 2026';
+    const observed = 'Tue Sep 29 17:50:57 2026';
+    expect(productionAdminRecordedOwnerIsDead({
+      pid: 1234,
+      processStartIdentity: original,
+      probe: () => ({ state: 'present', identity: observed }),
+    })).toBeUndefined();
+  });
+
+  it('keeps exact owners and proves reuse only with different stable Linux birth identities', () => {
+    const probe = (_pid: number, expected?: string) => ({
+      state: 'present' as const,
+      identity: expected === legacy ? legacy : stable,
+    });
+    expect(productionAdminRecordedOwnerIsDead({ pid: 1234, processStartIdentity: legacy, probe })).toBe(false);
+    expect(productionAdminRecordedOwnerIsDead({ pid: 1234, processStartIdentity: stable, probe })).toBe(false);
+    expect(productionAdminRecordedOwnerIsDead({ pid: 1234,
+      processStartIdentity: `linux-v1:${boot}:8573834`, probe })).toBe(true);
+    expect(productionAdminRecordedOwnerIsDead({ pid: 1234,
+      processStartIdentity: stable, probe: () => ({ state: 'absent' }) })).toBe(true);
+    expect(productionAdminRecordedOwnerIsDead({ pid: 1234,
+      processStartIdentity: stable, probe: () => ({ state: 'ambiguous' }) })).toBeUndefined();
+    expect(productionAdminRecordedOwnerIsDead({ pid: 1234,
+      processStartIdentity: 'unknown-start-format', probe })).toBeUndefined();
+  });
+
+  it.each([16, 64])('matches stable or legacy %s-character owner digests without treating a live nonmatch as dead', length => {
+    const probe = (_pid: number, expected?: string) => ({
+      state: 'present' as const, identity: expected === 'legacy' ? legacy : stable,
+    });
+    for (const identity of [stable, legacy]) {
+      expect(productionAdminRecordedOwnerDigestIsDead({ pid: 1234,
+        processStartIdentityDigest: digest(identity, length), probe })).toBe(false);
+    }
+    expect(productionAdminRecordedOwnerDigestIsDead({ pid: 1234,
+      processStartIdentityDigest: digest('clock-shifted-or-unknown-owner', length), probe })).toBeUndefined();
+    expect(productionAdminRecordedOwnerDigestIsDead({ pid: 1234,
+      processStartIdentityDigest: digest(legacy, length),
+      probe: () => ({ state: 'absent' }) })).toBe(true);
+    expect(productionAdminRecordedOwnerDigestIsDead({ pid: 1234,
+      processStartIdentityDigest: digest(legacy, length),
+      probe: () => ({ state: 'ambiguous' }) })).toBeUndefined();
+  });
+
+  it('reads bounded Linux birth fields and ignores arbitrary comm bytes and parentheses', () => {
+    const comm = Buffer.from([0x77, 0xff, 0xc3, 0x28, 0x29, 0x20, 0x78]).toString('latin1');
+    const reads: Array<readonly [string, number]> = [];
+    const observed = productionAdminTokenBudgetTestSeams.probeLinuxProcessIdentity(1234, (path, limit) => {
+      reads.push([path, limit]);
+      if (path === '/proc/sys/kernel/random/boot_id') return `${boot}\n`;
+      if (path === '/proc/1234/stat') return stat(1234, '8573835', comm);
+      throw new Error('unexpected process birth source');
+    }, livePid);
+    expect(observed).toEqual({ state: 'present', identity: stable });
+    expect(reads).toEqual([['/proc/sys/kernel/random/boot_id', 64], ['/proc/1234/stat', 4096]]);
+  });
+
+  it.each([
+    { boot: 'invalid', stat: stat() },
+    { boot: `\u00a0${boot}`, stat: stat() },
+    { boot, stat: stat(4321) },
+    { boot, stat: '1234 (worker) S 0\n' },
+    { boot, stat: stat(1234, '08573835') },
+    { boot, stat: stat(1234, '8573835.0') },
+    { boot, stat: stat(1234, '1'.repeat(21)) },
+    { boot, stat: stat().replace(') S ', ') S \u00a0') },
+    { boot, stat: `${stat()}${' '.repeat(4096)}` },
+  ])('fails closed on malformed or unbounded Linux birth data %#', fixture => {
+    expect(productionAdminTokenBudgetTestSeams.probeLinuxProcessIdentity(1234, path => (
+      path.endsWith('/boot_id') ? fixture.boot : fixture.stat
+    ), livePid)).toEqual({ state: 'ambiguous' });
+  });
+
+  it('distinguishes an absent PID from inaccessible proc data and an unavailable boot identity', () => {
+    const missing = Object.assign(new Error('missing'), { code: 'ENOENT' });
+    let existenceChecks = 0;
+    expect(productionAdminTokenBudgetTestSeams.probeLinuxProcessIdentity(1234, path => {
+      if (path.endsWith('/boot_id')) return boot;
+      throw missing;
+    }, () => {
+      existenceChecks += 1;
+      if (existenceChecks > 1) throw Object.assign(new Error('gone'), { code: 'ESRCH' });
+      return true;
+    })).toEqual({ state: 'absent' });
+    expect(productionAdminTokenBudgetTestSeams.probeLinuxProcessIdentity(1234, () => {
+      throw missing;
+    }, livePid)).toEqual({ state: 'ambiguous' });
+    expect(productionAdminTokenBudgetTestSeams.probeLinuxProcessIdentity(1234, path => {
+      if (path.endsWith('/boot_id')) return boot;
+      throw Object.assign(new Error('denied'), { code: 'EACCES' });
+    }, livePid)).toEqual({ state: 'ambiguous' });
+    expect(probeProductionAdminProcessIdentity(-1)).toEqual({ state: 'ambiguous' });
+  });
+
+  it('keeps a live owner unknown when its proc stat view is missing instead of declaring it dead', () => {
+    const observed = productionAdminTokenBudgetTestSeams.probeLinuxProcessIdentity(1234, path => {
+      if (path.endsWith('/boot_id')) return boot;
+      throw Object.assign(new Error('proc view missing'), { code: 'ENOENT' });
+    }, livePid);
+    expect(observed).toEqual({ state: 'ambiguous' });
+    expect(productionAdminRecordedOwnerIsDead({ pid: 1234,
+      processStartIdentity: stable, probe: () => observed })).toBeUndefined();
+    expect(productionAdminTokenBudgetTestSeams.probeLinuxProcessIdentity(1234, () => {
+      throw new Error('proc should not be read for an inaccessible PID');
+    }, () => { throw Object.assign(new Error('denied'), { code: 'EPERM' }); }))
+      .toEqual({ state: 'ambiguous' });
+  });
+
+  it.skipIf(process.platform !== 'linux')('uses the actual kernel birth token by default for new owner records', () => {
+    expect(probeProductionAdminProcessIdentity(process.pid)).toEqual({ state: 'present', identity: expect.stringMatching(/^linux-v1:/u) });
+  });
+});
 
 function temporaryDirectory(prefix: string): string {
   const directory = mkdtempSync(join(realpathSync(tmpdir()), prefix));

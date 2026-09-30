@@ -1,12 +1,21 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 13:20 CEST (11:20 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 14:35 CEST (12:35 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
-Refreshed 30 September 2026, 13:20 CEST (11:20 UTC). PR #374 is the open,
+Refreshed 30 September 2026, 14:35 CEST (12:35 UTC). PR #374 is the open,
 unmerged candidate against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the live branch head and final exact-source receipts from PR #374.
+
+Current recovery repair: Linux ps start displays can drift for the same process.
+Shared/bootstrap/envelope/publisher readers now use boot UUID plus kernel start
+tick; live legacy/digest mismatches remain unknown. Preserve ambiguous records.
+Portable checks and independent review pass; run coordinated native recovery
+integration and the full suite, then regenerate the complete source family and
+exact-source build/payload/mirror receipts. Do not create keys or delete locks.
+Newly owned private test homes are cleaned after each test; historical temporary
+directories are not age-deleted. See the latest local-operations evidence.
 
 Existing gesture, confirmation, focus, menu contrast and mobile-control defects
 are repaired. Real server testing found the first-use keep read has a fixed
@@ -35,8 +44,9 @@ binary parent blobs, matching the publisher; ten planner regressions pass.
 The e308 saved mirror plan is superseded. PR #374 maintains the final complete
 16-output closure and exact-head build/payload/mirror receipts. Refresh these
 after any further source change, preserving compiled lane/input ancestry.
-Do not repeat the real gameplay loop or full suite merely for release-tool
-and notes changes; reopen checks for a concrete source change or failure.
+Do not repeat the real gameplay loop merely for notes or release-tool changes.
+The new shared process-owner/recovery changes justify a fresh full native suite;
+otherwise reopen checks only for a concrete source change or failure.
 
 Alpha root HTTP 200; /ptr/ HTTP 404 at 12:25 CEST. No merge, provider/public
 write or 0.4 publication occurred. Sealed preparation remains 0.3.43, Pages
