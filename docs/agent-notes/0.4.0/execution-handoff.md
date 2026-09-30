@@ -1,10 +1,10 @@
 # Continue Warpkeep 0.4
 
-## Continuation refresh — 30 September 2026, 08:52 CEST (06:52 UTC)
+## Continuation refresh — 30 September 2026, 09:00 CEST (07:00 UTC)
 
 PR #374 remains open and unmerged against unchanged main
 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. Its signed candidate before this
-evidence refresh is 9a24d455e3405308ce32e24ef01c9c600eb718a8; game and test
+notes-only refresh is ac437ea35c708026f2a42b6785110fa6940d5202; game and test
 sources are code-equivalent to 0269ef201c26e312fa0ec55c0548074ebb0ee905.
 The separate native module suite passed 598/598; auth-bridge passed 502 tests
 and release-recovery 1,567 across Node and workerd. Root, Genesis 002 and PTR
@@ -15,10 +15,18 @@ and --ignore-scripts; no project source changed. The exact commands and scoped
 results are in [local operations](../../evidence/0.4.0/local-operations.md)
 and [development sync](../../operations/0.4.0-development-sync.md).
 
+At this candidate, root npm audit and both service pnpm audits reported zero
+known vulnerabilities. GitHub's three moderate Undici alerts still describe
+the default main lockfiles; this candidate resolves root jsdom's nested
+Undici to 7.30.0 and both service locks to 7.29.1, all beyond the affected
+range. The alerts should clear after integration and GitHub's rescan.
+
 At exact source 9a24d455, the native /ptr/ production build, exclusion and
 public-boundary scans, Farcaster check, license and file-size checks, payload
 writer/check, and independent read-only Warpkeep-Live mirror recheck passed.
 The receipt and SHA-256 values are in local operations and the PR snapshot.
+The same exact-head build, payload write/check and independent mirror-plan
+recheck passed at ac437ea3; the full receipt is on PR #374.
 This documentation refresh requires one more exact-head build, payload check
 and mirror recheck; the exact current-head receipt is recorded on PR #374 after
 the signed push. Its 677.80 kB / 188.23 kB gzip RealmMapScreen warning remains

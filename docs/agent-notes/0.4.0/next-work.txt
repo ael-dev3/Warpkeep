@@ -1,5 +1,5 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 08:52 CEST (06:52 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 09:00 CEST (07:00 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
@@ -7,11 +7,11 @@ PR #374 is the open, unmerged 0.4 candidate against unchanged main
 `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Its branch contains reviewed work
 from open PRs #375–#378; do not merge those older heads separately. The current
 signed candidate before this evidence refresh is
-`9a24d455e3405308ce32e24ef01c9c600eb718a8`; the code/test state is unchanged
+`ac437ea35c708026f2a42b6785110fa6940d5202`; the code/test state is unchanged
 since `0269ef201c26e312fa0ec55c0548074ebb0ee905`. Windows and native
 WarpkeepRunner are the local development and Linux-build environments. The
-exact `/ptr/` build, payload check and read-only mirror plan passed at `9a24d455`;
-the receipt is below in local operations and on PR #374. This evidence refresh
+exact `/ptr/` build, payload check and read-only mirror plan passed at `ac437ea3`;
+the full receipt is on PR #374. This notes-only update
 requires one more exact-head build and receipt before the hosted release lane
 resumes. When WSL reads the Windows public checkout, set per-process
 `safe.directory` to that exact checkout and `core.autocrlf=true`; do not alter
@@ -32,6 +32,11 @@ suites passed 70/70. A 36-case Windows Chrome capture found no horizontal
 overflow, network-boundary violation or cleanup issue; this is synthetic QA,
 not physical-phone or owner-PTR acceptance. The capture's CSP harness warning
 remains documented.
+
+Candidate lockfile audits are clear: root npm audit and the auth-bridge and
+release-recovery pnpm audits each reported zero known vulnerabilities. GitHub
+still lists three moderate Undici alerts on default main; this candidate's
+root and service locks contain patched versions, pending integration/rescan.
 
 The current candidate also passed its disposable local full-stack browser
 playthrough for construction, persistent reload, Worker dispatch/return,

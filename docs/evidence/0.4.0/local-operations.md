@@ -4,6 +4,15 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## September 30 local verification bundle — 30 September 2026
 
+At candidate head ac437ea35c708026f2a42b6785110fa6940d5202,
+npm audit --package-lock-only reported zero known root-lockfile vulnerabilities.
+Corepack pnpm 11.7.0 audit reported no known vulnerabilities in either
+services/auth-bridge or services/release-recovery. GitHub's three open
+moderate Undici alerts are attached to the default main lockfiles, which still
+resolve affected Undici 7.29.0; the candidate resolves 7.30.0 in root jsdom
+and 7.29.1 in both service lockfiles. The fixed candidate versions are beyond
+the vulnerable range; default-main alerts persist pending merge and rescan.
+
 At signed candidate 9a24d455e3405308ce32e24ef01c9c600eb718a8, the root
 game/test sources are code-equivalent to 0269ef201c26e312fa0ec55c0548074ebb0ee905.
 The native WarpkeepRunner SpacetimeDB module typecheck passed and test:pure
