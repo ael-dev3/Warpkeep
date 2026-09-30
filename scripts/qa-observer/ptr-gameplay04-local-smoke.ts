@@ -329,8 +329,24 @@ export async function runPtrGameplay04LocalSmoke() {
       }
       throw new Error('PTR_GAMEPLAY04_LOCAL_GAMEPLAY_TIMEOUT');
     }
-    progress('real-controller-initialize'); await renew();
+    const observeController = () => {
+      const snapshot = controller!.getSnapshot();
+      process.stdout.write(`${JSON.stringify({ profile: 'ptr-gameplay04-local-smoke', stage,
+        phase: snapshot.phase, problem: snapshot.problem })}\n`);
+    };
+    progress('real-controller-initialize'); await renew(); observeController();
+    if (controller!.getSnapshot().phase !== 'uninitialized') {
+      // Diagnose a real procedure boundary without printing its raw exception,
+      // owner binding, signed claim or response data.
+      try { await connection!.procedures.getGameplay04KeepV1({}); }
+      catch (error) {
+        const code = typeof error === 'string' ? /\b(?:GAMEPLAY04|PTR)_[A-Z0-9_]{1,80}\b/u.exec(error)?.[0] : undefined;
+        process.stdout.write(`${JSON.stringify({ profile: 'ptr-gameplay04-local-smoke', stage,
+          procedureFailureShape: typeof error, procedureCode: code })}\n`);
+      }
+    }
     assert.equal(controller!.getSnapshot().phase, 'uninitialized'); await controller!.submit({ kind: 'initialize' });
+    progress('real-controller-initialized-read'); observeController();
     const initialized = await refresh(); assert.equal(initialized.state.lastAcceptedSequence, 1n); assert.equal(initialized.workers.length, 4); completed.push('initialized');
     const bootstrap = await connection!.procedures.getRealmAtlasBootstrapV1({});
     const cells = new Map(artifacts.chunks.flatMap(chunk => chunk.payload.cells).map(cell => [cell.cellKey, cell]));
