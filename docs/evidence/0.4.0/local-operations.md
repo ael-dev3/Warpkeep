@@ -2,6 +2,38 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Public mirror line-ending repair — 30 September 2026, 13:19 CEST (11:19 UTC)
+
+Exact candidate e308a64d passed the native production build and local payload/
+mirror checks. A subsequent comparison against the publication operator found
+a real disagreement: the clean Windows public checkout uses core.autocrlf,
+so CNAME has 14 CRLF bytes while its reviewed parent Git blob has 13 LF bytes.
+The planner hashed the working file; the publisher preserves the parent blob
+and would reject it with PUBLIC_PAGES_PUBLICATION_SOURCE_CHANGED before any
+public or provider change. All other 340 preserved files matched. That saved
+mirror plan is superseded, despite passing its own local check.
+
+The repair hashes each preserved file from the exact reviewed parent commit
+as binary bytes, with the publisher's 64 MiB bound. It preserves all checkout,
+hosting and target checks. It neither rewrites the public CNAME nor normalizes
+legitimate committed CRLF or binary assets. The clean-CRLF-checkout regression
+failed before repair; all ten planner tests pass afterward, including committed
+CRLF and a binary model containing invalid UTF-8, NUL and CRLF. Independent
+source review confirms the publication contract. The five existing signed
+publisher cases pass, and the new signed-PREPARE integration regression passes:
+its candidate retains the parent's exact LF CNAME blob and good signature while
+the clean CRLF checkout and main/HEAD stay unchanged. No fixture push occurs.
+The immutable 341-file Alpha manifest remains
+7699d03b70c901e4fb8453b8b515af03376d398bf79e9eabea1c85f6e303c3ef.
+
+At earlier exact e308a64d, affected closure/menu/capability/controller/QA tests
+passed 315, zero failed, one Windows-specific junction case skipped on Linux.
+The checked-in sealed-launch, license and file-size verifiers passed. These
+receipts retain that source; refresh the complete closure and final payload/
+mirror after this repair. PR #374 holds the final exact-source identities.
+The normal-clock connected gameplay pass below remains valid at its recorded
+source. No hosted Actions, main merge or public/provider write occurred.
+
 ## Real PTR first-entry repair and connected smoke — 30 September 2026, 12:50 CEST (10:50 UTC)
 
 A real attested SpacetimeDB 2.6.1 procedure rejected its first keep read with

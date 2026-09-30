@@ -93,6 +93,7 @@ function publicMirror(source: ReturnType<typeof candidate>) {
   const root = mkdtempSync(join(tmpdir(), 'warpkeep-mirror-public-'));
   temporaryRoots.push(root);
   git(root, ['init', '--quiet']);
+  git(root, ['config', 'core.autocrlf', 'false']);
   git(root, ['remote', 'add', 'origin', 'https://github.com/ael-dev3/Warpkeep-Live.git']);
   write(join(root, 'CNAME'), 'warpkeep.com\n');
   write(join(root, '.nojekyll'), '');
@@ -221,6 +222,38 @@ describe('read-only public Pages mirror plan', () => {
     });
     expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'CNAME'))
       .toMatchObject({ origin: 'preserved-existing', sha256: sha('warpkeep.com\r\n') });
+  }, 30_000);
+
+  it('preserves committed LF CNAME bytes when a clean autocrlf checkout uses CRLF', () => {
+    const source = candidate();
+    const mirror = publicMirror(source);
+    git(mirror.root, ['config', 'core.autocrlf', 'true']);
+    rmSync(join(mirror.root, 'CNAME'));
+    git(mirror.root, ['checkout-index', '--force', '--', 'CNAME']);
+    git(mirror.root, ['add', '--renormalize', '--', 'CNAME']);
+    expect(readFileSync(join(mirror.root, 'CNAME'))).toEqual(Buffer.from('warpkeep.com\r\n'));
+    expect(git(mirror.root, ['diff', '--cached', '--exit-code', 'HEAD', '--', 'CNAME'])).toBe('');
+    expect(git(mirror.root, ['status', '--porcelain=v1', '--untracked-files=all'])).toBe('');
+    expect(git(mirror.root, ['rev-parse', 'HEAD'])).toBe(mirror.expectedPublicHead);
+    const plan = mirror.plan();
+    expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'CNAME'))
+      .toMatchObject({ origin: 'preserved-existing', byteLength: 13, sha256: sha('warpkeep.com\n') });
+  }, 30_000);
+
+  it('preserves binary Alpha Git blob bytes without decoding them as UTF-8', () => {
+    const source = candidate();
+    const mirror = publicMirror(source);
+    const bytes = Buffer.from([0x67, 0x6c, 0x54, 0x46, 0x00, 0xff, 0xc3, 0x28, 0x0d, 0x0a]);
+    write(join(mirror.root, 'models/alpha.glb'), bytes);
+    const revisedPublicHead = commit(mirror.root, 'Add existing binary Alpha model');
+    const plan = verifyPublicPagesMirrorPlan({
+      sourceRoot: source.root,
+      expectedSourceCommit: source.expectedSourceCommit,
+      publicRoot: mirror.root,
+      expectedPublicHead: revisedPublicHead,
+    });
+    expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'models/alpha.glb'))
+      .toMatchObject({ origin: 'preserved-existing', byteLength: bytes.length, sha256: sha(bytes) });
   }, 30_000);
 
   it('refuses a redirected public push URL despite the expected fetch URL', () => {

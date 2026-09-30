@@ -1,62 +1,55 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 30 September 2026, 12:50 CEST (10:50 UTC), Europe/Budapest.
+Refreshed 30 September 2026, 13:20 CEST (11:20 UTC), Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
-Refreshed 30 September 2026, 12:50 CEST (10:50 UTC). PR #374 is the open, unmerged candidate against main
-786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. The branch contains reviewed work
-from PRs #375–#378; do not merge their older heads independently. Latest signed
-product repair: 6d1c08c9449df30e26120228efecbdcfff9eb808. Latest connected-QA
-checkpoint: 98a561dbfc36574ed0ce80ff699b62f35c36d22a. Resolve the live branch
-head and final exact-source receipts from PR #374 before operating.
+Refreshed 30 September 2026, 13:20 CEST (11:20 UTC). PR #374 is the open,
+unmerged candidate against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32.
+It includes reviewed PRs #375–#378; do not merge their older heads separately.
+Resolve the live branch head and final exact-source receipts from PR #374.
 
-Fixed existing defects: camera gestures becoming selections, lost pan after
-pinch, confirmation blocked by refresh, lost world/keep focus, menu contrast,
-small phone targets and drawer disclosures covered in short landscape.
-A real server test also found that the module-host error prefix made a new
-keep look failed, hiding initialization. The client now recognizes only that
-verified wrapper plus a complete known code; unrelated failures retain their
-existing uncertain outcome and exact retry. Capability/controller tests passed
-143/143 independently; WorldScene/PTR host tests passed 81/81 and scoped rendered
-checks passed. Local operations holds reproduction and verification limits.
+Existing gesture, confirmation, focus, menu contrast and mobile-control defects
+are repaired. Real server testing found the first-use keep read has a fixed
+module-host prefix; the repaired classifier restores initialization and retains
+exact retry for unknown outcomes. Independent capability/controller tests passed
+143/143; WorldScene/PTR host checks passed 81/81 with scoped rendered review.
 
-CONNECTED QA PASSED: session 64935 exited 0 at exact 98a561db in 321,215ms
-(5m21s). All nine outcomes passed: initialize, gather, stale quote unsent, exact
-retry, deduct once, natural completion, improved 72-food return, authority renewal
-and fresh-client persisted read. Cleanup is verified and native source released.
-Identical Windows/native receipts remain ignored in artifacts/qa/. This is a
-synthetic atlas/owner and running in-memory database with normal timers; actual
-production-owner/browser/phone acceptance remains open. Seven focused harness
-tests and dedicated types pass; stale receipts and rejected dispatches cannot
-be counted as success.
+CONNECTED QA PASSED: exact 98a561db, session 64935, exit 0 in 321,215ms (5m21s).
+All nine normal-clock outcomes passed, including gather/build/improved return,
+stale quote unsent, exact retry/single deduction, renewal and client reconnect.
+Cleanup and identical ignored Windows/native receipts are verified. Synthetic
+owner/atlas and a running in-memory database are separate from actual-owner
+production-atlas/browser/physical-phone acceptance and server restart.
 
+At exact e308a64d, affected checks passed 315, zero failed, one platform skip;
+native production build, sealed-launch, license and file-size policies passed.
 The earlier full native suite at 15b88b57 passed 12,603, zero failed, 97 skipped
-across 693 files. That source predates the later CSS and wire-classification
-fixes; affected checks and the real loop validate those separately. Unchanged
-module pure tests passed 598/598, auth-bridge 502 and release-recovery 1,567.
-Candidate audits reported zero known vulnerabilities; main's three moderate
-Undici alerts await integration/rescan.
+across 693 files; it predates later CSS/wire repairs. Unchanged module pure
+tests passed 598/598, auth-bridge 502 and release-recovery 1,567. Candidate
+audits reported zero known vulnerabilities; main's three moderate Undici
+alerts await integration/rescan.
 
-After the notes checkpoint, refresh all 16 source-closure
-outputs from exact raw Git bytes, independently reproduce them and check native
-UID-1000 policy. Preserve retained compiled lane bundles, compiler manifests and
-original input identities. Then rebuild/check the final exact /ptr/ payload and
-read-only Warpkeep-Live mirror plan. Record final head/hashes on PR #374.
-Do not repeat the whole earlier review or full suite merely for notes changes.
-Reopen checks only for new source changes, failures or unresolved concerns.
+The publication-contract review then exposed clean Windows CRLF CNAME bytes
+differing from the preserved LF parent blob. The planner now hashes exact
+binary parent blobs, matching the publisher; ten planner regressions pass.
+The e308 saved mirror plan is superseded. PR #374 maintains the final complete
+16-output closure and exact-head build/payload/mirror receipts. Refresh these
+after any further source change, preserving compiled lane/input ancestry.
+Do not repeat the real gameplay loop or full suite merely for release-tool
+and notes changes; reopen checks for a concrete source change or failure.
 
-Alpha root HTTP 200; /ptr/ HTTP 404 at 12:25 CEST. Sealed preparation still has
-package 0.3.43, Pages approval false, live IDs unset and PTR presentation disabled.
-No merge, provider/public write or 0.4 publication occurred. The RealmMapScreen
-bundle warning and actual-phone measurements remain open. Existing public host,
-payload/mirror planner and publication/rollback operator are implemented; follow
-them rather than rebuilding hosting from historical notes. For resumed blockers,
-use docs/operations/0.4.0-infra-access.md, match the actual failing boundary and
-ask the owner only for an action the agent cannot complete.
+Alpha root HTTP 200; /ptr/ HTTP 404 at 12:25 CEST. No merge, provider/public
+write or 0.4 publication occurred. Sealed preparation remains 0.3.43, Pages
+approval false, IDs unset and PTR presentation disabled. Actual-phone
+performance and the RealmMapScreen bundle warning remain open. Hosting,
+publication and rollback tools already exist. Use the known blocker paths in
+docs/operations/0.4.0-infra-access.md rather than recreating infrastructure,
+requesting another recovery key or repeating QR approval for a gameplay error.
 
 September: do not query, dispatch, rerun or use GitHub Actions. Continue local
-checks and signed [skip actions] source synchronization. All dates/hashes in
-historical sections remain source-bound evidence rather than current authority.
+checks and signed [skip actions] synchronization. Resume the already-authorized
+hosted release sequence on October 1. Historical hashes and dates remain
+source-bound evidence.
 
 NEXT ACTION
 

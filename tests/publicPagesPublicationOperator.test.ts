@@ -53,6 +53,7 @@ function fixture() {
   write(allowedSigners, `fixture@example.invalid ${publicKey}\n`);
   for (const root of [source, publicRoot]) {
     git(root, ['init', '--quiet']);
+    git(root, ['config', 'core.autocrlf', 'false']);
     git(root, ['config', 'user.name', 'Warpkeep Fixture']);
     git(root, ['config', 'user.email', 'fixture@example.invalid']);
     git(root, ['config', 'gpg.format', 'ssh']);
@@ -127,6 +128,38 @@ afterEach(() => {
 });
 
 describe('signed public Pages publication and rollback operator', () => {
+  it('prepares the signed LF parent CNAME from a clean CRLF checkout without changing the public ref', () => {
+    const f = fixture();
+    const workingCname = join(f.publicRoot, 'CNAME');
+    git(f.publicRoot, ['config', 'core.autocrlf', 'true']);
+    rmSync(workingCname);
+    git(f.publicRoot, ['checkout-index', '--force', '--', 'CNAME']);
+    git(f.publicRoot, ['add', '--renormalize', '--', 'CNAME']);
+    expect(readFileSync(workingCname)).toEqual(Buffer.from('warpkeep.com\r\n'));
+    expect(git(f.publicRoot, ['diff', '--cached', '--exit-code', 'HEAD', '--', 'CNAME'])).toBe('');
+    expect(git(f.publicRoot, ['status', '--porcelain=v1', '--untracked-files=all'])).toBe('');
+    expect(git(f.publicRoot, ['rev-parse', 'HEAD'])).toBe(f.parent);
+    const savedPlan = writePublicPagesMirrorPlan({ sourceRoot: f.source,
+      expectedSourceCommit: f.sourceCommit, publicRoot: f.publicRoot, expectedPublicHead: f.parent });
+    const prepared = preparePublicPagesPublication({ ...f.common, sourceRoot: f.source,
+      reviewedPlanBytes: readFileSync(savedPlan.path),
+      expectedReviewedPlanSha256: savedPlan.planSha256 });
+    const candidateCname = spawnSync('git', ['show', `${prepared.publicCommit}:CNAME`], {
+      cwd: f.publicRoot, encoding: null, windowsHide: true, timeout: 30_000,
+    });
+    expect(candidateCname.status).toBe(0);
+    expect(candidateCname.stdout).toEqual(Buffer.from('warpkeep.com\n'));
+    expect(git(f.publicRoot, ['rev-parse', `${prepared.publicCommit}:CNAME`]))
+      .toBe(git(f.publicRoot, ['rev-parse', `${f.parent}:CNAME`]));
+    expect(git(f.publicRoot, ['log', '-1', '--format=%G?', prepared.publicCommit])).toBe('G');
+    expect(prepared.publicParentCommit).toBe(f.parent);
+    expect(git(f.publicRoot, ['branch', '--show-current'])).toBe('main');
+    expect(git(f.publicRoot, ['rev-parse', 'refs/heads/main'])).toBe(f.parent);
+    expect(git(f.publicRoot, ['rev-parse', 'HEAD'])).toBe(f.parent);
+    expect(git(f.publicRoot, ['status', '--porcelain=v1', '--untracked-files=all'])).toBe('');
+    expect(readFileSync(workingCname)).toEqual(Buffer.from('warpkeep.com\r\n'));
+  }, 60_000);
+
   it('prepares an exact signed tree without changing the checkout, then publishes and synchronizes locally', () => {
     const f = fixture();
     const prepared = preparePublicPagesPublication({ ...f.common, sourceRoot: f.source });

@@ -70,10 +70,10 @@ function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }
 
-function git(root, args, maxBuffer = 4 * 1024 * 1024) {
+function git(root, args, maxBuffer = 4 * 1024 * 1024, encoding = 'utf8') {
   const result = spawnSync('git', args, {
     cwd: root,
-    encoding: 'utf8',
+    encoding,
     shell: false,
     timeout: 30_000,
     maxBuffer,
@@ -250,7 +250,10 @@ export function verifyPublicPagesMirrorPlan({
     if (path.startsWith(PTR_PREFIX) || path === 'README.md'
       || SOURCE_PUBLIC_DOCUMENTS.includes(path) || path === PUBLIC_PAGES_MIRROR_MANIFEST_PATH) continue;
     if (!generatedPath(path) && !HOST_FILES.has(path)) continue;
-    const bytes = readFileSync(join(mirror.root, path));
+    // Publication preserves parent Git blobs, not checkout-smudged bytes.
+    // Binary output also keeps models/audio exact without UTF-8 decoding.
+    const bytes = git(mirror.root, ['show', `${expectedPublicHead}:${path}`],
+      64 * 1024 * 1024, null);
     entries.set(path, Object.freeze({
       path,
       byteLength: bytes.length,

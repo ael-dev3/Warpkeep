@@ -67,6 +67,8 @@ The latest exact source, test/build receipts and publication-plan receipts are m
 mobile gestures, reachable controls, short-landscape drawers, confirmation,
 world/keep focus and menu readability. Real client/server testing also found
 and fixed a new-keep initialization failure caused by the server's error format.
+Publication planning now preserves committed Alpha bytes across Windows line
+ending conversion, matching the existing signed publisher.
 Independent affected tests and scoped rendered checks pass.
 
 The connected local PTR lane exercises the real module and client with normal
