@@ -301,7 +301,8 @@ it('keeps valid and blocked footprints distinct using system colors and line pat
     const draft = document.querySelector('.keep04-draft')!;
     const validPattern = getComputedStyle(draft).strokeDasharray;
     act(() => sceneProps.onPlacement({ ...sceneProps.visual.draft!, x: 0n, z: 0n }));
-    expect(screen.getByText('Keep roads and civic space clear.')).toBeVisible();
+    const schematic = screen.getByRole('application', { name: 'Keep placement schematic' });
+    expect(within(schematic.closest('details')!).getByText('Keep roads and civic space clear.')).toBeVisible();
     expect(getComputedStyle(draft).stroke).toBe(getComputedStyle(document.querySelector('.keep04')!).color);
     expect(getComputedStyle(draft).strokeDasharray).not.toBe(validPattern);
     expect(getComputedStyle(draft).strokeDasharray).toBe('1 .7');

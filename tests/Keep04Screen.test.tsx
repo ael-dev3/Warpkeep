@@ -12,13 +12,13 @@ import { decodeState04 } from '../src/ptr/gameplay04/gameplay04State';
 import { ATLAS04, SCOPE04, freshWire04, assignmentWire04, constructingWire04, scriptedCapability04, wireWithBuilding04 } from './fixtures/gameplay04Client';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
-function setup(wire = freshWire04(), phase: Snapshot04['phase'] = 'ready') {
+function setup(wire = freshWire04(), phase: Snapshot04['phase'] = 'ready', initialSelection: Keep04UiSelection = { selectedKind: null, draft: null, panel: null }) {
   const snapshot: Snapshot04 = { phase, problem: 'none', view: presentState04(decodeState04(wire, SCOPE04), ATLAS04, Date.now()) };
   const controller: Controller04 = { getSnapshot: () => snapshot, subscribe: () => () => {}, refresh: vi.fn(async () => {}),
     setAtlas: vi.fn(), submit: vi.fn(async () => {}), retryPending: vi.fn(async () => {}), dispose: vi.fn() };
   const back = vi.fn(); const find = vi.fn();
   function Harness({ state = snapshot }: { state?: Snapshot04 }) {
-    const [selection, onSelectionChange] = useState<Keep04UiSelection>({ selectedKind: null, draft: null, panel: null });
+    const [selection, onSelectionChange] = useState<Keep04UiSelection>(initialSelection);
     return <Keep04Screen snapshot={state} controller={controller} selection={selection} onSelectionChange={onSelectionChange}
       onBack={back} quality="balanced" reducedMotion={false} onFindResources={find} onReturnToWorld={back} />;
   }
@@ -26,6 +26,31 @@ function setup(wire = freshWire04(), phase: Snapshot04['phase'] = 'ready') {
   return { controller, back, find, snapshot, rerender: (state: Snapshot04) => rendered.rerender(<Harness state={state} />) };
 }
 const openMill = () => { fireEvent.click(screen.getByRole('button', { name: 'Buildings' })); fireEvent.click(screen.getByRole('button', { name: 'City Mill' })); };
+
+it.each([
+  ['reserved', -10_000_000n, 0n, 'Keep roads and civic space clear.', 'Move left 0.5 m'],
+  ['outside', -39_000_000n, -20_000_000n, 'Keep the building inside the buildable grounds.', 'Move right 0.5 m'],
+  ['occupied', -13_500_000n, -20_000_000n, 'Leave space between buildings.', 'Move right 0.5 m'],
+] as const)('explains a %s draft beside its disabled confirmation and clears the reason after adjustment', (_reason, x, z, message, nudge) => {
+  const wire = wireWithBuilding04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
+  const { controller } = setup(wire, 'ready', { panel: 'buildings', selectedKind: 'lumber-camp',
+    draft: { kind: 'lumber-camp', x, z, rotation: 0 } });
+  const review = within(screen.getByRole('region', { name: 'Place Lumber Camp' }));
+  const confirm = review.getByRole('button', { name: 'Confirm placement' });
+  expect(review.getByText('Resources ready')).toBeVisible();
+  expect(confirm).toBeDisabled(); fireEvent.click(confirm); expect(controller.submit).not.toHaveBeenCalled();
+  const schematic = screen.getByRole('application', { name: 'Keep placement schematic' });
+  schematic.closest('details')!.open = false;
+  expect(review.getByText(message)).toBeVisible();
+  expect(confirm).toHaveAccessibleDescription(message);
+  fireEvent.click(review.getByRole('button', { name: 'Adjust placement' }));
+  expect(schematic.closest('details')!.open).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: nudge }));
+  expect(review.queryByText(message)).not.toBeInTheDocument();
+  expect(confirm).toBeEnabled(); expect(confirm).not.toHaveAttribute('aria-describedby');
+  expect(controller.submit).not.toHaveBeenCalled();
+  fireEvent.click(confirm); expect(controller.submit).toHaveBeenCalledOnce();
+});
 
 it('keeps Realm countdowns exact for epoch-scale timestamps and invalid clocks', () => {
   const nowMs = 1_700_000_000_000;

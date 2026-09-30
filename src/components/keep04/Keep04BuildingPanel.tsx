@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type Ref } from 'react';
 import { buildingCost04, buildingDuration04, type Building04, type Cost04, type Resource04 } from '../../../spacetimedb/gameplay04/policy';
-import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
+import { evaluatePlacement04, type Placement04 } from '../../../spacetimedb/gameplay04/placement';
+import { placementMessage04 } from '../../ptr/gameplay04/gameplay04Placement';
 import { buildingBenefit04, buildingDeficits04, quoteBuilding04, type View04 } from '../../ptr/gameplay04/gameplay04Presentation';
 import type { BuildQuote04 } from '../../ptr/gameplay04/ptrGameplay04Types';
 import type { Snapshot04 } from '../../ptr/gameplay04/createGameplay04Controller';
@@ -31,6 +32,10 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
   const selectedMaximum = selectedKind !== null && levels[selectedKind] === 5;
   const hasIdleWorker = view.workers.some(worker => worker.phase === 'idle');
   const placement = existing?.placement ?? (draft?.kind === selectedKind ? draft : null);
+  const placementResult = placement ? evaluatePlacement04(placement,
+    view.buildings.filter(building => building.kind !== selectedKind).map(building => building.placement)) : null;
+  const placementProblem = placementResult && !placementResult.valid ? placementMessage04(placementResult.reason) : null;
+  const placementProblemId = `${reviewId}-placement`;
   const candidate = useMemo(() => {
     if (!selectedKind || !placement) return null;
     try { return quoteBuilding04(view, selectedKind, placement); } catch { return null; }
@@ -124,7 +129,8 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
       <p>Permanent placement: construction cannot be cancelled and spent resources are not refunded.</p>
       {changedRealm && <><p role="status">Review updated costs and confirm again</p><button type="button" disabled={!enabled} onClick={review}>Review updated costs</button></>}
       {!placement && <p role="status">No valid draft selected. Choose a building site.</p>}
-      <button type="button" className="keep04-confirm" disabled={!canConfirm} onClick={() => {
+      {placementProblem && <p id={placementProblemId} role="status">{placementProblem}</p>}
+      <button type="button" className="keep04-confirm" disabled={!canConfirm} aria-describedby={placementProblem ? placementProblemId : undefined} onClick={() => {
         if (!canConfirm || sentRef.current || !reviewed.quote) return;
         sentRef.current = true;
         // Readiness can change before this rendered button receives its click.
