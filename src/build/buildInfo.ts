@@ -74,13 +74,18 @@ export function createWarpkeepBuildInfo({
   const channel = normalizeWarpkeepReleaseChannel(releaseChannel);
   const fullSha = readWarpkeepBuildSha(buildSha);
   const repository = readWarpkeepRepositoryUrl(repositoryUrl) ?? DEFAULT_WARPKEEP_REPOSITORY_URL;
+  // The owning source repository is private. Keep its exact build identity,
+  // without offering public players a commit link that returns 404.
+  const commitUrl = fullSha && repository.toLowerCase() !== DEFAULT_WARPKEEP_REPOSITORY_URL.toLowerCase()
+    ? `${repository}/commit/${fullSha}`
+    : undefined;
 
   return Object.freeze({
     channel,
     version,
     shortSha: fullSha?.slice(0, 7) ?? WARPKEEP_LOCAL_BUILD_LABEL,
     ...(fullSha ? { fullSha } : {}),
-    ...(fullSha ? { commitUrl: `${repository}/commit/${fullSha}` } : {}),
+    ...(commitUrl ? { commitUrl } : {}),
     realm: WARPKEEP_REALM_SEED
   });
 }

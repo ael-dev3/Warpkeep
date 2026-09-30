@@ -103,6 +103,16 @@ zero failures or skips. Before/interim/final reports are retained separately und
 `artifacts/qa/public-feedback-route-*`. This later scoped UI repair is not included
 in the 3d47d05e full-suite scope and is not deployed to Alpha or PTR.
 
+The menu build stamp also offered a source commit URL in the private development
+repository. Its actual rendered regression failed before repair. The build-info
+factory retains the exact full/short SHA while omitting that inaccessible default
+commit URL; the menu continues to display BUILD identity as text rather than
+mislabeling it LOCAL. Explicit alternative repository links keep their existing
+behavior. Windows Node 22.22.3 checks passed 11/11 across the factory and actual
+menu tests. Before/final reports are separate under `artifacts/qa/private-build-stamp-*`.
+No private source SHA was substituted into the public generated-assets repository.
+This later scoped presentation repair is not included in the 3d47d05e full pass.
+
 Independent PTR review found no further demonstrated source defect in authority,
 selection, immutable retry or provider renewal. The existing connected smoke
 manually replaces fixture sessions at 80s; it does not exercise the production

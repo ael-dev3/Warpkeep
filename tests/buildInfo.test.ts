@@ -78,7 +78,7 @@ describe('Warpkeep build identity', () => {
       productVersion: '0.2.0',
       releaseChannel: 'alpha',
       buildSha: FULL_SHA,
-      repositoryUrl: 'https://github.com/ael-dev3/Warpkeep/'
+      repositoryUrl: 'https://github.com/example/game/'
     });
 
     expect(buildInfo).toMatchObject({
@@ -86,7 +86,7 @@ describe('Warpkeep build identity', () => {
       version: '0.2.0',
       fullSha: FULL_SHA,
       shortSha: '0123456',
-      commitUrl: `https://github.com/ael-dev3/Warpkeep/commit/${FULL_SHA}`,
+      commitUrl: `https://github.com/example/game/commit/${FULL_SHA}`,
       realm: WARPKEEP_REALM_SEED
     });
     expect(formatWarpkeepBuildStamp(buildInfo)).toBe('ALPHA 0.2.0 · BUILD 0123456');
