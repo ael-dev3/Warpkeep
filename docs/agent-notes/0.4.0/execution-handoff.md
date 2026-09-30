@@ -1,6 +1,62 @@
 # Continue Warpkeep 0.4
 
-## Current continuation — 30 September 2026, 03:08 CEST (01:08 UTC)
+## Current continuation — 30 September 2026, 03:37 CEST (01:37 UTC)
+
+Windows, GitHub and the idle native release checkout are clean and synchronized
+at signed commit `7d12e0168bc8b935910ef08a4d05abbd7f45b9bc` on
+`fix/g001-census-admission-proxy`. The source between `1b333d0e` and `7d12e016`
+is documentation-only. PR #374 is open and mergeable against `main`
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; #375–#378 remain open. No GitHub
+Actions workflow, run, check or status was queried or used during September.
+Development commits retain `[skip actions]`.
+
+The full native Linux suite passed at code-equivalent source `1b333d0e`:
+692 files passed / 1 skipped; 12,582 tests passed / 97 skipped. The exact
+candidate at `7d12e016` also passed the disposable full-stack browser
+playthrough: six menu viewport profiles, synthetic sign-in and Terms
+continuity, City Mill and discounted Lumber Camp construction, hard-reload
+persistence, Worker recovery and resource dispatch/return. No production
+identity, data or service was used by that playthrough.
+
+The exact `/ptr/` production build passed at `7d12e016`, including typecheck,
+runtime assets, production exclusions, public-boundary, Farcaster, sealed-launch
+preparation, license and file-size checks. Its payload is 446 files /
+138,994,282 bytes; payload manifest SHA-256
+`210e859740fd0c7b248d7ae6b9878685d278e1c72b39bd9172dd1bd59f739a9b`, content
+manifest SHA-256
+`62cfc907b909ddd945cdd42c51dd50e2d9378f37d82e76ce42fd2eb16e97ea50`, and root
+HTML SHA-256
+`6133927f664b03a5a2b60539b713fa46f169e85d5368e58745986e0d4e3a732a`. The
+read-only mirror plan against `Warpkeep-Live/main@b6afe92` preserves 341 Alpha
+entries, targets 800 PTR files, removes none and hashes to
+`d344beed0070be95a3751ad6ee8333650a8b123ad4595eebed5c9ae9049008e9`.
+
+A direct top-level Chromium preview of the exact production `/ptr/` output
+rendered the 0.4 menu and loaded its 3D scene. After it settled, the cold
+loopback preview recorded 53 same-origin resources and 3,833,259 encoded body
+bytes (1,818,372 JavaScript, 1,797,980 GLB, 124,420 PNG and 92,487 CSS); local
+transfer size was 3,849,159 bytes including response overhead. The navigation
+load event was 2,736 ms on this machine. The server was uncompressed and had no
+network shaping; these figures are a local asset baseline, not phone or public
+network performance. See the [menu resource baseline](../../evidence/0.4.0/menu-production-local-performance.md).
+
+The public root remains HTTP 200 and `/ptr/` HTTP 404. Sealed-launch
+preparation reports package `0.3.43`, `pagesDeploymentApproved: false`, unset
+G001/G002/PTR identities and disabled PTR presentation. No merge, provider or
+public write, or deployment occurred. The documented `Warpkeep-Live` Pages
+publication is a release operation, so keep it paused under the owner's
+September no-Actions instruction. Resume exact-head hosted verification and
+the signed publication sequence after the pause. Physical-phone performance
+and owner PTR acceptance remain unverified.
+
+The exact-head build and receipts below are ignored local outputs. A temporary
+measurement script existed only in ignored `dist` on the loopback preview; the
+next clean production build removes it. Regenerate exact-head output and
+receipts after this handoff update is pushed. The Linux build owner remains
+`/home/warpkeep/Warpkeep-0.4`; do not build through the Windows-mounted
+`node_modules` in WSL.
+
+## Superseded continuation — 30 September 2026, 03:08 CEST (01:08 UTC)
 
 The reviewed Windows checkout, GitHub branch and idle native release checkout
 are synchronized at signed commit
