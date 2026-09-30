@@ -349,6 +349,10 @@ describe('WarpkeepMainMenu', () => {
 
     fireEvent.pointerEnter(patchNotes, { pointerType: 'mouse' });
     expect(screen.getByRole('region', { name: 'THE SECOND GENESIS WAITS' })).not.toBeNull();
+    expect(screen.getByRole('button', {
+      name: 'Pin patch notes for Warpkeep ALPHA 0.4.0'
+    })).toBe(patchNotes);
+    expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
 
     act(() => vi.advanceTimersByTime(250));
@@ -357,12 +361,22 @@ describe('WarpkeepMainMenu', () => {
     act(() => vi.advanceTimersByTime(200));
     expect(screen.getByRole('region', { name: 'THE SECOND GENESIS WAITS' })).not.toBeNull();
 
-    fireEvent.click(patchNotes);
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Pin patch notes for Warpkeep ALPHA 0.4.0'
+    }));
+    expect(screen.getByRole('button', {
+      name: 'Close patch notes for Warpkeep ALPHA 0.4.0'
+    })).toBe(patchNotes);
+    expect(patchNotes.getAttribute('aria-expanded')).toBe('true');
     fireEvent.pointerLeave(patchNotes, { pointerType: 'mouse' });
     act(() => vi.advanceTimersByTime(500));
     expect(screen.getByRole('region', { name: 'THE SECOND GENESIS WAITS' })).not.toBeNull();
-    fireEvent.click(patchNotes);
+    fireEvent.click(screen.getByRole('button', {
+      name: 'Close patch notes for Warpkeep ALPHA 0.4.0'
+    }));
     expect(screen.queryByRole('region', { name: 'THE SECOND GENESIS WAITS' })).toBeNull();
+    expect(getPatchNotesTrigger()).toBe(patchNotes);
+    expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
   });
 
   it('keeps inactive menu controls hidden, inert, and outside the tab order', () => {

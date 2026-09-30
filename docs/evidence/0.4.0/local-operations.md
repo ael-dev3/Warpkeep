@@ -2,6 +2,81 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Prepared menu, Settings and full-suite verification — 30 September 2026
+
+Source `1ab86add`, tree `ee5804e3` independently reproduces all 16 generated family outputs;
+native policy passes, with manifest `1003bb5d9a2cc94eef834803e72bbbad2010921d276af27d81c0a4c60e5ea274`.
+The prepared production build's terminal readback is at 21:15:03.567 UTC, exit 0, clean
+unchanged input and verified absent actor. Payload SHA-256 is
+`dbb8bcf8709aee9e2cb56a0feabd61fd36081a380c357b09fd83a86b837e3379`;
+HTML is `d4f72ece6a6844404b46a9456ecaa11469bb555fb163e01014e55f5944b77468`.
+The independent mirror plan preserves all 341 Alpha entries with canonical
+preservation SHA-256 `7699d03b70c901e4fb8453b8b515af03376d398bf79e9eabea1c85f6e303c3ef`.
+These are prepared development receipts, not integrated M2 or provider writes.
+
+The full pinned native suite runs 2026-09-30T21:25:17.987Z–2026-09-30T21:42:32.282Z, exit 0:
+12,720 passed, zero failed, 97 skipped across 694 actual files.
+UID 1000/Node 22.22.3, four workers, clean unchanged source, zero newly retained
+fixture roots and zero historical removals. Actual source/handle/report/log/
+summary/exit remain under ignored `artifacts/qa/tervain-final-root-*`.
+Platform, privilege and opt-in skips do not become passes. Earlier full and
+435-test selection receipts retain their original inputs.
+
+The four production-menu captures at
+`.cache/warpkeep-qa/title-transition/20260930T212421350Z-8288` pass direct
+entry at desktop, phone, 320px and reduced-motion short landscape. Root inspected
+all four exact saved PNGs; separate `tervain-production-menu-1ab-inspection.json`
+preserves the original manifest. Castle/guardian readiness is measured;
+optional scenery settlement and performance are outside image acceptance.
+
+Actual rebuilt Settings inspection closes the reproduced horizontal clipping:
+320×844 and 320×640 panels both measure 276px client/scroll width; all five
+choice cards measure 239px client/scroll width. Landscape measures 724px and
+desktop 734px client/scroll width, without internal horizontal overflow.
+Descriptions and Standard badge are visible; narrow lower audio/Back controls
+are reached by scrolling, and Back restores Settings focus. Cua images were
+direct tool observations; no local screenshot path is invented. Retain
+`tervain-settings-production-inspection.json`. The task tab is blank, viewport
+reset and exact owned preview actor stopped/absent. Legal and owner acceptance
+were not performed by this Settings-only review.
+
+The fixed, ignored menu observer completes both fresh profiles in
+`tervain-menu-performance-20260930T212300566Z-baf65ec8-9e2a-41ff-961f-a7be14aa064f.json`.
+Actual Chrome 154.0.8037.58 uses RTX 3080 Ti/ANGLE D3D11. Source and executable
+identities remain stable; server closes, both actual Chrome roots exit 0 and
+their new owned profiles retire. The mobile observer sees one explicit pending
+pre-HTML root, then succeeds; unknown transport/errors remain failures. The first
+failed attempt and uncertain old profile are retained without inventing its cause.
+
+Desktop first observed usable menu is 2,536.6ms; phone-size 4× CPU is 3,154.2ms.
+Each uncompressed, unshaped loopback sample records 54 resources, 3,839,260 body
+bytes and zero failed/pending/late requests. Desktop callback intervals are
+p50/p95/p99 16.7/17.0/17.3ms, with callback work 1.1/1.6/1.9ms; phone-size intervals
+are 16.6/17.1/17.1ms, work 5.9/8.1/9.7ms. These are one cold navigation and one
+10-second passive application-RAF callback sample per profile, not actual draw/
+paint/GPU cadence, shaped production transfer, ten-run p95, world/keep workloads
+or R06 acceptance. Coarse requested-GC heap snapshots do not establish fitted
+repeated-switch growth. Physical phone and actual-owner evidence remain open.
+
+Independent read-only review finds no additional demonstrated defect in actual
+world/keep controller lifetime, background/resume, policy replacement or disposal.
+Existing caller regressions were reviewed; this structural review does not
+establish owner expiry, retained heap or phone performance. The patch-note hover
+trigger has a separate accessible-label mismatch: preview activation pins, so its
+label now says Pin; pinned says Close and closed says Open. The existing
+hover-gap caller regression fails before repair and passes afterward; all 17
+affected menu/build-stamp tests in two actual files and app noEmit types pass.
+Retain `tervain-preview-label-before/after.*` and `tervain-preview-label-types.log`.
+This follow-up does not relabel the full-suite source or change pointer behavior.
+
+Current synchronization guidance now uses ordinary PR metadata during September
+and the already implemented Alpha-preserving `/ptr/` operator. Historical root-only
+publisher observations remain dated; no new infrastructure or recovery key is
+required. Final exact-source preparation receipts belong on PR #374 after these
+label/documentation changes and complete family derivation. No final quality
+score, integrated M1/M2, provider mutation or shipped 0.4 claim is established.
+
+
 ## Tervain comparison and local renderer verification — 30 September 2026
 
 Immutable Tervain source `db2a356c062f5e65fa29cf3f642fc6498f57c013` supplies the

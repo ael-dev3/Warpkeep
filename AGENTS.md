@@ -179,3 +179,12 @@ operational records out of Git and public deliverables. Read
 End each session with what changed, the source and remote checkpoint, what was
 actually verified, the exact remaining issue and the next useful action. Keep the
 full release goal active until the deployed game and required evidence support it.
+
+<!-- BEGIN github-actions-conservation -->
+## GitHub Actions conservation
+
+- Validate locally with checks proportionate to the change and inspect the diff. Batch related edits into coherent, reviewed checkpoints before remote actions; use local diagnosis to resolve failures and avoid repeated CI experiments.
+- Before remote actions that may start, repeat, cancel or change Actions, inspect repository-wide workflow runs across branches and event types. Include queued/running runs, completed evidence and rerun attempts; paginate results as needed. Reuse applicable evidence and avoid duplicate runs while relevant work is already running.
+- Inspect workflow triggers and downstream chains, including push/PR events, workflow_run, workflow_call/reusable workflows, tags/releases and deployments. Account for follow-on runs before pushes, PR updates, merges, dispatches, reruns or workflow/settings changes.
+- Resolve limits and approval decisions from the user's current GitHub Actions policy and custom rules, including where they override older publish/merge defaults. This guidance grants no permissions. Keep numeric custom-rule limits and permission grants out of instruction files and memories so the current policy remains authoritative and independently changeable.
+<!-- END github-actions-conservation -->

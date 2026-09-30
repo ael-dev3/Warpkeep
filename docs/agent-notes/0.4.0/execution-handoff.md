@@ -2,102 +2,49 @@
 
 ## Current local checkpoint — 30 September 2026
 
-Continue useful local development through September: repair observed defects,
-run affected checks, review rendered behavior and publish signed `[skip actions]`
-checkpoints to the active PR #374 branch. Do not query or use GitHub Actions;
-keep the candidate unmerged and PTR unpublished through September. The
-[local preparation checkpoint](../../operations/0.4.0-local-release-preparation.md#current-local-development-checkpoint--30-september-2026)
-owns the current local direction. Resume the already-authorized hosted
-Verify/M1/exact-M1 preparation/M2/PTR sequence on or after October 1.
+Continue the active, unmerged [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
+on `fix/g001-census-admission-proxy`. It includes reviewed PRs #375–#378;
+do not merge their older heads separately. Main remains `786c0b2b`.
+Resolve the current exact development head and final build receipts from the PR.
 
-Signed repair `13491c60` grounds the existing forest on its rendered support,
-keeps retained tree transforms stable across quality settings, groups terrain
-colors, improves narrow-menu readability and disposes failed atlas chunks.
-The [Tervain study and sharing guidance](../../engineering/repository-ecosystem.md#sharing-with-tervain)
-bind source `db2a356c`; all 209 archived GLBs match existing Warpkeep originals,
-so no duplicate models were copied. Gameplay and placement authority are unchanged.
-The separate `18e33586` delta review preserves that original byte-verification
-scope. Tervain's new menu score has project-specific terms and is not a shared
-Warpkeep asset; follow the ecosystem record before reuse.
+The full native root suite at `1ab86add`, tree `ee5804e3` is terminal, exit 0:
+12,720 passed, zero failed, 97 skipped across 694 actual files.
+It ran 2026-09-30T21:25:17.987Z–2026-09-30T21:42:32.282Z with Node 22.22.3/UID 1000;
+clean unchanged source, zero new fixture roots and zero historical removals.
+Retain `artifacts/qa/tervain-final-root-*`; skips keep their recorded platform,
+privilege and opt-in scope. The later preview-label clarification has separate
+caller checks and does not relabel that full-suite input.
 
-Windows affected checks passed 206 tests across seven actual files with no
-failures or skips; app and build-mode types passed. Actual DEV browser checks
-completed three warm-ups and 20 mount/dispose cycles each for balanced, reduced,
-reduced motion and fallback. The three WebGL profiles stayed at 30 geometries,
-two textures and 11 listeners; fallback used no canvas or scene listeners.
-Disposal left zero scene RAFs, loaders and listeners. Three
-actual context-loss/restore cycles passed. These cover the existing renderer at
-`086fa02e`, not retained-heap, physical-phone or production-performance acceptance.
+At the same source, complete family reproduction/native policy and prepared
+`/ptr/` build/payload/mirror checks pass. The plan preserves every existing
+Alpha entry. Four actual production menu images are inspected. Settings now
+contains its text and Standard badge at 320px, short landscape and desktop;
+lower controls remain reachable and Back restores focus. Bounded desktop and
+4× CPU-throttled phone-size menu startup/RAF callback measurements complete.
+These do not establish full world/keep R06, physical-phone or owner acceptance.
+The [local evidence](../../evidence/0.4.0/local-operations.md#prepared-menu-settings-and-full-suite-verification--30-september-2026)
+owns exact sources, receipts, before/after failures and remaining limits.
 
-The full native suite completed successfully on frozen source
-`086fa02e08149b11f35b8454062ae9f7f4e75626`, tree
-`70f9eb22fe01892515d3473ee9a5f0ed78681b70`: 12,694 passed, zero failed and
-97 skipped across 694 actual files, exit 0. Unified execution session `61492` is
-terminal; that number is a process handle, not a source revision. The run started
-at 18:04:30 UTC and finished at 18:22:16 UTC with Node 22.22.3/UID 1000;
-`sameSource` and `nativeClean` are true. Source/report/log/handle/summary/exit
-evidence is retained under `artifacts/qa/tervain-native-full-*`.
+The [Tervain study](../../engineering/repository-ecosystem.md#sharing-with-tervain)
+adapts grounded vegetation, stable detail selection and material grouping.
+Existing shared models already match; no duplicates were copied. Its separate
+menu score remains project-specific. Independent world/keep lifetime and
+background/resume source review found no further demonstrated defect.
 
-Signed `7479e183` fixes a reachable legal 320×844 atlas-window fit that formerly
-made the camera orientation NaN, plus excessive fog at that distant fit. Windows
-and native actual-host checks pass 38/38, app types pass, and browser terrain is
-visible. Near-view fog and server window/residency authority remain unchanged.
-Signed `9d357e6e` repairs exact owned fixture retirement across ten test owners:
-native 91/91, no failures/skips, zero new roots and zero historical removals.
-The earlier full suite's 100 new synthetic roots were independently proven and
-retired by exact filesystem identities after verifying terminal actors. No old or
-unrelated root was removed. Keep both later checks separate from the full pass.
+Publish this reviewed label/documentation checkpoint, derive its complete
+source family and prepare the final
+exact-source production receipts. Keep primary, idle native and GitHub source
+synchronized; an active run retains its immutable input.
 
-All 36 guarded PNGs at `9d357e6e` have been inspected: actual Chrome 154.0.8037.58,
-RTX 3080 Ti/D3D11 hardware, four viewport/quality profiles. No concrete visible
-regression was found. These are partial viewport/latest-frame observations, not
-cadence, settled loading, owner or phone acceptance; constructing retains one
-loader, and the context-cycle label does not perform a context transition. Actual
-keep-only transition checks above remain separately scoped. Full-page/scroll
-review found missing blocked-placement guidance beside mobile confirmation.
-Signed `f1a967c8` adds the canonical reason and accessible button description:
-80 affected UI tests pass; actual 320px browser inspection shows the reason and
-Adjust placement focuses the schematic. Signed `328404b9` repairs enabled
-navigation during retained-view refresh/pending while keeping commands disabled;
-136 affected tests pass. Signed `cec57240` corrects shadow-target resizing on
-rotation and clears stale model failure/readiness on rebuild: four regressions
-fail before, 42 affected menu tests and app types pass after. Tests exercise
-Three's real allocation/disposal semantics with GPU draws stubbed. `997a3575`
-also explains occupied-builder and unavailable-atlas confirmation: 88 affected
-UI tests pass. `5b7b50ee` narrows the wire project kind before display-name lookup;
-app types and both recovery/reconfirmation regressions pass afterward.
-The production menu QA correction has 18 passing caller/boundary tests. It now
-checks direct menu entry and the fixed native `/ptr/` build, including 320px,
-instead of grading the retired title gateway. A regression rejects a lost WebGL
-context; cleanup records only successfully created fixture directories.
-Actual built captures remain next.
-The disposable capture profile is retained
-because automatic approval review rejected its deletion; Chrome exit is verified.
-Seven synthetic QA fixture directories are also retained after a rejected cleanup;
-they total 95,685 bytes. Do not retry cleanup through a different mechanism.
-
-At `926f2ce8`, the full 16-output family reproduces independently and native
-policy passes. Native affected verification passes 435/435 in 16 actual files,
-with clean unchanged source and no new fixture roots or historical removals.
-The prepared production build, payload and mirror checks pass; all existing
-Alpha entries remain preserved. All four current production menu images were
-inspected, and the separately gated production QA exclusion check passes 20/20.
-Actual 320px scrolling then found Settings' internal horizontal overflow:
-panel client width 276px versus scroll width 320px, clipping descriptions.
-Its CSS repair passes four existing behavior tests; rebuilt visual verification
-and refreshed source-family/build receipts are next. The earlier preparation
-metadata remains in `artifacts/qa/tervain-prior-preparation.json`.
-
-The separate menu-only measurement completed its desktop sample, but mobile
-failed at an observer evaluation. The original failure is retained; no full
-performance, phone or actual-owner pass is inferred. The observer is being
-repaired before another measurement.
-
-After this layout repair, derive the complete source family and prepare the
-refreshed exact-source production build/payload/mirror plan. Inspect Settings
-at narrow, landscape and desktop sizes before October integration.
-Resolve final development head and receipts from PR #374; old build hashes below
-remain bound to their recorded sources. No final release or 10/10 claim is made.
+Use no GitHub Actions during September. The existing Alpha stays available;
+G002 remains closed and PTR unpublished. From **October 1, 00:00 UTC / 02:00 CEST**,
+resume already-authorized exact-head Verify → signed M1 → exact-M1 native
+prepare/check → generated-only M2 and exact-main Verify → live preservation,
+sealed-realm/owner-PTR operations → owner/device acceptance and delivery ledger.
+Complete expensive preparation before activation's fresh **inline** G001 census.
+Use the existing [connection/recovery paths](../../operations/0.4.0-infra-access.md#resume-without-guessing)
+and [PTR publisher](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored);
+no new recovery key, hosting clone or Desktop output is needed.
 
 ## Previous delivery checkpoint — 30 September 2026, 17:57 CEST (15:57 UTC)
 

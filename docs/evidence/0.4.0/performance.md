@@ -4,6 +4,22 @@ Established 2026-09-06 before final visual implementation/measurement.
 Status: **budgets established; synthetic cadence reporting added; no final measurements or pass claimed**.
 Scope: final production-build 0.4 world/keep path, not a standalone demo.
 
+## Bounded production-menu observation — 2026-09-30
+
+At `1ab86add`, a separate fresh-profile menu-only measurement completes on
+actual Chrome 154/RTX 3080 Ti. Desktop first observed usable menu is 2.54s;
+390×844 with 4× CPU throttling is 3.15s. Both use unshaped, uncompressed
+loopback; their 10-second application callback interval p95 is approximately
+17ms, with no failed/pending/late requests. These are callback observations,
+not renderer draw/paint/GPU frame intervals. The
+[source-bound local record](local-operations.md#prepared-menu-settings-and-full-suite-verification--30-september-2026)
+retains raw receipts, cleanup, all limits and the earlier failed attempt.
+
+This is one cold navigation per profile, with fresh application-default quality;
+it does not meet the ten-run, shaped-network, world/keep, repeated-switch heap,
+owner or physical-device workload below. R06 remains incomplete and its existing
+budgets are unchanged. Settings' repaired narrow layout is verified separately.
+
 ## Keep asset-loading scope — 2026-09-27
 
 The current source-only 0.4 candidate requests the two scenery models for an
