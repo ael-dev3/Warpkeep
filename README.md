@@ -65,13 +65,16 @@ or widens the Genesis 001 admission freeze.
 The latest candidate's exact native /ptr/ build, payload hashes, and read-only
 publication plan are recorded in PR #374. The native Linux full suite passed on
 code-equivalent source (12,582 passed, 97 skipped); focused Keep UI and
-accessibility tests passed 70/70. A 36-case Windows Chrome capture is synthetic
-browser evidence, not authenticated owner gameplay or physical-phone
+accessibility tests passed 70/70. The candidate also passed a disposable local
+full-stack browser playthrough covering construction, persisted reload, Worker
+dispatch/recall/return, re-entry and recovery paths. That run used synthetic
+identity and an isolated local database. A 36-case Windows Chrome capture is
+also synthetic evidence, not authenticated owner gameplay or physical-phone
 acceptance. The build still reports a 677.80 kB RealmMapScreen chunk (188.23 kB
 gzip), outside the standalone PTR route's load path. Mobile performance budgets
 are established, but final production measurements remain pending.
 
-The public Alpha root returned HTTP 200 and /ptr/ returned HTTP 404 at 05:39
+The public Alpha root returned HTTP 200 and /ptr/ returned HTTP 404 at 06:02
 CEST on 30 September. The sealed-launch verifier still reports package
 0.3.43, Pages approval false, unset G001/G002/PTR identities and disabled PTR
 presentation. No 0.4 production publication or owner PTR journey is claimed.

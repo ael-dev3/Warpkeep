@@ -2,6 +2,26 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Current-candidate full-stack browser QA — 30 September 2026, 06:02 CEST
+
+Signed source `566d27286080424c6da235630e36723720f7f2a5` passed
+`scripts/qa-observer/local-fullstack-browser-probe.mjs` on Windows Node 22.23.2
+with the pinned SpacetimeDB CLI 2.6.1 and isolated headless Chrome profiles.
+The probe exited 0 and cleaned its disposable database, Vite server, browser
+processes and temporary profiles. No production database, credential or
+external service was used.
+
+The run covered the six direct-menu viewport profiles; restored server Terms
+continuity; authoritative City Mill construction/completion and discounted
+Lumber Camp construction with one Builder; hard-reload persistence and retained
+camera/Worker presentation; synthetic cold auth/bootstrap/Terms; fresh-browser
+four-phase Worker re-entry; delayed/failing private reads and timeout/missing/
+torn/visibility recovery seams; four-resource dispatch, recall, settlement and
+return completion. The visual aggregate passed its clipping and palette guards.
+Authentication and advanced state were synthetic. This is local integration
+evidence, not a production PTR journey, actual-owner acceptance, or phone
+performance measurement.
+
 ## Exact candidate build and read-only mirror plan — 30 September 2026, 05:39 CEST
 
 At signed candidate
@@ -30,7 +50,7 @@ preserved-root manifest SHA-256 is
 writer re-read and verified the plan inputs; the public checkout was not
 modified.
 
-At 05:39 CEST the public Alpha root returned HTTP 200 and `/ptr/` returned HTTP
+At 06:02 CEST the public Alpha root returned HTTP 200 and `/ptr/` returned HTTP
 404. Sealed launch remains disabled (package 0.3.43, Pages approval false, live
 G001/G002/PTR identities unset, PTR presentation disabled). No provider, merge,
 or public Pages write occurred. No GitHub Actions workflow, run, check, or

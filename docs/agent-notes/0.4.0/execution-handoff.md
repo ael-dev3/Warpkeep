@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Current continuation — 30 September 2026, 05:42 CEST (03:42 UTC)
+## Current continuation — 30 September 2026, 06:02 CEST (04:02 UTC)
 
 PR #374 remains open and unmerged against unchanged main
 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. It contains the signed 0.4 candidate
@@ -16,6 +16,15 @@ Node 22.22.3, npm 10.9.8, SpacetimeDB 2.6.1, the pinned offline YAML fixture
 and umask 0022. A deterministic impossible-PID fixture removed the previously
 observed parallel PID-reuse flake.
 
+The disposable full-stack browser probe passed on code-equivalent source
+`566d2728` with Windows Node 22.23.2 and SpacetimeDB CLI 2.6.1. It exercised
+six direct-menu viewport profiles, City Mill construction/completion,
+discounted Lumber Camp construction, hard-reload persistence, four-Worker
+dispatch/recall/settlement, re-entry and failure-recovery seams. It used a
+temporary local database and synthetic identity; this is not owner PTR
+acceptance or physical-device evidence. Exact scope and outcome are in the
+[local operations record](../../evidence/0.4.0/local-operations.md).
+
 The last Keep/gameplay change is f289c3adf65f7afed8b21059ac3231ea721db571.
 Focused Keep UI, accessibility and placement suites passed 70/70. A 36-case
 Windows Chrome synthetic capture had no horizontal overflow, network-boundary
@@ -29,7 +38,7 @@ Exact-head native `/ptr/` build results are recorded in PR #374. The
 retains the preceding exact-build receipt. The RealmMapScreen chunk remains
 677.80 kB raw / 188.23 kB gzip.
 
-The latest direct status check at 05:39 CEST found the Alpha root at HTTP 200
+The latest direct status check at 06:02 CEST found the Alpha root at HTTP 200
 and /ptr/ at HTTP 404. Sealed launch remains disabled: package version 0.3.43,
 Pages deployment approval false, G001/G002/PTR identities unset and PTR
 presentation disabled. No merge, provider write, public Pages write or 0.4
