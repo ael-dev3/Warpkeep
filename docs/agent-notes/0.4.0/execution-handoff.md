@@ -7,7 +7,7 @@ October continuation: 1 October 2026, UTC and Europe/Budapest.
 Continue the active, unmerged [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
 on `fix/g001-census-admission-proxy`. It includes reviewed PRs #375–#378;
 do not merge their older heads separately. Main remains `786c0b2b`.
-Resolve the current exact development head and final build receipts from the PR.
+Resolve the published PR head separately from the current local repaired source.
 
 The latest completed development preparation is `271946c4`,
 tree `9a5b539b`. Its `/ptr/` production build is terminal, exit 0:
@@ -88,10 +88,26 @@ readbacks under `artifacts/qa/october-974a3ae6-*`; do not relabel that hosted
 attempt as passing. It finishes at 01:19:44 UTC with 14 independent jobs
 successful, only the diagnosed Linux/native-contract leaves failed and their
 aggregate failed. The connected migration/module job succeeds at 01:19:37 UTC.
-Publish the coherent locally checked repair for normal final-head Verify.
+This hosted attempt does not verify the later local maintenance repair.
 
-Next, publish one coherent signed checkpoint without CI skip directives and
-use its normal PR Verify. Verify has no manual dispatch; reopening/dispatching
+The current local family checkpoint is signed `9f13974e`, tree `d07a5020`,
+derived from authored repair `f09d82c4`. The complete family independently
+reproduces and native policy passes; manifest is
+`2cf75c0d2b23722b034a1fb5a611a3fb93a07070d94472a741af8c5e1efa0930`.
+It binds the separately attested pnpm 11.11.0 runtime, explicit no-switch handling
+and genuinely derived current Linux snapshot; see
+[maintenance evidence](../../evidence/0.4.0/local-operations.md#patched-pnpm-runtime-and-current-linux-snapshot--1-october-2026).
+Native affected checks at `9f13974e` pass 93 cases in six files, zero failures,
+with three Darwin/ARM64-only skips. Separate Pages ordering passes its one selected
+case. The Windows Linux-workflow suite passes 8/8 at the same runtime/family
+source with only these five notes edited; retain `october-pnpm-linux-final-*`.
+Final current-source production preparation, publication and normal hosted Verify
+remain pending. The `271946c4` build and `974a3ae6` hosted results retain their
+original source scopes.
+
+Next, finish current-source production preparation, then publish one coherent
+signed checkpoint without CI skip directives and use its normal PR Verify.
+Verify has no manual dispatch; reopening/dispatching
 the same skipped head is insufficient. Refresh final-head SHA-bound local
 receipts. A notes-only checkpoint needs no additional generated-output commit
 if independent family derivation returns identical bytes. Keep an active run's

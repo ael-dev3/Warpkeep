@@ -33,6 +33,10 @@ rechecks runtime hashes, exact source, closure, installed graph and policy
 before workflow authority or provider work. Retain
 `october-pnpm-native-runtime.json`; its 08:22 receipt predates the additional
 launcher/implementation guards and is not a standalone receipt for those hops.
+The independent 08:50:39 UTC native readback subsequently verifies all four
+regular-file owners, single links, modes and exact hashes, plus wrapper version
+11.11.0. Retain `october-pnpm-runtime-final-readback.json`; its child evidence
+retains the original 08:38:32 execution time.
 
 The actual credential-free shadow install at source `e5bccbdc` finishes
 08:29:13.768 UTC, exit 0. It uses the patched wrapper and frozen-lockfile,
@@ -72,9 +76,21 @@ Retain `october-pnpm-installed-linux-independent.json`. Focused runtime
 regressions improve from five passes/one failure to seven passes/zero failures
 at their intermediate scope; retain `october-pnpm-linux-before.{json,log}`
 and `october-pnpm-linux-after.{json,log}`. Syntax and diff checks pass.
-The expanded eight-case suite awaits complete family regeneration and the
-derived installed-snapshot workflow pin. These observations establish no
-final-head hosted Verify, deployment, full R06 or owner/device acceptance.
+At signed family checkpoint `9f13974e`, tree `d07a5020`, all 16 outputs
+independently reproduce and native policy passes. The complete manifest is
+`2cf75c0d2b23722b034a1fb5a611a3fb93a07070d94472a741af8c5e1efa0930`;
+the generated Linux workflow pin now binds the actual snapshot `9fbdfc88…`.
+Native affected checks finish at 08:56:45 UTC: 93 passed, zero failed across
+six files, with three Darwin/ARM64-only historical-install cases skipped.
+The separate Pages-ordering case passes at 08:56:51 UTC; its 163 unselected
+cases are not executed evidence. Fixed Node 22.22.3/UID 1000 and the clean
+source stay unchanged; both actual children exit 0 and are absent afterward.
+Retain `october-pnpm1111-native-{callers,pages-order}-9f13974e-*`.
+The expanded Windows Linux-workflow suite passes all eight cases at
+08:58:52 UTC, using the same runtime/family source plus five documentation-only
+edits. Retain `october-pnpm-linux-final-summary.json` and the exact linked
+report/log hashes. These observations establish no final-head hosted Verify,
+deployment, full R06 or owner/device acceptance.
 
 ## October validation repair and preparation — 1 October 2026
 
