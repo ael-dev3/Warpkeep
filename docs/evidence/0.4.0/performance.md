@@ -12,6 +12,11 @@ Balanced, reduced, reduced-motion and fallback each complete three warmups,
 a baseline and 20 post-GC samples. Fitted growth is 0.0566, 0.0556, 0.0556
 and 0.0083 MiB/cycle respectively; final growth is about 1.36, 1.33, 1.35
 and 0.27 MiB. All meet the existing local heap comparison limits below.
+Samples measure the whole DEV page while Keep is mounted; the page recorder
+stays off and numeric samples remain in the external observer. Final unmount
+records resource counters, without post-unmount heap or retaining-path snapshots.
+The positive fitted growth remains unexplained; these observations do not
+establish a production leak or final production memory acceptance.
 WebGL resources remain stable through nine real context restorations; final
 scene disposal and actual owned process/profile cleanup are independently
 verified. Raw observations, independently recomputed values and the retained

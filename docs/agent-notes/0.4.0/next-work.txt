@@ -1,5 +1,5 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 1 October 2026, Europe/Budapest; September 30 UTC transition.
+Refreshed 1 October 2026, UTC and Europe/Budapest.
 
 
 CURRENT SHIPPING STATE
@@ -8,10 +8,13 @@ Continue PR #374 on fix/g001-census-admission-proxy; main remains 786c0b2b.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the final exact development head and build receipts from PR #374.
 
-Prepared /ptr/ build at 789933e2/tree a157a78d is terminal, exit 0:
+Latest completed notes-inclusive preparation: 0babbc46/tree 85cdf7fb.
+Its /ptr/ build is terminal, exit 0, September 30 23:20:02.545–23:25:57.575 UTC:
 clean unchanged UID-1000/Node-22.22.3 input and absent owned actor/group.
-Its 16-output family independently reproduces; native policy and payload/mirror
-checks preserve all Alpha entries. Retain artifacts/qa/ptr-final-build-summary.json
+Its 16-output family independently reproduces; native policy, payload and
+independent mirror/Alpha-preservation checks pass at this exact source, preserving
+every Alpha entry and removing none. Rendered keyboard review retains 789933e2.
+Retain artifacts/qa/ptr-final-build-summary.json
 and artifacts/qa/tervain-final-family-verification.json.
 Full native suite stays bound to 1ab86add/tree ee5804e3: 12,720 passed,
 zero failed, 97 skipped, 694 actual files; zero new roots/historical removals.
@@ -32,7 +35,7 @@ Full production world/keep/realm R06, owner and physical-phone acceptance remain
 open. Exact values and retained attempts belong in local-operations and
 performance evidence, rather than duplicated daily status summaries.
 
-Fresh provider reads at 22:33–22:39 UTC verify the documented production
+Provider reads on September 30 at 22:33–22:39 UTC verify the documented production
 profile/account, native private-config permissions and immutable realm targets.
 Login, bridge deployment and PTR schema reads succeed; no human login is
 required by this readback. Live PTR still lacks seven gameplay tables and five
@@ -44,10 +47,13 @@ material grouping. Shared models already match existing originals; none were
 copied. The separate Tervain score is not a shared Warpkeep asset.
 See docs/engineering/repository-ecosystem.md for source and ownership.
 
-No final 10/10 or shipped claim: Alpha remains available, G002 stays closed,
-PTR is unpublished. Use no GitHub Actions until October 1, 00:00 UTC / 02:00 CEST,
-when both calendars are October. Then inventory repository-wide active/completed
-workflow evidence before triggering the already-authorized hosted sequence.
+No final quality score or shipped claim: Alpha remains available, G002 stays
+closed and PTR is unpublished. Both calendars are now October. The read-only
+repository-wide inventory completed October 1 at 00:02:38 UTC: Warpkeep and
+Warpkeep-Live have no active runs, current workflows are active and 0babbc46 has
+no applicable Verify. Retain
+artifacts/qa/october-actions-inventory-2026-10-01T000017236Z.json.
+No current-head hosted pass, new trigger or provider write follows from this read.
 
 EARLIER SOURCE-BOUND RECEIPTS
 
@@ -130,25 +136,23 @@ source-bound evidence.
 
 NEXT ACTION
 
-Now: publish these current notes and synchronize idle native/GitHub source.
-Independently verify the complete family remains unchanged, then refresh
-exact-head production receipts and PR #374. If a notes-only checkpoint derives
-identical family bytes, no additional generated-output commit is needed.
-Do not repeat the closed keyboard/DEV heap diagnostics merely for notes.
-The execution handoff owns the actual result and next step.
+Publish one coherent signed checkpoint without CI skip directives and use
+normal PR Verify on its final exact head. Verify has no manual dispatch;
+reopening/dispatching the same skipped head cannot resume it. Refresh final-head
+SHA-bound local receipts. If notes-only independent family derivation returns
+identical bytes, no additional generated-output commit is needed. Do not repeat
+closed keyboard/DEV heap diagnostics for notes alone. Keep active source pinned.
 
-After October 1, 00:00 UTC / 02:00 CEST, inspect repository-wide queued/running
-work and applicable completed evidence. Current HEAD has [skip actions] and
-Verify has no manual dispatch. If no applicable exact-head run exists, publish
-one signed unskipped checkpoint and use normal PR Verify; reopening/dispatching
-the same skipped head will not resume it. Refresh SHA-bound receipts for the new
-head, then follow signed source-only M1, exact-M1 native prepare/check,
-generated-only M2 and exact-M2 Verify. Only with
-fresh source-bound authority should the workflow capture and preserve G001,
-verify sealed G002 readback, obtain Pages approval and required identities,
+After successful final-head PR Verify, use signed source-only M1, exact-M1
+native prepare/check, generated-only M2 and exact-main Verify. For BOTH M1 and
+M2, supply an explicit reviewed squash subject AND body without CI skip
+directives; do not inherit a PR description or aggregated historical commit
+bodies. Verify each actual signed merge and its exact source before continuing.
+Only with fresh source-bound authority should the workflow capture and preserve
+G001, verify sealed G002 readback, obtain Pages approval and required identities,
 publish/read back PTR, then finish the actual-owner journey, physical-device
-performance and release-ledger evidence. Keep the working Alpha available; G002
-admissions remain closed.
+performance and release-ledger evidence. Complete expensive preparation before
+activation's fresh inline G001 census. Keep Alpha available and G002 closed.
 
 The repository execution handoff and release checklist hold the detailed gates.
 The Desktop handoff supplies product context and reference studies, not current
