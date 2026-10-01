@@ -127,6 +127,8 @@ type CastleGroundingRow = Readonly<{
   target: GreaterRealmSelectionTarget;
 }>;
 
+const CASTLE_TINT_WHITE = new THREE.Color('#ffffff');
+
 function createPublicCastleLayer(
   options: CreateGreaterRealmWorldCanvasHostOptions,
   getPolicy: () => GreaterRealmWorldViewPolicy
@@ -312,9 +314,11 @@ function createPublicCastleLayer(
         nextMesh.setMatrixAt(index, matrix);
         const cell = cellsByCoordinate.get(`${castle.atlasQ},${castle.atlasR}`);
         const regionColor = greaterRealmRegionPresentation(cell?.regionId ?? '').accent;
+        // The region accent tints the pale masonry and teal roofs instead of
+        // painting the whole keep; the player's own castle stays warm gold.
         nextMesh.setColorAt(index, new THREE.Color(
           castle.castleId === ownCastleId ? '#f0d58c' : regionColor
-        ));
+        ).lerp(CASTLE_TINT_WHITE, castle.castleId === ownCastleId ? 0.35 : 0.6));
         const target = Object.freeze({
           selection: Object.freeze({
             kind: 'castle',
