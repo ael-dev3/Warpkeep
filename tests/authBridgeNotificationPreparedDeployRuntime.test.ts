@@ -111,7 +111,6 @@ const EXACT_REVIEWED_B0_VARIABLES = Object.freeze({
   OIDC_AUDIENCE: 'warpkeep-spacetimedb',
   OIDC_KEY_ID: 'warpkeep-alpha-2026-07-01',
   PUBLIC_AUTH_ENABLED: 'true',
-  PTR_ENABLED: 'false',
   QA_OBSERVER_ENABLED: 'false',
   SPACETIMEDB_DATABASE:
     'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e',
@@ -4195,6 +4194,229 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
     runtime.dispose();
   });
 
+  it.each([false, true])('accepts the frozen B0 namespace with its exact predecessor provenance (QR recovery=%s)', async qrRecovery => {
+    const contentType = 'multipart/form-data; boundary=warpkeep-boundary-v1';
+    const digest = inspectAuthBridgeNotificationPreparedMultipart(multipart(), contentType)
+      .sourceDigest;
+    const value = authBridgeNotificationPreparedVersionContract({
+      accountId: ACCOUNT_ID,
+      zoneId: ZONE_ID,
+      sourceCommit: SOURCE_COMMIT,
+      sourceDigest: digest,
+      recoveryObserver: true,
+      beforeModes: { ...BEFORE_MODES, accessExpectedFidRequired: qrRecovery },
+    }) as ReturnType<typeof contract>;
+    const frozenVariables = {
+      ...EXACT_REVIEWED_B0_VARIABLES,
+      ACCESS_EXPECTED_FID_REQUIRED: qrRecovery ? 'true' : 'false',
+    };
+    const versionId = qrRecovery
+      ? '2b28a266-862b-45da-a747-3cea0a0d858c'
+      : OLD_VERSION_ID;
+    const deploymentId = qrRecovery
+      ? 'b338c098-a33e-4922-a3a4-1c2d92a3b035'
+      : OLD_DEPLOYMENT_ID;
+    const versionNumber = qrRecovery ? 50 : 1;
+    let detail = exactVersionDetail(value, {
+      id: versionId,
+      number: versionNumber,
+      createdAt: qrRecovery
+        ? '2026-09-27T19:00:15.748685Z'
+        : '2026-08-12T23:50:00.000Z',
+      etag: 'cdee9e7c208ef35a41acc925dfb4494292d696af3699c2363829468be2d7f7a1',
+      secretBindingNames: EXACT_REVIEWED_B0_SECRET_BINDING_NAMES,
+      annotations: {
+        'workers/tag': qrRecovery
+          ? 'alpha-qr-rpc-recovery-20260927'
+          : `notification-b0-${AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT}`,
+        'workers/message': qrRecovery
+          ? 'Restore Alpha QR verification: replace dRPC edge 429 with OP Mainnet public RPC'
+          : `Warpkeep notification B0 ${AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT}`,
+        'workers/triggered_by': 'version_upload',
+      },
+      bridgeSourceCommit: AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT,
+      ptrDatabase: null,
+      variables: frozenVariables,
+      durableObjectBindings: EXACT_DURABLE_OBJECT_BINDINGS,
+      versionMetadataBinding: false,
+      namedHandlerNames: EXACT_REVIEWED_B0_NAMED_HANDLERS,
+    });
+    if (qrRecovery) {
+      // Reserved example metadata exercises the observed email shape without
+      // storing the real operator identity or treating it as byte authority.
+      detail.metadata.author_email = 'operator@example.invalid';
+      detail.metadata.source = 'wrangler';
+      detail.resources.script.last_deployed_from = 'wrangler';
+    }
+    let deployment = {
+      id: deploymentId,
+      created_on: qrRecovery
+        ? '2026-09-27T19:01:23.825605Z'
+        : '2026-08-12T23:55:00.000Z',
+      strategy: 'percentage',
+      versions: [{ version_id: versionId, percentage: 100 }],
+      annotations: {},
+    };
+    const predecessorBody = contentMultipart(
+      'warpkeep-boundary-v1',
+      'export default { fetch() { return new Response("reviewed-b0") } };\n',
+    );
+    let sourceBody = Buffer.from(predecessorBody);
+    const successor = exactVersionDetail(value, {
+      number: versionNumber + 1,
+      createdAt: '2026-10-01T14:10:00.000Z',
+    });
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      expect(init?.method ?? 'GET').toBe('GET');
+      if (url.endsWith('/workers/scripts')) {
+        return response([{ id: value.workerName, migration_tag: 'v5' }], url);
+      }
+      if (url.includes('/workers/domains?service=')) return response([{
+        id: 'domain-id',
+        zone_id: ZONE_ID,
+        zone_name: 'warpkeep.com',
+        hostname: 'auth.warpkeep.com',
+        service: value.workerName,
+        environment: 'production',
+        cert_id: 'certificate-id',
+        enabled: true,
+        previews_enabled: false,
+      }], url, { count: 1, page: 1, per_page: 100, total_count: 1, total_pages: 1 });
+      if (url.endsWith('/environments/production/routes?show_zonename=true')) {
+        return response([], url);
+      }
+      if (url.endsWith('/script-settings')) return response({
+        logpush: false, observability: { enabled: false }, tags: [], tail_consumers: [],
+      }, url);
+      if (url.endsWith('/subdomain')) {
+        return response({ enabled: false, previews_enabled: false }, url);
+      }
+      if (url.endsWith('/deployments')) return response([deployment], url);
+      if (url.endsWith(`/versions/${VERSION_ID}`)) return response(successor, url);
+      if (url.endsWith(`/content/v2?version=${VERSION_ID}`)) {
+        return multipartResponse(contentMultipart(), url);
+      }
+      if (url.endsWith(`/versions/${deployment.versions[0].version_id}`)) {
+        return response(detail, url);
+      }
+      if (url.endsWith(`/content/v2?version=${deployment.versions[0].version_id}`)) {
+        return multipartResponse(sourceBody, url);
+      }
+      if (url.endsWith('/versions?page=1&per_page=1')) {
+        return response({ items: [{ id: versionId, number: versionNumber }] }, url, {
+          count: 1, page: 1, per_page: 1, total_count: 1, total_pages: 1,
+        });
+      }
+      throw new Error('unexpected predecessor read');
+    });
+    const runtime = createAuthBridgeNotificationPreparedCloudflareRuntime({
+      contract: value,
+      predecessorSourceAuthority: DISTINCT_TEST_PREDECESSOR_SOURCE_AUTHORITY,
+      apiToken: 'cloudflare-test-token-value-1234567890',
+      playerCanaryOwnerFid: PLAYER_CANARY_OWNER_FID,
+      repositoryRoot: realpathSync(process.cwd()),
+      serviceRoot: realpathSync(join(process.cwd(), 'services/auth-bridge')),
+      nodeExecutable: process.execPath,
+      wranglerEntrypoint: process.execPath,
+      multipartBody: uploadMultipart(value),
+      multipartContentType: contentType,
+      fetchImpl,
+      clock: () => new Date('2026-10-01T14:13:57.430Z'),
+      journal: { inspect: () => ({ phase: 'prepared', predecessorVersionId: null }) },
+    });
+    try {
+      await expect(runtime.prepareUpload(value)).resolves.toEqual({
+        mode: 'version',
+        predecessorDeploymentId: deploymentId,
+        predecessorVersionId: versionId,
+      });
+      if (qrRecovery) {
+        const reviewedDetail = structuredClone(detail);
+        const reviewedDeployment = structuredClone(deployment);
+        const exportMismatch = 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_EXPORT_MISMATCH';
+        const bindingMismatch = 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_BINDING_MISMATCH';
+        const runtimeMismatch = 'AUTH_BRIDGE_PREPARED_DEPLOY_V5_PREREQUISITE_REQUIRED';
+        const mutations: readonly (readonly [
+          string,
+          (version: ExactVersionDetail, live: typeof deployment) => void,
+          string,
+        ])[] = [
+          ['deployment ID', (_version, live) => { live.id = DRIFTED_DEPLOYMENT_ID; }, exportMismatch],
+          ['deployment microseconds', (_version, live) => {
+            live.created_on = '2026-09-27T19:01:23.825606Z';
+          }, exportMismatch],
+          ['version ID', (version, live) => {
+            version.id = CONCURRENT_VERSION_ID;
+            live.versions[0].version_id = CONCURRENT_VERSION_ID;
+          }, exportMismatch],
+          ['version number', version => { version.number = 49; }, exportMismatch],
+          ['version microseconds', version => {
+            version.metadata.created_on = '2026-09-27T19:00:15.748686Z';
+          }, exportMismatch],
+          ['tag', version => { version.annotations['workers/tag'] = 'unreviewed-recovery'; }, exportMismatch],
+          ['message', version => { version.annotations['workers/message'] = 'unreviewed-recovery'; }, exportMismatch],
+          ['trigger', version => { version.annotations['workers/triggered_by'] = 'deployment'; }, exportMismatch],
+          ['version source', version => { version.metadata.source = 'api'; }, exportMismatch],
+          ['empty email', version => { version.metadata.author_email = ''; }, exportMismatch],
+          ['non-string email', version => { version.metadata.author_email = 42; }, exportMismatch],
+          ['malformed email', version => { version.metadata.author_email = 'unreviewed'; }, exportMismatch],
+          ['email control character', version => { version.metadata.author_email = 'operator\u0000@example.invalid'; }, exportMismatch],
+          ['oversized email', version => { version.metadata.author_email = `${'x'.repeat(320)}@example.invalid`; }, exportMismatch],
+          ['invalid author ID', version => { version.metadata.author_id = 'unreviewed'; }, exportMismatch],
+          ['extra metadata', version => { version.metadata.unreviewed = true; }, exportMismatch],
+          ['script source', version => { version.resources.script.last_deployed_from = 'api'; }, exportMismatch],
+          ['script etag', version => { version.resources.script.etag = 'f'.repeat(64); }, exportMismatch],
+          ['named handler', version => {
+            (version.resources.script.named_handlers as unknown[]).pop();
+          }, exportMismatch],
+          ['exports', version => { version.resources.script_runtime.exports = {}; }, exportMismatch],
+          ['usage model', version => { delete version.resources.script_runtime.usage_model; }, exportMismatch],
+          ['compatibility date', version => {
+            version.resources.script_runtime.compatibility_date = '2026-07-12';
+          }, runtimeMismatch],
+          ['migration', version => { version.resources.script_runtime.migration_tag = 'v6'; }, runtimeMismatch],
+          ['public mode', version => {
+            version.resources.bindings.find(binding => binding.name === 'PUBLIC_AUTH_ENABLED')!.text = 'false';
+          }, bindingMismatch],
+          ['FID mode', version => {
+            version.resources.bindings.find(binding => binding.name === 'ACCESS_EXPECTED_FID_REQUIRED')!.text = 'false';
+          }, bindingMismatch],
+          ...(['false', 'true'] as const).map(text => [
+            `invented PTR ${text}`,
+            (version: ExactVersionDetail) => {
+              version.resources.bindings.push({ name: 'PTR_ENABLED', type: 'plain_text', text });
+            },
+            bindingMismatch,
+          ] as const),
+        ];
+        for (const [name, mutate, code] of mutations) {
+          detail = structuredClone(reviewedDetail);
+          deployment = structuredClone(reviewedDeployment);
+          mutate(detail, deployment);
+          await expect(runtime.prepareUpload(value), name).rejects.toMatchObject({ code });
+        }
+        detail = structuredClone(reviewedDetail);
+        deployment = structuredClone(reviewedDeployment);
+        sourceBody = contentMultipart();
+        await expect(runtime.prepareUpload(value)).rejects.toMatchObject({
+          code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_SOURCE_UNVERIFIED',
+        });
+        sourceBody = Buffer.from(predecessorBody);
+      }
+      await expect(runtime.inspectVersion(VERSION_ID)).resolves.toMatchObject({
+        versionId: VERSION_ID,
+      });
+      successor.metadata.source = 'wrangler';
+      successor.resources.script.last_deployed_from = 'wrangler';
+      await expect(runtime.inspectVersion(VERSION_ID)).rejects.toMatchObject({
+        code: 'AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_MISMATCH',
+      });
+    } finally {
+      runtime.dispose();
+    }
+  });
+
   it('projects the authenticated old live version before releasing the target', async () => {
     const template = multipart();
     const contentType = 'multipart/form-data; boundary=warpkeep-boundary-v1';
@@ -4886,7 +5108,6 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       AUTH_BRIDGE_NOTIFICATION_PREPARED_REVIEWED_B0_SOURCE_COMMIT;
     for (const [name, driftedText] of [
       ['APPROVAL_NOTIFICATIONS_ENABLED', 'false'],
-      ['PTR_ENABLED', 'true'],
     ] as const) {
       const binding = predecessorDetail.resources.bindings.find(
         item => item.name === name,
@@ -4900,6 +5121,8 @@ describe('auth-bridge prepared Cloudflare runtime', () => {
       binding.text = reviewedText;
     }
     for (const injectedBinding of [
+      { name: 'PTR_ENABLED', type: 'plain_text', text: 'false' },
+      { name: 'PTR_ENABLED', type: 'plain_text', text: 'true' },
       {
         name: 'PTR_OIDC_AUDIENCE',
         type: 'plain_text',

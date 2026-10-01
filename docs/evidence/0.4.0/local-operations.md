@@ -2,7 +2,141 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## QR recovery predecessor compatibility — 1 October 2026
+
+Exact corrected-head PR Verify 36871156278 passed all 17 jobs in the
+14:52:27 UTC terminal readback. Its module job completed at 14:49:15 UTC.
+That evidence covers signed 091c3228 and its historical-fixture repair; it
+does not cover the newly authored predecessor correction below.
+
+Read-only provider inspection at 14:13:51–14:13:57 UTC found live deployment
+`b338c098-a33e-4922-a3a4-1c2d92a3b035`, created
+`2026-09-27T19:01:23.825605Z`, and v50
+`2b28a266-862b-45da-a747-3cea0a0d858c`, created
+`2026-09-27T19:00:15.748685Z`. It declares reviewed source
+`308f901d91a1fb68d90f157a2ec164ed1acaf51d`, v5 migration, compatibility
+2026-07-11 and nodejs_compat. Public authentication and expected-FID checks are
+enabled. Its original plaintext namespace has no PTR flag. Six secret names
+and five Durable Object bindings match the reviewed contract; secret values and
+the real operator email were neither retained nor printed.
+
+Separate exact v49/v50 metadata reads at 14:21:47–14:21:49 UTC verify the known
+v50 Wrangler tag `alpha-qr-rpc-recovery-20260927` and recovery message.
+Its metadata, handlers, runtime, bindings and etag agree with the retained
+original v49 where expected. This is metadata evidence: etag is not the
+multipart source digest, and no raw module-byte proof is claimed by these reads.
+The actual prepared adapter still requires the original reviewed multipart
+source digest before upload. Retain sanitized `october-auth-bridge-b0-predecessor-metadata.json`,
+`october-auth-bridge-b0-version-shape.json` and
+`october-auth-bridge-b0-contract-analysis.json` under `artifacts/qa/`.
+
+At baseline `091c3228`, the preparation runtime invented predecessor
+`PTR_ENABLED=false` and required original API-upload provenance. Two new
+real-caller regressions against simulated read-only API fixtures failed at
+14:35:23.952 UTC, exit 1, both with predecessor-binding mismatch; 111 other
+cases were unselected. This proves an adapter incompatibility, not a new failure
+of the working public login. Retain `october-b0-predecessor-before-091c-summary.json`
+and its raw report/log. Passing repair records retain their actual file hashes,
+selected cases and executed runtime; they do not become provider deployment proof.
+
+The repair removes only the nonexistent predecessor binding and adds a separate,
+exact known-v50 provenance attestation. Original v49 and prepared-successor API
+validation remain strict. Version/deployment identities, dates, tag/message,
+metadata and script shape, auth modes, namespace and original byte authority
+remain checked. Modified known-v50 metadata and arbitrary Wrangler API-shaped
+predecessors/successors are denied; the existing authenticated legacy export-shape
+path is unchanged.
+
+The runtime is a prepared-closure member and an activation/G002/PTR compiler
+input. Refresh the supported 16-output source family, retain real `acbb5128`
+compiled authority during source integration, then run the supported assembler
+against actual signed resulting main and accept its generated family before
+provider work. G001 and recovery compiler identities are not hand-edited. This
+supersedes the earlier excluded-only correction plan: excluding documentation
+and Dispatcher tests does not exclude the new runtime repair.
+
+The installed GitHub CLI's removed GraphQL classic-project field is a distinct
+metadata-update failure: the source push had succeeded. Use exact structured
+REST PR metadata and merge requests, verify remote readback, and never repeat a
+successful push merely because a later metadata command failed. Windows-to-WSL
+local fetch recovery uses the reviewed exact upload-pack safe.directory command
+in the preparation guide; no global trust setting or new key is needed.
+
+## M1 native preparation and M2 publication — 1 October 2026
+
+Signed source-only M1 `acbb51285485d918ae861db4bc18046e32378951`, tree
+`3fab7749ce35a2904b57194b3de42340bfce9710`, merged PR #374 at 11:08:48 UTC.
+The reviewed head `6e9f50bf` had all 17 jobs pass in
+[Verify 36847966470](https://github.com/ael-dev3/Warpkeep/actions/runs/36847966470).
+Actual-M1 push-main Verify 36853528379 passed all 17 jobs at 12:10:56 UTC;
+Pages 36860066242 classified successfully and skipped all six downstream jobs.
+Retain `artifacts/qa/october-m1-acbb-workflow-terminal-summary.json` and
+`artifacts/qa/october-release-m1-integration.json`; reviewed-head CI and actual
+M1 native preparation retain their distinct commit identities.
+
+Actual-M1 native prepare/check ran at 11:15:57–11:49:09 UTC with identical
+19-field results. Its authenticated export covers 102 outputs; exactly 11 paths
+change, producing tree `d2ce0e6d34f4fe37fc65130ecc4342be68368e7b`.
+Retain the private phase receipts and
+`artifacts/qa/october-release-acbb5128-independent-export-review.json`.
+
+The first receiver applied exactly the authenticated 11-path delta but rejected
+normal-index physical identity. The cause remains unestablished; a separate small
+text/binary probe did not reproduce it. Reconciliation removed exactly the owned
+effects and verified full M1 raw bytes and the logical M1 index. It did not claim
+restoration of the original raw index identity. A fresh receive used an
+authenticated temporary index for plain working-tree apply/check, verified its
+unchanged logical M1 tree and the new normal-index baseline, and succeeded at
+12:18:41 UTC. Head, nonoutputs and all authenticated outputs were checked.
+Retain `october-release-acbb5128-receive-failed-effects.json`,
+`october-release-acbb5128-receive-reconciled.json` and
+`october-release-acbb5128-received-isolated.json` under `artifacts/qa/`; isolation
+is containment, not proof of the original cause.
+
+Signed M2 `5ecd17c0f091418c52f101eaca5964b0c45517bb` is a direct child of M1
+with that generated tree. Checked-in sealed-launch verification, prepared bridge
+policy and 190 affected local tests pass at M2; retain
+`october-release-m2-validation.json` and its referenced logs. Signed publication
+opened [PR #379](https://github.com/ael-dev3/Warpkeep/pull/379) at 12:34:13 UTC;
+retain `october-release-m2-publication.json`.
+[Verify 36862649149](https://github.com/ael-dev3/Warpkeep/actions/runs/36862649149)
+currently fails the same 45 historical Darwin-fixture cases in two jobs. Local
+fixture repair passed locally; this does not establish a new runtime bug. No repaired
+head CI pass, M2 integration, provider write or live 0.4 acceptance is claimed.
+
+The isolated synthetic four-file runner reproduced exactly 45 failures and 215
+passes before repair. The same command with the reviewed Dispatcher fixture
+completed at 13:03:28.313 UTC, exit 0: 260 passed, zero failed and one unchanged
+unsupported-runtime skip. The fixture now authenticates current compiler M1
+independently of the original Darwin inputs at `5d175edf` / `e7f36c6c`, with exact
+Git blobs, SHA-256 and envelope length. Production pins remain unchanged. Evidence
+is scoped to `5ecd17c0` plus test-file SHA-256
+`d0501e63c2c364bc1a9872e4fca1099a3db27434226dd29da4b27b216a261689`.
+Both actual test groups were absent at 13:05:41 UTC. HEAD/index stayed unchanged;
+all other tracked bytes/modes/owners matched M2. Retain
+`artifacts/qa/october-release-5ecd-darwin-fixture-summary.json`, SHA-256
+`13079712219c080db15f68992ab52c6418938a6f3e2051d3a7ad2f6f3552b5de`,
+its before/after logs and terminal readback. This local result does not relabel
+the failed hosted source as a pass.
+
+The six current note paths and `tests/sealedRealmsProductionDispatcher.test.ts`
+have no membership in the received prepared-deploy closure, sealed production
+graph manifest or recovery compiler-input manifest. Their respective SHA-256s
+are `985a033d5020e3421418071295f93d807a4722317e376b2b3cbbe73ca7f4f05d`,
+`764e796fd4337d40705b2587f4d14b325bbc04dc9ca40e548d888c4a44e1c296`
+and `b520784d091dad1caa3d28e2ef452189008c3747a6276ec6820b4050d95ca8ca`.
+Recheck this against the final checkpoint diff. Excluded-only repairs preserve
+M1 compiler ancestry and need no new assembler cycle. The
+[current handoff](../../agent-notes/0.4.0/execution-handoff.md#operating-source-and-signer-component-route)
+defines the planned frozen-S/separate-F/direct-child-A sequence. Genuine fixture
+outputs, full signer promotion and activation have not yet been proved. Alpha
+remains 0.3.43; owner PTR, full production R06 and actual-owner/device acceptance
+remain open.
+
 ## Patched pnpm runtime and current Linux snapshot — 1 October 2026
+
+Earlier source-bound checkpoint, superseded for the next action by the M1/M2
+record above. Its retained failures, repairs and source scopes remain evidence.
 
 The published repair `7be8ae48` starts normal PR Verify
 [36841020942](https://github.com/ael-dev3/Warpkeep/actions/runs/36841020942),

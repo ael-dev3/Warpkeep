@@ -4,6 +4,33 @@ Refreshed 1 October 2026, UTC and Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
+Known live QR-recovery v50 has original B0 bindings without PTR_ENABLED and
+Wrangler provenance. This source checkpoint corrects the preparation adapter;
+original byte authority and successor API validation stay intact. It does not
+change working public sign-in or add gameplay.
+
+Next: reproduce the supported 16-output source family, keeping genuine acbb5128
+compiler manifests; require corrected PR #379 Verify and integrate authored
+source; run actual resulting-main native prepare/check; publish and verify the
+new genuine generated family. Do not use PR-head compilation/equal tree as
+main ancestry or push-main Verify evidence. The earlier excluded-only correction
+plan does not cover this runtime compiler-input repair.
+
+Freeze accepted operating main S before prepared bridge deployment. Keep the
+existing frozen-S/separate five-output signer component F/direct-child activation
+A route in the handoff. Preserve existing Alpha, G001 progress/admission freeze
+and sealed G002. Owner PTR is unpublished; full production R06 and actual-owner/
+phone acceptance remain open. No extra key or human reauthentication is needed
+by the reproduced source incompatibility.
+
+Exact evidence and recovery paths:
+docs/agent-notes/0.4.0/execution-handoff.md
+docs/evidence/0.4.0/local-operations.md
+docs/operations/0.4.0-local-release-preparation.md
+
+HISTORICAL SHIPPING STATE — 30 SEPTEMBER / EARLIER 1 OCTOBER 2026
+The following source-bound checkpoint is superseded for the next action above.
+
 Continue PR #374 on fix/g001-census-admission-proxy; main remains 786c0b2b.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the published PR head separately from the current local repaired source.

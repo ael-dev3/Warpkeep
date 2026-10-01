@@ -74,9 +74,8 @@ const ADMIN_SECRET_PATH = '/private/warpkeep/admin-secret';
 const POLICY_RECORD_PATH = 'activation-evidence/records/g001-policy-observation-bootstrap-receipt.json';
 const privateCleanups = new Set<() => void>();
 afterEach(() => { for (const cleanup of privateCleanups) cleanup(); });
-// The source-only candidate retains its previously compiled dispatcher until
-// the native M2 promotion. Pair this dispatcher fixture with its genuine input
-// blobs instead of mixing current source bytes with historical compiled pins.
+// Authenticate the current compiler independently of the frozen Darwin fixtures.
+// Promoting a fresh compiler manifest must not replace their original inputs.
 const compilerManifest = JSON.parse(readFileSync(
   new URL('../scripts/sealed-realms-production-bundle-manifest-v1.json', import.meta.url), 'utf8',
 )) as { sourceCommit: string; sourceTree: string };
@@ -91,21 +90,32 @@ function compilerGit(args: readonly string[]): Buffer {
 }
 expect(compilerGit(['rev-parse', '--verify', `${compilerManifest.sourceCommit}^{tree}`]).toString('ascii').trim())
   .toBe(compilerManifest.sourceTree);
-function compilerSource(path: string) {
-  const blob = compilerGit(['rev-parse', '--verify', `${compilerManifest.sourceCommit}:${path}`])
+const DARWIN_FIXTURE_SOURCE = '5d175edf25ee1555b27c8220844352fdbc4e99ff';
+const DARWIN_FIXTURE_TREE = 'e7f36c6c35fa126025220e0b70865ff17a62a93f';
+expect(compilerGit(['rev-parse', '--verify', `${DARWIN_FIXTURE_SOURCE}^{tree}`]).toString('ascii').trim())
+  .toBe(DARWIN_FIXTURE_TREE);
+function darwinFixtureSource(path: string, expectedBlob: string, expectedSha256: string) {
+  const blob = compilerGit(['rev-parse', '--verify', `${DARWIN_FIXTURE_SOURCE}:${path}`])
     .toString('ascii').trim();
-  expect(blob).toMatch(/^[0-9a-f]{40}$/u);
+  expect(blob).toBe(expectedBlob);
   const bytes = compilerGit(['cat-file', 'blob', blob]);
   expect(createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex')).toBe(blob);
-  return { blob, bytes, sha256: createHash('sha256').update(bytes).digest('hex') };
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  expect(sha256).toBe(expectedSha256);
+  return { blob, bytes, sha256 };
 }
-const bootstrapInput = compilerSource('scripts/greater-realm-production-bootstrap.mjs');
+const bootstrapInput = darwinFixtureSource('scripts/greater-realm-production-bootstrap.mjs',
+  '7386c65645dc11008cbb15e1e04f7be936fe8bc7',
+  'be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a');
 const BOOTSTRAP_BLOB = bootstrapInput.blob;
 const BOOTSTRAP_BYTES = bootstrapInput.bytes;
 const BOOTSTRAP_SHA256 = bootstrapInput.sha256;
-const envelopeInput = compilerSource('docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt');
+const envelopeInput = darwinFixtureSource('docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt',
+  '62690134fd5de632e7831eca0b213eab101d4275',
+  'cd06f32e7a479c4e9de3504029a994f6e7a18033d3d6766c2baac3ef59ce2624');
 const ENVELOPE_BLOB = envelopeInput.blob;
 const ENVELOPE_BYTES = envelopeInput.bytes;
+expect(ENVELOPE_BYTES.byteLength).toBe(88_104);
 
 function lifecycleSummary(runId: string, input: Readonly<{
   authorityPhase?: string | null;

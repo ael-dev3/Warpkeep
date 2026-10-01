@@ -1,6 +1,90 @@
 # Continue Warpkeep 0.4
 
+## Current release checkpoint — 1 October 2026
+
+The corrected Dispatcher checkpoint `091c3228` is published in
+[PR #379](https://github.com/ael-dev3/Warpkeep/pull/379), with normal
+[Verify 36871156278](https://github.com/ael-dev3/Warpkeep/actions/runs/36871156278).
+All 17 jobs passed in the 14:52:27 UTC terminal readback; the module job
+completed at 14:49:15 UTC. This is exact 091c PR evidence, not verification of
+the new predecessor correction. The retained local four-file result is 260
+passed, zero failed and one unchanged platform skip at its original inputs.
+
+The deployment audit found a separate, real auth predecessor incompatibility.
+The live v50 is the known 27 September QR RPC recovery of reviewed B0 source
+`308f901d`, with Wrangler provenance and the original binding namespace.
+The preparation adapter incorrectly required a predecessor `PTR_ENABLED`
+binding and original API-upload metadata. This checkpoint repairs those exact
+predecessor checks; successor API validation and the original B0 multipart
+source authority remain intact. No new auth mode or gameplay feature is added.
+
+This is now an authored source checkpoint. The supported 16-output source family
+must reproduce after the correction, retaining the genuine `acbb5128` compiler
+manifests until actual new-main preparation. Require corrected-head Verify,
+integrate the reviewed source, run actual resulting-main native prepare/check,
+then publish and verify its genuine generated family before freezing operating S.
+A local PR-head compile or equal tree cannot replace signed main ancestry and
+exact push-main Verify evidence. Do not relabel earlier preparation receipts.
+
+Alpha remains live at 0.3.43; owner 0.4 PTR publication is pending. Full shaped
+production R06, the actual-owner journey and physical-device acceptance remain
+open. The planned frozen-S, separate signer-component F and direct-child A
+route remains the publication path. No provider write follows from metadata,
+simulated caller regressions or source-family verification alone.
+
+Detailed source-bound failures, provider metadata and recovery steps are in
+[local operations](../../evidence/0.4.0/local-operations.md#qr-recovery-predecessor-compatibility--1-october-2026).
+
+### Operating source and signer-component route
+
+Freeze accepted operating main **S** after the authored predecessor correction
+and its genuine actual-main generated family pass.
+Keep this source fixed from the first prepared auth-bridge deployment through
+activation. Current bridge receipts require that exact operating source. Historical
+realm adoptions have a separate authenticated route; they do not authorize a
+historical bridge. Integrating fixture outputs into main would change the bridge's
+operating source before activation.
+
+1. At S, run supported Linux preflight and the real G001 policy observation;
+   deploy the prepared auth bridge, then the initial disabled preparation signer
+   and gateway. Keep their source-bound receipts and actual provider readbacks.
+2. Inspect and apply the gated existing PTR/G002 updates, retaining real signed
+   pre/post observations and adoption records. Read-only inspection alone does
+   not satisfy the signer dependency of an actual update.
+3. Run the real fixture generator and its check against S and those adoptions.
+   Publish a separately signed and scanned **component F** branch from S containing
+   exactly the generator's five outputs under `services/release-recovery/`:
+   `fixtures/toolchains/linux-x64.json`,
+   `fixtures/spacetime/g001.raw-module-def-v10.json`,
+   `fixtures/spacetime/g002.raw-module-def-v10.json`,
+   `fixtures/spacetime/ptr.raw-module-def-v10.json` and
+   `fixtures/spacetime/manifest.json`.
+   Keep F separate from operating main; its genuine realm provenance remains S.
+4. Prove the exact F fixture bytes and full signer package. Generate activation
+   inputs while the initial signer's exact `RECOVERY_PREPARATION_POLICY` is still
+   installed. Then promote and verify the full signer with the actual arming
+   inputs, retaining the existing key, RPC authority, ledger and epoch, before
+   publishing activation. Final TOML does not automatically preserve omitted
+   variables; do not depend on policy survival across promotion.
+5. Create and publish actual **A** as an exact direct child of S, containing only
+   the supported activation binding/package/lock changes. Keep its real commit
+   timestamp and source proofs. This audit found no Git commit-date freshness
+   guard; census/confirmation freshness belongs to their actual validation phase.
+   Execute
+   the existing provider, Pages/mirror and postflight gates before claiming PTR
+   publication or release acceptance.
+
+This is a planned route, not evidence that F, fixture generation, signer promotion
+or A exists. Full shaped production R06, actual-owner journey and physical-device
+acceptance remain open. The [local operations record](../../evidence/0.4.0/local-operations.md#m1-native-preparation-and-m2-publication--1-october-2026)
+owns the receiver reconciliation and source-bound receipts; the
+[release checklist](../../operations/0.4.0-release-checklist.md#current-release-verification--1-october-2026)
+owns acceptance. Earlier checkpoints below retain their original dates and
+source scopes and are superseded for the next action by this section.
+
 ## Current local checkpoint — 30 September 2026
+
+Historical checkpoint, superseded by the 1 October release checkpoint above.
 
 October continuation: 1 October 2026, UTC and Europe/Budapest.
 
