@@ -7,8 +7,13 @@ CURRENT SHIPPING STATE
 PR #379 merged at 16:30:55 UTC after reviewed d16355f2 Verify 36883391676 passed
 all 17 jobs. Actual signed main is cb282bab/tree feeeff15, parent acbb5128.
 The preparation checkouts were synchronized to it; the d163 branch remains.
-Resolve the next generated checkpoint/local ref/open PR separately from its
-retained cb282 compiler-input main and the later accepted operating main S.
+Signed generated checkpoint a8feb8c4/tree 96507e3f is published in PR #380,
+release/0.4-prepared-cb282bab. Its exact Verify 36907314985 attempt 1 remains
+in progress; fifteen component jobs have passed as of 19:03:36 UTC, with the
+module job and subsequent aggregate still pending. Check the actual run before
+merging or changing its head. Keep one watcher; do not dispatch duplicate runs.
+Resolve the working repair checkpoint separately from this published PR head,
+its retained cb282 compiler-input main and the later accepted operating main S.
 Actual-main Verify 36892578403 passed all 17 jobs in the 17:36:29.827 UTC terminal
 readback; its Pages classification is separate from publication evidence.
 
@@ -22,16 +27,33 @@ index. Handle release-workspace-5fd662e2cd5d954fd6b50961384369b4; receipt stem
 artifacts/qa/october-release-cb282bab-actual-main. Its genuine 102-output export
 changes ten paths; both compiler manifests bind cb282/tree feeeff15.
 Isolated receive completed at 17:53:29.966 UTC with normal index/HEAD/nonoutputs intact.
-Next: review, sign, scan and publish this family plus seven excluded notes;
-accept normal PR and resulting-main CI before freezing S. Do not repeat successful
-compilation for these notes or rerun completed source merges. A PR-head compile/
+The family plus seven excluded notes is signed, scanned, published and synchronized
+locally at a8feb8c4. The existing Desktop TXT was updated in place, with no new
+Desktop file. Accept normal PR and resulting-main CI before freezing S. Do not
+repeat successful compilation for these notes or rerun completed source merges. A PR-head compile/
 equal tree cannot supply main ancestry or exact push-main CI authority.
 
-The failed production-component Keep diagnostic actually reached ready/no
-fallback after a fully received model was canceled by intentional loader cleanup.
-Correct the measurement classification and exercise existing controls for active
-cadence; a settled Keep intentionally idles. Retain failed diagnostics and their
-original source scopes. No full R06 or owner/device acceptance is claimed.
+The corrected production-component Keep fixture completes three real 60-second
+camera workloads each for desktop high, portrait balanced and portrait reduced.
+Actual paired RAF/GL observations reproduce delayed camera feedback, including
+near-deadline callbacks rejected by the decorative throttle. A narrow existing
+feature repair in Keep04SceneHost and its two affected tests passes 139 cases,
+zero failures/skips, plus app types and independent review at 19:14:49.502 UTC.
+It renders visible feedback on the next RAF, retains autonomous 30/24/15 caps,
+and admits sub-millisecond decorative jitter with a bounded 1ms tolerance.
+Sign/scan/back up the closure-refreshed checkpoint, then measure its genuine
+production-component build; do not infer a measured improvement from unit tests.
+Record baseline/repaired measurements in docs/evidence/0.4.0/performance.md.
+These fixtures do not establish full R06, final-A production or owner/device acceptance.
+
+Keep04SceneHost is outside all four retained operation compiler graphs and seven
+recovery compiler inputs, but inside the prepared protected source closure.
+Reproduce/install/check the supported 16-output closure family for its repair;
+preserve cb282 compiler identities and original 102-output receipts. Do not claim
+the changed working closure remains byte-identical to that earlier full export.
+Back up the signed reviewable repair on an explicit development branch; inspect
+Actions and wait for the existing exact PR run before any new PR/head update.
+Then accept the exact corrected PR and signed-main verification before freezing S.
 
 Freeze accepted operating main S before prepared bridge deployment. Keep the
 existing frozen-S/separate five-output signer component F/direct-child activation

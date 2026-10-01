@@ -41,6 +41,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     const host = element.current!; const abort = new AbortController();
     let retired = false; let renderer: THREE.WebGLRenderer | undefined; let scene: Scene04 | undefined;
     let bundle: InnerKeepRuntimeAssetBundle | undefined; let frame = 0; let last = -Infinity;
+    let feedbackPending = false;
     const lateBundles = new Set<InnerKeepRuntimeAssetBundle>(); const requestedBuildings = new Set<Building04>();
     const retryableBuildings = new Set<Building04>(); const retriedBuildings = new Set<Building04>();
     let observer: ResizeObserver | undefined; const listeners: Array<() => void> = [];
@@ -64,19 +65,25 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       } catch { /* An observer must never change rendering, commands, or cleanup. */ }
     }
     const set = (value: typeof mode) => { if (!retired) { setMode(value); current.current.onMode(value); } };
-    function request() { if (!retired && !document.hidden && !frame && scene) frame = requestAnimationFrame(draw); }
+    function request(feedback = true) {
+      if (retired || document.hidden || !scene) return;
+      // A visible change promotes an already queued decorative RAF as well.
+      feedbackPending ||= feedback;
+      if (!frame) frame = requestAnimationFrame(draw);
+    }
     function draw(now: number) {
       frame = 0; if (retired || document.hidden || !scene || !renderer) return;
       const interval = 1000 / ({ high: 30, balanced: 24, reduced: 15 }[props.quality]);
       const elapsed = now - last;
       // Keep the cadence phase instead of throwing away a late RAF's remainder.
-      // 0.05ms covers timestamp rounding without conceding a whole display frame.
-      const tolerance = .05;
-      if (!props.reducedMotion && elapsed + tolerance < interval) { request(); return; }
+      // Bound sub-millisecond RAF jitter without conceding a whole display frame.
+      const tolerance = 1;
+      if (!feedbackPending && !props.reducedMotion && elapsed + tolerance < interval) { request(false); return; }
       // Rebase after idle/a long stall; render at most once, never replay missed frames.
-      // Reduced motion is event-driven feedback, so it needs no throttle-only RAFs.
-      last = props.reducedMotion || !Number.isFinite(last) || elapsed >= interval * 2
+      // Input feedback is immediate; subsequent decoration starts from that visible frame.
+      last = feedbackPending || props.reducedMotion || !Number.isFinite(last) || elapsed >= interval * 2
         ? now : last + Math.floor((elapsed + tolerance) / interval) * interval;
+      feedbackPending = false;
       try {
         const workStarted = current.current.onObservation ? performance.now() : 0;
         const active = scene.update(now / 1000);
@@ -88,12 +95,12 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         host.dataset.drawCalls = String(renderer.info.render.calls); host.dataset.triangles = String(renderer.info.render.triangles);
         host.dataset.geometryBytes = String(telemetry.geometryBytes); host.dataset.textureBytes = String(telemetry.textureBytes);
         host.dataset.fallback = telemetry.fallback;
-        if (active) request();
+        if (active) request(false);
         if (current.current.onObservation) observe('frame', performance.now() - workStarted, now);
       } catch { failure(); }
     }
     function release(keepRecovery = false) {
-      abort.abort(); if (frame) cancelAnimationFrame(frame); frame = 0; observer?.disconnect();
+      abort.abort(); if (frame) cancelAnimationFrame(frame); frame = 0; feedbackPending = false; observer?.disconnect();
       listeners.splice(0).forEach(remove => remove()); runtime.current = null;
       scene?.dispose(); scene = undefined; bundle?.dispose(); bundle = undefined;
       lateBundles.forEach(loaded => loaded.dispose()); lateBundles.clear();
@@ -271,7 +278,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         listen(canvas, 'lostpointercapture', event => releasePointer(event.pointerId));
         const wheel = (event: WheelEvent) => { if (!scene) return; event.preventDefault(); view.zoom = scene.camera.zoom = Math.max(.8, Math.min(2, scene.camera.zoom * Math.exp(-event.deltaY * .001))); scene.camera.updateProjectionMatrix(); request(); };
         canvas.addEventListener('wheel', wheel, { passive: false }); listeners.push(() => canvas.removeEventListener('wheel', wheel));
-        const visibility = () => { if (document.hidden) { if (frame) cancelAnimationFrame(frame); frame = 0; cancelPointer(); }
+        const visibility = () => { if (document.hidden) { if (frame) cancelAnimationFrame(frame); frame = 0; feedbackPending = false; cancelPointer(); }
           else { reconcile(); loadRelevantBuildings(true); } };
         document.addEventListener('visibilitychange', visibility); listeners.push(() => document.removeEventListener('visibilitychange', visibility));
         const online = () => loadRelevantBuildings(true);

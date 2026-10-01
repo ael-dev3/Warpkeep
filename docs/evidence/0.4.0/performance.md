@@ -1,8 +1,62 @@
 # 0.4 performance acceptance contract
 
 Established 2026-09-06 before final visual implementation/measurement.
-Status: **budgets established; bounded menu and DEV Keep diagnostics recorded; final production acceptance incomplete**.
+Status: **budgets established; production-component Keep feedback defect reproduced; final production acceptance incomplete**.
 Scope: final production-build 0.4 world/keep path, not a standalone demo.
+
+## Production-component Keep feedback baseline — 2026-10-01
+
+Signed preparation source `a8feb8c4c8fc723d35124222999b72120f03009c`, tree
+`96507e3f848196474d28c4a08bf4da69c664cdf8`, completes three 60-second
+camera workloads per tested profile in a genuinely production-optimized,
+separate Keep component fixture. Actual Chrome 154.0.8037.58 uses NVIDIA
+RTX 3080 Ti through ANGLE/D3D11. Desktop uses 1440×900/DPR 1; portrait
+uses 390×844/DPR 3 and 4× CPU slowdown. The balanced backing canvas is
+546×456 for a 364×304 CSS region, confirming the quality pixel cap.
+
+| Profile | Actual CPU GL submission interval p95, three samples | Existing ceiling |
+| --- | --- | --- |
+| Desktop high | 50.5 / 50.1 / 34.4ms | 33.4ms |
+| Portrait balanced | 51.0 / 51.0 / 51.1ms | 50ms |
+| Portrait reduced | 83.8 / 83.3 / 83.9ms | 75ms |
+
+Each sample has exact correspondence between actual application RAF timestamps
+and GL submission bursts, with eligible input delivery and no runtime failure.
+Paired desktop application intervals independently reproduce the unevenness;
+replay of the actual callbacks reproduces the existing scheduling decisions.
+Camera feedback shares the decorative cap, and callbacks arriving 0.066–0.566ms
+before its deadline can be rejected by the 0.05ms rounding tolerance. Low
+render work alone therefore does not establish smooth interaction. Repair and
+measure this behavior before accepting the release; keep the budgets unchanged.
+
+The narrow repair separates visible feedback from decorative continuation:
+input, zoom, inspection and reconciliation request the next display RAF,
+including promotion of an already queued decorative frame. Autonomous reveal
+continuation retains the 30/24/15fps phase and one pending RAF; a bounded 1ms
+tolerance admits the reproduced sub-millisecond deadline jitter. Idle, hidden,
+reduced-motion, disposal and context-restoration behavior remain covered.
+The first feedback regression baseline fails all 22 added cases; the separate
+ambient baseline fails three actual-host reveal cases. The corrected affected
+suite passes 139 tests, zero failures/skips, at 19:14:49.502 UTC, with app
+types and independent source review passing. Production remeasurement is still
+required; unit regressions are not a measured speedup or an acceptance pass.
+
+All three runs close their owned Chrome actors/profiles and native server
+groups, preserve tracked source/index and retain raw receipts under
+`artifacts/qa/october-release-r06-a8feb8c4-<profile>-advanced-wasm-20261001T183645336350Z-*`.
+Desktop completes 18:40:21.877–18:44:00.554 UTC, portrait balanced
+18:49:07.130–18:52:50.170 UTC, and reduced 18:56:28.632–19:00:11.243 UTC.
+Retain the earlier fixture failure separately: its CSP omitted WebAssembly
+permission; correcting that ignored fixture permission allowed the genuine
+production decoder to run without changing product CSP or the measurement driver.
+
+These observations use synthetic completed buildings and real existing camera
+controls, without player authority. Static assets are byte-verified reuse from
+the earlier `6e9f50bf` production build; they are not a new final-source build.
+CPU submission intervals are not GPU completion or physical-phone measurements.
+Placement, landscape, production world/keep switching, final-A cold bootstrap,
+owner play and device acceptance remain open. This is a reproduced defect and
+bounded baseline, not a full R06 pass or evidence that 0.4 has been published.
 
 ## Bounded DEV Keep heap lifecycle — 2026-10-01
 
@@ -114,7 +168,7 @@ identity. Hardware observations do not establish acceptance or change budgets.
 | Mobile reduced | 390x844 / reduced | Same emulation shaping | <=15 seconds | <=75ms | <=83.4ms |
 | Mobile landscape | 844x390 / balanced | Same emulation shaping | <=15 seconds | <=50ms | <=66.7ms |
 
-Reduced rendering is intentionally capped at 15fps by the existing keep plan.
+Autonomous reduced rendering is intentionally capped at 15fps by the existing keep plan.
 Ruling: use 75ms p95 for that profile rather than the plan's blanket mobile 50ms,
 which contradicts its 66.7ms scheduling interval. This resolves the specification
 conflict before measurement, not in response to a failed result. Cost if wrong:

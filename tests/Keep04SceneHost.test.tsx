@@ -74,6 +74,110 @@ function occupiedProps(x = -24_000_000n): Keep04SceneHostProps {
 }
 const cameraState = (camera: THREE.OrthographicCamera) => ({ position: camera.position.toArray(), quaternion: camera.quaternion.toArray(),
   zoom: camera.zoom, left: camera.left, right: camera.right, top: camera.top, bottom: camera.bottom });
+
+const feedbackCases = (['high', 'balanced', 'reduced'] as const).flatMap(quality =>
+  (['mouse drag', 'touch pinch', 'wheel zoom', 'toolbar zoom', 'reconciliation', 'selection inspection'] as const)
+    .map(feedback => ({ quality, feedback })));
+it.each(feedbackCases)('renders $feedback feedback on the next RAF at $quality quality', async ({ quality, feedback }) => {
+  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(800);
+  vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600);
+  const options = { ...props(), quality }; const mounted = render(<Keep04SceneHost {...options} />);
+  await act(async () => {}); tick(100); expect(queued.size).toBe(0);
+  const renderer = renderers[0]; const canvas = mounted.container.querySelector('canvas')!;
+  const renderedViews: ReturnType<typeof cameraState>[] = [];
+  const draw = vi.spyOn(renderer, 'render').mockImplementation((_scene, camera) => { renderedViews.push(cameraState(camera)); });
+  if (feedback === 'mouse drag') {
+    pointer(canvas, 'pointerdown', 1, 400, 300); pointer(canvas, 'pointermove', 1, 420, 310);
+    pointer(canvas, 'pointermove', 1, 440, 320); pointer(canvas, 'pointerup', 1, 440, 320);
+  } else if (feedback === 'touch pinch') {
+    pointer(canvas, 'pointerdown', 1, 400, 300); pointer(canvas, 'pointerdown', 2, 500, 300);
+    pointer(canvas, 'pointermove', 2, 520, 300); pointer(canvas, 'pointermove', 2, 540, 300);
+    pointer(canvas, 'pointerup', 2, 540, 300); pointer(canvas, 'pointerup', 1, 400, 300);
+  } else if (feedback === 'wheel zoom') {
+    fireEvent.wheel(canvas, { deltaY: -10 }); fireEvent.wheel(canvas, { deltaY: -10 });
+  } else if (feedback === 'toolbar zoom') {
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+  } else if (feedback === 'selection inspection') {
+    fireEvent.click(screen.getByRole('button', { name: 'Inspect selected site' }));
+  } else {
+    mounted.rerender(<Keep04SceneHost {...options} visual={{ ...options.visual,
+      draft: { ...options.visual.draft!, x: 10_000_000n } }} />);
+  }
+  expect(queued.size).toBe(1); expect(draw).not.toHaveBeenCalled();
+  tick(116.4); // Earlier than every decorative quality deadline, including a rounded 60Hz RAF.
+  expect(draw).toHaveBeenCalledOnce(); expect(renderedViews).toEqual([cameraState(renderer.camera!)]);
+  if (feedback === 'reconciliation') expect(renderer.scenes[0].getObjectByName('draft-footprint')!.position.x).toBe(10);
+  expect(queued.size).toBe(0); expect(options.onPlacement).not.toHaveBeenCalled(); expect(options.onSelect).not.toHaveBeenCalled();
+  mounted.unmount(); expect(active).toBe(0); expect(observers).toBe(0); expect(queued.size).toBe(0);
+});
+
+it.each(['high', 'balanced', 'reduced'] as const)('keeps the %s completion reveal capped after immediate feedback and then retires', async quality => {
+  const initial = occupiedProps(); const constructing = { ...initial, quality, visual: { ...initial.visual,
+    buildings: initial.visual.buildings.map(building => ({ ...building, completedLevel: 0, phase: 'constructing' as const })) } };
+  const mounted = render(<Keep04SceneHost {...constructing} />); await act(async () => {}); tick(100);
+  const renderer = renderers[0]; const draw = vi.spyOn(renderer, 'render');
+  mounted.rerender(<Keep04SceneHost {...initial} quality={quality} />); await act(async () => {}); tick(101);
+  expect(draw).toHaveBeenCalledOnce(); expect(queued.size).toBe(1);
+  tick(102); expect(draw).toHaveBeenCalledOnce(); expect(queued.size).toBe(1);
+  tick(101 + 1000 / { high: 30, balanced: 24, reduced: 15 }[quality] + .1);
+  expect(draw).toHaveBeenCalledTimes(2); expect(queued.size).toBe(1);
+  tick(601); expect(queued.size).toBe(0);
+  const count = draw.mock.calls.length; tick(1000); expect(draw).toHaveBeenCalledTimes(count);
+  mounted.unmount(); expect(active).toBe(0); expect(observers).toBe(0); expect(queued.size).toBe(0);
+});
+
+it.each(['high', 'balanced', 'reduced'] as const)('promotes feedback over an already queued %s reveal frame without uncapping its continuation', async quality => {
+  const initial = occupiedProps(); const constructing = { ...initial, quality, visual: { ...initial.visual,
+    buildings: initial.visual.buildings.map(building => ({ ...building, completedLevel: 0, phase: 'constructing' as const })) } };
+  const mounted = render(<Keep04SceneHost {...constructing} />); await act(async () => {}); tick(100);
+  mounted.rerender(<Keep04SceneHost {...initial} quality={quality} />); await act(async () => {}); tick(101);
+  const draw = vi.spyOn(renderers[0], 'render'); tick(102); expect(draw).not.toHaveBeenCalled(); expect(queued.size).toBe(1);
+  const canvas = mounted.container.querySelector('canvas')!;
+  fireEvent.wheel(canvas, { deltaY: -10 }); fireEvent.wheel(canvas, { deltaY: -10 }); expect(queued.size).toBe(1);
+  tick(103); expect(draw).toHaveBeenCalledOnce(); expect(queued.size).toBe(1);
+  tick(104); expect(draw).toHaveBeenCalledOnce(); expect(queued.size).toBe(1);
+  tick(103 + 1000 / { high: 30, balanced: 24, reduced: 15 }[quality] + .1); expect(draw).toHaveBeenCalledTimes(2);
+  tick(603); expect(queued.size).toBe(0); mounted.unmount(); expect(active).toBe(0); expect(observers).toBe(0);
+});
+
+it.each(['high', 'balanced', 'reduced'] as const)('admits near-deadline RAF jitter during a real %s reveal without a burst or idle loop', async quality => {
+  const renderedAt: number[] = []; const initial = occupiedProps();
+  const onObservation = (value: Keep04Observation) => { if (value.event === 'frame') renderedAt.push(value.timestampMs); };
+  const constructing = { ...initial, quality, onObservation, visual: { ...initial.visual,
+    buildings: initial.visual.buildings.map(building => ({ ...building, completedLevel: 0, phase: 'constructing' as const })) } };
+  const mounted = render(<Keep04SceneHost {...constructing} />); await act(async () => {}); tick(0);
+  mounted.rerender(<Keep04SceneHost {...initial} quality={quality} onObservation={onObservation} />); await act(async () => {});
+  const start = 100.1; tick(start); renderedAt.splice(0, 1);
+  const jitter = [-.6, 0, -.6, -.1, -.6]; const at = (step: number) => start + step * 1000 / 60 + jitter[step % jitter.length];
+  for (let step = 1; step <= 36; step++) {
+    const before = renderedAt.length; expect(queued.size).toBeLessThanOrEqual(1); tick(at(step));
+    expect(renderedAt.length - before).toBeLessThanOrEqual(1);
+  }
+  // Real continuation, without camera input: a sub-millisecond early callback
+  // must not turn the first eligible quality deadline into another display wait.
+  expect(renderedAt).toContain(at({ high: 2, balanced: 5, reduced: 4 }[quality]));
+  const interval = 1000 / { high: 30, balanced: 24, reduced: 15 }[quality];
+  expect(renderedAt.length).toBeGreaterThanOrEqual(Math.floor(450 / interval) + 1);
+  expect(renderedAt.length).toBeLessThanOrEqual(Math.ceil(450 / interval) + 2);
+  expect(renderedAt.at(-1)! - start).toBeLessThanOrEqual(450 + interval + 1000 / 60);
+  expect(queued.size).toBe(0); const count = renderedAt.length; tick(1000); expect(renderedAt).toHaveLength(count);
+  mounted.unmount(); expect(active).toBe(0); expect(observers).toBe(0);
+});
+
+it('cancels pending feedback while hidden, resumes the current view promptly and disposes its RAF', async () => {
+  const options = props(); const mounted = render(<Keep04SceneHost {...options} />); await act(async () => {}); tick(100);
+  const draw = vi.spyOn(renderers[0], 'render'); const canvas = mounted.container.querySelector('canvas')!;
+  fireEvent.wheel(canvas, { deltaY: -10 }); expect(queued.size).toBe(1);
+  hidden = true; fireEvent(document, new Event('visibilitychange')); expect(queued.size).toBe(0);
+  fireEvent.wheel(canvas, { deltaY: -10 }); tick(110); expect(queued.size).toBe(0); expect(draw).not.toHaveBeenCalled();
+  mounted.rerender(<Keep04SceneHost {...options} visual={{ ...options.visual,
+    draft: { ...options.visual.draft!, x: 10_000_000n } }} />); expect(queued.size).toBe(0);
+  hidden = false; fireEvent(document, new Event('visibilitychange')); tick(116.4);
+  expect(draw).toHaveBeenCalledOnce(); expect(renderers[0].scenes[0].getObjectByName('draft-footprint')!.position.x).toBe(10);
+  fireEvent.wheel(canvas, { deltaY: -10 }); expect(queued.size).toBe(1);
+  mounted.unmount(); tick(120); expect(draw).toHaveBeenCalledOnce(); expect(active).toBe(0); expect(observers).toBe(0); expect(queued.size).toBe(0);
+});
+
 function expectEntrySitesVisible(camera: THREE.OrthographicCamera, x: number) {
   for (const [px, py, pz] of [[x - 5.65, 0, -24.75], [x + 5.65, 9, -15.25], [-6.5, 4.6, 34.8], [6.5, 0, 32.2], [-5, 0, -3]]) {
     const point = new THREE.Vector3(px, py, pz).project(camera);
