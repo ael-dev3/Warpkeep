@@ -254,7 +254,8 @@ export function createKeep04Life(options: Readonly<{
       const workers: Person[] = state.workers.map(worker => ({ role: 'worker', worker, offset: worker.ordinal, speed: WORKER_SPEED, lateral: 0, tunic: WORKER_TUNIC, skin: SKINS[0], heightAt: workerHeight }));
       people = [...workers, ...builders, ...guards, ...inner, ...outer];
     }
-    const fixedTime = 7.3; const fixedClockAnchor = { real: 0 };
+    // Still scenes use one composed moment; animated scenes start from it.
+    const stillTime = 7.3; let lifeTime = stillTime;
     function write(time: number) {
       personIndex = 0; cartIndex = 0;
       const wallClock = now();
@@ -349,13 +350,13 @@ export function createKeep04Life(options: Readonly<{
         if (disposed) return;
         state = { buildings: next.buildings.map(building => building), workers: next.workers.map(worker => Object.freeze({ ...worker })) };
         rebuild();
-        write(started === null || !options.animate ? fixedTime : fixedClockAnchor.real);
+        write(options.animate ? lifeTime : stillTime);
       },
       update: elapsed => {
         if (disposed || !options.animate) return false;
         if (started === null) started = elapsed;
-        fixedClockAnchor.real = elapsed - started + fixedTime;
-        write(fixedClockAnchor.real); return true;
+        lifeTime = elapsed - started + stillTime;
+        write(lifeTime); return true;
       },
       actors: () => disposed ? 0 : people.length,
       cost: () => {

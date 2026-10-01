@@ -7,6 +7,7 @@ import { createKeep04Building, KEEP04_FOOTPRINTS, measureKeep04Object, type Keep
 import { KEEP04_BUILDING_IDS, KEEP04_TREE_IDS } from './loadKeep04Assets';
 import { fitKeep04Camera, fitKeep04SiteCamera, KEEP04_VISUAL_PROFILE as P, type Quality04 } from './keep04VisualProfile';
 import { createKeep04Dressing } from './keep04VoxelDressing';
+import { KEEP04_VALE_PALETTE as V } from './keep04ValePalette';
 import { createKeep04Landscape, type Keep04Landscape } from './createKeep04Landscape';
 import { createKeep04Life, type Keep04Life, type Keep04WorkerVisual } from './createKeep04Life';
 
@@ -44,7 +45,7 @@ export function createKeep04Scene(options: Readonly<{
 }>): Scene04 {
   const { quality, assets } = options; const budget = P.budgets[quality];
   const animateAmbient = Boolean(options.ambient) && !options.reducedMotion;
-  const scene = new THREE.Scene(); scene.background = new THREE.Color(P.valeHaze); scene.fog = new THREE.Fog(P.valeHaze, 175, 390);
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(V.haze); scene.fog = new THREE.Fog(V.haze, 175, 390);
   const camera = new THREE.OrthographicCamera(); fitKeep04Camera(camera, 1.4);
   const scenery = new THREE.Group(); scenery.name = 'non-pickable-scenery'; scene.add(scenery);
   const geometries = new Set<THREE.BufferGeometry>(); const materials = new Set<THREE.Material>();
@@ -79,7 +80,7 @@ export function createKeep04Scene(options: Readonly<{
     // the grounds read as a tended green rather than a display platform.
     const deckGeometry = new THREE.BoxGeometry(88, 1, 72, 44, 1, 36);
     const deckPositions = deckGeometry.getAttribute('position'); const deckColors = new Float32Array(deckPositions.count * 3);
-    const lawn = new THREE.Color(P.courtyardLawn); const lawnDeep = new THREE.Color(P.courtyardLawnDeep); const lawnTone = new THREE.Color();
+    const lawn = new THREE.Color(V.courtyardLawn); const lawnDeep = new THREE.Color(V.courtyardLawnDeep); const lawnTone = new THREE.Color();
     for (let i = 0; i < deckPositions.count; i++) {
       const x = deckPositions.getX(i); const z = deckPositions.getZ(i);
       const shade = .93 + Math.sin(x * .31 + z * .17) * .05 + Math.cos(z * .39 - x * .13) * .035;

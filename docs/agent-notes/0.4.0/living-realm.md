@@ -23,7 +23,7 @@ useful action from several panels.
 | --- | --- | --- |
 | Keep setting | A decorative valley around the raised plinth: river, three lanes with stone bridges, wheat/lavender/sprout/soil fields with hedgerows, two hamlets, farmsteads, two windmills and a watermill, deterministic woods, birch banks, poplar avenues and stones | `src/components/keep04/createKeep04Landscape.ts`, `src/components/keep04/keep04Terrain.ts` |
 | Keep fortifications | Rear towers and wall, low camera-side corner towers, squat gate turrets, crenellated front walls and a causeway with ramp to the vale road; all off the legal deck | `createKeep04Landscape.ts`, `src/components/keep04/keep04Models.ts` |
-| Courtyard | The legal deck is a mown lawn (vertex colour only; geometry, legality and picking unchanged) | `src/components/keep04/createKeep04Scene.ts`, `keep04VisualProfile.ts` |
+| Courtyard | The legal deck is a mown lawn (vertex colour only; geometry, legality and picking unchanged) | `src/components/keep04/createKeep04Scene.ts`, `keep04ValePalette.ts` |
 | Keep life | Villagers on walkways planned from real doors to the reserved civic network; the four Workers line up by the commons when idle, leave through the gate when outbound and come home with resource-coloured cargo when returning; builders at an active project; gate wardens, farmers, shepherds, sheep, birds, chimney smoke, banners, carts, boats and a warp crystal on the civic seal | `src/components/keep04/createKeep04Life.ts`, `keep04InnerPaths.ts`, `keep04Models.ts` |
 | Model kit | Code-authored, untextured, vertex-coloured low-poly models merged or instanced into a handful of draw calls | `src/components/keep04/keep04ModelKit.ts`, `keep04Models.ts`, `keep04Random.ts` |
 | World atmosphere | Daylight haze (same fog density), a sea of low cloud beyond the returned window, a few high clouds and birds, outside the fitted world group | `src/greater-realm/greaterRealmAtmosphere.ts`, `src/components/realm/createGreaterRealmWorldCanvasHost.ts` |
@@ -110,10 +110,11 @@ with `?journeys=1`.
 ## Release integration
 
 This branch is based on the reviewed PR #380 head and is not part of it. It
-changes eleven prepared-closure members (keep04 scene, host, screen and CSS,
-visual profile, world host and scene, voxel presentation, scene runtime,
-presentation plan and the PTR surface host) and adds new source files they
-import. Integrating it therefore follows the existing source-change route:
+changes ten prepared-closure members (keep04 scene, host, screen and CSS,
+world host and scene, voxel presentation, scene runtime, presentation plan and
+the PTR surface host) and adds new source files they import. The vale palette
+lives in `keep04ValePalette.ts` so `keep04VisualProfile.ts`, an input to the
+generated voxel dressing plans, stays byte-identical and those plans current. Integrating it therefore follows the existing source-change route:
 fresh native prepare/check and generated-family derivation from the merged
 source. No release-tool, workflow, closure manifest or generated file was
 edited by hand.

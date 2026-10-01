@@ -286,16 +286,14 @@ export function createKeep04Landscape(options: Readonly<{
       batch.computeBoundingSphere(); group.add(batch); instanceCount += count;
     }
     group.updateMatrixWorld(true);
-    let lastElapsed: number | null = null;
     return Object.freeze({
       group,
       emitters: Object.freeze({ chimneys: Object.freeze(chimneys), banners: Object.freeze(banners.map(entry => Object.freeze(entry))), pastures: Object.freeze(pastures.map(entry => Object.freeze(entry))) }),
       roads: KEEP04_ROADS, river: KEEP04_RIVER, heightAt: keep04TerrainHeight,
       update: elapsed => {
         if (disposed || options.reducedMotion || !spinners.length) return false;
-        if (lastElapsed === null) lastElapsed = elapsed;
         for (const spinner of spinners) spinner.object.rotation[spinner.axis] = elapsed * spinner.speed;
-        lastElapsed = elapsed; return true;
+        return true;
       },
       cost: () => {
         if (disposed) return { drawCalls: 0, triangles: 0, shadowDrawCalls: 0, shadowTriangles: 0 };
