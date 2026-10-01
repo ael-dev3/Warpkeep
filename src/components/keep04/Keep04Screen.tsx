@@ -12,6 +12,7 @@ import type { Keep04WorkerVisual, VisualState04 } from './createKeep04Scene';
 import { evaluatePlacement04 } from '../../../spacetimedb/gameplay04/placement';
 import { constructionProgress04 } from './constructionProgress04';
 import { estimatedTime04, Keep04WorkerPanel } from './Keep04WorkerPanel';
+import { keep04NextStep04 } from './keep04NextStep';
 import './Keep04Screen.css';
 
 export type Keep04UiSelection = Readonly<{
@@ -89,6 +90,8 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   const visible = (phase === 'ready' || phase === 'refreshing' || phase === 'pending') && view !== null;
   const firstIdleWorker = view?.workers.find(worker => worker.phase === 'idle');
   const showFirstJourney = visible && view !== null && isKeep04FirstJourney04(view);
+  // One clear next step for a returning Keeper, after the first journey card.
+  const nextStep = visible && view !== null && !showFirstJourney ? keep04NextStep04(view, nowMs) : null;
   const constructionStatuses = view?.buildings.filter(building => building.phase === 'constructing').map(building => {
     const construction = building.startsAtMicros !== null && building.completesAtMicros !== null
       ? constructionProgress04(building.startsAtMicros, building.completesAtMicros, nowMs)
@@ -249,6 +252,14 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
           <summary>{constructionStatuses.length} constructions underway · View progress</summary>
           {constructionStatuses}
         </details> : null}
+      {/* After construction progress, which stays in the first phone view. */}
+      {nextStep && <section className="keep04-next-step" aria-label="Next step" data-next-step={nextStep.kind}>
+        <p className="keep04-eyebrow">STEWARD&apos;S ADVICE</p>
+        <h2>{nextStep.title}</h2>
+        <p>{nextStep.detail}</p>
+        {nextStep.kind === 'build' && <button type="button" onClick={() => selectBuilding(nextStep.building)}>Review {BUILDING_NAMES04[nextStep.building]}</button>}
+        {nextStep.kind === 'gather' && <button type="button" onClick={() => onFindResources(nextStep.resource, nextStep.workerOrdinal)}>Start gathering {nextStep.resource}</button>}
+      </section>}
       {problem === 'capacity' && <p className="keep04-problem" role="status">That resource location is full. Find another location.</p>}
       {problem === 'target' && <p className="keep04-problem" role="status">That resource location changed. Choose a current Realm location.</p>}
       <div className="keep04-workspace" data-panel-open={selection.panel !== null}>

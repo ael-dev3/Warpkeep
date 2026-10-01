@@ -50,6 +50,10 @@
 .keep04 .keep04-first-journey h2 { margin: 0 0 4px; font-size: 18px; }
 .keep04 .keep04-first-journey p:not(.keep04-eyebrow) { max-width: 62ch; color: var(--keep04-muted); }
 .keep04 .keep04-first-journey button { margin-top: 2px; background: #e1d4b5; color: #18251e; border-color: #e1d4b5; font-weight: 700; }
+.keep04 .keep04-next-step { margin: 12px 0; padding: 12px 16px; border: 1px solid rgba(225, 212, 181, .45); border-radius: 10px; background: linear-gradient(135deg, rgba(43, 70, 57, .94), rgba(36, 50, 66, .92)); box-shadow: 0 8px 22px rgba(4, 14, 12, .16); }
+.keep04 .keep04-next-step h2 { margin: 0 0 4px; font-size: 17px; }
+.keep04 .keep04-next-step p:not(.keep04-eyebrow) { max-width: 62ch; margin: 0 0 6px; color: var(--keep04-muted); }
+.keep04 .keep04-next-step button { margin-top: 2px; background: #e1d4b5; color: #18251e; border-color: #e1d4b5; font-weight: 700; }
 .keep04 .keep04-workspace { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 .keep04 .keep04-workspace[data-panel-open="true"] { grid-template-columns: minmax(0, 1fr) 320px; }
 .keep04 .keep04-scene-region { min-width: 0; padding: 16px; border: 1px solid var(--keep04-line); border-radius: 12px; background: linear-gradient(145deg, rgba(40, 67, 58, .96), rgba(22, 44, 39, .98)); box-shadow: 0 18px 44px rgba(4, 14, 12, .24); }
@@ -150,6 +154,8 @@
   .keep04 .keep04-resources > p { font-size: 13px; }
   .keep04 .keep04-first-journey { margin: 8px 0; padding: 10px 12px; }
   .keep04 .keep04-first-journey h2 { font-size: 16px; }
+  .keep04 .keep04-next-step { margin: 8px 0; padding: 10px 12px; }
+  .keep04 .keep04-next-step h2 { font-size: 15px; }
   .keep04 .keep04-journey { padding: 8px; }
   .keep04 .keep04-journey li { font-size: 11px; }
   .keep04 .keep04-primary-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 0; }
@@ -192,6 +198,10 @@
   .keep04 .keep04-ready .keep04-first-journey h2 { font-size: 15px; }
   .keep04 .keep04-ready .keep04-first-journey p:not(.keep04-eyebrow) { font-size: 12px; line-height: 1.35; }
   .keep04 .keep04-ready .keep04-first-journey button { min-height: 44px; font-size: 12px; line-height: 1.2; }
+  .keep04 .keep04-ready > .keep04-next-step { grid-area: journey; margin: 0; padding: 9px 10px; }
+  .keep04 .keep04-ready .keep04-next-step h2 { font-size: 15px; }
+  .keep04 .keep04-ready .keep04-next-step p:not(.keep04-eyebrow) { font-size: 12px; line-height: 1.35; }
+  .keep04 .keep04-ready .keep04-next-step button { min-height: 44px; font-size: 12px; line-height: 1.2; }
   .keep04 .keep04-ready > .keep04-construction,
   .keep04 .keep04-ready > .keep04-construction-group { grid-area: construction; margin: 0; }
   .keep04 .keep04-ready > .keep04-problem { grid-area: problem; margin: 0; font-size: 12px; }

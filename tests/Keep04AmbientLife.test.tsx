@@ -106,7 +106,7 @@ it.each([
   const host = await mountAmbientHost(options);
   host.frame(0); host.frame(50); host.frame(100);
   expect(host.queued.size).toBe(0);
-  if (options.ambientLife === false) expect(host.visibility.observed).toBe(0);
+  if ('ambientLife' in options && options.ambientLife === false) expect(host.visibility.observed).toBe(0);
   host.mounted.unmount();
 });
 
