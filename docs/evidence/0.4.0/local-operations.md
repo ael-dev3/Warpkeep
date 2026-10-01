@@ -2,6 +2,83 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Completed World and mobile Keep diagnostics — 1 October 2026
+
+Current measurements and hosted evidence are source W `028b1e4b`, tree
+`bd87f443`. Exact [PR Verify 36931509836](https://github.com/ael-dev3/Warpkeep/actions/runs/36931509836),
+attempt 1, passed all 17 jobs at 22:55:04 UTC. The retained final summary is
+`artifacts/qa/october-release-028b1e4b-verify-terminal-summary.json`, SHA-256
+`9ea105b273d67b0115bff7dec90c65a32c6877962067fe7c33ee6f012aa0dcd8`.
+Its actual CI merge is `29d1e896`, tree `bd87f443`, parents cb and W.
+This is W PR evidence, not resulting-main Verify, activation, deployment or proof
+for the later runner repair. Earlier dated sections remain historical snapshots.
+
+All twelve W synthetic World samples are eligible and retain their strict nominal
+60Hz misses: desktop 50.8/50.8/50.8ms against 50ms; balanced
+67.3/67.4/67.3ms against 66.7ms; reduced 84.5/84.4/84.5ms against 83.4ms;
+landscape 67.2/67.3/67.3ms against 66.7ms. Exact draw/passive joins show that
+the reduced extra-six-reference-callback recurrence is absent, while actual
+clock/submission jitter remains. No caps or ceilings were raised. Retain
+`artifacts/qa/october-release-r06-028b1e4b-world-four-profile-summary-final.json`, SHA-256
+`fa09d70e7eecda29fc147b3d5bd71f4c13668476139f30258a4e90b06dd650f5`.
+The separately reproducible reduced comparison is
+`october-release-r06-world-reduced-raw-analysis-W028b1e4b-H2a903e78e.json`, SHA-256
+`bd6cd5525d8cf119906061edb7f8371a441663864b9e4fcdd830c601e4d87711`.
+
+The W Keep fixture is a genuine optimized production-component build, producer
+SHA-256 `fb36a642366c0d60b35bbf767e4a672b69e79cfaee186b33240e3e5b44c096f4`;
+its independent source/input/output/group proof is
+`october-release-r06-keep-028b1e4b-independent-build-proof.json`, SHA-256
+`524aa66383bc07e0f1d204c9d76a48c9f08551d9a2cd27e1e1bec14882899914`.
+It retains production defines, disabled local-QA compile gate, version 0.3.43 and
+six fixture outputs; reused static assets retain their older 6e build identity.
+Nine mobile mill-placement samples meet their unchanged Keep cadence ceilings:
+balanced 34.4/32.2/31ms, reduced 33.2/32.5/33.4ms and landscape
+34.9/33.3/33.8ms. Each exceeds 60 seconds on the browser clock and pairs
+current-generation SceneHost frames, native GL bursts and real RAF callbacks.
+Trusted keyboard input changes actual SVG geometry; ready screenshots do not
+establish per-input visible-pixel latency. Input-to-visible/touch/basic-control
+acceptance stays false. Numeric resource checks cover SceneHost only, preserving
+null disposed-resource fields and retired zero RAF/loader/listener counts.
+
+Retain `artifacts/qa/october-release-r06-028b1e4b-keep-mobile-summary-final.json`, SHA-256
+`738e5ba81c10bee55454a8b474231c79c63423eb7f7521754e0725a3e4047d2a`.
+That receipt preserves the separate original H2 desktop run, SHA-256
+`26155ee46d1187de1847e656403443afe3f494540d96eb8cf39a67afbf8f0649`:
+33.6/33.3/17.1ms against 33.4ms, with its first-sample miss. No W desktop
+placement rerun is claimed. It also leaves the earlier balanced-only review intact.
+The rejected first W balanced World run `0c236f46` contains one sample at
+59998.7ms, eligible false and nominal grade null. The QA-only browser-clock wait
+repair keeps >=60000ms and all product limits unchanged; the rejected receipt is
+not rewritten. All completed captures record clean source/index, normal Chrome
+cleanup and absent owned native groups; these are retained readbacks, not later
+live process observations.
+
+The prepared bridge Linux runner expected `outcome: 'published'`, while its
+actual deployment API returns `result: 'installed' | 'unchanged'`. The bounded
+actual-CLI VM caller baseline reproduced three failures: 16 pass / 3 fail / 0 skip,
+child exit 1, at 23:02:57.722–23:03:31.765 UTC. The narrow runner correction passes
+all 19 caller cases, zero failures/skips, child exit 0, at
+23:05:00.618–23:05:11.890 UTC. The baseline is W HEAD plus the caller-test draft;
+the fixed run is W HEAD plus the owned runner/test working diff. These local
+fixtures establish no provider calls, credentials, deployment or repaired native
+closure/build.
+
+- `artifacts/qa/october-release-prepared-linux-result-baseline.json`, SHA-256
+  `572bc79f5950bef24dbbec398435af4a0583c7e466a8d1c4be9f32866acd6a66`.
+- `artifacts/qa/october-release-prepared-linux-result-fixed.json`, SHA-256
+  `8ebd3673894d64c34e54efb0dbb081eb20d6df4fdfb125acbc1e04e2a21985ec`.
+
+W integration remains held until the reviewed runner/test/notes repair is signed,
+its protected closure derived, and its source scanned/published with its own
+normal Verify. Membership review places that runner outside the genuine cb
+compiler/recovery graphs and inside the protected closure; retain cb's compiler
+identities, all 135 tracked/212 total input entries and five bundles. W's hosted
+pass and component measurements keep their W source identity. No native closure,
+compiled build, provider deployment or future repair-head CI success is claimed.
+Final-A/PTR, full/max-window R06, owner and physical-device requirements remain.
+See [performance scope](performance.md#completed-world-and-mobile-keep-diagnostics--1-october-2026).
+
 ## World scheduler repair and H2 lifecycle checks — 1 October 2026, 21:26 UTC
 
 Snapshot before the new signed source checkpoint. Native remains clean H2

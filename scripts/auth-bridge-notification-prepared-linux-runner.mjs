@@ -241,7 +241,12 @@ async function main() {
   const operation = requireString('WARPKEEP_OPERATION');
   if (operation === 'deploy') {
     const result = await runAuthBridgeNotificationPreparedDeploy();
-    if (result?.outcome !== 'published') fail('AUTH_BRIDGE_PREPARED_LINUX_RUNNER_DEPLOY_INVALID');
+    if (result === null || typeof result !== 'object' || Array.isArray(result)
+      || !['installed', 'unchanged'].includes(result.result)
+      || typeof result.receiptDigest !== 'string' || !SHA256.test(result.receiptDigest)
+      || result.path !== `/home/warpkeep/.warpkeep/private/production-admin-v1/bridge-prepared-receipts-v1/auth-bridge-notification-prepared-${result.receiptDigest}.json`) {
+      fail('AUTH_BRIDGE_PREPARED_LINUX_RUNNER_DEPLOY_INVALID');
+    }
     process.stdout.write('auth-bridge prepared Linux deployment verified\n');
   } else if (operation === 'recover-expired-authority-read-only') {
     const result = await runAuthBridgeNotificationPreparedReadOnlyRecovery();

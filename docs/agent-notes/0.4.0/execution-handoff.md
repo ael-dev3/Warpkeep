@@ -1,6 +1,110 @@
 # Continue Warpkeep 0.4
 
-## Current release checkpoint — 1 October 2026, 21:26 UTC
+## Current release checkpoint — 1 October 2026, 23:08 UTC
+
+This dated notes snapshot records measured source W and a newly demonstrated
+operator blocker before its repair checkpoint R. Resolve later exact Git/PR/CI
+receipts before acting; a planned R is not a source identity or accepted main.
+Main remains `cb282bab`. Signed W `028b1e4b`, tree `bd87f443`, is the direct
+child of H2 `a903e78e` published in [PR #380](https://github.com/ael-dev3/Warpkeep/pull/380).
+Its normal [Verify 36931509836](https://github.com/ael-dev3/Warpkeep/actions/runs/36931509836),
+attempt 1, completed successfully at 22:55:04 UTC: all 17 jobs passed, with no
+failed, skipped or active job. The owned watcher and finalizer returned exit 0.
+The terminal summary is
+`artifacts/qa/october-release-028b1e4b-verify-terminal-summary.json`, SHA-256
+`9ea105b273d67b0115bff7dec90c65a32c6877962067fe7c33ee6f012aa0dcd8`.
+Three complete job logs prove actual CI merge `29d1e896`, tree `bd87f443`,
+with parents `cb282bab`/W. Linux recorded 167 passes; native recorded 260 passes
+and one platform skip plus 158 passes; the module recorded 598 passes.
+This is exact W PR evidence, not an actual-main merge or S authority.
+
+**Do not merge W with the known prepared-bridge runner defect.** The supported
+deployment API returns `{path, receiptDigest, result: 'installed' | 'unchanged'}`.
+The Linux workflow runner instead requires `outcome: 'published'`, incorrectly
+rejecting both genuine successes and accepting an outcome-only result. A narrow
+runner/caller-regression repair and four current canonical notes are being
+prepared as one child R of W. At this snapshot R is not signed, published or
+verified. Preserve W's normal CI and all original attempts; locally validate the
+coherent correction before a single final PR-head update.
+
+The actual caller baseline ran 23:02:57.722–23:03:31.765 UTC and exited 1:
+19 cases, 16 passes, three failures and no skips. Installed and unchanged were
+wrongly rejected, while an outcome-only result was wrongly accepted. The
+retained baseline receipt SHA-256 is
+`572bc79f5950bef24dbbec398435af4a0583c7e466a8d1c4be9f32866acd6a66`.
+The same 19 cases pass after the narrow local runner/caller repair: the actual
+fixed run completed 23:05:00.618–23:05:11.890 UTC with child/tool exit 0,
+19 passes, no failure and no skip. Its receipt is
+`artifacts/qa/october-release-prepared-linux-result-fixed.json`, SHA-256
+`8ebd3673894d64c34e54efb0dbb081eb20d6df4fdfb125acbc1e04e2a21985ec`.
+These tests exercise the actual runner in a bounded VM with fixed attestation
+and API fixtures; no provider or network operation occurred. R's native closure
+projection, signing, synchronization, scan, publication and hosted CI remain
+pending at this notes snapshot.
+
+The runner is outside all four genuine cb compiler graphs and seven recovery
+inputs, but inside the prepared source closure. Use the existing supported
+16-file projection for that reviewed repair, retaining the genuine cb compiler
+manifests, all 212 distinct inputs (135 tracked) and five compiled bundle bodies.
+No repeated full compile, new prepare handle or new 102-output completion is
+justified for this scope. The 102-family completion remains actual cb evidence.
+R's operator repair does not relabel W's Keep/World measurement provenance.
+
+W's final synthetic World component summary contains twelve eligible samples.
+CPU-first-GL p95 is desktop/high 50.8/50.8/50.8ms against 50ms,
+portrait/balanced 67.3/67.4/67.3ms against 66.7ms, portrait/reduced
+84.5/84.4/84.5ms against 83.4ms, and landscape/balanced 67.2/67.3/67.3ms
+against 66.7ms. All twelve strict nominal results remain false. Retain the
+initial balanced 59998.7ms attempt as ungraded and the earlier H2 reduced
+100.2–100.5ms failure separately. The retained actual RAF/submission clocks
+establish no additional product defect from the small residual misses.
+The final summary is `artifacts/qa/october-release-r06-028b1e4b-world-four-profile-summary-final.json`,
+SHA-256 `fa09d70e7eecda29fc147b3d5bd71f4c13668476139f30258a4e90b06dd650f5`.
+These genuine production-optimized synthetic two-small-chunk measurements do
+not prove maximum-world load, GPU completion, final-A cold bootstrap or full R06.
+
+The W portrait/balanced Keep placement diagnostic completed with all three
+eligible samples passing the unchanged 50ms ceiling: 34.4/32.2/31ms.
+Portrait/reduced completed exit 0 with 33.2/32.5/33.4ms against 75ms; its run
+SHA-256 is `262a841292bae3f35dedc9202c36d7e7e642880f79766ba8a80324ad02ebc690`.
+Landscape/balanced completed exit 0 with 34.9/33.3/33.8ms against 50ms; its run
+SHA-256 is `279f238f18ad1a235c53d723f42e0e6e6bcbb8258f8b82d2f5ccd7a6e310edbf`.
+All nine W mobile samples are eligible without failure. These diagnostics do
+not prove input-to-visible timing, touch acceptance or full R06.
+Preserve H's four camera runs, H2's four component
+lifecycle profiles and the H2 desktop placement 33.6ms versus 33.4ms miss with
+their original source and scope. See [performance](../../evidence/0.4.0/performance.md)
+and [local operations](../../evidence/0.4.0/local-operations.md) for receipts.
+
+Next: finish local repair validation, verify/sign/synchronize/scan R, publish its
+non-forced backup and update existing PR #380 once after fresh Actions
+conservation review. Require normal exact-final-head Verify and signed
+resulting-main push Verify with separate Pages classification before freezing
+actual operating S. W/H2-bound merge/watch drafts are historical for R; use
+reviewed actual-source successors. Preserve all existing branch refs and use
+the user's current Actions policy rather than a dated permission in these notes.
+
+At S, supported Linux preflight and G001 observation precede prepared-bridge
+deployment. Verify its real `installed`/`unchanged` return and immediate private
+`production-admin-v1/bridge-prepared-receipts-v1/auth-bridge-notification-prepared-<digest>.json`
+receipt plus completed sibling `bridge-prepared-deploy-journal-v3` journal,
+using the existing receipt/journal resolvers. Deployment alone does not create
+the sealed-realm `auth-bridge-import-authority` chain. Later live attestation
+and `createSealedRealmsProductionAuthBridgeState().establish()` establish that
+authority before adoption. Continue the existing S/F/A route below with the
+initial signer policy intact while generating activation, then full promotion
+before A. The fixed Windows private fixture profile launches the WSL
+materializer; the five actual fixture outputs belong on separate component F,
+not an integration that changes operating S before activation.
+
+Alpha 0.3.43 remains public; owner 0.4 PTR publication, actual final-A shaped R06,
+owner journey and physical-device acceptance remain open. This notes checkpoint
+records no provider write, new key, synthetic owner token or new feature.
+
+## Historical release checkpoint — 1 October 2026, 21:26 UTC
+
+Historical source-bound snapshot; superseded for the next action by the current
+checkpoint above. Its measurements and completion claims retain their own dates.
 
 Snapshot after local World scheduler validation, before its new signed checkpoint.
 Resolve actual local/remote refs and latest CI instead of inferring a future SHA.

@@ -1,9 +1,99 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 1 October 2026, UTC and Europe/Budapest.
-
+Refreshed 1 October 2026, 23:08 UTC / 2 October, 01:08 Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
+At this notes snapshot main is cb282bab. Signed W028b1e4b/tree bd87f443 is the
+H2 child published in PR #380. Normal W Verify36931509836 attempt1 completed
+successfully22:55:04UTC, all17 jobs passed with no failed/skipped/active job.
+Owned watcher/finalizer exit0; terminal summary SHA
+9ea105b273d67b0115bff7dec90c65a32c6877962067fe7c33ee6f012aa0dcd8.
+Three complete logs prove actual CImerge29d1e896/treebd87 with parentscb/W.
+Linux167pass; native260pass+1platformskip and158pass; module598pass.
+Resolve later refs before acting; this PR evidence does not establish main S.
+
+DO NOT MERGE W: the prepared-bridge Linux runner has a demonstrated return-
+contract defect. Actual deploy returns {path,receiptDigest,result:'installed'|
+'unchanged'}; the runner incorrectly requires outcome:'published'. Both genuine
+success results are rejected while an outcome-only result is accepted. A narrow
+runner/caller-test repair and four current canonical notes are being prepared
+as coherent child R of W. R is not yet signed, published or CI-accepted at this
+snapshot. Keep W's original Actions/evidence; do not remotely experiment.
+
+Actual caller baseline23:02:57.722–23:03:31.765UTC exited1:19total,16pass,
+3fail,0skip. Installed/unchanged were wrongly rejected; outcome-only was
+wrongly accepted. ReceiptSHA572bc79f5950bef24dbbec398435af4a0583c7e466a8d1c4be9f32866acd6a66.
+The local repair passes the same19cases: fixedrun23:05:00.618–23:05:11.890UTC,
+actualchild/tool exit0,19passed/0failed/0skip. Receipt
+artifacts/qa/october-release-prepared-linux-result-fixed.json SHA
+8ebd3673894d64c34e54efb0dbb081eb20d6df4fdfb125acbc1e04e2a21985ec.
+The actual runner executes in a bounded VM with fixed attestation/API fixtures;
+no provider/network calls occurred. Native16projection, Rsign/sync/scan,
+publication and hostedRVerify remain pending at this notes snapshot.
+
+Retain cb's genuine compiler manifests,212 distinct inputs (135 tracked) and
+five compiled bundles. The runner is outside all four compiler graphs/seven
+recovery inputs but inside the prepared closure: use the supported16-file
+projection after the reviewed repair. No new full compile, prepare handle or
+102-output completion is justified. Keep/World measurements remain source W;
+R only repairs the existing operator contract and updates scoped tests/notes.
+
+WORLD W: final summary fa09d70e7eecda29fc147b3d5bd71f4c13668476139f30258a4e90b06dd650f5
+contains12 eligible synthetic component samples, all strict nominal resultsfalse.
+CPU-first-GL p95: desktop/high50.8/50.8/50.8ms against50; portrait/balanced
+67.3/67.4/67.3 against66.7; reduced84.5/84.4/84.5 against83.4; landscape/balanced
+67.2/67.3/67.3 against66.7. Retain actual render-RAF/submission clocks and the
+initial balanced59998.7ms attempt as ungraded. No additional product defect is
+established by the residual misses. These genuine production-optimized two-
+small-chunk measurements are lower-bound component evidence, not maximum-world,
+GPU completion, final-A cold bootstrap, owner/device or fullR06 acceptance.
+
+KEEP W: portrait/balanced placement has three eligible passes34.4/32.2/31ms
+against unchanged50ms. Reduced completed exit0 with33.2/32.5/33.4ms against75;
+run SHA262a841292bae3f35dedc9202c36d7e7e642880f79766ba8a80324ad02ebc690.
+Landscape/balanced completed exit0 with34.9/33.3/33.8ms against50;
+run SHA279f238f18ad1a235c53d723f42e0e6e6bcbb8258f8b82d2f5ccd7a6e310edbf.
+All9 W mobile samples are eligible withoutfailure. This is not input-to-visible
+timing, touch acceptance or fullR06. Preserve H camera/H2 lifecycle passes and
+the earlier desktop placement33.6ms vs33.4ms miss without changing their scope
+or budgets. Resolve details from performance.md and local-operations.md.
+
+NEXT: finish local repair validation; sign/sync/scan R and
+publish its explicit non-forced backup. After fresh repository-wide Actions
+conservation, update PR380 once, require normal exact-R-head Verify and merge
+only the accepted final head. Require actual signed resulting-main push Verify
+and separate Pages classification, synchronize idle checkouts, then freeze S.
+Old W/H2-pinned integration/watch drafts cannot authorize a future R source.
+Use the user's current Actions policy and reuse complete applicable evidence
+plus fresh bounded recent/fully paginated active/changed-attempt/ref/chain data;
+full historical pagination is needed when continuity is unproven.
+
+PROVIDER: supported Linux preflight, G001 observation, prepared bridge, initial
+disabled signer/gateway, real sealed PTR/G002 existing-state updates/adoptions.
+Immediately verify the prepared deploy's installed|unchanged result, private
+production-admin-v1/bridge-prepared-receipts-v1/auth-bridge-notification-prepared-
+<digest>.json receipt and completed sibling bridge-prepared-deploy-journal-v3
+journal with the supported existing-state resolvers. Deploy alone does not
+create sealed auth-bridge-import-authority; later live attestation and
+createSealedRealmsProductionAuthBridgeState().establish() establish it before
+adoption. No manually authored receipt or new key is needed.
+
+The fixed Windows private fixture profile launches the WSL materializer.
+Generate/check actual fixture outputs at S and publish their exact five-file
+signed/scanned component F separately from operating main. Generate activation
+while the initial signer's exact RECOVERY_PREPARATION_POLICY remains installed;
+promote/verify the full signer before A publication. Omitted TOML variables are
+not preserved automatically. A must be the supported direct child of S; then
+final-A build, signed public mirror/postflight and complete production R06.
+
+Alpha0.3.43 stays public; owner0.4 PTR, full shaped final-A R06, owner journey and
+physical-phone acceptance are open. Preserve G001 progress/timers/admission
+freeze and sealedG002. Keep receipts/candidates under the repo; update existing
+DesktopTXT only in place. No Desktop sibling, extra recovery key or new feature.
+
+PREVIOUS SNAPSHOT — 21:26 UTC
+
+Historical source-bound snapshot; superseded for the next action above.
 21:26 UTC snapshot, after local World scheduler validation and before its new
 signed checkpoint. Main remains cb282bab. Published PR #380 head H2 a903e78e
 passed normal Verify 36920400660 attempt 1, all 17 jobs, at 21:20:49 UTC.

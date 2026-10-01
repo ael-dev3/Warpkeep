@@ -1,7 +1,79 @@
 # 0.4 performance acceptance contract
 
 Established 2026-09-06 before final visual implementation/measurement.
-Status: **Keep feedback repaired; World scheduler regression repaired locally; final production acceptance incomplete**.
+Status: **World phase correction and mobile Keep cadence verified in bounded captures; final production acceptance incomplete**.
+
+## Completed World and mobile Keep diagnostics — 1 October 2026
+
+The measured source is W `028b1e4b`, tree `bd87f443`. Its normal PR
+Verify `36931509836`, attempt 1, passed all 17 jobs at 22:55:04 UTC.
+That source remains separate from the pending prepared-deployment runner repair.
+The earlier dated sections below retain their original source and evidence scopes.
+
+The genuine optimized World component completed three eligible 60-second samples
+in all four profiles, using two small synthetic chunks and the real client/renderer.
+These are CPU-first-GL submission intervals:
+
+| Profile | Submission interval p95 | Unchanged nominal 60Hz ceiling | Strict result |
+| --- | --- | --- | --- |
+| Desktop high | 50.8 / 50.8 / 50.8ms | 50ms | All three miss |
+| Portrait balanced | 67.3 / 67.4 / 67.3ms | 66.7ms | All three miss |
+| Portrait reduced | 84.5 / 84.4 / 84.5ms | 83.4ms | All three miss |
+| Landscape balanced | 67.2 / 67.3 / 67.3ms | 66.7ms | All three miss |
+
+The reduced-profile extra-six-reference-callback pattern is absent in W:
+0/0/0 gaps versus H2's 143/148/154. Actual render-RAF p95 is 83.7ms;
+CPU submission offsets and callback-clock variation remain separate. This is
+observed correction of the phase recurrence in this bounded workload, with no
+nominal budget pass. The application RAF reference has a median near 16.6ms and
+p95 near 17.1ms; it is not independently verified physical refresh or GPU timing.
+Keep every strict miss. A variable-clock expectation must be declared before
+grading as required by the [per-path ruling](#per-path-cadence-ruling--2026-10-01).
+
+The same W source has nine eligible sustained trusted-keyboard mill-placement
+samples from a separate genuine production-component build:
+
+| Mobile profile | Submission interval p95 | Unchanged Keep ceiling | Bounded result |
+| --- | --- | --- | --- |
+| Portrait balanced | 34.4 / 32.2 / 31.0ms | 50ms | Meets this workload's cadence ceiling |
+| Portrait reduced | 33.2 / 32.5 / 33.4ms | 75ms | Meets this workload's cadence ceiling |
+| Landscape balanced | 34.9 / 33.3 / 33.8ms | 50ms | Meets this workload's cadence ceiling |
+
+All nine captures exceed 60 seconds on the browser clock, have exact current-
+generation SceneHost/native-GL/RAF correspondence and normal recorded cleanup.
+Trusted ArrowLeft/ArrowRight input changes the real SVG draft. First-sample
+viewport images establish visible presentation, not paired changed-pixel or
+input-to-visible latency proof. That acceptance, touch placement, basic controls,
+owner/physical-phone acceptance and full R06 remain false. SceneHost resource
+counters do not cover every Screen timer/listener or actual heap/GPU allocation.
+
+The H2 desktop placement result remains separate: 33.6 / 33.3 / 17.1ms against
+33.4ms, retaining its first-sample miss. No W desktop placement rerun is claimed.
+The original W balanced World attempt is also retained: its single 59998.7ms
+sample is ineligible and ungraded. The ignored samplers now wait for the minimum
+browser-clock duration; product caps, ceilings and the >=60000ms gate are unchanged.
+
+The prepared bridge Linux runner expected `outcome: 'published'`, while its
+actual deployment API returns `result: 'installed' | 'unchanged'`. The bounded
+actual-CLI VM caller baseline reproduced three failures: 16 pass / 3 fail / 0 skip,
+child exit 1, at 23:02:57.722–23:03:31.765 UTC. The narrow runner correction passes
+all 19 caller cases, zero failures/skips, child exit 0, at
+23:05:00.618–23:05:11.890 UTC. The baseline is W HEAD plus the caller-test draft;
+the fixed run is W HEAD plus the owned runner/test working diff. These local
+fixtures establish no provider calls, credentials, deployment or repaired native
+closure/build.
+
+- `artifacts/qa/october-release-prepared-linux-result-baseline.json`, SHA-256
+  `572bc79f5950bef24dbbec398435af4a0583c7e466a8d1c4be9f32866acd6a66`.
+- `artifacts/qa/october-release-prepared-linux-result-fixed.json`, SHA-256
+  `8ebd3673894d64c34e54efb0dbb081eb20d6df4fdfb125acbc1e04e2a21985ec`.
+
+See the [current local evidence](local-operations.md#completed-world-and-mobile-keep-diagnostics--1-october-2026)
+for exact scopes. Sign/derive/scan/publish the coherent reviewed runner/test/notes
+checkpoint and obtain its own normal Verify. W hosted success does not transfer
+to that repair. Retain the genuine cb compiler inputs and five bundles. Final-A
+maximum-world/cold-loading/control/switching measurements, PTR publication and
+real owner/device acceptance remain open.
 
 ## World phase repair and current acceptance limits — 1 October 2026, 21:26 UTC
 
