@@ -94,18 +94,42 @@ acceptance; R06 and the physical-device gates remain open.
 
 ## Verification
 
-Focused suites pass locally on Windows (Node 24.19 / npm 11.7 rather than the
-pinned Node 22 / npm 10.9.8): the new `keep04LivingVale`, `Keep04AmbientLife`,
-`keep04NextStep` and `greaterRealmDaylightJourneys` suites, plus the existing
-Keep04 scene/host/screen/placement/accessibility/benefit/QA suites and the
-Greater Realm runtime, plan, host, world-scene, voxel and PTR surface suites.
-Updated existing tests change only where the contract changed deliberately:
-the scene now owns more disposable instanced batches, the countdown test
-allows the one paced ambient frame, the ambient boat hull is measured from its
-bounds instead of box parameters, and the pinned QA scenario lists include
-`living-keep`. Rendered review used the local QA harnesses at 1440×900 and
-390×844, including `?scenario=living-keep` and the Greater Realm host page
-with `?journeys=1`.
+Local Windows checkout, Node 24.19 / npm 11.7 (not the pinned Node 22.22 /
+npm 10.9.8), no native SpacetimeDB CLI or WSL runner:
+
+- New suites pass: `keep04LivingVale`, `Keep04AmbientLife`, `keep04NextStep`
+  and `greaterRealmDaylightJourneys`, together with the existing Keep04
+  scene/host/screen/placement/accessibility/benefit/QA suites, the Greater
+  Realm runtime, plan, host, world-scene and voxel suites, the PTR surface
+  host suite and the visual foundation contract.
+- Existing tests changed only where a contract changed deliberately: the
+  scene owns more disposable instanced batches, the countdown test allows the
+  one paced ambient frame, the ambient boat hull is measured from its bounds,
+  and the pinned QA scenario lists include `living-keep`.
+- The full root Vitest run (12,099 tests) reported 462 failures in 89 files.
+  The same files run on the base commit in the same environment fail
+  identically, apart from the dressing-plan check (fixed by keeping the vale
+  palette out of the generator's inputs) and two license-policy cases that
+  timed out under load and pass alone. These are environment failures:
+  Linux paths and permissions, `/usr/bin/git`, the pnpm module layout and the
+  uninstalled auth-bridge service tree.
+- With the auth-bridge service's locked dependencies installed, the release
+  closure suites show four branch-only failures, all closure topology: the
+  derived import graph now includes the 13 new frontend modules (1,263 paths)
+  while the checked-in namespace lists 1,250. They are expected until the
+  supported closure reprojection described below.
+- `npm run typecheck` (build mode), `verify:file-sizes`, `verify:licenses`,
+  `verify:atlas-public-boundary` and `verify:sealed-launch` pass; sealed
+  launch still reports Pages approval false and PTR presentation disabled.
+  `DEPLOY_BASE=/ptr/ npm run build` passes with current dressing plans and the
+  public boundary; the existing `RealmMapScreen` size warning is unchanged.
+- Compared with the same build of the base, gzip JavaScript grows by 20.7 kB
+  in total (the PTR surface chunk by 17.2 kB). No new network asset, texture or
+  model is requested.
+
+Rendered review used the local QA harnesses at 1440×900 and 390×844,
+including `?scenario=living-keep` and the Greater Realm host page with
+`?journeys=1`.
 
 ## Release integration
 
@@ -114,10 +138,14 @@ changes ten prepared-closure members (keep04 scene, host, screen and CSS,
 world host and scene, voxel presentation, scene runtime, presentation plan and
 the PTR surface host) and adds new source files they import. The vale palette
 lives in `keep04ValePalette.ts` so `keep04VisualProfile.ts`, an input to the
-generated voxel dressing plans, stays byte-identical and those plans current. Integrating it therefore follows the existing source-change route:
-fresh native prepare/check and generated-family derivation from the merged
-source. No release-tool, workflow, closure manifest or generated file was
-edited by hand.
+generated voxel dressing plans, stays byte-identical and those plans current. Integrating it therefore follows the existing source-change route
+used for the Keep feedback repair: add the 13 new modules to the checked-in
+closure namespace in `scripts/auth-bridge-notification-prepared-deploy-closure.mjs`,
+then run the supported closure reprojection to refresh member digests and the
+workflow bootstrap pins, verified natively before publication. No
+release tool, workflow, closure manifest, bootstrap pin or generated file was
+edited by hand; a trial edit of the namespace confirmed that it cascades into
+the pinned workflow bootstrap bytes, which belong to that procedure.
 
 ## Open follow-ups
 
