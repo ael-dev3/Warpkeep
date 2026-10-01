@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { GAMEPLAY04_WORKER_COUNT, type Building04, type Resource04 } from '../../spacetimedb/gameplay04/policy';
 import type { Placement04 } from '../../spacetimedb/gameplay04/placement';
 import { Keep04Screen, type Keep04UiSelection } from '../components/keep04/Keep04Screen';
@@ -15,6 +15,7 @@ import { resolvePtrRealmPresentation, type PtrRealmViewAnchor } from './ptrRealm
 import type { PtrRealmAuthority } from './ptrRealmAuthClient';
 import { isCurrentPtrGameplay04Capability, type PtrGameplay04Capability } from './ptrRealmConnection';
 import { useGameplay04Controller } from './gameplay04/useGameplay04Controller';
+import { gameplay04Journeys } from './gameplay04/gameplay04Journeys';
 import type { Controller04, Snapshot04 } from './gameplay04/createGameplay04Controller';
 import type { WorkerView04 } from './gameplay04/gameplay04Presentation';
 import { PtrSessionRenewalNotice } from './PtrSessionContinuation';
@@ -73,6 +74,7 @@ function CurrentSurface(props: CurrentProps) {
   const miniAppHost = useMiniAppHost();
   const reducedMotion = useReducedMotionPreference();
   const { controller, snapshot } = useGameplay04Controller(props.ptrGameplay04);
+  const journeys04 = useMemo(() => gameplay04Journeys(snapshot.view), [snapshot.view]);
   const surface = useRealmSurfaceNavigation({ historyEnabled: !miniAppHost.isMiniApp, identityKey: props.identityKey });
   const [initialSurface] = useState(props.ptrInitialSurface ?? 'world');
   const [restoringSurface, setRestoringSurface] = useState(initialSurface === 'keep');
@@ -199,7 +201,8 @@ function CurrentSurface(props: CurrentProps) {
         onLyricFilmOpenChange={handleLyricFilmOpenChange}
         onPhaseChange={onPhaseChange} narrowOpenPanel={openPanel} onNarrowOpenPanelChange={setOpenPanel}
         resourceFocus04={resourceFocus} onGameplay04WorldSelection={worldSelection}
-        renderGameplay04WorldPanel={(value, validate) => <WorldWorkerPanel snapshot={snapshot} controller={controller} selection={value} validateSelection={validate} initialWorkerOrdinal={resourceWorkerOrdinal} />} />
+        renderGameplay04WorldPanel={(value, validate) => <WorldWorkerPanel snapshot={snapshot} controller={controller} selection={value} validateSelection={validate} initialWorkerOrdinal={resourceWorkerOrdinal} />}
+        journeys04={journeys04} />
       <div className="greater-realm-world__continuity"><button type="button" onClick={handleBack}>Back</button>
         {snapshot.phase === 'uninitialized' && <span role="status">Establish your keep before sending Workers.</span>}
         <button type="button" onClick={() => surface.push({ kind: 'inner-keep' })}>{snapshot.phase === 'uninitialized' ? 'Open keep to establish' : 'Open keep'}</button>

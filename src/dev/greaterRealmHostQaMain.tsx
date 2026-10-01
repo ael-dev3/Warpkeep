@@ -3,7 +3,9 @@ import ReactDOM from 'react-dom/client';
 
 import { WarpkeepMainMenu } from '../components/menu/WarpkeepMainMenu';
 import type { PtrRealmAuthority } from '../components/menu/realmChoicePolicy';
+import { GreaterRealmWorldScene } from '../components/realm/GreaterRealmWorldScene';
 import { RealmMapScreen } from '../components/realm/RealmMapScreen';
+import type { GreaterRealmJourney } from '../greater-realm/greaterRealmJourneyLayer';
 import type { ReadyWorkerControlState } from '../components/realm/realmWorkerPresentation';
 import { createGreaterRealmClientRuntime } from '../greater-realm/greaterRealmClientRuntime';
 import type {
@@ -215,12 +217,38 @@ export function GreaterRealmHostQaApp({
   );
 }
 
+/** Synthetic own-Worker journeys over returned fixture cells (local QA only). */
+function syntheticJourneys(nowMs: number): readonly GreaterRealmJourney[] {
+  return Object.freeze([
+    Object.freeze({ ordinal: 0, phase: 'outbound' as const, resource: 'wood' as const, route: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 }],
+      dispatchedAtMs: nowMs - 3_000, arrivesAtMs: nowMs + 12_000, gatheringStopsAtMs: nowMs + 72_000, returnsAtMs: nowMs + 87_000, recalledAtMs: null }),
+    Object.freeze({ ordinal: 1, phase: 'returning' as const, resource: 'food' as const, route: [{ q: -1, r: 1 }, { q: -2, r: 1 }, { q: -2, r: 0 }, { q: -3, r: 0 }],
+      dispatchedAtMs: nowMs - 80_000, arrivesAtMs: nowMs - 65_000, gatheringStopsAtMs: nowMs - 5_000, returnsAtMs: nowMs + 10_000, recalledAtMs: null }),
+    Object.freeze({ ordinal: 2, phase: 'gathering' as const, resource: 'stone' as const, route: [{ q: 0, r: 0 }, { q: 0, r: 1 }],
+      dispatchedAtMs: nowMs - 30_000, arrivesAtMs: nowMs - 25_000, gatheringStopsAtMs: nowMs + 600_000, returnsAtMs: nowMs + 605_000, recalledAtMs: null }),
+  ]);
+}
+
 function start() {
   assertLocalQaRuntime();
   const root = ReactDOM.createRoot(document.getElementById('root')!);
   // Vite re-executes this local-only entry when the QA host itself changes.
   import.meta.hot?.dispose(() => root.unmount());
   const fixture = createFixture();
+  if (new URLSearchParams(window.location.search).has('journeys')) {
+    // The 0.4 world scene directly, with synthetic own-Worker journeys drawn.
+    root.render(
+      <React.StrictMode>
+        <main className="realm-map-screen realm-map-screen--greater-realm">
+          <GreaterRealmWorldScene bridge={fixture.bridge} identityFid={fixture.legacyFixture.identity.fid}
+            identityKey="local-qa-journeys" ownCastle={{ castleId: Number(fixture.continuity.ownCastle.castleId), q: 0, r: 0 }}
+            resolvedGraphicsQuality={graphicsQuality(window.location.search)} onPhaseChange={() => undefined}
+            journeys04={syntheticJourneys(Date.now())} />
+        </main>
+      </React.StrictMode>
+    );
+    return;
+  }
   root.render(
     <React.StrictMode>
       <GreaterRealmHostQaApp

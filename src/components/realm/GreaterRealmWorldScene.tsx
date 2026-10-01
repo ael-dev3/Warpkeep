@@ -31,6 +31,7 @@ import {
   type GreaterRealmWorldCanvasHost,
   type GreaterRealmWorldSelection
 } from './createGreaterRealmWorldCanvasHost';
+import type { GreaterRealmJourney } from '../../greater-realm/greaterRealmJourneyLayer';
 import {
   isCurrentGreaterRealmSceneSnapshot
 } from './greaterRealmWorldSnapshotAuthority';
@@ -125,6 +126,8 @@ export type GreaterRealmWorldSceneProps = Readonly<{
   onLyricFilmOpenChange?: (open: boolean, requestClose?: () => void) => void;
   /** Public presentation only. The freshness guard is not owner authority or capacity proof. */
   renderGameplay04WorldPanel?: (selection: WorldSelection04 | null, validateSelection: (selection: WorldSelection04) => boolean) => ReactNode;
+  /** The owner's confirmed Worker journeys, drawn on the map; presentation only. */
+  journeys04?: readonly GreaterRealmJourney[];
 }>;
 
 /**
@@ -145,7 +148,8 @@ export function GreaterRealmWorldScene({
   onGameplay04WorldSelection,
   resourceFocus04,
   onLyricFilmOpenChange,
-  renderGameplay04WorldPanel
+  renderGameplay04WorldPanel,
+  journeys04
 }: GreaterRealmWorldSceneProps) {
   const miniAppHost = useMiniAppHost();
   const reducedMotion = useReducedMotionPreference();
@@ -153,6 +157,8 @@ export function GreaterRealmWorldScene({
   const narrowPresentation = useNarrowRealmPresentation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const canvasHostRef = useRef<GreaterRealmWorldCanvasHost | undefined>(undefined);
+  const journeysRef = useRef<readonly GreaterRealmJourney[]>(journeys04 ?? []);
+  journeysRef.current = journeys04 ?? [];
   const commandGenerationRef = useRef(0);
   const snapshotIdentityKeyRef = useRef<string | undefined>(undefined);
   const snapshotBridgeRef = useRef<typeof bridge | undefined>(undefined);
@@ -502,6 +508,7 @@ export function GreaterRealmWorldScene({
     if (host !== undefined && currentSnapshotRef.current !== undefined) {
       host.applySnapshot(currentSnapshotRef.current);
     }
+    if (host !== undefined && journeysRef.current.length > 0) host.setJourneys?.(journeysRef.current);
     return () => {
       if (canvasHostRef.current === host) canvasHostRef.current = undefined;
       host?.dispose();
@@ -513,6 +520,10 @@ export function GreaterRealmWorldScene({
     ownCastle.q,
     ownCastle.r
   ]);
+
+  useEffect(() => {
+    canvasHostRef.current?.setJourneys?.(journeys04 ?? []);
+  }, [journeys04]);
 
   useEffect(() => {
     canvasHostRef.current?.updatePolicy(policy);
