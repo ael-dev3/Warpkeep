@@ -5,7 +5,7 @@
     {
       "path": ".github/workflows/deploy-pages.yml",
       "digestProfile": "reviewed-release-transition-plus-bootstrap-pin-projection-sha256-v1",
-      "sha256": "e370a64e5b6ab5d88c9f498fb060cf8ed3aed7eb9068bd4af900a4f4a1b2bd02"
+      "sha256": "da1133aff628b718a6b9121602951e3238ad543c199055aee0e8e2074d968f0b"
     },
     {
       "path": ".github/workflows/notification-bridge-b0.yml",
@@ -25,7 +25,7 @@
     {
       "path": ".github/workflows/verify.yml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f1076df6729002c7e77c1f9058fa797e789bba53053c19afd1f686d0da68c89a"
+      "sha256": "8f3065fbfedbc33bc1fde138b3945b1bb87370346e2b8b4e20190b1b33ad5e5c"
     },
     {
       "path": "config/releases/0.4.0-sealed-launch.json",
