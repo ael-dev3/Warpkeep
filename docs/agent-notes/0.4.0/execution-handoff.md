@@ -1,6 +1,48 @@
 # Continue Warpkeep 0.4
 
-## Current release checkpoint — 1 October 2026
+## Current release checkpoint — 1 October 2026, 21:26 UTC
+
+Snapshot after local World scheduler validation, before its new signed checkpoint.
+Resolve actual local/remote refs and latest CI instead of inferring a future SHA.
+Main remains `cb282bab`; [PR #380](https://github.com/ael-dev3/Warpkeep/pull/380)
+currently publishes H2 `a903e78e`, tree `344f5768`. Its exact normal
+[Verify 36920400660](https://github.com/ael-dev3/Warpkeep/actions/runs/36920400660),
+attempt 1, passed all 17 jobs at 21:20:49 UTC. The retained terminal summary is
+`artifacts/qa/october-release-a903e78e-verify-terminal-summary.json`, SHA-256
+`7743f9fcee858382936054c21ec1756733e5fac7d71ee78cc100eed6e43f29b4`.
+Three complete job logs prove CI merge `68e3467e`, same H2 tree with parents
+`cb282bab`/`a903e78e`. This is PR evidence, not resulting-main authority.
+
+Integration is deferred for a demonstrated existing World scheduler defect.
+The genuine H2 World fixture recorded reduced submission p95 of
+100.5/100.2/100.4ms against 83.4ms. An exact-source, browser-batch model reproduced
+early modulo carry producing an extra update. The local source now carries
+signed early debt and a tolerance bounded to 1ms and half a period. Caps remain
+24/18/12Hz; long-stall, visibility/activity and retirement behavior remain.
+Eighteen scheduler tests and 153 renderer/runtime/legacy-cleanup tests pass;
+app noEmit types pass. Read [performance](../../evidence/0.4.0/performance.md)
+for retained failures and the distinction between modeled repair and live acceptance.
+
+The six authored paths are this file, `next-work.txt`, `local-operations.md`,
+`performance.md`, `src/components/realm/realmAmbientScheduler.ts` and its test.
+Use the exact reviewed manifest and existing supported 16-file projection.
+The scheduler is a raw member of the prepared closure, but is outside all four
+cb compiler graphs and seven recovery inputs. Its test/notes are outside both.
+Retain both compiler manifests, all 212 inputs (135 tracked) and five bundle
+bodies. No new full compile, prepare handle or 102-output completion is justified.
+
+Next: sign the coherent H2 child on `release/0.4-world-scheduler`, synchronize
+the primary checkout, scan, publish an explicit non-forced backup, and update
+existing PR #380 once. Old G/H2-only merge helpers are superseded for that child.
+Require normal exact-head and resulting-main Verify, then freeze actual S through
+the existing provider/component/activation route below. H2 measurements stay
+bound to H2; build the repaired World before measuring it. Four Keep-only lifecycle
+profiles passed their memory/resource/context checks, while nominal World and
+one desktop placement timing miss remain open. PTR is unpublished; final-A
+R06, actual owner and physical-device acceptance are still required. No owner
+action is currently needed; no provider write or new recovery key occurred here.
+
+## Previous release checkpoint — 1 October 2026, 20:02 UTC
 
 This notes snapshot follows the final H component run at 20:02:51.443 UTC and
 precedes H2 signing/publication. Resolve actual Git refs, PR head and SHA-bound

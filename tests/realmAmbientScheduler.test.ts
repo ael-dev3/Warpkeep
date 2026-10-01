@@ -3,6 +3,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRealmAmbientScheduler } from '../src/components/realm/realmAmbientScheduler';
 
 type FrameCallback = FrameRequestCallback;
+const managedSchedulers = new Set<ReturnType<typeof createRealmAmbientScheduler>>();
+
+function createManagedScheduler(options: Parameters<typeof createRealmAmbientScheduler>[0]) {
+  const scheduler = createRealmAmbientScheduler(options);
+  managedSchedulers.add(scheduler);
+  return scheduler;
+}
 
 function installAnimationFrames() {
   const callbacks = new Map<number, FrameCallback>();
@@ -21,11 +28,22 @@ function installAnimationFrames() {
     callbacks.delete(entry[0]);
     entry[1](timestamp);
   };
-  return { callbacks, request, cancel, frame };
+  const browserFrame = (timestamp: number) => {
+    // Browser RAF dispatch snapshots the queue: a render requested by an
+    // ambient step belongs to the next frame, not this callback batch.
+    for (const [id, callback] of [...callbacks]) {
+      if (callbacks.delete(id)) callback(timestamp);
+    }
+  };
+  return { callbacks, request, cancel, frame, browserFrame };
 }
 
 describe('Realm ambient scheduler', () => {
   afterEach(() => {
+    // Failed regression assertions must still retire their visibility listener
+    // before spies are restored and another clock case begins.
+    for (const scheduler of managedSchedulers) scheduler.dispose();
+    managedSchedulers.clear();
     vi.restoreAllMocks();
   });
 
@@ -141,5 +159,137 @@ describe('Realm ambient scheduler', () => {
     expect(frames.callbacks.size).toBe(1);
 
     scheduler.dispose();
+  });
+
+  it.each([12, 18, 24])('carries an early %iHz step as signed debt without a next-tick burst', (frameCap) => {
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    const frames = installAnimationFrames();
+    const onStep = vi.fn();
+    const scheduler = createManagedScheduler({ frameCap, active: true, onStep });
+    const period = 1_000 / frameCap;
+
+    frames.browserFrame(0);
+    frames.browserFrame(period - 0.0005);
+    expect(onStep).toHaveBeenCalledOnce();
+    frames.browserFrame(period - 0.0005 + 1_000 / 60);
+    expect(onStep).toHaveBeenCalledOnce();
+    scheduler.dispose();
+    expect(frames.callbacks.size).toBe(0);
+  });
+
+  it.each([12, 18, 24])('keeps %iHz next-frame renders within the rounded display-clock tick window', (frameCap) => {
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    const frames = installAnimationFrames();
+    const renderedTicks: number[] = [];
+    let currentTick = 0;
+    let renderFrame = 0;
+    const onStep = vi.fn(() => {
+      if (renderFrame !== 0) return;
+      renderFrame = window.requestAnimationFrame(() => {
+        renderFrame = 0;
+        renderedTicks.push(currentTick);
+      });
+    });
+    const scheduler = createManagedScheduler({ frameCap, active: true, onStep });
+    try {
+      for (; currentTick <= 3_600; currentTick++) {
+        frames.browserFrame(Math.floor(currentTick * 1_000 / 60 * 10) / 10);
+      }
+      const tickIntervals = renderedTicks.slice(1).map((tick, index) => (
+        tick - renderedTicks[index]!
+      ));
+      expect(renderedTicks.length).toBeGreaterThan(frameCap * 50);
+      expect(tickIntervals.every((ticks) => ticks > 1)).toBe(true);
+      expect(Math.max(...tickIntervals)).toBeLessThanOrEqual(Math.ceil(60 / frameCap));
+      expect(onStep.mock.calls.length).toBeLessThanOrEqual(frameCap * 60 + 1);
+    } finally {
+      scheduler.dispose();
+      if (renderFrame !== 0) window.cancelAnimationFrame(renderFrame);
+    }
+    expect(frames.callbacks.size).toBe(0);
+  });
+
+  it.each([12, 18, 24])('preserves the %iHz average after repeated half-millisecond early frames', (frameCap) => {
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    const frames = installAnimationFrames();
+    const onStep = vi.fn();
+    const scheduler = createManagedScheduler({ frameCap, active: true, onStep });
+    const period = 1_000 / frameCap;
+    frames.browserFrame(0);
+    for (let step = 1; step <= 1_000; step++) {
+      frames.browserFrame(step * (period - 0.5));
+    }
+    const elapsed = 1_000 * (period - 0.5);
+    expect(onStep.mock.calls.length).toBeGreaterThan(980);
+    // Zero-clamping early debt would emit on every supplied frame and exceed
+    // this unchanged average cap. The remainder must preserve negative debt.
+    expect(onStep.mock.calls.length).toBeLessThanOrEqual(Math.floor(elapsed / period) + 1);
+    scheduler.dispose();
+    expect(frames.callbacks.size).toBe(0);
+  });
+
+  it.each([12, 18, 24])('resets %iHz phase across stalls, visibility, activity and cap changes', (frameCap) => {
+    let hidden = false;
+    vi.spyOn(document, 'hidden', 'get').mockImplementation(() => hidden);
+    const frames = installAnimationFrames();
+    const onStep = vi.fn();
+    const scheduler = createManagedScheduler({ frameCap, active: true, onStep });
+    const period = 1_000 / frameCap;
+    frames.browserFrame(0);
+    frames.browserFrame(period - 0.5);
+    expect(onStep).toHaveBeenCalledOnce();
+    frames.browserFrame(10_000);
+    expect(onStep).toHaveBeenCalledTimes(2);
+    expect(onStep.mock.calls[1]![0] - onStep.mock.calls[0]![0]).toBeLessThanOrEqual(0.100000001);
+    frames.browserFrame(10_000);
+    expect(onStep).toHaveBeenCalledTimes(2);
+
+    hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(frames.callbacks.size).toBe(0);
+    frames.browserFrame(20_000);
+    hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    frames.browserFrame(20_001);
+    expect(onStep).toHaveBeenCalledTimes(2);
+    frames.browserFrame(20_001 + period);
+    expect(onStep).toHaveBeenCalledTimes(3);
+
+    scheduler.setActive(false);
+    expect(frames.callbacks.size).toBe(0);
+    scheduler.setActive(true);
+    expect(frames.callbacks.size).toBe(1);
+    frames.browserFrame(30_000);
+    expect(onStep).toHaveBeenCalledTimes(3);
+    const nextFrameCap = frameCap === 18 ? 24 : 18;
+    scheduler.setFrameCap(nextFrameCap);
+    expect(frames.callbacks.size).toBe(1);
+    frames.browserFrame(40_000);
+    frames.browserFrame(40_000 + 1_000 / nextFrameCap - 0.5);
+    expect(onStep).toHaveBeenCalledTimes(4);
+    scheduler.setFrameCap(0);
+    expect(frames.callbacks.size).toBe(0);
+    scheduler.setFrameCap(12);
+    expect(frames.callbacks.size).toBe(1);
+    scheduler.dispose();
+    expect(frames.callbacks.size).toBe(0);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(frames.callbacks.size).toBe(0);
+  });
+
+  it('bounds early tolerance for a high cap and never steps on repeated zero-delta frames', () => {
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    const frames = installAnimationFrames();
+    const onStep = vi.fn();
+    const scheduler = createManagedScheduler({ frameCap: 2_000, active: true, onStep });
+    frames.browserFrame(0);
+    for (let repeated = 0; repeated < 10; repeated++) frames.browserFrame(0);
+    expect(onStep).not.toHaveBeenCalled();
+    frames.browserFrame(0.5);
+    expect(onStep).toHaveBeenCalledOnce();
+    for (let repeated = 0; repeated < 10; repeated++) frames.browserFrame(0.5);
+    expect(onStep).toHaveBeenCalledOnce();
+    scheduler.dispose();
+    expect(frames.callbacks.size).toBe(0);
   });
 });

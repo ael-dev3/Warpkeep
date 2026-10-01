@@ -1,7 +1,71 @@
 # 0.4 performance acceptance contract
 
 Established 2026-09-06 before final visual implementation/measurement.
-Status: **Keep feedback repaired; four production-component profiles meet their cadence budgets; final production acceptance incomplete**.
+Status: **Keep feedback repaired; World scheduler regression repaired locally; final production acceptance incomplete**.
+
+## World phase repair and current acceptance limits — 1 October 2026, 21:26 UTC
+
+This snapshot follows local validation and precedes the new signed checkpoint.
+The measured source is H2 `a903e78e`, tree `344f5768`; the new scheduler edit is
+not yet published. H2's normal PR Verify `36920400660`, attempt 1, passed all
+17 jobs at 21:20:49 UTC. That result does not attest the later scheduler edit.
+
+The genuine optimized World fixture uses the production client and renderer,
+with a small two-chunk synthetic window. It establishes a lower-bound diagnostic,
+not maximum-window, authenticated-owner, final-A, GPU or physical-phone acceptance.
+Three 60-second samples per completed profile gave these CPU-first-GL intervals:
+
+| Profile | Submission interval p95 | Unchanged nominal 60Hz ceiling |
+| --- | --- | --- |
+| Desktop high | 50.8 / 50.8 / 50.8ms | 50ms |
+| Portrait balanced | 67.3 / 67.2 / 67.3ms | 66.7ms |
+| Portrait reduced | 100.5 / 100.2 / 100.4ms | 83.4ms |
+
+All captures were eligible, with normal owned-process cleanup and unchanged
+native source/index. Eligibility is not a budget pass. Desktop/balanced clock
+variation and callback phase contribute to their narrow misses; reduced mode
+also contains a real extra-display-tick pattern. Landscape World remains unmeasured.
+
+An isolated model executes the exact original scheduler and production host's
+next-RAF queue closure. It reproduces an arithmetic defect: an accepted early
+step can leave nearly a whole period after `%`, causing an extra next-tick update.
+The repaired scheduler carries signed early debt, permits at most 1ms of early
+deadline tolerance (also bounded to half a period), and still discards whole
+missed periods after a stall. The 24/18/12Hz caps, visibility/activity gates,
+simulation-time clamp and single pending RAF remain. It adds no rendering feature.
+
+The original isolated model fails five regression scenarios; its in-memory
+candidate passes all twelve. Captured reduced-clock replay improves modeled RAF
+p95 from 100.2ms to 83.7ms, which still exceeds the nominal 83.4ms ceiling.
+Replay does not reconstruct the unknown live accumulator or establish a live fix.
+Do not raise caps, round away misses, relabel these results, or call full R06 passed.
+Before grading a variable-clock production run, state its clock expectation as
+required by the existing per-path ruling below; preserve nominal results separately.
+
+The actual repaired source passes 18 scheduler tests and 153 production-runtime,
+canvas-host and legacy-cleanup tests, with zero failures/skips; app noEmit types
+pass. The original five scheduler cases remain. An intermediate 16-pass/2-fail
+attempt exposed a test's same-cap reset assumption and missing failure teardown;
+only the tests were corrected, and its failed receipt is retained.
+
+Four H2 Keep-only lifecycle profiles (balanced/reduced, normal/reduced-motion
+prop) each completed three warmups, twenty post-GC remounts and three actual
+context recoveries. Heap growth was 1,078,296–1,105,392 bytes; fitted growth was
+48,408–49,726 bytes/cycle. All existing memory/resource limits passed. These are
+component and whole-page V8 observations, not whole-app switching or GPU bytes.
+Desktop placement remains a separate open timing result: 33.6 / 33.3 / 17.1ms
+against 33.4ms. The first sample's miss is retained.
+
+Local receipts live in the existing ignored `artifacts/qa/` directory:
+
+- `october-release-r06-world-scheduler-phase-model-20261001T211139490Z-ba8707c5.json`, SHA-256 `89072e9a4ee0276d42e3f0c8ec881c3871401c82448d912a2970ad4cef24bef2`.
+- `october-world-scheduler-signed-retry-20261001T212022304Z-f466e782.json`, SHA-256 `b90686268a457c2d4c2c975089bf60d207d43486aa26f216baee90152434719e`.
+- `october-world-scheduler-real-callers-receipt.json` and `october-world-scheduler-app-types.json`, actual terminal exits 0.
+- `october-release-r06-a903e78e-keep-lifecycle-summary.json`, SHA-256 `52378f25173f01f270aeaf7ac876276cfd67f75f6e51a64e46363c15b71edf3d`.
+
+Sign, scan and publish the coherent source/notes/derived-closure checkpoint;
+then measure a genuine build of the repaired World source. Final production
+R06, owner journey, physical-device acceptance and PTR publication remain open.
 Scope: final production-build 0.4 world/keep path, not a standalone demo.
 
 ## Repaired Keep production-component measurements — 2026-10-01

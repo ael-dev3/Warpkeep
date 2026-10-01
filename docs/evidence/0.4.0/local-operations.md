@@ -2,6 +2,59 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## World scheduler repair and H2 lifecycle checks — 1 October 2026, 21:26 UTC
+
+Snapshot before the new signed source checkpoint. Native remains clean H2
+`a903e78e`, tree `344f5768`; primary contains six owned source/test/notes edits.
+H2 PR Verify `36920400660` attempt 1 passed all 17 jobs at 21:20:49 UTC.
+Its summary SHA-256 is `7743f9fcee858382936054c21ec1756733e5fac7d71ee78cc100eed6e43f29b4`.
+The previous watcher ended normally and downloaded its archive once. No merge,
+CI rerun, provider write or public deployment followed that result.
+
+Actual H2 World build `b748ec28` used 1,191 type files and 1,514 recorded inputs.
+Its first desktop consumer failed before starting a browser: the runner assumed
+absolute paths while the authentic builder records repository-relative paths.
+The ignored runner now normalizes either form within the native root and retains
+all existing input/provenance checks. The failed run was preserved; the genuine
+producer was reused, not rebuilt or relabeled. The next desktop and portrait
+captures completed with stable source/index and absent owned groups.
+
+Reduced World submission p95 was 100.5/100.2/100.4ms. Exact source/host clock modeling
+reproduced early modulo carry and an extra display-tick wait; the local repair
+carries signed debt with bounded tolerance and unchanged caps. The isolated model
+has twelve passing candidate cases and five original regression failures, receipt
+SHA-256 `89072e9a4ee0276d42e3f0c8ec881c3871401c82448d912a2970ad4cef24bef2`.
+This does not prove every live invalidation's cause or post-repair GL/GPU cadence.
+
+Windows focused scheduler validation ended 21:20:32 UTC: 18 pass, zero fail/skip,
+JSON SHA-256 `b90686268a457c2d4c2c975089bf60d207d43486aa26f216baee90152434719e`.
+An intermediate 16-pass/2-fail attempt exposed only a same-cap-reset assumption
+and skipped test teardown; corrected tests choose a different cap and always
+retire their scheduler. Preserve that failed receipt and the earlier original
+baseline with their actual test hashes. Do not transfer results across revisions.
+Real caller validation ended 21:23:06 UTC: 38 Greater Realm runtime, 38 canvas-host
+and 77 preserved-Realm cleanup tests pass, zero failures/skips. App noEmit types
+ended 21:25:56 UTC, exit 0; no generated app output was written.
+
+The repaired scheduler SHA-256 is
+`21963961fab9fe73db094b1b8c4d855645e473128dbdebd2fe982f6625638557`;
+the final test SHA-256 is
+`195da0a06e15cce6eab96a4d131e7f09b69e295b479d0630aa2e3a1efb4129a9`.
+Compiler membership review confirms that neither is a cb compiler/recovery input;
+only the scheduler is in the protected closure. Retain all five bundles and use
+the supported closure projection, without a new compiler-cycle claim.
+
+All four H2 balanced/reduced × normal/reduced-motion-prop Keep diagnostics completed
+three warmups, twenty post-GC remounts and three actual context recoveries each.
+Growth 1,078,296–1,105,392 bytes and fitted slope 48,408–49,726 bytes/cycle meet
+the existing limits; mounted resource counts match baseline. All native/Chrome
+cleanup completed normally with unchanged H2 source/index and absent owned groups.
+Combined local receipt SHA-256:
+`52378f25173f01f270aeaf7ac876276cfd67f75f6e51a64e46363c15b71edf3d`.
+These observations are component/whole-page V8 evidence, not GPU bytes, physical
+phone or actual World/Keep/realm switching acceptance. The final-A production
+workload and owner entry remain open. Continue the current shipping handoff.
+
 ## Keep feedback repair and production-component measurements — 1 October 2026
 
 This notes snapshot is after the final H run at 20:02:51.443 UTC and before H2

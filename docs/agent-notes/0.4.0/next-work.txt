@@ -4,6 +4,35 @@ Refreshed 1 October 2026, UTC and Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
+21:26 UTC snapshot, after local World scheduler validation and before its new
+signed checkpoint. Main remains cb282bab. Published PR #380 head H2 a903e78e
+passed normal Verify 36920400660 attempt 1, all 17 jobs, at 21:20:49 UTC.
+H2's terminal summary SHA is 7743f9fcee858382936054c21ec1756733e5fac7d71ee78cc100eed6e43f29b4.
+H2 is not merged: measured reduced World pacing exposed an existing scheduler
+defect before integration. Resolve actual refs and latest CI before acting.
+
+The local repair carries signed early animation debt with bounded 1ms tolerance;
+24/18/12Hz caps and lifecycle gates remain. Eighteen scheduler cases and 153 real
+caller/cleanup cases pass; app noEmit types pass. Old failures remain evidence.
+Desktop/balanced World nominal timing misses and the desktop placement miss
+remain open; no post-repair live cadence or final R06 claim is established.
+All four H2 Keep-only lifecycle profiles passed their memory/resource limits and
+three context restores each. They do not prove whole-app or physical-phone safety.
+
+NEXT: freeze the six reviewed authored files, reuse the supported 16-file closure
+projection, sign a coherent child of H2, synchronize primary/native, scan the
+outgoing range and update the existing PR #380 once. The scheduler is outside
+cb's compiler graphs/recovery inputs, so retain the genuine cb compiler ancestry
+and all five bundle bodies; do not run another full prepare/compiler cycle for it.
+Do not execute the old G/H2-pinned merge helpers against this later source.
+Complete one normal Verify on the actual final PR head and resulting signed main,
+then freeze operating S and follow the existing provider/signer/PTR activation
+route. Build and measure the repaired World; final-A production R06, owner and
+device acceptance remain required. Alpha stays live; G001 progress/freeze and
+sealed G002 remain. No new Desktop files, recovery keys or recurring jobs.
+
+PREVIOUS SNAPSHOT — 20:02 UTC
+
 Notes snapshot: after the final H component run at 20:02:51.443 UTC, before H2
 signing/publication. Resolve actual Git refs, PR head and CI evidence before acting.
 

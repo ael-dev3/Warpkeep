@@ -75,8 +75,14 @@ export function createRealmAmbientScheduler(
     lastTimestamp = timestamp;
     accumulator += delta;
     elapsedSeconds += delta / 1_000;
-    if (accumulator + 0.001 >= intervalMilliseconds) {
-      accumulator %= intervalMilliseconds;
+    // RAF timestamps can land just short of a decorative deadline. Keep a
+    // bounded tolerance and carry its signed debt into the next period, so
+    // accepting an early step neither adds an update nor raises the cap.
+    const deadlineToleranceMilliseconds = Math.min(1, intervalMilliseconds / 2);
+    if (accumulator + deadlineToleranceMilliseconds >= intervalMilliseconds) {
+      // Discard whole missed periods after a stall, while preserving a small
+      // negative remainder when this step was early.
+      accumulator = (accumulator - intervalMilliseconds) % intervalMilliseconds;
       try {
         options.onStep(elapsedSeconds);
       } catch {
