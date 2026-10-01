@@ -1102,7 +1102,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         .toHaveLength(4);
     }
     const installIndex = source.indexOf(
-      'pnpm --dir services/auth-bridge install',
+      'pnpm --pm-on-fail=ignore --dir services/auth-bridge install',
     );
     const postInstallPinIndex = source.indexOf(
       'verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256"',

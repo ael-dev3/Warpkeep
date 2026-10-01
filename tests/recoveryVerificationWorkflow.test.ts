@@ -58,13 +58,13 @@ describe('required recovery verification', () => {
       {
         name: 'Setup pnpm',
         uses: 'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271',
-        with: { version: '11.7.0', run_install: false },
+        with: { version: '11.11.0', run_install: false },
       },
     ]);
     expect(job.steps.filter(step => step.run).map(step => step.run)).toEqual([
-      'pnpm --dir services/release-recovery install --frozen-lockfile',
-      'pnpm --dir services/release-recovery run check',
-      'pnpm --dir services/release-recovery audit --audit-level low',
+      'pnpm --pm-on-fail=ignore --dir services/release-recovery install --frozen-lockfile',
+      'pnpm --pm-on-fail=ignore --dir services/release-recovery run check',
+      'pnpm --pm-on-fail=ignore --dir services/release-recovery audit --audit-level low',
     ]);
     for (const step of job.steps) {
       for (const key of ['if', 'continue-on-error', 'env', 'working-directory']) {

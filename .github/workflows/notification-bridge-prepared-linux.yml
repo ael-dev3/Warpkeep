@@ -47,7 +47,7 @@ jobs:
       WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '0e0d9de130abda66e2cb17c4e5a753ab0b68aeb291a218085afaa315e71506cb'
       WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '639d78a525a0592d25d06a103074c2ab961c229bf3b9c97c3079759f55a09e97'
       WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '68e05292c7162b982781e2eb673e6e39ed8ddbb99b4f3aa61f7507d3dc7c144b'
-      WARPKEEP_PREPARED_PNPM_AUTHORITY_MANIFEST_SHA256: '346661bf89426db64f2911b6b0e7d3f5abf0d717d067b0b6c81602e6c570519a'
+      WARPKEEP_PREPARED_PNPM_AUTHORITY_MANIFEST_SHA256: '2f74f205f1a6ddd54263d8eb6f362d92491f157177e3be8e518e85bb7e53a8ab'
 
     steps:
       - name: Require exact Linux production runner
@@ -119,12 +119,22 @@ jobs:
         run: |
           set -euo pipefail
           node_executable='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
-          pnpm_executable='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.7.0-linux-x64/pnpm'
+          pnpm_executable='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/pnpm'
+          pnpm_package='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/package/bin/pnpm.cjs'
+          pnpm_launcher='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/package/bin/pnpm.mjs'
+          pnpm_runtime='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/package/dist/pnpm.mjs'
           test -f "$node_executable" && test ! -L "$node_executable" && test -x "$node_executable"
           test "$(/usr/bin/stat -c '%u:%g:%a:%h' -- "$node_executable")" = '1000:1000:500:1'
           test -f "$pnpm_executable" && test ! -L "$pnpm_executable" && test -x "$pnpm_executable"
           test "$(/usr/bin/stat -c '%u:%g:%a:%h' -- "$pnpm_executable")" = '1000:1000:500:1'
-          test "$(/usr/bin/sha256sum -- "$pnpm_executable" | cut -d ' ' -f1)" = '5eb52f5b7fe3c4ef589393f81f33b28482f7657109239de7bc5dc4e4e56aafc4'
+          test "$(/usr/bin/sha256sum -- "$pnpm_executable" | cut -d ' ' -f1)" = '60e9225a0e34ea09a78feda05282faf5bb1feb808c16a71df3ed58a684ba6edd'
+          for pnpm_member in "$pnpm_package" "$pnpm_launcher" "$pnpm_runtime"; do
+            test -f "$pnpm_member" && test ! -L "$pnpm_member"
+            test "$(/usr/bin/stat -c '%u:%g:%a:%h' -- "$pnpm_member")" = '1000:1000:600:1'
+          done
+          test "$(/usr/bin/sha256sum -- "$pnpm_package" | cut -d ' ' -f1)" = '67b035e322203961795e8e34ca63a08c37a4386eda94107fb3d28f3246d882ad'
+          test "$(/usr/bin/sha256sum -- "$pnpm_launcher" | cut -d ' ' -f1)" = 'ff3224d46b47fbb24a7e9fe15fededef7e00892d07d4e376b6762d4899906bfd'
+          test "$(/usr/bin/sha256sum -- "$pnpm_runtime" | cut -d ' ' -f1)" = 'e8abc02d5fbffb8f9d8817d44d6eee84c379ea8d5006dd5aa8694bb5e4428d8a'
           for config_path in .npmrc .pnpmfile.cjs .pnpmfile.mjs pnpmfile.cjs pnpmfile.mjs \
             services/auth-bridge/.npmrc services/auth-bridge/.pnpmfile.cjs \
             services/auth-bridge/.pnpmfile.mjs services/auth-bridge/pnpmfile.cjs \
@@ -152,7 +162,7 @@ jobs:
             PATH=/usr/bin:/bin PNPM_HOME="$install_state/pnpm-home" \
             TMPDIR="$install_state/tmp" XDG_CACHE_HOME="$install_state/xdg-cache" \
             XDG_CONFIG_HOME="$install_state/xdg-config" XDG_DATA_HOME="$install_state/xdg-data" \
-            "$pnpm_executable" --dir services/auth-bridge install --frozen-lockfile \
+            "$pnpm_executable" --pm-on-fail=ignore --dir services/auth-bridge install --frozen-lockfile \
             --ignore-scripts --ignore-pnpmfile --package-import-method=copy \
             --store-dir "$install_state/store" --verify-store-integrity
 

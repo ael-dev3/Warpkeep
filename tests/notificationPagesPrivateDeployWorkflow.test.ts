@@ -144,7 +144,7 @@ describe('notification Pages private deployment workflow', () => {
     expect(toolchain).toMatch(/^    permissions:\n      contents: read$/m);
     expect(toolchain).not.toMatch(/^\s+(?:pages|id-token):\s*write$/m);
     expect(toolchain).toContain('clean: true');
-    expect(toolchain).toContain('version: 11.7.0');
+    expect(toolchain).toContain('version: 11.11.0');
     expect(toolchain).toContain('node-version: 22.22.3');
     expect(toolchain).toContain('--offline');
     expect(toolchain).toContain('--frozen-lockfile');

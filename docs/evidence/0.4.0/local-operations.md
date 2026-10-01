@@ -2,6 +2,80 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Patched pnpm runtime and current Linux snapshot — 1 October 2026
+
+Official GitHub advisory metadata retained in
+`artifacts/qa/october-pnpm-11.7-advisories.json` identifies four high-severity
+advisories affecting pnpm 11.7.0. Three first require 11.11.0:
+[virtual-store path traversal](https://github.com/advisories/GHSA-c59q-g84q-2gj5),
+[tarball manifest path traversal](https://github.com/advisories/GHSA-vq4v-j7r6-jq4m)
+and [proxy-setting environment disclosure](https://github.com/advisories/GHSA-vx52-2968-3vc6).
+The [configDependencies path traversal](https://github.com/advisories/GHSA-qrv3-253h-g69c)
+first requires 11.8.0. This is package-manager maintenance evidence;
+dependency audits alone did not establish that the CLI itself was unaffected.
+No exploitation or provider compromise is demonstrated.
+
+At 08:22:04 UTC, the native UID-1000/Node-22.22.3 readback verifies a separate
+official pnpm 11.11.0 installation, retaining the original 11.7 tool and cache.
+Registry integrity and archive SHA-256
+`85ef2eff216a1ae90804c00c8dfbfa6685353644650d10906a893c05aedcd884`
+bind the downloaded package. The private wrapper includes
+`--pm-on-fail=ignore`. The reviewed
+[runtime authority](../../../scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json)
+has SHA-256 `2f74f205f1a6ddd54263d8eb6f362d92491f157177e3be8e518e85bb7e53a8ab`
+and binds the wrapper, generic CJS entry, intermediate MJS launcher and actual
+`dist/pnpm.mjs` implementation. The
+[Linux workflow](../../../.github/workflows/notification-bridge-prepared-linux.yml)
+checks regular-file ownership, single links, modes and all four hashes before
+its isolated credential-free install; the
+[runner](../../../scripts/auth-bridge-notification-prepared-linux-runner.mjs)
+rechecks runtime hashes, exact source, closure, installed graph and policy
+before workflow authority or provider work. Retain
+`october-pnpm-native-runtime.json`; its 08:22 receipt predates the additional
+launcher/implementation guards and is not a standalone receipt for those hops.
+
+The actual credential-free shadow install at source `e5bccbdc` finishes
+08:29:13.768 UTC, exit 0. It uses the patched wrapper and frozen-lockfile,
+ignore-scripts and isolated-store options; `.modules.yaml` identifies actual
+pnpm 11.11.0. The retained source/installed-graph declaration remains
+`pnpm@11.7.0`. Raw source and installed lock both remain
+`e1478d3eaaaf16505f4171f5c2570164f94a5abb17dcf592ed433c14ae524327`:
+the prior Linux snapshot's `369a7a6d…` described an older graph, rather than a
+lock rewritten by the patched CLI. The genuine derived
+[Linux snapshot](../../../scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json)
+has SHA-256 `9fbdfc888b2df0d1c91d1e8f59e37a0690b39d50b95a535eb783714c533c6103`.
+Its six changed fields are the lock digest, resolver entry/file counts,
+resolver digest, total bytes and tree digest. Current Linux policy now matches
+that lock and namespace; Darwin and historical compiler declarations stay
+unchanged. Retain `october-pnpm-shadow-summary.json` and
+`october-pnpm-installed-linux-candidate.json`.
+
+An initial isolated direct-entry probe shows that
+`npm_config_pm_on_fail=ignore` does not prevent automatic selection of the
+retained older CLI. That first failed probe's raw log was not retained.
+The corrected ordinary-CI environment is `pnpm_config_pm_on_fail=ignore`.
+At 08:38:32.689 UTC, the direct official entry, without the private wrapper or
+CLI no-switch flag, successfully executes a child reporting
+`pnpm/11.11.0 npm/? node/v22.22.3 linux x64`; the shadow package descriptor is
+restored byte-exact. This proves a `pnpm exec` child, not a `pnpm run` script
+or hosted CI. Retain `october-pnpm-actual-child-summary.json` and
+`october-pnpm-actual-child.log`. The separately retained
+`october-pnpm-child-probe-deps-diagnostic.log` records a probe PATH/ENOENT
+failure during automatic dependency checking, not the wrong-prefix failure
+or an authentication/provider failure.
+
+Independent raw-byte checks at `e5bccbdc` confirm all 31 tracked package
+descriptors/locks/workspace files, seven retained compiler/bundle records and
+three frozen G001 input objects are unchanged. The authored Linux snapshot is
+an exact copy of the derived candidate and matches the current auth lock.
+Retain `october-pnpm-installed-linux-independent.json`. Focused runtime
+regressions improve from five passes/one failure to seven passes/zero failures
+at their intermediate scope; retain `october-pnpm-linux-before.{json,log}`
+and `october-pnpm-linux-after.{json,log}`. Syntax and diff checks pass.
+The expanded eight-case suite awaits complete family regeneration and the
+derived installed-snapshot workflow pin. These observations establish no
+final-head hosted Verify, deployment, full R06 or owner/device acceptance.
+
 ## October validation repair and preparation — 1 October 2026
 
 The first normal October PR Verify is

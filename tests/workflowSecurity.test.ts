@@ -66,6 +66,7 @@ interface WorkflowStep {
 
 interface WorkflowJob {
   'timeout-minutes'?: number;
+  env?: Record<string, unknown>;
   strategy?: { 'fail-fast'?: boolean; matrix?: Record<string, unknown> };
   steps?: WorkflowStep[];
 }
@@ -100,6 +101,41 @@ function allWorkflows() {
 }
 
 describe('GitHub workflow security policy', () => {
+  it('keeps the patched pnpm authority across direct calls and nested retained-package scripts', () => {
+    for (const name of ['verify.yml', 'deploy-pages.yml']) {
+      const document = parse(workflow(name)) as {
+        env: Record<string, unknown>;
+        jobs: Record<string, WorkflowJob>;
+      };
+      expect(document.env.pnpm_config_pm_on_fail, name).toBe('ignore');
+      for (const [jobName, job] of Object.entries(document.jobs)) {
+        const steps = job.steps ?? [];
+        const setups = steps.filter(step => step.uses?.startsWith('pnpm/action-setup@'));
+        const calls = steps.flatMap(step => [...(step.run ?? '').matchAll(/\bpnpm\s+(?!--version\b)(\S+)/gu)]);
+        if (calls.length === 0 && setups.length === 0) continue;
+        expect(setups, `${name}:${jobName}`).toHaveLength(1);
+        expect(setups[0].with?.version, `${name}:${jobName}`).toBe('11.11.0');
+        if (Object.hasOwn(job.env ?? {}, 'pnpm_config_pm_on_fail')) {
+          expect(job.env?.pnpm_config_pm_on_fail, `${name}:${jobName}`).toBe('ignore');
+        }
+        for (const step of steps) {
+          const env = step.env as Record<string, unknown> | undefined;
+          if (Object.hasOwn(env ?? {}, 'pnpm_config_pm_on_fail')) {
+            expect(env?.pnpm_config_pm_on_fail, `${name}:${jobName}:${step.name}`).toBe('ignore');
+          }
+        }
+        for (const call of calls) {
+          expect(call[1], `${name}:${jobName}`).toBe('--pm-on-fail=ignore');
+        }
+      }
+    }
+    for (const path of ['spacetimedb', 'spacetimedb/genesis002', 'spacetimedb/ptr',
+      'services/auth-bridge', 'services/release-recovery']) {
+      const manifest = JSON.parse(readFileSync(resolve(repositoryRoot, path, 'package.json'), 'utf8'));
+      expect(manifest.packageManager, path).toBe('pnpm@11.7.0');
+    }
+  });
+
   it('supersedes only the same PR verification, leaving main and deployment locks separate', () => {
     const verify = parse(workflow('verify.yml'));
     expect(verify.concurrency).toEqual({
@@ -579,8 +615,8 @@ describe('GitHub workflow security policy', () => {
     const checkoutCount = (source.match(/actions\/checkout@/g) ?? []).length;
     const disabledCredentialCount = (source.match(/persist-credentials:\s*false/g) ?? []).length;
     expect(disabledCredentialCount).toBe(checkoutCount);
-    expect(source).toContain('pnpm --dir services/auth-bridge audit --audit-level low');
-    expect(source).toContain('pnpm --dir spacetimedb audit --audit-level low');
+    expect(source).toContain('pnpm --pm-on-fail=ignore --dir services/auth-bridge audit --audit-level low');
+    expect(source).toContain('pnpm --pm-on-fail=ignore --dir spacetimedb audit --audit-level low');
     expect(source).toContain('npm audit signatures');
   });
 

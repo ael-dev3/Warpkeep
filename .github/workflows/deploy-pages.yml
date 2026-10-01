@@ -13,6 +13,8 @@ permissions:
 # exclusive jobs. The source-closure manifest canonicalizes only these exact
 # values, so changing any protected executable requires an explicit refreeze.
 env:
+  # Preserve historical dependency metadata without switching the patched CLI.
+  pnpm_config_pm_on_fail: 'ignore'
   WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'cef373c061864a779876a24a69d4c0006bd3f0c447ce8b6e16d7608c5a0b18a4'
   WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '0e0d9de130abda66e2cb17c4e5a753ab0b68aeb291a218085afaa315e71506cb'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '639d78a525a0592d25d06a103074c2ab961c229bf3b9c97c3079759f55a09e97'
@@ -135,7 +137,7 @@ jobs:
       - name: Setup pinned pnpm for bridge runtime-contract tests
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
-          version: 11.7.0
+          version: 11.11.0
           run_install: false
 
       - name: Stage Node in a runner-private toolchain path
@@ -197,17 +199,17 @@ jobs:
         run: npm ci
 
       - name: Install exact bridge runtime-test toolchain
-        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+        run: pnpm --pm-on-fail=ignore --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
 
       - name: Validate PTR lock and install SpacetimeDB module dependencies
         shell: bash
         run: |
           set -euo pipefail
           test ! -e spacetimedb/ptr/node_modules
-          pnpm --dir spacetimedb/ptr install \
+          pnpm --pm-on-fail=ignore --dir spacetimedb/ptr install \
             --frozen-lockfile --lockfile-only --ignore-workspace
           test ! -e spacetimedb/ptr/node_modules
-          pnpm --dir spacetimedb install --frozen-lockfile
+          pnpm --pm-on-fail=ignore --dir spacetimedb install --frozen-lockfile
           test ! -e spacetimedb/ptr/node_modules
 
       - name: Re-attest runner-private Node after dependency install
@@ -560,7 +562,7 @@ jobs:
       - name: Setup the pinned recovery build package manager
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
-          version: 11.7.0
+          version: 11.11.0
           run_install: false
 
       - name: Stage the recovery runtime in a private path
@@ -644,7 +646,7 @@ jobs:
 
       - name: Install the recovery build validation parser
         if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
-        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+        run: pnpm --pm-on-fail=ignore --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
 
       - name: Re-attest the recovery runtime and source before build
         if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
@@ -806,7 +808,7 @@ jobs:
       - name: Setup exact pnpm
         uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         with:
-          version: 11.7.0
+          version: 11.11.0
           run_install: false
 
       - name: Setup exact Node
@@ -821,8 +823,8 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$(node --version)" == 'v22.22.3' ]]
-          [[ "$(pnpm --version)" == '11.7.0' ]]
-          pnpm --dir services/auth-bridge install \
+          [[ "$(pnpm --version)" == '11.11.0' ]]
+          pnpm --pm-on-fail=ignore --dir services/auth-bridge install \
             --offline \
             --frozen-lockfile \
             --ignore-scripts \
