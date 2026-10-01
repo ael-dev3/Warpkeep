@@ -1,8 +1,58 @@
 # 0.4 performance acceptance contract
 
 Established 2026-09-06 before final visual implementation/measurement.
-Status: **budgets established; production-component Keep feedback defect reproduced; final production acceptance incomplete**.
+Status: **Keep feedback repaired; four production-component profiles meet their cadence budgets; final production acceptance incomplete**.
 Scope: final production-build 0.4 world/keep path, not a standalone demo.
+
+## Repaired Keep production-component measurements — 2026-10-01
+
+Signed repair source `0d36f06c7f2b1d65169be64e3aecc88b9e27096b` (H), tree
+`c548e407d92b8cf7560452fcb9432af0c938f118`, is a direct child of the G baseline
+below. Its genuine production-optimized Keep fixture uses the real components,
+synthetic all-six-level-five presentation and trusted existing camera controls.
+It does not grant player authority or replace the final-A application build.
+This notes snapshot follows the final H run at 20:02:51.443 UTC and precedes
+notes-checkpoint H2 signing/publication; resolve actual Git/PR evidence for continuation.
+
+| Profile | Actual CPU GL submission interval p95, three 60-second samples | Unchanged ceiling | Result |
+| --- | --- | --- | --- |
+| Desktop high | 17.1 / 17.1 / 17.1ms | 33.4ms | Meets this workload's cadence budget |
+| Portrait balanced | 17.5 / 17.6 / 34.0ms | 50ms | Meets this workload's cadence budget |
+| Portrait reduced | 17.4 / 34.3 / 17.6ms | 75ms | Meets this workload's cadence budget |
+| Landscape balanced | 17.4 / 18.8 / 34.2ms | 50ms | Meets this workload's cadence budget |
+
+Desktop completes 19:34:23.617–19:38:01.595 UTC and portrait balanced completes
+19:39:14.115–19:42:59.551 UTC. Portrait reduced completes
+19:43:59.255–19:47:42.829 UTC, and landscape balanced completes
+19:59:05.689–20:02:51.443 UTC. Each actual outer tool exits 0. All twelve samples
+are cadence-eligible, have exact application-RAF/GL-burst pairing, no measurement
+failure and no driver-limited result. The receipts retain actual Chrome
+154.0.8037.58, GPU and viewport/DPR diagnostics. Desktop uses 1440×900/DPR 1;
+portrait uses 390×844/DPR 3 with the prescribed CPU/network shaping.
+Owned Chrome/profile and native server cleanup pass, and native H source/index
+remain unchanged. The [local evidence record](local-operations.md#keep-feedback-repair-and-production-component-measurements--1-october-2026)
+owns exact receipt hashes and process/build provenance.
+
+Visible feedback now consumes the next display RAF, including promotion of an
+already queued decorative frame. Autonomous reveal retains the 30/24/15fps phase,
+one pending RAF and the bounded 1ms tolerance for reproduced deadline jitter.
+The affected Windows suite passes 139 tests, native checks pass 50 tests, app
+types pass and outgoing scanning finds no secrets. These checks and measured
+submission cadence address the reproduced defect without changing the budgets.
+
+The separate fixture build is bound to H; reused static assets remain bound to
+the earlier `6e9f50bf` build. CPU submission cadence is not completed GPU work or
+physical-phone evidence. Placement and basic controls, World workloads,
+production world/keep and realm cycles, final-A cold
+bootstrap, transfer/resource/heap acceptance and actual-owner/device testing
+remain open. No full R06 or published 0.4 claim follows from these four profiles.
+The first landscape attempt fails before timing because the synthetic fixture's
+canvas is below the short viewport. The successful retry uses ordinary scrolling
+into view before timing and records before/after geometry; profile, WebGL and all
+measurement gates remain unchanged. This corrects the ignored measurement setup,
+not product rendering. Both attempts retain their separate actual receipts.
+The following baseline and earlier diagnostics retain their original source and
+pre-repair state; their pending language is historical.
 
 ## Production-component Keep feedback baseline — 2026-10-01
 

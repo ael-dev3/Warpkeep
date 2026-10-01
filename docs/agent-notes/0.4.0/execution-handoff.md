@@ -2,6 +2,10 @@
 
 ## Current release checkpoint — 1 October 2026
 
+This notes snapshot follows the final H component run at 20:02:51.443 UTC and
+precedes H2 signing/publication. Resolve actual Git refs, PR head and SHA-bound
+CI evidence before continuing; no self-SHA is embedded here.
+
 The authored source correction is integrated into signed main
 `cb282bab1f6df094643e4b18b20db3ce39e96ddf`, tree
 `feeeff15c458e18b793c071e67c16eb707d28a6f`, parent `acbb5128`.
@@ -12,9 +16,12 @@ Actual-main [Verify 36892578403](https://github.com/ael-dev3/Warpkeep/actions/ru
 passed all 17 jobs in the 17:36:29.827 UTC terminal readback. Retain its actual
 terminal result and subsequent Pages classification separately from PR evidence.
 The preparation checkouts were synchronized to this exact compiler-input main;
-the earlier development branch at `d16355f2` is retained. The next generated
-checkpoint is a separate source. Resolve the actual local ref, open PR and
-accepted operating main from Git/GitHub before continuing.
+the earlier development branch at `d16355f2` is retained. Signed generated G
+`a8feb8c4`, tree `96507e3f`, is published in
+[PR #380](https://github.com/ael-dev3/Warpkeep/pull/380). Its exact
+[Verify 36907314985](https://github.com/ael-dev3/Warpkeep/actions/runs/36907314985)
+passed all 17 jobs at 19:16 UTC. Resolve actual local repair H, the published
+PR head and later accepted operating main S separately; G's CI is not H/H2 CI.
 
 The deployment audit found a separate, real auth predecessor incompatibility.
 The live v50 is the known 27 September QR RPC recovery of reviewed B0 source
@@ -32,11 +39,48 @@ matched; independent full-group, raw-source and physical-index checks passed.
 The authenticated export covers 102 outputs, changing exactly ten paths, with
 genuine `cb282bab` compiler manifests. Isolated receive completed at
 17:53:29.966 UTC, preserving HEAD, normal index and nonoutputs.
-Next: review, sign, scan and publish the generated family with these excluded
-notes; require normal PR and resulting-main verification before freezing S.
-Do not repeat this successful preparation for the seven excluded note changes.
-Do not rerun the completed source merge or stale M2 merge helper. A PR-head
-compile or equal tree cannot replace signed main ancestry or push-main CI.
+That generated family and the seven excluded notes are signed, scanned,
+published and synchronized at G. Preserve this genuine preparation and its
+102-output receipts. Do not rerun the completed source merge, stale M2 helper
+or full compilation for excluded notes. A PR-head compile or equal tree cannot
+replace signed main ancestry or push-main CI.
+
+The existing Keep feedback repair is signed H
+`0d36f06c7f2b1d65169be64e3aecc88b9e27096b`, tree
+`c548e407d92b8cf7560452fcb9432af0c938f118`, direct child of G, completed
+19:21:02.308 UTC. Primary/native sync completed 19:25:00.827 UTC; the explicit
+`release/0.4-keep-feedback` remote backup was verified at 19:33:49.499 UTC.
+Its affected Windows suite passes 139 tests, native checks pass 50, app types
+pass and outgoing scanning finds no secrets. The supported 16-output closure
+family passes fresh derivation and native policy; current closure is `9e0126ea`.
+Both cb compiler identities and all 135 distinct committed compiler inputs are
+unchanged. H does not require a new M1/M2/full compilation or establish a new
+102-output completion; its changed closure is separately authenticated.
+
+The genuine H production-component Keep build completes
+19:25:37.735–19:25:38.620 UTC, with clean unchanged source/index and independently
+absent owned group. Three 60-second camera samples per completed profile give
+desktop high p95 17.1/17.1/17.1ms, portrait balanced 17.5/17.6/34.0ms and
+portrait reduced 17.4/34.3/17.6ms and landscape balanced 17.4/18.8/34.2ms.
+All four runners exit 0; samples are eligible,
+exactly application-RAF/GL paired, have no failure and are not driver-limited.
+All four meet their unchanged cadence budgets. The first landscape fixture
+geometry failure is retained; ordinary scrolling before timing corrects the
+ignored setup without changing the profile, WebGL or measurement gates.
+Exact receipt hashes,
+build/process proof and measured scope belong to
+[local operations](../../evidence/0.4.0/local-operations.md#keep-feedback-repair-and-production-component-measurements--1-october-2026)
+and the [performance contract](../../evidence/0.4.0/performance.md#repaired-keep-production-component-measurements--2026-10-01).
+
+Next: freeze the five canonical notes as a notes-only H2 checkpoint.
+Sign, scan, synchronize and back up that exact
+checkpoint. At this notes snapshot, H2 signing/publication and CI are pending;
+resolve its actual Git/PR evidence before acting, rather than deriving a self-SHA
+from these notes. After a fresh complete Actions
+inventory and trigger review, update PR #380's head once, require normal Verify
+for the final head, integrate it and require exact resulting-main Verify before
+freezing S. Then follow the existing S/F/A provider route below to owner PTR
+publication. Do not claim live 0.4 from a backup push or component measurement.
 
 Alpha remains live at 0.3.43; owner 0.4 PTR publication is pending. Full shaped
 production R06, the actual-owner journey and physical-device acceptance remain
@@ -46,12 +90,13 @@ simulated caller regressions or source-family verification alone.
 
 Detailed source-bound failures, provider metadata and recovery steps are in
 [local operations](../../evidence/0.4.0/local-operations.md#qr-recovery-predecessor-compatibility--1-october-2026).
-The production-component Keep diagnostic reached a real ready scene without
-fallback. Its complete model request was canceled by the loader's intentional
-post-read cleanup; the measurement guard had rejected it. Keep failed attempts
-and source bindings intact, correct only this demonstrated measurement issue,
-and drive existing controls for active cadence. A settled scene intentionally
-idles. No full production R06 pass follows from this diagnostic.
+Earlier failed component diagnostics retain their exact source bindings.
+The measurement-only fixes for explicit favicon, WebAssembly permission and
+fully received model cleanup cancellations are complete. Partial, blocked,
+unknown or invalid requests remain denied; no product loading policy was relaxed.
+The current sampler drives real existing controls and retains idle separately.
+A settled scene intentionally idles. The synthetic component presentation does
+not establish final-A cold bootstrap, owner/device acceptance or full R06.
 
 ### Operating source and signer-component route
 

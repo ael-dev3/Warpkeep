@@ -4,16 +4,20 @@ Refreshed 1 October 2026, UTC and Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
+Notes snapshot: after the final H component run at 20:02:51.443 UTC, before H2
+signing/publication. Resolve actual Git refs, PR head and CI evidence before acting.
+
 PR #379 merged at 16:30:55 UTC after reviewed d16355f2 Verify 36883391676 passed
 all 17 jobs. Actual signed main is cb282bab/tree feeeff15, parent acbb5128.
 The preparation checkouts were synchronized to it; the d163 branch remains.
-Signed generated checkpoint a8feb8c4/tree 96507e3f is published in PR #380,
-release/0.4-prepared-cb282bab. Its exact Verify 36907314985 attempt 1 remains
-in progress; fifteen component jobs have passed as of 19:03:36 UTC, with the
-module job and subsequent aggregate still pending. Check the actual run before
-merging or changing its head. Keep one watcher; do not dispatch duplicate runs.
-Resolve the working repair checkpoint separately from this published PR head,
-its retained cb282 compiler-input main and the later accepted operating main S.
+Signed generated checkpoint a8feb8c4/tree 96507e3f (G) is published in PR #380,
+release/0.4-prepared-cb282bab. Its exact Verify 36907314985 attempt 1 passed all
+17 jobs at 19:16 UTC. This hosted pass belongs to G, not its later repair H or
+the future notes checkpoint H2. H is signed 0d36f06c/tree c548e407, direct child
+of G; native commit completed 19:21:02.308 UTC. Primary/native synchronization
+completed 19:25:00.827 UTC and the explicit release/0.4-keep-feedback backup was
+published at 19:33:49.499 UTC. Resolve this repair separately from the current
+PR head, retained cb282 compiler-input main and later accepted operating main S.
 Actual-main Verify 36892578403 passed all 17 jobs in the 17:36:29.827 UTC terminal
 readback; its Pages classification is separate from publication evidence.
 
@@ -33,27 +37,44 @@ Desktop file. Accept normal PR and resulting-main CI before freezing S. Do not
 repeat successful compilation for these notes or rerun completed source merges. A PR-head compile/
 equal tree cannot supply main ancestry or exact push-main CI authority.
 
-The corrected production-component Keep fixture completes three real 60-second
-camera workloads each for desktop high, portrait balanced and portrait reduced.
-Actual paired RAF/GL observations reproduce delayed camera feedback, including
-near-deadline callbacks rejected by the decorative throttle. A narrow existing
-feature repair in Keep04SceneHost and its two affected tests passes 139 cases,
-zero failures/skips, plus app types and independent review at 19:14:49.502 UTC.
-It renders visible feedback on the next RAF, retains autonomous 30/24/15 caps,
-and admits sub-millisecond decorative jitter with a bounded 1ms tolerance.
-Sign/scan/back up the closure-refreshed checkpoint, then measure its genuine
-production-component build; do not infer a measured improvement from unit tests.
-Record baseline/repaired measurements in docs/evidence/0.4.0/performance.md.
-These fixtures do not establish full R06, final-A production or owner/device acceptance.
+G's paired application-RAF/GL measurements reproduced delayed camera feedback.
+The narrow Keep04SceneHost repair and its two affected tests now pass 139 Windows
+cases, 50 native cases, app types, source review and outgoing scanning. Visible
+feedback renders on the next RAF; autonomous 30/24/15 caps and one pending RAF
+remain, with a bounded 1ms tolerance for reproduced decorative deadline jitter.
+The genuine H component build completes 19:25:37.735–19:25:38.620 UTC, with
+production defines, clean unchanged source/index and independently absent group.
+
+H completes three 60-second trusted-camera samples per completed profile:
+desktop high p95 17.1/17.1/17.1ms, portrait balanced 17.5/17.6/34.0ms and
+portrait reduced 17.4/34.3/17.6ms and landscape balanced 17.4/18.8/34.2ms.
+All four actual runners exit 0; samples are
+eligible, exactly RAF/GL paired, have no failure and are not driver-limited.
+All four meet their unchanged cadence budgets. The first landscape geometry
+failure is retained; its successful retry scrolls the synthetic fixture into
+view before timing without changing the profile, WebGL or acceptance gates.
+Exact raw receipts, cleanup and limitations are in performance.md and local-operations.md.
+Synthetic component presentation is not final-A cold bootstrap, owner play,
+physical-device acceptance or full R06. World/placement/lifecycle workloads remain open.
 
 Keep04SceneHost is outside all four retained operation compiler graphs and seven
 recovery compiler inputs, but inside the prepared protected source closure.
-Reproduce/install/check the supported 16-output closure family for its repair;
-preserve cb282 compiler identities and original 102-output receipts. Do not claim
-the changed working closure remains byte-identical to that earlier full export.
-Back up the signed reviewable repair on an explicit development branch; inspect
-Actions and wait for the existing exact PR run before any new PR/head update.
-Then accept the exact corrected PR and signed-main verification before freezing S.
+The supported 16-output family has been reproduced/installed/checked for H;
+current closure is 9e0126ea. Both cb282 compiler identities and all 135 distinct
+committed compiler inputs are unchanged; retained bundle bodies match their
+manifests. Preserve the original 102-output receipts; H is not a new full
+102-output completion and its changed closure is not that earlier export.
+No extra M1/M2 or full compilation loop is required for this frontend repair.
+
+Next: freeze these five canonical note updates as a notes-only H2 checkpoint.
+Sign, scan, synchronize
+and back up H2. At this notes snapshot, signing/publication and its hosted pass
+are pending; resolve the actual Git refs, PR head and SHA-bound CI before acting.
+After a fresh complete
+Actions inventory and trigger review, update PR #380's head once and require
+normal exact-head Verify. Merge only the reviewed final head, then require
+actual resulting-main Verify before freezing S. Reuse completed G evidence
+without relabeling it as H/H2 or starting duplicate runs.
 
 Freeze accepted operating main S before prepared bridge deployment. Keep the
 existing frozen-S/separate five-output signer component F/direct-child activation

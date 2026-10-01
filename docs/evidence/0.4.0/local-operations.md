@@ -2,6 +2,118 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Keep feedback repair and production-component measurements — 1 October 2026
+
+This notes snapshot is after the final H run at 20:02:51.443 UTC and before H2
+signing/publication. Resolve actual Git/PR/CI evidence before the next operation.
+
+The generated checkpoint G `a8feb8c4`, tree `96507e3f`, remains the published
+[PR #380](https://github.com/ael-dev3/Warpkeep/pull/380) head. Exact
+[Verify 36907314985](https://github.com/ael-dev3/Warpkeep/actions/runs/36907314985),
+attempt 1, passed all 17 jobs at 19:16 UTC. Retain
+`artifacts/qa/october-release-a8feb8c4-verify-terminal-summary.json`, SHA-256
+`67d724bf9c37c25042ed4ba3c43bf69eaf74634c8e7ff956b578313bf025f60a`,
+as G evidence; its hosted pass does not transfer to H or future H2.
+
+The narrow existing Keep feedback repair is signed H
+`0d36f06c7f2b1d65169be64e3aecc88b9e27096b`, tree
+`c548e407d92b8cf7560452fcb9432af0c938f118`, direct parent G. Native commit
+completed 19:21:02.308 UTC; retained
+`october-release-keep-feedback-checkpoint.json` has SHA-256
+`e12281e9cb08ae6ba8a83b3041f0af16ad2a38ef20250bdd39d741f57b8bff5f`.
+The affected Windows suite passes 139 tests without failures/skips, native
+checks pass 50 cases, app types pass and independent source review passes.
+Outgoing Gitleaks completes 19:28:01.973–19:28:02.302 UTC with exit 0 and no
+findings; `october-release-keep-feedback-gitleaks-summary.json` is SHA-256
+`babb82721a8d4f3209b4282271f5f72610c140a275e8678a70bd607c9ae786d0`.
+
+Fresh supported 16-output derivation, native closure policy, checked-in verifier
+and static prepared policy all exit 0. H changes the three authored source/test
+paths, two excluded notes and five closure/workflow outputs; current manifest is
+`9e0126ea21afce6beefec0f1d69647b500162543eb8d87eb79421535850ce261`.
+Both compiler manifests retain cb/tree `feeeff15`; all 135 distinct committed
+compiler inputs remain unchanged. All five bundle bodies match their current
+manifest sizes/SHA and are unchanged since G. The repaired Host is absent from
+all compiler graphs and matches its raw-file member in the updated closure.
+This supported reprojection requires no extra M1/M2/full compilation. Original
+cb prepare/export receipts remain intact; H is not a new 102-output completion
+or byte-identical replacement for that earlier complete export.
+
+Primary synchronization completes 19:25:00.827 UTC, actual root tool exit 0;
+`october-release-keep-feedback-primary-sync.json` is SHA-256
+`078bd1d6389c28f05469976e5c7cf41b55c7dc0849ed102ce7ea4b89c76a5985`.
+All 3,355 canonical raw tracked files match H, primary is clean at completion,
+native HEAD/source/index remain intact and earlier branches are preserved.
+The nonforced explicit `release/0.4-keep-feedback` backup is verified at
+19:33:49.499 UTC; `october-release-keep-feedback-backup-publish.json` is SHA-256
+`d778cd568ec73ea18640b5a2ce0213d8ca3f52670ca810668747144a508dcb82`.
+This is development backup evidence, not H PR/main CI or provider publication.
+
+The genuine H Keep fixture builds 19:25:37.735–19:25:38.620 UTC with production
+defines and no public asset copy. Producer PID/PGID 957829, birth 25543996, and
+type child 957855, birth 25544003, run as native UID/GID 1000. Actual type/build
+exit is 0; 777 type inputs, 811 loaded build inputs and six outputs are retained.
+The native receipt `october-release-r06-keep-0d36f06c-feedback.json` is SHA-256
+`b9995d10760f4f996a7c38ebadf299cb220daa4bbec4b9303444aa09e7ba873d`.
+Independent raw-source/index/output verification at 19:27:40.104 UTC confirms
+the whole group and both recorded actors absent. The independent primary receipt
+`october-release-r06-keep-H-independent.json` is SHA-256
+`b34c27d0413f7ed50179cff83bf7d787a26caf4ba679594eef0a7086c6ec0fb5`.
+Static models/fonts remain separately bound to the earlier `6e9f50bf` build.
+
+Four repaired-source camera profiles have completed three 60-second samples each:
+
+| H profile | Actual run interval, UTC | CPU GL submission p95 | Outer tool result |
+| --- | --- | --- | --- |
+| Desktop high | 19:34:23.617–19:38:01.595 | 17.1 / 17.1 / 17.1ms | Session 58285, exit 0 |
+| Portrait balanced | 19:39:14.115–19:42:59.551 | 17.5 / 17.6 / 34.0ms | Session 85502, exit 0 |
+| Portrait reduced | 19:43:59.255–19:47:42.829 | 17.4 / 34.3 / 17.6ms | Session 20314, exit 0 |
+| Landscape balanced, viewport retry | 19:59:05.689–20:02:51.443 | 17.4 / 18.8 / 34.2ms | Session 57420, exit 0 |
+
+Retain `october-release-r06-0d36f06c-desktop-high-advanced-feedback-run.json`,
+SHA-256 `f26736f68c2966857f2eb86975d963d2bb0137dbc2da4ace82dccaf104bb3bf8`,
+and `october-release-r06-0d36f06c-portrait-balanced-advanced-feedback-run.json`,
+SHA-256 `1f86de4a9df36ff0abc71b299758b8421cc111c34d4121fd2926f9c15b1b8126`,
+and `october-release-r06-0d36f06c-portrait-reduced-advanced-feedback-run.json`,
+SHA-256 `c1ea185fd6433e167fa7ad5d7e1abdf86eefe3899ab8cd41e4188335a5d42ec7`,
+and `october-release-r06-0d36f06c-landscape-balanced-advanced-feedback-viewport-v2-run.json`,
+SHA-256 `d702491d7e51835ef9dac439f9a6dc4cee6762a93bfdb450351dd634dddb20ef`,
+with their three separate raw sample receipts and actual outer terminals.
+All twelve samples are eligible, have exact application-RAF/GL-burst pairing,
+no failure and no driver-limited result. Actual Chrome/GPU/viewport/DPR and
+input-delivery diagnostics are retained. Owned Chrome/profile cleanup and native
+server normal exit/group absence pass; H source/index stay unchanged.
+All four profiles meet their unchanged cadence ceilings; full R06 remains incomplete.
+
+The first landscape attempt, actual root session 97457, exits 1 before timed
+samples at the fixture geometry boundary. Its real WebGL scene and viewport
+were ready; native H source/index remain unchanged and normal owned actor
+cleanup passes. Retain the failed run's SHA-256
+`385d7c3cda4b78c115962c7f910e83422b00e2606e75bf8cf2904e4a2aecfcd4`.
+The successful unique retry confirms the synthetic canvas was below the short
+844×390/DPR-3 viewport: before ordinary scrolling, canvas top is 407.75px with
+clipped-height diagnostic −17.75px (offscreen) and scrollY 0; after scrollY 295, visible height is
+163.796875px. The sampler records both geometries before timing. WebGL/profile
+are unchanged, horizontal overflow is absent and all other measurement gates
+remain intact. No product rendering change is made. Its three raw sample SHA-256s
+are `8442e0df6de0442874e778b50bf977efbcdfddc4955935c1f63f60d78128b9a4`,
+`af36f2d086fb3a8ff82a52bdfbb1fa5b213e748ce7201724441c01eb7e159c9b` and
+`40ba65fe368969c6563bd1776e6b12a1efec84e3e3f079fd1e650abc8217b775`.
+The failed first attempt remains separate and supplies no cadence result.
+
+These are production-optimized component measurements of synthetic completed
+buildings using genuine existing controls, without owner authority. They do not
+prove completed GPU frames, placement/basic controls, World and realm lifecycle
+workloads, final-A cold bootstrap/transfer, production heap/resource acceptance
+or actual-owner/physical-device behavior. Alpha remains live at 0.3.43 and owner
+0.4 PTR is unpublished. The planned five-note
+H2 checkpoint needs signing/scanning/sync/backup, one PR #380 head update with
+normal exact-head CI and resulting-main acceptance before S/F/A provider work.
+At this notes snapshot, H2 signing/publication, hosted CI and provider work are
+pending. Resolve actual Git/PR/CI evidence before acting; this section deliberately
+does not attempt to embed its own future commit identity. Earlier sections below
+retain their source-bound historical facts and pending language.
+
 ## Authored main integration and Keep measurement diagnosis — 1 October 2026
 
 The corrected auth predecessor runtime and supported source-family pins are
