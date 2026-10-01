@@ -9,9 +9,9 @@ on `fix/g001-census-admission-proxy`. It includes reviewed PRs #375–#378;
 do not merge their older heads separately. Main remains `786c0b2b`.
 Resolve the current exact development head and final build receipts from the PR.
 
-The latest completed notes-inclusive development preparation is `0babbc46`,
-tree `85cdf7fb`. Its `/ptr/` production build is terminal, exit 0:
-2026-09-30T23:20:02.545Z–23:25:57.575Z, with clean unchanged input,
+The latest completed development preparation is `974a3ae6`,
+tree `a25b6128`. Its `/ptr/` production build is terminal, exit 0:
+2026-10-01T00:18:53.944Z–00:23:32.901Z, with clean unchanged input,
 UID 1000/Node 22.22.3 and verified absent owned actor/group. All 16
 source-family outputs independently reproduce; native policy passes with 1,250
 closure members. Payload and independently checked mirror/Alpha-preservation
@@ -69,6 +69,24 @@ The successful historical main Verify and failed old census/G002 inspections
 retain their original sources; they cannot authorize this candidate. No hosted
 run for the current development head has passed, and no new trigger, merge or
 provider write is established by this inventory.
+
+The first normal October PR Verify is
+[36795398220](https://github.com/ael-dev3/Warpkeep/actions/runs/36795398220),
+attempt 1, on `974a3ae6`, started at 00:17:07 UTC. Its Linux history scan
+rejects one public Cathedral shader cache label at historical `9e07f475`; the
+real scanner regression itself passes. The candidate adds only an exact
+path/value exception, with a same-path changed value and wrong/copied-path
+negative coverage: 49 allowed examples and 98 mandatory findings pass the
+real Gitleaks 8.30.1 regression, plus seven focused unit tests.
+
+The native-contract job separately fails during Dispatcher collection because
+its depth-one checkout lacks retained compiler input `5d175edf`. Set only that
+checkout to full history, preserving original manifests and authentication.
+The existing native Dispatcher suite passes all 90 tests with the genuine
+historical tree available. Retain the original failed job logs and local
+readbacks under `artifacts/qa/october-974a3ae6-*`; do not relabel that hosted
+attempt as passing. Let its remaining jobs finish, review their diagnostics,
+then publish the coherent locally checked repair for normal final-head Verify.
 
 Next, publish one coherent signed checkpoint without CI skip directives and
 use its normal PR Verify. Verify has no manual dispatch; reopening/dispatching

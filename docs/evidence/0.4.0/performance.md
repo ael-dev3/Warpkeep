@@ -105,14 +105,14 @@ The September 30 synthetic guarded capture separately observes Chrome
 154.0.8037.58 and NVIDIA RTX 3080 Ti through ANGLE/D3D11 hardware. Its DEV PNGs
 and latest-frame observations are not measurements against the table below;
 the older reference profile above remains dated context, not the current machine
-identity. Profile gates remain unchanged.
+identity. Hardware observations do not establish acceptance or change budgets.
 
-| Profile | Viewport / quality | CPU/network shaping | Cold usable 0.4 scene p95 | Rendered frame interval p95 |
-| --- | --- | --- | --- | --- |
-| Desktop | 1440x900 / high | No CPU slowdown; 20Mbps down, 5Mbps up, 40ms RTT | <=10 seconds | <=33.4ms |
-| Mobile emulation | 390x844 / balanced | 4x CPU slowdown; 10Mbps down, 2Mbps up, 80ms RTT | <=15 seconds | <=50ms |
-| Mobile reduced | 390x844 / reduced | Same emulation shaping | <=15 seconds | <=75ms |
-| Mobile landscape | 844x390 / balanced | Same emulation shaping | <=15 seconds | <=50ms |
+| Profile | Viewport / quality | CPU/network shaping | Cold usable 0.4 scene p95 | Keep render interval p95 | World ambient render interval p95 (60Hz RAF) |
+| --- | --- | --- | --- | --- | --- |
+| Desktop | 1440x900 / high | No CPU slowdown; 20Mbps down, 5Mbps up, 40ms RTT | <=10 seconds | <=33.4ms | <=50ms |
+| Mobile emulation | 390x844 / balanced | 4x CPU slowdown; 10Mbps down, 2Mbps up, 80ms RTT | <=15 seconds | <=50ms | <=66.7ms |
+| Mobile reduced | 390x844 / reduced | Same emulation shaping | <=15 seconds | <=75ms | <=83.4ms |
+| Mobile landscape | 844x390 / balanced | Same emulation shaping | <=15 seconds | <=50ms | <=66.7ms |
 
 Reduced rendering is intentionally capped at 15fps by the existing keep plan.
 Ruling: use 75ms p95 for that profile rather than the plan's blanket mobile 50ms,
@@ -120,7 +120,47 @@ which contradicts its 66.7ms scheduling interval. This resolves the specificatio
 conflict before measurement, not in response to a failed result. Cost if wrong:
 reduced mode may feel less smooth; verify touch responsiveness separately.
 
-The desktop/high 30fps and balanced 24fps caps remain. Measure input-to-next-visible
+## Per-path cadence ruling — 2026-10-01
+
+Source review at `974a3ae6` found that the earlier shared cadence column described
+Keep's 30/24/15fps policy, while the existing Greater Realm policy uses
+[24/18/12fps](../../../src/greater-realm/greaterRealmRuntimePolicy.ts).
+[Keep's draw loop](../../../src/components/keep04/Keep04SceneHost.tsx) still uses
+30/24/15fps; its contract keeps the original 33.4/50/75ms ceilings. The separate world column corrects that
+scope mismatch before world measurements; it does not change runtime policy
+or relabel any earlier observation as a pass.
+
+The [world ambient scheduler](../../../src/components/realm/realmAmbientScheduler.ts)
+accumulates RAF time and carries the remainder at each capped step. On a regular
+60Hz RAF clock, the 24/18/12fps periods can occupy up to three/four/five display
+ticks: 50/66.67/83.33ms. The
+[runtime](../../../src/greater-realm/createGreaterRealmSceneRuntime.ts) invalidates
+visible water/actors at those steps; the
+[canvas host](../../../src/components/realm/createGreaterRealmWorldCanvasHost.ts)
+queues the actual render on the next RAF. In the settled ambient-only case this
+shifts its phase, without adding a recurring display tick to the interval.
+The world p95 ceilings are therefore 50/66.7/83.4ms for this 60Hz reference.
+This is source-based scheduling analysis, not a measured frame or GPU result.
+Record actual RAF/display cadence; a different or variable clock requires its
+own stated expectation before grading, rather than silently changing these limits.
+
+Grade continuous, requested decorative world renders against the world column.
+Camera/selection controls can request renders independently of the ambient cap;
+measure their input-to-next-visible feedback against the unchanged 100ms limit.
+Do not turn gaps between isolated actions, reduced-motion updates or fallback
+updates into dropped-frame intervals. Keep cold loading, upload/compilation long
+tasks and active-control stalls in their own workload observations; settled
+ambient sampling cannot conceal them. A scheduler RAF callback or passive
+application callback is not an actual scene render or completed GPU frame.
+Measure scene render submissions, frame work and available GPU evidence separately.
+Use actual render timestamps; the scheduler's clamped simulation time is not
+elapsed frame time.
+
+Only the world decorative cadence scope is corrected. Load, input, transfer,
+GPU/draw/triangle, upload, memory/resource, hidden-tab and owner/device requirements
+remain unchanged. Full R06 is still incomplete.
+
+Keep's desktop/high 30fps and balanced 24fps caps remain. Measure input-to-next-visible
 feedback p95 <=100ms in all profiles. Reduced motion is event-driven: do not grade
 idle frames as dropped frames; measure requested feedback/updates and idle RAF
 cessation instead. Hidden tabs must stop decorative rendering.

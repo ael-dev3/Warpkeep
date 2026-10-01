@@ -4,6 +4,14 @@ title = "Warpkeep secret scanning"
 useDefault = true
 
 [[allowlists]]
+description = "Exact public Cathedral roof shader cache label, never authentication material"
+targetRules = ["generic-api-key"]
+condition = "AND"
+regexTarget = "secret"
+regexes = ['''^keep04-cathedral-roof-teal-v1$''']
+paths = ['''^src/components/keep04/keep04CathedralRoofPalette\.ts$''']
+
+[[allowlists]]
 description = "One non-secret UUID used only as a reducer idempotency fixture"
 targetRules = ["generic-api-key"]
 condition = "AND"

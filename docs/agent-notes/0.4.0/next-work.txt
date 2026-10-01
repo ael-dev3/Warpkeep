@@ -8,8 +8,8 @@ Continue PR #374 on fix/g001-census-admission-proxy; main remains 786c0b2b.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the final exact development head and build receipts from PR #374.
 
-Latest completed notes-inclusive preparation: 0babbc46/tree 85cdf7fb.
-Its /ptr/ build is terminal, exit 0, September 30 23:20:02.545–23:25:57.575 UTC:
+Latest completed development preparation: 974a3ae6/tree a25b6128.
+Its /ptr/ build is terminal, exit 0, October 1 00:18:53.944–00:23:32.901 UTC:
 clean unchanged UID-1000/Node-22.22.3 input and absent owned actor/group.
 Its 16-output family independently reproduces; native policy, payload and
 independent mirror/Alpha-preservation checks pass at this exact source, preserving
@@ -54,6 +54,13 @@ Warpkeep-Live have no active runs, current workflows are active and 0babbc46 has
 no applicable Verify. Retain
 artifacts/qa/october-actions-inventory-2026-10-01T000017236Z.json.
 No current-head hosted pass, new trigger or provider write follows from this read.
+
+Normal PR Verify 36795398220 attempt1 subsequently starts on 974a3ae6.
+Its public shader-cache false positive and shallow-history Dispatcher collection
+failure are locally diagnosed and narrowly repaired; the execution handoff owns
+the exact failing jobs, scanner regression and Dispatcher evidence. Finish the
+remaining hosted checks before publishing the coherent repair; no final-head
+hosted success has been established.
 
 EARLIER SOURCE-BOUND RECEIPTS
 
