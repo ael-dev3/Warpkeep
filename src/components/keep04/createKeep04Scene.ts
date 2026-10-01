@@ -7,12 +7,19 @@ import { createKeep04Building, KEEP04_FOOTPRINTS, measureKeep04Object, type Keep
 import { KEEP04_BUILDING_IDS, KEEP04_TREE_IDS } from './loadKeep04Assets';
 import { fitKeep04Camera, fitKeep04SiteCamera, KEEP04_VISUAL_PROFILE as P, type Quality04 } from './keep04VisualProfile';
 import { createKeep04Dressing } from './keep04VoxelDressing';
+import { createKeep04Landscape, type Keep04Landscape } from './createKeep04Landscape';
+import { createKeep04Life, type Keep04Life, type Keep04WorkerVisual } from './createKeep04Life';
 
-export type VisualState04 = Readonly<{ buildings: readonly BuildingView04[]; selectedKind: Building04 | null; draft: Placement04 | null; draftValid: boolean }>;
+export type { Keep04WorkerVisual } from './createKeep04Life';
+/** Presentation-only scene input. `workers` carries confirmed journey phases, never economics. */
+export type VisualState04 = Readonly<{ buildings: readonly BuildingView04[]; selectedKind: Building04 | null; draft: Placement04 | null; draftValid: boolean;
+  workers?: readonly Keep04WorkerVisual[] }>;
 export type SceneTelemetry04 = Readonly<{
   drawCalls: number; triangles: number; geometryBytes: number; textureBytes: number; uploadBytes: number;
   voxelQuads: number; sceneryInstances: number; buildingCount: number; pickTargetCount: number;
   voxelPreparationMs: number | null;
+  /** Decorative vale instances and living actors; neither is pickable. */
+  landscapeInstances: number; lifeActors: number;
   fallback: 'none' | 'asset' | 'voxel' | 'budget';
 }>;
 export type Scene04 = Readonly<{
@@ -22,14 +29,22 @@ export type Scene04 = Readonly<{
   selectedSiteBounds: () => THREE.Box3 | null; entryOverviewBounds: () => THREE.Box3 | null;
   fitSite: (bounds: THREE.Box3, aspect: number, inspection?: boolean) => boolean;
   pickPlacement: (ndcX: number, ndcY: number, kind: Building04) => Placement04 | null;
-  update: (elapsedSeconds: number) => boolean; telemetry: () => SceneTelemetry04; dispose: () => void;
+  /** Advances reveals, and ambient life when `ambient` allows it; true while anything still moves. */
+  update: (elapsedSeconds: number, ambient?: boolean) => boolean; telemetry: () => SceneTelemetry04; dispose: () => void;
 }>;
 
 const KEEP04_MOAT_SURFACE_Y = -0.98;
 
-export function createKeep04Scene(options: Readonly<{ quality: Quality04; reducedMotion: boolean; assets: InnerKeepRuntimeAssetBundle; qaVoxelFailure?: boolean }>): Scene04 {
+const WORKER_VISUAL_FIELDS = ['ordinal', 'phase', 'resource', 'phaseStartedAtMs', 'phaseEndsAtMs'];
+
+export function createKeep04Scene(options: Readonly<{
+  quality: Quality04; reducedMotion: boolean; assets: InnerKeepRuntimeAssetBundle; qaVoxelFailure?: boolean;
+  /** Continuous ambient life (villagers walking, mills turning). Static when off or under reduced motion. */
+  ambient?: boolean;
+}>): Scene04 {
   const { quality, assets } = options; const budget = P.budgets[quality];
-  const scene = new THREE.Scene(); scene.background = new THREE.Color(P.distantHaze); scene.fog = new THREE.Fog(P.distantHaze, 150, 300);
+  const animateAmbient = Boolean(options.ambient) && !options.reducedMotion;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(P.valeHaze); scene.fog = new THREE.Fog(P.valeHaze, 175, 390);
   const camera = new THREE.OrthographicCamera(); fitKeep04Camera(camera, 1.4);
   const scenery = new THREE.Group(); scenery.name = 'non-pickable-scenery'; scene.add(scenery);
   const geometries = new Set<THREE.BufferGeometry>(); const materials = new Set<THREE.Material>();
@@ -41,6 +56,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
   let voxelPreparationMs: number | null = null;
   let indicatorKey = ''; let selected: THREE.Mesh | null = null; let draft: THREE.Mesh | null = null;
   let visualState: VisualState04 | null = null;
+  let landscape: Keep04Landscape | null = null; let life: Keep04Life | null = null;
   const pickTargets: THREE.Object3D[] = []; const pickKinds = new Map<THREE.Object3D, Building04>();
   const raycaster = new THREE.Raycaster(); const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   function mat(color: string) { const material = new THREE.MeshStandardMaterial({ color, roughness: .95 }); materials.add(material); return material; }
@@ -50,6 +66,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
   function dispose() {
     if (disposed) return; disposed = true;
     buildings.forEach(entry => entry.building.dispose()); buildings.clear(); pickTargets.length = 0; pickKinds.clear();
+    life?.dispose(); life = null; landscape?.dispose(); landscape = null;
     entryLandmarks.length = 0;
     instances.forEach(instance => instance.dispose()); instances.clear();
     geometries.forEach(g => g.dispose()); geometries.clear(); materials.forEach(m => m.dispose()); materials.clear();
@@ -58,15 +75,20 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
   try {
     const masonry = mat(P.masonry); const groundMat = mat(P.ground);
     // One unbroken, level legal support deck, with the terracing strictly outside it.
-    const deckGeometry = new THREE.BoxGeometry(88, 1, 72, 22, 1, 18);
+    // A mown courtyard lawn: soft alternating bands and broad tonal patches make
+    // the grounds read as a tended green rather than a display platform.
+    const deckGeometry = new THREE.BoxGeometry(88, 1, 72, 44, 1, 36);
     const deckPositions = deckGeometry.getAttribute('position'); const deckColors = new Float32Array(deckPositions.count * 3);
+    const lawn = new THREE.Color(P.courtyardLawn); const lawnDeep = new THREE.Color(P.courtyardLawnDeep); const lawnTone = new THREE.Color();
     for (let i = 0; i < deckPositions.count; i++) {
       const x = deckPositions.getX(i); const z = deckPositions.getZ(i);
-      const shade = .87 + Math.sin(x * .31 + z * .17) * .085 + Math.cos(z * .39 - x * .13) * .05;
-      deckColors.set([shade, shade, shade], i * 3);
+      const shade = .93 + Math.sin(x * .31 + z * .17) * .05 + Math.cos(z * .39 - x * .13) * .035;
+      const band = Math.floor((x + 44) / 4) % 2 === 0 ? 1.035 : .965;
+      lawnTone.copy(lawn).lerp(lawnDeep, .5 + Math.sin(x * .11 - z * .07) * .3 + Math.cos(z * .16 + x * .05) * .2).multiplyScalar(shade * band);
+      deckColors.set([lawnTone.r, lawnTone.g, lawnTone.b], i * 3);
     }
     deckGeometry.setAttribute('color', new THREE.BufferAttribute(deckColors, 3));
-    const deckMaterial = mat(P.ground); deckMaterial.vertexColors = true;
+    const deckMaterial = mat('#ffffff'); deckMaterial.vertexColors = true;
     mesh(deckGeometry, deckMaterial, 0, -.5, -4).name = 'legal-support-y0';
     // The U-shaped moat sits just above the outer terrace course. It frames
     // the back and sides while keeping the front gate and civic approach open.
@@ -182,15 +204,34 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
       entryLandmarks.push(mesh(new THREE.BoxGeometry(1.6, 3.5, 1.6), masonry, x, 1.75, 33.5),
         mesh(new THREE.ConeGeometry(1.3, 1.1, 4), mat(P.roofTeal), x, 4.05, 33.5));
     }
-    const key = new THREE.DirectionalLight('#fff1d5', 3.0); key.position.set(-35, 75, 50); key.target.position.set(0, 0, -4);
+    // The surrounding vale and its life are decorative and optional: if either
+    // cannot be prepared, the keep, its placement and its picking stay intact.
+    try {
+      landscape = createKeep04Landscape({ quality, reducedMotion: !animateAmbient, plinthGroundAt: (x, z) => {
+        try { return forestGroundAt(x, z); } catch { return 0; }
+      } });
+      scenery.add(landscape.group);
+    } catch { landscape = null; }
+    try {
+      life = createKeep04Life({ quality, animate: animateAmbient, landscape });
+      scenery.add(life.group);
+    } catch { life = null; }
+    const key = new THREE.DirectionalLight('#ffeccb', 3.1); key.position.set(-35, 75, 50); key.target.position.set(0, 0, -4);
     shadow = key.shadow;
     key.castShadow = quality === 'high'; key.shadow.mapSize.set(1024, 1024);
     Object.assign(key.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 200 }); key.shadow.bias = -.001;
-    scene.add(key, key.target, new THREE.HemisphereLight('#e1eee4', '#526047', 2));
+    scene.add(key, key.target, new THREE.HemisphereLight('#e4f0f2', '#5b6a49', 2.05));
 
     // The catalog-wide quality and size decision is made before loading. Preflight
     // each actual source before admitting it, including models loaded after entry.
     const admitted = new Map<string, InnerKeepRuntimePrefab>(); let sourceTriangles = 0; let sourceDraws = 0;
+    // The vale and its life spend from the same scene target as authored models,
+    // including shadow submissions, so decoration can never crowd out a building.
+    {
+      const vale = landscape?.cost(); const living = life?.cost();
+      sourceTriangles += (vale?.triangles ?? 0) + (vale?.shadowTriangles ?? 0) + (living?.triangles ?? 0) * (quality === 'high' ? 1.5 : 1);
+      sourceDraws += (vale?.drawCalls ?? 0) + (vale?.shadowDrawCalls ?? 0) + (living?.drawCalls ?? 0) + (quality === 'high' ? 3 : 0);
+    }
     function admitPrefab(id: string, prefab: InnerKeepRuntimePrefab) {
       if (admitted.has(id)) return true;
       try {
@@ -262,7 +303,10 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     }
     function reconcile(state: VisualState04) {
       if (disposed) return;
-      if (Object.keys(state).some(key => !['buildings', 'selectedKind', 'draft', 'draftValid'].includes(key))) throw new TypeError('Unexpected visual state field.');
+      if (Object.keys(state).some(key => !['buildings', 'selectedKind', 'draft', 'draftValid', 'workers'].includes(key))) throw new TypeError('Unexpected visual state field.');
+      for (const worker of state.workers ?? []) {
+        if (Object.keys(worker).some(key => !WORKER_VISUAL_FIELDS.includes(key))) throw new TypeError('Unexpected visual worker field.');
+      }
       const placementFields = ['kind', 'x', 'z', 'rotation'];
       const buildingFields = ['kind', 'placement', 'completedLevel', 'targetLevel', 'phase', 'startsAtMicros', 'completesAtMicros'];
       for (const view of state.buildings) {
@@ -292,6 +336,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         if (picked) selected = footprint(picked.view.placement, '#dfc6ff', 'selected-footprint');
         if (state.draft && !buildings.has(state.draft.kind)) draft = footprint(state.draft, state.draftValid ? '#d9f3be' : '#ffab7c', 'draft-footprint');
       }
+      life?.reconcile({ buildings: state.buildings, workers: state.workers ?? [] });
       scene.updateMatrixWorld(true);
       visualState = state;
     }
@@ -345,8 +390,13 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         if (!position || Math.abs(position.x) > 44 || position.z < -40 || position.z > 32) return null;
         return Object.freeze({ kind, x: BigInt(Math.round(position.x * 2)) * 500000n, z: BigInt(Math.round(position.z * 2)) * 500000n, rotation: 0 });
       },
-      update: elapsed => {
+      update: (elapsed, ambient = true) => {
         if (disposed || options.reducedMotion) return false; let active = false;
+        if (animateAmbient && ambient) {
+          // Both run every ambient frame; neither touches placement or picking.
+          const turning = landscape?.update(elapsed) ?? false; const living = life?.update(elapsed) ?? false;
+          active = turning || living;
+        }
         for (const entry of buildings.values()) if (entry.reveal !== null) {
           if (entry.reveal === -1) entry.reveal = elapsed;
           const t = Math.max(0, Math.min(1, (elapsed - entry.reveal) / .45)); entry.building.root.scale.setScalar(.94 + .06 * t);
@@ -354,7 +404,9 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         }
         return active;
       },
-      telemetry: () => ({ ...measureKeep04Object(scene), voxelPreparationMs, voxelQuads: disposed ? 0 : voxelQuads, sceneryInstances: disposed ? 0 : budget.trees, buildingCount: buildings.size, pickTargetCount: pickTargets.length, fallback }),
+      telemetry: () => ({ ...measureKeep04Object(scene), voxelPreparationMs, voxelQuads: disposed ? 0 : voxelQuads, sceneryInstances: disposed ? 0 : budget.trees,
+        landscapeInstances: disposed ? 0 : landscape?.instanceCount ?? 0, lifeActors: disposed ? 0 : life?.actors() ?? 0,
+        buildingCount: buildings.size, pickTargetCount: pickTargets.length, fallback }),
       dispose,
     };
   } catch (error) { dispose(); throw error; }

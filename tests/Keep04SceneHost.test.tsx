@@ -380,12 +380,15 @@ it.each([false, true])('updates construction time without waking the 3D scene (r
   const construction = h.mounted.container.querySelector('.keep04-construction')!;
   const before = construction.textContent;
   const renderedFrames = renderers[0].scenes.length;
+  // Ambient life (balanced, motion allowed) holds exactly one paced decorative
+  // frame; the countdown itself must neither add a frame nor render the scene.
+  const ambientFrames = reducedMotion ? 0 : 1;
   expect(before).toContain('2 min 1 s');
-  expect(queued.size).toBe(0);
+  expect(queued.size).toBe(ambientFrames);
   await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
   expect(construction.textContent).toContain('2 min');
   expect(construction.textContent).not.toBe(before);
-  expect(queued.size).toBe(0);
+  expect(queued.size).toBe(ambientFrames);
   expect(renderers[0].scenes).toHaveLength(renderedFrames);
   expect(h.mounted.container.querySelector('canvas')).toBe(canvas);
   h.mounted.unmount(); expect(active).toBe(0);

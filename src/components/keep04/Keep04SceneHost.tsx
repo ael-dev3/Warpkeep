@@ -14,6 +14,13 @@ export type Keep04SceneHostProps = Readonly<{
   onMode: (mode: 'loading' | 'webgl' | 'fallback') => void;
   onObservation?: (observation: Keep04Observation) => void;
   qaFault?: 'none' | 'missing-model' | 'voxel-failure' | 'webgl-unavailable';
+  /**
+   * Opt-in ambient life at the quality's existing frame cap. Off by default:
+   * the keep then renders only for input, reconciliation and reveals. When on,
+   * it pauses while the page is hidden or the scene is scrolled out of view,
+   * and sleeps after KEEP04_AMBIENT_WINDOW_MS without input or state change.
+   */
+  ambientLife?: boolean;
 }>;
 
 /** Numeric renderer observations only; owned bytes estimate CPU-side buffers, not GPU allocation. */
@@ -24,6 +31,9 @@ export type Keep04Observation = Readonly<{
   ownedGeometryBytes: number | null; ownedTextureBytes: number | null; voxelPreparationMs: number | null;
   pendingRafs: number; activeLoaders: number; activeListeners: number;
 }>;
+
+/** Ambient life keeps animating this long after the last input, state change or return. */
+export const KEEP04_AMBIENT_WINDOW_MS = 120_000;
 
 type CameraFrame04 = { kind: 'grounds' } | { kind: 'entry'; bounds: THREE.Box3 }
   | { kind: 'inspection'; buildingKind: Building04; bounds: THREE.Box3 };
@@ -42,6 +52,9 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     let retired = false; let renderer: THREE.WebGLRenderer | undefined; let scene: Scene04 | undefined;
     let bundle: InnerKeepRuntimeAssetBundle | undefined; let frame = 0; let last = -Infinity;
     let feedbackPending = false;
+    // Decorative frames stop while the scene is scrolled away; feedback still renders.
+    let offscreen = false; let visibilityObserver: IntersectionObserver | undefined;
+    let ambientUntil = -Infinity; const wakeAmbient = () => { ambientUntil = performance.now() + KEEP04_AMBIENT_WINDOW_MS; };
     const lateBundles = new Set<InnerKeepRuntimeAssetBundle>(); const requestedBuildings = new Set<Building04>();
     const retryableBuildings = new Set<Building04>(); const retriedBuildings = new Set<Building04>();
     let observer: ResizeObserver | undefined; const listeners: Array<() => void> = [];
@@ -67,6 +80,8 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     const set = (value: typeof mode) => { if (!retired) { setMode(value); current.current.onMode(value); } };
     function request(feedback = true) {
       if (retired || document.hidden || !scene) return;
+      if (!feedback && offscreen && !feedbackPending) return;
+      if (feedback) wakeAmbient();
       // A visible change promotes an already queued decorative RAF as well.
       feedbackPending ||= feedback;
       if (!frame) frame = requestAnimationFrame(draw);
@@ -86,7 +101,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       feedbackPending = false;
       try {
         const workStarted = current.current.onObservation ? performance.now() : 0;
-        const active = scene.update(now / 1000);
+        const active = scene.update(now / 1000, props.ambientLife === true && now <= ambientUntil);
         renderer.render(scene.scene, scene.camera);
         const budget = KEEP04_VISUAL_PROFILE.budgets[props.quality];
         if (renderer.info.render.calls > budget.hardDraws || renderer.info.render.triangles > budget.hardTriangles) { failure(); return; }
@@ -101,6 +116,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     }
     function release(keepRecovery = false) {
       abort.abort(); if (frame) cancelAnimationFrame(frame); frame = 0; feedbackPending = false; observer?.disconnect();
+      visibilityObserver?.disconnect(); visibilityObserver = undefined;
       listeners.splice(0).forEach(remove => remove()); runtime.current = null;
       scene?.dispose(); scene = undefined; bundle?.dispose(); bundle = undefined;
       lateBundles.forEach(loaded => loaded.dispose()); lateBundles.clear();
@@ -285,8 +301,16 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         window.addEventListener('online', online); listeners.push(() => window.removeEventListener('online', online));
         const sceneAssets = import.meta.env.DEV && qaFault === 'missing-model'
           ? { ...bundle, staticPrefabs: new Map([...bundle.staticPrefabs].filter(([id]) => id !== 'city-mill')) } : bundle;
-        scene = createKeep04Scene({ quality: props.quality, reducedMotion: props.reducedMotion, assets: sceneAssets,
+        scene = createKeep04Scene({ quality: props.quality, reducedMotion: props.reducedMotion, assets: sceneAssets, ambient: props.ambientLife === true,
           ...(import.meta.env.DEV ? { qaVoxelFailure: qaFault === 'voxel-failure' } : {}) });
+        if (props.ambientLife === true && typeof IntersectionObserver !== 'undefined') {
+          visibilityObserver = new IntersectionObserver(entries => {
+            const visible = entries.some(entry => entry.isIntersecting);
+            if (visible === !offscreen) return;
+            offscreen = !visible; if (visible) request(false);
+          });
+          visibilityObserver.observe(host);
+        }
         runtime.current = { scene, request, reconcile, reset, inspect };
         scene.reconcile(current.current.visual);
         followInspection();
@@ -306,7 +330,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     }
     void initialize();
     return () => { retired = true; release(); };
-  }, [props.quality, props.reducedMotion, recovery, import.meta.env.DEV ? props.qaFault : undefined]);
+  }, [props.quality, props.reducedMotion, props.ambientLife, recovery, import.meta.env.DEV ? props.qaFault : undefined]);
   useEffect(() => { runtime.current?.reconcile(); }, [props.visual]);
   function zoom(factor: number) { const active = runtime.current; if (!active) return; cameraView.current.zoom = active.scene.camera.zoom = Math.max(.8, Math.min(2, active.scene.camera.zoom * factor)); active.scene.camera.updateProjectionMatrix(); active.request(); }
   const hasSite = props.visual.selectedKind !== null && (props.visual.buildings.some(building => building.kind === props.visual.selectedKind) || props.visual.draft?.kind === props.visual.selectedKind);

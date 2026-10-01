@@ -20,7 +20,7 @@ export async function createKeep04WindowsProfile() {
 }
 export async function writeKeep04RunFile(run, filename, contents) {
   const owned = runs.get(run);
-  if (!owned || typeof filename !== 'string' || !/^(?:run-provenance\.json|synthetic-render-observations\.json|(?:desktop|mobile|mobile-reduced|landscape)-(?:empty|mill-placement|blocked-placement|mill-constructing|mill-complete|all-six-level-five|fallback|reduced-motion|context-cycle)\.png)$/.test(filename)) throw new TypeError('Invalid owned keep QA output.');
+  if (!owned || typeof filename !== 'string' || !/^(?:run-provenance\.json|synthetic-render-observations\.json|(?:desktop|mobile|mobile-reduced|landscape)-(?:empty|mill-placement|blocked-placement|mill-constructing|mill-complete|all-six-level-five|fallback|reduced-motion|context-cycle|living-keep)\.png)$/.test(filename)) throw new TypeError('Invalid owned keep QA output.');
   const stat = await lstat(owned.path);
   if (!stat.isDirectory() || stat.isSymbolicLink() || (await realpath(owned.path)).toLowerCase() !== owned.path.toLowerCase()) throw new Error('Keep QA run directory changed.');
   const bytes = Buffer.isBuffer(contents) ? contents : Buffer.from(contents);

@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { createKeep04CaptureRun, writeKeep04RunFile } from './keep04-capture-output.mjs';
 
 export const KEEP04_QA_ORIGIN = 'http://127.0.0.1:4176';
-const SCENARIOS = Object.freeze(['empty', 'mill-placement', 'blocked-placement', 'mill-constructing', 'mill-complete', 'all-six-level-five', 'fallback', 'reduced-motion', 'context-cycle']);
+const SCENARIOS = Object.freeze(['empty', 'mill-placement', 'blocked-placement', 'mill-constructing', 'mill-complete', 'all-six-level-five', 'fallback', 'reduced-motion', 'context-cycle', 'living-keep']);
 const PROFILES = Object.freeze([
   { id: 'desktop', width: 1440, height: 900, quality: 'high', cpuRate: 1, frameP95Ms: 33.4 },
   { id: 'mobile', width: 390, height: 844, quality: 'balanced', cpuRate: 4, frameP95Ms: 50 },

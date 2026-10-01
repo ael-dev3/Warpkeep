@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); window.history.replaceState({}, '', '/'); });
 
 it('provides every requested decoder-valid fixture and the validated all-six layout', () => {
-  expect(KEEP04_QA_SCENARIOS).toEqual(['empty', 'mill-placement', 'blocked-placement', 'mill-constructing', 'mill-complete', 'all-six-level-five', 'fallback', 'reduced-motion', 'context-cycle']);
+  expect(KEEP04_QA_SCENARIOS).toEqual(['empty', 'mill-placement', 'blocked-placement', 'mill-constructing', 'mill-complete', 'all-six-level-five', 'fallback', 'reduced-motion', 'context-cycle', 'living-keep']);
   for (const id of KEEP04_QA_SCENARIOS) {
     const scenario = createKeep04QaScenario(id, 1000000);
     expect(scenario.synthetic).toBe(true);
@@ -31,7 +31,7 @@ it('provides every requested decoder-valid fixture and the validated all-six lay
   expect(evaluatePlacement04(createKeep04QaScenario('blocked-placement').selection.draft!, []).reason).toBe('reserved');
 });
 
-it.each(['empty', 'mill-placement', 'blocked-placement', 'mill-constructing', 'mill-complete', 'all-six-level-five', 'fallback', 'reduced-motion', 'context-cycle'])('renders the actual keep controls for synthetic %s', id => {
+it.each(['empty', 'mill-placement', 'blocked-placement', 'mill-constructing', 'mill-complete', 'all-six-level-five', 'fallback', 'reduced-motion', 'context-cycle', 'living-keep'])('renders the actual keep controls for synthetic %s', id => {
   vi.stubGlobal('WebGL2RenderingContext', undefined);
   window.history.replaceState({}, '', `/?scenario=${id}`);
   const mounted = render(createElement(Keep04QaHarness));
