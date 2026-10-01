@@ -42,6 +42,7 @@ still open.
 | Find code and its owner | [Repository map](repo-map.md), [architecture](../../technical-architecture.md) | Real entry points, callers, state authority, and generated boundaries |
 | Improve play and appearance | [Gameplay and visuals](gameplay-and-visuals.md) | Working behavior, specific defects, missing evidence, and useful next probes |
 | Apply the full inspiration library | [Visual foundation contract](visual-foundation-contract.md) | Reference-to-source decisions, mobile rules, review states, and evidence limits |
+| Continue the living vale and world | [Living realm](living-realm.md) | Keep vale, ambient life, world daylight, own journeys, steward advice, budgets and limits |
 | Complete delivery | [Release and infrastructure](release-and-infrastructure.md) | Current services, CI, operating gaps, and verification routes |
 | Continue this checkout | [Execution handoff](execution-handoff.md), [source synchronization](../../operations/0.4.0-development-sync.md) | Current checkpoint, environment traps, reviewed publication, and next actions |
 | Follow the daily release sequence | [Next work](next-work.txt) | Compact, tracked action brief; the repository copy is canonical and no Desktop duplicate is created |

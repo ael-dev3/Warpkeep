@@ -212,7 +212,14 @@ larger catalogue of references or an arbitrary score.
 | Forest and voxel dressing | `src/components/keep04/keep04VoxelDressing.ts`, `src/components/keep04/planKeep04DressingSource.ts`, `src/components/realm/voxelSurfaceMesh.ts` |
 | Mobile layout, status and focus | `src/components/keep04/Keep04Screen.tsx`, `src/components/keep04/Keep04Screen.css`, `src/components/keep04/Keep04LoopRail.tsx`, `src/components/keep04/Keep04BuildingPanel.tsx`, `src/components/keep04/Keep04WorkerPanel.tsx` |
 | Greater Realm water and quality | `src/greater-realm/greaterRealmWaterSurface.ts`, `src/greater-realm/createGreaterRealmSceneRuntime.ts` |
+| Keep vale, fortifications and models | `src/components/keep04/createKeep04Landscape.ts`, `src/components/keep04/keep04Terrain.ts`, `src/components/keep04/keep04Models.ts` |
+| Keep ambient life and walkways | `src/components/keep04/createKeep04Life.ts`, `src/components/keep04/keep04InnerPaths.ts`, `src/components/keep04/Keep04SceneHost.tsx` |
+| Greater Realm daylight, actors and own journeys | `src/greater-realm/greaterRealmAtmosphere.ts`, `src/greater-realm/greaterRealmActorGeometry.ts`, `src/greater-realm/greaterRealmJourneyLayer.ts` |
 | Rendered evidence and limits | `docs/evidence/0.4.0/visuals.md`, `docs/evidence/0.4.0/renderer.md`, `docs/evidence/0.4.0/performance.md`, `docs/operations/0.4.0-release-checklist.md` |
 
 If a proposed change cannot be tied to one of these owners and one player
 outcome, it is probably reference collecting rather than 0.4 work.
+
+The [living realm note](living-realm.md) records the 2 October 2026 vale,
+ambient life, world daylight and own-journey work, its authority boundaries,
+measured synthetic evidence and remaining limits.
