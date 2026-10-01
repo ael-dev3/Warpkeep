@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type Ref } from 'react';
 import { buildingCost04, buildingDuration04, type Building04, type Cost04, type Resource04 } from '../../../spacetimedb/gameplay04/policy';
-import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
+import { evaluatePlacement04, type Placement04 } from '../../../spacetimedb/gameplay04/placement';
+import { placementMessage04 } from '../../ptr/gameplay04/gameplay04Placement';
 import { buildingBenefit04, buildingDeficits04, quoteBuilding04, type View04 } from '../../ptr/gameplay04/gameplay04Presentation';
 import type { BuildQuote04 } from '../../ptr/gameplay04/ptrGameplay04Types';
 import type { Snapshot04 } from '../../ptr/gameplay04/createGameplay04Controller';
@@ -18,7 +19,7 @@ const costText = (cost: Cost04) => RESOURCES04.filter(resource => cost[resource]
 export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedKind, draft, enabled, problem, onSelect, onConfirm, onCancelDraft, onFindResources, onViewSite, reviewHeadingRef }: Readonly<{
   nowMs?: number;
   view: View04; selectedKind: Building04 | null; draft: Placement04 | null; enabled: boolean; problem: Snapshot04['problem'];
-  onSelect: (kind: Building04) => void; onConfirm: (quote: BuildQuote04) => void;
+  onSelect: (kind: Building04) => void; onConfirm: (quote: BuildQuote04) => boolean | void;
   onCancelDraft: () => void; onFindResources: (resource: Resource04) => void;
   onViewSite?: () => void; reviewHeadingRef?: Ref<HTMLHeadingElement>;
 }>) {
@@ -29,7 +30,18 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
   const existing = view.buildings.find(building => building.kind === selectedKind);
   const selectedProject = view.state.project?.kind === selectedKind ? view.state.project : undefined;
   const selectedMaximum = selectedKind !== null && levels[selectedKind] === 5;
+  const hasIdleWorker = view.workers.some(worker => worker.phase === 'idle');
   const placement = existing?.placement ?? (draft?.kind === selectedKind ? draft : null);
+  const placementResult = placement ? evaluatePlacement04(placement,
+    view.buildings.filter(building => building.kind !== selectedKind).map(building => building.placement)) : null;
+  const placementProblem = placementResult && !placementResult.valid ? placementMessage04(placementResult.reason) : null;
+  const currentProjectKind = KINDS04.find(kind => kind === view.state.project?.kind);
+  const confirmationProblem = view.atlas === null
+    ? 'Return to world to refresh Realm details before confirming construction.'
+    : view.state.project !== undefined
+      ? `Wait for ${currentProjectKind ? BUILDING_NAMES04[currentProjectKind] : 'the current building'} construction to complete before starting another construction.`
+      : placementProblem;
+  const confirmationProblemId = `${reviewId}-confirmation`;
   const candidate = useMemo(() => {
     if (!selectedKind || !placement) return null;
     try { return quoteBuilding04(view, selectedKind, placement); } catch { return null; }
@@ -67,6 +79,11 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
     const level = levels[kind]; const maximum = level === 5;
     const benefit = buildingBenefit04(view, kind); const missing = buildingDeficits04(view, kind);
     const firstDeficit = RESOURCES04.find(resource => missing[resource] > 0n);
+    // Incoming Worker earnings can guide the next journey, but cannot pay a
+    // build cost until the Realm confirms their return.
+    const nextResourceToFind = RESOURCES04.find(resource => missing[resource] > view.pending[resource]);
+    const incoming = RESOURCES04.filter(resource => missing[resource] > 0n && view.pending[resource] > 0n)
+      .map(resource => `${resource} ${view.pending[resource]}`).join(' · ');
     const value = (amount: bigint) => benefit.unit === 'micros' ? formatKeep04Duration(amount) : amount.toString();
     const strategicNote = kind === 'city-barracks'
       ? 'Each completed level reduces travel time on every route edge by 5%; longer expeditions add those savings together.'
@@ -91,17 +108,22 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
         <p>Build duration: {formatKeep04Duration(buildingDuration04(level + 1, levels))}</p>
       </>}
       {!maximum && !project && <p>{firstDeficit ? `Missing: ${costText(missing)}` : 'Resources ready'}</p>}
+      {!maximum && !project && incoming && <p>Incoming (not spendable yet): {incoming}</p>}
       <p>{benefit.label}</p><p>Current: {value(benefit.current)}{!maximum && <> → {project ? 'On completion' : 'Next'}: {value(benefit.next)}</>}</p>
       {strategicNote && <p className="keep04-benefit-note">{strategicNote}</p>}
-      {!project && firstDeficit && <button type="button" onClick={() => onFindResources(firstDeficit)}>Find {firstDeficit}</button>}
+      {!project && nextResourceToFind && hasIdleWorker && <button type="button" onClick={() => onFindResources(nextResourceToFind)}>Find {nextResourceToFind}</button>}
+      {!project && firstDeficit && !nextResourceToFind && <p>Await confirmed Worker returns before building.</p>}
     </article>;
   }
   return <section aria-label="Buildings" className="keep04-building-panel">
-    <h2>Buildings</h2>
-    <p>Benefits apply after completion. Each expedition keeps the gathering rate it began with.</p>
+    {selectedKind === null && <>
+      <h2>Buildings</h2>
+      <p>Benefits apply after completion. Each expedition keeps the gathering rate it began with.</p>
+    </>}
+    {!hasIdleWorker && <p role="status">All Workers are busy. Another journey becomes available after one returns.</p>}
     {view.state.project !== undefined && <p className="keep04-badge">Builder busy</p>}
     {selectedKind && <section aria-labelledby={reviewId} className="keep04-selected-review">
-      <h3 id={reviewId} ref={reviewHeadingRef} tabIndex={-1}>{selectedProject ? 'Construction underway ·' : selectedMaximum ? 'Building complete ·' : existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h3>
+      <h2 id={reviewId} ref={reviewHeadingRef} tabIndex={-1}>{selectedProject ? 'Construction underway ·' : selectedMaximum ? 'Building complete ·' : existing ? 'Upgrade' : 'Place'} {BUILDING_NAMES04[selectedKind]}</h2>
       {onViewSite && <button type="button" onClick={onViewSite}>{existing ? 'View site' : 'Adjust placement'}</button>}
       {card(selectedKind)}
       <div className="keep04-primary-action">
@@ -113,9 +135,14 @@ export function Keep04BuildingPanel({ view, nowMs = view.receivedAtMs, selectedK
       <p>Permanent placement: construction cannot be cancelled and spent resources are not refunded.</p>
       {changedRealm && <><p role="status">Review updated costs and confirm again</p><button type="button" disabled={!enabled} onClick={review}>Review updated costs</button></>}
       {!placement && <p role="status">No valid draft selected. Choose a building site.</p>}
-      <button type="button" className="keep04-confirm" disabled={!canConfirm} onClick={() => {
+      {confirmationProblem && <p id={confirmationProblemId} role="status">{confirmationProblem}</p>}
+      <button type="button" className="keep04-confirm" disabled={!canConfirm} aria-describedby={confirmationProblem ? confirmationProblemId : undefined} onClick={() => {
         if (!canConfirm || sentRef.current || !reviewed.quote) return;
-        sentRef.current = true; setSent(true); onConfirm(reviewed.quote);
+        sentRef.current = true;
+        // Readiness can change before this rendered button receives its click.
+        // A declined submission must leave the reviewed quote available.
+        if (onConfirm(reviewed.quote) === false) { sentRef.current = false; return; }
+        setSent(true);
       }}>{existing ? 'Confirm upgrade' : 'Confirm placement'}</button>
       {!existing && <button type="button" onClick={onCancelDraft}>Cancel draft · free</button>}
       </>}

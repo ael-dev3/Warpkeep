@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+import { createBiomeTreeGeometry } from './biomeTreeGeometry';
+import { loadGreaterRealmBiomeTreePrototype } from './loadGreaterRealmBiomeTreeAssets';
 import { createGreaterRealmWaterSurface, type GreaterRealmWaterSurface } from './greaterRealmWaterSurface';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
@@ -657,8 +659,7 @@ function resourceMeshes(plan: GreaterRealmChunkPresentationPlan, groundPosition:
   return Object.freeze(meshes);
 }
 
-function actorGeometry(kind: GreaterRealmPresentationActor['kind']) {
-  if (kind === 'canopy') return new THREE.ConeGeometry(0.075, 0.38, 5);
+function actorGeometry(kind: Exclude<GreaterRealmPresentationActor['kind'], 'canopy'>) {
   if (kind === 'grass') return new THREE.ConeGeometry(0.035, 0.16, 3);
   if (kind === 'flower') return new THREE.ConeGeometry(0.025, 0.12, 4);
   if (kind === 'npc') return new THREE.CylinderGeometry(0.055, 0.075, 0.28, 5);
@@ -666,8 +667,7 @@ function actorGeometry(kind: GreaterRealmPresentationActor['kind']) {
   return new THREE.BoxGeometry(0.24, 0.07, 0.1);
 }
 
-function actorColor(kind: GreaterRealmPresentationActor['kind']) {
-  if (kind === 'canopy') return '#496c46';
+function actorColor(kind: Exclude<GreaterRealmPresentationActor['kind'], 'canopy'>) {
   if (kind === 'grass') return '#6d8b50';
   if (kind === 'flower') return '#d7bd72';
   if (kind === 'npc') return '#8a654f';
@@ -675,37 +675,109 @@ function actorColor(kind: GreaterRealmPresentationActor['kind']) {
   return '#835f45';
 }
 
-function actorMeshes(plan: GreaterRealmChunkPresentationPlan, groundPosition: GroundPosition) {
+function actorMeshes(
+  plan: GreaterRealmChunkPresentationPlan,
+  groundPosition: GroundPosition,
+  graphicsProfile: GreaterRealmGraphicsProfile,
+  onTreeModelReady: () => void
+) {
   const refs: ActorRenderRef[] = [];
   const meshes: THREE.InstancedMesh[] = [];
+  let disposed = false;
+  let pendingGeometry: THREE.BufferGeometry | undefined;
+  let pendingMaterial: THREE.Material | undefined;
   const matrix = new THREE.Matrix4();
   const quaternion = new THREE.Quaternion();
   const position = new THREE.Vector3();
   const scale = new THREE.Vector3(1, 1, 1);
   const up = new THREE.Vector3(0, 1, 0);
-  for (const kind of ['canopy', 'grass', 'flower', 'npc', 'wildlife', 'boat'] as const) {
-    const actors = plan.actors.filter((actor) => actor.kind === kind);
-    if (actors.length === 0) continue;
-    const geometry = actorGeometry(kind);
-    const material = new THREE.MeshStandardMaterial({
-      color: actorColor(kind), roughness: 0.88, fog: true
-    });
-    const mesh = new THREE.InstancedMesh(geometry, material, actors.length);
-    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    mesh.name = `greater-realm-${kind}:${plan.chunkHandle}`;
-    mesh.raycast = () => {};
-    actors.forEach((actor, index) => {
-      const grounded = kind === 'boat' ? actor.position : groundPosition(actor.position);
-      position.set(grounded.x, grounded.y, grounded.z);
-      quaternion.setFromAxisAngle(up, actor.headingRadians);
-      matrix.compose(position, quaternion, scale);
-      mesh.setMatrixAt(index, matrix);
-      refs.push(Object.freeze({ actor, groundPosition: grounded, mesh, index }));
-    });
-    mesh.instanceMatrix.needsUpdate = true;
-    meshes.push(mesh);
+  try {
+    for (const kind of ['canopy', 'grass', 'flower', 'npc', 'wildlife', 'boat'] as const) {
+      const actors = plan.actors.filter((actor) => actor.kind === kind);
+      if (actors.length === 0) continue;
+      // One instanced batch per present tree biome keeps each authored silhouette
+      // distinct without multiplying a draw call for every individual canopy.
+      const batches = kind === 'canopy'
+        ? [...new Set(actors.map((actor) => actor.biomeClass))]
+          .sort((left, right) => (left ?? -1) - (right ?? -1))
+          .map((biomeClass) => ({
+            biomeClass,
+            actors: actors.filter((actor) => actor.biomeClass === biomeClass)
+          }))
+        : [{ biomeClass: undefined, actors }];
+      for (const batch of batches) {
+        if (kind === 'canopy' && batch.biomeClass === undefined) {
+          throw new Error('GREATER_REALM_CANOPY_BIOME_MISSING');
+        }
+        const geometry = pendingGeometry = kind === 'canopy'
+          ? createBiomeTreeGeometry(batch.biomeClass!, graphicsProfile)
+          : actorGeometry(kind);
+        const material = pendingMaterial = new THREE.MeshStandardMaterial({
+          color: kind === 'canopy' ? '#ffffff' : actorColor(kind),
+          vertexColors: kind === 'canopy',
+          side: kind === 'canopy' ? THREE.DoubleSide : THREE.FrontSide,
+          roughness: 0.88,
+          fog: true
+        });
+        const mesh = new THREE.InstancedMesh(geometry, material, batch.actors.length);
+        // Register ownership before any instance setup can fail. A failed chunk
+        // must retire its local batches and their outstanding shared-model arrivals.
+        meshes.push(mesh); pendingGeometry = undefined; pendingMaterial = undefined;
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.name = kind === 'canopy'
+          ? `greater-realm-canopy-biome-${batch.biomeClass}:${plan.chunkHandle}`
+          : `greater-realm-${kind}:${plan.chunkHandle}`;
+        mesh.raycast = () => {};
+        batch.actors.forEach((actor, index) => {
+          const grounded = kind === 'boat' ? actor.position : groundPosition(actor.position);
+          position.set(grounded.x, grounded.y, grounded.z);
+          quaternion.setFromAxisAngle(up, actor.headingRadians);
+          matrix.compose(position, quaternion, scale);
+          mesh.setMatrixAt(index, matrix);
+          refs.push(Object.freeze({ actor, groundPosition: grounded, mesh, index }));
+        });
+        mesh.instanceMatrix.needsUpdate = true;
+        if (kind === 'canopy') {
+          void loadGreaterRealmBiomeTreePrototype(batch.biomeClass!, graphicsProfile)
+            .then((prototype) => {
+              if (disposed) return;
+              const previousGeometry = mesh.geometry;
+              const previousMaterial = mesh.material;
+              mesh.geometry = prototype.geometry;
+              mesh.material = prototype.material;
+              mesh.userData.greaterRealmTreeScale = prototype.scale;
+              batch.actors.forEach((actor, index) => {
+                const grounded = groundPosition(actor.position);
+                position.set(grounded.x, grounded.y, grounded.z);
+                quaternion.setFromAxisAngle(up, actor.headingRadians);
+                scale.setScalar(prototype.scale);
+                matrix.compose(position, quaternion, scale);
+                mesh.setMatrixAt(index, matrix);
+              });
+              mesh.instanceMatrix.needsUpdate = true;
+              mesh.computeBoundingSphere();
+              if (previousGeometry !== prototype.geometry) previousGeometry.dispose();
+              if (previousMaterial !== prototype.material) previousMaterial.dispose();
+              onTreeModelReady();
+            })
+            .catch(() => {
+              // The loader reports a verified-asset failure once; the bounded
+              // local tree remains visible when the network or bytes fail.
+            });
+        }
+      }
+    }
+  } catch (error) {
+    disposed = true;
+    pendingGeometry?.dispose(); pendingMaterial?.dispose();
+    meshes.forEach(disposeObject);
+    throw error;
   }
-  return Object.freeze({ meshes: Object.freeze(meshes), refs: Object.freeze(refs) });
+  return Object.freeze({
+    meshes: Object.freeze(meshes),
+    refs: Object.freeze(refs),
+    dispose: () => { disposed = true; }
+  });
 }
 
 function boundaryMesh(plan: GreaterRealmChunkPresentationPlan) {
@@ -770,10 +842,19 @@ function disposeObject(root: THREE.Object3D) {
   const materials = new Set<THREE.Material>();
   root.traverse((object) => {
     const renderable = object as THREE.Mesh;
-    if (renderable.geometry instanceof THREE.BufferGeometry) geometries.add(renderable.geometry);
+    if (
+      renderable.geometry instanceof THREE.BufferGeometry
+      && renderable.geometry.userData.greaterRealmSharedTreeAsset !== true
+    ) geometries.add(renderable.geometry);
     const material = renderable.material;
-    if (Array.isArray(material)) material.forEach((entry) => materials.add(entry));
-    else if (material instanceof THREE.Material) materials.add(material);
+    if (Array.isArray(material)) {
+      material.forEach((entry) => {
+        if (entry.userData.greaterRealmSharedTreeAsset !== true) materials.add(entry);
+      });
+    } else if (
+      material instanceof THREE.Material
+      && material.userData.greaterRealmSharedTreeAsset !== true
+    ) materials.add(material);
     if (object instanceof THREE.InstancedMesh) object.dispose();
   });
   root.clear();
@@ -781,78 +862,99 @@ function disposeObject(root: THREE.Object3D) {
   materials.forEach((material) => material.dispose());
 }
 
-function buildChunkResource(selected: SelectedChunk, cellSize: number): ChunkRenderResource {
+function buildChunkResource(
+  selected: SelectedChunk,
+  cellSize: number,
+  graphicsProfile: GreaterRealmGraphicsProfile,
+  onTreeModelReady: () => void
+): ChunkRenderResource {
+  let disposed = false;
   const group = new THREE.Group();
   group.name = `greater-realm-chunk:${selected.plan.chunkHandle}:lod${selected.plan.lod}`;
-  const voxelFallbackReasons: string[] = [];
-  let voxelTriangleCount = 0;
-  let voxelQuadCount = 0;
-  let voxelUploadBytes = 0;
-  let voxelEmissionMilliseconds = 0;
-  let voxelLayerCount = 0;
-  let usesVoxelTerrain = false;
-  const terrainEmissionStarted = nowMilliseconds();
-  if (selected.plan.voxelTerrainFallbackReason !== undefined) {
-    voxelFallbackReasons.push(voxelFailureReason(
-      'terrain-preparation', selected.plan.voxelTerrainFallbackReason
-    ));
-    group.add(terrainMesh(selected.plan, cellSize));
-  } else {
-    try {
-      group.add(voxelTerrainMesh(selected.plan));
-      voxelTriangleCount += selected.plan.voxelTerrainPlan.surfacePlan.triangleCount;
-      voxelQuadCount += selected.plan.voxelTerrainPlan.surfacePlan.mergedQuadCount;
-      voxelUploadBytes += selected.plan.voxelTerrainPlan.uploadBytes;
-      voxelLayerCount += 1;
-      usesVoxelTerrain = true;
-    } catch (error) {
-      voxelFallbackReasons.push(voxelFailureReason('terrain', error));
+  let retireActors: (() => void) | undefined;
+  try {
+    const voxelFallbackReasons: string[] = [];
+    let voxelTriangleCount = 0;
+    let voxelQuadCount = 0;
+    let voxelUploadBytes = 0;
+    let voxelEmissionMilliseconds = 0;
+    let voxelLayerCount = 0;
+    let usesVoxelTerrain = false;
+    const terrainEmissionStarted = nowMilliseconds();
+    if (selected.plan.voxelTerrainFallbackReason !== undefined) {
+      voxelFallbackReasons.push(voxelFailureReason(
+        'terrain-preparation', selected.plan.voxelTerrainFallbackReason
+      ));
       group.add(terrainMesh(selected.plan, cellSize));
+    } else {
+      try {
+        group.add(voxelTerrainMesh(selected.plan));
+        voxelTriangleCount += selected.plan.voxelTerrainPlan.surfacePlan.triangleCount;
+        voxelQuadCount += selected.plan.voxelTerrainPlan.surfacePlan.mergedQuadCount;
+        voxelUploadBytes += selected.plan.voxelTerrainPlan.uploadBytes;
+        voxelLayerCount += 1;
+        usesVoxelTerrain = true;
+      } catch (error) {
+        voxelFallbackReasons.push(voxelFailureReason('terrain', error));
+        group.add(terrainMesh(selected.plan, cellSize));
+      }
     }
+    voxelEmissionMilliseconds += nowMilliseconds() - terrainEmissionStarted;
+    const groundPosition = chunkGroundPosition(selected.plan, usesVoxelTerrain);
+    const water = waterMesh(selected.plan, cellSize);
+    if (water) group.add(water.mesh);
+    const routes = routeLines(selected.plan, groundPosition);
+    if (routes) group.add(routes);
+    const crossings = crossingMesh(selected.plan, cellSize, groundPosition);
+    if (crossings) group.add(crossings);
+    const featureEmissionStarted = nowMilliseconds();
+    const voxelFeatures = voxelFeatureMeshes(selected.plan, groundPosition);
+    voxelEmissionMilliseconds += nowMilliseconds() - featureEmissionStarted;
+    voxelFeatures.meshes.forEach((mesh) => group.add(mesh));
+    voxelFeatures.fallbackMeshes.forEach((mesh) => group.add(mesh));
+    voxelFallbackReasons.push(...voxelFeatures.failures);
+    voxelTriangleCount += voxelFeatures.triangleCount;
+    voxelQuadCount += voxelFeatures.quadCount;
+    voxelUploadBytes += voxelFeatures.uploadBytes;
+    voxelLayerCount += voxelFeatures.voxelLayerCount;
+    const actors = actorMeshes(
+      selected.plan,
+      groundPosition,
+      graphicsProfile,
+      onTreeModelReady
+    );
+    retireActors = actors.dispose;
+    actors.meshes.forEach((mesh) => group.add(mesh));
+    resourceMeshes(selected.plan, groundPosition).forEach((mesh) => group.add(mesh));
+    const boundary = boundaryMesh(selected.plan);
+    if (boundary) group.add(boundary);
+    return Object.freeze({
+      signature: selected.signature,
+      group,
+      plan: selected.plan,
+      waterSurfaces: Object.freeze(water ? [water.surface] : []),
+      actors: actors.refs,
+      voxelTriangleCount,
+      voxelQuadCount,
+      voxelUploadBytes,
+      voxelEmissionMilliseconds,
+      voxelLayerCount,
+      voxelFallbackReasons: Object.freeze(voxelFallbackReasons),
+      usesVoxelTerrain,
+      dispose: () => {
+        if (disposed) return;
+        disposed = true;
+        actors.dispose();
+        disposeObject(group);
+      }
+    });
+  } catch (error) {
+    // Until this resource is returned, the runtime cannot see or retire it.
+    // Release its earlier layers and cancel late actor work at this boundary.
+    retireActors?.();
+    disposeObject(group);
+    throw error;
   }
-  voxelEmissionMilliseconds += nowMilliseconds() - terrainEmissionStarted;
-  const groundPosition = chunkGroundPosition(selected.plan, usesVoxelTerrain);
-  const water = waterMesh(selected.plan, cellSize);
-  if (water) group.add(water.mesh);
-  const routes = routeLines(selected.plan, groundPosition);
-  if (routes) group.add(routes);
-  const crossings = crossingMesh(selected.plan, cellSize, groundPosition);
-  if (crossings) group.add(crossings);
-  const featureEmissionStarted = nowMilliseconds();
-  const voxelFeatures = voxelFeatureMeshes(selected.plan, groundPosition);
-  voxelEmissionMilliseconds += nowMilliseconds() - featureEmissionStarted;
-  voxelFeatures.meshes.forEach((mesh) => group.add(mesh));
-  voxelFeatures.fallbackMeshes.forEach((mesh) => group.add(mesh));
-  voxelFallbackReasons.push(...voxelFeatures.failures);
-  voxelTriangleCount += voxelFeatures.triangleCount;
-  voxelQuadCount += voxelFeatures.quadCount;
-  voxelUploadBytes += voxelFeatures.uploadBytes;
-  voxelLayerCount += voxelFeatures.voxelLayerCount;
-  const actors = actorMeshes(selected.plan, groundPosition);
-  actors.meshes.forEach((mesh) => group.add(mesh));
-  resourceMeshes(selected.plan, groundPosition).forEach((mesh) => group.add(mesh));
-  const boundary = boundaryMesh(selected.plan);
-  if (boundary) group.add(boundary);
-  let disposed = false;
-  return Object.freeze({
-    signature: selected.signature,
-    group,
-    plan: selected.plan,
-    waterSurfaces: Object.freeze(water ? [water.surface] : []),
-    actors: actors.refs,
-    voxelTriangleCount,
-    voxelQuadCount,
-    voxelUploadBytes,
-    voxelEmissionMilliseconds,
-    voxelLayerCount,
-    voxelFallbackReasons: Object.freeze(voxelFallbackReasons),
-    usesVoxelTerrain,
-    dispose: () => {
-      if (disposed) return;
-      disposed = true;
-      disposeObject(group);
-    }
-  });
 }
 
 function planSignature(plan: GreaterRealmChunkPresentationPlan) {
@@ -863,7 +965,7 @@ function planSignature(plan: GreaterRealmChunkPresentationPlan) {
     plan.voxelTerrainFallbackReason ?? '',
     plan.voxelPrefabFallbackReasons.map((row) => `${row.kind}:${row.reason}`).join(','),
     plan.terrainCells.length, plan.sealedEdges.length,
-    plan.actors.map((actor) => actor.id).join(','),
+    plan.actors.map((actor) => `${actor.id}:${actor.biomeClass ?? ''}`).join(','),
     plan.features.map((feature) => feature.id).join(','),
     plan.boatLanes.map((lane) => `${lane.fromCoordinateKey}>${lane.toCoordinateKey}`).join(',')
   ].join('|');
@@ -1298,7 +1400,10 @@ export function createGreaterRealmSceneRuntime(
           tilt.setFromAxisAngle(tiltAxis, sway);
           rotation.multiply(tilt);
         }
-        scale.set(1, 1, 1);
+        const treeScale = actor.kind === 'canopy'
+          ? Number(ref.mesh.userData.greaterRealmTreeScale ?? 1)
+          : 1;
+        scale.setScalar(Number.isFinite(treeScale) && treeScale > 0 ? treeScale : 1);
         matrix.compose(position, rotation, scale);
         ref.mesh.setMatrixAt(ref.index, matrix);
         touchedMeshes.add(ref.mesh);
@@ -1500,7 +1605,12 @@ export function createGreaterRealmSceneRuntime(
           pending.delete(row.plan.chunkHandle);
           continue;
         }
-        const resource = buildChunkResource(row, cellSize);
+        const resource = buildChunkResource(
+          row,
+          cellSize,
+          options.graphicsProfile,
+          () => options.onInvalidate?.()
+        );
         // Uploads can render between capped ambient ticks. Match resident chunks immediately.
         resource.waterSurfaces.forEach((surface) => surface.update(waterVisualTime));
         uploaded.set(row.plan.chunkHandle, resource);

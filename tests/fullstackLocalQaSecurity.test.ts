@@ -577,58 +577,37 @@ describe('disposable connected local QA dependency and network boundaries', () =
     }
   });
 
-  it('runs the title departure and focus frame matrix inside the existing local-only browser', () => {
+  it('checks direct 0.4 menu readiness across desktop and mobile profiles', () => {
     const browserSource = readFileSync(
       resolve(process.cwd(), 'scripts/qa-observer/local-fullstack-browser-probe.mjs'),
       'utf8'
     );
 
     for (const caseId of [
-      'desktop-pointer',
-      'mobile-portrait-touch',
-      'tablet-pointer',
-      'short-landscape-touch',
-      'desktop-offset-scaled-keyboard',
-      'desktop-offset-scaled-pointer',
-      'desktop-keyboard',
-      'desktop-reduced-keyboard',
-      'desktop-resize-pointer',
+      'desktop-default',
+      'desktop-compact',
+      'mobile-portrait',
+      'tablet',
+      'mobile-landscape',
+      'narrow-mobile-reduced-motion',
     ]) expect(browserSource).toContain(caseId);
     for (const evidence of [
-      'requestAnimationFrame(sampleFrame)',
-      "frame.phase === 'transitioning-to-menu'",
-      "frame.activeTarget !== 'departure-landmark'",
-      "frame.overlayMotion !== expectedMotion",
-      '!Number.isFinite(frame.overlayOriginX)',
-      '!Number.isFinite(frame.overlayOriginY)',
-      'Math.abs(frame.devicePixelRatio - probeCase.deviceScaleFactor) > 0.01',
-      "frame.gatewayInteractive !== 'false'",
-      'frame.buttonFocusVisible !== false',
-      'frame.hitGateway !== false',
-      "frame.anchorDisplay !== 'none'",
-      "getComputedStyle(anchor).display === 'none'",
-      'frame.overflow',
-      'frozenTransforms.size !== 1',
-      "Input.dispatchKeyEvent",
-      "Input.dispatchMouseEvent",
-      "Input.dispatchTouchEvent",
-      'title.style.transformOrigin',
-      'probeCase.activationFraction',
-      'frozen-gateway-origin',
-      'pointer-origin-separation',
+      'exerciseInitialMenuReadiness',
+      "'.warpkeep-experience__screen--menu'",
+      "'button[data-command=\"enter-realm\"]'",
+      "screen.getAttribute('aria-hidden') === 'false'",
+      "menu?.getAttribute('data-active') === 'true'",
+      'primaryReady',
+      'overflowX',
+      'MENU_READINESS_TIMEOUT_MILLISECONDS',
+      'deviceScaleFactor',
     ]) expect(browserSource).toContain(evidence);
     expect(browserSource).toContain(
-      'await exerciseTitleGatewayDepartureFocus('
+      'await exerciseInitialMenuReadiness('
     );
-    expect(browserSource).toContain(
-      "probeStage = 'title-gateway-departure-focus'"
-    );
-    expect(browserSource).toContain(
-      'value.finalSequence !== value.initialSequence + 1'
-    );
-    expect(browserSource).toContain(
-      'value.initialHistoryLength + 1 !== value.finalHistoryLength'
-    );
+    expect(browserSource).toContain("probeStage = 'direct-menu-readiness'");
+    expect(browserSource).not.toContain('exerciseTitleGatewayDepartureFocus');
+    expect(browserSource).not.toContain('TITLE_GATEWAY_CASES');
   });
 
   it('exercises worker dispatch through the map-first resource inspector', () => {

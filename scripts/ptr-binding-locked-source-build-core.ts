@@ -242,12 +242,14 @@ const GENESIS002_PROFILE = Object.freeze<PtrLockedSourceBuildProfile>({
   expectedPackageKeys: Object.freeze(Object.keys(GENESIS002_EXPECTED_PACKAGE_EDGES).sort()),
   optionalPlatformMetadata: LINUX_OPTIONAL_PLATFORM_METADATA,
   importerKinds: GENESIS002_IMPORTER_KINDS,
-  moduleRoot: 'spacetimedb/genesis002',
+  // Genesis 002 imports shared ../src authority files. Install the pinned
+  // workspace closure at their common parent so both import trees resolve it.
+  moduleRoot: 'spacetimedb',
   manifestPath: 'spacetimedb/genesis002/package.json',
   lockPath: 'spacetimedb/pnpm-lock.yaml',
   workspacePath: 'spacetimedb/pnpm-workspace.yaml',
   workspacePackages: Object.freeze(['.', 'genesis002', 'migration-fixtures/*']),
-  generatedPrefix: 'spacetimedb/genesis002/node_modules/',
+  generatedPrefix: 'spacetimedb/node_modules/',
   bundlePath: 'spacetimedb/genesis002/dist/bundle.js',
   stateChild: 'genesis002-locked-source-builds-v1',
   requireMaterializationParent: true,

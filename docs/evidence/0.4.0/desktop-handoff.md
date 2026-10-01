@@ -1,15 +1,16 @@
 # Warpkeep 0.4 credential-free workspace handoff
 
-Status: **interim development handoff**. The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
-owns current protected source and operation results. Current main is generated-
-only M2 `edb37f40`; its Verify, CodeQL, preflight and policy observation passed.
-Two read-only G001 census attempts failed closed without receipts or provider
-mutation. Source M1 [PR #357](https://github.com/ael-dev3/Warpkeep/pull/357)
-repairs read-only token budgeting; use its live page for the current head and
-protected-check status. The pinned Linux build and focused suite passed on the
-tested source. This document makes source,
-setup and evidence routes reproducible without distributing credentials or private player
-data. It is not a deployment attestation or final release package. The existing
+Status: **interim development handoff**. Alpha 0.3.43 is live;
+[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) is the open, unmerged
+0.4 candidate, and the owner PTR is unpublished. The
+[execution handoff](../../agent-notes/0.4.0/execution-handoff.md) and
+[next-work brief](../../agent-notes/0.4.0/next-work.txt) own the exact source,
+test scopes, active native input and current release phase. Keep September 2026
+free of GitHub Actions; continue local verification and signed `[skip actions]`
+source publication, then follow the already-authorized October sequence in the
+brief. This document makes source, setup and evidence routes reproducible without
+distributing credentials or private player data. It is not a deployment
+attestation or final release package. The existing
 Desktop `Warpkeep - Full Project Handoff.md` remains a reference; this tracked
 file is the compact delivery index. Its historical filename is retained for
 link compatibility, not as a Desktop output instruction.
@@ -28,21 +29,33 @@ recovery bootstrap and synchronization procedure, including the
 The historical suffixes were preserved byte-for-byte. Their previously recorded
 character corruption remains explicitly marked; do not use those older hashes,
 URLs or commands as operating inputs. No new Desktop artifact was created.
+The existing Next Work TXT pointer was refreshed in place on 30 September 2026
+at 17:03 CEST after the terminal native pass; the maintained repository brief owns
+subsequent operating state.
+
+Former scoped checkpoint: generated-only M2 `edb37f40` passed its Verify,
+CodeQL, preflight and policy observation. Two read-only G001 census attempts
+failed closed without receipts or provider mutation. Source M1
+[PR #357](https://github.com/ael-dev3/Warpkeep/pull/357) addressed read-only
+token budgeting; the pinned Linux build and focused suite passed on that tested
+source. These are historical results, not current source or release authority.
 
 ## Start here
 
-- **Accepted source and checks:** the dated [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) owns the verified SHA, terminal main checks and read-only preflight result; resolve live refs before continuing
-- **Pages state:** classification deliberately skips deployment while release evidence remains incomplete
-- **Live state:** 0.4 remains unverified and the served site remains Genesis
+- **Source, checks and phase:** the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) and [next-work brief](../../agent-notes/0.4.0/next-work.txt) own exact source identities, verification scopes and the next authorized action; resolve live refs before continuing
+- **Candidate:** [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) is open and unmerged; the owner PTR is unpublished
+- **Pages state:** sealed preparation keeps Pages approval false and PTR presentation disabled; follow the current handoff before publication
+- **Live state:** Alpha 0.3.43 is served; 0.4 owner and physical-device acceptance remain open
+- **September checks:** use local verification and signed `[skip actions]` source pushes; do not query, dispatch, rerun or use GitHub Actions during September 2026
 - **Product direction:** [`docs/design/warpkeep-direction.md`](../../design/warpkeep-direction.md)
 - **Current agent index:** [`docs/agent-notes/0.4.0/README.md`](../../agent-notes/0.4.0/README.md)
 - **Visual foundation:** [`visual-foundation-contract.md`](../../agent-notes/0.4.0/visual-foundation-contract.md)
 - **Release gates:** [`0.4.0-release-checklist.md`](../../operations/0.4.0-release-checklist.md)
 
-The current protected source and the live deployment evidence are authoritative;
-do not copy a hash from this document into a deployment command. Re-read the
-PR and the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
-before preparing a new artifact.
+Resolve current source identities and release phase from the maintained brief,
+handoff and live PR; do not copy a historical hash from this document into a
+deployment command. Keep native source pinned while its actual job is active,
+and keep local source/test evidence separate from deployment and owner acceptance.
 
 ## Credential-free setup
 

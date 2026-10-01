@@ -1,5 +1,81 @@
 # Gameplay and visual implementation notes
 
+## U-shaped Citadel moat — 29 September 2026
+
+The previous Keep04 water plane covered only the rear terrace and read as a
+thin far-side line. Product source `0c9447e2` extends that existing static
+water treatment around the rear and sides, lifts it above the outer terrace
+course, and leaves the front gate approach open. One indexed surface and one
+instanced stone lip preserve the two-object rendering cost. Water remains
+non-pickable and has no gameplay or collision authority.
+
+The 390×844 synthetic local preview showed the water framing the keep while
+the gate spine stayed clear. Focused Keep04 scene, dressing and screen suites
+passed 97/97, and build-mode TypeScript passed. This does not establish owner
+play, physical-device behavior or performance acceptance. Cathedral hierarchy,
+natural backdrop and final mobile/performance review remain open; see the
+[visual evidence](../../evidence/0.4.0/visuals.md).
+
+## First economy journey guidance — 29 September 2026
+
+The empty-keep prompt now says to start with a City Mill, names Food, Wood and
+Stone, notes City Goldworks also requires Gold, and tells the player to compare
+the existing costs under Buildings before sending idle Workers to gather
+shortages in parallel. It also makes clear that only confirmed returns can fund
+construction. Naming the building and clarifying parallel gathering supports
+the first-building pace without duplicating tunable prices or changing the
+existing costs panel, navigation, economy, route, Worker authority or
+construction timing.
+
+On signed source `53c2bc42`, the focused Keep04Screen suite passed 39/39 and
+`npm run typecheck` passed. The exact-source Windows Chrome matrix completed
+36 synthetic cases with no horizontal overflow; portrait review shows the
+first-journey action and active construction progress within the 390×844 view.
+One bounded `browser-log-security` warning per document remains unclassified;
+the raw message was not retained. This synthetic desktop-GPU capture is not
+phone, production or performance acceptance. See the [visual evidence](../../evidence/0.4.0/visuals.md).
+
+## Construction progress in the first phone view — September 27, 2026
+
+A returning player with an active City Mill could see the construction model
+but not the project's name, remaining time or progress without scrolling past
+the scene and default-open schematic. The existing authoritative construction
+status now appears immediately after the resource and action header, before the
+scene. It names the building, labels the countdown as estimated time remaining
+and keeps the existing progressbar. Multiple concurrent statuses use a compact
+disclosure, with each named progressbar available on expansion. This changes
+presentation only; the Realm still determines completion and benefits.
+
+At signed source `2462bb5c`, the focused Keep suite passed 39 tests and
+build-mode typechecking passed. Fresh synthetic Chrome 154 captures at 390×844
+show the cue in the first view
+(`artifacts/keep04-qa/windows-run-zxxCpO/mobile-mill-constructing.png`), where
+the matched earlier capture at `windows-run-yaoZKz` did not. The 36-case
+synthetic matrix reported no horizontal overflow. These are fixture renders,
+not an authenticated owner PTR session or physical-phone performance result.
+
+## Incoming-aware building guidance — September 27, 2026
+
+The building catalog previously linked to the first shortage in spendable
+balances even when confirmed Worker earnings already covered it. For a first
+City Mill with food on the way home, that could send the player to gather more
+food instead of the still-needed wood. Cards now show relevant incoming amounts
+and suggest the first shortage still uncovered after those amounts. If incoming
+earnings cover every shortage, the card asks the player to await confirmed
+returns. A resource search without a named Worker now starts with the first
+idle Worker; a named Worker remains the player's explicit choice. If all
+Workers are busy, the catalog explains the wait instead of offering a resource
+dispatch shortcut that cannot proceed. Build confirmation still uses spendable
+balances only; no resources, Worker commands or building policy changed.
+
+The focused Keep04 screen suite covers partial coverage, fully covered but
+unspendable costs, confirmed-credit review and busy Workers. The PTR surface
+integration suite covers the phone-width Keep-to-world handoff and available
+dispatch for the first idle Worker. Typechecking and the full production build
+passed. This is
+local UI evidence; an authenticated owner journey, rendered phone review and
+physical-device timing remain open.
+
 ## Stalled response recovery — September 20, 2026
 
 An open PTR socket could leave a gameplay procedure unanswered and hold the

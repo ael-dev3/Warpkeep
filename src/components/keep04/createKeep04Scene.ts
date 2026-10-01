@@ -17,12 +17,15 @@ export type SceneTelemetry04 = Readonly<{
 }>;
 export type Scene04 = Readonly<{
   scene: THREE.Scene; camera: THREE.OrthographicCamera; reconcile: (state: VisualState04) => void;
+  admitBuildingPrefab: (kind: Building04, prefab: InnerKeepRuntimePrefab) => boolean;
   resize: (width: number, height: number, preserveOrientation?: boolean) => void; pickBuilding: (ndcX: number, ndcY: number) => Building04 | null;
   selectedSiteBounds: () => THREE.Box3 | null; entryOverviewBounds: () => THREE.Box3 | null;
   fitSite: (bounds: THREE.Box3, aspect: number, inspection?: boolean) => boolean;
   pickPlacement: (ndcX: number, ndcY: number, kind: Building04) => Placement04 | null;
   update: (elapsedSeconds: number) => boolean; telemetry: () => SceneTelemetry04; dispose: () => void;
 }>;
+
+const KEEP04_MOAT_SURFACE_Y = -0.98;
 
 export function createKeep04Scene(options: Readonly<{ quality: Quality04; reducedMotion: boolean; assets: InnerKeepRuntimeAssetBundle; qaVoxelFailure?: boolean }>): Scene04 {
   const { quality, assets } = options; const budget = P.budgets[quality];
@@ -34,7 +37,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
   const entryLandmarks: THREE.Mesh[] = [];
   let shadow: THREE.LightShadow | undefined;
   const buildings = new Map<Building04, { key: string; building: Keep04Building; view: BuildingView04; reveal: number | null }>();
-  let disposed = false; let fallback: SceneTelemetry04['fallback'] = 'none'; let voxelQuads = 0;
+  let disposed = false; let baseFallback: SceneTelemetry04['fallback'] = 'none'; let fallback: SceneTelemetry04['fallback'] = 'none'; let voxelQuads = 0;
   let voxelPreparationMs: number | null = null;
   let indicatorKey = ''; let selected: THREE.Mesh | null = null; let draft: THREE.Mesh | null = null;
   let visualState: VisualState04 | null = null;
@@ -65,20 +68,41 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     deckGeometry.setAttribute('color', new THREE.BufferAttribute(deckColors, 3));
     const deckMaterial = mat(P.ground); deckMaterial.vertexColors = true;
     mesh(deckGeometry, deckMaterial, 0, -.5, -4).name = 'legal-support-y0';
-    // A shallow, non-interactive moat gives the citadel a readable edge and
-    // carries the water reference into the actual 0.4 keep renderer without
-    // introducing a simulation, reflection pass, or extra interaction lane.
-    const waterGeometry = new THREE.PlaneGeometry(86, 8, quality === 'high' ? 12 : quality === 'balanced' ? 8 : 4, 2);
-    waterGeometry.rotateX(-Math.PI / 2);
-    const waterPositions = waterGeometry.getAttribute('position');
-    const waterColors = new Float32Array(waterPositions.count * 3);
-    for (let i = 0; i < waterPositions.count; i++) {
-      const x = waterPositions.getX(i);
-      const z = waterPositions.getZ(i);
-      const shimmer = .86 + Math.sin(x * .36 + z * .52) * .06 + Math.cos(x * .18 - z * .77) * .04;
-      waterColors.set([.28 * shimmer, .56 * shimmer, .60 * shimmer], i * 3);
-    }
-    waterGeometry.setAttribute('color', new THREE.BufferAttribute(waterColors, 3));
+    // The U-shaped moat sits just above the outer terrace course. It frames
+    // the back and sides while keeping the front gate and civic approach open.
+    // One merged mesh keeps the water static, non-pickable and inexpensive.
+    const waterGeometry = new THREE.BufferGeometry();
+    const waterPositions: number[] = [];
+    const waterNormals: number[] = [];
+    const waterColors: number[] = [];
+    const waterIndices: number[] = [];
+    const longSegments = quality === 'high' ? 12 : quality === 'balanced' ? 8 : 4;
+    const appendWaterStrip = (x0: number, x1: number, z0: number, z1: number, xSegments: number, zSegments: number) => {
+      const start = waterPositions.length / 3;
+      for (let row = 0; row <= zSegments; row++) for (let column = 0; column <= xSegments; column++) {
+        const x = x0 + (x1 - x0) * column / xSegments;
+        const z = z0 + (z1 - z0) * row / zSegments;
+        const shimmer = .86 + Math.sin(x * .36 + z * .52) * .06 + Math.cos(x * .18 - z * .77) * .04;
+        waterPositions.push(x, KEEP04_MOAT_SURFACE_Y, z);
+        waterNormals.push(0, 1, 0);
+        waterColors.push(.28 * shimmer, .56 * shimmer, .60 * shimmer);
+      }
+      for (let row = 0; row < zSegments; row++) for (let column = 0; column < xSegments; column++) {
+        const a = start + row * (xSegments + 1) + column;
+        const b = a + 1;
+        const d = a + xSegments + 1;
+        const c = d + 1;
+        // Winding faces upward in the X/Z plane.
+        waterIndices.push(a, d, b, b, d, c);
+      }
+    };
+    appendWaterStrip(-44, 44, -48, -40, longSegments, 2);
+    appendWaterStrip(-52, -44, -40, 32, 2, longSegments);
+    appendWaterStrip(44, 52, -40, 32, 2, longSegments);
+    waterGeometry.setAttribute('position', new THREE.Float32BufferAttribute(waterPositions, 3));
+    waterGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(waterNormals, 3));
+    waterGeometry.setAttribute('color', new THREE.Float32BufferAttribute(waterColors, 3));
+    waterGeometry.setIndex(waterIndices);
     const waterMaterial = new THREE.MeshStandardMaterial({
       color: '#5a9a9b',
       emissive: '#173d40',
@@ -90,18 +114,63 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
       vertexColors: true,
     });
     materials.add(waterMaterial);
-    mesh(waterGeometry, waterMaterial, 0, -1.03, -44.4).name = 'moat-water-surface';
-    mesh(new THREE.BoxGeometry(86, .08, .18), mat('#b7d2c1'), 0, -.94, -40.45).name = 'moat-water-edge';
+    mesh(waterGeometry, waterMaterial).name = 'moat-water-surface';
+    const waterEdgeGeometry = new THREE.BoxGeometry(1, .08, .18);
+    geometries.add(waterEdgeGeometry);
+    const waterEdge = new THREE.InstancedMesh(waterEdgeGeometry, mat('#b7d2c1'), 3);
+    waterEdge.name = 'moat-water-edge';
+    const edge = (index: number, x: number, z: number, length: number, rotationY: number) => {
+      const transform = new THREE.Matrix4().compose(
+        new THREE.Vector3(x, -.94, z),
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rotationY),
+        new THREE.Vector3(length, 1, 1),
+      );
+      waterEdge.setMatrixAt(index, transform);
+    };
+    edge(0, 0, -40.45, 86, 0);
+    edge(1, -44.45, -4, 72, Math.PI / 2);
+    edge(2, 44.45, -4, 72, Math.PI / 2);
+    waterEdge.instanceMatrix.needsUpdate = true;
+    instances.add(waterEdge);
+    scenery.add(waterEdge);
+    let forestTerrace: THREE.Mesh;
     try {
       if (import.meta.env.DEV && options.qaVoxelFailure) throw new Error('QA voxel preparation failure.');
       const preparationStart = performance.now();
       const dressing = createKeep04Dressing(quality); voxelPreparationMs = performance.now() - preparationStart; voxelQuads = dressing.quads;
       const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }); materials.add(material);
-      mesh(dressing.geometry, material).name = 'voxel-terracing';
+      forestTerrace = mesh(dressing.geometry, material); forestTerrace.name = 'voxel-terracing';
     } catch {
-      fallback = 'voxel'; mesh(new THREE.BoxGeometry(96, 2, 80), groundMat, 0, -2, -4).name = 'simple-perimeter-fallback';
+      baseFallback = fallback = 'voxel'; forestTerrace = mesh(new THREE.BoxGeometry(96, 2, 80), groundMat, 0, -2, -4); forestTerrace.name = 'simple-perimeter-fallback';
     }
-    mesh(new THREE.BoxGeometry(110, .5, 12), groundMat, 0, -5.25, -55).name = 'distant-forest-bank';
+    // One shallow U-shaped bank gives the existing forest bands somewhere to
+    // sit along the rear and side terraces. The south gate approach stays open.
+    const forestBankGeometry = new THREE.BoxGeometry(1, 1, 1);
+    geometries.add(forestBankGeometry);
+    const forestBank = new THREE.InstancedMesh(forestBankGeometry, groundMat, 3);
+    forestBank.name = 'forest-bank:perimeter'; forestBank.receiveShadow = true;
+    const bankTransform = new THREE.Matrix4();
+    [
+      { position: [0, -5.25, -55] as const, size: [110, .5, 12] as const },
+      { position: [-55, -5.25, -8] as const, size: [6, .5, 84] as const },
+      { position: [55, -5.25, -8] as const, size: [6, .5, 84] as const },
+    ].forEach(({ position, size }, index) => {
+      bankTransform.compose(new THREE.Vector3(...position), new THREE.Quaternion(), new THREE.Vector3(...size));
+      forestBank.setMatrixAt(index, bankTransform);
+    });
+    forestBank.instanceMatrix.needsUpdate = true;
+    instances.add(forestBank); scenery.add(forestBank);
+    // Read only the actual decorative support once while building the scene;
+    // this ray is separate from the legal placement plane and gameplay picks.
+    forestTerrace.updateMatrixWorld(true); forestBank.updateMatrixWorld(true);
+    const forestSupportRay = new THREE.Raycaster(undefined, new THREE.Vector3(0, -1, 0), 0, 32);
+    const forestSupport = [forestTerrace, forestBank];
+    const forestGroundAt = (x: number, z: number) => {
+      forestSupportRay.ray.origin.set(x, 8, z);
+      const support = forestSupportRay.intersectObjects(forestSupport, false)[0];
+      if (!support) throw new RangeError('Keep forest root has no rendered support.');
+      return support.point.y;
+    };
     const spine = mesh(new THREE.BoxGeometry(6, .035, 35), masonry, 0, .02, 14.5); spine.name = 'open-gate-spine';
     const commons = mesh(new THREE.BoxGeometry(10, .04, 10), masonry, 0, .022, 2); commons.name = 'open-civic-commons';
     const seal = mesh(new THREE.CylinderGeometry(2.3, 2.3, .04, 24), mat(P.warpViolet), 0, .06, 2); seal.name = 'civic-seal';
@@ -119,30 +188,51 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     Object.assign(key.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 200 }); key.shadow.bias = -.001;
     scene.add(key, key.target, new THREE.HemisphereLight('#e1eee4', '#526047', 2));
 
-    // Preflight ALL six maximum-level prefabs and tree multiplicities before any source attaches.
+    // The catalog-wide quality and size decision is made before loading. Preflight
+    // each actual source before admitting it, including models loaded after entry.
     const admitted = new Map<string, InnerKeepRuntimePrefab>(); let sourceTriangles = 0; let sourceDraws = 0;
-    for (const id of [...KEEP04_BUILDING_IDS, ...KEEP04_TREE_IDS]) {
-      const prefab = assets.staticPrefabs.get(id); if (!prefab) continue;
+    function admitPrefab(id: string, prefab: InnerKeepRuntimePrefab) {
+      if (admitted.has(id)) return true;
       try {
         const measured = measureKeep04Object(prefab.root); const instances = (KEEP04_TREE_IDS as readonly string[]).includes(id) ? budget.trees / 2 : 1;
         const shadowFactor = quality === 'high' ? 2 : 1;
         if (measured.triangles > prefab.triangles + 16 || measured.drawCalls > prefab.drawCalls
           || sourceTriangles + measured.triangles * instances * shadowFactor > budget.triangles - 12000
-          || sourceDraws + measured.drawCalls * instances * shadowFactor > budget.draws - 40) { fallback = 'budget'; continue; }
+          || sourceDraws + measured.drawCalls * instances * shadowFactor > budget.draws - 40) { baseFallback = fallback = 'budget'; return false; }
         sourceTriangles += measured.triangles * instances * shadowFactor; sourceDraws += measured.drawCalls * instances * shadowFactor;
         admitted.set(id, prefab);
-      } catch { fallback = 'budget'; }
+        return true;
+      } catch { baseFallback = fallback = 'budget'; return false; }
     }
-    // Two sparse overlapping bands, always beyond the support rectangle, with no pick registration.
+    for (const id of [...KEEP04_BUILDING_IDS, ...KEEP04_TREE_IDS]) {
+      const prefab = assets.staticPrefabs.get(id); if (prefab) admitPrefab(id, prefab);
+    }
+    // Two sparse overlapping bands frame the back and sides, leaving the south
+    // approach open. Instancing keeps each tree species to one draw call.
     for (let band = 0; band < 2; band++) {
       const id = KEEP04_TREE_IDS[band]; const prefab = admitted.get(id); const count = budget.trees / 2;
       const sourceMeshes: THREE.Mesh[] = [];
       if (prefab) { prefab.root.updateMatrixWorld(true); prefab.root.traverse(o => { if (o instanceof THREE.Mesh) sourceMeshes.push(o); }); }
+      const rootMinY = sourceMeshes.length ? new THREE.Box3().setFromObject(prefab!.root).min.y : 0;
       if (!sourceMeshes.length) {
         const geometry = new THREE.ConeGeometry(2.3, 9, 7); geometry.translate(0, 4.5, 0);
         geometries.add(geometry); sourceMeshes.push(new THREE.Mesh(geometry, mat(band === 0 ? P.forestNear : '#81917a')));
-        if (fallback === 'none') fallback = 'asset';
+        if (baseFallback === 'none') baseFallback = fallback = 'asset';
       }
+      // Adapt the stable population/quality selection idea from Tervain
+      // floraPopulation.ts @db2a356: detail thins a fixed authored population.
+      // The first three ranks retain the back and both sides at every quality.
+      const transforms = Array.from({ length: count }, (_, i) => {
+        const cluster = i % 3; const slot = Math.floor(i / 3);
+        const spread = [0, -.5, .5][slot];
+        const x = cluster === 0 ? spread * (band === 0 ? 68 : 74)
+          : (cluster === 1 ? -1 : 1) * (band === 0 ? 53 : 56);
+        const z = cluster === 0 ? (band === 0 ? -52 : -58) - [0, 2, .8][(slot + band) % 3]
+          : -8 + spread * (band === 0 ? 54 : 62) - [0, 2.3, .7][(slot + band) % 3];
+        const size = prefab ? (band === 0 ? 1.5 : 1.92) + [.08, .3, 0, .18][(i + band) % 4] : 1;
+        return new THREE.Matrix4().compose(new THREE.Vector3(x, forestGroundAt(x, z) - rootMinY * size, z),
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), i * 1.7), new THREE.Vector3(size, size, size));
+      });
       for (const source of sourceMeshes) {
         const geometry = source.geometry.clone().applyMatrix4(source.matrixWorld); geometries.add(geometry);
         const copies = (Array.isArray(source.material) ? source.material : [source.material]).map(original => {
@@ -153,21 +243,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         const forest = new THREE.InstancedMesh(geometry, Array.isArray(source.material) ? copies : copies[0], count);
         instances.add(forest);
         forest.name = `forest-band:${band}`; forest.castShadow = quality === 'high'; forest.receiveShadow = true;
-        for (let i = 0; i < count; i++) {
-          // Each quality keeps all three crown groups; extra trees fill their
-          // edges instead of closing the quiet gaps between them.
-          const cluster = i % 3; const slot = Math.floor(i / 3);
-          const members = Math.ceil((count - cluster) / 3);
-          const spread = members === 1 ? 0 : slot / (members - 1) - .5;
-          const anchors = band === 0 ? [-43, -6, 34] : [-38, 0, 39];
-          const x = anchors[cluster] + spread * (band === 0 ? 7.8 : 9.3);
-          const z = (band === 0 ? -48 : -55) - [0, 2, .8][cluster]
-            - [0, 2.3, .7][(slot + band) % 3];
-          const size = prefab ? (band === 0 ? 1.5 : 1.92)
-            + [.08, .3, 0, .18][(i + band) % 4] : 1;
-          const transform = new THREE.Matrix4().compose(new THREE.Vector3(x, -2 - band, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), i * 1.7), new THREE.Vector3(size, size, size));
-          forest.setMatrixAt(i, transform);
-        }
+        transforms.forEach((transform, index) => forest.setMatrixAt(index, transform));
         forest.instanceMatrix.needsUpdate = true; scenery.add(forest);
       }
     }
@@ -196,16 +272,17 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
       const present = new Set(state.buildings.map(view => view.kind));
       for (const [kind, entry] of buildings) if (!present.has(kind)) { entry.building.dispose(); buildings.delete(kind); }
       for (const view of state.buildings) {
-        const key = [view.completedLevel, view.targetLevel, view.phase, view.startsAtMicros, view.completesAtMicros, view.placement.x, view.placement.z, view.placement.rotation].join(':');
+        const key = [view.completedLevel, view.targetLevel, view.phase, view.startsAtMicros, view.completesAtMicros, view.placement.x, view.placement.z, view.placement.rotation,
+          view.phase === 'complete' && admitted.has(view.kind) ? 'prefab' : 'silhouette'].join(':');
         const previous = buildings.get(view.kind); if (previous?.key === key) continue;
         const reveal = previous?.view.phase === 'constructing' && view.phase === 'complete' && !options.reducedMotion;
         previous?.building.dispose();
         const building = createKeep04Building({ kind: view.kind, level: view.completedLevel, constructing: view.phase === 'constructing', quality, prefab: admitted.get(view.kind) });
-        if (building.fallback && fallback === 'none') fallback = 'asset';
         building.root.position.set(Number(view.placement.x) / 1e6, 0, Number(view.placement.z) / 1e6); building.root.rotation.y = -view.placement.rotation * Math.PI / 180000;
         if (reveal) building.root.scale.setScalar(.94);
         scene.add(building.root); buildings.set(view.kind, { key, building, view, reveal: reveal ? -1 : null });
       }
+      fallback = baseFallback === 'none' && [...buildings.values()].some(entry => entry.building.fallback) ? 'asset' : baseFallback;
       pickTargets.length = 0; pickKinds.clear();
       for (const [kind, entry] of buildings) { pickTargets.push(entry.building.root); pickKinds.set(entry.building.root, kind); }
       const nextIndicatorKey = `${state.selectedKind}:${state.draft?.kind}:${state.draft?.x}:${state.draft?.z}:${state.draft?.rotation}:${state.draftValid}:${state.selectedKind ? buildings.get(state.selectedKind)?.key : ''}`;
@@ -239,6 +316,8 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     }
     return {
       scene, camera, reconcile,
+      admitBuildingPrefab: (kind, prefab) => !disposed && prefab.id === kind
+        && (KEEP04_BUILDING_IDS as readonly string[]).includes(kind) && admitPrefab(kind, prefab),
       selectedSiteBounds: () => {
         if (disposed || !visualState?.selectedKind) return null;
         const entry = buildings.get(visualState.selectedKind);

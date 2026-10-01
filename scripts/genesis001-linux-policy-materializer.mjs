@@ -64,7 +64,7 @@ export async function materializeFixedLinuxG001Policy(request) {
       operation(context) {
         const modules = join(context.materializedRoot, 'node_modules');
         mkdirSync(modules, { mode: 0o700 });
-        const dependencyRoot = join(context.materializedRoot, 'spacetimedb', 'genesis002', 'node_modules');
+        const dependencyRoot = join(context.materializedRoot, 'spacetimedb', 'node_modules');
         const sdk = realpathSync(join(dependencyRoot, 'spacetimedb'));
         const serviceModules = join(context.materializedRoot, 'services', 'auth-bridge', 'node_modules');
         mkdirSync(serviceModules, { mode: 0o700 });

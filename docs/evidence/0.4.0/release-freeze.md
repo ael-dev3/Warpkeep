@@ -2,22 +2,36 @@
 
 Status: **0.4 is not shipped; final release freeze remains open**.
 
-Current protected source is generated-only M2
-[`edb37f4081de1b989a5137627494c1a2575411bb`](https://github.com/ael-dev3/Warpkeep/commit/edb37f4081de1b989a5137627494c1a2575411bb).
-Exact-main Verify, CodeQL, read-only preflight and policy observation passed.
-G001 census runs 36087746335 and 36088300562 failed closed without receipts or
-provider mutation. Source M1
-[PR #357](https://github.com/ael-dev3/Warpkeep/pull/357) repairs read-only
-attempt accounting and session capabilities; its final required checks must
-pass before exact-M1 prepare/check and generated-only M2 promotion. The
-[execution handoff](../../agent-notes/0.4.0/execution-handoff.md) records
-current run identities and the fresh-observation sequence. Earlier native evidence and generated families
-remain bound to their recorded inputs; none grant deployment authority.
+## Current checkpoint — 27 September 2026
 
-`finalReleasePrepared:false` remains explicit. Provider/private authority,
-G001 preservation, sealed G002 denial, PTR owner play, physical-device
-acceptance, hosting and recovery/readback are still open. Keep sync automation
-paused and create no Desktop output.
+The last validated operational main at this checkpoint is signed generated-only
+M2 [`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`](https://github.com/ael-dev3/Warpkeep/commit/786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32)
+from [PR #373](https://github.com/ael-dev3/Warpkeep/pull/373). Exact-main
+[Verify 36294403406](https://github.com/ael-dev3/Warpkeep/actions/runs/36294403406),
+[preflight 36297501189](https://github.com/ael-dev3/Warpkeep/actions/runs/36297501189)
+and [G001 policy observation 36297585906](https://github.com/ael-dev3/Warpkeep/actions/runs/36297585906)
+passed. [G001 census 36297722529](https://github.com/ael-dev3/Warpkeep/actions/runs/36297722529)
+failed closed before establishing a baseline. [G002 update inspect 36297899627](https://github.com/ael-dev3/Warpkeep/actions/runs/36297899627)
+failed before provider transport. Neither attempt mutated a realm; neither
+grants release authority. [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
+repairs their source paths; require full final-head Verify, signed M1 merge,
+provider-free artifact build, exact-M1 native prepare/check, generated-only M2
+and exact-M2 push Verify before fresh protected inspections. Recheck live main
+and the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md)
+before acting. `finalReleasePrepared:false` remains explicit. G001 preservation,
+sealed G002 denial, owner PTR play, physical-device acceptance, hosting and
+recovery/readback remain open. Keep scheduled tasks paused and create no
+Desktop output.
+
+## Historical operating checkpoint — 25 September 2026 (superseded)
+
+Generated-only M2 [`edb37f40`](https://github.com/ael-dev3/Warpkeep/commit/edb37f4081de1b989a5137627494c1a2575411bb)
+passed exact-main Verify, CodeQL, preflight and policy observation. G001 census
+runs 36087746335 and 36088300562 failed closed without receipts or provider
+mutation. [PR #357](https://github.com/ael-dev3/Warpkeep/pull/357)
+subsequently repaired read-only attempt accounting; its generated family was
+later promoted. That evidence is bound to its original source and is not a
+freeze or deployment authority for the current candidate.
 
 ## Historical prepared family — 2026-09-12
 

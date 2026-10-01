@@ -53,9 +53,9 @@ vi.mock('warpkeep:genesis002-binding-entry', () => ({
   withGenesis002LinuxLockedSourceBuild: (input: { dependencyCacheRoot: string;
     materializationParent: string; operation: (context: { materializedRoot: string }) => unknown }) => {
     expect(input.dependencyCacheRoot).toBe(join(fixture.home, '.warpkeep', 'release-preparation-v1', 'cache', 'genesis002'));
-    expect(existsSync(join(fixture.materializedRoot, 'spacetimedb', 'node_modules'))).toBe(false);
-    // Matches the real GENESIS002_PROFILE's installed module root. A workspace
-    // root node_modules tree is intentionally absent, as in the native builder.
+    expect(existsSync(join(fixture.materializedRoot, 'spacetimedb', 'node_modules'))).toBe(true);
+    // Match the real G002 builder: shared spacetimedb/src resolves the pinned
+    // workspace dependencies from spacetimedb/node_modules.
     const result = input.operation({ materializedRoot: fixture.materializedRoot });
     expect(existsSync(join(fixture.materializedRoot, 'node_modules'))).toBe(false);
     expect(existsSync(join(fixture.materializedRoot, 'services', 'auth-bridge', 'node_modules'))).toBe(false);
@@ -96,20 +96,20 @@ beforeEach(() => {
   fixture.yamlRoot = join(fixture.home, '.warpkeep', 'release-preparation-v1', 'toolchain', 'yaml-2.9.0', 'package');
   fixture.typescriptRoot = join(fixture.home, '.warpkeep', 'release-preparation-v1', 'toolchain',
     'typescript-7.0.2-linux-x64', 'node_modules', 'typescript');
-  fixture.compiler = join(fixture.materializedRoot, 'spacetimedb', 'genesis002', 'node_modules',
+  fixture.compiler = join(fixture.materializedRoot, 'spacetimedb', 'node_modules',
     '.pnpm', '@esbuild+linux-x64@0.25.12', 'node_modules', '@esbuild', 'linux-x64', 'bin', 'esbuild');
   fixture.compilerCalls = 0; fixture.outfiles = []; fixture.hookDisposals = 0; fixture.compilerFailure = false;
   for (const path of [fixture.yamlRoot, dirname(fixture.compiler), join(temporary, 'operation'),
     join(fixture.materializedRoot, 'scripts'),
     join(fixture.materializedRoot, 'services', 'auth-bridge'),
     fixture.typescriptRoot,
-    join(fixture.materializedRoot, 'spacetimedb', 'genesis002', 'node_modules', 'spacetimedb')]) {
+    join(fixture.materializedRoot, 'spacetimedb', 'node_modules', 'spacetimedb')]) {
     mkdirSync(path, { recursive: true, mode: 0o700 });
   }
   fixture.yamlRoot = realpathSync(fixture.yamlRoot);
   fixture.typescriptRoot = realpathSync(fixture.typescriptRoot);
   writeFileSync(fixture.compiler, 'locked compiler fixture', { mode: 0o600 });
-  writeFileSync(join(fixture.materializedRoot, 'spacetimedb', 'genesis002', 'node_modules', 'spacetimedb', 'index.js'),
+  writeFileSync(join(fixture.materializedRoot, 'spacetimedb', 'node_modules', 'spacetimedb', 'index.js'),
     'locked SDK fixture', { mode: 0o600 });
   process.argv = [originalArgv[0]!, 'fixture-materializer'];
 });

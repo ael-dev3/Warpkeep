@@ -90,8 +90,8 @@ export function validatePagesDeploymentConfiguration(
       + 'Pages deployment is unavailable.',
     );
   }
-  if (environment.DEPLOY_BASE !== '/') {
-    fail('DEPLOY_BASE must be /.');
+  if (environment.DEPLOY_BASE !== '/' && environment.DEPLOY_BASE !== '/ptr/') {
+    fail('DEPLOY_BASE must be / or /ptr/.');
   }
   if (environment.VITE_WARPKEEP_RELEASE_CHANNEL !== 'alpha') {
     fail('VITE_WARPKEEP_RELEASE_CHANNEL must be alpha.');

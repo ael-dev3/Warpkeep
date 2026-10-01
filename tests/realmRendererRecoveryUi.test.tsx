@@ -255,7 +255,7 @@ describe('Realm renderer recovery UI', () => {
     expect(realm.getAttribute('aria-busy')).toBe('true');
   });
 
-  it('opens river and ocean records without invoking a camera focus', () => {
+  it('opens river and ocean records without invoking a camera focus', async () => {
     const fixture = createRenderedWebglQaFixtureRealm();
     render(
       <RealmMapScreen
@@ -292,6 +292,11 @@ describe('Realm renderer recovery UI', () => {
         regime,
         coord: { q: cell.q, r: cell.r }
       }));
+      await waitFor(() => {
+        expect(document.querySelector(
+          '.water-inspection.realm-camera-neutral-inspector'
+        )).not.toBeNull();
+      });
       const record = document.querySelector<HTMLElement>(
         '.water-inspection.realm-camera-neutral-inspector'
       );
@@ -465,6 +470,9 @@ describe('Realm renderer recovery UI', () => {
         source: 'site',
         coord: record.node.coord
       }));
+      await waitFor(() => {
+        expect(document.querySelector(record.selector)).not.toBeNull();
+      });
       expect(document.querySelector(record.selector)).not.toBeNull();
       expect(document.querySelector(`${record.selector}.realm-camera-neutral-inspector`))
         .not.toBeNull();
@@ -480,7 +488,7 @@ describe('Realm renderer recovery UI', () => {
     expect(handle.focusCell).not.toHaveBeenCalled();
   });
 
-  it('opens a worker record through the same camera-neutral entity contract', () => {
+  it('opens a worker record through the same camera-neutral entity contract', async () => {
     const fixture = createRenderedWebglQaActiveWorkerRealm();
     const { snapshot } = fixture;
     const worker = fixture.workerProjection.ownedWorkers.find(
@@ -510,6 +518,11 @@ describe('Realm renderer recovery UI', () => {
       });
     });
 
+    await waitFor(() => {
+      expect(document.querySelector(
+        '.worker-inspection.realm-camera-neutral-inspector'
+      )).not.toBeNull();
+    });
     expect(document.querySelector('.worker-inspection.realm-camera-neutral-inspector'))
       .not.toBeNull();
     expect(handle.focusCell).not.toHaveBeenCalled();

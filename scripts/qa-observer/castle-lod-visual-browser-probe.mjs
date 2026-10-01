@@ -119,14 +119,9 @@ function assertExactSourceArchive() {
 
 function unzip(args, encoding = 'buffer') {
   const executable = resolveAttestedSystemUnzip();
-  const portableArgs = process.platform === 'win32'
-    ? (args[0] === '-Z1'
-      ? ['-tf', args[1]]
-      : args[0] === '-p'
-        ? ['-xOf', args[1], args[2]]
-        : args)
-    : args;
-  const result = spawnSync(executable, portableArgs, {
+  // Both pinned Info-ZIP builds accept -Z1 and -p directly. Combining these
+  // options changes their meaning on Windows (-tf and -xOf are invalid).
+  const result = spawnSync(executable, args, {
     cwd: REPOSITORY_ROOT,
     encoding,
     env: Object.freeze({ LANG: 'C', LC_ALL: 'C', PATH: '/usr/bin:/bin' }),

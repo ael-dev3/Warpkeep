@@ -24,6 +24,32 @@ DEV fixtures, production full-world/keep measurements, actual owner gameplay,
 and a physical phone are four distinct evidence lanes. A passing unit suite or
 synthetic screenshot does not prove the other lanes.
 
+## Current scoped review — 30 September 2026
+
+All 36 latest guarded PNGs in `artifacts/keep04-qa/windows-run-gwMDNz` have been
+inspected at stable clean `9d357e6e`. The actual signed Chrome version is
+154.0.8037.58 with hardware RTX 3080 Ti/ANGLE/D3D11, rather than the older reference
+profile below. No concrete regression was found in the visible pixels across
+desktop, mobile, reduced and landscape. Capture is DEV, one latest frame per
+case, CPU4 for emulated profiles and no network shaping. Constructing retains
+one loader. Crops do not prove all lower content or settlement; named context
+and motion cases do not perform transitions or record cadence.
+
+Separate actual DEV checks at `086fa02e` complete three warm-ups plus 20
+mount/dispose cycles for each of balanced, reduced, reduced motion and fallback,
+and three performed context-loss/restore cycles. WebGL profiles return to the
+same 30-geometry/two-texture/11-listener baseline with one canvas; fallback has
+no scene canvas/listeners, and disposal leaves no scene RAFs/loaders/listeners.
+This is keep-only lifecycle evidence; the production world/realm/heap, owner
+and phone gates remain open. Further narrow-screen scroll review found missing
+invalid-site guidance beside disabled confirmation; signed `f1a967c8` repairs
+it with 80 affected UI tests and scoped actual 320px browser review. Navigation
+repair `328404b9` retains usable site/review controls during refresh/pending
+without enabling commands, with 136 affected tests. The
+[current local evidence](../evidence/0.4.0/local-operations.md#tervain-comparison-and-local-renderer-verification--30-september-2026)
+preserves each source and result scope. Historical ledger entries below retain
+their original meaning.
+
 ## Reproduce synthetic presentation
 
 Use the existing task-owned Vite origin `http://127.0.0.1:4176`; do not start a
@@ -106,8 +132,15 @@ Windows Chrome 151 in a disposable credential-free profile (version/targets/clos
 only, no navigation or measurements). The separate Windows-local entry point is:
 
 ```powershell
-.git/ci-node-22.22.3/node.exe scripts/qa-observer/keep04-windows-capture.mjs --base-url=http://127.0.0.1:4176
+$wkNode = 'C:/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.git/ci-node-22.22.3/node.exe'
+& $wkNode --version
+& $wkNode scripts/qa-observer/keep04-windows-capture.mjs --base-url=http://127.0.0.1:4176
 ```
+
+This local example uses the existing executable verified as Node 22.22.3.
+Revalidate its path and version before running it; follow
+[runtime discovery and checkpoint checks](0.4.0-development-sync.md#review-verify-and-form-the-checkpoint)
+when the checkout or tool location changes. Reuse the existing runtime.
 
 Run only after source review with the existing controller-owned Vite server and
 stable source. It verifies the fixed installed Google-signed Chrome executable
@@ -115,7 +148,7 @@ before/after launch and after capture, uses the existing inherited-pipe transpor
 and enables exact-loopback request guards before navigation. The exact QA Document
 response is paused before delivery and receives an additional enforced HTTP CSP:
 `sandbox allow-scripts allow-same-origin; worker-src 'none'; frame-src 'none'; child-src 'none'; object-src 'none'; form-action 'none'`.
-This synthetic-only policy natively denies auxiliary contexts and worker creation;
+The synthetic-only policy natively denies auxiliary contexts and worker creation;
 target discovery/closure is defense-in-depth, not prevention. Original bounded
 response headers/status are preserved. Readiness and screenshots require confirmed
 policy delivery for the exact requested document, reset on every navigation.
@@ -134,10 +167,14 @@ Each successful run writes 36 PNGs, `synthetic-render-observations.json`, and
 source commit/tree and substantive dirt (read-only CRLF input normalization, with
 no whitespace-equivalence diff flags, and untracked artifact/cache work areas
 excluded), diagnostic classes/counts, and verified
-owned-browser cleanup. HMR, navigation, output and cleanup failures cannot become
-accepted evidence. Warnings are counted without retaining console arguments or
-request bodies; absent metrics stay absent. Failed runs retain bounded failure
-stage/provenance when output remains writable. Cleanup uses fresh-profile and
+owned-browser cleanup. Security messages are reduced to a closed category such as
+`content-security-policy`, `mixed-content`, `certificate-policy`, or
+`sandbox-script-origin-tokens`; the raw text is never retained. These labels
+identify message content only and do not waive warning review. HMR, navigation,
+output and cleanup failures cannot become accepted evidence. Warnings are counted
+without retaining console arguments or request bodies; absent metrics stay
+absent. Failed runs retain bounded failure stage/provenance when output remains
+writable. Cleanup uses fresh-profile and
 process-creation identities, never global Chrome termination. Uncertain cleanup
 retains the profile and fails the run.
 
@@ -150,8 +187,9 @@ configuration, index or worktree normalization occurs. Inventory is bounded to
 inventory fails closed, never claims cleanliness. The controlled native-browser
 popup/worker negative check and actual capture remain controller review gates.
 
-The launcher is narrowly source-tested; its complete Windows navigation/capture
-run remains controller-owned and unexecuted during implementation. Successful
+At the historical implementation checkpoint, the launcher was narrowly
+source-tested and its complete Windows run was unexecuted. See the dated review
+above for current controller-owned capture and inspection. Successful
 capture still means images uninspected and performance not measured. Windows
 transport is available; macOS is not a final dependency. Full Task 8/R11 production
 measurements and the separate owner/phone/G001 lanes remain open.

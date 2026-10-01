@@ -25,7 +25,15 @@ function identity(state) {
 }
 
 function sameIdentity(left, right) {
-  return IDENTITY_FIELDS.every(key => String(left[key]) === String(right[key]));
+  return IDENTITY_FIELDS.every(key => {
+    if (key === 'dev') {
+      // Node 22.13 on Windows can report lstat().dev as 0 (unknown) while
+      // fstat() reports the volume ID; inode and the remaining fields stay exact.
+      return String(left[key]) === '0' || String(right[key]) === '0'
+        || String(left[key]) === String(right[key]);
+    }
+    return String(left[key]) === String(right[key]);
+  });
 }
 
 function exactExpectedIdentity(value) {

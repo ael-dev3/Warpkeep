@@ -106,14 +106,23 @@
 .keep04 .keep04-scene-toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 8px; }
 .keep04 .keep04-scene-canvas { position: relative; width: 100%; height: clamp(220px, 43vw, 620px); overflow: hidden; border-radius: 9px; background: linear-gradient(145deg, #91a897, #526e68 58%, #344e49); box-shadow: inset 0 0 0 1px rgba(225, 239, 228, .24), 0 10px 26px rgba(4, 14, 12, .2); }
 .keep04 .keep04-scene[data-mode="fallback"] .keep04-scene-canvas { height: 0; }
+.keep04 .keep04-touch-hint { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .keep04 .keep04-pointer-hint { display: none; }
+  .keep04 .keep04-touch-hint { display: inline; }
+}
 .keep04 .keep04-primary-action button { width: 100%; margin-top: 8px; }
 .keep04 .keep04-confirm:not(:disabled) { background: #e1d4b5; color: #18251e; border-color: #e1d4b5; font-weight: 700; }
 .keep04 .keep04-dock { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding: 12px 0 max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--keep04-line); }
 .keep04 .keep04-primary-nav { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .keep04 .keep04-state { padding: 24px; border: 1px solid var(--keep04-line); }
 .keep04 .keep04-state button { margin: 8px; }
-.keep04 .keep04-construction { padding-top: 16px; color: #ffe1ad; }
-.keep04 .keep04-construction-progress { display: grid; gap: 5px; margin-top: 10px; }
+.keep04 .keep04-construction { margin: 8px 0 12px; padding: 10px 12px; border: 1px solid #b79b68; border-radius: 8px; background: #263b31; color: #ffe1ad; }
+.keep04 .keep04-construction p { margin: 0; }
+.keep04 .keep04-construction-progress { display: grid; gap: 5px; margin-top: 6px; }
+.keep04 .keep04-construction-group { margin: 8px 0 12px; padding: 0 8px; border: 1px solid #b79b68; border-radius: 8px; background: #263b31; }
+.keep04 .keep04-construction-group > summary { min-height: 44px; padding: 10px 4px; cursor: pointer; }
+.keep04 .keep04-construction-group .keep04-construction { margin: 0 0 8px; }
 .keep04 .keep04-construction-progress-track { height: 10px; overflow: hidden; border: 1px solid #9dab96; border-radius: 999px; background: #132723; }
 .keep04 .keep04-construction-progress-track > span { display: block; height: 100%; min-width: 2px; border-radius: inherit; background: linear-gradient(90deg, #dfc6ff, #ffe1ad); transition: width 180ms ease-out; }
 .keep04 .keep04-construction-progress-label { color: #f4efe3; font-size: 13px; }
@@ -162,6 +171,39 @@
 @media (min-width: 600px) and (max-height: 500px) {
   .keep04 .keep04-decision-header { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, .7fr); gap: 8px; align-items: center; }
   .keep04 .keep04-resources { margin-bottom: 0; }
+}
+@media (min-width: 761px) and (max-width: 960px) and (max-height: 500px) and (orientation: landscape) {
+  .keep04 { padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+  .keep04 .keep04-header { gap: 10px; margin-bottom: 4px; }
+  .keep04 .keep04-header h1 { margin: 0; font-size: 20px; line-height: 1.15; }
+  .keep04 .keep04-header .keep04-eyebrow { font-size: 10px; letter-spacing: .14em; }
+  .keep04 .keep04-reentry { max-width: none; margin-bottom: 6px; font-size: 12px; line-height: 1.25; }
+  .keep04 .keep04-ready { display: grid; grid-template-columns: minmax(272px, .8fr) minmax(0, 1.35fr); grid-template-areas: "decision workspace" "journey workspace" "construction workspace" "problem workspace" "rail rail" "dock dock"; align-items: start; gap: 8px 12px; }
+  .keep04 .keep04-ready[hidden] { display: none; }
+  .keep04 .keep04-ready > .keep04-decision-header { grid-area: decision; display: flex; flex-direction: column; align-items: stretch; gap: 6px; position: static; padding: 0; margin: 0; background: transparent; }
+  .keep04 .keep04-ready .keep04-resources { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 6px; margin: 0; line-height: 1.25; }
+  .keep04 .keep04-ready .keep04-resources > div { min-width: 0; padding: 5px 7px; }
+  .keep04 .keep04-ready .keep04-resources > div span { letter-spacing: .04em; }
+  .keep04 .keep04-ready .keep04-resources strong { font-size: 17px; }
+  .keep04 .keep04-ready .keep04-resources > p { font-size: 12px; }
+  .keep04 .keep04-ready .keep04-primary-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0; }
+  .keep04 .keep04-ready .keep04-primary-nav button { min-height: 44px; padding: 5px 7px; font-size: 12px; line-height: 1.2; }
+  .keep04 .keep04-ready > .keep04-first-journey { grid-area: journey; margin: 0; padding: 9px 10px; }
+  .keep04 .keep04-ready .keep04-first-journey h2 { font-size: 15px; }
+  .keep04 .keep04-ready .keep04-first-journey p:not(.keep04-eyebrow) { font-size: 12px; line-height: 1.35; }
+  .keep04 .keep04-ready .keep04-first-journey button { min-height: 44px; font-size: 12px; line-height: 1.2; }
+  .keep04 .keep04-ready > .keep04-construction,
+  .keep04 .keep04-ready > .keep04-construction-group { grid-area: construction; margin: 0; }
+  .keep04 .keep04-ready > .keep04-problem { grid-area: problem; margin: 0; font-size: 12px; }
+  .keep04 .keep04-ready > .keep04-workspace { grid-area: workspace; min-width: 0; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .keep04 .keep04-ready > .keep04-workspace[data-panel-open="true"] { grid-template-columns: minmax(0, 1fr); }
+  .keep04 .keep04-ready .keep04-scene-region { min-width: 0; padding: 8px; }
+  .keep04 .keep04-ready .keep04-scene-toolbar { display: grid; grid-template-columns: 44px 44px minmax(88px, .8fr) minmax(0, 1.4fr); gap: 5px; padding-bottom: 5px; }
+  .keep04 .keep04-ready .keep04-scene-toolbar button { min-height: 44px; padding: 4px 6px; font-size: 12px; line-height: 1.15; }
+  .keep04 .keep04-ready .keep04-scene-canvas { height: clamp(144px, 42dvh, 180px); }
+  .keep04 .keep04-ready .keep04-panel { width: 100%; max-height: min(68dvh, 300px); }
+  .keep04 .keep04-ready > .keep04-loop-rail { grid-area: rail; margin: 0; }
+  .keep04 .keep04-ready > .keep04-dock { grid-area: dock; margin-top: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .keep04 *, .keep04 *::before, .keep04 *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

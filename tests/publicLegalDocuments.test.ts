@@ -27,8 +27,7 @@ const exactPublicLegalHrefAllowlist = new Set([
   '../social-contract/index.html',
   '../privacy/index.html',
   'https://github.com/ael-dev3',
-  'https://github.com/ael-dev3/Warpkeep',
-  'https://github.com/ael-dev3/Warpkeep/security/policy',
+  'https://farcaster.xyz/~/channel/warpkeep',
 ]);
 
 function parse(html: string) {
@@ -62,6 +61,21 @@ const publicDocuments = [
 ] as const;
 
 describe('public Alpha legal documents', () => {
+  it.each(publicDocuments)('keeps $name contact links reachable without private repository access', publicDocument => {
+    const document = parse(publicDocument.html);
+    const publicContactDestinations = new Set([
+      'https://farcaster.xyz/~/channel/warpkeep',
+      'https://github.com/ael-dev3',
+    ]);
+    const contactLinks = [...document.querySelectorAll<HTMLAnchorElement>('main a[href]')]
+      .filter(link => /^https:\/\//u.test(link.getAttribute('href') ?? ''));
+    expect(contactLinks.length).toBeGreaterThan(0);
+    for (const link of contactLinks) {
+      expect(publicContactDestinations.has(link.getAttribute('href') ?? ''),
+        `${publicDocument.name}: ${link.getAttribute('href')}`).toBe(true);
+    }
+  });
+
   it('keeps stable deployment-base-aware URLs and canonical public routes', () => {
     expect(WARPKEEP_ALPHA_TERMS_URL).toBe('/terms/index.html');
     expect(WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_URL).toBe('/social-contract/index.html');
@@ -152,9 +166,11 @@ describe('public Alpha legal documents', () => {
     expect(termsText).toContain('does not ask the browser to connect a wallet');
     expect(termsText).toContain('not sponsored, operated, or endorsed by Farcaster');
     expect(termsText).toContain('Formal legal review remains necessary');
-    expect(termsText).toContain('core strategy gameplay loop is not implemented yet');
-    expect(termsText).toContain('persistent visual preview of a living world');
-    expect(termsText).toContain('Warpkeep is open source');
+    expect(termsText).toContain('Alpha gameplay and visual systems remain unfinished and under active construction');
+    expect(termsText).toContain('development source is currently private');
+    expect(termsText).toContain('Contact and project-status descriptions corrected 30 September 2026; agreement revision unchanged');
+    expect(termsText).not.toContain('core strategy gameplay loop is not implemented yet');
+    expect(termsText).not.toContain('Warpkeep is open source');
     expect(termsText).toContain('does not guarantee that a suggestion');
     expect(termsText).toContain('Access is allowlist gated and conditional');
     expect(termsText).not.toContain('Realm Chat');
@@ -170,11 +186,14 @@ describe('public Alpha legal documents', () => {
       'Honest counsel strengthens',
       'Criticizing Warpkeep',
       'Threats',
-      'core strategy loop',
+      'Alpha gameplay and visual systems remain unfinished',
+      'no alliance system, combat system, or in-game chat',
+      'only when its rules and server authority are implemented and published',
+      'Contact and project-status descriptions corrected 30 September 2026; agreement revision unchanged',
       'Hegemony is game fiction',
       'warn, limit, suspend, or revoke',
     ]) expect(socialContractText).toContain(expected);
-    for (const absent of ['Ouster', 'IP-level bans', 'Tribute is final']) {
+    for (const absent of ['Ouster', 'IP-level bans', 'Tribute is final', 'open-source contributions']) {
       expect(socialContractText).not.toContain(absent);
     }
   });
@@ -184,6 +203,7 @@ describe('public Alpha legal documents', () => {
       'single-developer project',
       'private, versioned acceptance evidence',
       'Privacy contact request',
+      'Contact descriptions corrected 30 September 2026; notice revision unchanged',
       'accepts, stores, and issues only the verified FID as session identity',
       'server-verified Farcaster FID and the SpacetimeDB server time',
       'does not grant access or create a castle',

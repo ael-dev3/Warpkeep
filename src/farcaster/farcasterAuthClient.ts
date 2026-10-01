@@ -4,7 +4,10 @@ import {
   getBrowserFarcasterAuthContext,
   type FarcasterSecureRandomSource
 } from './farcasterAuthContext';
-import { FarcasterOidcBridgeClientError } from './farcasterOidcBridgeClient';
+import {
+  FarcasterOidcBridgeClientError,
+  farcasterOidcBridgeFailureKind
+} from './farcasterOidcBridgeClient';
 import { safePublicHttpsImageUrl } from '../security/publicImageUrl';
 import { normalizePublicProfileText } from '../security/publicProfileText';
 import {
@@ -156,6 +159,73 @@ export function toFarcasterAuthError(error: unknown): FarcasterAuthError {
     return Object.freeze({ code: error.code, message: error.message });
   }
   if (error instanceof FarcasterOidcBridgeClientError) {
+    const kind = farcasterOidcBridgeFailureKind(error);
+    if (kind === 'configuration') {
+      return Object.freeze({
+        code: 'bridge',
+        stage: 'deployment_contract_mismatch',
+        message: 'Secure sign-in is not configured for this Warpkeep release.'
+      });
+    }
+    if (kind === 'exchange-request-invalid') {
+      return Object.freeze({
+        code: 'bridge',
+        message: 'Warpkeep could not prepare the completed Farcaster request.'
+      });
+    }
+    if (kind === 'exchange-request-expired') {
+      return Object.freeze({
+        code: 'bridge',
+        message: 'The Farcaster request expired before secure verification.'
+      });
+    }
+    if (kind === 'network-or-cors') {
+      return Object.freeze({
+        code: 'network',
+        message: 'Warpkeep could not reach secure verification.'
+      });
+    }
+    if (kind === 'timeout') {
+      return Object.freeze({
+        code: 'network',
+        message: 'Secure verification did not finish in time.'
+      });
+    }
+    if (kind === 'invalid-credential') {
+      return Object.freeze({
+        code: 'verification',
+        stage: 'bridge_http_401',
+        message: 'The completed Farcaster sign-in was not accepted. Please try again.'
+      });
+    }
+    if (kind === 'forbidden') {
+      return Object.freeze({
+        code: 'bridge',
+        stage: 'bridge_http_403',
+        message: 'This Warpkeep release could not complete sign-in.'
+      });
+    }
+    if (kind === 'rate-limited') {
+      return Object.freeze({
+        code: 'bridge',
+        stage: 'bridge_http_429',
+        message: 'Too many sign-in attempts. Please wait and try again.'
+      });
+    }
+    if (kind === 'service-unavailable') {
+      return Object.freeze({
+        code: 'bridge',
+        stage: 'bridge_http_503',
+        message: 'Secure verification is temporarily unavailable. Please try again.'
+      });
+    }
+    if (kind === 'invalid-response') {
+      return Object.freeze({
+        code: 'invalid-response',
+        stage: 'bridge_response_invalid',
+        message: 'Warpkeep received an invalid secure verification response.'
+      });
+    }
     return Object.freeze({
       code: 'bridge',
       message: 'The Hegemony verification service could not confirm this sign-in.'

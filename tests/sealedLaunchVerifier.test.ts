@@ -41,6 +41,7 @@ import {
   classifySealedLaunchPagesSources,
   sealedLaunchReceiptCommitment,
   verifyGenesis001AdmittedPlayerCensusBoundary,
+  verifyGenesis001PreparationProjection,
   shellSyntaxCheckCommand,
   verifySealedLaunchSources,
 } from '../scripts/verify-0.4.0-sealed-launch.mjs';
@@ -2367,7 +2368,7 @@ export function createPtrAtlasImportTransport(`,
       ptrPresentationEnabled: true,
     });
     expect(classifySealedLaunchPagesSources(activationSources())).toBe(
-      'sealed-g002',
+      'public-mirror-candidate',
     );
   });
 
@@ -2792,12 +2793,15 @@ export function createPtrAtlasImportTransport(`,
 
   it('accepts the reviewed operator-helper refreeze while retaining the historical G001 projection', () => {
     const operatorRefreezeCommit =
-      'bca5596defd9816930dd9af2431bfa6aec0f1735';
+      '580cd588776315de334cd81adddded80f49d06c7';
     const operatorRefreezePaths = [
       'scripts/greater-realm-production-provenance.ts',
       'scripts/greater-realm-production-transport.ts',
       'scripts/hermes-admin.ts',
       'scripts/spacetime-cli-attestation.mjs',
+      'scripts/production-admin-token-budget.mjs',
+      'docs/operations/greater-realm-production-launch-envelope.sh.txt',
+      'scripts/publish-spacetime-dev.mjs',
     ];
     const sourceProjection = vi.fn((commit: string, paths: readonly string[]) => {
       if (paths.length === GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS.length) {
@@ -2843,6 +2847,58 @@ export function createPtrAtlasImportTransport(`,
       sourceProjection: driftedProjection,
     })).toThrow('SEALED_LAUNCH_ACTIVATION_HISTORY_INVALID');
   });
+
+  it('accepts the signed kernel-birth operator refreeze and rejects byte or mode drift in every reviewed helper', () => {
+    const operatorRefreezeCommit = '580cd588776315de334cd81adddded80f49d06c7';
+    const operatorRefreezePaths = [
+      'scripts/greater-realm-production-provenance.ts',
+      'scripts/greater-realm-production-transport.ts',
+      'scripts/hermes-admin.ts',
+      'scripts/spacetime-cli-attestation.mjs',
+      'scripts/production-admin-token-budget.mjs',
+      'docs/operations/greater-realm-production-launch-envelope.sh.txt',
+      'scripts/publish-spacetime-dev.mjs',
+    ];
+    const fixtureParent = mkdtempSync(resolve(tmpdir(), 'warpkeep-g001-operator-refreeze-'));
+    const fixtureRoot = resolve(fixtureParent, 'repository');
+    const inputs = {
+      repositoryRoot: fixtureRoot,
+      candidatePreparationCommit: operatorRefreezeCommit,
+      sources: checkedInSources(),
+    };
+    try {
+      fixtureGit(fixtureParent, [
+        'clone', '--quiet', '--shared', '--no-checkout', repositoryRoot, fixtureRoot,
+      ]);
+      fixtureGit(fixtureRoot, ['checkout', '--quiet', '--detach', operatorRefreezeCommit]);
+      expect(verifyGenesis001PreparationProjection(inputs)).toMatchObject({
+        candidatePreparationCommit: operatorRefreezeCommit,
+        genesis001FreezePublishSourceCommit: 'd945256b217fa13ade944b9ed9880e8463b46123',
+      });
+      for (const path of operatorRefreezePaths) {
+        for (const mutation of ['byte', 'mode']) {
+          fixtureGit(fixtureRoot, ['checkout', '--quiet', '--detach', operatorRefreezeCommit]);
+          if (mutation === 'byte') {
+            const absolute = resolve(fixtureRoot, path);
+            writeFileSync(absolute, Buffer.concat([readFileSync(absolute), Buffer.from(' ')]));
+            fixtureGit(fixtureRoot, ['add', '--', path]);
+          } else {
+            // Keep POSIX worktree/index modes aligned so the next checkout is
+            // clean; the committed executable-bit drift remains the rejection.
+            if (process.platform !== 'win32') chmodSync(resolve(fixtureRoot, path), 0o755);
+            fixtureGit(fixtureRoot, ['update-index', '--chmod=+x', '--', path]);
+          }
+          fixtureGit(fixtureRoot, ['commit', '--quiet', '-m', `unreviewed ${mutation} drift in ${path}`]);
+          expect(() => verifyGenesis001PreparationProjection({
+            ...inputs,
+            candidatePreparationCommit: fixtureGit(fixtureRoot, ['rev-parse', 'HEAD']),
+          }), `${mutation}: ${path}`).toThrow('SEALED_LAUNCH_GENESIS_001_HISTORY_INVALID');
+        }
+      }
+    } finally {
+      rmSync(fixtureParent, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  }, 60_000);
 
   it('rejects protected worktree drift hidden by tracked index flags', () => {
     const fixtureParent = mkdtempSync(resolve(tmpdir(), 'warpkeep-checkout-flags-'));
@@ -3299,6 +3355,20 @@ export function createPtrAtlasImportTransport(`,
         ),
     })).toThrow();
 
+    for (const [before, after] of [
+      ['status.realmProfiles !== status.allowedFids',
+        'status.realmProfiles === status.allowedFids'],
+      ['status.founderStateGaps !== 0n', 'status.founderStateGaps === 0n'],
+      ['status.orphanedRealmProfiles !== 0n', 'status.orphanedRealmProfiles === 0n'],
+    ] as const) {
+      expect(valid.genesis001LinuxCensusOperatorSource).toContain(before);
+      expect(() => verifyGenesis001AdmittedPlayerCensusBoundary({
+        ...valid,
+        genesis001LinuxCensusOperatorSource:
+          valid.genesis001LinuxCensusOperatorSource.replace(before, after),
+      }), before).toThrow();
+    }
+
     const sourceMutations = [
       [
         'warpkeep-genesis-001-admitted-player-census-private-proof-v1',
@@ -3324,7 +3394,7 @@ export function createPtrAtlasImportTransport(`,
         'SELECT fid, enabled, auth_epoch FROM allowed_fid',
         'SELECT fid, auth_epoch FROM allowed_fid',
       ],
-      ['SELECT fid FROM player_v2', 'SELECT fid FROM allowed_fid'],
+      ['SELECT fid FROM realm_profile_v1', 'SELECT fid FROM allowed_fid'],
       [
         'admin_get_access_request_reset_status_v1',
         'admin_get_fid_auth_epoch',
@@ -3554,8 +3624,10 @@ export function createPtrAtlasImportTransport(`,
       ['farcasterContractSource', 'Command four Workers, gather resources and return to a permanent keep in Genesis 001. Invite-only Alpha.', 'Explore a six-region world foundation.'],
       ['latestPatchNotesSource', "title: 'THE SECOND GENESIS WAITS'", "title: 'THE SECOND GENESIS OPENS'"],
       ['pagesWorkflowSource', "VITE_WARPKEEP_PTR_ENABLED: 'true'", "VITE_WARPKEEP_PTR_ENABLED: 'false'"],
+      ['pagesWorkflowSource', '[[ "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" != \'true\' ]]', '[[ "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" != \'false\' ]]'],
       ['pagesWorkflowSource', 'VITE_PTR_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}', "VITE_PTR_SPACETIMEDB_DATABASE: ''"],
       ['pagesWorkflowSource', 'node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build', 'node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation'],
+      ['pagesWorkflowSource', 'npm run validate:pages-config', 'npm run validate:pages-confog'],
     ] as const) {
       const candidate = { ...sources, [field]: sources[field].replace(before, after) };
       expect(

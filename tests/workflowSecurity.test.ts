@@ -66,6 +66,7 @@ interface WorkflowStep {
 
 interface WorkflowJob {
   'timeout-minutes'?: number;
+  env?: Record<string, unknown>;
   strategy?: { 'fail-fast'?: boolean; matrix?: Record<string, unknown> };
   steps?: WorkflowStep[];
 }
@@ -100,6 +101,41 @@ function allWorkflows() {
 }
 
 describe('GitHub workflow security policy', () => {
+  it('keeps the patched pnpm authority across direct calls and nested retained-package scripts', () => {
+    for (const name of ['verify.yml', 'deploy-pages.yml']) {
+      const document = parse(workflow(name)) as {
+        env: Record<string, unknown>;
+        jobs: Record<string, WorkflowJob>;
+      };
+      expect(document.env.pnpm_config_pm_on_fail, name).toBe('ignore');
+      for (const [jobName, job] of Object.entries(document.jobs)) {
+        const steps = job.steps ?? [];
+        const setups = steps.filter(step => step.uses?.startsWith('pnpm/action-setup@'));
+        const calls = steps.flatMap(step => [...(step.run ?? '').matchAll(/\bpnpm\s+(?!--version\b)(\S+)/gu)]);
+        if (calls.length === 0 && setups.length === 0) continue;
+        expect(setups, `${name}:${jobName}`).toHaveLength(1);
+        expect(setups[0].with?.version, `${name}:${jobName}`).toBe('11.11.0');
+        if (Object.hasOwn(job.env ?? {}, 'pnpm_config_pm_on_fail')) {
+          expect(job.env?.pnpm_config_pm_on_fail, `${name}:${jobName}`).toBe('ignore');
+        }
+        for (const step of steps) {
+          const env = step.env as Record<string, unknown> | undefined;
+          if (Object.hasOwn(env ?? {}, 'pnpm_config_pm_on_fail')) {
+            expect(env?.pnpm_config_pm_on_fail, `${name}:${jobName}:${step.name}`).toBe('ignore');
+          }
+        }
+        for (const call of calls) {
+          expect(call[1], `${name}:${jobName}`).toBe('--pm-on-fail=ignore');
+        }
+      }
+    }
+    for (const path of ['spacetimedb', 'spacetimedb/genesis002', 'spacetimedb/ptr',
+      'services/auth-bridge', 'services/release-recovery']) {
+      const manifest = JSON.parse(readFileSync(resolve(repositoryRoot, path, 'package.json'), 'utf8'));
+      expect(manifest.packageManager, path).toBe('pnpm@11.7.0');
+    }
+  });
+
   it('supersedes only the same PR verification, leaving main and deployment locks separate', () => {
     const verify = parse(workflow('verify.yml'));
     expect(verify.concurrency).toEqual({
@@ -126,19 +162,23 @@ describe('GitHub workflow security policy', () => {
     }
   });
 
-  it('keeps Pages deployment authority out of the dependency-running build job', () => {
+  it('keeps public candidate preparation read-only and separate from dormant private deployment', () => {
     const source = workflow('deploy-pages.yml');
     const build = source.slice(source.indexOf('  build:'), source.indexOf('  deploy:'));
     const deploy = source.slice(source.indexOf('  deploy:'));
-    expect(build).toMatch(/^\s+pages:\s*read\s*$/m);
+    expect(build).toMatch(/^\s+contents:\s*read\s*$/m);
+    expect(build).not.toMatch(/^\s+pages:\s*(?:read|write)\s*$/m);
     expect(build).not.toMatch(/^\s+pages:\s*write\s*$/m);
     expect(build).not.toMatch(/^\s+id-token:\s*write\s*$/m);
+    expect(build).not.toMatch(/actions\/(?:configure|upload|deploy)-pages@/u);
+    expect(build).toContain("deployment-lane == 'public-mirror-candidate'");
+    expect(deploy).not.toContain("deployment-lane == 'public-mirror-candidate'");
     expect(deploy).toMatch(/^\s+pages:\s*write\s*$/m);
     expect(deploy).toMatch(/^\s+id-token:\s*write\s*$/m);
     expect(source).not.toContain('enablement: true');
   });
 
-  it('deploys Pages only after successful Verify completion for a main push', () => {
+  it('prepares the public candidate only after successful Verify for exact current main', () => {
     const source = workflow('deploy-pages.yml');
     const trigger = source.slice(source.indexOf('on:'), source.indexOf('permissions:'));
     const build = source.slice(source.indexOf('  build:'), source.indexOf('  deploy:'));
@@ -155,6 +195,7 @@ describe('GitHub workflow security policy', () => {
     expect(build).toContain("github.event.workflow_run.conclusion == 'success'");
     expect(build).toContain("github.event.workflow_run.event == 'push'");
     expect(build).toContain("github.event.workflow_run.head_branch == 'main'");
+    expect(build).toContain("deployment-lane == 'public-mirror-candidate'");
     expect(build).toContain(
       'WARPKEEP_VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}',
     );
@@ -183,12 +224,18 @@ describe('GitHub workflow security policy', () => {
       "VITE_WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED: 'false'",
     );
     expect(build).not.toContain('vars.WARPKEEP_ADMISSION_NOTIFICATIONS_ENABLED');
-    expect(build).toContain('true | false) ;;');
+    expect(build).toContain('[[ "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" != \'true\' ]]');
     expect(build).toContain(
-      'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.',
+      'WARPKEEP_SHARED_ALPHA_ENABLED must be true for owner PTR.',
     );
     expect(build).toContain('npm run verify:sealed-launch:activation');
-    expect(build).not.toContain('npm run validate:pages-config');
+    expect(build).toContain('npm run validate:pages-config');
+    expect(build.indexOf('npm ci')).toBeLessThan(
+      build.indexOf('npm run validate:pages-config'),
+    );
+    expect(build.indexOf('npm run validate:pages-config')).toBeLessThan(
+      build.indexOf('npm run build'),
+    );
     expect(build).not.toContain('npm run verify:greater-realm-release-gates');
     const ptrPagesBuildGate =
       'node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build';
@@ -210,6 +257,12 @@ describe('GitHub workflow security policy', () => {
     });
     expect(build.indexOf('npm run verify:sealed-launch:activation')).toBeLessThan(
       build.indexOf('npm run build'),
+    );
+    expect(build.indexOf('npm run build')).toBeLessThan(
+      build.indexOf('node scripts/verify-public-pages-payload.mjs --write'),
+    );
+    expect(build.indexOf('node scripts/verify-public-pages-payload.mjs --write')).toBeLessThan(
+      build.indexOf('node scripts/verify-public-pages-payload.mjs --check'),
     );
     expect(source).toContain('group: warpkeep-production-state');
     expect(source).not.toMatch(/^\s+group:\s*pages\s*$/m);
@@ -382,8 +435,12 @@ describe('GitHub workflow security policy', () => {
     );
   });
 
-  it('uses the reviewed Pages uploader with a SHA-pinned nested dependency', () => {
+  it('keeps public candidate bytes local while retaining the dormant recovery uploader', () => {
     const source = workflow('deploy-pages.yml');
+    const build = workflowJobSource('deploy-pages.yml', 'build');
+    expect(build).not.toMatch(/actions\/(?:configure|upload|deploy)-pages@/u);
+    expect(build).toContain('node scripts/verify-public-pages-payload.mjs --write');
+    expect(build).toContain('node scripts/verify-public-pages-payload.mjs --check');
     expect(source).toContain(
       'actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9',
     );
@@ -391,8 +448,8 @@ describe('GitHub workflow security policy', () => {
       'actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa',
     );
     expect(source).not.toContain('actions/upload-artifact@');
-    expect(source).toContain('path: ./dist');
-    expect(source).toContain('include-hidden-files: true');
+    expect(workflowJobSource('deploy-pages.yml', 'deploy-recovery')).toContain('path: ./dist');
+    expect(workflowJobSource('deploy-pages.yml', 'deploy-recovery')).toContain('include-hidden-files: true');
     expect(source).toContain('npm run verify:miniapp:release');
   });
 
@@ -401,7 +458,7 @@ describe('GitHub workflow security policy', () => {
     for (const reference of [
       'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0',
       'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020',
-      'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271',
+      'pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86',
       'actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d',
       'actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9',
       'actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128',
@@ -558,8 +615,8 @@ describe('GitHub workflow security policy', () => {
     const checkoutCount = (source.match(/actions\/checkout@/g) ?? []).length;
     const disabledCredentialCount = (source.match(/persist-credentials:\s*false/g) ?? []).length;
     expect(disabledCredentialCount).toBe(checkoutCount);
-    expect(source).toContain('pnpm --dir services/auth-bridge audit --audit-level low');
-    expect(source).toContain('pnpm --dir spacetimedb audit --audit-level low');
+    expect(source).toContain('pnpm --pm-on-fail=ignore --dir services/auth-bridge audit --audit-level low');
+    expect(source).toContain('pnpm --pm-on-fail=ignore --dir spacetimedb audit --audit-level low');
     expect(source).toContain('npm audit signatures');
   });
 

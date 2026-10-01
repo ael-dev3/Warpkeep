@@ -3,7 +3,6 @@ import {
   chmodSync,
   linkSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
   realpathSync,
@@ -12,11 +11,12 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { createOwnedTemporaryFixtures } from './helpers/ownedTemporaryFixture';
 
 import {
   ProductionPlayerCanaryCoreError,
@@ -56,6 +56,9 @@ import {
   sameProductionPlayerCanaryActivationAuthority,
 } from '../scripts/production-player-canary-receipt.mjs';
 import { workerResourcePolicy } from '../spacetimedb/src/castleWorkerPolicy';
+
+const temporaryFixtures = createOwnedTemporaryFixtures();
+afterEach(() => temporaryFixtures.cleanup());
 
 const COMMIT = 'a'.repeat(40);
 const TREE = 'b'.repeat(40);
@@ -340,16 +343,13 @@ function receipt(authority = evidenceAuthority()) {
 }
 
 function privateDirectory() {
-  const directory = mkdtempSync(join(tmpdir(), 'warpkeep-player-canary-'));
+  const directory = temporaryFixtures.create('warpkeep-player-canary-');
   chmodSync(directory, 0o700);
   return realpathSync(directory);
 }
 
 function protectedSourceRepository() {
-  const repositoryRoot = realpathSync(mkdtempSync(join(
-    tmpdir(),
-    'warpkeep-canary-source-',
-  )));
+  const repositoryRoot = temporaryFixtures.create('warpkeep-canary-source-');
   const git = (arguments_: readonly string[]) => {
     const result = spawnSync('/usr/bin/git', arguments_, {
       cwd: repositoryRoot,

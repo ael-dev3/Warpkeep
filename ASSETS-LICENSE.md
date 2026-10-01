@@ -42,6 +42,33 @@ The original 1280×720 runtime film and poster were superseded on 2026-07-11. Th
 
 The unresolved-rights source film/audio binaries are not present in the v0.3.0 HEAD and were not uploaded to a public asset release. Exact technical records remain in `docs/reference/`; required runtime derivatives remain in `public/` under the same unresolved source terms.
 
+### 0.4 three-dimensional menu and score
+
+The menu uses the [Warplet’s Watch v2 release](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/warplets-watch-castle-2026-09-14), authored for Ael's Warpkeep under his direction. Its exact combined source GLB (5,112,500 bytes, SHA-256 `2ab3f39cae142f0e168242095ce17b9608998d26384d91609c8084956ddae6a6`) contains a castle and a rooftop Warplet with a 12-joint skin and `Warplet_Idle` / `Warplet_Torch_Salute` clips. The runtime separates the castle from the guardian so a verified Farcaster FID can select a different guardian later. [`scripts/assets/derive-warplet-castle-base.py`](scripts/assets/derive-warplet-castle-base.py) extracts the original nine castle meshes and their referenced data without rebaking geometry or materials.
+
+| Intended use | Repository file | Technical record |
+| --- | --- | --- |
+| Castle-only extraction master | `docs/reference/menu/2026-09-27-warplet-castle/warplet-castle-base-v2-18428728949eea8b.glb` | 3,274,996 bytes, SHA-256 `18428728949eea8b593e2920240f467609c925cf78a28eceb60a929aebc6e7c6`, derived from the exact v2 combined GLB; used to reproduce the banner-textured runtime castle, never served to the browser. |
+| Castle with native Hegemony banners | `docs/reference/menu/2026-09-27-warplet-castle/warplet-castle-hegemony-source-v2-c55f2c6c610e4aac.glb` | Preserved 4,977,796-byte source, SHA-256 `c55f2c6c610e4aacddde58e485156c85629dd0a2eab88fad65652c317ae59088`. The existing eight violet fabric banners carry the new emblem in their embedded cloth texture; all nine original castle meshes remain, with no separate plaques or medallions. Its optimized browser runtime is `public/models/menu/warplet-castle-hegemony-v2-meshopt-webp-181a847fe386859f.glb` (801,300 bytes, SHA-256 `181a847fe386859f5facc1fa7c2b420a8b4bc4b8434d25ea4ec200c5408062ef`). |
+| Ael's animated rooftop Warplet | `docs/reference/menu/2026-09-27-warplet-castle/warplet-guardian-source-v2-e934a81ae2a210e4.glb` | Exact standalone v2 source: 1,836,344 bytes, SHA-256 `e934a81ae2a210e495675aff99293aebc60cebb1a42603c9d99351db43d9e602`, retaining both authored clips. Its optimized browser runtime is `public/models/menu/warplet-guardian-v2-meshopt-b959ee1e17e96f00.glb` (235,112 bytes, SHA-256 `b959ee1e17e96f0088d6d8dbdd1944cb02266b2219f6db6e167138ef30746fe5`). |
+| Current Hegemony emblem source | `public/images/menu/hegemony-emblem-26e8664b1db0acf3.png` | Exact 1,486,312-byte, 1254×1254 RGBA PNG supplied by Ael on 2026-09-27, SHA-256 `26e8664b1db0acf3e6db443caf46ef13e45fe9de794749e431b7c2e3d6fb8774`. Its alpha is composited onto the castle's existing banner cloth by [`scripts/assets/texture-hegemony-banners.py`](scripts/assets/texture-hegemony-banners.py). The same source is proposed in open [Warpkeep-Assets PR #37](https://github.com/ael-dev3/Warpkeep-Assets/pull/37), not yet on Assets `main`. |
+| Menu heading derivative | `public/images/menu/hegemony-emblem-heading-256-4b5b747efcc13f34.png` | 256×256 transparent PNG, 98,026 bytes, SHA-256 `4b5b747efcc13f34499058e1f21cd9958b56eb821d5d676809a6e8296019942a`. Deterministically downsized from the exact current source by [`scripts/assets/derive-menu-heading-emblem.mjs`](scripts/assets/derive-menu-heading-emblem.mjs) using pinned Sharp 0.35.4/Lanczos3. Displayed in the menu heading; the full-resolution source remains unchanged for the fabric-banner derivation. |
+| Menu score | `public/audio/warpkeep-verdant-menu-theme.m4a` | Ael-supplied `Mesure Avancée.m4a` (Opus/MP4, 3,616,838 bytes, SHA-256 `3b8390f581efc29134759271af0ba2a95c9ee290a29bfeb641d364438c68001f`) transcoded to 208.100-second stereo 48 kHz AAC, 4,223,322 bytes, SHA-256 `a823fbd932c425d8bb60b1d7319403ba1f0fb23a7c5670da66c215ff22cc206a`. The original is not checked in. The [audio record](docs/reference/audio/2026-09-27-mesure-avancee/README.md) documents the conversion and loop boundary. |
+
+Ael requested use of this model, score, and new emblem in the official 0.4 menu and directed that the emblem be native to the castle banners. The archive's [provenance](https://github.com/ael-dev3/Warpkeep-Assets/blob/main/provenance/warplets-watch-castle-2026-09-14.md) authorizes public deposit but asserts no separate open-license grant. These exact runtime files remain `LicenseRef-Warpkeep-Provenance-Required`; this record does not relicense the Warplet character, supplied references, music, or Warpkeep marks. Earlier menu film, poster, score, and superseded emblem are documented as historical media and are not loaded by the 0.4 menu.
+
+## Genesis 002 supplied realm score
+
+On 2026-09-28, Ael supplied `Genesis 002.m4a` and requested its official use as the Genesis 002 realm score and its archival in Warpkeep-Assets. The supplied metadata says `made with suno`; it does not establish ownership or a license. The request authorizes this exact archive and official-game use, but does not assert a separate open-content license, source-service right, or broader public reuse right.
+
+| Intended use | Supplied source | Runtime file | Technical record |
+| --- | --- | --- | --- |
+| Genesis 002 realm music | Prepared Assets archive [`genesis-002-realm-score-2026-09-28`](https://github.com/ael-dev3/Warpkeep-Assets/blob/f0993b0b14e865922f739f9ac218334b4695b577/releases/genesis-002-realm-score-2026-09-28/manifest.json) in [open PR #38](https://github.com/ael-dev3/Warpkeep-Assets/pull/38), still a draft with publication pending — original Opus-in-M4A source: 4,044,476 bytes, SHA-256 `18e1ba7986bac220146d248ee863fd0020cbacc3e1e7661dd052f608d868b598` | `public/audio/warpkeep-genesis-002-theme.m4a` — AAC-LC, 48 kHz stereo, 223.613 seconds, 4,539,823 bytes, SHA-256 `6392e617b1c869ea81b211aebb10cdca42218377d0d0161232efa6f26dcced47` | Full technical, conversion and playback record in [`docs/reference/audio/2026-09-28-genesis-002/`](docs/reference/audio/2026-09-28-genesis-002/README.md). |
+
+The runtime derivative keeps the complete supplied program, strips source metadata, and is not loudness-normalized. Its measured -17.8 LUFS integrated level is paired with a 0.58 realm gain. The equal-power loop overlaps the final eight seconds with the beginning. The source and runtime derivative retain unresolved original terms; only the exact official game use and archive publication requested by Ael are recorded here.
+
+Genesis 002 remains sealed in 0.4. This audio wiring does not grant entry, request access, connect to the G002 backend, or change gameplay. No current user entry triggers this soundtrack until an authorized G002 entry path exists.
+
 ## Retired Hegemony admission-request sound archive
 
 The former Request Access sample is not present in this repository, is not
@@ -461,6 +488,37 @@ placement, ownership, resources, rewards, pathing, or other game authority.
 Legacy Regular Tree variants have no authorized runtime collision; species
 records retain only their supplied trunk-only guidance.
 
+## Greater Realm biome trees — 2026-09-28
+
+The Alpha 0.4 runtime uses the original, textured near/mobile tree set from
+the prepared Warpkeep-Assets v3 source archive tracked in
+[Assets PR #41](https://github.com/ael-dev3/Warpkeep-Assets/pull/41).
+Its release tag is `greater-realm-lush-biome-trees-2026-09-28-v3`; the
+7,180,652-byte archive has SHA-256
+`039d2fb736b4a58857b84ba11c321208e1a9e8ca54eb1922d6684237144f547e`.
+The 40 source GLBs and 60 PNG atlases are project-authored original work under
+CC BY 4.0; source scripts are Apache-2.0. The release manifest preserves the
+exact model, atlas, license and v2-baseline digests.
+
+Warpkeep packages 40 optimized one-atlas GLBs (2,738,208 bytes) in
+[`public/models/greater-realm/biome-trees/v3/`](public/models/greater-realm/biome-trees/v3/).
+[`install-greater-realm-biome-tree-v3.py`](scripts/assets/install-greater-realm-biome-tree-v3.py)
+builds this same-origin runtime copy and
+[`verify-greater-realm-biome-tree-v3-assets.mjs`](scripts/verify-greater-realm-biome-tree-v3-assets.mjs)
+checks every digest, material, source lineage and triangle count. High uses
+near geometry; Balanced and Reduced use mobile geometry. Instancing keeps one
+draw per present tree-bearing biome per chunk, and the existing sway remains
+visual-only. The older code-authored tree recipes remain a local loading/error
+fallback; they are not the selected tree family after the v3 models load.
+
+The user-supplied SavageIndie BlendSwap *Procedural Tree* and the studied WoW
+trees informed broad procedural and low-poly art direction only. No reference
+geometry, node graphs, UV layouts, textures or image data were imported. The
+tree models are decorative and provide no collision, pathing, gameplay
+placement, resources, ownership, or persistent authority. See the
+[dated biome-tree record](docs/reference/assets/2026-09-28-greater-realm-biome-trees/README.md)
+for the 20 biome mappings and runtime budget details.
+
 ## Inner Keep 3D runtime selection
 
 The public Warpkeep-Assets release
@@ -816,6 +874,10 @@ the provenance requirements of every depicted runtime asset.
 These composite screenshots are `LicenseRef-Warpkeep-Provenance-Required`.
 They document the exact public release UI; repository inclusion does not grant
 independent relicensing of the depicted models, textures, marks, or fonts.
+
+## Leave It On lyric film link
+
+The owner commissioned the [Leave It On Warpkeep lyric film](https://github.com/ael-dev3/lyrics/releases/tag/leave-it-on-warpkeep-v1.0.0) from the supplied recording and Warpkeep castle artwork, then requested a watch action on the public castle record for FID 539854 in both realm presentations. The game links to the versioned 1920×1080 H.264 release asset; the film is not copied into this repository or its Pages build. That asset is 288,869,749 bytes with SHA-256 `e6d61911e59322747a42c51fa0574f1381d912ad87c8fa8172cb373e2ca41d0c` at publication. The [lyrics project record](https://github.com/ael-dev3/lyrics/tree/main/projects/leave-it-on-warpkeep-lyric-film) carries the source, exact game-asset provenance and production limits. This link records authorized official presentation, not a new open-content license for the recording, film or depicted assets.
 
 ## Trademark and endorsement note
 

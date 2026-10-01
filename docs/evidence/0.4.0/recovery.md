@@ -1,25 +1,37 @@
 # Warpkeep 0.4 recovery evidence
 
-## Current checkpoint supersession — 25 September 2026
+## Current checkpoint — 27 September 2026
 
-Current protected runtime source is generated-only M2
+The last validated operational main at this checkpoint is signed generated-only
+M2 [`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`](https://github.com/ael-dev3/Warpkeep/commit/786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32)
+from [PR #373](https://github.com/ael-dev3/Warpkeep/pull/373). Exact-main
+[Verify 36294403406](https://github.com/ael-dev3/Warpkeep/actions/runs/36294403406),
+[preflight 36297501189](https://github.com/ael-dev3/Warpkeep/actions/runs/36297501189)
+and [G001 policy observation 36297585906](https://github.com/ael-dev3/Warpkeep/actions/runs/36297585906)
+passed. [G001 census 36297722529](https://github.com/ael-dev3/Warpkeep/actions/runs/36297722529)
+failed closed with `g001-admitted-set-mismatch`, without a completed baseline
+or provider mutation. [G002 update inspect 36297899627](https://github.com/ael-dev3/Warpkeep/actions/runs/36297899627)
+failed before provider transport. [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
+repairs these source paths; require its final-head Verify, signed M1 merge,
+provider-free artifact build, exact-M1 native prepare/check, generated-only M2
+and exact-M2 push Verify before fresh protected inspections. No live recovery,
+deployment, signed PTR state observation or owner acceptance is established.
+The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) owns
+current source and operation status; recheck live main before acting. Keep
+scheduled tasks paused, preserve private attempts and create no Desktop files.
+
+## Historical checkpoint — 25 September 2026 (superseded)
+
+The protected runtime source at that checkpoint was generated-only M2
 `edb37f4081de1b989a5137627494c1a2575411bb`. Exact-main Verify, CodeQL,
 read-only preflight and G001 policy observation passed. Census attempts
 36087746335 and 36088300562 failed closed with
 `g001-policy-budget-reservation` without receipt or provider mutation. Do not
-retry this M2. Source M1 [PR #357](https://github.com/ael-dev3/Warpkeep/pull/357)
-fixes read-only attempt accounting and session capabilities; required protected
-checks must pass before exact-M1 preparation, generated-only M2 promotion, and
-read-only operations on the exact verified M2.
-
-The [execution handoff](../../agent-notes/0.4.0/execution-handoff.md) records
-the exact run identities and next transition. Historical native evidence remains
-source-bound and `finalReleasePrepared:false`; no live deployment or recovery
-is established.
-
-Earlier operation failures below remain historical and must not be reused as
-current-source authority. Keep sync automation paused, preserve private
-attempts and create no Desktop files.
+retry that M2. Source M1 [PR #357](https://github.com/ael-dev3/Warpkeep/pull/357)
+subsequently fixed read-only attempt accounting and session capabilities; its
+generated family was later promoted. These historical results do not authorize
+operations on the present source. Historical native evidence remains
+source-bound and `finalReleasePrepared:false`.
 
 ## Historical accepted-main M2 context — 13 September 2026
 

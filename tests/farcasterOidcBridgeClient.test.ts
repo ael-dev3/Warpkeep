@@ -8,10 +8,12 @@ import {
   isDefinitiveAccessRequestNoMutationError,
   type FarcasterOidcBridgeFetch
 } from '../src/farcaster/farcasterOidcBridgeClient';
+import { toFarcasterAuthError } from '../src/farcaster/farcasterAuthClient';
 import type {
   FarcasterBridgeChallengeRequest,
   FarcasterBridgeExchangeRequest
 } from '../src/farcaster/farcasterAuthTypes';
+import { FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS } from '../src/farcaster/farcasterOidcSession';
 
 const NOW = Date.UTC(2026, 6, 11, 12, 0, 0);
 const ISSUER = 'https://auth.warpkeep.example';
@@ -151,6 +153,11 @@ describe('Farcaster OIDC bridge v2 client', () => {
     }
     expect(configurationError).toBeInstanceOf(FarcasterOidcBridgeClientError);
     expect(farcasterOidcBridgeFailureKind(configurationError)).toBe('configuration');
+    expect(toFarcasterAuthError(configurationError)).toEqual({
+      code: 'bridge',
+      stage: 'deployment_contract_mismatch',
+      message: 'Secure sign-in is not configured for this Warpkeep release.'
+    });
     expect(() => createFarcasterOidcBridgeClient({
       bridgeUrl: 'https://bridge.warpkeep.example',
       fetch: createFetch({})
@@ -281,6 +288,108 @@ describe('Farcaster OIDC bridge v2 client', () => {
     expect(body).not.toHaveProperty('custody');
     expect(body).not.toHaveProperty('signatureParams');
     expect(body).not.toHaveProperty('bindingChallenge');
+  });
+
+  it('identifies a rejected completed request before fetch without exposing proof', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = createFetch(authorized());
+    const secret = 'private-signature-material';
+    const error = await createBridge(fetch).exchangeCompletedSignIn({
+      ...exchangeRequest(),
+      signature: `0x${secret}`
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('exchange-request-invalid');
+    expect(toFarcasterAuthError(error)).toEqual({
+      code: 'bridge',
+      message: 'Warpkeep could not prepare the completed Farcaster request.'
+    });
+    expect(JSON.stringify(toFarcasterAuthError(error))).not.toContain(secret);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('identifies an expired completed request before fetch without extending its deadline', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const fetch = createFetch(authorized());
+    const expiresAt = NOW - 1;
+    const error = await createBridge(fetch).exchangeCompletedSignIn({
+      ...exchangeRequest(),
+      expiresAt,
+      expirationTime: new Date(expiresAt).toISOString()
+    }).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('exchange-request-expired');
+    expect(toFarcasterAuthError(error)).toEqual({
+      code: 'bridge',
+      message: 'The Farcaster request expired before secure verification.'
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('distinguishes exchange transport failure from a local preflight rejection', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const secret = 'private-transport-detail';
+    const fetch = vi.fn(async () => {
+      throw new TypeError(secret);
+    }) as unknown as FarcasterOidcBridgeFetch;
+    const error = await createBridge(fetch).exchangeCompletedSignIn(exchangeRequest())
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('network-or-cors');
+    expect(toFarcasterAuthError(error)).toEqual({
+      code: 'network',
+      message: 'Warpkeep could not reach secure verification.'
+    });
+    expect(JSON.stringify(toFarcasterAuthError(error))).not.toContain(secret);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [401, 'invalid-credential', 'verification', 'bridge_http_401',
+      'The completed Farcaster sign-in was not accepted. Please try again.'],
+    [403, 'forbidden', 'bridge', 'bridge_http_403',
+      'This Warpkeep release could not complete sign-in.'],
+    [429, 'rate-limited', 'bridge', 'bridge_http_429',
+      'Too many sign-in attempts. Please wait and try again.'],
+    [503, 'service-unavailable', 'bridge', 'bridge_http_503',
+      'Secure verification is temporarily unavailable. Please try again.']
+  ] as const)('gives desktop QR HTTP %i a bounded, actionable failure', async (
+    status, kind, code, stage, message
+  ) => {
+    vi.useFakeTimers({ now: NOW });
+    const privateDetail = 'private bridge response material';
+    const fetch = createFetch(jsonResponse({
+      error: { code: 'private_code', message: privateDetail }
+    }, status));
+    const error = await createBridge(fetch).exchangeCompletedSignIn(exchangeRequest())
+      .catch((caught: unknown) => caught);
+
+    expect(farcasterOidcBridgeFailureKind(error)).toBe(kind);
+    expect(toFarcasterAuthError(error)).toEqual({ code, stage, message });
+    expect(JSON.stringify({ error: toFarcasterAuthError(error) })).not.toContain(privateDetail);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('classifies an invalid HTTP 200 session without disclosing the response', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const privateDetail = 'private bridge response material';
+    const fetch = createFetch(jsonResponse(authorized({
+      accessToken: privateDetail
+    })));
+    const error = await createBridge(fetch).exchangeCompletedSignIn(exchangeRequest())
+      .catch((caught: unknown) => caught);
+
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('invalid-response');
+    expect(toFarcasterAuthError(error)).toEqual({
+      code: 'invalid-response',
+      stage: 'bridge_response_invalid',
+      message: 'Warpkeep received an invalid secure verification response.'
+    });
+    expect(JSON.stringify({ error: toFarcasterAuthError(error) })).not.toContain(privateDetail);
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('exchanges Quick Auth with a bounded bearer and no cookie credentials', async () => {
@@ -493,7 +602,13 @@ describe('Farcaster OIDC bridge v2 client', () => {
 
     await vi.runAllTimersAsync();
 
+    const error = await result.catch((caught: unknown) => caught);
     await rejection;
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('service-unavailable');
+    expect(toFarcasterAuthError(error)).toMatchObject({
+      code: 'bridge',
+      stage: 'bridge_http_503'
+    });
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
@@ -726,15 +841,21 @@ describe('Farcaster OIDC bridge v2 client', () => {
         else requestSignal?.addEventListener('abort', rejectAbort, { once: true });
       })
     )) as unknown as FarcasterOidcBridgeFetch;
-    const result = createBridge(fetch).exchangeCompletedSignIn(exchangeRequest());
-    const rejection = expect(result).rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
+    const result = createBridge(fetch).exchangeCompletedSignIn(exchangeRequest())
+      .catch((caught: unknown) => caught);
 
     await vi.advanceTimersByTimeAsync(19_999);
     expect(requestSignal?.aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(2);
 
     expect(requestSignal?.aborted).toBe(true);
-    await rejection;
+    const error = await result;
+    expect(error).toBeInstanceOf(FarcasterOidcBridgeClientError);
+    expect(farcasterOidcBridgeFailureKind(error)).toBe('timeout');
+    expect(toFarcasterAuthError(error)).toEqual({
+      code: 'network',
+      message: 'Secure verification did not finish in time.'
+    });
   });
 
   it('keeps non-exchange bridge requests on the 10-second deadline', async () => {
@@ -936,7 +1057,7 @@ describe('Farcaster OIDC bridge v2 client', () => {
       authorized({ identity: { ...identity, custody: `0x${'11'.repeat(20)}` } }),
       authorized({ identity: { ...identity, username: 'must-not-return' } }),
       authorized({ sessionExpiresAt: NOW }),
-      authorized({ sessionExpiresAt: SESSION_EXPIRY + 1 }),
+      authorized({ sessionExpiresAt: SESSION_EXPIRY + FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS + 1 }),
       authorized({ accessExpiresAt: SESSION_EXPIRY + 1 }),
       authorized({ accessToken: createJwt({ auth_version: 1 }) }),
       authorized({ accessToken: createJwt({ auth_epoch: 0 }) }),
@@ -949,6 +1070,32 @@ describe('Farcaster OIDC bridge v2 client', () => {
       await expect(bridge.exchangeCompletedSignIn(exchangeRequest()))
         .rejects.toBeInstanceOf(FarcasterOidcBridgeClientError);
     }
+  });
+
+  it('accepts a server-issued bridge session when the issuer clock is slightly ahead', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const futureIssuedAt = NOW / 1_000 + 1;
+    const authorizedWithSkew = authorized({
+      sessionExpiresAt: SESSION_EXPIRY + 1_000,
+      accessExpiresAt: ACCESS_EXPIRY + 1_000,
+      accessToken: createJwt({
+        iat: futureIssuedAt,
+        nbf: futureIssuedAt,
+        exp: ACCESS_EXPIRY / 1_000 + 1,
+        session_iat: futureIssuedAt,
+        session_exp: ACCESS_EXPIRY / 1_000 + 1
+      })
+    });
+    await expect(createBridge(createFetch(authorizedWithSkew))
+      .exchangeCompletedSignIn(exchangeRequest())).resolves.toMatchObject({
+      status: 'authorized',
+      sessionExpiresAt: SESSION_EXPIRY + 1_000
+    });
+    await expect(createBridge(createFetch(pending({ sessionExpiresAt: SESSION_EXPIRY + 1_000 })))
+      .exchangeCompletedSignIn(exchangeRequest())).resolves.toMatchObject({
+      status: 'pending-admission',
+      sessionExpiresAt: SESSION_EXPIRY + 1_000
+    });
   });
 
   it('rejects malformed proof data before fetch', async () => {

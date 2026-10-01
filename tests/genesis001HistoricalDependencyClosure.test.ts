@@ -215,11 +215,11 @@ describe('Genesis 001 historical locked dependency closure', () => {
       jobs: Record<string, { steps: Array<{ run?: string }> }>;
     };
     const lockOnly = [
-      'pnpm --dir spacetimedb/ptr install \\',
+      'pnpm --pm-on-fail=ignore --dir spacetimedb/ptr install \\',
       '  --frozen-lockfile --lockfile-only --ignore-workspace',
     ].join('\n');
     const noLocalInstall = 'test ! -e spacetimedb/ptr/node_modules';
-    const parentInstall = 'pnpm --dir spacetimedb install --frozen-lockfile';
+    const parentInstall = 'pnpm --pm-on-fail=ignore --dir spacetimedb install --frozen-lockfile';
     for (const job of ['linux', 'spacetimedb-module']) {
       const commands = workflow.jobs[job]!.steps
         .map(step => step.run)
@@ -228,11 +228,11 @@ describe('Genesis 001 historical locked dependency closure', () => {
       expect(provenance, job).toBeTypeOf('string');
       const provenanceLines = provenance!.split('\n');
       const lockIndex = provenanceLines.indexOf(
-        'pnpm --dir spacetimedb/ptr install \\',
+        'pnpm --pm-on-fail=ignore --dir spacetimedb/ptr install \\',
       );
       expect(provenanceLines.slice(lockIndex - 1, lockIndex + 5), job).toEqual([
         noLocalInstall,
-        'pnpm --dir spacetimedb/ptr install \\',
+        'pnpm --pm-on-fail=ignore --dir spacetimedb/ptr install \\',
         '  --frozen-lockfile --lockfile-only --ignore-workspace',
         noLocalInstall,
         parentInstall,
@@ -240,20 +240,20 @@ describe('Genesis 001 historical locked dependency closure', () => {
       ]);
       expect(
         commands.flatMap(command => command.split('\n')).filter(line => (
-          line.trimStart().startsWith('pnpm --dir spacetimedb/ptr install')
+          line.trimStart().startsWith('pnpm --pm-on-fail=ignore --dir spacetimedb/ptr install')
         )),
         job,
-      ).toEqual(['pnpm --dir spacetimedb/ptr install \\']);
+      ).toEqual(['pnpm --pm-on-fail=ignore --dir spacetimedb/ptr install \\']);
     }
 
     const moduleCommands = workflow.jobs['spacetimedb-module']!.steps
       .map(step => step.run)
       .filter((run): run is string => typeof run === 'string');
     const moduleVerification = moduleCommands.find(command => command.includes(
-      'pnpm --dir spacetimedb/ptr run verify',
+      'pnpm --pm-on-fail=ignore --dir spacetimedb/ptr run verify',
     ));
     expect(moduleVerification).toBeTypeOf('string');
-    expect(moduleVerification!.indexOf('pnpm --dir spacetimedb/ptr run verify'))
+    expect(moduleVerification!.indexOf('pnpm --pm-on-fail=ignore --dir spacetimedb/ptr run verify'))
       .toBeLessThan(moduleVerification!.lastIndexOf(noLocalInstall));
 
     const plan = readFileSync(resolve(
@@ -271,7 +271,7 @@ describe('Genesis 001 historical locked dependency closure', () => {
         'pnpm --dir spacetimedb/ptr install \\',
         '  --frozen-lockfile --lockfile-only --ignore-workspace',
         noLocalInstall,
-        parentInstall,
+        'pnpm --dir spacetimedb install --frozen-lockfile',
         noLocalInstall,
         'pnpm --dir spacetimedb/ptr run verify',
         noLocalInstall,

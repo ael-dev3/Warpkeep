@@ -25,7 +25,7 @@ const api = 'https://api.github.com/repos/ael-dev3/Warpkeep';
 const repository = { id: 1273513252, name: 'Warpkeep', full_name: 'ael-dev3/Warpkeep',
   default_branch: 'main', archived: false, disabled: false, owner: { id: 183124839, login: 'ael-dev3' } };
 const run = (operation = false) => ({ id: operation ? 7001 : 4001, run_attempt: 1, run_number: operation ? 30 : 21,
-  workflow_id: operation ? 200 : 100, name: operation ? 'Sealed Realms Production' : 'Verify',
+  workflow_id: operation ? 200 : 100, name: operation ? process.env.WARPKEEP_OPERATION + ' @ ' + commit : 'Verify',
   path: operation ? '.github/workflows/sealed-realms-production.yml' : '.github/workflows/verify.yml',
   event: operation ? 'workflow_dispatch' : 'push', status: operation ? 'in_progress' : 'completed',
   conclusion: operation ? null : 'success', head_branch: 'main', head_sha: commit,

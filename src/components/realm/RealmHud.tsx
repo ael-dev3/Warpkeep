@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useEffect,
   useId,
   useRef,
@@ -42,7 +44,6 @@ import {
 import './RealmPlayerChrome.css';
 import { RealmResourceBalancePanel } from './RealmResourceBalancePanel';
 import { WorkerCommandCenter } from './WorkerCommandCenter';
-import { WorkerInspectionPanel } from './WorkerInspectionPanel';
 import type { RealmChromeMode } from './realmChromePresentation';
 import type {
   RealmSurfaceNavigation
@@ -59,6 +60,11 @@ import {
   type ReadyWorkerResourceState,
   type WorkerRosterPresentation
 } from './realmWorkerPresentation';
+
+const WorkerInspectionPanel = lazy(async () => {
+  const module = await import('./WorkerInspectionPanel');
+  return { default: module.WorkerInspectionPanel };
+});
 
 type RealmHudProps = Readonly<{
   identity: RealmIdentity;
@@ -1568,28 +1574,39 @@ export function RealmHud({
       && selectedWorker
       && surface === 'worker-inspection'
       && !fullscreenDestinations ? (
-        <WorkerInspectionPanel
-          awaitingAuthoritativeRecall={
-            confirmedRecallWorkerIds.has(selectedWorker.workerId)
-            || recallingAllWorkers
-            || recallAllWorkersConfirmed
-            || recallAllAwaitingAuthority
-          }
-          controlsStatus={workerControlsStatus}
-          id={REALM_WORKER_INSPECTION_ID}
-          key={`${identity.fid}:${selectedWorker.workerId}`}
-          keeperProfile={ownProfile}
-          onLocateWorker={onLocateWorker
-            ? (workerId) => closeThen(() => onLocateWorker(workerId))
-            : undefined}
-          onRecallWorker={publicWorkersActive && onRecallWorker
-            ? recallWorker
-            : undefined}
-          onCloseToRealm={surfaceNavigation?.closeToRealm}
-          onRequestClose={backSurface}
-          worker={selectedWorker}
-          hostedDestination={fullscreenDestinations}
-        />
+        <Suspense fallback={(
+          <section
+            aria-label="Worker details"
+            className="realm-inspection-lazy-fallback"
+            role="status"
+          >
+            <strong>OPENING WORKER…</strong>
+            <span>Preparing Worker details.</span>
+          </section>
+        )}>
+          <WorkerInspectionPanel
+            awaitingAuthoritativeRecall={
+              confirmedRecallWorkerIds.has(selectedWorker.workerId)
+              || recallingAllWorkers
+              || recallAllWorkersConfirmed
+              || recallAllAwaitingAuthority
+            }
+            controlsStatus={workerControlsStatus}
+            id={REALM_WORKER_INSPECTION_ID}
+            key={`${identity.fid}:${selectedWorker.workerId}`}
+            keeperProfile={ownProfile}
+            onLocateWorker={onLocateWorker
+              ? (workerId) => closeThen(() => onLocateWorker(workerId))
+              : undefined}
+            onRecallWorker={publicWorkersActive && onRecallWorker
+              ? recallWorker
+              : undefined}
+            onCloseToRealm={surfaceNavigation?.closeToRealm}
+            onRequestClose={backSurface}
+            worker={selectedWorker}
+            hostedDestination={fullscreenDestinations}
+          />
+        </Suspense>
       ) : null}
 
       {surface === 'settings' && onGraphicsPreferenceChange ? (

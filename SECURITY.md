@@ -18,8 +18,9 @@ a public issue, pull request, discussion, cast, or direct message.
 1. If **Report a vulnerability** is available on this repository's Security
    page, use GitHub Private Vulnerability Reporting.
 2. If it is unavailable, request a private reporting channel without including
-   technical details. Open a content-free GitHub issue titled `Security contact
-   request`, or contact the project owner through the already-public
+   technical details. Contributors with access to this private repository can
+   open a content-free issue titled `Security contact request`. Other reporters
+   can use the contact links on the owner's public
    [GitHub profile](https://github.com/ael-dev3). Wait for a private channel
    before sharing the report.
 

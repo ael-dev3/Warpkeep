@@ -11,6 +11,7 @@ describe('Warpkeep deployment base and canonical metadata', () => {
     expect(resolveDeploymentBase({ GITHUB_PAGES: 'true' })).toBe('/Warpkeep/');
     expect(resolveDeploymentBase({ GITHUB_PAGES: 'true', DEPLOY_BASE: '/' })).toBe('/');
     expect(resolveDeploymentBase({ DEPLOY_BASE: '/Warpkeep' })).toBe('/Warpkeep/');
+    expect(resolveDeploymentBase({ DEPLOY_BASE: '/ptr/' })).toBe('/ptr/');
     expect(() => resolveDeploymentBase({ DEPLOY_BASE: 'https://attacker.example/' })).toThrow(/DEPLOY_BASE/i);
   });
 

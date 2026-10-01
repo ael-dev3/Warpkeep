@@ -36,12 +36,33 @@ temporary database, keys, token, browser profile, and Vite cache are deleted on
 success, failure, or a handled termination signal. Screenshots are reduced in
 memory to aggregate visual measurements and are never saved.
 
-The browser adapter is Windows-ready, but the current reviewed SpacetimeDB
-binary manifest covers only `darwin-arm64` and `linux-x64`. Until a reviewed
-Windows CLI and standalone pair is added to that manifest, Windows runs fail
-closed during CLI attestation before they create a database or browser. Record
-that result as a tooling boundary; do not bypass attestation with an arbitrary
-developer-installed binary.
+The browser adapter and pinned SpacetimeDB binary manifest include
+`win32-x64` alongside `darwin-arm64` and `linux-x64`. On 2026-09-28, the
+Windows full-stack lane passed against candidate source `12f7ba60` using the
+attested SpacetimeDB 2.6.1 CLI and standalone pair, Node 24.19.0, and the
+reviewed local Chrome installation. It exercised six direct-menu desktop and
+mobile profiles, synthetic sign-in and Terms, Inner Keep construction and
+reload persistence, Worker reconnect/recovery, all four resource dispatches,
+recall, settlement and return. This supersedes the older “Windows pass not
+recorded” note in the historical owner-journey section. It remains synthetic
+local evidence, not physical-device or owner/PTR acceptance.
+
+The 0.4 experience enters directly on the main menu. The full-stack browser
+probe now checks that actual entry screen across six viewport profiles; it no
+longer waits for the retired title-gateway route. If a connected probe fails,
+preserve its first safe failure category and check this source-owned route before
+diagnosing renderer or driver startup.
+
+On 2026-09-27, a disposable WSL `WarpkeepRunner` run against main
+`786c0b2` used pinned Node 22.22.3, SpacetimeDB CLI 2.6.1, and installed
+Google Chrome stable 154 with `WARPKEEP_QA_CHROME` set to its regular-file
+executable, `/opt/google/chrome/google-chrome`. It reached the Chrome title
+gateway, then failed closed in `desktop-keyboard` after repeated WSLg OpenGL
+`GPU stall due` driver warnings. That run predates the menu-entry correction
+and is retained as historical host evidence; it establishes neither an
+owner/browser journey pass nor an application failure. The supported Windows
+lane now passes locally. Resolve or isolate the WSL graphics warning before
+claiming a WSL run.
 
 The broader rendered-fixture lane is portable across the supported desktop
 hosts:
@@ -58,6 +79,12 @@ journey, responsive presentation, pointer and keyboard interactions, and the
 castle LOD comparison lane. It exits non-zero if a case fails or the browser
 leaves the local boundary.
 
+The menu observer accounts for the local build stamp's single Farcaster link
+and the optional, validated GitHub commit permalink on commit-stamped builds.
+It also checks the exact Creative Commons attribution link in Credits. Local
+QA does not require injecting a build SHA just to satisfy production-menu link
+expectations.
+
 The fetch step retrieves the hash-pinned historical castle source used only by
 the LOD comparison lane and stores it in the ignored local asset cache. On
 Windows, the attested system `tar.exe` adapter provides the same list/extract
@@ -65,6 +92,44 @@ operations as `/usr/bin/unzip`; the cache writer retains atomic replacement and
 symlink checks while using Windows ACL semantics for directory ownership. The
 QA command deliberately fails closed when that exact source archive is absent or
 does not match its recorded digest.
+
+`Warpkeep-Assets` is private, so the unauthenticated fetch helper can receive
+HTTP 404 even while the pinned release attachment exists. A verified local
+cache is already sufficient for `npm run qa:rendered-webgl`; do not refetch it
+when its size and SHA-256 match. On a fresh checkout with GitHub CLI access,
+download the exact release attachment into the ignored cache, then verify its
+digest before running the browser probe:
+
+```sh
+gh release download hegemony-frontier-keep-3d-2026-07-14 \
+  --repo ael-dev3/Warpkeep-Assets \
+  --pattern hegemony-frontier-keep-3d-sources-v1.zip \
+  --dir .cache/warpkeep-assets/hegemony-frontier-keep-3d-2026-07-14
+```
+
+Expected archive identity: 10,672,929 bytes,
+`c029a636ee0a791ca54072d5f32fcf68263677951fd59c338dfe242264335d5f`.
+Keep it in the ignored cache; never copy it to the Desktop or add it to Git.
+
+For a production-path smoke, set `DEPLOY_BASE=/ptr/` for both build and
+preview. Vite reads its deployment base when the preview server starts; if the
+preview process starts with `/` instead, requests for `/ptr/assets/...` can
+fall through to the SPA index and return `200 text/html`. Check content types,
+not status alone. On Windows PowerShell:
+
+```powershell
+$env:DEPLOY_BASE = '/ptr/'
+npm run build
+npm run preview -- --host 127.0.0.1 --port 4173
+```
+
+While preview is running, verify `/ptr/` and every local `src`/`href` asset in
+its entry HTML, then stop the server and clear `$env:DEPLOY_BASE`. The
+Farcaster “open web” fallbacks use the same Vite base, so an auth or framed-host
+recovery from the owner PTR returns to `/ptr/#menu` rather than the Alpha root.
+`tests/farcasterAuthContext.test.ts`,
+`tests/farcasterMiniAppEntryGate.test.tsx` and
+`tests/WarpkeepExperienceRealm.test.tsx` cover the root and PTR path behavior.
 
 Neither browser lane needs access to a live Warpkeep service.
 

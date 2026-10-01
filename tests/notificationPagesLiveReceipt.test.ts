@@ -146,7 +146,8 @@ function descendantCommitWithMutation(path: string): string {
   const original = execFileSync(
     '/usr/bin/git',
     ['show', `${HEAD_COMMIT}:${path}`],
-    { cwd: process.cwd(), encoding: 'buffer' },
+    // Match the receipt's per-asset bound; new menu media exceeds Node's 1 MiB default.
+    { cwd: process.cwd(), encoding: 'buffer', maxBuffer: 16_000_000 },
   );
   const mutated = Buffer.concat([
     original,
@@ -1045,7 +1046,9 @@ describe('notification Pages ongoing live receipt', () => {
     expect(closure.size).toBeGreaterThan(180);
     expect(closure.size).toBeLessThanOrEqual(512);
     expect(closure.has('src/components/realm/GreaterRealmWorldScene.tsx'))
-      .toBe(false);
+      .toBe(true);
+    expect(closure.has('src/ptr/PtrGameplay04SurfaceHost.tsx')).toBe(true);
+    expect(closure.has('src/components/realm/RealmMapScreen.tsx')).toBe(false);
     expect(closure.has('src/components/menu/latestPatchNotes.ts')).toBe(true);
     for (const criticalPath of [
       '.github/workflows/deploy-pages.yml',
@@ -1061,16 +1064,20 @@ describe('notification Pages ongoing live receipt', () => {
       'src/components/errors/warpkeepRootErrorHandlers.ts',
       'src/components/menu/WarpkeepMainMenu.css',
       'src/components/menu/WarpkeepMainMenu.tsx',
+      'src/components/menu/WarpkeepMenuWorld3D.tsx',
+      'src/components/menu/createMenuLandscape3D.ts',
+      'src/components/menu/menuWarpletRegistry.ts',
+      'src/components/menu/menuWorldResources.ts',
       'src/components/menu/SettingsPanel.css',
       'src/components/menu/SettingsPanel.tsx',
       'src/components/audio/WarpkeepAudioDirector.tsx',
-      'src/components/title/WarpkeepTitleScreen3D.tsx',
-      'src/components/transition/WarpTransitionOverlay.tsx',
       'src/farcaster/miniapp/MiniAppHostProvider.tsx',
       'src/spacetime/WarpkeepSpacetimeProvider.tsx',
       'src/spacetime/warpkeepConfig.ts',
-      'public/audio/warpkeep-menu-theme.mp3',
-      'public/models/title/warpkeep-title-high.glb',
+      'public/audio/warpkeep-verdant-menu-theme.m4a',
+      'public/images/menu/hegemony-emblem-heading-256-4b5b747efcc13f34.png',
+      'public/models/menu/warplet-castle-hegemony-v2-meshopt-webp-181a847fe386859f.glb',
+      'public/models/menu/warplet-guardian-v2-meshopt-b959ee1e17e96f00.glb',
       'tsconfig.app.json',
       'tsconfig.json',
       'tsconfig.node.json',
@@ -1083,13 +1090,16 @@ describe('notification Pages ongoing live receipt', () => {
     }
   });
 
-  it('rejects derived presentation mutations and permits one realm-exclusive descendant', () => {
+  it('protects the direct PTR renderer and excludes only the legacy Genesis edge', () => {
     for (const path of [
       'src/components/menu/SettingsPanel.tsx',
       'src/components/menu/SettingsPanel.css',
       'src/components/audio/WarpkeepAudioDirector.tsx',
-      'src/components/transition/WarpTransitionOverlay.tsx',
-      'src/components/title/WarpkeepTitleScreen3D.tsx',
+      'src/components/menu/WarpkeepMenuWorld3D.tsx',
+      'src/components/menu/menuWorldResources.ts',
+      'src/components/realm/GreaterRealmWorldScene.tsx',
+      'public/audio/warpkeep-verdant-menu-theme.m4a',
+      'public/models/menu/warplet-castle-hegemony-v2-meshopt-webp-181a847fe386859f.glb',
       'src/spacetime/WarpkeepSpacetimeProvider.tsx',
     ]) {
       const candidate = descendantCommitWithMutation(path);
@@ -1098,12 +1108,12 @@ describe('notification Pages ongoing live receipt', () => {
         candidateSourceCommit: candidate,
       }), path).toThrow('NOTIFICATION_PAGES_LIVE_CANDIDATE_NOTIFICATION_DRIFT');
     }
-    const realmOnly = descendantCommitWithMutation(
-      'src/components/realm/GreaterRealmWorldScene.tsx',
+    const legacyRealmOnly = descendantCommitWithMutation(
+      'src/components/realm/RealmMapScreen.tsx',
     );
     expect(assertNotificationPagesLivePresentationSourceNoDrift({
       predecessorSourceCommit: HEAD_COMMIT,
-      candidateSourceCommit: realmOnly,
+      candidateSourceCommit: legacyRealmOnly,
     })).toContain('src/components/menu/SettingsPanel.tsx');
   // Several immutable trees each include the complete generated source inventory.
   }, 60_000);

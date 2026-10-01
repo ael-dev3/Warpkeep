@@ -103,6 +103,11 @@ Follow [the development workflow](docs/engineering/development-workflow.md) and
   exact offline YAML archive used by `localBindingYamlManifest.test.ts`. Missing
   archive, CLI, or locked package trees produce misleading test failures; fix
   the environment and rerun those tests before classifying them as source bugs.
+  Inspect any existing `spacetimedb/dist/bundle.js` with `lstat` too: a prior
+  root build can leave this ignored output unwritable by the test fixture's
+  writer even when Git is clean. Run native builds/tests as UID 1000. Verify
+  the exact regular file and idle build process before restoring its ownership;
+  do not recursively change permissions or run the suite as root.
 - For visual changes, inspect rendered views, progression, loading/failure,
   background/resume and cleanup. Distinguish fixtures, emulation, actual devices
   and authenticated owner play. Measure the agreed workloads before claiming
@@ -147,7 +152,12 @@ Follow [the development workflow](docs/engineering/development-workflow.md) and
 
 ## Delivery and handoff
 
-GitHub Pages hosts the frontend, Cloudflare hosts identity/recovery services, and
+The live 0.3.43 frontend is served from the public, generated-assets-only
+[`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live) GitHub Pages repository;
+the development repository remains private and has no Pages site on the current
+plan. This restores the existing Alpha, not the 0.4 release lane. Read the
+[hosting and recovery record](docs/operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
+before changing either site. Cloudflare hosts identity/recovery services, and
 SpacetimeDB hosts persistent realms. Verify configured accounts and immutable
 targets. Complete the Windows/WSL/Linux operating path without a Mac dependency;
 required workflow identity must come from the actual supported runner.
@@ -169,3 +179,12 @@ operational records out of Git and public deliverables. Read
 End each session with what changed, the source and remote checkpoint, what was
 actually verified, the exact remaining issue and the next useful action. Keep the
 full release goal active until the deployed game and required evidence support it.
+
+<!-- BEGIN github-actions-conservation -->
+## GitHub Actions conservation
+
+- Validate locally with checks proportionate to the change and inspect the diff. Batch related edits into coherent, reviewed checkpoints before remote actions; use local diagnosis to resolve failures and avoid repeated CI experiments.
+- Before remote actions that may start, repeat, cancel or change Actions, inspect repository-wide workflow runs across branches and event types. Include queued/running runs, completed evidence and rerun attempts; paginate results as needed. Reuse applicable evidence and avoid duplicate runs while relevant work is already running.
+- Inspect workflow triggers and downstream chains, including push/PR events, workflow_run, workflow_call/reusable workflows, tags/releases and deployments. Account for follow-on runs before pushes, PR updates, merges, dispatches, reruns or workflow/settings changes.
+- Resolve limits and approval decisions from the user's current GitHub Actions policy and custom rules, including where they override older publish/merge defaults. This guidance grants no permissions. Keep numeric custom-rule limits and permission grants out of instruction files and memories so the current policy remains authoritative and independently changeable.
+<!-- END github-actions-conservation -->

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   chmodSync,
   closeSync,
@@ -12,6 +12,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readSync,
   readdirSync,
   realpathSync,
   renameSync,
@@ -181,8 +182,61 @@ export function defaultProductionAdminStateDirectory() {
   );
 }
 
-export function probeProductionAdminProcessIdentity(pid) {
+const LINUX_PROCESS_IDENTITY = /^linux-v1:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(?:0|[1-9][0-9]{0,19})$/u;
+
+function readProcessIdentityFile(path, maximumBytes) {
+  const descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const bytes = Buffer.alloc(maximumBytes + 1);
+    const length = readSync(descriptor, bytes, 0, bytes.length, null);
+    if (length > maximumBytes) throw new Error('PROCESS_IDENTITY_FILE_TOO_LARGE');
+    return bytes.subarray(0, length).toString('latin1');
+  } finally { closeSync(descriptor); }
+}
+
+function probeProcessPresence(pid, signal = process.kill) {
+  try { signal(pid, 0); return 'present'; } catch (error) {
+    return error?.code === 'ESRCH' ? 'absent' : 'ambiguous';
+  }
+}
+
+function probeLinuxProcessIdentity(pid, readFile = readProcessIdentityFile, signal = process.kill) {
+  const presence = probeProcessPresence(pid, signal);
+  if (presence !== 'present') return Object.freeze({ state: presence });
+  let boot;
+  try {
+    boot = readFile('/proc/sys/kernel/random/boot_id', 64);
+    if (typeof boot !== 'string' || boot.length > 64 || /[^\x00-\x7f]/u.test(boot)) {
+      return Object.freeze({ state: 'ambiguous' });
+    }
+    boot = boot.trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(boot)) {
+      return Object.freeze({ state: 'ambiguous' });
+    }
+  } catch { return Object.freeze({ state: 'ambiguous' }); }
+  let stat;
+  try { stat = readFile(`/proc/${pid}/stat`, 4_096); } catch (error) {
+    return Object.freeze({ state: (error?.code === 'ENOENT' || error?.code === 'ESRCH')
+      && probeProcessPresence(pid, signal) === 'absent' ? 'absent' : 'ambiguous' });
+  }
+  if (typeof stat !== 'string' || stat.length > 4_096 || !stat.startsWith(`${pid} (`)) {
+    return Object.freeze({ state: 'ambiguous' });
+  }
+  const delimiter = stat.lastIndexOf(') ');
+  if (delimiter < `${pid} (`.length) return Object.freeze({ state: 'ambiguous' });
+  const suffix = stat.slice(delimiter + 2);
+  if (!/^[\x09\x0a\x0d\x20-\x7e]+$/u.test(suffix)) return Object.freeze({ state: 'ambiguous' });
+  const fields = suffix.trim().split(/\s+/u);
+  if (!/^[A-Za-z]$/u.test(fields[0] ?? '') || !/^(?:0|[1-9][0-9]{0,19})$/u.test(fields[19] ?? '')) {
+    return Object.freeze({ state: 'ambiguous' });
+  }
+  return Object.freeze({ state: 'present', identity: `linux-v1:${boot}:${fields[19]}` });
+}
+
+function probeLegacyProcessIdentity(pid) {
   if (!Number.isSafeInteger(pid) || pid < 1) return Object.freeze({ state: 'ambiguous' });
+  const presence = probeProcessPresence(pid);
+  if (presence !== 'present') return Object.freeze({ state: presence });
   const psPath = '/bin/ps';
   try {
     const status = lstatSync(psPath);
@@ -206,12 +260,23 @@ export function probeProductionAdminProcessIdentity(pid) {
     return Object.freeze({ state: 'ambiguous' });
   }
   const value = result.stdout.trim();
-  if (result.status === 1 && value === '') return Object.freeze({ state: 'absent' });
+  if (result.status === 1 && value === '') return Object.freeze({
+    state: probeProcessPresence(pid) === 'absent' ? 'absent' : 'ambiguous',
+  });
   if (
     result.status !== 0
     || !/^[A-Z][a-z]{2} [A-Z][a-z]{2} [ 0-9][0-9] [0-9:]{8} [0-9]{4}$/u.test(value)
   ) return Object.freeze({ state: 'ambiguous' });
   return Object.freeze({ state: 'present', identity: value });
+}
+
+export function probeProductionAdminProcessIdentity(pid, expectedIdentity) {
+  if (!Number.isSafeInteger(pid) || pid < 1) return Object.freeze({ state: 'ambiguous' });
+  if (process.platform === 'linux'
+    && (expectedIdentity === undefined || LINUX_PROCESS_IDENTITY.test(expectedIdentity))) {
+    return probeLinuxProcessIdentity(pid);
+  }
+  return probeLegacyProcessIdentity(pid);
 }
 
 export function requireCurrentProductionAdminProcessIdentity(
@@ -227,10 +292,34 @@ export function productionAdminRecordedOwnerIsDead({
   processStartIdentity,
   probe = probeProductionAdminProcessIdentity,
 }) {
-  const result = probe(pid);
-  if (result.state === 'ambiguous') return undefined;
-  if (result.state === 'absent') return true;
-  return result.identity !== processStartIdentity;
+  const result = probe(pid, processStartIdentity);
+  if (result?.state === 'absent') return true;
+  if (result?.state !== 'present' || typeof result.identity !== 'string') return undefined;
+  if (result.identity === processStartIdentity) return false;
+  // Only immutable Linux birth identities can prove reuse. A displayed legacy
+  // start time can move with the clock while the same owner remains alive.
+  if (LINUX_PROCESS_IDENTITY.test(processStartIdentity)
+    && LINUX_PROCESS_IDENTITY.test(result.identity)) return true;
+  return undefined;
+}
+
+export function productionAdminRecordedOwnerDigestIsDead({
+  pid,
+  processStartIdentityDigest,
+  probe = probeProductionAdminProcessIdentity,
+}) {
+  if (typeof processStartIdentityDigest !== 'string'
+    || !/^(?:[0-9a-f]{16}|[0-9a-f]{64})$/u.test(processStartIdentityDigest)) return undefined;
+  for (const expectedIdentity of [undefined, 'legacy']) {
+    const observed = probe(pid, expectedIdentity);
+    if (observed?.state === 'absent') return true;
+    if (observed?.state === 'present' && typeof observed.identity === 'string'
+      && createHash('sha256').update(observed.identity, 'utf8').digest('hex')
+        .slice(0, processStartIdentityDigest.length) === processStartIdentityDigest) return false;
+  }
+  // A digest alone does not identify its format or prove that a live PID was
+  // reused. Preserve both stable and legacy records when neither matches.
+  return undefined;
 }
 
 function validTime(value) {
@@ -947,4 +1036,5 @@ export const productionAdminTokenBudgetTestSeams = Object.freeze({
   parseLedger,
   parseLock,
   resolveStateDirectory,
+  probeLinuxProcessIdentity,
 });

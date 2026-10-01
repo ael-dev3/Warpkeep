@@ -23,19 +23,13 @@ function safeI32(value: unknown): value is number {
     && (value as number) <= I32_MAXIMUM;
 }
 
-/**
- * A PTR renderer receives only a virtual atlas anchor. Any simultaneous
- * Genesis surface, forged authority, expired authority, or malformed anchor
- * closes the branch before renderer effects mount.
- */
+/** A PTR renderer receives a virtual anchor only after owner and coordinate validation. */
 export function resolvePtrRealmPresentation(input: Readonly<{
   authority: PtrRealmAuthority;
   viewAnchor: PtrRealmViewAnchor;
-  legacySurfacePresent: boolean;
 }>): PtrRealmPresentation | null {
   if (
-    input.legacySurfacePresent
-    || !isCurrentPtrRealmAuthority(input.authority)
+    !isCurrentPtrRealmAuthority(input.authority)
     || !Number.isSafeInteger(input.viewAnchor.castleId)
     || input.viewAnchor.castleId <= 0
     || input.viewAnchor.castleId !== input.authority.fid

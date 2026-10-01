@@ -4,15 +4,17 @@ import {
   chmodSync,
   closeSync,
   existsSync,
+  lstatSync,
   mkdtempSync,
   openSync,
   realpathSync,
+  rmSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   NotificationPagesPrivateDeployOperatorError,
@@ -36,12 +38,32 @@ const RECEIPT_DIGEST = '3'.repeat(64);
 const CANARY_RECEIPT_DIGEST = '8'.repeat(64);
 const CANARY_SOURCE = '9'.repeat(40);
 const CANARY_AUTHORITY_DIGEST = 'a'.repeat(64);
+const fixtureHomes = new Set<string>();
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  for (const directory of fixtureHomes) {
+    const status = lstatSync(directory);
+    const uid = process.getuid?.();
+    if (
+      dirname(directory) !== realpathSync(tmpdir())
+      || !basename(directory).startsWith('warpkeep-pages-operator-home-')
+      || realpathSync(directory) !== directory
+      || !status.isDirectory()
+      || status.isSymbolicLink()
+      || (uid !== undefined && status.uid !== uid)
+    ) throw new Error('NOTIFICATION_PAGES_OPERATOR_FIXTURE_CLEANUP_TARGET_INVALID');
+    rmSync(directory, { recursive: true });
+    fixtureHomes.delete(directory);
+  }
+});
 
 function home(): string {
   const path = mkdtempSync(join(
     realpathSync(tmpdir()),
     'warpkeep-pages-operator-home-',
   ));
+  fixtureHomes.add(path);
   chmodSync(path, 0o700);
   return path;
 }

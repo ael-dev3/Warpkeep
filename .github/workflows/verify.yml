@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+# Retained package metadata stays frozen; nested scripts must use the patched CLI.
+env:
+  pnpm_config_pm_on_fail: 'ignore'
+
 # Superseded PR verification must not occupy runners ahead of the current head.
 # Main pushes use unique run IDs: never cancel their verification or share a
 # concurrency group with the separate non-cancelling production deployment.
@@ -35,9 +39,9 @@ jobs:
           cache: npm
 
       - name: Setup pinned pnpm for bridge runtime-contract tests
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
-          version: 11.7.0
+          version: 11.11.0
           run_install: false
 
       - name: Stage Node in a runner-private toolchain path
@@ -82,17 +86,17 @@ jobs:
         run: npm ci
 
       - name: Install exact bridge runtime-test toolchain
-        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+        run: pnpm --pm-on-fail=ignore --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
 
       - name: Validate PTR lock and install SpacetimeDB module dependencies
         shell: bash
         run: |
           set -euo pipefail
           test ! -e spacetimedb/ptr/node_modules
-          pnpm --dir spacetimedb/ptr install \
+          pnpm --pm-on-fail=ignore --dir spacetimedb/ptr install \
             --frozen-lockfile --lockfile-only --ignore-workspace
           test ! -e spacetimedb/ptr/node_modules
-          pnpm --dir spacetimedb install --frozen-lockfile
+          pnpm --pm-on-fail=ignore --dir spacetimedb install --frozen-lockfile
           test ! -e spacetimedb/ptr/node_modules
 
       - name: Re-attest runner-private Node after dependency install
@@ -247,9 +251,9 @@ jobs:
           cache: npm
 
       - name: Setup pinned pnpm for bridge runtime-contract tests
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
-          version: 11.7.0
+          version: 11.11.0
           run_install: false
 
       - name: Stage Node in a runner-private toolchain path
@@ -294,17 +298,17 @@ jobs:
         run: npm ci
 
       - name: Install exact bridge runtime-test toolchain
-        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+        run: pnpm --pm-on-fail=ignore --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
 
       - name: Validate PTR lock and install SpacetimeDB module dependencies
         shell: bash
         run: |
           set -euo pipefail
           test ! -e spacetimedb/ptr/node_modules
-          pnpm --dir spacetimedb/ptr install \
+          pnpm --pm-on-fail=ignore --dir spacetimedb/ptr install \
             --frozen-lockfile --lockfile-only --ignore-workspace
           test ! -e spacetimedb/ptr/node_modules
-          pnpm --dir spacetimedb install --frozen-lockfile
+          pnpm --pm-on-fail=ignore --dir spacetimedb install --frozen-lockfile
           test ! -e spacetimedb/ptr/node_modules
 
       - name: Re-attest runner-private Node after dependency install
@@ -410,18 +414,18 @@ jobs:
           node-version: 22
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
-          version: 11.7.0
+          version: 11.11.0
 
       - name: Install bridge dependencies
-        run: pnpm --dir services/auth-bridge install --frozen-lockfile
+        run: pnpm --pm-on-fail=ignore --dir services/auth-bridge install --frozen-lockfile
 
       - name: Verify bridge
-        run: pnpm --dir services/auth-bridge run check
+        run: pnpm --pm-on-fail=ignore --dir services/auth-bridge run check
 
       - name: Audit bridge dependencies
-        run: pnpm --dir services/auth-bridge audit --audit-level low
+        run: pnpm --pm-on-fail=ignore --dir services/auth-bridge audit --audit-level low
 
   release-recovery:
     # Fixture-only ownership checks use unprivileged user namespaces, whose
@@ -440,19 +444,19 @@ jobs:
           node-version: 22.22.3
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
-          version: 11.7.0
+          version: 11.11.0
           run_install: false
 
       - name: Install recovery dependencies
-        run: pnpm --dir services/release-recovery install --frozen-lockfile
+        run: pnpm --pm-on-fail=ignore --dir services/release-recovery install --frozen-lockfile
 
       - name: Verify recovery service and local Workerd contracts
-        run: pnpm --dir services/release-recovery run check
+        run: pnpm --pm-on-fail=ignore --dir services/release-recovery run check
 
       - name: Audit recovery dependencies
-        run: pnpm --dir services/release-recovery audit --audit-level low
+        run: pnpm --pm-on-fail=ignore --dir services/release-recovery audit --audit-level low
 
   spacetimedb-module:
     runs-on: ubuntu-latest
@@ -469,9 +473,9 @@ jobs:
           node-version: 22
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
-          version: 11.7.0
+          version: 11.11.0
 
       - name: Install root dependencies for generated client verification
         run: npm ci
@@ -481,10 +485,10 @@ jobs:
         run: |
           set -euo pipefail
           test ! -e spacetimedb/ptr/node_modules
-          pnpm --dir spacetimedb/ptr install \
+          pnpm --pm-on-fail=ignore --dir spacetimedb/ptr install \
             --frozen-lockfile --lockfile-only --ignore-workspace
           test ! -e spacetimedb/ptr/node_modules
-          pnpm --dir spacetimedb install --frozen-lockfile
+          pnpm --pm-on-fail=ignore --dir spacetimedb install --frozen-lockfile
           test ! -e spacetimedb/ptr/node_modules
 
       - name: Install pinned SpacetimeDB CLI
@@ -509,9 +513,9 @@ jobs:
         run: |
           # The module verifier is a serial multi-contract suite. Bound it
           # below the 90-minute job budget so a hung child cannot strand CI.
-          timeout --foreground --signal=TERM --kill-after=30s 60m pnpm --dir spacetimedb run verify
-          pnpm --dir spacetimedb/genesis002 run verify
-          pnpm --dir spacetimedb/ptr run verify
+          timeout --foreground --signal=TERM --kill-after=30s 60m pnpm --pm-on-fail=ignore --dir spacetimedb run verify
+          pnpm --pm-on-fail=ignore --dir spacetimedb/genesis002 run verify
+          pnpm --pm-on-fail=ignore --dir spacetimedb/ptr run verify
           test ! -e spacetimedb/ptr/node_modules
           npm run stdb:verify-bindings
           npm run stdb:genesis002:verify-private-loopback
@@ -538,7 +542,7 @@ jobs:
         run: timeout --signal=TERM --kill-after=15s 26m npm run stdb:verify-greater-realm-connected-active-population
 
       - name: Audit module dependencies
-        run: pnpm --dir spacetimedb audit --audit-level low
+        run: pnpm --pm-on-fail=ignore --dir spacetimedb audit --audit-level low
 
   native-contract:
     # Disposable hosted Linux only; no production runner or environment authority.
@@ -548,6 +552,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          # Dispatcher fixtures verify the retained bundle's actual compiler inputs.
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Require disposable X64 Linux authority
@@ -564,9 +570,9 @@ jobs:
           cache: npm
 
       - name: Setup pinned pnpm for bridge runtime-contract tests
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
-          version: 11.7.0
+          version: 11.11.0
           run_install: false
 
       - name: Stage Node in a runner-private toolchain path
@@ -611,7 +617,7 @@ jobs:
         run: npm ci
 
       - name: Install exact bridge runtime-test toolchain
-        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+        run: pnpm --pm-on-fail=ignore --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
 
       - name: Re-attest runner-private Node after dependency install
         shell: bash

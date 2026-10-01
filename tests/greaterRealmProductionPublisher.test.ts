@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   chmodSync,
@@ -35,10 +35,12 @@ import {
   cleanupGreaterRealmPublishSupervisor,
   inspectGreaterRealmPublishSupervisor,
   planGreaterRealmPublishSupervisor,
+  publishSupervisorProcessIdentityTestSeams,
   publishModule,
   type GreaterRealmPublishSupervisorIdentity,
   type MigrationArtifactReceipt,
 } from '../scripts/publish-spacetime-dev.mjs';
+import { probeProductionAdminProcessIdentity } from '../scripts/production-admin-token-budget.mjs';
 import type { GreaterRealmProductionImportStatus } from '../scripts/greater-realm-production-import-core';
 import type { GreaterRealmCutoverOperationJournalChain } from '../scripts/greater-realm-cutover-operation-journal';
 import { GreaterRealmCutoverWriteNotStartedError } from '../scripts/greater-realm-cutover-write-control';
@@ -608,6 +610,151 @@ async function executeLane(
   };
 }
 
+const IDENTITY_FIXTURE_BOOT = '12345678-1234-1234-1234-123456789abc';
+const IDENTITY_FIXTURE_PID = 317;
+
+function identityFixtureStat(tick = '4200', pid = IDENTITY_FIXTURE_PID, comm = 'fixture ) embedded') {
+  return `${pid} (${comm}) S ${Array(18).fill('0').join(' ')} ${tick} 0 0\n`;
+}
+
+function pythonIdentityFixture(input: {
+  platform?: string;
+  snapshots: ReadonlyArray<{
+    bootId?: string;
+    stat?: string;
+    statEncoding?: 'utf8' | 'latin1';
+    legacy?: string;
+  }>;
+}): {
+  outcomes: Array<{ identity?: string; error?: string }>;
+  readLimits: number[];
+  psCalls: number;
+} {
+  const python = String.raw`
+import io, json, re, subprocess, sys
+${publishSupervisorProcessIdentityTestSeams.pythonSource}
+fixture = json.loads(sys.argv[1])
+sys.platform = fixture.get("platform", "linux")
+snapshot = None
+read_limits = []
+ps_calls = 0
+class FixtureSource(io.StringIO):
+    def read(self, limit=-1):
+        if limit < 1 or limit > 4097:
+            raise RuntimeError("unbounded identity read")
+        read_limits.append(limit)
+        return super().read(limit)
+def fixture_open(path, *args, **kwargs):
+    key = "bootId" if path == "/proc/sys/kernel/random/boot_id" else "stat" if path == "/proc/317/stat" else None
+    if key is None or key not in snapshot:
+        raise PermissionError("fixture identity unavailable")
+    raw = snapshot[key].encode("latin1" if key == "bootId" else snapshot.get("statEncoding", "utf8"))
+    return FixtureSource(raw.decode(kwargs.get("encoding", "utf8")))
+def fixture_ps(arguments, env, timeout):
+    global ps_calls
+    ps_calls += 1
+    if arguments != ["/bin/ps", "-o", "lstart=", "-p", "317"] or env != {"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C", "TZ": "UTC"} or timeout != 5:
+        raise RuntimeError("unexpected legacy identity probe")
+    return snapshot["legacy"].encode("ascii")
+open = fixture_open
+subprocess.check_output = fixture_ps
+outcomes = []
+for snapshot in fixture["snapshots"]:
+    try:
+        outcomes.append({"identity": process_start_identity(317)})
+    except Exception as error:
+        outcomes.append({"error": type(error).__name__})
+print(json.dumps({"outcomes": outcomes, "readLimits": read_limits, "psCalls": ps_calls}))
+`;
+  const result = spawnSync(process.platform === 'win32' ? 'python' : '/usr/bin/python3', [
+    '-I', '-S', '-B', '-c', python, JSON.stringify(input),
+  ], { encoding: 'utf8', timeout: 5_000, maxBuffer: 8_192 });
+  expect(result.error).toBeUndefined();
+  expect(result.status, result.stderr).toBe(0);
+  expect(result.signal).toBeNull();
+  return JSON.parse(result.stdout);
+}
+
+describe('publication supervisor process identity', () => {
+  it('keeps the embedded Linux reader stable across legacy wall-clock drift', () => {
+    const result = pythonIdentityFixture({ snapshots: [
+      { bootId: `${IDENTITY_FIXTURE_BOOT}\n`, stat: identityFixtureStat(), legacy: 'Wed Sep 30 12:00:00 2026' },
+      { bootId: `${IDENTITY_FIXTURE_BOOT}\n`, stat: identityFixtureStat(), legacy: 'Wed Sep 30 12:00:10 2026' },
+    ] });
+    expect(result.outcomes).toEqual([
+      { identity: `linux-v1:${IDENTITY_FIXTURE_BOOT}:4200` },
+      { identity: `linux-v1:${IDENTITY_FIXTURE_BOOT}:4200` },
+    ]);
+    expect(result.psCalls).toBe(0);
+    expect(result.readLimits).toEqual([65, 4097, 65, 4097]);
+  });
+
+  it('distinguishes a changed start tick and boot without wall-clock conversion', () => {
+    const nextBoot = '22345678-1234-1234-1234-123456789abc';
+    const result = pythonIdentityFixture({ snapshots: [
+      { bootId: IDENTITY_FIXTURE_BOOT, stat: identityFixtureStat() },
+      { bootId: IDENTITY_FIXTURE_BOOT, stat: identityFixtureStat('4201') },
+      { bootId: nextBoot, stat: identityFixtureStat() },
+    ] });
+    expect(result.outcomes).toEqual([
+      { identity: `linux-v1:${IDENTITY_FIXTURE_BOOT}:4200` },
+      { identity: `linux-v1:${IDENTITY_FIXTURE_BOOT}:4201` },
+      { identity: `linux-v1:${nextBoot}:4200` },
+    ]);
+    expect(result.psCalls).toBe(0);
+  });
+
+  it.each([
+    { stat: identityFixtureStat('4200', IDENTITY_FIXTURE_PID, 'café ☃ ) embedded'), statEncoding: 'utf8' as const },
+    { stat: identityFixtureStat('4200', IDENTITY_FIXTURE_PID, 'opaque \xff\x80 ) embedded'), statEncoding: 'latin1' as const },
+  ])('accepts opaque non-ASCII process names without decoding comm as identity (%#)', snapshot => {
+    const result = pythonIdentityFixture({ snapshots: [{ bootId: IDENTITY_FIXTURE_BOOT, ...snapshot }] });
+    expect(result.outcomes).toEqual([{ identity: `linux-v1:${IDENTITY_FIXTURE_BOOT}:4200` }]);
+    expect(result.psCalls).toBe(0);
+  });
+
+  it.each([
+    { bootId: `\u00a0${IDENTITY_FIXTURE_BOOT}\u00a0`, stat: identityFixtureStat() },
+    { bootId: IDENTITY_FIXTURE_BOOT, stat: identityFixtureStat().replace(') S ', ') S\u00a0'), statEncoding: 'latin1' as const },
+  ])('rejects non-ASCII birth fields before trimming or splitting (%#)', snapshot => {
+    const result = pythonIdentityFixture({ snapshots: [snapshot] });
+    expect(result.outcomes[0].error).toMatch(/^(RuntimeError|UnicodeDecodeError)$/u);
+    expect(result.psCalls).toBe(0);
+  });
+
+  it('rejects vertical-tab separators in the bounded stat suffix', () => {
+    const result = pythonIdentityFixture({ snapshots: [{
+      bootId: IDENTITY_FIXTURE_BOOT,
+      stat: identityFixtureStat().replace(') S ', ') S\v'),
+    }] });
+    expect(result.outcomes).toEqual([{ error: 'RuntimeError' }]);
+    expect(result.psCalls).toBe(0);
+  });
+
+  it.each([
+    { bootId: IDENTITY_FIXTURE_BOOT, stat: identityFixtureStat('4200', 318) },
+    { bootId: IDENTITY_FIXTURE_BOOT.toUpperCase(), stat: identityFixtureStat() },
+    { bootId: IDENTITY_FIXTURE_BOOT.padEnd(65, ' '), stat: identityFixtureStat() },
+    { bootId: IDENTITY_FIXTURE_BOOT, stat: identityFixtureStat().replace(') S ', ') ?? ') },
+    { bootId: IDENTITY_FIXTURE_BOOT, stat: identityFixtureStat('04200') },
+    { bootId: IDENTITY_FIXTURE_BOOT, stat: identityFixtureStat('-1') },
+    { bootId: IDENTITY_FIXTURE_BOOT, stat: identityFixtureStat().padEnd(4097, ' ') },
+    { bootId: IDENTITY_FIXTURE_BOOT },
+  ])('refuses invalid or unavailable Linux birth evidence without a ps fallback (%#)', snapshot => {
+    const result = pythonIdentityFixture({ snapshots: [snapshot] });
+    expect(result.outcomes[0].error).toMatch(/^(RuntimeError|PermissionError)$/u);
+    expect(result.psCalls).toBe(0);
+  });
+
+  it('retains the bounded UTC legacy reader on Darwin', () => {
+    const legacy = 'Wed Sep 30 12:00:00 2026';
+    const result = pythonIdentityFixture({ platform: 'darwin', snapshots: [{ legacy }] });
+    expect(result.outcomes).toEqual([{ identity: legacy }]);
+    expect(result.readLimits).toEqual([]);
+    expect(result.psCalls).toBe(1);
+  });
+});
+
 describe('Greater Realm production publisher lanes', () => {
   it('rejects an injected closed approval envelope before selecting a lane', () => {
     expect(() => requireGreaterRealmProductionPublishLane(
@@ -1141,13 +1288,19 @@ describe('Greater Realm production publisher lanes', () => {
     let pgid: number | undefined;
     try {
       fixture = await startPublishSupervisorCrashFixture('post-gate', supervisorRoot);
+      // The identity is emitted before release; observe the durable gate before parent death.
+      const ready = await waitForPublishSupervisor(
+        fixture.identity,
+        value => value.status.state === 'gate-consumed' && value.processGroupExists,
+      );
+      pgid = ready.status.pgid as number;
       fixture.child.kill('SIGKILL');
       await new Promise<void>(resolvePromise => fixture!.child.once('close', () => resolvePromise()));
       const live = await waitForPublishSupervisor(
         fixture.identity,
         value => value.status.state === 'gate-consumed' && value.processGroupExists,
       );
-      pgid = live.status.pgid as number;
+      expect(live.status.pgid).toBe(pgid);
       expect(authorizeGreaterRealmPublishExactBeforeClear(fixture.identity)).toBe(false);
       process.kill(-pgid, 'SIGKILL');
       await waitForPublishSupervisor(fixture.identity, value => !value.processGroupExists);
@@ -1177,6 +1330,14 @@ describe('Greater Realm production publisher lanes', () => {
         fixture.identity,
         value => value.status.state === 'pre-gate-waiting' && value.processGroupExists,
       );
+      expect(waiting.status.processStartIdentity).toMatch(
+        process.platform === 'linux'
+          ? /^linux-v1:[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}:(?:0|[1-9][0-9]{0,19})$/u
+          : /^[\u0020-\u007e]{8,160}$/u,
+      );
+      expect(probeProductionAdminProcessIdentity(waiting.status.pid as number)).toEqual({
+        state: 'present', identity: waiting.status.processStartIdentity,
+      });
       pgid = waiting.status.pgid as number;
       process.kill(-pgid, 'SIGKILL');
       await waitForPublishSupervisor(fixture.identity, value => !value.processGroupExists);

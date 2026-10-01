@@ -27,6 +27,8 @@ import type { GreaterRealmPublicTransport } from './greaterRealmTransport';
 export const GREATER_REALM_CLIENT_CELL_SIZE = 1 as const;
 export const GREATER_REALM_RESOURCE_AFFORDANCES_PER_KIND = 6 as const;
 export const GREATER_REALM_MAXIMUM_RESOURCE_AFFORDANCES = 24 as const;
+// A stalled optional read must not leave resource controls loading indefinitely.
+export const GREATER_REALM_RESOURCE_LOCATION_TIMEOUT_MILLISECONDS = 15_000 as const;
 
 /**
  * The server orders locations by caller-relative distance. Retaining that
@@ -207,6 +209,7 @@ export function createGreaterRealmClientRuntime(
   let bootstrapPromise: Promise<GreaterRealmBootstrapDto> | undefined;
   let windowController: AbortController | undefined;
   let resourceLocationController: AbortController | undefined;
+  let resourceLocationTimeout: ReturnType<typeof setTimeout> | undefined;
   let routeController: AbortController | undefined;
   let retainedStreamAuthority: Readonly<{
     atlasId: string;
@@ -294,6 +297,18 @@ export function createGreaterRealmClientRuntime(
 
   snapshot = buildSnapshot();
 
+  const clearResourceLocationTimeout = () => {
+    if (resourceLocationTimeout === undefined) return;
+    clearTimeout(resourceLocationTimeout);
+    resourceLocationTimeout = undefined;
+  };
+  const abortResourceLocationRead = (reason: string) => {
+    clearResourceLocationTimeout();
+    const controller = resourceLocationController;
+    resourceLocationController = undefined;
+    controller?.abort(cancellation(reason));
+  };
+
   const fail = (
     reason: GreaterRealmClientFailureReason,
     sequence: number
@@ -307,7 +322,7 @@ export function createGreaterRealmClientRuntime(
       || reason === 'window-failed'
     ) {
       windowController?.abort(cancellation('GREATER_REALM_GENERATION_REPLACED'));
-      resourceLocationController?.abort(cancellation('GREATER_REALM_GENERATION_REPLACED'));
+      abortResourceLocationRead('GREATER_REALM_GENERATION_REPLACED');
       routeController?.abort(cancellation('GREATER_REALM_GENERATION_REPLACED'));
       windowDto = undefined;
       loaded.clear();
@@ -378,6 +393,12 @@ export function createGreaterRealmClientRuntime(
 
   const bootstrapRelease = async () => {
     const sequence = ++requestSequence;
+    if (resourceLocationController !== undefined) {
+      abortResourceLocationRead('GREATER_REALM_BOOTSTRAP_SUPERSEDED');
+      resourceLocationPhase = 'idle';
+      resourceLocations = Object.freeze([]);
+      resourceLocationsTruncated = false;
+    }
     try {
       await ensureBootstrap();
       if (disposed || sequence !== requestSequence) return snapshot;
@@ -399,9 +420,8 @@ export function createGreaterRealmClientRuntime(
     const normalizedView = normalizeView(requestedView);
     const sequence = ++requestSequence;
     windowController?.abort(cancellation('GREATER_REALM_WINDOW_SUPERSEDED'));
-    resourceLocationController?.abort(cancellation('GREATER_REALM_WINDOW_SUPERSEDED'));
+    abortResourceLocationRead('GREATER_REALM_WINDOW_SUPERSEDED');
     windowController = undefined;
-    resourceLocationController = undefined;
     resourceLocationPhase = 'idle';
     resourceLocations = Object.freeze([]);
     resourceLocationsTruncated = false;
@@ -458,6 +478,15 @@ export function createGreaterRealmClientRuntime(
           expectedRevision: release.revision,
           chunkHandles: Object.freeze(resourceHandles)
         });
+        resourceLocationTimeout = setTimeout(() => {
+          if (resourceLocationController !== resourceController) return;
+          abortResourceLocationRead('GREATER_REALM_RESOURCE_LOCATION_TIMEOUT');
+          if (disposed || sequence !== requestSequence || !options.isSessionCurrent()) return;
+          resourceLocations = Object.freeze([]);
+          resourceLocationsTruncated = false;
+          resourceLocationPhase = 'failed';
+          publish();
+        }, GREATER_REALM_RESOURCE_LOCATION_TIMEOUT_MILLISECONDS);
         void Promise.resolve().then(() => options.transport.getResourceLocations(
           resourceRequest,
           resourceController.signal
@@ -484,11 +513,10 @@ export function createGreaterRealmClientRuntime(
             || selected.length > resourceHandles.length;
           resourceLocationPhase = 'ready';
           publish();
-        }).catch((error: unknown) => {
+        }).catch(() => {
           if (
             disposed
             || sequence !== requestSequence
-            || isCancellation(error)
             || resourceController.signal.aborted
             || !options.isSessionCurrent()
           ) return;
@@ -498,6 +526,7 @@ export function createGreaterRealmClientRuntime(
           publish();
         }).finally(() => {
           if (resourceLocationController === resourceController) {
+            clearResourceLocationTimeout();
             resourceLocationController = undefined;
           }
         });
@@ -534,12 +563,11 @@ export function createGreaterRealmClientRuntime(
     releaseSequence += 1;
     bootstrapController?.abort(cancellation('GREATER_REALM_RELEASE_REFRESHED'));
     windowController?.abort(cancellation('GREATER_REALM_RELEASE_REFRESHED'));
-    resourceLocationController?.abort(cancellation('GREATER_REALM_RELEASE_REFRESHED'));
+    abortResourceLocationRead('GREATER_REALM_RELEASE_REFRESHED');
     routeController?.abort(cancellation('GREATER_REALM_RELEASE_REFRESHED'));
     bootstrapController = undefined;
     bootstrapPromise = undefined;
     windowController = undefined;
-    resourceLocationController = undefined;
     routeController = undefined;
     retainedStreamAuthority = bootstrap === undefined
       ? undefined
@@ -615,11 +643,10 @@ export function createGreaterRealmClientRuntime(
     releaseSequence += 1;
     bootstrapController?.abort(cancellation('GREATER_REALM_CLIENT_DISPOSED'));
     windowController?.abort(cancellation('GREATER_REALM_CLIENT_DISPOSED'));
-    resourceLocationController?.abort(cancellation('GREATER_REALM_CLIENT_DISPOSED'));
+    abortResourceLocationRead('GREATER_REALM_CLIENT_DISPOSED');
     routeController?.abort(cancellation('GREATER_REALM_CLIENT_DISPOSED'));
     bootstrapController = undefined;
     windowController = undefined;
-    resourceLocationController = undefined;
     routeController = undefined;
     bootstrapPromise = undefined;
     retainedStreamAuthority = undefined;

@@ -47,6 +47,19 @@ export function readKeep04ProbeDom(expected) {
     mode: host.dataset.mode, canvasCount, horizontalOverflow: document.documentElement.scrollWidth > innerWidth, observation: last };
 }
 
+// The exact local QA capture should show the keep, not controls that belong to
+// the harness. Do not touch any other details disclosure (including the game's
+// placement schematic), and refuse to act on a stale or unexpected document.
+export function collapseKeep04ProbeControls(expected) {
+  if (location.origin !== 'http://127.0.0.1:4176' || location.href !== expected.url) return null;
+  const root = document.querySelector('main[data-qa-synthetic="true"]');
+  if (!root || root.dataset.qaScenario !== expected.scenario || root.dataset.qaQuality !== expected.quality) return null;
+  const controls = root.querySelector('details[data-qa-controls="true"]');
+  if (!controls || controls.tagName !== 'DETAILS') return null;
+  controls.open = false;
+  return { controlsCollapsed: controls.open === false };
+}
+
 export async function waitForKeep04ProbeObservation(session, entry, navigation) {
   if (!navigation || typeof navigation.frameId !== 'string' || !navigation.frameId || typeof navigation.loaderId !== 'string' || !navigation.loaderId) {
     throw new Error('The requested new browser document was not identified.');
@@ -81,11 +94,16 @@ export async function runKeep04BrowserProbe(session, suppliedRun) {
     await session.command('Emulation.setCPUThrottlingRate', { rate: entry.cpuRate });
     const navigation = await session.command('Page.navigate', { url: entry.url });
     const observation = await waitForKeep04ProbeObservation(session, entry, navigation);
+    const controlsResult = await session.command('Runtime.evaluate', { returnByValue: true,
+      expression: `(${collapseKeep04ProbeControls.toString()})(${JSON.stringify(entry)})` });
+    if (controlsResult?.result?.value?.controlsCollapsed !== true) {
+      throw new Error('Exact QA document controls could not be collapsed before capture.');
+    }
     const screenshot = await session.command('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     if (typeof screenshot?.data !== 'string' || screenshot.data.length > 12 * 1024 * 1024) throw new Error('Screenshot unavailable or oversized.');
     const filename = `${entry.id}-${entry.scenario}.png`;
     await writeKeep04RunFile(run, filename, Buffer.from(screenshot.data, 'base64'));
-    observations.push({ ...entry, ...observation, screenshot: filename, imageInspected: false });
+    observations.push({ ...entry, ...observation, screenshot: filename, captureControlsCollapsed: true, imageInspected: false });
   }
   const report = { ...plan, output: `artifacts/keep04-qa/${run.id}/`, status: 'captured; images require human inspection; performance not measured', observations };
   await writeKeep04RunFile(run, 'synthetic-render-observations.json', `${JSON.stringify(report, null, 2)}\n`);

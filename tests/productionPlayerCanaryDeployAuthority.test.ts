@@ -5,22 +5,25 @@ import {
   chmodSync,
   linkSync,
   lstatSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { createOwnedTemporaryFixtures } from './helpers/ownedTemporaryFixture';
 
 import {
   parseProductionPlayerCanaryActivationRequest,
   PRODUCTION_PLAYER_CANARY_DEPLOY_AUTHORITY_PROFILE,
   productionPlayerCanaryDeployAuthorityTestSeams,
 } from '../scripts/production-player-canary-deploy-authority.mjs';
+
+const temporaryFixtures = createOwnedTemporaryFixtures();
+afterEach(() => temporaryFixtures.cleanup());
 
 const seams = productionPlayerCanaryDeployAuthorityTestSeams!;
 
@@ -166,7 +169,7 @@ describe('production player canary deploy authority', () => {
   });
 
   it('publishes canonically without clobber and recovers exact hard-link crashes', () => {
-    const stateDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-canary-deploy-'));
+    const stateDirectory = temporaryFixtures.create('warpkeep-canary-deploy-');
     chmodSync(stateDirectory, 0o700);
     const destination = join(stateDirectory, 'activation-request-v1.json');
     const canonical = `${JSON.stringify(request, null, 2)}\n`;
@@ -208,7 +211,7 @@ describe('production player canary deploy authority', () => {
   });
 
   it('preflights absent, installed, and recoverable publication states read-only', () => {
-    const stateDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-canary-preflight-'));
+    const stateDirectory = temporaryFixtures.create('warpkeep-canary-preflight-');
     chmodSync(stateDirectory, 0o700);
     const snapshot = () => readdirSync(stateDirectory).sort().map(name => {
       const path = join(stateDirectory, name);
@@ -255,7 +258,7 @@ describe('production player canary deploy authority', () => {
   });
 
   it('detects every known conflict before the writer can create a directory or file', () => {
-    const stateDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-canary-preflight-'));
+    const stateDirectory = temporaryFixtures.create('warpkeep-canary-preflight-');
     chmodSync(stateDirectory, 0o700);
     const destination = join(stateDirectory, 'activation-request-v1.json');
     const conflicting = `${JSON.stringify({
@@ -289,7 +292,7 @@ describe('production player canary deploy authority', () => {
   });
 
   it('leaves a different installed request untouched', () => {
-    const stateDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-canary-conflict-'));
+    const stateDirectory = temporaryFixtures.create('warpkeep-canary-conflict-');
     chmodSync(stateDirectory, 0o700);
     const destination = join(stateDirectory, 'activation-request-v1.json');
     const conflicting = `${JSON.stringify({

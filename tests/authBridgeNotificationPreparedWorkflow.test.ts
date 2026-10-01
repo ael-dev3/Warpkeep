@@ -1102,7 +1102,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         .toHaveLength(4);
     }
     const installIndex = source.indexOf(
-      'pnpm --dir services/auth-bridge install',
+      'pnpm --pm-on-fail=ignore --dir services/auth-bridge install',
     );
     const postInstallPinIndex = source.indexOf(
       'verify_bootstrap_digest "$WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256"',
@@ -1250,7 +1250,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 1258,
+        executableSecurityClosureMemberCount: 1250,
       });
   }, 180_000);
 
@@ -1268,7 +1268,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(1258);
+    expect(paths).toHaveLength(1250);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -1346,7 +1346,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 1258,
+        memberCount: 1250,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 180_000);
@@ -1362,7 +1362,8 @@ describe('notification-bridge-prepared protected workflow', () => {
       'src/styles/global.css',
       'src/components/WarpkeepExperience.tsx',
       'src/components/WarpkeepExperience.css',
-      'src/components/title/WarpkeepTitleScreen3D.tsx',
+      'src/components/menu/WarpkeepMenuWorld3D.tsx',
+      'src/components/menu/menuWorldResources.ts',
       'src/components/realm/RealmMapScreen.tsx',
       'src/components/auth/FarcasterMiniAppEntryGate.tsx',
       'src/components/auth/FarcasterMiniAppEntryGate.css',

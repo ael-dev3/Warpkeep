@@ -93,6 +93,9 @@ export type GreaterRealmPublishSupervisorPlan = Readonly<{
   cleanup: () => Promise<void>;
   executionState: () => Readonly<{ error?: unknown; closed?: unknown }>;
 }>;
+export const publishSupervisorProcessIdentityTestSeams: Readonly<{
+  pythonSource: string;
+}>;
 export function planGreaterRealmPublishSupervisor(
   supervisorRoot: string,
   cliConfigSourcePath: string,

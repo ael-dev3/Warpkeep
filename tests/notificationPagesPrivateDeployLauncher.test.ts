@@ -3,29 +3,29 @@
 import {
   chmodSync,
   closeSync,
-  mkdtempSync,
   openSync,
   realpathSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { createOwnedTemporaryFixtures } from './helpers/ownedTemporaryFixture';
 
 import {
   NotificationPagesPrivateDeployLauncherError,
   runNotificationPagesPrivateDeployLauncher,
 } from '../scripts/notification-pages-private-deploy-launcher.mjs';
 
+const temporaryFixtures = createOwnedTemporaryFixtures();
+afterEach(() => temporaryFixtures.cleanup());
+
 const SOURCE = 'a'.repeat(40);
 const MANIFEST = 'b'.repeat(64);
 const RUNNER = 'c'.repeat(64);
 
 function outputDescriptor(): { close: () => void; descriptor: number } {
-  const directory = mkdtempSync(join(
-    realpathSync(tmpdir()),
-    'warpkeep-pages-launcher-',
-  ));
+  const directory = temporaryFixtures.create('warpkeep-pages-launcher-');
   chmodSync(directory, 0o700);
   const descriptor = openSync(join(directory, 'output'), 'a', 0o600);
   return { close: () => closeSync(descriptor), descriptor };

@@ -154,6 +154,43 @@ const READ_DIRECT_SCENARIO_EXPRESSION = `((expected) => {
         return true;
       }
     });
+  const buildStamps = [...document.querySelectorAll('.warpkeep-menu-build-stamp')];
+  const buildStampMode = buildStamps.length === 1
+    ? buildStamps[0].getAttribute('data-build-stamp') ?? 'invalid'
+    : buildStamps.length === 0 ? 'absent' : 'multiple';
+  const buildProvenanceAnchors = buildStamps.flatMap((stamp) => (
+    [...stamp.querySelectorAll('a[href]')]
+  ));
+  const provenanceAnchor = buildProvenanceAnchors[0];
+  const provenanceHref = provenanceAnchor
+    ? new URL(provenanceAnchor.href, location.href)
+    : null;
+  const provenanceRel = new Set((provenanceAnchor?.getAttribute('rel') ?? '').split(/\\s+/));
+  const buildProvenanceLinkValid = (buildStampMode === 'local'
+      && buildProvenanceAnchors.length === 0)
+    || (buildStampMode === 'commit'
+      && buildProvenanceAnchors.length === 1
+      && provenanceHref?.protocol === 'https:'
+      && provenanceHref.hostname === 'github.com'
+      && /^\\/[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+\\/commit\\/[0-9a-f]{40}$/i.test(provenanceHref.pathname)
+      && provenanceAnchor?.target === '_blank'
+      && provenanceRel.has('noopener')
+      && provenanceRel.has('noreferrer')
+      && provenanceAnchor?.getAttribute('referrerpolicy') === 'no-referrer');
+  const communityAnchors = [...document.querySelectorAll('.warpkeep-menu-project__link[href]')];
+  const communityAnchor = communityAnchors[0];
+  const communityHref = communityAnchor
+    ? new URL(communityAnchor.href, location.href)
+    : null;
+  const communityRel = new Set((communityAnchor?.getAttribute('rel') ?? '').split(/\\s+/));
+  const communityLinkValid = communityAnchors.length === 1
+    && communityHref?.protocol === 'https:'
+    && communityHref.hostname === 'farcaster.xyz'
+    && communityHref.pathname === '/~/channel/warpkeep'
+    && communityAnchor?.target === '_blank'
+    && communityRel.has('noopener')
+    && communityRel.has('noreferrer')
+    && communityAnchor?.getAttribute('referrerpolicy') === 'no-referrer';
   const surface = terms ?? landmarkCandidates.find(visible) ?? root;
   const visibleButtons = [...(surface?.querySelectorAll('button') ?? [])].filter(visible);
   const undersizedVisibleButtonCount = visibleButtons.filter((button) => {
@@ -167,6 +204,12 @@ const READ_DIRECT_SCENARIO_EXPRESSION = `((expected) => {
     documentWidth: document.documentElement.scrollWidth,
     externalAnchorCount: externalAnchors.length,
     externalMediaCount: externalMedia.length,
+    buildStampCount: buildStamps.length,
+    buildStampMode,
+    buildProvenanceAnchorCount: buildProvenanceAnchors.length,
+    buildProvenanceLinkValid,
+    communityAnchorCount: communityAnchors.length,
+    communityLinkValid,
     href: location.href,
     landmarkCount: landmarkCandidates.length,
     landmarkVisibleCount: landmarkCandidates.filter(visible).length,
@@ -191,6 +234,12 @@ export function parseQaJourneyDirectObservation(value, expected) {
   const candidate = exactRecord(value, 'Invalid journey browser DOM.');
   const probeCase = exactRecord(expected, 'Invalid journey browser case.');
   exactKeys(candidate, [
+    'buildProvenanceAnchorCount',
+    'buildProvenanceLinkValid',
+    'buildStampCount',
+    'buildStampMode',
+    'communityAnchorCount',
+    'communityLinkValid',
     'documentWidth',
     'externalAnchorCount',
     'externalMediaCount',
@@ -208,6 +257,13 @@ export function parseQaJourneyDirectObservation(value, expected) {
   ], 'Invalid journey browser DOM shape.');
   const responsive = probeCase.kind === 'responsive';
   const expectedModalCount = probeCase.scenario === 'terms' ? 1 : 0;
+  const expectedAnchorCounts = probeCase.expectedExternalAnchorCount;
+  const menuScenario = probeCase.scenario === 'menu' || probeCase.scenario === 'journey';
+  const expectedExternalAnchorCount = menuScenario
+    && expectedAnchorCounts !== null
+    && typeof expectedAnchorCounts === 'object'
+    ? expectedAnchorCounts[candidate.buildStampMode]
+    : expectedAnchorCounts;
   const violations = [
     candidate.href !== probeCase.url ? 'href' : '',
     candidate.rootCount !== 1 ? 'root-count' : '',
@@ -216,10 +272,24 @@ export function parseQaJourneyDirectObservation(value, expected) {
     candidate.landmarkVisibleCount !== 1 ? 'landmark-visible' : '',
     candidate.modalCount !== expectedModalCount ? 'modal-count' : '',
     candidate.externalMediaCount !== 0 ? 'external-media' : '',
-    !Number.isSafeInteger(probeCase.expectedExternalAnchorCount)
-      || ![0, 1, 2].includes(probeCase.expectedExternalAnchorCount)
-      || candidate.externalAnchorCount !== probeCase.expectedExternalAnchorCount
+    !Number.isSafeInteger(expectedExternalAnchorCount)
+      || ![0, 1, 2].includes(expectedExternalAnchorCount)
+      || candidate.externalAnchorCount !== expectedExternalAnchorCount
       ? 'external-anchor-count' : '',
+    menuScenario && (
+      candidate.buildStampCount !== 1
+      || !['local', 'commit'].includes(candidate.buildStampMode)
+      || candidate.communityAnchorCount !== 1
+      || candidate.communityLinkValid !== true
+      || candidate.buildProvenanceAnchorCount !== (candidate.buildStampMode === 'commit' ? 1 : 0)
+      || candidate.buildProvenanceLinkValid !== true
+    ) ? 'menu-link-contract' : '',
+    !menuScenario && (
+      candidate.buildStampCount !== 0
+      || candidate.buildStampMode !== 'absent'
+      || candidate.buildProvenanceAnchorCount !== 0
+      || candidate.communityAnchorCount !== 0
+    ) ? 'unexpected-menu-links' : '',
     candidate.viewportWidth !== probeCase.viewport.width ? 'viewport-width' : '',
     candidate.viewportHeight !== probeCase.viewport.height ? 'viewport-height' : '',
     candidate.documentWidth !== probeCase.viewport.width ? 'horizontal-overflow' : '',
@@ -578,12 +648,27 @@ const READ_MENU_SURFACE_EXPRESSION = `(() => {
     const bounds = button.getBoundingClientRect();
     return bounds.width < 40 || bounds.height < 40;
   }).length;
-  const surfaceExternalAnchorCount = surface
+  const surfaceExternalAnchors = surface
     ? [...surface.querySelectorAll('a[href]')].filter((anchor) => {
         try { return new URL(anchor.href, location.href).origin !== location.origin; }
         catch { return true; }
-      }).length
-    : 0;
+      })
+    : [];
+  const surfaceExternalAnchorCount = surfaceExternalAnchors.length;
+  const licenseAnchor = surfaceExternalAnchors[0];
+  const licenseHref = licenseAnchor ? new URL(licenseAnchor.href, location.href) : null;
+  const licenseRel = new Set((licenseAnchor?.getAttribute('rel') ?? '').split(/\\s+/));
+  const surfaceExternalLinksValid = surfaceKind === 'credits'
+    ? surfaceExternalAnchors.length === 1
+      && licenseHref?.protocol === 'https:'
+      && licenseHref.hostname === 'creativecommons.org'
+      && licenseHref.pathname === '/licenses/by/4.0/'
+      && licenseHref.search === ''
+      && licenseHref.hash === ''
+      && licenseAnchor?.target === '_blank'
+      && licenseRel.has('noopener')
+      && licenseRel.has('noreferrer')
+    : surfaceExternalAnchors.length === 0;
   return {
     creditsPresentation: credits?.getAttribute('data-presentation') ?? 'absent',
     documentWidth: document.documentElement.scrollWidth,
@@ -595,6 +680,7 @@ const READ_MENU_SURFACE_EXPRESSION = `(() => {
     modalCount: document.querySelectorAll('[role="dialog"][aria-modal="true"]').length,
     patchExpanded: patchTrigger?.getAttribute('aria-expanded') === 'true',
     surfaceExternalAnchorCount,
+    surfaceExternalLinksValid,
     surfaceKind,
     surfaceWithinViewport: !surface || Boolean(surfaceBounds)
       && surfaceBounds.left >= -1
@@ -611,33 +697,38 @@ const READ_MENU_SURFACE_EXPRESSION = `(() => {
 const MENU_SURFACE_STAGE_CONTRACT = Object.freeze({
   'patch-open': Object.freeze({
     focusTarget: 'patch-trigger', modalCount: 0, patchExpanded: true,
-    surfaceExternalAnchorCount: 0, surfaceKind: 'patch', visibleSurfaceCount: 1,
+    surfaceExternalAnchorCount: 0, surfaceExternalLinksValid: true,
+    surfaceKind: 'patch', visibleSurfaceCount: 1,
   }),
   'patch-closed': Object.freeze({
     focusTarget: 'patch-trigger', modalCount: 0, patchExpanded: false,
-    surfaceKind: 'none', visibleSurfaceCount: 0,
+    surfaceExternalLinksValid: true, surfaceKind: 'none', visibleSurfaceCount: 0,
   }),
   'settings-open': Object.freeze({
     focusTarget: 'surface', modalCount: 1, patchExpanded: false,
-    surfaceExternalAnchorCount: 0, surfaceKind: 'settings', visibleSurfaceCount: 1,
+    surfaceExternalAnchorCount: 0, surfaceExternalLinksValid: true,
+    surfaceKind: 'settings', visibleSurfaceCount: 1,
   }),
   'settings-closed': Object.freeze({
     focusTarget: 'settings-trigger', modalCount: 0, patchExpanded: false,
-    surfaceKind: 'none', visibleSurfaceCount: 0,
+    surfaceExternalLinksValid: true, surfaceKind: 'none', visibleSurfaceCount: 0,
   }),
   'credits-open': Object.freeze({
     creditsPresentation: 'rolling', focusTarget: 'surface', modalCount: 1,
-    patchExpanded: false, surfaceExternalAnchorCount: 2,
+    patchExpanded: false, surfaceExternalAnchorCount: 1,
+    surfaceExternalLinksValid: true,
     surfaceKind: 'credits', visibleSurfaceCount: 1,
   }),
   'credits-reading': Object.freeze({
     creditsPresentation: 'reading', focusTarget: 'surface', modalCount: 1,
-    patchExpanded: false, surfaceExternalAnchorCount: 2,
+    patchExpanded: false, surfaceExternalAnchorCount: 1,
+    surfaceExternalLinksValid: true,
     surfaceKind: 'credits', visibleSurfaceCount: 1,
   }),
   'credits-closed': Object.freeze({
     creditsPresentation: 'absent', focusTarget: 'credits-trigger', modalCount: 0,
-    patchExpanded: false, surfaceKind: 'none', visibleSurfaceCount: 0,
+    patchExpanded: false, surfaceExternalLinksValid: true,
+    surfaceKind: 'none', visibleSurfaceCount: 0,
   }),
 });
 
@@ -657,6 +748,7 @@ export function parseQaJourneyMenuSurfaceObservation(
     'modalCount',
     'patchExpanded',
     'surfaceExternalAnchorCount',
+    'surfaceExternalLinksValid',
     'surfaceKind',
     'surfaceWithinViewport',
     'undersizedSurfaceButtonCount',

@@ -313,3 +313,65 @@
     font-size: 1.18rem;
   }
 }
+
+/* The scene remains visible behind a neutral glass credits layer. */
+.warpkeep-credits {
+  color: #ece9d9;
+  background: rgba(9, 17, 22, 0.77);
+  backdrop-filter: blur(12px);
+}
+
+.warpkeep-credits__stars {
+  display: none;
+  background:
+    radial-gradient(circle at 18% 29%, rgba(244, 220, 157, 0.62) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 76% 20%, rgba(193, 217, 192, 0.54) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 84% 72%, rgba(244, 220, 157, 0.48) 0 1px, transparent 1.5px),
+    radial-gradient(ellipse at 50% 34%, rgba(71, 108, 97, 0.29), transparent 50%);
+  background-size: 29rem 25rem, 31rem 27rem, 37rem 29rem, auto;
+}
+
+.warpkeep-credits__vignette {
+  background: linear-gradient(180deg, rgba(8, 16, 22, 0.28), transparent 22% 74%, rgba(8, 16, 22, 0.48));
+}
+
+.warpkeep-credits__close,
+.warpkeep-credits__reading-toggle {
+  border-color: rgba(211, 197, 155, 0.55);
+  color: #eae2cc;
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.warpkeep-credits__close:hover,
+.warpkeep-credits__close:focus-visible,
+.warpkeep-credits__reading-toggle:hover,
+.warpkeep-credits__reading-toggle:focus-visible,
+.warpkeep-credits__reading-toggle[aria-pressed="true"] {
+  border-color: #e9dbad;
+  color: #fff6db;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.warpkeep-credits__kicker,
+.warpkeep-credits__description,
+.warpkeep-credits__tiny,
+.warpkeep-credits__credit dt {
+  color: #d3d7d1;
+}
+
+.warpkeep-credits__title,
+.warpkeep-credits__credit dd,
+.warpkeep-credits__finale {
+  color: #f1e9d7;
+  text-shadow: 0 0.4rem 1.5rem rgba(4, 19, 21, 0.52);
+}
+
+.warpkeep-credits__rule {
+  background: linear-gradient(90deg, transparent, #c9bb91, transparent);
+  box-shadow: none;
+}
+
+.warpkeep-credits__attribution,
+.warpkeep-credits__attribution a {
+  color: #d7d6c5;
+}

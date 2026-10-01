@@ -7,7 +7,7 @@ across the landscape, resources come home, and a keep becomes a place shaped by
 its Keeper's choices. We are building a game that makes the first session
 satisfying and the next visit worthwhile.
 
-[0.4 delivery status](docs/operations/0.4.0-live-delivery-status.md) · [Follow development](https://github.com/ael-dev3/Warpkeep/pulls)
+[Play the current Alpha](https://warpkeep.com/) · [0.4 delivery status](docs/operations/0.4.0-live-delivery-status.md) · [Follow development](https://github.com/ael-dev3/Warpkeep/pulls)
 · [Product direction](docs/design/warpkeep-direction.md) · [Documentation](docs/README.md)
 
 ## The next chapter
@@ -31,7 +31,7 @@ systems remain later milestones.
 
 The visual direction is an inviting town diorama: pale masonry, dark timber,
 oxidized-teal roofs, restrained violet warp accents and warm signs of activity.
-Layered forest, lightweight voxel scenery and flowing water frame the keep
+Layered forest, lightweight voxel scenery and shallow water frame the keep
 without obscuring the decisions inside it.
 
 We judge the result in the rendered game—its composition, readability, motion
@@ -40,39 +40,86 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**The gameplay foundation is integrated; 0.4 has not shipped.** The sealed
-operation workflow repair has merged through protected PR #362. It removes a
-redundant post-checkout environment rejection while retaining the pre-checkout
-runner gates and final Node environment scrub. The current source, exact checks
-and next release action are recorded in the dated
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md); earlier
-checkpoints there are historical. Native preparation, generated-only M2,
-provider work and owner acceptance still remain before release.
+**Alpha 0.3.43 is live; Warpkeep 0.4 is an open, unpublished candidate.** The
+candidate is assembled on [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374).
+It includes the reviewed work from still-open PRs #375–#378; those older heads
+must not be merged separately while their changes are already in #374.
 
-Provider deployment, accepted G001 preservation/readback, sealed G002 evidence,
-owner PTR play, mobile and measured-performance acceptance, and final release
-freeze still need current evidence. The owner PTR is mandatory for the initial
-0.4 ship; live admissions servers are not. The [release checklist](docs/operations/0.4.0-release-checklist.md)
-tracks the evidence required to make that distinction concrete.
+The candidate brings together:
+
+- The Verdant Citadel 3D menu, castle presentation and Hegemony banners ([#375](https://github.com/ael-dev3/Warpkeep/pull/375)).
+- The eligible FID 539854 castle-film action ([#376](https://github.com/ael-dev3/Warpkeep/pull/376)). Its 289 MB video remains
+  external and click-to-load.
+- Sealed Genesis 002 soundtrack wiring ([#377](https://github.com/ael-dev3/Warpkeep/pull/377)). G002 remains inaccessible;
+  the soundtrack derivative's source terms are unresolved.
+- Hash-pinned Greater Realm tree models ([#378](https://github.com/ael-dev3/Warpkeep/pull/378)). The app uses local runtime
+  copies; the private Warpkeep-Assets source archive is a provenance record, not a
+  runtime download dependency.
+
+The existing gather, Worker dispatch and return, building, construction and
+persistent-progress loop remains the gameplay foundation. The PTR has a
+dedicated lazy-loaded gameplay host that preserves /ptr/ routing and checks its
+owner/session capabilities. No candidate change opens Genesis 002 admissions
+or widens the Genesis 001 admission freeze.
+
+The latest exact source, test/build receipts and publication-plan receipts are maintained on
+[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374). Recent repairs improve
+mobile gestures, reachable controls, short-landscape drawers, confirmation,
+world/keep focus and menu readability. Real client/server testing also found
+and fixed a new-keep initialization failure caused by the server's error format.
+Publication planning now preserves committed Alpha bytes across Windows line
+ending conversion, matching the existing signed publisher.
+Linux recovery now identifies owners by kernel birth, so clock changes cannot
+make an active owner look reused. Ambiguous legacy records remain preserved;
+private deployment tests clean only their newly allocated temporary homes.
+Release preparation also verifies the paired launch scripts and binds reviewed
+operator corrections while preserving the frozen G001 module and build recipe.
+Independent affected tests and scoped rendered checks pass.
+
+The connected local PTR lane exercises the real module and client with normal
+server timers and synthetic authority/atlas. Gathering, construction, improved
+return, exact retry, manual fixture-session renewal and client reconnection pass.
+Automatic Quick Auth expiry through the real browser host still needs the planned
+owner acceptance. Actual-owner play,
+production-atlas pacing and physical-phone performance remain release requirements. Earlier G001 browser fixtures and the
+12,603-test native pass retain their original source scopes. The build's existing
+RealmMapScreen size warning remains under measurement.
+
+Alpha returned HTTP 200 and the unpublished /ptr/ HTTP 404 on 30 September.
+Sealed preparation remains disabled. After the owner's September Actions pause,
+resume exact-head verification, the signed M1/M2 sequence, preservation/readbacks
+and PTR publication on or after October 1. Current [delivery status](docs/operations/0.4.0-live-delivery-status.md)
+and [the handoff](docs/agent-notes/0.4.0/execution-handoff.md) identify the next action.
+
 
 | Realm | Purpose |
 | --- | --- |
-| **Genesis 001** | Preserve the established world, existing player progress and agreed admission freeze. |
-| **Genesis 002** | Prepare the successor realm as a sealed launch; its future admissions remain undecided. |
+| **Genesis 001** | Preserve the established world, player progress and agreed admission freeze. |
+| **Genesis 002** | Keep the successor realm sealed while its future admissions remain undecided. |
 | **Owner PTR** | Exercise the new playable experience in an isolated realm before broader release. |
 
-The [current development notes](docs/agent-notes/0.4.0/README.md) distinguish
-implemented behavior, verified results, open integration work and live observations.
-The [roadmap](docs/design/roadmap.md) explains how the first complete loop supports
-future exploration, cooperation and strategy without promising unfinished features.
+The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md),
+[delivery status](docs/operations/0.4.0-live-delivery-status.md), and
+[release checklist](docs/operations/0.4.0-release-checklist.md) track current
+evidence and exact gates. The [development brief](docs/agent-notes/0.4.0/next-work.txt)
+keeps the next action concise; release status belongs to the linked handoff and
+checklist.
+
+The open [Warpkeep-Assets PR #41](https://github.com/ael-dev3/Warpkeep-Assets/pull/41)
+carries the source archive for the biome trees; [PR #40](https://github.com/ael-dev3/Warpkeep-Assets/pull/40)
+is a study reference with rights still unverified. Their open status does not
+block the app's hash-pinned local runtime models. The Genesis 002 soundtrack
+archive is tracked separately in [Warpkeep-Assets PR #38](https://github.com/ael-dev3/Warpkeep-Assets/pull/38).
+Review the linked provenance records before changing or republishing any source
+asset.
 
 ## Build with us
 
-`main` contains the integrated 0.4 development source. The running game remains
-at a different release stage; 0.4 delivery is unfinished. Follow the
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) for the live
-checkpoint and next action, then inspect any open pull requests for their exact
-source and check status.
+`main` contains an earlier integrated 0.4 development baseline; the active
+0.4 changes are on PR #374. The running game remains at a different
+release stage, and the 0.4 owner PTR is not live. Follow the
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) for the
+current candidate, local verification and remaining hosted release gates.
 
 For a fresh independent checkout, use Git, Node 22 (22.13 or newer within that
 major) and npm 10.9.8:
@@ -91,6 +138,14 @@ origin. The fixture demonstrates presentation; it does not connect a real owner
 or establish live gameplay acceptance. Follow [Contributing](CONTRIBUTING.md)
 and [the development workflow](docs/engineering/development-workflow.md) for
 setup, verification, and existing-worktree guidance.
+
+After building a reviewed candidate, `npm run qa:menu-entry` checks its current
+production menu across desktop and mobile layouts. Inspect the saved views;
+this check does not establish authenticated gameplay or phone performance.
+Warpkeep and Tervain share suitable assets and rendering techniques while keeping
+their game rules and worlds separate; follow the
+[repository ecosystem](docs/engineering/repository-ecosystem.md#sharing-with-tervain)
+for source ownership, provenance and reuse.
 
 Stop the development server with `Ctrl+C` in its terminal.
 

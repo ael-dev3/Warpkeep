@@ -65,12 +65,6 @@ import type {
   ReadyRealmResourcePresentation,
   RealmEconomicResourceKey
 } from './realmResourcePresentation';
-import { CastleInspectionPanel } from './CastleInspectionPanel';
-import { FoodFarmInspectionPanel } from './FoodFarmInspectionPanel';
-import { GoldMineInspectionPanel } from './GoldMineInspectionPanel';
-import { LoggingCampInspectionPanel } from './LoggingCampInspectionPanel';
-import { StoneQuarryInspectionPanel } from './StoneQuarryInspectionPanel';
-import { WaterInspectionPanel } from './WaterInspectionPanel';
 import {
   RealmAccessibilityControls,
   type RealmNavigatorCloseReason,
@@ -85,7 +79,6 @@ import { RealmHud, type RealmActiveWagonMenuItem } from './RealmHud';
 import { RealmObserverHud } from './RealmObserverHud';
 import { RealmRendererRecoveryPanel } from './RealmRendererRecoveryPanel';
 import { RealmResourceOccupantMarkers } from './RealmResourceOccupantMarkers';
-import { RealmTerrainInspectionPanel } from './RealmTerrainInspectionPanel';
 import { RealmWorkerPresenceMarkers } from './RealmWorkerPresenceMarkers';
 import {
   createRealmScene,
@@ -172,17 +165,10 @@ import {
   type RealmQuality
 } from './realmQuality';
 import {
-  resolvePtrRealmWorldSceneStrategy,
   resolveRealmWorldSceneStrategy,
   resolveRealmWorldSceneStrategyForPolicy,
   type RealmWorldSceneStrategy
 } from './greaterRealmSceneStrategy';
-import type { PtrRealmAuthority } from '../../ptr/ptrRealmAuthClient';
-import { isCurrentPtrGameplay04Capability, type PtrGameplay04Capability } from '../../ptr/ptrRealmConnection';
-import {
-  resolvePtrRealmPresentation,
-  type PtrRealmViewAnchor
-} from '../../ptr/ptrRealmPresentationPolicy';
 import type { RealmIdentity } from './realmTypes';
 import type {
   RealmCastleProjectionFrame,
@@ -260,7 +246,6 @@ import {
 } from './realmRendererEmergencyQuality';
 import './RealmMapScreen.css';
 import './RealmCastlePresentation.css';
-import { WorkerInspectionPanel } from './WorkerInspectionPanel';
 import {
   realmSurfacePresentation,
   type RealmChromeMode
@@ -299,10 +284,44 @@ import {
   type RealmChatSenderProfile
 } from './RealmChatDock';
 import { GreaterRealmWorldScene } from './GreaterRealmWorldScene';
+import { lyricFilmCastleIdFromPublicCastles } from './castleLyricFilmEligibility';
 import {
   isNarrowRealmPresentation,
   useNarrowRealmPresentation
 } from './useNarrowRealmPresentation';
+
+const CastleInspectionPanel = lazy(async () => {
+  const module = await import('./CastleInspectionPanel');
+  return { default: module.CastleInspectionPanel };
+});
+const FoodFarmInspectionPanel = lazy(async () => {
+  const module = await import('./FoodFarmInspectionPanel');
+  return { default: module.FoodFarmInspectionPanel };
+});
+const GoldMineInspectionPanel = lazy(async () => {
+  const module = await import('./GoldMineInspectionPanel');
+  return { default: module.GoldMineInspectionPanel };
+});
+const LoggingCampInspectionPanel = lazy(async () => {
+  const module = await import('./LoggingCampInspectionPanel');
+  return { default: module.LoggingCampInspectionPanel };
+});
+const StoneQuarryInspectionPanel = lazy(async () => {
+  const module = await import('./StoneQuarryInspectionPanel');
+  return { default: module.StoneQuarryInspectionPanel };
+});
+const WaterInspectionPanel = lazy(async () => {
+  const module = await import('./WaterInspectionPanel');
+  return { default: module.WaterInspectionPanel };
+});
+const RealmTerrainInspectionPanel = lazy(async () => {
+  const module = await import('./RealmTerrainInspectionPanel');
+  return { default: module.RealmTerrainInspectionPanel };
+});
+const WorkerInspectionPanel = lazy(async () => {
+  const module = await import('./WorkerInspectionPanel');
+  return { default: module.WorkerInspectionPanel };
+});
 
 const InnerKeepScreen = lazy(async () => {
   const module = await import('../inner-keep/InnerKeepScreen');
@@ -323,17 +342,6 @@ export type RealmMapScreenProps = Readonly<{
   realmContinuity?: WarpkeepRealmContinuityProjection;
   /** Generation-bound v17 bridge; literal gates currently force legacy presentation. */
   greaterRealm?: GreaterRealmProviderBridge;
-  /** Exact memory-branded owner authority for the isolated PTR renderer only. */
-  ptrRealmAuthority?: PtrRealmAuthority;
-  /** Server-projected virtual atlas anchor; it is never a player/castle row. */
-  ptrViewAnchor?: PtrRealmViewAnchor;
-  ptrGameplay04?: PtrGameplay04Capability;
-  /** Memory-only destination across PTR renewal; never a command or route stack. */
-  ptrInitialSurface?: 'world' | 'keep';
-  onPtrSurfaceChange?: (surface: 'world' | 'keep') => void;
-  onPtrCommandStateChange?: (unconfirmed: boolean) => void;
-  ptrContinuationNotice?: boolean;
-  onDismissPtrContinuationNotice?: () => void;
   /** Authenticated caller-only inventory, separate from the public snapshot. */
   resources?: ReadyRealmResourcePresentation;
   /** Exact caller-only Gold expedition procedure projection. */
@@ -388,6 +396,8 @@ export type RealmMapScreenProps = Readonly<{
   graphicsPreference?: GraphicsPreference;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   audioMuted?: boolean;
+  /** Silences the realm score while the keeper's lyric film is open. */
+  onLyricFilmOpenChange?: (open: boolean, requestClose?: () => void) => void;
   onGraphicsPreferenceChange?: (preference: GraphicsPreference) => void;
   onAudioMutedChange?: (muted: boolean) => void;
   onRequestReturn: () => void;
@@ -561,19 +571,15 @@ const applyDevWorkerProjectionTelemetry = import.meta.env.DEV
   : undefined;
 
 function CanonicalRealmUnavailable({
-  onRequestReturn,
-  realm = 'Genesis 001'
+  onRequestReturn
 }: Readonly<{
   onRequestReturn: () => void;
-  realm?: 'Genesis 001' | 'PTR';
 }>) {
   return (
     <main className="realm-map-screen realm-map-screen--unavailable" role="alert">
       <div className="realm-map-screen__loading">
-        <strong>{realm} is unavailable</strong>
-        <span>{realm === 'PTR'
-          ? 'The owner authority or atlas anchor did not pass validation.'
-          : 'The canonical realm records did not pass validation.'}</span>
+        <strong>Genesis 001 is unavailable</strong>
+        <span>The canonical realm records did not pass validation.</span>
         <button type="button" onClick={onRequestReturn}>Return to Menu</button>
       </div>
     </main>
@@ -587,7 +593,7 @@ function RetiredRealmWorldHost({
   strategy: Exclude<RealmWorldSceneStrategy, { kind: 'legacy-lowlands' }>;
   props: RealmMapScreenProps;
 }>) {
-  const greaterRealmViewAnchor = props.ptrViewAnchor ?? props.realmContinuity?.ownCastle;
+  const greaterRealmViewAnchor = props.realmContinuity?.ownCastle;
   const greaterSceneKey = strategy.kind === 'greater-realm'
     && greaterRealmViewAnchor !== undefined
       ? [
@@ -743,8 +749,11 @@ function RetiredRealmWorldHost({
           bridge={strategy.bridge}
           identityFid={props.identity.fid}
           identityKey={`${props.identity.fid}:${greaterRealmViewAnchor.castleId}:${greaterRealmViewAnchor.q}:${greaterRealmViewAnchor.r}`}
+          ownKeeperName={props.identity.displayName ?? props.identity.username}
           ownCastle={greaterRealmViewAnchor}
+          lyricFilmCastleId={lyricFilmCastleIdFromPublicCastles(props.realmContinuity?.castles)}
           resolvedGraphicsQuality={props.resolvedGraphicsQuality}
+          onLyricFilmOpenChange={props.onLyricFilmOpenChange}
           onPhaseChange={handleGreaterPhaseChange}
           narrowOpenPanel={narrowOpenPanel === 'details' ? undefined : narrowOpenPanel}
           onNarrowOpenPanelChange={setNarrowOpenPanel}
@@ -754,7 +763,11 @@ function RetiredRealmWorldHost({
         ? 'greater-realm-world__continuity'
         : 'realm-map-screen__loading'}>
         <strong>{strategy.kind === 'greater-realm'
-          ? greaterPhase === 'ready' ? 'Greater Realm' : 'Opening the Greater Realm'
+          ? greaterPhase === 'ready'
+            ? 'Greater Realm'
+            : greaterPhase === 'failed'
+              ? 'Realm needs a retry'
+              : 'Opening the Greater Realm'
           : 'Reconnecting to the Realm'}</strong>
         <span
           role={strategy.kind === 'connection-hold' || greaterPhase !== 'ready'
@@ -766,7 +779,7 @@ function RetiredRealmWorldHost({
         >{strategy.kind === 'greater-realm' && greaterPhase === 'ready'
           ? 'The bounded public atlas around your keep is current.'
           : strategy.kind === 'greater-realm' && greaterPhase === 'failed'
-            ? 'The public atlas could not be loaded. The retired Lowlands remains hidden.'
+            ? 'Current Worker commands are paused. Retry the Realm to restore current authority.'
             : 'The retired Lowlands surface stays hidden while current authority is prepared.'}</span>
         {strategy.kind === 'greater-realm' ? (
           <>
@@ -851,67 +864,7 @@ function RetiredRealmWorldHost({
   );
 }
 
-/**
- * Keep the private canonical brand check outside the hook-heavy renderer.
- * Invalid or malformed runtime input must not be dereferenced, generate a
- * terrain surface, or register WebGL/browser effects before failing closed.
- */
-const PtrGameplay04SurfaceHost = lazy(() => import('../../ptr/PtrGameplay04SurfaceHost').then(module => ({ default: module.PtrGameplay04SurfaceHost })));
-
 export function RealmMapScreen(props: RealmMapScreenProps) {
-  const ptrBoundaryRequested = props.ptrRealmAuthority !== undefined
-    || props.ptrViewAnchor !== undefined
-    || props.ptrGameplay04 !== undefined;
-  const localQaSurfacePresent = import.meta.env.DEV && (
-    props.localQaWorkerProjectionTelemetry !== undefined
-    || props.localQaLivingVisualTimeSeconds !== undefined
-    || props.localQaGreaterRealmPresentationAllowed !== undefined
-  );
-  const legacySurfacePresent = props.snapshot !== undefined
-    || props.realmContinuity !== undefined
-    || props.resources !== undefined
-    || props.goldExpedition !== undefined
-    || props.onDispatchGoldExpedition !== undefined
-    || props.foodExpedition !== undefined
-    || props.onDispatchFoodExpedition !== undefined
-    || props.woodExpedition !== undefined
-    || props.onDispatchWoodExpedition !== undefined
-    || props.stoneExpedition !== undefined
-    || props.onDispatchStoneExpedition !== undefined
-    || props.workerProjection !== undefined
-    || props.workerRoster !== undefined
-    || props.workerResourceState !== undefined
-    || props.workerPrivateSync !== undefined
-    || props.onRetryWorkerPrivateSync !== undefined
-    || props.onDispatchWorker !== undefined
-    || props.onRecallWorker !== undefined
-    || props.onRecallAllWorkers !== undefined
-    || props.onReturnLegacyExpedition !== undefined
-    || props.innerKeep !== undefined
-    || props.onStartInnerKeepProject !== undefined
-    || props.onRequestInnerKeepSync !== undefined
-    || props.realmChat !== undefined
-    || props.onSendRealmChatMessage !== undefined
-    || props.onReportRealmChatMessage !== undefined
-    || props.onLoadEarlierRealmChat !== undefined
-    || props.presentationMode !== undefined
-    || localQaSurfacePresent;
-  const ptrPresentation = props.ptrRealmAuthority !== undefined
-    && props.ptrViewAnchor !== undefined
-      ? resolvePtrRealmPresentation({
-          authority: props.ptrRealmAuthority,
-          viewAnchor: props.ptrViewAnchor,
-          legacySurfacePresent
-        })
-      : null;
-  if (ptrBoundaryRequested && ptrPresentation === null) {
-    return (
-      <CanonicalRealmUnavailable
-        onRequestReturn={props.onRequestReturn}
-        realm="PTR"
-      />
-    );
-  }
   if (
     (props.snapshot !== undefined
       && !isCanonicalGenesisSnapshot(props.snapshot, props.identity.fid))
@@ -921,31 +874,15 @@ export function RealmMapScreen(props: RealmMapScreenProps) {
   }
   const strategyInput = {
     bridge: props.greaterRealm,
-    legacyAuthorityActive: ptrPresentation === null
-      && props.snapshot?.realm.active === true
+    legacyAuthorityActive: props.snapshot?.realm.active === true
   };
-  const worldSceneStrategy = ptrPresentation !== null
-    ? resolvePtrRealmWorldSceneStrategy(strategyInput, ptrPresentation.authority)
-    : import.meta.env.DEV
+  const worldSceneStrategy = import.meta.env.DEV
     && props.localQaGreaterRealmPresentationAllowed === true
     ? resolveRealmWorldSceneStrategyForPolicy(strategyInput, {
         clientPresentationAllowed: true,
         serverPresentationAllowed: true
       })
     : resolveRealmWorldSceneStrategy(strategyInput);
-  if (props.ptrGameplay04 !== undefined) {
-    if (ptrPresentation === null || worldSceneStrategy.kind !== 'greater-realm'
-      || props.identity.fid !== ptrPresentation.authority.fid
-      || !isCurrentPtrGameplay04Capability(props.ptrGameplay04, ptrPresentation.authority, worldSceneStrategy.bridge.sessionGeneration)
-      || props.ptrGameplay04.scope.databaseIdentity !== ptrPresentation.authority.databaseIdentity
-      || props.ptrGameplay04.scope.anchorQ !== ptrPresentation.viewAnchor.q
-      || props.ptrGameplay04.scope.anchorR !== ptrPresentation.viewAnchor.r) {
-      return <CanonicalRealmUnavailable onRequestReturn={props.onRequestReturn} realm="PTR" />;
-    }
-    return <Suspense fallback={<p role="status">Loading PTR…</p>}>
-      <PtrGameplay04SurfaceHost {...props} ptrGameplay04={props.ptrGameplay04} />
-    </Suspense>;
-  }
   if (worldSceneStrategy.kind !== 'legacy-lowlands') {
     return (
       <RetiredRealmWorldHost
@@ -1205,7 +1142,16 @@ function CanonicalRealmMapScreen(
   const pushWorldSurface = useCallback((route: RealmSurfaceRoute) => {
     if (fullscreenDestinations) pushSurface(route);
   }, [fullscreenDestinations, pushSurface]);
+  const lyricFilmCloseRef = useRef<(() => void) | null>(null);
+  const handleLyricFilmOpenChange = useCallback((open: boolean, requestClose?: () => void) => {
+    lyricFilmCloseRef.current = open ? requestClose ?? null : null;
+    props.onLyricFilmOpenChange?.(open);
+  }, [props.onLyricFilmOpenChange]);
   const handleMiniAppBack = useCallback(() => {
+    if (lyricFilmCloseRef.current) {
+      lyricFilmCloseRef.current();
+      return;
+    }
     const chatBack = realmChatCompactBackRef.current;
     if (chatBack !== undefined) {
       chatBack();
@@ -4683,9 +4629,8 @@ function CanonicalRealmMapScreen(
       const root = rootRef.current;
       if (root) {
         reservedUiRectsRef.current = measuredVisibleRealmUiRects(root);
-        const cameraNeutralInspectorOpen = root.querySelector(
-          '.realm-camera-neutral-inspector'
-        ) !== null;
+        const cameraNeutralInspectorOpen = interactionRef.current.inspectorOpen
+          || root.querySelector('.realm-camera-neutral-inspector') !== null;
         if (!cameraNeutralInspectorOpen) {
           stableCameraCompositionRef.current = measuredRealmComposition(root);
         }
@@ -7072,316 +7017,328 @@ function CanonicalRealmMapScreen(
             />
           ) : null}
 
-          {inspectorCastle && profileRecords.get(inspectorCastle.castleId) ? (
-            <CastleInspectionPanel
-              id={inspectorId}
-              castle={inspectorCastle}
-              profile={profileRecords.get(inspectorCastle.castleId)!.profile}
-              own={!observerMode && inspectorCastle.ownerFid === identity.fid}
-              observer={observerMode}
-              hostedDestination={fullscreenDestinations}
-              onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
-                ? backSurface
-                : undefined}
-              focusTargetRef={inspectorFocusRef}
-              innerKeepButtonRef={innerKeepCastleEntryRef}
-              onEnterInnerKeep={
-                innerKeepAvailable
-                && !observerMode
-                && inspectorCastle.castleId === ownCastle.castleId
-                  ? () => pushSurface({ kind: 'inner-keep' })
-                  : undefined
-              }
-              onRequestClose={closeInspectorSurface}
-            />
-          ) : null}
+          <Suspense fallback={(
+            <section
+              aria-label="Realm inspection"
+              className="realm-inspection-lazy-fallback"
+              role="status"
+            >
+              <strong>OPENING INSPECTION…</strong>
+              <span>Preparing the selected place.</span>
+            </section>
+          )}>
+            {inspectorCastle && profileRecords.get(inspectorCastle.castleId) ? (
+              <CastleInspectionPanel
+                id={inspectorId}
+                castle={inspectorCastle}
+                profile={profileRecords.get(inspectorCastle.castleId)!.profile}
+                own={!observerMode && inspectorCastle.ownerFid === identity.fid}
+                onLyricFilmOpenChange={handleLyricFilmOpenChange}
+                observer={observerMode}
+                hostedDestination={fullscreenDestinations}
+                onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
+                  ? backSurface
+                  : undefined}
+                focusTargetRef={inspectorFocusRef}
+                innerKeepButtonRef={innerKeepCastleEntryRef}
+                onEnterInnerKeep={
+                  innerKeepAvailable
+                  && !observerMode
+                  && inspectorCastle.castleId === ownCastle.castleId
+                    ? () => pushSurface({ kind: 'inner-keep' })
+                    : undefined
+                }
+                onRequestClose={closeInspectorSurface}
+              />
+            ) : null}
 
-          {inspectorGoldNode ? (
-            <GoldMineInspectionPanel
-              id={`${inspectorId}-gold-${inspectorGoldNode.siteId}`}
-              mine={{ name: 'Gold Mine', tier: inspectorGoldNode.tier }}
-              node={inspectorGoldNode}
-              workers={observerMode || publicWorkerProjection?.mode !== 'active'
-                ? undefined
-                : publicOwnedWorkers}
-              onDispatchWorker={
-                observerMode || !publicWorkerPresentationReady
+            {inspectorGoldNode ? (
+              <GoldMineInspectionPanel
+                id={`${inspectorId}-gold-${inspectorGoldNode.siteId}`}
+                mine={{ name: 'Gold Mine', tier: inspectorGoldNode.tier }}
+                node={inspectorGoldNode}
+                workers={observerMode || publicWorkerProjection?.mode !== 'active'
                   ? undefined
-                  : onDispatchWorker
-              }
-              workerControlsStatus={workerControlsStatus}
-              publicOccupant={inspectorGoldOccupant}
-              showDiagnostics={observerMode}
-              occupancyUnavailable={resourceOccupancyUnavailable}
-              onFocusOccupantCastle={focusResourceOccupantCastleFromSurface}
-              workerRecallAwaitingAuthority={
-                workerRecallLifecycle.recallAllAwaitingAuthority
-                || (
-                  inspectorGoldOccupant?.workerId !== undefined
-                  && workerRecallLifecycle.awaitingWorkerIds.has(
-                    inspectorGoldOccupant.workerId
+                  : publicOwnedWorkers}
+                onDispatchWorker={
+                  observerMode || !publicWorkerPresentationReady
+                    ? undefined
+                    : onDispatchWorker
+                }
+                workerControlsStatus={workerControlsStatus}
+                publicOccupant={inspectorGoldOccupant}
+                showDiagnostics={observerMode}
+                occupancyUnavailable={resourceOccupancyUnavailable}
+                onFocusOccupantCastle={focusResourceOccupantCastleFromSurface}
+                workerRecallAwaitingAuthority={
+                  workerRecallLifecycle.recallAllAwaitingAuthority
+                  || (
+                    inspectorGoldOccupant?.workerId !== undefined
+                    && workerRecallLifecycle.awaitingWorkerIds.has(
+                      inspectorGoldOccupant.workerId
+                    )
                   )
-                )
-              }
-              onRecallWorker={
-                observerMode || !publicWorkerPresentationReady
+                }
+                onRecallWorker={
+                  observerMode || !publicWorkerPresentationReady
+                    ? undefined
+                    : guardedRecallWorker
+                }
+                legacyExpeditionId={observerMode
                   ? undefined
-                  : guardedRecallWorker
-              }
-              legacyExpeditionId={observerMode
-                ? undefined
-                : inspectorGoldLegacyExpeditionId}
-              onReturnLegacyExpedition={observerMode || !legacyExpeditionReturnAvailable
-                ? undefined
-                : onReturnLegacyExpedition}
-              legacyDispatchBlocked={legacyResourceDispatchBlocked}
-              privateExpedition={observerMode ? undefined : goldExpedition}
-              onDispatchGoldExpedition={
-                observerMode || legacyResourceDispatchBlocked
+                  : inspectorGoldLegacyExpeditionId}
+                onReturnLegacyExpedition={observerMode || !legacyExpeditionReturnAvailable
                   ? undefined
-                  : onDispatchGoldExpedition
-              }
-              hostedDestination={fullscreenDestinations}
-              onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
-                ? backSurface
-                : undefined}
-              focusTargetRef={inspectorFocusRef}
-              onRequestClose={closeInspectorSurface}
-            />
-          ) : null}
+                  : onReturnLegacyExpedition}
+                legacyDispatchBlocked={legacyResourceDispatchBlocked}
+                privateExpedition={observerMode ? undefined : goldExpedition}
+                onDispatchGoldExpedition={
+                  observerMode || legacyResourceDispatchBlocked
+                    ? undefined
+                    : onDispatchGoldExpedition
+                }
+                hostedDestination={fullscreenDestinations}
+                onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
+                  ? backSurface
+                  : undefined}
+                focusTargetRef={inspectorFocusRef}
+                onRequestClose={closeInspectorSurface}
+              />
+            ) : null}
 
-          {inspectorFoodNode ? (
-            <FoodFarmInspectionPanel
-              id={`${inspectorId}-food-${inspectorFoodNode.siteId}`}
-              farm={{ name: 'Wheat Farm', tier: inspectorFoodNode.tier }}
-              node={inspectorFoodNode}
-              workers={observerMode || publicWorkerProjection?.mode !== 'active'
-                ? undefined
-                : publicOwnedWorkers}
-              onDispatchWorker={
-                observerMode || !publicWorkerPresentationReady
+            {inspectorFoodNode ? (
+              <FoodFarmInspectionPanel
+                id={`${inspectorId}-food-${inspectorFoodNode.siteId}`}
+                farm={{ name: 'Wheat Farm', tier: inspectorFoodNode.tier }}
+                node={inspectorFoodNode}
+                workers={observerMode || publicWorkerProjection?.mode !== 'active'
                   ? undefined
-                  : onDispatchWorker
-              }
-              workerControlsStatus={workerControlsStatus}
-              publicOccupant={inspectorFoodOccupant}
-              showDiagnostics={observerMode}
-              occupancyUnavailable={resourceOccupancyUnavailable}
-              onFocusOccupantCastle={focusResourceOccupantCastleFromSurface}
-              workerRecallAwaitingAuthority={
-                workerRecallLifecycle.recallAllAwaitingAuthority
-                || (
-                  inspectorFoodOccupant?.workerId !== undefined
-                  && workerRecallLifecycle.awaitingWorkerIds.has(
-                    inspectorFoodOccupant.workerId
+                  : publicOwnedWorkers}
+                onDispatchWorker={
+                  observerMode || !publicWorkerPresentationReady
+                    ? undefined
+                    : onDispatchWorker
+                }
+                workerControlsStatus={workerControlsStatus}
+                publicOccupant={inspectorFoodOccupant}
+                showDiagnostics={observerMode}
+                occupancyUnavailable={resourceOccupancyUnavailable}
+                onFocusOccupantCastle={focusResourceOccupantCastleFromSurface}
+                workerRecallAwaitingAuthority={
+                  workerRecallLifecycle.recallAllAwaitingAuthority
+                  || (
+                    inspectorFoodOccupant?.workerId !== undefined
+                    && workerRecallLifecycle.awaitingWorkerIds.has(
+                      inspectorFoodOccupant.workerId
+                    )
                   )
-                )
-              }
-              onRecallWorker={
-                observerMode || !publicWorkerPresentationReady
+                }
+                onRecallWorker={
+                  observerMode || !publicWorkerPresentationReady
+                    ? undefined
+                    : guardedRecallWorker
+                }
+                legacyExpeditionId={observerMode
                   ? undefined
-                  : guardedRecallWorker
-              }
-              legacyExpeditionId={observerMode
-                ? undefined
-                : inspectorFoodLegacyExpeditionId}
-              onReturnLegacyExpedition={observerMode || !legacyExpeditionReturnAvailable
-                ? undefined
-                : onReturnLegacyExpedition}
-              legacyDispatchBlocked={legacyResourceDispatchBlocked}
-              privateExpedition={observerMode ? undefined : foodExpedition}
-              onDispatchFoodExpedition={
-                observerMode || legacyResourceDispatchBlocked
+                  : inspectorFoodLegacyExpeditionId}
+                onReturnLegacyExpedition={observerMode || !legacyExpeditionReturnAvailable
                   ? undefined
-                  : onDispatchFoodExpedition
-              }
-              hostedDestination={fullscreenDestinations}
-              onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
-                ? backSurface
-                : undefined}
-              focusTargetRef={inspectorFocusRef}
-              onRequestClose={closeInspectorSurface}
-            />
-          ) : null}
+                  : onReturnLegacyExpedition}
+                legacyDispatchBlocked={legacyResourceDispatchBlocked}
+                privateExpedition={observerMode ? undefined : foodExpedition}
+                onDispatchFoodExpedition={
+                  observerMode || legacyResourceDispatchBlocked
+                    ? undefined
+                    : onDispatchFoodExpedition
+                }
+                hostedDestination={fullscreenDestinations}
+                onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
+                  ? backSurface
+                  : undefined}
+                focusTargetRef={inspectorFocusRef}
+                onRequestClose={closeInspectorSurface}
+              />
+            ) : null}
 
-          {inspectorWoodNode ? (
-            <LoggingCampInspectionPanel
-              id={`${inspectorId}-wood-${inspectorWoodNode.siteId}`}
-              camp={{ name: 'Logging Camp', tier: inspectorWoodNode.tier }}
-              node={inspectorWoodNode}
-              workers={observerMode || publicWorkerProjection?.mode !== 'active'
-                ? undefined
-                : publicOwnedWorkers}
-              onDispatchWorker={
-                observerMode || !publicWorkerPresentationReady
+            {inspectorWoodNode ? (
+              <LoggingCampInspectionPanel
+                id={`${inspectorId}-wood-${inspectorWoodNode.siteId}`}
+                camp={{ name: 'Logging Camp', tier: inspectorWoodNode.tier }}
+                node={inspectorWoodNode}
+                workers={observerMode || publicWorkerProjection?.mode !== 'active'
                   ? undefined
-                  : onDispatchWorker
-              }
-              workerControlsStatus={workerControlsStatus}
-              publicOccupant={inspectorWoodOccupant}
-              showDiagnostics={observerMode}
-              occupancyUnavailable={resourceOccupancyUnavailable}
-              onFocusOccupantCastle={focusResourceOccupantCastleFromSurface}
-              workerRecallAwaitingAuthority={
-                workerRecallLifecycle.recallAllAwaitingAuthority
-                || (
-                  inspectorWoodOccupant?.workerId !== undefined
-                  && workerRecallLifecycle.awaitingWorkerIds.has(
-                    inspectorWoodOccupant.workerId
+                  : publicOwnedWorkers}
+                onDispatchWorker={
+                  observerMode || !publicWorkerPresentationReady
+                    ? undefined
+                    : onDispatchWorker
+                }
+                workerControlsStatus={workerControlsStatus}
+                publicOccupant={inspectorWoodOccupant}
+                showDiagnostics={observerMode}
+                occupancyUnavailable={resourceOccupancyUnavailable}
+                onFocusOccupantCastle={focusResourceOccupantCastleFromSurface}
+                workerRecallAwaitingAuthority={
+                  workerRecallLifecycle.recallAllAwaitingAuthority
+                  || (
+                    inspectorWoodOccupant?.workerId !== undefined
+                    && workerRecallLifecycle.awaitingWorkerIds.has(
+                      inspectorWoodOccupant.workerId
+                    )
                   )
-                )
-              }
-              onRecallWorker={
-                observerMode || !publicWorkerPresentationReady
+                }
+                onRecallWorker={
+                  observerMode || !publicWorkerPresentationReady
+                    ? undefined
+                    : guardedRecallWorker
+                }
+                legacyExpeditionId={observerMode
                   ? undefined
-                  : guardedRecallWorker
-              }
-              legacyExpeditionId={observerMode
-                ? undefined
-                : inspectorWoodLegacyExpeditionId}
-              onReturnLegacyExpedition={observerMode || !legacyExpeditionReturnAvailable
-                ? undefined
-                : onReturnLegacyExpedition}
-              legacyDispatchBlocked={legacyResourceDispatchBlocked}
-              privateExpedition={observerMode ? undefined : woodExpedition}
-              onDispatchWoodExpedition={
-                observerMode || legacyResourceDispatchBlocked
+                  : inspectorWoodLegacyExpeditionId}
+                onReturnLegacyExpedition={observerMode || !legacyExpeditionReturnAvailable
                   ? undefined
-                  : onDispatchWoodExpedition
-              }
-              hostedDestination={fullscreenDestinations}
-              onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
-                ? backSurface
-                : undefined}
-              focusTargetRef={inspectorFocusRef}
-              onRequestClose={closeInspectorSurface}
-            />
-          ) : null}
+                  : onReturnLegacyExpedition}
+                legacyDispatchBlocked={legacyResourceDispatchBlocked}
+                privateExpedition={observerMode ? undefined : woodExpedition}
+                onDispatchWoodExpedition={
+                  observerMode || legacyResourceDispatchBlocked
+                    ? undefined
+                    : onDispatchWoodExpedition
+                }
+                hostedDestination={fullscreenDestinations}
+                onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
+                  ? backSurface
+                  : undefined}
+                focusTargetRef={inspectorFocusRef}
+                onRequestClose={closeInspectorSurface}
+              />
+            ) : null}
 
-          {inspectorStoneNode ? (
-            <StoneQuarryInspectionPanel
-              id={`${inspectorId}-stone-${inspectorStoneNode.siteId}`}
-              quarry={{ name: 'Stone Quarry', tier: inspectorStoneNode.tier }}
-              node={inspectorStoneNode}
-              workers={observerMode || publicWorkerProjection?.mode !== 'active'
-                ? undefined
-                : publicOwnedWorkers}
-              onDispatchWorker={
-                observerMode || !publicWorkerPresentationReady
+            {inspectorStoneNode ? (
+              <StoneQuarryInspectionPanel
+                id={`${inspectorId}-stone-${inspectorStoneNode.siteId}`}
+                quarry={{ name: 'Stone Quarry', tier: inspectorStoneNode.tier }}
+                node={inspectorStoneNode}
+                workers={observerMode || publicWorkerProjection?.mode !== 'active'
                   ? undefined
-                  : onDispatchWorker
-              }
-              workerControlsStatus={workerControlsStatus}
-              publicOccupant={inspectorStoneOccupant}
-              showDiagnostics={observerMode}
-              occupancyUnavailable={resourceOccupancyUnavailable}
-              onFocusOccupantCastle={focusResourceOccupantCastleFromSurface}
-              workerRecallAwaitingAuthority={
-                workerRecallLifecycle.recallAllAwaitingAuthority
-                || (
-                  inspectorStoneOccupant?.workerId !== undefined
-                  && workerRecallLifecycle.awaitingWorkerIds.has(
-                    inspectorStoneOccupant.workerId
+                  : publicOwnedWorkers}
+                onDispatchWorker={
+                  observerMode || !publicWorkerPresentationReady
+                    ? undefined
+                    : onDispatchWorker
+                }
+                workerControlsStatus={workerControlsStatus}
+                publicOccupant={inspectorStoneOccupant}
+                showDiagnostics={observerMode}
+                occupancyUnavailable={resourceOccupancyUnavailable}
+                onFocusOccupantCastle={focusResourceOccupantCastleFromSurface}
+                workerRecallAwaitingAuthority={
+                  workerRecallLifecycle.recallAllAwaitingAuthority
+                  || (
+                    inspectorStoneOccupant?.workerId !== undefined
+                    && workerRecallLifecycle.awaitingWorkerIds.has(
+                      inspectorStoneOccupant.workerId
+                    )
                   )
-                )
-              }
-              onRecallWorker={
-                observerMode || !publicWorkerPresentationReady
+                }
+                onRecallWorker={
+                  observerMode || !publicWorkerPresentationReady
+                    ? undefined
+                    : guardedRecallWorker
+                }
+                legacyExpeditionId={observerMode
                   ? undefined
-                  : guardedRecallWorker
-              }
-              legacyExpeditionId={observerMode
-                ? undefined
-                : inspectorStoneLegacyExpeditionId}
-              onReturnLegacyExpedition={observerMode || !legacyExpeditionReturnAvailable
-                ? undefined
-                : onReturnLegacyExpedition}
-              legacyDispatchBlocked={legacyResourceDispatchBlocked}
-              privateExpedition={observerMode ? undefined : stoneExpedition}
-              onDispatchStoneExpedition={
-                observerMode || legacyResourceDispatchBlocked
+                  : inspectorStoneLegacyExpeditionId}
+                onReturnLegacyExpedition={observerMode || !legacyExpeditionReturnAvailable
                   ? undefined
-                  : onDispatchStoneExpedition
-              }
-              hostedDestination={fullscreenDestinations}
-              onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
-                ? backSurface
-                : undefined}
-              focusTargetRef={inspectorFocusRef}
-              onRequestClose={closeInspectorSurface}
-            />
-          ) : null}
+                  : onReturnLegacyExpedition}
+                legacyDispatchBlocked={legacyResourceDispatchBlocked}
+                privateExpedition={observerMode ? undefined : stoneExpedition}
+                onDispatchStoneExpedition={
+                  observerMode || legacyResourceDispatchBlocked
+                    ? undefined
+                    : onDispatchStoneExpedition
+                }
+                hostedDestination={fullscreenDestinations}
+                onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
+                  ? backSurface
+                  : undefined}
+                focusTargetRef={inspectorFocusRef}
+                onRequestClose={closeInspectorSurface}
+              />
+            ) : null}
 
-          {inspectorWorker ? (
-            <WorkerInspectionPanel
-              awaitingAuthoritativeRecall={
-                workerRecallLifecycle.recallAllAwaitingAuthority
-                || workerRecallLifecycle.awaitingWorkerIds.has(
-                  inspectorWorker.workerId
-                )
-              }
-              focusTargetRef={workerInspectorFocusRef}
-              id={`${inspectorId}-worker-${inspectorWorker.workerId}`}
-              keeperProfile={profileRecords.get(inspectorWorker.originCastleId)?.profile}
-              onLocateKeeper={locateWorkerKeeperFromSurface}
-              onLocateWorker={locateWorkerFromSurface}
-              onRecallWorker={
-                observerMode || !publicWorkerPresentationReady
-                  ? undefined
-                  : guardedRecallWorker
-              }
-              controlsStatus={workerControlsStatus}
-              onCloseToRealm={historyBackedWorldRoute
-                ? closeSurfacesToRealm
-                : undefined}
-              onRequestClose={historyBackedWorldRoute
-                ? backSurface
-                : closeInspectorSurface}
-              resourceTargetLabel={inspectorWorkerResourceTargetLabel}
-              worker={inspectorWorker}
-              hostedDestination={fullscreenDestinations}
-            />
-          ) : null}
+            {inspectorWorker ? (
+              <WorkerInspectionPanel
+                awaitingAuthoritativeRecall={
+                  workerRecallLifecycle.recallAllAwaitingAuthority
+                  || workerRecallLifecycle.awaitingWorkerIds.has(
+                    inspectorWorker.workerId
+                  )
+                }
+                focusTargetRef={workerInspectorFocusRef}
+                id={`${inspectorId}-worker-${inspectorWorker.workerId}`}
+                keeperProfile={profileRecords.get(inspectorWorker.originCastleId)?.profile}
+                onLocateKeeper={locateWorkerKeeperFromSurface}
+                onLocateWorker={locateWorkerFromSurface}
+                onRecallWorker={
+                  observerMode || !publicWorkerPresentationReady
+                    ? undefined
+                    : guardedRecallWorker
+                }
+                controlsStatus={workerControlsStatus}
+                onCloseToRealm={historyBackedWorldRoute
+                  ? closeSurfacesToRealm
+                  : undefined}
+                onRequestClose={historyBackedWorldRoute
+                  ? backSurface
+                  : closeInspectorSurface}
+                resourceTargetLabel={inspectorWorkerResourceTargetLabel}
+                worker={inspectorWorker}
+                hostedDestination={fullscreenDestinations}
+              />
+            ) : null}
 
-          {inspectorWater ? (
-            <WaterInspectionPanel
-              id={`${inspectorId}-water-${inspectorWater.cellKey}`}
-              record={inspectorWater}
-              navigation={inspectorWaterNavigation}
-              showDiagnostics={observerMode}
-              hostedDestination={fullscreenDestinations}
-              focusTargetRef={inspectorFocusRef}
-              onRequestClose={closeInspectorSurface}
-              onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
-                ? backSurface
-                : undefined}
-              onSelectCell={selectWaterRecordByKey}
-              onFocusCell={focusWaterRecordFromSurface}
-              onViewUnderlyingCell={observerMode && inspectorWater.underlyingTileKey
-                ? () => selectCoord(inspectorWater.coord)
-                : undefined}
-            />
-          ) : null}
+            {inspectorWater ? (
+              <WaterInspectionPanel
+                id={`${inspectorId}-water-${inspectorWater.cellKey}`}
+                record={inspectorWater}
+                navigation={inspectorWaterNavigation}
+                showDiagnostics={observerMode}
+                hostedDestination={fullscreenDestinations}
+                focusTargetRef={inspectorFocusRef}
+                onRequestClose={closeInspectorSurface}
+                onRequestBack={historyBackedWorldRoute && surfaceNavigation.depth > 1
+                  ? backSurface
+                  : undefined}
+                onSelectCell={selectWaterRecordByKey}
+                onFocusCell={focusWaterRecordFromSurface}
+                onViewUnderlyingCell={observerMode && inspectorWater.underlyingTileKey
+                  ? () => selectCoord(inspectorWater.coord)
+                  : undefined}
+              />
+            ) : null}
 
-          {historyBackedWorldRoute && terrainSurfaceRoute && terrainSurfaceCell ? (
-            <RealmTerrainInspectionPanel
-              onBack={backSurface}
-              onCloseToRealm={closeSurfacesToRealm}
-              onLocate={() => {
-                closeSurfacesToRealm();
-                sceneRef.current?.locateCell(terrainSurfaceCell.coord);
-                dispatchInteraction({
-                  type: 'set-camera-target',
-                  target: {
-                    kind: 'cell-location',
-                    coord: terrainSurfaceCell.coord
-                  }
-                });
-              }}
-              passable={terrainSurfaceMetadata?.passable}
-              terrainKind={terrainSurfaceKind}
-            />
-          ) : null}
+            {historyBackedWorldRoute && terrainSurfaceRoute && terrainSurfaceCell ? (
+              <RealmTerrainInspectionPanel
+                onBack={backSurface}
+                onCloseToRealm={closeSurfacesToRealm}
+                onLocate={() => {
+                  closeSurfacesToRealm();
+                  sceneRef.current?.locateCell(terrainSurfaceCell.coord);
+                  dispatchInteraction({
+                    type: 'set-camera-target',
+                    target: {
+                      kind: 'cell-location',
+                      coord: terrainSurfaceCell.coord
+                    }
+                  });
+                }}
+                passable={terrainSurfaceMetadata?.passable}
+                terrainKind={terrainSurfaceKind}
+              />
+            ) : null}
+          </Suspense>
 
           <RealmAccessibilityControls
             id={navigatorId}

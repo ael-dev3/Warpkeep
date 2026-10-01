@@ -1,5 +1,126 @@
 # Verdant Citadel visual evidence — final acceptance open
 
+## Parallel-resource first-journey guidance — 29 September 2026
+
+The empty Keep now explains that idle Workers can gather missing City Mill
+resources in parallel and that construction spends only Realm-confirmed returns.
+This clarifies the existing command path without changing economy or Worker
+mechanics. At exact signed source `53c2bc42eeb98e5b896b08db249bbfee9e2807ea`,
+the Keep04Screen suite passed 39/39 and `npm run typecheck` passed.
+
+Guarded Windows Chrome capture `windows-run-A0VUGC` completed all 36 synthetic
+cases from that clean source on Chrome 154.0.8037.58 and an NVIDIA RTX 3080 Ti:
+32 cases rendered WebGL and four used the intended no-WebGL fallback. All had
+zero horizontal overflow; the network/document guard recorded no violation and
+the owned Chrome process tree exited cleanly. I inspected the 390×844 empty,
+active-construction and all-six-level-five captures. The first-journey text and
+action fit in the portrait card, and the active construction name, progress and
+remaining-time readout are visible. One-sample all-six-level-five snapshots
+reported 45 draws / 145,640 triangles at high, 30 / 38,804 at balanced, and 30
+/ 37,736 at reduced, within their existing snapshot caps; these observations
+are not frame-time percentiles, repeated workloads or GPU-upload measurements.
+
+Each document emitted one bounded `browser-log-security` warning. The collector
+retained only the warning class and allowlisted categories, not raw message or
+URL, so its cause remains unknown and the run remains review-required. Captures
+are local synthetic fixtures using desktop hardware; they are not production
+transfer, actual gameplay, physical-phone, authenticated-owner or performance
+acceptance. The 53c2 copy change has not yet had an exact-head production build.
+The ignored local report and images are under
+`artifacts/keep04-qa/windows-run-A0VUGC/`; they are not release artifacts.
+
+## 29 September rear and side framing at product source `65b3d6cd`
+
+The existing two instanced forest bands now follow the rear and side terraces,
+and a three-instance shallow bank frames that perimeter while leaving the gate
+approach open. The framing uses a single bank geometry and preserves the tree
+count, legal placement surface and support height. The scenic camera bounds
+extend from ±56 to ±58 to retain the new side framing at the existing fit.
+Scene and lifecycle regressions cover the perimeter, the clear front approach,
+all four scene-owned instanced meshes and disposal without disposing borrowed
+assets.
+
+The exact-source production build and runtime asset, exclusion, public-boundary
+and Farcaster checks passed on pinned Linux Node 22.22.3 / npm 10.9.8. The five
+focused Keep04 scene, screen, dressing and lifecycle test files passed 116/116;
+TypeScript build-mode checking passed. At the time of this visual capture, the
+full root suite was still running as the non-root `warpkeep` account after an
+initial root invocation hit Git's safe-directory ownership guard in receipt
+tests. The completed native Linux rerun and its exact totals are recorded in
+the current [execution handoff](../../agent-notes/0.4.0/execution-handoff.md);
+they supersede this in-progress status. That initial root invocation was an
+environment failure, not a product test result.
+
+Guarded local Chrome capture `windows-run-0PltSv` is bound to exact source
+`65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5`: 36 synthetic cases across desktop,
+portrait, landscape and reduced-motion profiles. It recorded stable source,
+one canvas for WebGL cases, no canvas for fallback, no horizontal overflow,
+cleanup completion and no guard violation. The runner still marks review
+required because every document records a privacy-safe browser-log security
+warning; its raw diagnostic was intentionally not retained. I manually
+inspected the desktop and mobile all-six overview, the fallback and isolated
+full-canvas desktop/mobile renders. The six buildings stay readable and the
+gate approach remains clear. This is synthetic review, not phone acceptance or
+performance evidence; the captured environment used a desktop RTX 3080 Ti. The
+production build still warns that the retained G001 `RealmMapScreen` chunk is
+677.78 kB raw / 188.22 kB gzip, and physical-device performance is unmeasured.
+
+## 29 September U-shaped moat pass at product source `0c9447e2`
+
+The earlier rear-only water strip read as a thin line behind the keep. It now
+tracks the rear and both side terraces, with the gate and front approach left
+open. The surface sits above the outer terrace course; its stone lip is one
+instanced mesh, and the water remains one static, non-pickable mesh. The change
+does not affect support height, placement, routes, collision or gameplay state.
+
+I reviewed the local `/dev/keep04-qa.html?scenario=all-six-level-five&quality=balanced`
+render at desktop and 390×844. The teal edge now frames the settlement on the
+back and sides while the gate spine remains visible. This is a synthetic local
+render review only, not owner play, a physical-phone result or performance
+acceptance. The Cathedral hierarchy, sparse backdrop, retained browser-log
+warning and device measurements remain open.
+
+`tests/keep04Scene.test.ts`, `tests/keep04VoxelDressing.test.ts` and
+`tests/Keep04Screen.test.tsx` passed 97/97; TypeScript build-mode checking also
+passed. The exact `0c9447e299c607f4685735cfe44b55c17ba77199` `/ptr/` production
+build passed its pinned asset checks, production exclusions, public-boundary
+scan and Farcaster integrity. Its source SHA is embedded. At that product
+source, the local payload contains 445 files / 134,453,359 bytes (manifest
+SHA-256 `a50ee4a4f6a4b928229184474510d1beb34c7a21ebe02a4d1076072dd33a45ba`,
+content manifest `c1db4e3d1cad702ee14c0597f38c9d9b1941a7ee2de1725c11010ae3f1ac95ea`).
+The mirror plan preserves 341 Alpha-root entries, targets 799 files, removes
+zero obsolete paths, and has SHA-256
+`ae12b90c68b6fb21200b9be3131193c2d74684ba341ad0e9ae00caa131c139cc`. Receipts
+are ignored local evidence, not publication approval.
+
+## 29 September rendered review at candidate source `3cb103d1`
+
+The guarded Windows Chrome 154 capture in the ignored local directory
+`artifacts/keep04-qa/windows-run-4LtcTl/` recorded 36 synthetic cases across
+1440×900 desktop, 390×844 portrait, short landscape and reduced-motion
+profiles. Each profile exercised eight WebGL scenes and one WebGL-unavailable
+fallback. There was no horizontal overflow; WebGL cases exposed one canvas and
+zero pending animation frames, and fallback cases exposed no canvas. This is
+browser instrumentation, not physical-device performance or authenticated
+owner acceptance. The six missing measurements are listed in
+`performance.md`; do not treat the synthetic frame timings as acceptance.
+
+I inspected representative captures for the empty first journey, completed and
+constructing Mill, blocked placement, all-six mature overview, mobile reduced
+motion, desktop, short landscape and fallback. The entry card remains readable
+at portrait size, the fallback keeps its labeled schematic, and the six sites
+remain distinct. At overview scale, the Cathedral still outweighs the smaller
+economy buildings; sparse terrain and background treatment also remain visibly
+unfinished. The imported Cathedral architecture combines roof, wall and timber
+colors in one vertex-colored mesh, so a whole-material tint would damage its
+facades. Any palette change needs a targeted prototype and matched captures.
+
+The guarded runner reports `reviewRequired` because each captured document
+emits a browser-log security-category warning. No violation was reported and
+the run had no stderr errors or warnings; retain this review flag rather than
+silently converting it into a clean automated result. The capture and PNGs are
+ignored local evidence and do not enlarge the repository.
+
 ## 2026-09-23 construction progress readout
 
 The selected active-build panel showed its Realm completion deadline but no

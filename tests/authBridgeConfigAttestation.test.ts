@@ -159,6 +159,32 @@ function preparedPrivateBody(overrides: Record<string, unknown> = {}) {
 }
 
 describe('private auth bridge RPC role attestation', () => {
+  it('pins the recovered Optimism primary and retains the independent PublicNode secondary', async () => {
+    expect(DEFAULT_FARCASTER_RPC_PRIMARY_URL).toBe('https://mainnet.optimism.io/')
+    expect(DEFAULT_FARCASTER_RPC_SECONDARY_URL).toBe('https://optimism-rpc.publicnode.com/')
+
+    const formerPrimaryFingerprint = farcasterRpcEndpointFingerprint(
+      'https://optimism.drpc.org/',
+    )
+    const fetchImpl = vi.fn(async () => privateResponse(privateBody({
+      farcasterRpcEndpointFingerprints: [
+        formerPrimaryFingerprint,
+        SECONDARY_FINGERPRINT,
+      ].sort(),
+      farcasterRpcEndpointRoleFingerprints: {
+        primary: formerPrimaryFingerprint,
+        secondary: SECONDARY_FINGERPRINT,
+      },
+    }))) as typeof fetch
+
+    await expect(verifyAuthBridgeRpcRoleAttestation({
+      adminToken: ADMIN_TOKEN,
+      fetchImpl,
+    })).rejects.toMatchObject({
+      code: 'AUTH_BRIDGE_PRIVATE_ATTESTATION_RPC_ROLES_INVALID',
+    })
+  })
+
   it('strictly verifies the ordered RPC/PTR contract and returns every release mode', async () => {
     const fetchMock = vi.fn(async (
       _input: RequestInfo | URL,

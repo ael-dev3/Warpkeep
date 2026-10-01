@@ -9,6 +9,10 @@ export type MenuSourceIndex = AudioSourceIndex;
 
 export type AudioSourceRole = AudioScene;
 
+export type WarpkeepAudioRealmId = 'genesis-001' | 'genesis-002' | 'ptr';
+
+export type WarpkeepRealmSoundtrackId = 'lowlands' | 'genesis-002';
+
 export interface EqualPowerGains {
   incoming: number;
   outgoing: number;
@@ -51,15 +55,14 @@ export const WARPKEEP_MENU_TO_REALM_TRANSITION_MS = 2_300;
 export const WARPKEEP_REALM_TO_MENU_TRANSITION_MS = 1_900;
 
 /**
- * The supplied master has a musically compatible head/tail window from
- * 400.128 seconds until 401.920 seconds. Both menu elements use the same URL;
- * the standby element starts at the head while the active element traverses
- * this overlap.
+ * The Verdant Citadel score fades toward silence near 208.1 seconds. The
+ * runtime file omits the final 1.5 seconds of silence; crossfade the last
+ * three seconds into its soft opening before the active source ends.
  */
 export const WARPKEEP_MENU_LOOP = Object.freeze({
-  crossfadeStartSeconds: 400.128,
-  endSeconds: 401.92,
-  overlapSeconds: 1.792
+  crossfadeStartSeconds: 205.1,
+  endSeconds: 208.1,
+  overlapSeconds: 3
 }) satisfies AudioLoopDefinition;
 
 /**
@@ -71,6 +74,36 @@ export const WARPKEEP_REALM_LOOP = Object.freeze({
   endSeconds: 244.919979,
   overlapSeconds: 8.919979
 }) satisfies AudioLoopDefinition;
+
+/** An eight-second equal-power wrap for the full Genesis 002 score. */
+export const WARPKEEP_GENESIS_002_LOOP = Object.freeze({
+  crossfadeStartSeconds: 215.613,
+  endSeconds: 223.613,
+  overlapSeconds: 8
+}) satisfies AudioLoopDefinition;
+
+export const WARPKEEP_REALM_SOUNDTRACKS = Object.freeze({
+  lowlands: Object.freeze({
+    level: WARPKEEP_AUDIO_LEVELS.realm,
+    loop: WARPKEEP_REALM_LOOP,
+    path: 'audio/warpkeep-lowlands-theme.mp3'
+  }),
+  'genesis-002': Object.freeze({
+    // The supplied score measures -17.8 LUFS integrated, so this gain brings
+    // it close to the existing Lowlands output level without peak normalization.
+    level: 0.58,
+    loop: WARPKEEP_GENESIS_002_LOOP,
+    path: 'audio/warpkeep-genesis-002-theme.m4a'
+  })
+}) satisfies Record<WarpkeepRealmSoundtrackId, {
+  level: number;
+  loop: AudioLoopDefinition;
+  path: string;
+}>;
+
+export function getRealmSoundtrackId(realmId: WarpkeepAudioRealmId): WarpkeepRealmSoundtrackId {
+  return realmId === 'genesis-002' ? 'genesis-002' : 'lowlands';
+}
 
 export function clampUnit(value: number) {
   if (!Number.isFinite(value)) {

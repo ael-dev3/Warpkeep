@@ -1428,6 +1428,89 @@ describe('FarcasterAuthProvider session lifecycle', () => {
     expect(document.body.textContent).not.toContain(BINDING_CHALLENGE);
   });
 
+  it('materializes a pending QR session when the bridge clock is slightly ahead', async () => {
+    vi.useFakeTimers({ now: 52_000 });
+    const channel = createChannel('CLOCK_SKEW');
+    const completed = createCompletedStatus(channel.nonce, 'CLOCK_SKEW');
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => completed),
+      verifyCompletedRequest: vi.fn(async () => createIdentity(Date.now() - 1))
+    });
+    const bridge = createBridge({
+      exchangeCompletedSignIn: vi.fn(async (request) =>
+        createPendingResponse(request.fid, Date.now() + 1_000))
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      pollIntervalMs: 10
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+
+    expect(readPublicState()).toMatchObject({
+      phase: 'pending-admission',
+      identity: { fid: 12_345 }
+    });
+  });
+
+  it('materializes an authorized QR session with a one-second-ahead bridge clock', async () => {
+    vi.useFakeTimers({ now: 52_000 });
+    const channel = createChannel('AUTHORIZED_CLOCK_SKEW');
+    const completed = createCompletedStatus(channel.nonce, 'AUTHORIZED_CLOCK_SKEW');
+    const authority = createAuthority({
+      beginSignIn: vi.fn(async () => channel),
+      getStatus: vi.fn(async () => completed),
+      verifyCompletedRequest: vi.fn(async () => createIdentity(Date.now() - 1))
+    });
+    let issuedResponse: FarcasterBridgeSessionResponse | undefined;
+    const bridge = createBridge({
+      exchangeCompletedSignIn: vi.fn(async (request) => {
+        const serverNow = Date.now() + 1_000;
+        issuedResponse = createAuthorizedResponse(
+          request.fid,
+          serverNow,
+          serverNow + FARCASTER_REMEMBERED_DEVICE_SESSION_TTL_MS
+        );
+        return issuedResponse;
+      })
+    });
+    renderProvider({
+      loadAuthority: vi.fn(async () => authority),
+      loadBridgeClient: vi.fn(async () => bridge),
+      now: Date.now,
+      pollIntervalMs: 10
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Begin' }));
+    await settleAsyncWork();
+    await advanceTime(10);
+
+    expect(issuedResponse?.status).toBe('authorized');
+    if (issuedResponse?.status !== 'authorized') throw new Error('Expected authorized bridge response.');
+    const encodedClaims = issuedResponse.accessToken.split('.')[1]!
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+    const claims = JSON.parse(atob(encodedClaims)) as Record<string, unknown>;
+    expect(claims.iat).toBe(Math.floor((Date.now() + 1_000) / 1_000));
+    expect(claims.nbf).toBe(claims.iat);
+    expect(issuedResponse.accessExpiresAt).toBeGreaterThan(Date.now());
+    expect(issuedResponse.sessionExpiresAt).toBeGreaterThan(
+      Date.now() + 30 * 24 * 60 * 60 * 1_000
+    );
+    expect(readPublicState()).toMatchObject({
+      phase: 'authenticated',
+      identity: { fid: 12_345 },
+      expiresAt: issuedResponse.accessExpiresAt,
+      sessionExpiresAt: issuedResponse.sessionExpiresAt
+    });
+    expect(screen.getByTestId('has-oidc-session').textContent).toBe('true');
+  });
+
   it.each([
     ['issuer', { issuer: 'https://different-issuer.example' }],
     ['audience', { audience: 'different-audience' }]

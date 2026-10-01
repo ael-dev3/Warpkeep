@@ -69,6 +69,12 @@ body {
   text-transform: uppercase;
 }
 
+.legal-page__version {
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  text-transform: none;
+}
+
 h1 {
   margin: 0.3rem 0 0;
   color: #f4dfaa;

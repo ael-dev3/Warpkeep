@@ -7,32 +7,92 @@ operation receipts. The [release checklist](../../operations/0.4.0-release-check
 owns acceptance. Resolve both against GitHub before acting; dated evidence
 below is historical unless its exact source and operation are reverified.
 
-Current `main` is generated-only M2
-[`007e62f2e5b7440abf483a83aeda2b9621f4054e`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e),
-merged through [PR #371](https://github.com/ael-dev3/Warpkeep/pull/371).
-Its G001 census diagnostics distinguish aggregate drift from admitted-set
-mismatch without exposing counts or identities. The prior first-sample census
-[36271994192](https://github.com/ael-dev3/Warpkeep/actions/runs/36271994192)
-failed closed before a baseline and caused no provider mutation. Exact-M2 push
-[Verify 36279277148](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277148)
-failed when the Linux root suite hit its 60-minute bound; PR #371's Verify
-passed. Private-repo CodeQL upload and branch protection are unavailable on
-the current GitHub plan. `main` reports `protected:false` and has no required
-checks. [PR #372](https://github.com/ael-dev3/Warpkeep/pull/372) carries the
-reviewed compatibility and bounded parallel Verify repair.
+The last validated operational `main` at this checkpoint is signed generated-only
+M2 [`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`](https://github.com/ael-dev3/Warpkeep/commit/786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32),
+merged through [PR #373](https://github.com/ael-dev3/Warpkeep/pull/373).
+Exact-main [Verify 36294403406](https://github.com/ael-dev3/Warpkeep/actions/runs/36294403406),
+[preflight 36297501189](https://github.com/ael-dev3/Warpkeep/actions/runs/36297501189)
+and [G001 policy observation 36297585906](https://github.com/ael-dev3/Warpkeep/actions/runs/36297585906)
+passed on that source. [G001 census 36297722529](https://github.com/ael-dev3/Warpkeep/actions/runs/36297722529)
+failed closed in its first sample with `g001-admitted-set-mismatch`; it produced
+no validated baseline or provider mutation. [G002 update inspect 36297899627](https://github.com/ael-dev3/Warpkeep/actions/runs/36297899627)
+failed at workflow phase before provider transport. [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
+now includes those repairs, current 0.4 client and gameplay refinements, the
+reviewed menu, and candidate public delivery and rollback tooling. Source
+review identified the two protected-operation defects; their failed results
+do not establish the private live admitted set or a missing credential. The
+signed protected-closure head is
+[`6b9bcb1f`](https://github.com/ael-dev3/Warpkeep/commit/6b9bcb1f6bf27fa70d7870b4b0eb074a7f698242),
+from signed source `175e3257`: 16 outputs, 1,241 members and manifest
+`26f7a57e406fc239f6d7b42222d92293ca4402e83d863fba1de05b51be898f2e`.
+Clean native Linux ownership-bound policy and checked-in sealed-launch
+verification passed on that exact head. The 6b9bcb1f closure-head
+[Verify run 36345079867](https://github.com/ael-dev3/Warpkeep/actions/runs/36345079867)
+rejected all 17 jobs before runner steps because of the account's
+payment/spending-limit gate; it is not a code verdict. GitHub reports `main`
+as unprotected with no required checks, so the release sequence must enforce
+final-head Verify manually rather than infer safety from mergeability.
+
+The previous signed documentation head `6733620d` received Verify 36345736413.
+Signed checkpoint `9f43f0dd` received [Verify 36347362794](https://github.com/ael-dev3/Warpkeep/actions/runs/36347362794);
+all 17 jobs stopped before runner steps with GitHub's failed-payment or
+spending-limit annotation. Require a successful Verify on the live final head
+after billing is restored.
+Recheck live `main` and its own Verify before using this dated checkpoint as
+operation authority. CodeQL code scanning
+is unavailable on the private-repository plan; full Verify is the executable gate.
+
+The [27 September QR incident](../../evidence/0.4.0/qr-auth-incident-2026-09-27.md)
+records the failed verifier exchanges, edge RPC diagnosis and secret-only
+bridge repair. A fresh owner exchange returned 200 with `session_created` at
+19:06:14.479 UTC; the owner confirmed Alpha browser login. The separately
+published diagnostic Alpha client is live through signed
+[`Warpkeep-Live@b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad)
+and successful [Pages run 36343178620](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36343178620).
+The owner's successful exchange preceded that frontend publication. The
+reviewed menu is integrated into PR #374; original
+[menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375) remains open
+with a supersession notice because its closure is stale. The related
+[Assets PR #37](https://github.com/ael-dev3/Warpkeep-Assets/pull/37) is open
+with signed provenance correction `b631f2c`; 37 Linux tests pass, while its
+hosted checks stop at the same billing gate. Neither Alpha sign-in nor a source
+closure establishes 0.4 PTR acceptance.
+
+Earlier signed PR #374 head [`68937b59`](https://github.com/ael-dev3/Warpkeep/commit/68937b59765340b04a8c0c180f8fc60dd3812129)
+added privacy-safe QR failure distinctions and refroze the then-1,258-member
+source closure (`58b6a428ca9f12ca7431e8ed1801cbe31d1e09d298564a44f87adbdff1f010ef`).
+Native preparation/check matched 3,266 Git blobs and regenerated 16 outputs;
+focused auth tests, typecheck, build and public payload checks passed locally.
+[Verify 36333337949](https://github.com/ael-dev3/Warpkeep/actions/runs/36333337949)
+stopped before runner steps at the same account billing gate. This is a dated
+source checkpoint, superseded by the signed menu integration and later refreeze.
 
 ### Remaining delivery work, in dependency order
 
-Require full current-head Verify on PR #372, merge its signed source M1 and
-verify the actual main tree. Prepare and independently check that exact M1 in
-native WSL, then promote only its authenticated generated family through an
-M2 PR. Require PR and exact-M2 push Verify before read-only preflight and a
-fresh G001 policy observation. Start one new census identity only after those
-gates pass; preserve failed attempts and follow its fixed safe diagnostic.
-Then complete the prepared bridge and signer/gateway path, G001
+Require full final-head Verify on PR #374, merge its signed source M1 and
+verify the actual main tree. Build the source-bound module artifacts without
+provider access, prepare and independently check that exact M1 in native WSL,
+then promote only its authenticated generated family through an M2 PR. Require
+PR and exact-M2 push Verify before fresh preflight and G001 policy observation.
+Start one new census identity only after those gates pass; preserve failed
+attempts and follow any fixed safe diagnostic. Reinspect G002 on that same
+verified M2; inspection alone does not update it. Then complete the prepared
+bridge and signer/gateway path, G001
 preservation/readback, sealed G002 evidence, owner-only PTR play, mobile and
 measured-performance acceptance, and final release freeze. Source CI and
 preflight alone do not establish a live release.
+
+## Historical operating checkpoint — earlier 27 September 2026 (superseded)
+
+Generated-only M2 [`007e62f2`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e)
+merged through [PR #371](https://github.com/ael-dev3/Warpkeep/pull/371).
+[Verify 36279277148](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277148)
+failed at the Linux root-test time bound; CodeQL could not upload on this
+private-repository plan. [PR #372](https://github.com/ael-dev3/Warpkeep/pull/372)
+subsequently repaired the Verify scheduling and private-main authority, and
+its generated family merged through PR #373. The older first-sample census
+[36271994192](https://github.com/ael-dev3/Warpkeep/actions/runs/36271994192)
+failed without a baseline or provider mutation.
 
 ## Historical source checkpoint — 2026-09-12
 

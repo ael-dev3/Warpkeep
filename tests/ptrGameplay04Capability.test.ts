@@ -16,6 +16,8 @@ import { EMPTY_WIRE04, freshWire04 } from './fixtures/gameplay04Client';
 const NOW = 1_788_000_000_000;
 const DATABASE_IDENTITY = 'd'.repeat(64);
 const SDK_TOKEN = 'SERVER_ISSUED_TOKEN_MUST_BE_IGNORED';
+// Exact whole-string envelope observed from the connected 2.6.1 JS module.
+const MODULE_ERROR_PREFIX = 'The module instance encountered a fatal error: ';
 const RESULT: ResultWire04 = { sequence: 1n, revision: 1n };
 const base = { sequence: 1n, requestKey: `g04:1:${'a'.repeat(32)}`,
   expectedRevision: 0n, policyVersion: EMPTY_WIRE04.policyVersion };
@@ -383,10 +385,19 @@ describe('bounded procedure error classification', () => {
     ['GAMEPLAY04_REVISION_OVERFLOW', 'uncertain'], ['GAMEPLAY04_ASSIGNMENT_REVISION_OVERFLOW', 'uncertain'],
   ])('classifies exact SDK string %s as %s', (code, kind) => {
     expect(classifyGameplay04Error(code)).toMatchObject({ kind, code });
+    expect(classifyGameplay04Error(`${MODULE_ERROR_PREFIX}${code}`)).toMatchObject({ kind, code });
   });
 
   it.each([new Error('GAMEPLAY04_INPUT_INVALID'), { code: 'GAMEPLAY04_INPUT_INVALID' },
     `GAMEPLAY04_INPUT_INVALID ${SDK_TOKEN}`, `${SDK_TOKEN} GAMEPLAY04_NOT_INITIALIZED`,
+    `${MODULE_ERROR_PREFIX}GAMEPLAY04_INPUT_INVALID ${SDK_TOKEN}`,
+    `${MODULE_ERROR_PREFIX}GAMEPLAY04_INPUT_INVALID\n`,
+    `${MODULE_ERROR_PREFIX}GAMEPLAY04_INPUT_INVALID\n${SDK_TOKEN}`,
+    ` ${MODULE_ERROR_PREFIX}GAMEPLAY04_INPUT_INVALID`,
+    `SenderError: GAMEPLAY04_INPUT_INVALID`,
+    `The reducer worker encountered a fatal error: GAMEPLAY04_INPUT_INVALID`,
+    `${MODULE_ERROR_PREFIX}GAMEPLAY04_SIXTH_ERROR`,
+    new Error(`${MODULE_ERROR_PREFIX}GAMEPLAY04_NOT_INITIALIZED`),
     'timeout', 'GAMEPLAY04_SIXTH_ERROR', null, 'x'.repeat(100_000),
     { get message(): string { throw new Error(SDK_TOKEN); } },
   ])('never parses arbitrary or secret-bearing failure data (%#)', input => {
@@ -396,7 +407,8 @@ describe('bounded procedure error classification', () => {
     expect(new Gameplay04ClientError('rejected', input as never).code).toBeUndefined();
   });
 
-  it('characterizes the real generated SDK procedure rejection as a raw string', async () => {
+  it.each(['GAMEPLAY04_NOT_INITIALIZED', `${MODULE_ERROR_PREFIX}GAMEPLAY04_NOT_INITIALIZED`])
+  ('characterizes the real generated SDK procedure rejection as a raw string (%#)', async wireError => {
     const socket: { protocol: string; send: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn>;
       onmessage?: (event: { data: Uint8Array }) => void } = {
       protocol: 'v2.bsatn.spacetimedb', send: vi.fn(), close: vi.fn(),
@@ -409,12 +421,69 @@ describe('bounded procedure error classification', () => {
       // Installed v2 BSATN: ServerMessage.ProcedureResult(7), InternalError(1),
       // string, timestamp i64, duration i64, requestId u32 (first request = 0).
       const writer = new BinaryWriter(128);
-      writer.writeU8(7); writer.writeU8(1); writer.writeString('GAMEPLAY04_NOT_INITIALIZED');
+      writer.writeU8(7); writer.writeU8(1); writer.writeString(wireError);
       writer.writeI64(0n); writer.writeI64(0n); writer.writeU32(0);
       socket.onmessage!({ data: writer.getBuffer() });
       const error = await work.catch(error => error);
-      expect(error).toBe('GAMEPLAY04_NOT_INITIALIZED');
-      expect(classifyGameplay04Error(error)).toMatchObject({ kind: 'not-initialized', code: error });
+      expect(error).toBe(wireError);
+      expect(classifyGameplay04Error(error)).toMatchObject({ kind: 'not-initialized', code: 'GAMEPLAY04_NOT_INITIALIZED' });
     } finally { connection.disconnect(); }
+  });
+
+  it('initializes through the real SDK module envelope, clears a definitive rejection, and keeps exact retry for unknown errors', async () => {
+    const socket: { protocol: string; send: ReturnType<typeof vi.fn>; close: ReturnType<typeof vi.fn>;
+      onmessage?: (event: { data: Uint8Array }) => void } = {
+      protocol: 'v2.bsatn.spacetimedb', send: vi.fn(), close: vi.fn(),
+    };
+    const sdk = DbConnection.builder().withUri('https://example.invalid')
+      .withDatabaseName('ptr-offline-characterization').withWSFn(async () => socket as never).build();
+    let initialized = false;
+    const current = freshWire04();
+    const requests: unknown[] = [];
+    const { capability, session, connection, authority } = await setup((name, input) => {
+      if (name === 'getGameplay04KeepV1') return initialized
+        ? Promise.resolve(structuredClone(current)) : sdk.procedures.getGameplay04KeepV1({});
+      if (name === 'initializeGameplay04KeepV1') { initialized = true; return Promise.resolve(RESULT); }
+      requests.push(input);
+      if (requests.length === 1) return Promise.reject(`${MODULE_ERROR_PREFIX}GAMEPLAY04_LOCATION_FULL`);
+      if (requests.length === 2) return Promise.reject(`${MODULE_ERROR_PREFIX}GAMEPLAY04_SIXTH_ERROR`);
+      current.revision = 2n; current.lastAcceptedSequence = 2n;
+      return Promise.resolve({ sequence: 2n, revision: 2n });
+    });
+    let nonces = 0;
+    const controller = createGameplay04Controller({ capability, now: Date.now,
+      nonce: () => (++nonces).toString(16).padStart(32, '0') });
+    try {
+      await vi.waitFor(() => expect(socket.onmessage).toBeTypeOf('function'));
+      const reading = controller.refresh();
+      const writer = new BinaryWriter(128);
+      writer.writeU8(7); writer.writeU8(1); writer.writeString(`${MODULE_ERROR_PREFIX}GAMEPLAY04_NOT_INITIALIZED`);
+      writer.writeI64(0n); writer.writeI64(0n); writer.writeU32(0);
+      socket.onmessage!({ data: writer.getBuffer() });
+      await reading;
+      expect(controller.getSnapshot()).toEqual({ phase: 'uninitialized', problem: 'none', view: null });
+      await controller.submit({ kind: 'initialize' });
+      expect(controller.getSnapshot()).toMatchObject({ phase: 'ready', problem: 'none' });
+      controller.setAtlas({ atlasId: 'test', revision: 1n });
+      const intent = { kind: 'dispatch', workerOrdinal: 0, durationMicros: 60_000_000n,
+        target: { atlasId: 'test', revision: 1n, locationId: 'food-site', resource: 'food', q: 7, r: -4 } } as const;
+      await controller.submit(intent);
+      expect(controller.getSnapshot()).toMatchObject({ phase: 'ready', problem: 'capacity' });
+      await controller.retryPending();
+      expect(requests).toHaveLength(1);
+      await controller.submit(intent);
+      expect(controller.getSnapshot()).toMatchObject({ phase: 'uncertain', problem: 'unknown' });
+      await controller.refresh();
+      expect(controller.getSnapshot().phase).toBe('uncertain');
+      await controller.retryPending();
+      expect(controller.getSnapshot()).toMatchObject({ phase: 'ready', problem: 'none', view: { state: { lastAcceptedSequence: 2n } } });
+      expect(requests).toHaveLength(3);
+      expect(requests[1]).not.toBe(requests[0]);
+      expect(requests[2]).toBe(requests[1]);
+      expect(Object.isFrozen(requests[1])).toBe(true);
+      expect(nonces).toBe(3);
+      expect(isCurrentPtrRealmConnectionSession(session, authority)).toBe(true);
+      expect(connection.disconnect).not.toHaveBeenCalled();
+    } finally { controller.dispose(); closePtrRealmConnectionSession(session); sdk.disconnect(); }
   });
 });

@@ -29,15 +29,15 @@ export const WARPKEEP_ALPHA_TERMS_VERSION = WARPKEEP_ENTRY_AGREEMENT_VERSION;
  * allowing the accepted document to drift behind an unchanged reducer value.
  */
 export const WARPKEEP_ALPHA_TERMS_TEXT_SHA256 =
-  'b78bacc360df53f57bed668a68c311acf14e957156ecd8256e388a6ef38496bf';
+  'db2a780f02c52527abe06a5260d291ca82f5b8e48ab2a218f33714240c0f9549';
 
 /** SHA-256 of the canonical Social Contract's normalized visible <main> text. */
 export const WARPKEEP_HEGEMONY_SOCIAL_CONTRACT_TEXT_SHA256 =
-  'a052a4f53aee749b702037f7a6eeb1e9dbd6fab0cbcd60aed81dacade8cbb66d';
+  'f4a9da0bfde64367198f65162f1085809fb665d221343d25c575510495e63949';
 
 /** Factual notice version published alongside the selected entry agreement. */
 export const WARPKEEP_ALPHA_PRIVACY_NOTICE_VERSION = '2026-08-02-v5';
 
 /** SHA-256 of the canonical Privacy Notice's normalized visible <main> text. */
 export const WARPKEEP_ALPHA_PRIVACY_NOTICE_TEXT_SHA256 =
-  '864341ee744e7adce4b5f8ee4be99785d96eb03a3916f798b85f3b0949e978c6';
+  '6e97f9fd3700d34ef274f1dcb423dc2115b08dcabc6ed6d21ddb3b4e97e3a34f';

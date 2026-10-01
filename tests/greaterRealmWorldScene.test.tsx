@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Resource04 } from '../spacetimedb/gameplay04/policy';
 
 const canvasHostHarness = vi.hoisted(() => ({
   create: vi.fn()
@@ -13,6 +14,7 @@ vi.mock('../src/components/realm/createGreaterRealmWorldCanvasHost', () => ({
 
 import {
   GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS,
+  GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS,
   GreaterRealmWorldScene
 } from '../src/components/realm/GreaterRealmWorldScene';
 import type { WorldSelection04 } from '../src/components/realm/GreaterRealmWorldScene';
@@ -76,6 +78,33 @@ function readySnapshot(input: Readonly<{
   } as unknown as GreaterRealmClientSnapshot;
 }
 
+function snapshotWithFilmCastle() {
+  const base = readySnapshot();
+  return {
+    ...base,
+    window: {
+      ...base.window!,
+      castles: base.window!.castles.map((castle) => (
+        castle.castleId === 2n ? { ...castle, castleId: 539854n } : castle
+      ))
+    }
+  } as GreaterRealmClientSnapshot;
+}
+
+function snapshotWithFilmCastleAsOwn() {
+  const base = readySnapshot();
+  return {
+    ...base,
+    bootstrap: { ...base.bootstrap!, myCastleId: 539854n },
+    window: {
+      ...base.window!,
+      castles: base.window!.castles.map((castle) => (
+        castle.castleId === 1n ? { ...castle, castleId: 539854n } : castle
+      ))
+    }
+  } as GreaterRealmClientSnapshot;
+}
+
 function workerControl(statuses: readonly ('idle' | 'outbound' | 'gathering' | 'returning')[]) {
   return {
     status: 'ready' as const,
@@ -106,6 +135,10 @@ function bridge(input: Readonly<{
     listener: RuntimeListener,
     view: unknown
   ) => Promise<GreaterRealmClientSnapshot>;
+  loadView?: (
+    listener: RuntimeListener,
+    view: unknown
+  ) => Promise<GreaterRealmClientSnapshot>;
   holdLoad?: boolean;
   dispose?: () => void;
   captureListener?: (listener: RuntimeListener) => void;
@@ -130,7 +163,8 @@ function bridge(input: Readonly<{
           return () => { listener = () => undefined; };
         },
         bootstrap: vi.fn(),
-        loadView: async () => {
+        loadView: async (view: unknown) => {
+          if (input.loadView) return input.loadView(listener, view);
           if (input.holdLoad) return new Promise<GreaterRealmClientSnapshot>(() => undefined);
           listener(snapshot);
           return snapshot;
@@ -153,6 +187,9 @@ function renderScene(
   greaterRealm: AvailableGreaterRealmProviderBridge,
   options: Readonly<{
     onPhaseChange?: (phase: string) => void;
+    resourceFocus04?: Resource04;
+    ownKeeperName?: string;
+    lyricFilmCastleId?: number;
   }> = {}
 ) {
   return render(
@@ -161,8 +198,11 @@ function renderScene(
       identityFid={77}
       identityKey="77:1"
       ownCastle={OWN_CASTLE}
+      ownKeeperName={options.ownKeeperName}
+      lyricFilmCastleId={options.lyricFilmCastleId}
       resolvedGraphicsQuality="balanced"
       onPhaseChange={options.onPhaseChange ?? vi.fn()}
+      resourceFocus04={options.resourceFocus04}
     />
   );
 }
@@ -212,6 +252,48 @@ it('publishes only current 0.4 selection and rejects retained guards after refre
   expect(onSelection).toHaveBeenLastCalledWith(null);
 });
 
+it('clears a selected site when the resource focus changes and requires a fresh visible choice', async () => {
+  setViewportWidth(390);
+  const source = readySnapshot();
+  const snapshot = {
+    ...source,
+    window: { ...source.window!, radius: 2 },
+    view: { ...source.view!, radius: 2 },
+    resourceLocations: source.resourceLocations.filter(location => location.resourceKind === 'food')
+  } as GreaterRealmClientSnapshot;
+  const onSelection = vi.fn();
+  let guard: (selection: WorldSelection04) => boolean = () => false;
+  const props = {
+    bridge: bridge({ snapshot, control: workerControl(['idle']), dispatchWorker: vi.fn() }),
+    identityFid: 77, identityKey: '77:1', ownCastle: OWN_CASTLE,
+    resolvedGraphicsQuality: 'balanced' as const, onPhaseChange: vi.fn(),
+    onGameplay04WorldSelection: onSelection,
+    renderGameplay04WorldPanel: (_selection: WorldSelection04 | null, validate: typeof guard) => {
+      guard = validate;
+      return null;
+    }
+  };
+  const mounted = render(<GreaterRealmWorldScene {...props} resourceFocus04="food" />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Nearby resources and workers' }));
+  fireEvent.click(screen.getByRole('button', { name: /food site at/ }));
+  const selected = onSelection.mock.lastCall?.[0] as WorldSelection04;
+  expect(selected.target?.resource).toBe('food');
+  expect(guard(selected)).toBe(true);
+  expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toBeNull();
+
+  mounted.rerender(<GreaterRealmWorldScene {...props} resourceFocus04="wood" />);
+  expect(screen.getByRole('status').textContent).toContain('No wood sites are shown');
+  expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
+  expect(onSelection.mock.lastCall?.[0]?.target).toBeNull();
+  expect(guard(selected)).toBe(false);
+
+  mounted.rerender(<GreaterRealmWorldScene {...props} resourceFocus04="food" />);
+  expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /food site at/ }));
+  expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toBeNull();
+  expect(onSelection.mock.lastCall?.[0]?.target?.resource).toBe('food');
+});
+
 beforeEach(() => {
   canvasHostHarness.create.mockReset();
   canvasHostHarness.create.mockImplementation(() => ({
@@ -233,6 +315,150 @@ afterEach(() => {
 });
 
 describe('Greater Realm world scene lifecycle', () => {
+  it('names FID 539854 own keep from verified identity while gating the film by the selected castle', async () => {
+    render(
+      <GreaterRealmWorldScene
+        bridge={bridge({ snapshot: snapshotWithFilmCastleAsOwn() })}
+        identityFid={539854}
+        identityKey="539854:1"
+        ownCastle={{ castleId: 539854, q: -2, r: 1 }}
+        ownKeeperName="Ael"
+        lyricFilmCastleId={539854}
+        onPhaseChange={vi.fn()}
+      />
+    );
+    await screen.findByRole('button', { name: /food site at/ });
+    const publish = canvasHostHarness.create.mock.calls[0]![0].onSelectionChange;
+    act(() => publish({
+      kind: 'castle', castleId: 2n, label: 'Public castle', atlasQ: -1, atlasR: 1
+    }));
+    expect(screen.getByRole('complementary', { name: 'Selected castle profile' })
+      .querySelector('h2')?.textContent).toBe('Founded keep');
+    expect(screen.queryByRole('button', { name: /WATCH LEAVE IT ON/i })).toBeNull();
+
+    act(() => publish({
+      kind: 'castle', castleId: 539854n, label: 'Your castle', atlasQ: -2, atlasR: 1
+    }));
+    expect(screen.getByRole('complementary', { name: 'Selected castle profile' })
+      .querySelector('h2')?.textContent).toBe('Ael');
+    await screen.findByRole('button', { name: /WATCH LEAVE IT ON/i });
+  });
+
+  it('shows the film only on the resolved public castle ID, never on a matching numeric FID', async () => {
+    let listener!: RuntimeListener;
+    const sceneBridge = bridge({
+      snapshot: readySnapshot(),
+      captureListener: (next) => { listener = next; }
+    });
+    const mounted = renderScene(sceneBridge, {
+      ownKeeperName: 'Ael', lyricFilmCastleId: 2
+    });
+    await screen.findByRole('button', { name: /food site at/ });
+    const publish = canvasHostHarness.create.mock.calls[0]![0].onSelectionChange;
+
+    act(() => publish({
+      kind: 'castle', castleId: 1n, label: 'Your castle', atlasQ: -2, atlasR: 1
+    }));
+    expect(screen.getByRole('complementary', { name: 'Selected castle profile' })
+      .querySelector('h2')?.textContent).toBe('Ael');
+    expect(screen.queryByRole('button', { name: /WATCH LEAVE IT ON/i })).toBeNull();
+
+    act(() => publish({
+      kind: 'castle', castleId: 2n, label: 'Public castle', atlasQ: -1, atlasR: 1
+    }));
+    expect(screen.getByRole('complementary', { name: 'Selected castle profile' })
+      .querySelector('h2')?.textContent).toBe('Founded keep');
+    expect(screen.getByRole('complementary', { name: 'Selected castle profile' }).textContent)
+      .not.toContain('Ael');
+    await screen.findByRole('button', { name: /WATCH LEAVE IT ON/i });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close castle profile' }));
+    expect(canvasHostHarness.create.mock.results[0]!.value.control)
+      .toHaveBeenCalledWith({ kind: 'clear-selection' });
+    expect(screen.queryByRole('complementary', { name: 'Selected castle profile' })).toBeNull();
+
+    act(() => publish({
+      kind: 'resource', label: 'Food site', atlasQ: -1, atlasR: 1
+    }));
+    expect(screen.queryByRole('complementary', { name: 'Selected castle profile' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /WATCH LEAVE IT ON/i })).toBeNull();
+
+    // A forged/stale selection cannot disclose the action unless the current
+    // public window still contains that exact castle ID and coordinate.
+    act(() => publish({
+      kind: 'castle', castleId: 2n, label: 'Public castle', atlasQ: 30, atlasR: 30
+    }));
+    expect(screen.queryByRole('complementary', { name: 'Selected castle profile' })).toBeNull();
+    act(() => publish({
+      kind: 'castle', castleId: 2n, label: 'Public castle', atlasQ: -1, atlasR: 1
+    }));
+    await screen.findByRole('button', { name: /WATCH LEAVE IT ON/i });
+    act(() => listener(snapshotWithFilmCastle()));
+    expect(screen.queryByRole('complementary', { name: 'Selected castle profile' })).toBeNull();
+
+    act(() => publish({
+      kind: 'castle', castleId: 539854n, label: 'Unrelated castle', atlasQ: -1, atlasR: 1
+    }));
+    expect(screen.getByRole('complementary', { name: 'Selected castle profile' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /WATCH LEAVE IT ON/i })).toBeNull();
+
+    act(() => listener(readySnapshot()));
+    expect(screen.queryByRole('complementary', { name: 'Selected castle profile' })).toBeNull();
+    act(() => publish({
+      kind: 'castle', castleId: 2n, label: 'Public castle', atlasQ: -1, atlasR: 1
+    }));
+    await screen.findByRole('button', { name: /WATCH LEAVE IT ON/i });
+    mounted.rerender(
+      <GreaterRealmWorldScene
+        bridge={sceneBridge}
+        identityFid={77}
+        identityKey="77:2"
+        ownCastle={OWN_CASTLE}
+        resolvedGraphicsQuality="balanced"
+        onPhaseChange={vi.fn()}
+      />
+    );
+    expect(screen.queryByRole('complementary', { name: 'Selected castle profile' })).toBeNull();
+  });
+
+  it('moves focus into a selected castle record when narrow SELECT NEXT closes its controls', async () => {
+    setViewportWidth(390);
+    const desktopSnapshot = readySnapshot();
+    renderScene(bridge({
+      snapshot: {
+        ...desktopSnapshot,
+        window: { ...desktopSnapshot.window!, radius: 2 },
+        view: { ...desktopSnapshot.view!, radius: 2 }
+      } as GreaterRealmClientSnapshot,
+    }), { lyricFilmCastleId: 2 });
+    await waitFor(() => expect(canvasHostHarness.create.mock.results[0]?.value.applySnapshot)
+      .toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: 'Map and vessel controls' }));
+    const selectNext = screen.getByRole('button', { name: 'SELECT NEXT' });
+    selectNext.focus();
+    const publish = canvasHostHarness.create.mock.calls[0]![0].onSelectionChange;
+    canvasHostHarness.create.mock.results[0]!.value.control.mockImplementation((control: { kind: string }) => {
+      if (control.kind === 'select-next') publish({
+        kind: 'castle', castleId: 2n, label: 'Public castle', atlasQ: -1, atlasR: 1
+      });
+    });
+    fireEvent.click(selectNext);
+    const card = screen.getByRole('complementary', { name: 'Selected castle profile' });
+    expect(document.activeElement).toBe(card);
+    expect(screen.getByRole('button', { name: 'Map and vessel controls' })
+      .getAttribute('aria-expanded')).toBe('false');
+
+    // Canvas selection leaves keyboard focus where it was.
+    const canvas = screen.getByRole('application', {
+      name: 'Interactive Greater Realm public atlas'
+    });
+    canvas.focus();
+    act(() => publish({
+      kind: 'castle', castleId: 1n, label: 'Your castle', atlasQ: -2, atlasR: 1
+    }));
+    expect(document.activeElement).toBe(canvas);
+  });
+
   it('keeps narrow map and resource actions in exclusive accessible disclosures', async () => {
     setViewportWidth(390);
     const desktopSnapshot = readySnapshot();
@@ -494,6 +720,113 @@ describe('Greater Realm world scene lifecycle', () => {
     }
   });
 
+  it('explains a failed resource-site read and retries the existing Realm read from the phone drawer', async () => {
+    setViewportWidth(390);
+    const base = readySnapshot({ resourceLocationPhase: 'failed' });
+    const mobileView = { ...VIEW, radius: 2 };
+    const failed = { ...base, window: { ...base.window!, radius: 2 }, view: mobileView } as GreaterRealmClientSnapshot;
+    const recoveredBase = readySnapshot();
+    const recovered = { ...recoveredBase, window: { ...recoveredBase.window!, radius: 2 }, view: mobileView } as GreaterRealmClientSnapshot;
+    const refreshRelease = vi.fn(async (listener: RuntimeListener, _view: unknown) => {
+      listener(recovered);
+      return recovered;
+    });
+    renderScene(bridge({ snapshot: failed, control: workerControl(['idle']), refreshRelease }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Nearby resources and workers' }));
+    expect(screen.getByRole('status').textContent).toContain('Nearby resource sites did not load');
+    expect(screen.queryByRole('button', { name: /site at/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /SEND WORKER/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry resource sites' }));
+
+    await waitFor(() => expect(refreshRelease).toHaveBeenCalledOnce());
+    expect(refreshRelease.mock.calls[0]?.[1]).toEqual(mobileView);
+    expect(screen.queryByRole('button', { name: 'Retry resource sites' })).toBeNull();
+    const location = recovered.resourceLocations[0]!;
+    fireEvent.click(screen.getByRole('button', {
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
+    }));
+    expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toBeNull();
+  });
+
+  it('keeps the phone resource drawer and keyboard focus while a resource retry is pending', async () => {
+    setViewportWidth(390);
+    const base = readySnapshot({ resourceLocationPhase: 'failed' });
+    const mobileView = { ...VIEW, radius: 2 };
+    const failed = { ...base, window: { ...base.window!, radius: 2 }, view: mobileView } as GreaterRealmClientSnapshot;
+    let rejectRefresh!: (error: Error) => void;
+    const refreshRelease = vi.fn(() => new Promise<GreaterRealmClientSnapshot>((_resolve, reject) => {
+      rejectRefresh = reject;
+    }));
+    renderScene(bridge({ snapshot: failed, refreshRelease }));
+    const trigger = await screen.findByRole('button', { name: 'Nearby resources and workers' });
+    fireEvent.click(trigger);
+    const retry = screen.getByRole('button', { name: 'Retry resource sites' });
+    retry.focus();
+    fireEvent.click(retry);
+
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger.isConnected).toBe(true);
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('status').textContent).toContain('Retrying nearby resource sites');
+    expect(screen.queryByRole('button', { name: 'Retry resource sites' })).toBeNull();
+    await waitFor(() => expect(refreshRelease).toHaveBeenCalledOnce());
+
+    await act(async () => { rejectRefresh(new Error('offline')); await Promise.resolve(); });
+    expect(document.activeElement).toBe(trigger);
+    expect(trigger.isConnected).toBe(true);
+    expect(screen.getByText(/The Realm retry did not finish/)).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Retry resource sites' })).not.toBeNull();
+  });
+
+  it('moves desktop retry focus to the persistent resource panel while refreshing', async () => {
+    setViewportWidth(1_024);
+    const refreshRelease = vi.fn(() => new Promise<GreaterRealmClientSnapshot>(() => undefined));
+    renderScene(bridge({
+      snapshot: readySnapshot({ resourceLocationPhase: 'failed' }),
+      refreshRelease
+    }));
+    const retry = await screen.findByRole('button', { name: 'Retry resource sites' });
+    const panel = screen.getByRole('complementary', { name: 'Nearby public resources' });
+    retry.focus();
+    fireEvent.click(retry);
+
+    expect(document.activeElement).toBe(panel);
+    expect(panel.isConnected).toBe(true);
+    expect(screen.getByRole('status').textContent).toContain('Retrying nearby resource sites');
+    expect(screen.queryByRole('button', { name: 'Retry resource sites' })).toBeNull();
+    await waitFor(() => expect(refreshRelease).toHaveBeenCalledOnce());
+  });
+
+  it('distinguishes a loading read, an empty view, and a focused kind missing from a phone view', async () => {
+    setViewportWidth(390);
+    const mobileView = { ...VIEW, radius: 2 };
+    const mobile = (snapshot: GreaterRealmClientSnapshot) => ({
+      ...snapshot, window: { ...snapshot.window!, radius: 2 }, view: mobileView
+    }) as GreaterRealmClientSnapshot;
+    const openDrawer = async () => fireEvent.click(await screen.findByRole('button', { name: 'Nearby resources and workers' }));
+
+    const loading = renderScene(bridge({ snapshot: mobile(readySnapshot({ resourceLocationPhase: 'loading' })) }));
+    await openDrawer();
+    expect(screen.getByRole('status').textContent).toContain('Loading nearby resource sites');
+    expect(screen.queryByRole('button', { name: 'Retry resource sites' })).toBeNull();
+    loading.unmount();
+
+    const empty = renderScene(bridge({ snapshot: mobile(readySnapshot({ resources: false })) }));
+    await openDrawer();
+    expect(screen.getByRole('status').textContent).toContain('No public resource sites are shown in this Realm view');
+    expect(screen.queryByRole('button', { name: /site at/ })).toBeNull();
+    empty.unmount();
+
+    const source = readySnapshot();
+    const foodOnly = mobile({ ...source, resourceLocations: source.resourceLocations.filter(location => location.resourceKind === 'food') });
+    renderScene(bridge({ snapshot: foodOnly }), { resourceFocus04: 'wood' });
+    await openDrawer();
+    expect(screen.getByRole('status').textContent).toContain('No wood sites are shown in this Realm view');
+    expect(screen.queryByRole('button', { name: /site at/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Retry resource sites' })).toBeNull();
+  });
+
   it('clears a replaced resource read before allowing an immediate current dispatch', async () => {
     let emit: RuntimeListener = () => undefined;
     const snapshot = readySnapshot();
@@ -571,6 +904,36 @@ describe('Greater Realm world scene lifecycle', () => {
     }));
     await waitFor(() => expect(recallWorker).toHaveBeenCalledWith('GRW-1'));
     expect(dispatchWorker).not.toHaveBeenCalled();
+  });
+
+  it('pauses retained-map recall controls until a new exact World read succeeds', async () => {
+    let publish!: RuntimeListener;
+    const recallWorker = vi.fn(async () => undefined);
+    const recallAllWorkers = vi.fn(async () => undefined);
+    renderScene(bridge({
+      control: workerControl(['outbound', 'gathering']),
+      recallWorker,
+      recallAllWorkers,
+      captureListener: listener => { publish = listener; }
+    }));
+    const recall = await screen.findByRole('button', { name: 'RECALL WORKER 1 · outbound' }) as HTMLButtonElement;
+    const recallAll = screen.getByRole('button', { name: 'RECALL ALL' }) as HTMLButtonElement;
+    expect(recall.disabled).toBe(false);
+    expect(recallAll.disabled).toBe(false);
+
+    act(() => publish({ phase: 'idle', sessionGeneration: 17 } as never));
+    expect(recall.disabled).toBe(true);
+    expect(recallAll.disabled).toBe(true);
+    fireEvent.click(recall);
+    fireEvent.click(recallAll);
+    expect(recallWorker).not.toHaveBeenCalled();
+    expect(recallAllWorkers).not.toHaveBeenCalled();
+
+    act(() => publish(readySnapshot()));
+    expect(recall.disabled).toBe(false);
+    expect(recallAll.disabled).toBe(false);
+    fireEvent.click(recall);
+    await waitFor(() => expect(recallWorker).toHaveBeenCalledWith('GRW-1'));
   });
 
   it.each(['atlas', 'revision'] as const)(
@@ -686,11 +1049,18 @@ describe('Greater Realm world scene lifecycle', () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     let rejectRefresh: (reason?: unknown) => void = () => undefined;
+    let refreshCalls = 0;
     const refreshRelease = vi.fn((listener: RuntimeListener) => {
-      listener({ phase: 'idle', sessionGeneration: 17 } as never);
-      return new Promise<GreaterRealmClientSnapshot>((_resolve, reject) => {
-        rejectRefresh = reject;
-      });
+      refreshCalls += 1;
+      if (refreshCalls === 1) {
+        listener({ phase: 'idle', sessionGeneration: 17 } as never);
+        return new Promise<GreaterRealmClientSnapshot>((_resolve, reject) => {
+          rejectRefresh = reject;
+        });
+      }
+      const recovered = readySnapshot();
+      listener(recovered);
+      return Promise.resolve(recovered);
     });
     const onPhaseChange = vi.fn();
     renderScene(bridge({
@@ -721,7 +1091,7 @@ describe('Greater Realm world scene lifecycle', () => {
     expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
 
     await act(async () => {
-      vi.advanceTimersByTime(GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS);
+      vi.advanceTimersByTime(GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS / 2);
       await Promise.resolve();
     });
     expect(refreshRelease).toHaveBeenCalledOnce();
@@ -733,6 +1103,161 @@ describe('Greater Realm world scene lifecycle', () => {
     expect(screen.getByRole('button', {
       name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
     })).not.toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('last verified map remains visible; Worker commands are paused');
+    expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Realm' }));
+    await act(async () => { await Promise.resolve(); });
+    expect(refreshRelease).toHaveBeenCalledTimes(2);
+    expect(onPhaseChange).toHaveBeenLastCalledWith('ready');
+    expect(screen.queryByRole('button', { name: 'Retry Realm' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
+  });
+
+  it('explains an initial World read failure and retries without replacing the canvas', async () => {
+    setViewportWidth(390);
+    const mobileView = Object.freeze({ ...VIEW, radius: 2 });
+    const base = readySnapshot();
+    const fresh = { ...base, window: { ...base.window!, radius: 2 }, view: mobileView };
+    let rejectInitial!: (error: Error) => void;
+    const loadView = vi.fn((listener: RuntimeListener) => {
+      listener({ phase: 'failed', sessionGeneration: 17 } as never);
+      return new Promise<GreaterRealmClientSnapshot>((_resolve, reject) => {
+        rejectInitial = reject;
+      });
+    });
+    const refreshRelease = vi.fn(async (listener: RuntimeListener, _view: unknown) => {
+      listener(fresh);
+      return fresh;
+    });
+    renderScene(bridge({ loadView, refreshRelease }));
+    const retry = await screen.findByRole('button', { name: 'Retry Realm' });
+    const status = screen.getByRole('status');
+    expect(status.textContent).toContain('The Realm did not load');
+    expect(status.closest('.greater-realm-world__controls')).toBeNull();
+    expect(status.closest('.greater-realm-world__resources')).toBeNull();
+    expect((retry as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(retry);
+    await waitFor(() => expect(refreshRelease).toHaveBeenCalledOnce());
+    expect(refreshRelease.mock.calls[0]?.[1]).toEqual(mobileView);
+    expect(screen.queryByRole('button', { name: 'Retry Realm' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Nearby resources and workers' }));
+    expect(screen.getByRole('button', {
+      name: `${fresh.resourceLocations[0]!.resourceKind} site at ${fresh.resourceLocations[0]!.atlasQ}, ${fresh.resourceLocations[0]!.atlasR}`
+    })).not.toBeNull();
+    await act(async () => {
+      rejectInitial(new Error('old request failed late'));
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('button', { name: 'Retry Realm' })).toBeNull();
+    expect(canvasHostHarness.create).toHaveBeenCalledOnce();
+  });
+
+  it('offers recovery when the initial World read never settles', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    let rejectInitial!: (error: Error) => void;
+    let publish!: RuntimeListener;
+    const loadView = vi.fn(() => new Promise<GreaterRealmClientSnapshot>((_resolve, reject) => {
+      rejectInitial = reject;
+    }));
+    const refreshRelease = vi.fn(async (listener: RuntimeListener) => {
+      const recovered = readySnapshot();
+      listener(recovered);
+      return recovered;
+    });
+    const onPhaseChange = vi.fn();
+    renderScene(bridge({
+      loadView, refreshRelease, captureListener: listener => { publish = listener; }
+    }), { onPhaseChange });
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.queryByRole('button', { name: 'Retry Realm' })).toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS);
+      await Promise.resolve();
+    });
+    expect(onPhaseChange).toHaveBeenLastCalledWith('failed');
+    expect(screen.getByRole('status').textContent).toContain('The Realm did not load');
+    const phaseCount = onPhaseChange.mock.calls.length;
+    act(() => publish({ phase: 'loading-window', sessionGeneration: 17 } as never));
+    expect(onPhaseChange).toHaveBeenCalledTimes(phaseCount);
+    expect(screen.getByRole('button', { name: 'Retry Realm' })).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Realm' }));
+    await act(async () => { await Promise.resolve(); });
+    expect(refreshRelease).toHaveBeenCalledOnce();
+    expect(onPhaseChange).toHaveBeenLastCalledWith('ready');
+    expect(screen.queryByRole('button', { name: 'Retry Realm' })).toBeNull();
+    await act(async () => {
+      rejectInitial(new Error('superseded read failed late'));
+      await Promise.resolve();
+    });
+    expect(onPhaseChange).toHaveBeenLastCalledWith('ready');
+    expect(canvasHostHarness.create).toHaveBeenCalledOnce();
+  });
+
+  it('recovers a stalled refresh without losing the verified atlas or accepting its late rejection', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    let rejectStalled!: (error: Error) => void;
+    let publish!: RuntimeListener;
+    const refreshRelease = vi.fn((listener: RuntimeListener) => {
+      listener({ phase: 'idle', sessionGeneration: 17 } as never);
+      if (refreshRelease.mock.calls.length === 1) {
+        return new Promise<GreaterRealmClientSnapshot>((_resolve, reject) => {
+          rejectStalled = reject;
+        });
+      }
+      const recovered = readySnapshot();
+      listener(recovered);
+      return Promise.resolve(recovered);
+    });
+    const onPhaseChange = vi.fn();
+    renderScene(bridge({
+      control: workerControl(['idle']),
+      refreshRelease,
+      captureListener: listener => { publish = listener; },
+      dispatchWorker: async () => undefined
+    }), { onPhaseChange });
+    const location = GREATER_REALM_SYNTHETIC_TIER_ONE_FIXTURE.resourceLocations[0]!;
+    await act(async () => { await Promise.resolve(); });
+    fireEvent.click(screen.getByRole('button', {
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
+    }));
+    expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toHaveProperty('disabled', true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS);
+      await Promise.resolve();
+    });
+    expect(refreshRelease).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
+    await act(async () => {
+      vi.advanceTimersByTime(GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS);
+      await Promise.resolve();
+    });
+    expect(onPhaseChange).toHaveBeenLastCalledWith('failed');
+    expect(screen.getByRole('status').textContent).toContain('last verified map remains visible; Worker commands are paused');
+    expect(screen.getByRole('button', {
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
+    })).not.toBeNull();
+    const phaseCount = onPhaseChange.mock.calls.length;
+    act(() => publish({ phase: 'streaming-chunks', sessionGeneration: 17 } as never));
+    expect(onPhaseChange).toHaveBeenCalledTimes(phaseCount);
+    expect(screen.getByRole('button', { name: 'Retry Realm' })).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'SEND WORKER 1' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry Realm' }));
+    await act(async () => { await Promise.resolve(); });
+    expect(refreshRelease).toHaveBeenCalledTimes(2);
+    expect(onPhaseChange).toHaveBeenLastCalledWith('ready');
+    await act(async () => {
+      rejectStalled(new Error('superseded refresh failed late'));
+      await Promise.resolve();
+    });
+    expect(onPhaseChange).toHaveBeenLastCalledWith('ready');
+    fireEvent.click(screen.getByRole('button', {
+      name: `${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`
+    }));
+    expect(screen.getByRole('button', { name: 'SEND WORKER 1' })).not.toHaveProperty('disabled', true);
   });
 
   it('defers a due release refresh while hidden and resumes on visibility', async () => {

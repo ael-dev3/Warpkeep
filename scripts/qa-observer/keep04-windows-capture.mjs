@@ -104,18 +104,29 @@ function diagnosticCause(kind) {
     || kind.startsWith('owned-close-')) return 'lifecycle';
   return 'observer';
 }
+function diagnosticSignal(source, message) {
+  if (source !== 'security' || typeof message !== 'string') return undefined;
+  // Classify only a short prefix into a closed vocabulary. Never retain or
+  // print the browser's message; it can contain page-controlled text.
+  const text = message.slice(0, 4096).toLowerCase();
+  if (text.includes('sandbox') && text.includes('allow-scripts') && text.includes('allow-same-origin')) return 'sandbox-script-origin-tokens';
+  if (text.includes('content security policy') || text.includes('content-security-policy') || text.includes('csp')) return 'content-security-policy';
+  if (text.includes('mixed content')) return 'mixed-content';
+  if (text.includes('certificate')) return 'certificate-policy';
+  return 'other-security-policy';
+}
 export function createKeep04NetworkGuard() {
   let expected = 'about:blank'; let target = ''; let violation = ''; let dropped = 0;
   let phase = 'capture'; let reviewRequired = false;
   const ownedClose = { requested: false, acknowledged: false, verified: false, detachCount: 0 };
   let documentRequest; let documentGuarded = false; let guardedDocuments = 0;
   const diagnostics = []; const pending = new Set();
-  const record = (kind, severity = 'error', resource) => {
+  const record = (kind, severity = 'error', resource, signal) => {
     if (severity !== 'info') reviewRequired = true;
-    if (diagnostics.length < 128) diagnostics.push({ kind, severity, phase, cause: diagnosticCause(kind), resource: diagnosticResource(resource) });
+    if (diagnostics.length < 128) diagnostics.push({ kind, severity, phase, cause: diagnosticCause(kind), resource: diagnosticResource(resource), ...(signal ? { signal } : {}) });
     else dropped++;
   };
-  const reject = (kind, resource) => { violation ||= kind; record(kind, 'error', resource); };
+  const reject = (kind, resource, signal) => { violation ||= kind; record(kind, 'error', resource, signal); };
   const track = promise => { if (pending.size >= 256) { reject('interception-overflow'); void promise.catch(() => {}); return; } pending.add(promise); promise.catch(() => reject('interception-command')).finally(() => pending.delete(promise)); };
   return {
     expectNavigation(url) { if (!keep04ProbePlan([`--base-url=${KEEP04_QA_ORIGIN}`]).cases.some(entry => entry.url === url)) throw new Error('Unexpected keep QA navigation request.'); expected = url; documentRequest = undefined; documentGuarded = false; },
@@ -177,12 +188,12 @@ export function createKeep04NetworkGuard() {
           if (ownedClose.detachCount > 128) reject('teardown-overflow');
         } else reject(params?.reason === 'target_closed' ? 'unexpected-target-closed' : 'unexpected-inspector-detach', 'Other');
       }
-      else if (method === 'Log.entryAdded' && params?.entry?.source === 'security' && params.entry.level === 'error') reject('security-policy-error', 'security');
+      else if (method === 'Log.entryAdded' && params?.entry?.source === 'security' && params.entry.level === 'error') reject('security-policy-error', 'security', diagnosticSignal(params.entry.source, params.entry.text));
       else if (method === 'Runtime.exceptionThrown') record('runtime-exception', 'error', 'Script');
       else if (method === 'Runtime.consoleAPICalled' && ['warning', 'error', 'assert'].includes(params?.type)) record('browser-console', params.type === 'warning' ? 'warning' : 'error', 'Script');
       else if (method === 'Log.entryAdded' && ['warning', 'error'].includes(params?.entry?.level)) {
         const source = ['network', 'security', 'deprecation', 'rendering', 'javascript'].includes(params.entry.source) ? params.entry.source : 'other';
-        record(`browser-log-${source}`, params.entry.level, source);
+        record(`browser-log-${source}`, params.entry.level, source, diagnosticSignal(source, params.entry.text));
       }
     },
     async drain() { await Promise.allSettled([...pending]); },

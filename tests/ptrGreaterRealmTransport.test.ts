@@ -14,11 +14,10 @@ import {
   createPtrRealmAuthClient,
   type PtrRealmAuthority,
 } from '../src/ptr/ptrRealmAuthClient';
-import { resolvePtrRealmWorldSceneStrategy } from '../src/components/realm/greaterRealmSceneStrategy';
 import { resolveGreaterRealmWorldViewPolicy } from '../src/components/realm/greaterRealmWorldViewPolicy';
 import type { GreaterRealmProviderBridge } from '../src/spacetime/greaterRealmProviderBridge';
 import { resolvePtrRealmPresentation } from '../src/ptr/ptrRealmPresentationPolicy';
-import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
+import { PtrGameplay04SurfaceHost } from '../src/ptr/PtrGameplay04SurfaceHost';
 
 const NOW = 1_800_000_000_000;
 const FID = 12_345;
@@ -115,34 +114,7 @@ describe('PTR Greater Realm transport boundary', () => {
     expect(call).toHaveBeenCalledTimes(1);
   });
 
-  it('selects the PTR world only for the same live branded owner authority', async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(NOW);
-    const ptrAuthority = await authority();
-    const bridge = Object.freeze({
-      phase: 'available',
-      presentationAllowed: true,
-      sessionGeneration: 1,
-      createRuntime: vi.fn(),
-    }) as unknown as GreaterRealmProviderBridge;
-    const input = Object.freeze({ bridge, legacyAuthorityActive: false });
-
-    expect(resolvePtrRealmWorldSceneStrategy(input, { ...ptrAuthority })).toEqual({
-      kind: 'connection-hold',
-      reason: 'legacy-authority-inactive',
-    });
-    expect(resolvePtrRealmWorldSceneStrategy(input, ptrAuthority)).toEqual(
-      expect.objectContaining({ kind: 'greater-realm', sessionGeneration: 1 }),
-    );
-
-    vi.setSystemTime(NOW + 120_000);
-    expect(resolvePtrRealmWorldSceneStrategy(input, ptrAuthority)).toEqual({
-      kind: 'connection-hold',
-      reason: 'legacy-authority-inactive',
-    });
-  });
-
-  it('accepts only an i32 virtual view anchor with no Genesis surface attached', async () => {
+  it('accepts only an i32 virtual view anchor for a current owner', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     const ptrAuthority = await authority();
@@ -151,27 +123,18 @@ describe('PTR Greater Realm transport boundary', () => {
     expect(resolvePtrRealmPresentation({
       authority: ptrAuthority,
       viewAnchor,
-      legacySurfacePresent: false,
     })).toEqual({ authority: ptrAuthority, viewAnchor });
     expect(resolvePtrRealmPresentation({
       authority: { ...ptrAuthority },
       viewAnchor,
-      legacySurfacePresent: false,
-    })).toBeNull();
-    expect(resolvePtrRealmPresentation({
-      authority: ptrAuthority,
-      viewAnchor,
-      legacySurfacePresent: true,
     })).toBeNull();
     expect(resolvePtrRealmPresentation({
       authority: ptrAuthority,
       viewAnchor: { ...viewAnchor, q: 2_147_483_648 },
-      legacySurfacePresent: false,
     })).toBeNull();
     expect(resolvePtrRealmPresentation({
       authority: ptrAuthority,
       viewAnchor: { ...viewAnchor, castleId: FID + 1 },
-      legacySurfacePresent: false,
     })).toBeNull();
   });
 
@@ -190,19 +153,19 @@ describe('PTR Greater Realm transport boundary', () => {
     expect(policy).toMatchObject({ centerQ: -2, centerR: 1 });
   });
 
-  it('labels a rejected PTR renderer as PTR rather than Genesis 001', async () => {
+  it('reports PTR unavailability independently of the Genesis 001 route', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
     const ptrAuthority = await authority();
 
-    render(createElement(RealmMapScreen, {
+    render(createElement(PtrGameplay04SurfaceHost, {
       identity: { fid: FID },
       onRequestReturn: vi.fn(),
       ptrRealmAuthority: ptrAuthority,
       ptrViewAnchor: { castleId: FID + 1, q: 0, r: 0 },
     }));
 
-    expect(screen.getByRole('alert').textContent).toMatch(/PTR is unavailable/i);
-    expect(screen.getByRole('alert').textContent).not.toMatch(/Genesis 001/i);
+    expect(screen.getByRole('status').textContent).toMatch(/PTR is unavailable/i);
+    expect(screen.getByRole('status').textContent).not.toMatch(/Genesis 001/i);
   });
 });

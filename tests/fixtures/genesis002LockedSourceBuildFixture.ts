@@ -219,7 +219,7 @@ export function createGenesis002Fixture(options: Readonly<{
     sourceSnapshot: () => treeSnapshot(repositoryRoot, true),
     assertInstalledG002(materializedRoot: string): Snapshot {
       const g002Root = join(materializedRoot, 'spacetimedb', 'genesis002');
-      const nodeModules = join(g002Root, 'node_modules');
+      const nodeModules = join(materializedRoot, 'spacetimedb', 'node_modules');
       const pnpmRoot = join(nodeModules, '.pnpm');
       if (JSON.stringify(readdirSync(nodeModules).sort()) !== JSON.stringify([
         '.bin', '.pnpm', ...Object.keys(GENESIS002_TOP_LEVEL),
@@ -239,7 +239,9 @@ export function createGenesis002Fixture(options: Readonly<{
         for (const dependencyKey of GENESIS002_EDGES[key]!) {
           const [dependencyName] = nameAndVersion(dependencyKey);
           const path = join(pnpmRoot, key.replace('/', '+'), 'node_modules', ...dependencyName.split('/'));
-          if (!inside(g002Root, realpathSync(path))) throw new Error(`G002_FIXTURE_LINK_ESCAPE:${key}`);
+          if (!inside(join(materializedRoot, 'spacetimedb'), realpathSync(path))) {
+            throw new Error(`G002_FIXTURE_LINK_ESCAPE:${key}`);
+          }
           const targetManifest = JSON.parse(readFileSync(join(path, 'package.json'), 'utf8')) as {
             name?: unknown;
           };
@@ -253,8 +255,8 @@ export function createGenesis002Fixture(options: Readonly<{
         };
         if (linked.name !== expectedName) throw new Error(`G002_FIXTURE_ROOT_LINK_INVALID:${name}`);
       }
-      if (readdirSync(join(materializedRoot, 'spacetimedb')).includes('node_modules')) {
-        throw new Error('G002_FIXTURE_ROOT_INSTALL_DETECTED');
+      if (readdirSync(g002Root).includes('node_modules')) {
+        throw new Error('G002_FIXTURE_CHILD_INSTALL_DETECTED');
       }
       installedSnapshot = treeSnapshot(nodeModules);
       const manifestBytes = readFileSync(join(g002Root, 'package.json'));
@@ -265,7 +267,7 @@ export function createGenesis002Fixture(options: Readonly<{
       };
       const dependencySnapshot = greaterRealmImmutableArtifactTestSeams.dependencyTreeSnapshot({
         root: nodeModules,
-        boundary: g002Root,
+        boundary: join(materializedRoot, 'spacetimedb'),
       });
       const digest = createHash('sha256');
       const framed = (label: string, value: string | Buffer) => {
@@ -289,7 +291,7 @@ export function createGenesis002Fixture(options: Readonly<{
         framed('package-integrity', parsedLock.packages[key]!.resolution.integrity);
         framed('package-edges', JSON.stringify(GENESIS002_EDGES[key]));
       }
-      framed('installed-content-profile', 'spacetimedb/genesis002/node_modules');
+      framed('installed-content-profile', 'spacetimedb/node_modules');
       framed('installed-content-sha256', dependencySnapshot.contentDigest);
       framed('installed-entry-count', String(dependencySnapshot.entries.size));
       expectedDigest = digest.digest('hex');

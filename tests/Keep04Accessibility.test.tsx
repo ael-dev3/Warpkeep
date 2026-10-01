@@ -22,6 +22,19 @@ function setup(fixture: 'empty' | 'construction' | 'complete' = 'empty', snapsho
   const rendered = render(<Harness />);
   return { controller, rerenderPhase: (phase: Snapshot04['phase']) => rendered.rerender(<Harness phase={phase} />) };
 }
+it('keeps the catalog explanation in overview while leading selected review with the decision', () => {
+  setup();
+  fireEvent.click(screen.getByRole('button', { name: 'Buildings' }));
+  expect(screen.getByRole('heading', { level: 2, name: 'Buildings' })).toBeVisible();
+  expect(screen.getByText(/Each expedition keeps the gathering rate it began with/)).toBeVisible();
+
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  const heading = screen.getByRole('heading', { level: 2, name: 'Place City Mill' });
+  expect(heading).toHaveFocus();
+  expect(screen.queryByRole('heading', { name: 'Buildings' })).not.toBeInTheDocument();
+  expect(screen.queryByText(/Each expedition keeps the gathering rate it began with/)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Confirm placement' })).toBeVisible();
+});
 it('promotes one complete selected review and connects it to the same schematic without commands', () => {
   const { controller, rerenderPhase } = setup(); act(() => sceneProps.onMode('webgl'));
   const opener = screen.getByRole('button', { name: 'Buildings' }); fireEvent.click(opener);
@@ -56,6 +69,54 @@ it('connects persisted-site upgrade review without replacing or editing its sche
   fireEvent.click(screen.getByRole('button', { name: 'View site' })); expect(schematic).toHaveFocus();
   expect(screen.queryByRole('button', { name: 'Move up 0.5 m' })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Review upgrade' })); expect(heading).toHaveFocus();
+  expect(controller.submit).not.toHaveBeenCalled();
+});
+it.each([
+  ['refreshing', 'Lumber Camp', 'Place Lumber Camp', 'Adjust placement', 'Review placement', 'Confirm placement'],
+  ['pending', 'Lumber Camp', 'Place Lumber Camp', 'Adjust placement', 'Review placement', 'Confirm placement'],
+  ['refreshing', 'City Mill', 'Upgrade City Mill', 'View site', 'Review upgrade', 'Confirm upgrade'],
+  ['pending', 'City Mill', 'Upgrade City Mill', 'View site', 'Review upgrade', 'Confirm upgrade'],
+] as const)('keeps %s %s placement navigation usable while command confirmation stays disabled', (phase, building, title, siteLabel, reviewLabel, confirmLabel) => {
+  const snapshot = createKeep04QaSnapshot('complete');
+  const { controller, rerenderPhase } = setup('complete', { ...snapshot,
+    view: { ...snapshot.view!, atlas: { atlasId: 'synthetic-retained-navigation-test', revision: 1n } } });
+  act(() => sceneProps.onMode('webgl'));
+  fireEvent.click(screen.getByRole('button', { name: 'Buildings' }));
+  fireEvent.click(screen.getByRole('button', { name: building }));
+  const heading = screen.getByRole('heading', { name: title });
+  const schematic = screen.getByRole('application', { name: 'Keep placement schematic' });
+  const details = schematic.closest('details')!;
+  const confirm = screen.getByRole('button', { name: confirmLabel }); expect(confirm).toBeEnabled();
+  rerenderPhase(phase);
+  expect(confirm).toBeDisabled(); fireEvent.click(confirm);
+  details.open = false;
+  const site = screen.getByRole('button', { name: siteLabel }); expect(site).toBeEnabled(); site.focus(); fireEvent.click(site);
+  expect(details.open).toBe(true); expect(schematic).toHaveFocus();
+  const review = screen.getByRole('button', { name: reviewLabel }); expect(review).toBeEnabled(); review.focus(); fireEvent.click(review);
+  expect(heading).toHaveFocus(); expect(confirm).toBeDisabled();
+  const otherBuilding = building === 'City Mill' ? 'Lumber Camp' : 'City Mill';
+  fireEvent.click(screen.getByRole('button', { name: otherBuilding }));
+  expect(screen.getByRole('heading', { name: otherBuilding === 'City Mill' ? 'Upgrade City Mill' : 'Place Lumber Camp' })).toHaveFocus();
+  expect(screen.getByRole('button', { name: otherBuilding === 'City Mill' ? 'Confirm upgrade' : 'Confirm placement' })).toBeDisabled();
+  expect(controller.submit).not.toHaveBeenCalled();
+});
+it.each(['failed', 'disposed'] as const)('hides retained placement navigation and restores Back focus when the session becomes %s', phase => {
+  const { controller, rerenderPhase } = setup();
+  fireEvent.click(screen.getByRole('button', { name: 'Buildings' }));
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  const site = screen.getByRole('button', { name: 'Adjust placement' }); site.focus();
+  const review = screen.getByRole('button', { name: 'Review placement' });
+  const schematic = screen.getByRole('application', { name: 'Keep placement schematic' });
+  const details = schematic.closest('details')!; details.open = false;
+  rerenderPhase('refreshing'); rerenderPhase(phase);
+  expect(screen.getByRole('region', { name: 'Keep status' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus();
+  expect(screen.queryByRole('button', { name: 'Adjust placement' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Review placement' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('application', { name: 'Keep placement schematic' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Confirm placement' })).not.toBeInTheDocument();
+  fireEvent.click(site); fireEvent.click(review);
+  expect(details.open).toBe(false); expect(screen.getByRole('button', { name: 'Back' })).toHaveFocus();
   expect(controller.submit).not.toHaveBeenCalled();
 });
 it('keeps the schematic, controls, selection and focus mounted through loading/webgl/fallback transitions', () => {
@@ -288,7 +349,8 @@ it('keeps valid and blocked footprints distinct using system colors and line pat
     const draft = document.querySelector('.keep04-draft')!;
     const validPattern = getComputedStyle(draft).strokeDasharray;
     act(() => sceneProps.onPlacement({ ...sceneProps.visual.draft!, x: 0n, z: 0n }));
-    expect(screen.getByText('Keep roads and civic space clear.')).toBeVisible();
+    const schematic = screen.getByRole('application', { name: 'Keep placement schematic' });
+    expect(within(schematic.closest('details')!).getByText('Keep roads and civic space clear.')).toBeVisible();
     expect(getComputedStyle(draft).stroke).toBe(getComputedStyle(document.querySelector('.keep04')!).color);
     expect(getComputedStyle(draft).strokeDasharray).not.toBe(validPattern);
     expect(getComputedStyle(draft).strokeDasharray).toBe('1 .7');

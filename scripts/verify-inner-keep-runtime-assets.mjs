@@ -96,7 +96,8 @@ function readPinnedRuntimeFile(outputRoot, relativePath, expectedBytes) {
       || before.dev !== after.dev
       || before.ino !== after.ino
       || before.size !== after.size
-      || pathStatus.dev !== after.dev
+      // Node 22.13 on Windows can report lstat().dev as 0 (unknown).
+      || (pathStatus.dev !== 0 && pathStatus.dev !== after.dev)
       || pathStatus.ino !== after.ino
       || pathStatus.size !== after.size
     ) fail(`${relativePath} changed while it was being verified.`);

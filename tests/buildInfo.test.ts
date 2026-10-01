@@ -5,11 +5,13 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createWarpkeepBuildInfo,
+  createWarpkeepDeploymentBuildInfo,
   formatWarpkeepBuildStamp,
   normalizeWarpkeepReleaseChannel,
   readWarpkeepBuildSha,
   readWarpkeepProductVersion,
   readWarpkeepRepositoryUrl,
+  WARPKEEP_BUILD_INFO,
   WARPKEEP_REALM_SEED
 } from '../src/build/buildInfo';
 
@@ -39,6 +41,31 @@ describe('Warpkeep build identity', () => {
     expect(readWarpkeepProductVersion('0.2')).toBeUndefined();
   });
 
+  it('labels the local 0.4 presentation without changing the sealed package version', () => {
+    expect(WARPKEEP_BUILD_INFO.version).toBe('0.4.0');
+  });
+
+  it('keeps the root package identity while assigning the PTR identity only to /ptr/', () => {
+    const packageInput = {
+      productVersion: '0.3.43',
+      buildSha: FULL_SHA,
+      repositoryUrl: 'https://github.com/ael-dev3/Warpkeep'
+    };
+
+    expect(createWarpkeepDeploymentBuildInfo({
+      ...packageInput,
+      deploymentBase: '/'
+    }).version).toBe('0.3.43');
+    expect(createWarpkeepDeploymentBuildInfo({
+      ...packageInput,
+      deploymentBase: '/ptr/'
+    })).toMatchObject({
+      version: '0.4.0-ptr.1',
+      fullSha: FULL_SHA,
+      shortSha: '0123456'
+    });
+  });
+
   it('normalizes the public alpha channel and accepts only full commit SHAs', () => {
     expect(normalizeWarpkeepReleaseChannel(' ALPHA ')).toBe('alpha');
     expect(normalizeWarpkeepReleaseChannel('beta')).toBe('alpha');
@@ -51,7 +78,7 @@ describe('Warpkeep build identity', () => {
       productVersion: '0.2.0',
       releaseChannel: 'alpha',
       buildSha: FULL_SHA,
-      repositoryUrl: 'https://github.com/ael-dev3/Warpkeep/'
+      repositoryUrl: 'https://github.com/example/game/'
     });
 
     expect(buildInfo).toMatchObject({
@@ -59,7 +86,7 @@ describe('Warpkeep build identity', () => {
       version: '0.2.0',
       fullSha: FULL_SHA,
       shortSha: '0123456',
-      commitUrl: `https://github.com/ael-dev3/Warpkeep/commit/${FULL_SHA}`,
+      commitUrl: `https://github.com/example/game/commit/${FULL_SHA}`,
       realm: WARPKEEP_REALM_SEED
     });
     expect(formatWarpkeepBuildStamp(buildInfo)).toBe('ALPHA 0.2.0 · BUILD 0123456');

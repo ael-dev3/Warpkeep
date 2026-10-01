@@ -47,18 +47,21 @@ export const GREATER_REALM_HOST_INSTANCE_RESERVE = (
   + 6
 );
 
-export type GreaterRealmWorldSelection = Readonly<{
-  kind: 'region' | 'castle' | 'resource';
+type GreaterRealmWorldSelectionBase = Readonly<{
   label: string;
   atlasQ: number;
   atlasR: number;
 }>;
 
+export type GreaterRealmWorldSelection =
+  | (GreaterRealmWorldSelectionBase & Readonly<{ kind: 'castle'; castleId: bigint }>)
+  | (GreaterRealmWorldSelectionBase & Readonly<{ kind: 'region' | 'resource' }>);
+
 export type GreaterRealmWorldCanvasControl =
   | Readonly<{ kind: 'pan'; direction: 'north' | 'south' | 'east' | 'west' }>
   | Readonly<{ kind: 'zoom'; direction: 'in' | 'out' }>
   | Readonly<{ kind: 'orbit'; direction: 'clockwise' | 'counterclockwise' }>
-  | Readonly<{ kind: 'reset' | 'select-next' | 'take-helm' | 'release-helm' }>
+  | Readonly<{ kind: 'reset' | 'select-next' | 'clear-selection' | 'take-helm' | 'release-helm' }>
   | Readonly<{ kind: 'move-vessel'; direction: GreaterRealmLocalVesselMove }>;
 
 export type GreaterRealmWorldCanvasTelemetry = Readonly<{
@@ -306,6 +309,7 @@ function createPublicCastleLayer(
         const target = Object.freeze({
           selection: Object.freeze({
             kind: 'castle',
+            castleId: castle.castleId,
             label: castle.castleId === ownCastleId
               ? 'Your castle'
               : `${publicNames.get(cell?.regionId ?? '') ?? 'Public'} castle at ${castle.atlasQ}, ${castle.atlasR}`,
@@ -651,7 +655,9 @@ export function createGreaterRealmWorldCanvasHost(
   const worldGroup = new THREE.Group();
   worldGroup.name = 'greater-realm-world';
   scene.background = new THREE.Color('#11171b');
-  scene.fog = new THREE.FogExp2('#172126', 0.0075);
+  const normalFogDensity = 0.0075;
+  const fog = new THREE.FogExp2('#172126', normalFogDensity);
+  scene.fog = fog;
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 2_000);
   const center = axialToWorld({ q: options.atlasQ, r: options.atlasR }, 1);
   let span = Math.max(32, (currentPolicy.radius * 2 + 1) * 15 * 1.08);
@@ -661,6 +667,7 @@ export function createGreaterRealmWorldCanvasHost(
   let cameraDistance = span;
   const minimumCameraDistance = 4;
   let maximumCameraDistance = Math.max(96, span * 4);
+  let normalViewDistance = Math.hypot(span * 0.48, span * 0.72, span * 0.74);
   const applyCamera = () => {
     const horizontal = Math.cos(cameraPitch) * cameraDistance;
     camera.position.set(
@@ -669,18 +676,21 @@ export function createGreaterRealmWorldCanvasHost(
       cameraTarget.z + Math.cos(cameraYaw) * horizontal
     );
     camera.lookAt(cameraTarget);
+    // Preserve the normal view's atmosphere without obscuring a distant
+    // portrait fit. Near zoom keeps the authored density; far zoom scales it.
+    fog.density = normalFogDensity * Math.min(1, normalViewDistance / cameraDistance);
   };
   const frameCamera = (viewSpan: number) => {
     cameraTarget.set(center.x, 0, center.z);
     const offsetX = viewSpan * 0.48;
     const offsetY = viewSpan * 0.72;
     const offsetZ = viewSpan * 0.74;
-    cameraDistance = Math.min(
-      maximumCameraDistance,
-      Math.max(minimumCameraDistance, Math.hypot(offsetX, offsetY, offsetZ))
-    );
+    cameraDistance = Math.max(minimumCameraDistance, Math.hypot(offsetX, offsetY, offsetZ));
+    // A narrow portrait fit can exceed the radius-based zoom heuristic. Keep
+    // that returned scene visible and retain a finite zoom ceiling at its fit.
+    maximumCameraDistance = Math.max(maximumCameraDistance, cameraDistance);
     cameraYaw = Math.atan2(offsetX, offsetZ);
-    cameraPitch = Math.asin(offsetY / cameraDistance);
+    cameraPitch = Math.atan2(offsetY, Math.hypot(offsetX, offsetZ));
     applyCamera();
   };
   frameCamera(span);
@@ -948,6 +958,12 @@ export function createGreaterRealmWorldCanvasHost(
       selectNext();
       return;
     }
+    if (input.kind === 'clear-selection') {
+      selectedTargetIndex = -1;
+      publishSelection(undefined);
+      schedule();
+      return;
+    }
     if (input.kind === 'take-helm') {
       publishLocalVesselState(activeRuntime.selectLocalVessel());
       schedule();
@@ -973,12 +989,19 @@ export function createGreaterRealmWorldCanvasHost(
   }>;
   const pointers = new Map<number, PointerSample>();
   let pointerTravel = 0;
+  let tapEligible = false;
   let pinchDistance: number | undefined;
   let pinchAngle: number | undefined;
   const pointerDown = (event: PointerEvent) => {
     if (disposed || terminalFailure) return;
     fitRequested = false;
-    pointerTravel = 0;
+    if (pointers.size === 0) {
+      pointerTravel = 0;
+      tapEligible = event.button === 0 && !event.shiftKey;
+    } else {
+      // Once another pointer participates, the whole gesture is camera control.
+      tapEligible = false;
+    }
     pointers.set(event.pointerId, Object.freeze({
       x: event.clientX,
       y: event.clientY,
@@ -1004,6 +1027,7 @@ export function createGreaterRealmWorldCanvasHost(
     const dx = next.x - previous.x;
     const dy = next.y - previous.y;
     pointerTravel += Math.hypot(dx, dy);
+    if (event.shiftKey) tapEligible = false;
     const samples = [...pointers.values()];
     if (samples.length >= 2) {
       const first = samples[0]!;
@@ -1059,17 +1083,23 @@ export function createGreaterRealmWorldCanvasHost(
     }
   };
   const pointerUp = (event: PointerEvent) => {
-    if (!pointers.has(event.pointerId)) return;
+    const previous = pointers.get(event.pointerId);
+    if (previous === undefined) return;
+    // Browsers can deliver the final movement only on pointerup.
+    pointerTravel += Math.hypot(event.clientX - previous.x, event.clientY - previous.y);
     pointers.delete(event.pointerId);
     try { options.canvas.releasePointerCapture?.(event.pointerId); } catch { /* Optional. */ }
     if (pointers.size < 2) {
       pinchDistance = undefined;
       pinchAngle = undefined;
     }
-    if (pointers.size === 0 && pointerTravel < 5) pickAt(event.clientX, event.clientY);
+    if (pointers.size === 0 && tapEligible && !event.shiftKey && pointerTravel < 5) {
+      pickAt(event.clientX, event.clientY);
+    }
   };
   const pointerCancel = (event: PointerEvent) => {
-    pointers.delete(event.pointerId);
+    if (!pointers.delete(event.pointerId)) return;
+    tapEligible = false;
     try { options.canvas.releasePointerCapture?.(event.pointerId); } catch { /* Optional. */ }
     if (pointers.size < 2) {
       pinchDistance = undefined;
@@ -1170,6 +1200,10 @@ export function createGreaterRealmWorldCanvasHost(
             selection.kind === selectedSelection!.kind
             && selection.atlasQ === selectedSelection!.atlasQ
             && selection.atlasR === selectedSelection!.atlasR
+            && (selection.kind !== 'castle' || (
+              selectedSelection?.kind === 'castle'
+              && selection.castleId === selectedSelection.castleId
+            ))
           ));
       selectedTargetIndex = retainedIndex;
       publishSelection(retainedIndex < 0 ? undefined : selectionTargets[retainedIndex]);
@@ -1233,6 +1267,7 @@ export function createGreaterRealmWorldCanvasHost(
       pendingPolicy = undefined;
       span = Math.max(32, (currentPolicy.radius * 2 + 1) * 15 * 1.08);
       maximumCameraDistance = Math.max(96, span * 4);
+      normalViewDistance = Math.hypot(span * 0.48, span * 0.72, span * 0.74);
       camera.userData.greaterRealmReducedMotion = currentPolicy.reducedMotion;
       appliedSignature = undefined;
       try { previousRuntime.stopAnimation(); } catch { /* Continue replacement. */ }
@@ -1293,6 +1328,7 @@ export function createGreaterRealmWorldCanvasHost(
     }
     window.removeEventListener('resize', resize);
     options.canvas.removeEventListener('pointerdown', pointerDown);
+    options.canvas.removeEventListener('lostpointercapture', pointerCancel);
     options.canvas.removeEventListener('wheel', wheel);
     options.canvas.removeEventListener('keydown', keyDown);
     options.canvas.removeEventListener('contextmenu', contextMenu);
@@ -1345,6 +1381,7 @@ export function createGreaterRealmWorldCanvasHost(
     }
     window.addEventListener('resize', resize);
     options.canvas.addEventListener('pointerdown', pointerDown);
+    options.canvas.addEventListener('lostpointercapture', pointerCancel);
     options.canvas.addEventListener('wheel', wheel, { passive: false });
     options.canvas.addEventListener('keydown', keyDown);
     options.canvas.addEventListener('contextmenu', contextMenu);

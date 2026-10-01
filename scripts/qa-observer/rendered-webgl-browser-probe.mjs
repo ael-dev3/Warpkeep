@@ -1070,6 +1070,8 @@ export function headlessChromeProbeContract(profileDirectory) {
       '--disable-features=AutofillServerCommunication,CertificateTransparencyComponentUpdater,InterestFeedContentSuggestions,MediaRouter,OptimizationHints,Translate',
       '--disable-search-engine-choice-screen',
       '--disable-sync',
+      // Linux headless Chrome needs explicit opt-in for software WebGL fallback.
+      ...(process.platform === 'linux' ? ['--enable-unsafe-swiftshader'] : []),
       '--metrics-recording-only',
       '--mute-audio',
       '--no-default-browser-check',

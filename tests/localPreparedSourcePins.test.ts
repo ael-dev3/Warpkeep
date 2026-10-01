@@ -2,9 +2,11 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { derivePreparedSourcePins } from '../scripts/local-prepared-source-pins.mjs';
+import { SEALED_LAUNCH_SOURCE_PATHS } from '../scripts/verify-0.4.0-sealed-launch.mjs';
 
 const generator = 'scripts/generate-0.4.0-sealed-launch-activation.mjs';
 const verifier = 'scripts/verify-0.4.0-sealed-launch.mjs';
@@ -17,6 +19,7 @@ const sourceNames = [
   ['SEALED_REALMS_SOURCE_AUTHORITY_SOURCE_SHA256', 'scripts/sealed-realms-production-source-authority.mjs'],
   ['SEALED_REALMS_SOURCE_AUTHORITY_DECLARATION_SHA256', 'scripts/sealed-realms-production-source-authority.d.mts'],
   ['GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_SOURCE_SHA256', bootstrap],
+  ['GENESIS_001_LEGACY_LAUNCH_ENVELOPE_SHA256', 'docs/operations/greater-realm-production-launch-envelope.sh.txt'],
   ['GENESIS_001_POLICY_OBSERVATION_SOURCE_SHA256', 'scripts/genesis001-policy-observation-receipt.mjs'],
   ['GENESIS_001_ADMISSION_MONITOR_CURRENT_STATE_SOURCE_SHA256', 'scripts/genesis001-admission-monitor-current-state.mjs'],
   ['GENESIS_001_SEALED_LAUNCH_ADOPTION_SOURCE_SHA256', 'scripts/genesis001-sealed-launch-adoption.mjs'],
@@ -63,7 +66,10 @@ beforeEach(() => {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), `// ${path}\n`);
   }
-  for (const [, path] of sourceNames) writeFileSync(join(root, path), `// ${path}\n`);
+  for (const [, path] of sourceNames) {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), `// ${path}\n`);
+  }
   writeFileSync(join(root, bootstrap), `// prefix\n${finalization}\nfunction packageNameAndVersion() {}\n`);
   writeFileSync(join(root, generator), pin('EXPECTED_BOOTSTRAP_SHA256') + '// unchanged generator\n');
   writeFileSync(join(root, verifier), sourceNames.map(([name]) => pin(name)).join('')
@@ -108,6 +114,44 @@ it('hashes the updated generator after bootstrap derivation and preserves histor
   expect(readFileSync(join(root, generator), 'utf8')).toBe(oldGenerator);
   for (const file of result.files) writeFileSync(join(root, file.path), file.bytes);
   expect(derivePreparedSourcePins({ repositoryRoot: root })).toEqual(result);
+});
+it('derives the actual paired envelope policy and rejects either member drifting afterward', async () => {
+  const repositoryRoot = resolve(import.meta.dirname, '..');
+  const fixtureRoot = join(root, 'paired-envelopes');
+  for (const path of new Set([...Object.values(SEALED_LAUNCH_SOURCE_PATHS), verifier, generatorTest])) {
+    const destination = join(fixtureRoot, path);
+    mkdirSync(dirname(destination), { recursive: true });
+    writeFileSync(destination, readFileSync(join(repositoryRoot, path)));
+  }
+  const legacyPath = 'docs/operations/greater-realm-production-launch-envelope.sh.txt';
+  const observationPath = 'docs/operations/genesis-001-policy-observation-launch-envelope.sh.txt';
+  // Both envelopes carry the same reviewed executable body. A source repair
+  // must repin its actual bytes while preserving the exact narrow derivation.
+  const suffix = '\n# Synthetic paired-envelope source repair\n';
+  const legacy = readFileSync(join(fixtureRoot, legacyPath), 'utf8') + suffix;
+  const observation = readFileSync(join(fixtureRoot, observationPath), 'utf8') + suffix;
+  writeFileSync(join(fixtureRoot, legacyPath), legacy);
+  writeFileSync(join(fixtureRoot, observationPath), observation);
+  const generated = derivePreparedSourcePins({ repositoryRoot: fixtureRoot });
+  const derivedVerifier = generated.files.find(file => file.path === verifier)!;
+  const probePath = join(fixtureRoot, 'verify-paired-envelopes.mjs');
+  let probe = Buffer.from(derivedVerifier.bytes).toString('utf8');
+  for (const dependency of ['local-binding-bounded-file.mjs', 'recovery-attestation-source.mjs', 'recovery-activation-candidate.mjs']) {
+    probe = probe.replace(`'./${dependency}'`, JSON.stringify(pathToFileURL(join(repositoryRoot, 'scripts', dependency)).href));
+  }
+  writeFileSync(probePath, probe
+    + '\nexport { verifyGenesis001PolicyObservationLaunchEnvelope as verify, GENESIS_001_LEGACY_LAUNCH_ENVELOPE_SHA256 as pin };\n');
+  const loaded = await import(pathToFileURL(probePath).href);
+  const inputs = {
+    legacyGreaterRealmProductionLaunchEnvelopeSource: legacy,
+    genesis001PolicyObservationLaunchEnvelopeSource: observation,
+  };
+  expect(loaded.pin).toBe(digest(legacy));
+  expect(() => loaded.verify(inputs)).not.toThrow();
+  for (const field of Object.keys(inputs) as (keyof typeof inputs)[]) {
+    expect(() => loaded.verify({ ...inputs, [field]: `${inputs[field]} ` }))
+      .toThrow('SEALED_LAUNCH_G001_POLICY_OBSERVATION_ENVELOPE_INVALID');
+  }
 });
 it.each(['missing', 'duplicate', 'expression'])('rejects %s pin declarations without writes', kind => {
   const before = readFileSync(join(root, generator), 'utf8');

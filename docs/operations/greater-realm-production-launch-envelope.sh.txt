@@ -474,16 +474,52 @@ def parse_launch(value):
         if raw["phase"] == "complete" and terminal != {"code":0,"signal":None,"interruptedBy":None,"reason":"operator-exit"}: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_LAUNCH_RECORD_INVALID")
     return raw
 
+LINUX_PROCESS_START_IDENTITY=re.compile(r"linux-v1:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(?:0|[1-9][0-9]{0,19})")
+
+def read_process_birth_file(path,maximum):
+    with open(path,"r",encoding="ascii" if path.endswith("/boot_id") else "latin1",newline="") as stream: value=stream.read(maximum+1)
+    if len(value) > maximum: raise ValueError("process identity oversized")
+    return value
+
+def process_start_identity(pid,legacy=False):
+    if sys.platform.startswith("linux") and not legacy:
+        boot=read_process_birth_file("/proc/sys/kernel/random/boot_id",64)
+        if any(ord(c) > 127 for c in boot): raise ValueError("process boot identity invalid")
+        boot=boot.strip()
+        value=read_process_birth_file("/proc/"+str(pid)+"/stat",4096)
+        # comm can contain spaces and parentheses; the last delimiter ends it.
+        delimiter=value.rfind(") ")
+        suffix=value[delimiter+2:]
+        if re.fullmatch(r"[\x09\x0a\x0d\x20-\x7e]+",suffix) is None: raise ValueError("process stat invalid")
+        fields=suffix.split()
+        if not value.startswith(str(pid)+" (") or delimiter < 3 or len(fields) < 20 or re.fullmatch(r"[A-Za-z]",fields[0]) is None: raise ValueError("process stat invalid")
+        identity="linux-v1:"+boot+":"+fields[19]
+        if LINUX_PROCESS_START_IDENTITY.fullmatch(identity) is None: raise ValueError("process identity invalid")
+        return identity
+    result=subprocess.run(["/bin/ps","-o","lstart=","-p",str(pid)],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,env={"PATH":"/usr/bin:/bin"},check=False,text=True,timeout=2)
+    actual=result.stdout.strip()
+    if result.returncode != 0 or not actual or len(actual) > 160: raise ValueError("process identity unavailable")
+    return actual
+
 def process_state(pid,start=None,start_digest=None):
     try: os.kill(pid,0)
     except ProcessLookupError: return "dead"
     except PermissionError: return "live-uninspectable"
-    result=subprocess.run(["/bin/ps","-o","lstart=","-p",str(pid)],stdin=subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,env={"PATH":"/usr/bin:/bin"},check=False,text=True)
-    actual=result.stdout.strip()
-    if result.returncode != 0 or not actual: return "live-uninspectable"
+    linux=sys.platform.startswith("linux")
+    if linux and start is not None and LINUX_PROCESS_START_IDENTITY.fullmatch(start) is not None:
+        try: actual=process_start_identity(pid)
+        except Exception: return "live-uninspectable"
+        return "live-exact" if actual == start else "live-reused"
+    if linux and start_digest is not None:
+        try:
+            if sha256(process_start_identity(pid).encode()) == start_digest: return "live-exact"
+        except Exception: pass
+    try: actual=process_start_identity(pid,legacy=True)
+    except Exception: return "live-uninspectable"
     if start is not None and actual == start: return "live-exact"
     if start_digest is not None and sha256(actual.encode()) == start_digest: return "live-exact"
-    return "live-reused"
+    # A legacy wall-clock or formatless digest mismatch cannot prove PID reuse.
+    return "live-uninspectable"
 
 def group_state(pgid):
     if pgid is None: return "absent"
@@ -1052,7 +1088,10 @@ def cleanup_command(args):
 
 try:
     mode,*arguments=sys.argv[1:]
-    if mode == "allocate": allocate(arguments)
+    if mode == "identity":
+        if len(arguments) != 1 or not arguments[0].isdigit() or int(arguments[0]) < 1: fail("GREATER_REALM_PRODUCTION_LAUNCH_STATE_INVALID")
+        print(process_start_identity(int(arguments[0])),end="")
+    elif mode == "allocate": allocate(arguments)
     elif mode == "inspect": inspect_command(arguments)
     elif mode == "cleanup":
         if len(arguments) != 3 or RUN_ID.fullmatch(arguments[1]) is None: fail("GREATER_REALM_PRODUCTION_LAUNCH_LIFECYCLE_ARGUMENTS_INVALID")
@@ -1081,7 +1120,7 @@ case "$production_command" in
     ;;
 esac
 
-launch_process_start=$(/bin/ps -o lstart= -p "$$") \
+launch_process_start=$(run_launch_lifecycle identity "$$") \
   || fail GREATER_REALM_PRODUCTION_LAUNCH_STATE_INVALID
 case "$launch_process_start" in
   ?????????*) ;;

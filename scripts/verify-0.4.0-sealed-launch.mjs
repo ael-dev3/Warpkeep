@@ -33,7 +33,7 @@ const GENESIS_001_FREEZE_PUBLISH_RECEIPT_SHA256 =
 const GENESIS_001_POLICY_RECEIPT_SHA256 =
   'acf64ca8f02dcfc1e2a162067d2132d02a7155bebe8895c56a85dbbfefd35b60';
 const GENESIS_001_LEGACY_LAUNCH_ENVELOPE_SHA256 =
-  'ffaa86e602b08d5a3b5994120a822194860b64d8ee117dea4d454b28fde7594a';
+  '4b6bea0dcf41bc1a582dec09c186af3d2c88d48208cd47cb970a2b4bcafed001';
 const GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_FINALIZATION_SHA256 =
   '9c126f8ab9a5b3504c47585c84b721c8d5b0dc005ce4e3af3207e7fab6c7cdff';
 // Task 6D pins the reviewed narrow S/A producer byte-for-byte. This avoids
@@ -44,7 +44,7 @@ const SEALED_REALMS_SOURCE_AUTHORITY_SOURCE_SHA256 =
 const SEALED_REALMS_SOURCE_AUTHORITY_DECLARATION_SHA256 =
   '098edc6f881d85438bfb15ca9fcadbcb6ee110691fc369f10f8d1d1294ef7005';
 const GENESIS_001_POLICY_OBSERVATION_BOOTSTRAP_SOURCE_SHA256 =
-  'be9efaf1ecad13c2cd94bfb457353b8946f12b3304f47b34e8b9422041712c1a';
+  '8f4cc5b2127b9558d483ae8287869a325f9446594f21de578b0a17ec606ea1ba';
 const GENESIS_001_POLICY_OBSERVATION_SOURCE_SHA256 =
   'd73326f5e6ad2a23e916670619464d9191965588e5cda9369e59ac63a52e68f2';
 const GENESIS_001_ADMISSION_MONITOR_CURRENT_STATE_SOURCE_SHA256 =
@@ -52,11 +52,11 @@ const GENESIS_001_ADMISSION_MONITOR_CURRENT_STATE_SOURCE_SHA256 =
 const GENESIS_001_SEALED_LAUNCH_ADOPTION_SOURCE_SHA256 =
   'b478b013893352190b5299ee2630a91c65827ebf7909bdbd91d7c6b73f8b52ee';
 const SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_SHA256 =
-  '885c49d3566c49a9725667134a2c4115fb83e81eef61c780b47f288907a661bf';
+  'aea8e6f0373b98e2f76dad34b35bf52a296c5d0631f8079d565d69bf121b8a30';
 const SEALED_LAUNCH_PACKAGE_STRUCTURE_SHA256 =
-  'e5569652bba79243b550537d72d33e190b9af85727f94ca6e4ecb6cbd0c71558';
+  'b4938b0b287315c143b94169bfc68d0b946fda9e0d2ef69e183653eae9250c66';
 const SEALED_LAUNCH_LOCK_STRUCTURE_SHA256 =
-  '568723b05559d429fa246da0791a45bfe2ad2fb651d4366b4b81477e9ec932b4';
+  '4d8efef0ac6112204a05850a0828b6667b4735e6e71cf85109b77cfd696b1ec8';
 const RELEASE_VERSION_DIGEST_PLACEHOLDER = '<release-version>';
 const GENESIS_001_POLICY_OBSERVATION_ENVELOPE_HEADER = Buffer.from([
   '# GENESIS 001 POLICY OBSERVATION - SEALED 0.4.0',
@@ -145,19 +145,23 @@ export const GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS = Object.freeze([
   'scripts/greater-realm-downstream-release-policy.ts',
   'docs/operations/greater-realm-production-launch-envelope.sh.txt',
 ]);
-// Four operator helpers were refactored after the historical G001 freeze while
-// the frozen module and its build recipe stayed unchanged. Keep the complete
-// adoption projection above as the historical contract, and require those
-// helpers to match this explicit reviewed refreeze checkpoint when validating
-// the current 0.4 source. A later helper change must move this checkpoint and
-// be reviewed as a new source refreeze; it cannot silently widen the exception.
+// The original four reviewed operator helpers retain their exact bytes. Three
+// additional operators now use kernel birth to preserve live recovery owners
+// across clock changes. The frozen module and build recipe stay unchanged.
+// Keep the complete adoption projection above as the historical contract and
+// require all seven helpers to match this signed, reviewed refreeze checkpoint.
+// A later helper change requires another explicit source refreeze; it cannot
+// silently widen the exception or change the frozen G001 contract.
 const GENESIS_001_OPERATOR_REFREEZE_SOURCE_COMMIT =
-  'bca5596defd9816930dd9af2431bfa6aec0f1735';
+  '580cd588776315de334cd81adddded80f49d06c7';
 const GENESIS_001_OPERATOR_REFREEZE_PROJECTION_PATHS = Object.freeze([
   'scripts/greater-realm-production-provenance.ts',
   'scripts/greater-realm-production-transport.ts',
   'scripts/hermes-admin.ts',
   'scripts/spacetime-cli-attestation.mjs',
+  'scripts/production-admin-token-budget.mjs',
+  'docs/operations/greater-realm-production-launch-envelope.sh.txt',
+  'scripts/publish-spacetime-dev.mjs',
 ]);
 const GENESIS_001_HISTORICAL_SOURCE_PROJECTION_PATHS = Object.freeze(
   GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS.filter(path => (
@@ -3218,7 +3222,7 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
     "'warpkeep-genesis-001-admitted-player-census-private-proof-v1'",
     `'${GENESIS_001_ADMITTED_PLAYER_CENSUS_PUBLIC_PROFILE}'`,
     "'SELECT fid, enabled, auth_epoch FROM allowed_fid'",
-    "'SELECT fid FROM player_v2'",
+    "'SELECT fid FROM realm_profile_v1'",
     "'admin_get_access_request_reset_status_v1'",
     "'warpkeep.genesis-001.admitted-player-census.normalized-set.v1\\n'",
     "'warpkeep.genesis-001.admitted-player-census.raw-evidence.v1\\n'",
@@ -3282,7 +3286,9 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
     if (!source.includes(token)) fail(code);
   }
   if (!operator.includes('projectAccessRequestResetStatus')
-    || !operator.includes('connection.procedures.adminGetAccessRequestResetStatusV1({ fid: BigInt(fid) })')) {
+    || !operator.includes('connection.procedures.adminGetAccessRequestResetStatusV1({ fid: BigInt(fid) })')
+    || !operator.includes("typeof status.realmProfiles !== 'bigint' || status.realmProfiles !== status.allowedFids")
+    || !operator.includes('status.founderStateGaps !== 0n || status.orphanedRealmProfiles !== 0n')) {
     fail(code);
   }
   requireAbsent(operator, ['adminGetAccessRequestAdmissionStatusV1'], code);
@@ -3377,7 +3383,7 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
   requireOnce(source, 'for (const fid of enumeration.fids) {', code);
   const fallbackLoopStart = source.indexOf('for (const fid of enumeration.fids) {');
   const fallbackLoopEnd = source.indexOf(
-    "    collectionMethod = 'fallback-player-v2-status-v1';",
+    "    collectionMethod = 'fallback-realm-profile-v1-status-v1';",
     fallbackLoopStart,
   );
   if (fallbackLoopStart < 0 || fallbackLoopEnd <= fallbackLoopStart) fail(code);
@@ -3436,7 +3442,7 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
     "'warpkeep.genesis-001.admitted-player-census.raw-evidence.v1\\n'",
     "'warpkeep.genesis-001.admitted-player-census.private-proof.v1\\n'",
     "'SELECT fid, enabled, auth_epoch FROM allowed_fid'",
-    "'SELECT fid FROM player_v2'",
+    "'SELECT fid FROM realm_profile_v1'",
     "'admin_get_access_request_reset_status_v1'",
     'GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_ROWS: 4096;',
     'GENESIS_001_ADMITTED_PLAYER_CENSUS_MAXIMUM_QUERY_OUTPUT_BYTES: 1048576;',
@@ -3447,7 +3453,8 @@ export function verifyGenesis001AdmittedPlayerCensusBoundary(sources) {
     "'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e';",
     "outcome: 'exact-query-supported';",
     "outcome: 'unsupported-exact-query'",
-    "collectionMethod: 'preferred-exact-query' | 'fallback-player-v2-status-v1';",
+    "collectionMethod: 'preferred-exact-query' | 'fallback-player-v2-status-v1'",
+    "    | 'fallback-realm-profile-v1-status-v1';",
     "admissionState: 'missing' | 'enabled' | 'disabled';",
     "requestState: 'not_requested' | 'pending' | 'resolved';",
     'requestCycle: bigint | undefined;',
@@ -4011,17 +4018,20 @@ function verifyPagesTwoPhaseBoundary(sources) {
   const buildIndex = workflow.indexOf('\n  build:\n');
   const deployIndex = workflow.indexOf('\n  deploy:\n');
   const verifyLiveIndex = workflow.indexOf('\n  verify-live:\n');
+  const recoveryIndex = workflow.indexOf('\n  deploy-recovery:\n');
   const privateToolchainIndex = workflow.indexOf('\n  private-toolchain:\n');
   if (
     buildIndex < 1
     || deployIndex <= buildIndex
     || verifyLiveIndex <= deployIndex
-    || privateToolchainIndex <= verifyLiveIndex
+    || recoveryIndex <= verifyLiveIndex
+    || privateToolchainIndex <= recoveryIndex
   ) fail('SEALED_LAUNCH_PAGES_WORKFLOW_INVALID');
   const classify = workflow.slice(0, buildIndex);
   const build = workflow.slice(buildIndex, deployIndex);
   const deploy = workflow.slice(deployIndex, verifyLiveIndex);
-  const verifyLive = workflow.slice(verifyLiveIndex, privateToolchainIndex);
+  const verifyLive = workflow.slice(verifyLiveIndex, recoveryIndex);
+  const recovery = workflow.slice(recoveryIndex, privateToolchainIndex);
   for (const token of [
     'node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages',
     'WARPKEEP_PAGES_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}',
@@ -4040,28 +4050,52 @@ function verifyPagesTwoPhaseBoundary(sources) {
     'SEALED_LAUNCH_PAGES_CLASSIFIER_PRIVILEGE_INVALID',
   );
   for (const token of [
-    "needs.classify.outputs.deployment-lane == 'sealed-g002'",
+    "needs.classify.outputs.deployment-lane == 'public-mirror-candidate'",
+    "DEPLOY_BASE: '/ptr/'",
     "VITE_WARPKEEP_PTR_ENABLED: 'true'",
     'VITE_PTR_SPACETIMEDB_DATABASE: ${{ vars.WARPKEEP_PTR_SPACETIMEDB_DATABASE }}',
+    '[[ "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" != \'true\' ]]',
+    'WARPKEEP_SHARED_ALPHA_ENABLED must be true for owner PTR.',
     'node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build',
+    'npm run validate:pages-config',
     'npm run verify:sealed-launch:activation',
     'npm run verify:admission-request-suspension',
     'npm run build',
-    'actions/upload-pages-artifact@',
+    'npm run verify:miniapp:release',
+    'node scripts/verify-public-pages-payload.mjs --write "$WARPKEEP_PUBLIC_SOURCE_COMMIT" --publication-path /ptr/',
+    'node scripts/verify-public-pages-payload.mjs --check "$WARPKEEP_PUBLIC_SOURCE_COMMIT" --publication-path /ptr/',
   ]) {
     if (!build.includes(token)) fail('SEALED_LAUNCH_PAGES_BUILD_GATE_INVALID');
   }
   if (
     build.indexOf('node scripts/verify-0.4.0-sealed-launch.mjs --phase=pages-build')
       > build.indexOf('npm ci')
+    || build.indexOf('npm ci')
+      > build.indexOf('npm run validate:pages-config')
+    || build.indexOf('npm run validate:pages-config')
+      > build.indexOf('npm run build')
     || build.indexOf('npm run verify:sealed-launch:activation')
       > build.indexOf('npm run verify:admission-request-suspension')
     || build.indexOf('npm run verify:admission-request-suspension')
       > build.indexOf('npm run build')
     || build.indexOf('npm run build')
-      > build.indexOf('actions/upload-pages-artifact@')
+      > build.indexOf('npm run verify:miniapp:release')
+    || build.indexOf('npm run verify:miniapp:release')
+      > build.indexOf('node scripts/verify-public-pages-payload.mjs --write')
+    || build.indexOf('node scripts/verify-public-pages-payload.mjs --write')
+      > build.indexOf('node scripts/verify-public-pages-payload.mjs --check')
   ) fail('SEALED_LAUNCH_PAGES_BUILD_ORDER_INVALID');
   requireAbsent(build, [
+    'pages: read',
+    'pages: write',
+    'id-token: write',
+    'environment:',
+    'secrets.',
+    'actions/configure-pages@',
+    'actions/upload-pages-artifact@',
+    'actions/upload-artifact@',
+    'actions/deploy-pages@',
+    "deployment-lane == 'sealed-g002'",
     'VITE_PTR_SPACETIMEDB_URI',
     'VITE_WARPKEEP_PTR_SPACETIMEDB_URI',
     'VITE_PTR_SPACETIMEDB_ALIAS',
@@ -4089,6 +4123,7 @@ function verifyPagesTwoPhaseBoundary(sources) {
       "needs.classify.outputs.deployment-lane == 'sealed-launch-blocked'",
     )
   ) fail('SEALED_LAUNCH_PAGES_DEPLOY_ORDER_INVALID');
+  requireAbsent(deploy, ['public-mirror-candidate'], 'SEALED_LAUNCH_PAGES_DEPLOY_GATE_INVALID');
   for (const token of [
     'scripts/verify-0.4.0-sealed-launch.mjs --phase=activation',
     'npm run verify:admission-request-suspension',
@@ -4105,6 +4140,7 @@ function verifyPagesTwoPhaseBoundary(sources) {
     || verifyLive.indexOf('npm run verify:admission-request-suspension')
       > verifyLive.indexOf('node scripts/verify-alpha-production.mjs')
   ) fail('SEALED_LAUNCH_PAGES_LIVE_POSTFLIGHT_ORDER_INVALID');
+  requireAbsent(recovery, ['public-mirror-candidate'], 'SEALED_LAUNCH_PAGES_DEPLOY_GATE_INVALID');
 }
 
 /**
@@ -4555,7 +4591,7 @@ export function verifySealedLaunchSources(sources, requestedPhase = 'checked-in'
 export function classifySealedLaunchPagesSources(sources) {
   const result = verifySealedLaunchSources(sources, 'checked-in');
   if (result.phase !== 'activation') return 'sealed-launch-blocked';
-  return [2, 3, 4, 5, 6].includes(result.schemaVersion) ? 'sealed-g002-recovery' : 'sealed-g002';
+  return 'public-mirror-candidate';
 }
 
 const FORBIDDEN_PTR_PAGES_ENVIRONMENT_KEYS = Object.freeze([
@@ -4704,7 +4740,7 @@ export function verifySealedLaunchActivationHistory({
     || !Array.isArray(parents)
     || parents.length !== 1
     || parents[0] !== binding.preparationSourceCommit
-    // The historical projection stays exact; the four reviewed operator bytes
+    // The historical projection stays exact; the seven reviewed operator bytes
     // are accepted only at the explicit refreeze checkpoint above.
     || !Buffer.isBuffer(historicalProjection)
     || historicalProjection.byteLength < 1
@@ -5098,9 +5134,9 @@ export function classifySealedLaunchPagesDeployLane({
   catch { fail('SEALED_LAUNCH_BINDING_INVALID'); }
   finally { bindingFile.body.fill(0); }
   if (schema === 2 || schema === 3 || schema === 4 || schema === 5 || schema === 6) {
-    // Routing is not deployment authority. This verifies the complete versioned recovery binding
-    // and exact committed activation child; the recovery job must additionally
-    // authenticate current exact main, artifacts, live state and signed claim.
+    // Routing is not deployment authority. This verifies the complete versioned
+    // binding and exact committed activation child. Public mirror publication
+    // requires independent current-main, artifact and live-state checks.
     const identity = readRecoveryAttestationSource(repositoryRoot);
     if (identity.candidateCommit !== candidatePagesSourceCommit) fail('SEALED_LAUNCH_CHECKOUT_INVALID');
     assertExactCheckout(repositoryRoot, candidatePagesSourceCommit);
@@ -5108,11 +5144,11 @@ export function classifySealedLaunchPagesDeployLane({
       : schema === 3 ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3'
         : schema === 4 ? 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4'
           : schema === 5 ? 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' : 'warpkeep-0.4.0-sealed-launch-g001-linux-freeze-v6', candidatePagesSourceCommit,
-      mode: 'sealed-g002-recovery' });
+      mode: 'public-mirror-candidate' });
   }
   const sources = readSources(repositoryRoot);
   const mode = classifySealedLaunchPagesSources(sources);
-  if (mode === 'sealed-g002') {
+  if (mode === 'public-mirror-candidate') {
     verifySealedLaunchActivationHistory({
       bindingSource: sources.bindingJson,
       candidateActivationCommit: candidatePagesSourceCommit,
@@ -5207,19 +5243,15 @@ function main(arguments_, environment) {
     candidatePagesSourceCommit: environment.WARPKEEP_PAGES_SOURCE_COMMIT,
   });
   if (phase === 'pages-build') {
-    if (result.mode !== 'sealed-g002' && result.mode !== 'sealed-g002-recovery') {
+    if (result.mode !== 'public-mirror-candidate') {
       fail('SEALED_LAUNCH_PAGES_PTR_ENVIRONMENT_INVALID');
     }
     let bindingBytes;
     let ptr;
     try {
-      const bindingSource = result.mode === 'sealed-g002-recovery'
-        ? (() => {
-          bindingBytes = readLocalBindingBoundedFile(resolve(REPOSITORY_ROOT, 'config/releases/0.4.0-sealed-launch.json'),
-            { maximumBytes: 2 * 1024 * 1024 }).body;
-          return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bindingBytes);
-        })()
-        : readSources().bindingJson;
+      bindingBytes = readLocalBindingBoundedFile(resolve(REPOSITORY_ROOT, 'config/releases/0.4.0-sealed-launch.json'),
+        { maximumBytes: 2 * 1024 * 1024 }).body;
+      const bindingSource = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bindingBytes);
       ptr = verifySealedLaunchPagesBuildEnvironment({ bindingSource, environment });
     } finally { bindingBytes?.fill(0); }
     process.stdout.write(`${JSON.stringify({ ...result, ...ptr })}\n`);

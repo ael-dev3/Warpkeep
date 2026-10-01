@@ -272,18 +272,31 @@ async function runLifecycleAsync(mode: string, ...arguments_: string[]): Promise
 }
 
 function deadProcessIdentity(): Readonly<{ pid: number; start: string }> {
-  const result = spawnSync('/bin/sh', [
-    '-c', '/usr/bin/printf "%s\\n" "$$"; /bin/ps -o lstart= -p "$$"',
-  ], {
-    encoding: 'utf8',
-    env: { PATH: '/usr/bin:/bin' },
-  });
-  if (result.status !== 0) throw new Error('failed to create dead process identity');
-  const [pid, ...start] = result.stdout.trim().split('\n');
-  return Object.freeze({ pid: Number(pid), start: start.join(' ').trim() });
+  const maximumPid = Number(readFileSync('/proc/sys/kernel/pid_max', 'utf8').trim());
+  const pid = maximumPid + 1;
+  if (!Number.isSafeInteger(maximumPid) || maximumPid < 1 || pid > 0x7fffffff) {
+    throw new Error('failed to create impossible process identity');
+  }
+  // A recently exited PID can be reused by another full-suite worker before
+  // the lifecycle check runs, making a dead-process fixture nondeterministic.
+  return Object.freeze({ pid, start: 'Synthetic absent process' });
 }
 
 function processStart(pid: number): string {
+  if (process.platform === 'linux') {
+    return greaterRealmProductionBootstrapTestSeams.processStartIdentity(pid);
+  }
+  return legacyProcessStart(pid);
+}
+
+function reusedProcessStart(pid: number): string {
+  const actual = processStart(pid);
+  return process.platform === 'linux'
+    ? actual.replace(/:[0-9]+$/u, actual.endsWith(':0') ? ':1' : ':0')
+    : 'definitely-not-this-process-start';
+}
+
+function legacyProcessStart(pid: number): string {
   const result = spawnSync('/bin/ps', ['-o', 'lstart=', '-p', String(pid)], {
     encoding: 'utf8',
     env: { PATH: '/usr/bin:/bin' },
@@ -550,6 +563,141 @@ function baseArguments(command: string, ...arguments_: string[]): string[] {
     ...arguments_,
   ];
 }
+
+describe('Linux process birth identity', () => {
+  const boot = 'b838a6fd-94ef-43a6-9d58-ed8f2141dd66';
+  const start = `linux-v1:${boot}:8573835`;
+  const stat = (ticks = '8573835') => (
+    `42 (a name ) with (parentheses)) ${['S', ...Array(18).fill('0'), ticks].join(' ')}\n`
+  );
+  const readProc = (path: string) => path.endsWith('/boot_id') ? `${boot}\n` : stat();
+  const state = greaterRealmProductionBootstrapTestSeams.processIdentityState;
+  const dependencies = { platform: 'linux', kill: () => undefined, readProc };
+
+  it('reads exact boot and start ticks despite spaces and parentheses in comm', () => {
+    expect(greaterRealmProductionBootstrapTestSeams.linuxProcessStartIdentity(42, readProc))
+      .toBe(start);
+    expect(greaterRealmProductionBootstrapTestSeams.linuxProcessStartIdentity(42,
+      (path: string) => path.endsWith('/boot_id') ? boot : stat().replace('a name', 'caf\u00e9 \u00ffname')))
+      .toBe(start);
+  });
+
+  it('keeps stable birth exact across a simulated wall-clock start drift', () => {
+    let wallStart = 'Tue Sep 29 19:50:47 2026';
+    let psCalls = 0;
+    const probe = {
+      ...dependencies,
+      spawnSync: () => { psCalls += 1; return { status: 0, stdout: wallStart }; },
+    };
+    expect(state(42, start, probe)).toBe('live-exact');
+    wallStart = 'Tue Sep 29 19:50:57 2026';
+    expect(state(42, start, probe)).toBe('live-exact');
+    expect(psCalls).toBe(0);
+  });
+
+  it('proves PID reuse only from changed stable boot or start ticks', () => {
+    expect(state(42, start, {
+      ...dependencies, readProc: (path: string) => path.endsWith('/boot_id') ? boot : stat('8573836'),
+    })).toBe('live-reused');
+    expect(state(42, start, {
+      ...dependencies, readProc: (path: string) => path.endsWith('/boot_id') ? boot.replace(/^b/u, 'c') : stat(),
+    })).toBe('live-reused');
+  });
+
+  it('retains exact legacy matches and treats Linux and Darwin wall-clock mismatch as uninspectable', () => {
+    const legacy = 'Tue Sep 29 19:50:47 2026';
+    expect(state(42, legacy, {
+      ...dependencies, spawnSync: () => ({ status: 0, stdout: legacy }),
+    })).toBe('live-exact');
+    expect(state(42, legacy, {
+      ...dependencies, spawnSync: () => ({ status: 0, stdout: 'Tue Sep 29 19:50:57 2026' }),
+    })).toBe('live-uninspectable');
+    expect(state(42, legacy, {
+      ...dependencies, platform: 'darwin', spawnSync: () => ({ status: 0, stdout: 'different start' }),
+    })).toBe('live-uninspectable');
+  });
+
+  it('distinguishes absent, unreadable and malformed process birth evidence', () => {
+    expect(state(42, start, {
+      ...dependencies, kill: () => { throw Object.assign(new Error(), { code: 'ESRCH' }); },
+    })).toBe('dead');
+    expect(state(42, start, {
+      ...dependencies, kill: () => { throw Object.assign(new Error(), { code: 'EPERM' }); },
+    })).toBe('live-uninspectable');
+    expect(state(42, start, {
+      ...dependencies, readProc: () => { throw Object.assign(new Error(), { code: 'EACCES' }); },
+    })).toBe('live-uninspectable');
+    for (const malformed of [stat().replace(/^42/u, '43'), '42 (truncated) S', stat('01'), stat('x'), stat().replace(') S ', ') S \u00a0'), 'x'.repeat(4097)]) {
+      expect(state(42, start, {
+        ...dependencies, readProc: (path: string) => path.endsWith('/boot_id') ? boot : malformed,
+      })).toBe('live-uninspectable');
+    }
+    expect(state(42, start, {
+      ...dependencies, readProc: (path: string) => path.endsWith('/boot_id') ? 'not-a-boot-id' : stat(),
+    })).toBe('live-uninspectable');
+    expect(state(42, start, {
+      ...dependencies, readProc: (path: string) => path.endsWith('/boot_id') ? `\u00a0${boot}` : stat(),
+    })).toBe('live-uninspectable');
+  });
+
+  it.skipIf(process.platform !== 'linux')('matches the live process birth in the shell lifecycle and bootstrap readers', () => {
+    const identity = runLifecycle('identity', String(process.pid));
+    expect(identity.status, identity.stderr).toBe(0);
+    expect(identity.stdout).toBe(processStart(process.pid));
+    expect(identity.stdout).toMatch(/^linux-v1:[0-9a-f-]{36}:[0-9]+$/u);
+  });
+
+  it('keeps Python clock drift and formatless partial digests fail closed', () => {
+    const program = lifecycleProgram();
+    const begin = program.indexOf('LINUX_PROCESS_START_IDENTITY=');
+    const end = program.indexOf('\ndef group_state', begin);
+    expect(begin).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(begin);
+    const probe = spawnSync(process.platform === 'win32' ? 'python' : '/usr/bin/python3', ['-I', '-S', '-B', '-'], {
+      encoding: 'utf8',
+      input: [
+        'import hashlib,json,os,re,subprocess,sys,tempfile,types',
+        'sys.platform="linux"',
+        'sha256=lambda value:hashlib.sha256(value).hexdigest()',
+        program.slice(begin, end),
+        `boot=${JSON.stringify(boot)}`,
+        `birth=${JSON.stringify(stat())}`,
+        'raw=birth.encode("ascii").replace(b"a name",b"caf\\xe9 \\xff\\r\\nname")',
+        'with tempfile.TemporaryDirectory() as fixture_root:',
+        '    raw_path=os.path.join(fixture_root,"stat")',
+        '    with open(raw_path,"wb") as stream: stream.write(raw)',
+        '    birth=read_process_birth_file(raw_path,4096)',
+        'if birth.encode("latin1") != raw: raise RuntimeError("comm bytes changed")',
+        'legacy="Tue Sep 29 19:50:47 2026"',
+        'os.kill=lambda pid,signal:None',
+        'read_process_birth_file=lambda path,maximum:boot if path.endswith("/boot_id") else birth',
+        'subprocess.run=lambda *args,**kwargs:types.SimpleNamespace(returncode=0,stdout=legacy)',
+        'stable=process_start_identity(42)',
+        'states=[process_state(42,stable)]',
+        'old=legacy; legacy="Tue Sep 29 19:50:57 2026"',
+        'states.extend([process_state(42,stable),process_state(42,old),process_state(42,legacy)])',
+        'states.extend([process_state(42,start_digest=sha256(stable.encode())),process_state(42,start_digest=sha256(old.encode())),process_state(42,start_digest=sha256(legacy.encode()))])',
+        'birth=birth.replace("a name","caf\\u00e9 \\u00ffname"); states.append(process_state(42,stable))',
+        'birth=birth.replace("8573835","8573836")',
+        'states.extend([process_state(42,stable),process_state(42,start_digest=sha256(stable.encode()))])',
+        'birth=birth.replace("8573836","8573835").replace(") S ",") S \\u00a0"); states.append(process_state(42,stable))',
+        'birth=birth.replace("\\u00a0",""); boot="\\u00a0"+boot; states.append(process_state(42,stable))',
+        'boot="malformed"; states.append(process_state(42,stable))',
+        'sys.platform="darwin"; states.extend([process_state(42,old),process_state(42,start_digest=sha256(old.encode()))])',
+        'print(json.dumps(states))',
+      ].join('\n'),
+      timeout: 5_000,
+    });
+    expect(probe.status, probe.stderr).toBe(0);
+    expect(JSON.parse(probe.stdout)).toEqual([
+      'live-exact', 'live-exact', 'live-uninspectable', 'live-exact',
+      'live-exact', 'live-uninspectable', 'live-exact',
+      'live-exact', 'live-reused', 'live-uninspectable',
+      'live-uninspectable', 'live-uninspectable', 'live-uninspectable',
+      'live-uninspectable', 'live-uninspectable',
+    ]);
+  });
+});
 
 describe('Greater Realm production bootstrap', () => {
   const testNativeTypeScriptPackage =
@@ -2291,18 +2439,22 @@ describe('Greater Realm production bootstrap', () => {
     expect(() => process.kill(-leader.pid!, 0)).toThrow(expect.objectContaining({ code: 'ESRCH' }));
   });
 
-  it('treats a reused owner as dead but never signals a reused live child group', async () => {
+  it('proves stable owner reuse but never signals an unattributable live child group', async () => {
     const home = privateDirectory();
     const ownerReusedRoot = allocateLifecycle(home, {
       pid: process.pid,
-      start: 'definitely-not-this-process-start',
+      start: reusedProcessStart(process.pid),
     });
     const ownerReusedId = basename(ownerReusedRoot);
     const ownerInspection = inspectLifecycle(home, ownerReusedId);
-    expect(ownerInspection).toMatchObject({ ownerState: 'live-reused', deletionEligible: true });
+    const stableOwner = process.platform === 'linux';
+    expect(ownerInspection).toMatchObject({
+      ownerState: stableOwner ? 'live-reused' : 'live-uninspectable',
+      deletionEligible: stableOwner,
+    });
     expect(runLifecycle(
       'cleanup', home, ownerReusedId, String(ownerInspection.confirmationDigest),
-    ).status).toBe(0);
+    ).status).toBe(stableOwner ? 0 : 1);
 
     const ambiguousRoot = allocateLifecycle(home);
     const ambiguousId = basename(ambiguousRoot);
@@ -2322,12 +2474,12 @@ describe('Greater Realm production bootstrap', () => {
       ...readLaunchFixture(ambiguousRoot),
       phase: 'operator-running',
       childPid: unrelated.pid,
-      childProcessStartIdentity: 'definitely-not-this-child-start',
+      childProcessStartIdentity: reusedProcessStart(unrelated.pid!),
       childPgid: unrelated.pid,
     });
     const ambiguous = inspectLifecycle(home, ambiguousId);
     expect(ambiguous).toMatchObject({
-      childState: 'live-reused',
+      childState: stableOwner ? 'live-reused' : 'live-uninspectable',
       processGroupState: 'live',
       containmentEligible: false,
       cleanupEligible: false,
@@ -2340,6 +2492,56 @@ describe('Greater Realm production bootstrap', () => {
     expect(() => process.kill(unrelated.pid!, 0)).not.toThrow();
     process.kill(-unrelated.pid!, 'SIGKILL');
     await unrelatedClosed;
+  });
+
+  it.skipIf(process.platform !== 'linux')('retains a live legacy owner when its wall-clock identity no longer matches', () => {
+    const home = privateDirectory();
+    const runRoot = allocateLifecycle(home, {
+      pid: process.pid,
+      start: legacyProcessStart(process.pid).replace(/[0-9]{4}$/u, '1900'),
+    });
+    const runId = basename(runRoot);
+    const inspected = inspectLifecycle(home, runId);
+    expect(inspected).toMatchObject({
+      ownerState: 'live-uninspectable',
+      deletionEligible: false,
+      cleanupEligible: false,
+    });
+    const refused = runLifecycle('cleanup', home, runId, String(inspected.confirmationDigest));
+    expect(refused.status).toBe(1);
+    expect(refused.stderr).toContain('CLEANUP_BLOCKED');
+    expect(existsSync(runRoot)).toBe(true);
+  });
+
+  it.skipIf(process.platform !== 'linux')('retains live partial authority on stable or legacy digest mismatch', () => {
+    const home = privateDirectory();
+    allocateLifecycle(home);
+    const authority = join(lifecycleAdmin(home), 'bootstrap-run-lifecycle-v1');
+    for (const [ordinal, identity] of [
+      processStart(process.pid),
+      legacyProcessStart(process.pid),
+      reusedProcessStart(process.pid),
+      'Tue Sep 29 19:50:47 1900',
+    ].entries()) {
+      const runId = `run-${String(ordinal).repeat(32)}`;
+      const digest = createHash('sha256').update(identity).digest('hex');
+      const temporary = join(authority,
+        `.${runId}-00000001-allocated.json-${process.pid}-${digest}-${'f'.repeat(64)}.tmp`);
+      writeFileSync(temporary, '{"partial":', { mode: 0o600 });
+      const inspected = inspectLifecycle(home, runId);
+      expect(inspected).toMatchObject({
+        runState: 'absent',
+        deletionEligible: false,
+        cleanupEligible: false,
+      });
+      expect(ordinal === 0 ? ['live-exact'] : ['live-exact', 'live-uninspectable'])
+        .toContain(inspected.ownerState);
+      if (ordinal >= 2) expect(inspected.ownerState).toBe('live-uninspectable');
+      const refused = runLifecycle('cleanup', home, runId, String(inspected.confirmationDigest));
+      expect(refused.status).toBe(1);
+      expect(refused.stderr).toContain('CLEANUP_BLOCKED');
+      expect(existsSync(temporary)).toBe(true);
+    }
   });
 
   it('marks a short real operator timeout, escalates to KILL, and proves the group absent', async () => {
@@ -2502,7 +2704,7 @@ describe('Greater Realm production bootstrap', () => {
     expect(existsSync(runRoot)).toBe(false);
   });
 
-  it('confirmed cleanup clears dead-or-reused partial authority but refuses an unowned run', () => {
+  it('confirmed cleanup clears dead partial authority but refuses an unowned run', () => {
     const home = privateDirectory();
     const seedRoot = allocateLifecycle(home);
     const admin = lifecycleAdmin(home);
@@ -2514,12 +2716,12 @@ describe('Greater Realm production bootstrap', () => {
     const expectedDigest = 'f'.repeat(64);
     const partial = join(
       authority,
-      `.${partialRunId}-00000001-allocated.json-${process.pid}-${startDigest}-${expectedDigest}.tmp`,
+      `.${partialRunId}-00000001-allocated.json-${deadProcessIdentity().pid}-${startDigest}-${expectedDigest}.tmp`,
     );
     writeFileSync(partial, '{"partial":', { mode: 0o600 });
     const partialInspection = inspectLifecycle(home, partialRunId);
     expect(partialInspection).toMatchObject({
-      ownerState: 'live-reused',
+      ownerState: 'dead',
       runState: 'absent',
       repairablePartialAuthorityCount: 1,
       deletionEligible: true,

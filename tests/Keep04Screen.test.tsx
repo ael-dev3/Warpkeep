@@ -1,23 +1,24 @@
 import '@testing-library/jest-dom/vitest';
-import { useState, useSyncExternalStore } from 'react';
+import { useLayoutEffect, useState, useSyncExternalStore } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Keep04Screen, type Keep04UiSelection } from '../src/components/keep04/Keep04Screen';
 import { estimatedTime04 } from '../src/components/keep04/Keep04WorkerPanel';
 import { createGameplay04Controller, type Controller04, type Snapshot04 } from '../src/ptr/gameplay04/createGameplay04Controller';
+import { useGameplay04Controller } from '../src/ptr/gameplay04/useGameplay04Controller';
 import { Gameplay04ClientError } from '../src/ptr/gameplay04/ptrGameplay04Errors';
 import { presentState04 } from '../src/ptr/gameplay04/gameplay04Presentation';
 import { decodeState04 } from '../src/ptr/gameplay04/gameplay04State';
 import { ATLAS04, SCOPE04, freshWire04, assignmentWire04, constructingWire04, scriptedCapability04, wireWithBuilding04 } from './fixtures/gameplay04Client';
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
-function setup(wire = freshWire04(), phase: Snapshot04['phase'] = 'ready') {
+function setup(wire = freshWire04(), phase: Snapshot04['phase'] = 'ready', initialSelection: Keep04UiSelection = { selectedKind: null, draft: null, panel: null }) {
   const snapshot: Snapshot04 = { phase, problem: 'none', view: presentState04(decodeState04(wire, SCOPE04), ATLAS04, Date.now()) };
   const controller: Controller04 = { getSnapshot: () => snapshot, subscribe: () => () => {}, refresh: vi.fn(async () => {}),
     setAtlas: vi.fn(), submit: vi.fn(async () => {}), retryPending: vi.fn(async () => {}), dispose: vi.fn() };
   const back = vi.fn(); const find = vi.fn();
   function Harness({ state = snapshot }: { state?: Snapshot04 }) {
-    const [selection, onSelectionChange] = useState<Keep04UiSelection>({ selectedKind: null, draft: null, panel: null });
+    const [selection, onSelectionChange] = useState<Keep04UiSelection>(initialSelection);
     return <Keep04Screen snapshot={state} controller={controller} selection={selection} onSelectionChange={onSelectionChange}
       onBack={back} quality="balanced" reducedMotion={false} onFindResources={find} onReturnToWorld={back} />;
   }
@@ -25,6 +26,31 @@ function setup(wire = freshWire04(), phase: Snapshot04['phase'] = 'ready') {
   return { controller, back, find, snapshot, rerender: (state: Snapshot04) => rendered.rerender(<Harness state={state} />) };
 }
 const openMill = () => { fireEvent.click(screen.getByRole('button', { name: 'Buildings' })); fireEvent.click(screen.getByRole('button', { name: 'City Mill' })); };
+
+it.each([
+  ['reserved', -10_000_000n, 0n, 'Keep roads and civic space clear.', 'Move left 0.5 m'],
+  ['outside', -39_000_000n, -20_000_000n, 'Keep the building inside the buildable grounds.', 'Move right 0.5 m'],
+  ['occupied', -13_500_000n, -20_000_000n, 'Leave space between buildings.', 'Move right 0.5 m'],
+] as const)('explains a %s draft beside its disabled confirmation and clears the reason after adjustment', (_reason, x, z, message, nudge) => {
+  const wire = wireWithBuilding04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
+  const { controller } = setup(wire, 'ready', { panel: 'buildings', selectedKind: 'lumber-camp',
+    draft: { kind: 'lumber-camp', x, z, rotation: 0 } });
+  const review = within(screen.getByRole('region', { name: 'Place Lumber Camp' }));
+  const confirm = review.getByRole('button', { name: 'Confirm placement' });
+  expect(review.getByText('Resources ready')).toBeVisible();
+  expect(confirm).toBeDisabled(); fireEvent.click(confirm); expect(controller.submit).not.toHaveBeenCalled();
+  const schematic = screen.getByRole('application', { name: 'Keep placement schematic' });
+  schematic.closest('details')!.open = false;
+  expect(review.getByText(message)).toBeVisible();
+  expect(confirm).toHaveAccessibleDescription(message);
+  fireEvent.click(review.getByRole('button', { name: 'Adjust placement' }));
+  expect(schematic.closest('details')!.open).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: nudge }));
+  expect(review.queryByText(message)).not.toBeInTheDocument();
+  expect(confirm).toBeEnabled(); expect(confirm).not.toHaveAttribute('aria-describedby');
+  expect(controller.submit).not.toHaveBeenCalled();
+  fireEvent.click(confirm); expect(controller.submit).toHaveBeenCalledOnce();
+});
 
 it('keeps Realm countdowns exact for epoch-scale timestamps and invalid clocks', () => {
   const nowMs = 1_700_000_000_000;
@@ -53,8 +79,57 @@ it('shows four Workers and spendable resources; pending returns never fund perma
   expect(screen.getByText(/spent resources are not refunded/i)).toBeVisible();
   expect(screen.getByRole('button', { name: /Confirm placement/ })).toBeDisabled();
   expect(screen.getByText('Missing: food 20 · wood 40 · stone 20')).toBeVisible();
-  fireEvent.click(screen.getAllByRole('button', { name: 'Find food' })[0]); expect(find).toHaveBeenCalledWith('food');
+  const mill = within(screen.getByRole('article', { name: 'City Mill' }));
+  expect(mill.getByText('Incoming (not spendable yet): food 60')).toBeVisible();
+  fireEvent.click(mill.getByRole('button', { name: 'Find wood' })); expect(find).toHaveBeenCalledWith('wood');
   expect(controller.submit).not.toHaveBeenCalled();
+});
+
+it('keeps gathering the same resource when a confirmed incoming amount does not cover its cost', () => {
+  const wire = freshWire04(); wire.workers[0].assignmentRevision = 1n;
+  wire.workers[0].assignment = { ...assignmentWire04(), earned: 10n, phase: 'gathering' };
+  const { find } = setup(wire); openMill();
+  const mill = within(screen.getByRole('article', { name: 'City Mill' }));
+  expect(mill.getByText('Incoming (not spendable yet): food 10')).toBeVisible();
+  fireEvent.click(mill.getByRole('button', { name: 'Find food' }));
+  expect(find).toHaveBeenCalledWith('food');
+});
+
+it('waits for confirmed return when incoming earnings cover every shortage without enabling construction', () => {
+  const wire = freshWire04();
+  for (const [ordinal, resource] of ['food', 'wood', 'stone'].entries()) {
+    wire.workers[ordinal].assignmentRevision = 1n;
+    wire.workers[ordinal].assignment = { ...assignmentWire04(), resource: resource as 'food' | 'wood' | 'stone',
+      locationId: `${resource}-site`, earned: 60n, phase: 'returning' };
+  }
+  const { snapshot, rerender, controller } = setup(wire); openMill();
+  const mill = within(screen.getByRole('article', { name: 'City Mill' }));
+  expect(mill.getByText('Incoming (not spendable yet): food 60 · wood 60 · stone 60')).toBeVisible();
+  expect(mill.getByText('Await confirmed Worker returns before building.')).toBeVisible();
+  expect(mill.queryByRole('button', { name: /^Find (food|wood|stone)$/ })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Confirm placement/ })).toBeDisabled();
+  expect(controller.submit).not.toHaveBeenCalled();
+
+  wire.revision = 2n; wire.food = 60n; wire.wood = 60n; wire.stone = 60n;
+  for (const worker of wire.workers.slice(0, 3)) worker.assignment = undefined;
+  rerender({ ...snapshot, view: presentState04(decodeState04(wire, SCOPE04), ATLAS04, Date.now()) });
+  expect(mill.queryByText('Await confirmed Worker returns before building.')).not.toBeInTheDocument();
+  expect(mill.getByText('Resources ready')).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Review updated costs' }));
+  expect(screen.getByRole('button', { name: /Confirm placement/ })).toBeEnabled();
+});
+
+it('explains why a missing resource has no new-journey action while every Worker is busy', () => {
+  const wire = freshWire04();
+  for (const worker of wire.workers) {
+    worker.assignmentRevision = 1n;
+    worker.assignment = { ...assignmentWire04(), phase: 'outbound', earned: 0n };
+  }
+  const { find } = setup(wire); openMill();
+  expect(screen.getByText('All Workers are busy. Another journey becomes available after one returns.')).toBeVisible();
+  expect(within(screen.getByRole('article', { name: 'City Mill' })).queryByRole('button', { name: 'Find food' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Confirm placement/ })).toBeDisabled();
+  expect(find).not.toHaveBeenCalled();
 });
 
 it('submits one frozen quote without local deductions and requires review after realm changes', async () => {
@@ -167,6 +242,11 @@ it('keeps the construction estimate in the building card and waits for confirmed
   const card = () => within(screen.getByRole('article', { name: 'City Mill' }));
   const sceneConstruction = () => within(screen.getByRole('region', { name: 'City Mill construction' }));
   expect(card().getByText('20 s')).toBeVisible();
+  expect(sceneConstruction().getByText('City Mill').closest('p')).toHaveTextContent('City Mill · Constructing level 1 · Estimated time remaining: 20 s');
+  expect(screen.getAllByRole('region', { name: 'City Mill construction' })).toHaveLength(1);
+  expect(screen.getByRole('region', { name: 'City Mill construction' }).compareDocumentPosition(
+    screen.getByRole('region', { name: 'Verdant Citadel scene' })
+  ) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(sceneConstruction().getByRole('progressbar', { name: 'City Mill scene construction progress' })).toHaveAttribute('aria-valuenow', '83');
   expect(sceneConstruction().getByText('83% complete · 20 s remaining')).toBeVisible();
   act(() => { vi.advanceTimersByTime(20_000); });
@@ -178,6 +258,22 @@ it('keeps the construction estimate in the building card and waits for confirmed
   rerender({ ...snapshot, view: presentState04(decodeState04(completed, SCOPE04), ATLAS04, Date.now()) });
   expect(card().queryByText('Awaiting Realm update')).not.toBeInTheDocument();
   expect(card().getByText('Completed level 1')).toBeVisible();
+});
+
+it('keeps multiple construction summaries compact while retaining each named progressbar', () => {
+  const { snapshot, rerender } = setup(constructingWire04());
+  const mill = snapshot.view!.buildings.find(building => building.phase === 'constructing')!;
+  rerender({ ...snapshot, view: { ...snapshot.view!, buildings: [mill, { ...mill, kind: 'lumber-camp' }] } });
+  const summary = screen.getByText('2 constructions underway · View progress');
+  const group = summary.closest('details');
+  expect(group).not.toHaveAttribute('open');
+  fireEvent.click(summary);
+  expect(group).toHaveAttribute('open');
+  for (const name of ['City Mill', 'Lumber Camp']) {
+    const section = within(screen.getByRole('region', { name: `${name} construction` }));
+    expect(section.getByText(name).closest('p')).toHaveTextContent(`${name} · Constructing level 1`);
+    expect(section.getByRole('progressbar', { name: `${name} scene construction progress` })).toBeVisible();
+  }
 });
 
 it('keeps the Builder busy after estimated zero and never finishes from the UI clock', () => {
@@ -345,6 +441,51 @@ it('recovers repeated immediate rejections through the real controller and requi
   rendered.unmount(); controller.dispose();
 });
 
+it('declines a confirmation caught by a focus refresh and accepts the next genuine confirmation', async () => {
+  const wire = freshWire04(); Object.assign(wire, { food: 1000n, wood: 1000n, stone: 1000n, gold: 1000n });
+  const { capability, read, mutate } = scriptedCapability04(); read.mockResolvedValue(wire);
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+  let controller!: Controller04;
+  function Harness() {
+    const current = useGameplay04Controller(capability); controller = current.controller;
+    useLayoutEffect(() => current.controller.setAtlas(ATLAS04), [current.controller]);
+    const [selection, onSelectionChange] = useState<Keep04UiSelection>({ selectedKind: null, draft: null, panel: null });
+    return <Keep04Screen snapshot={current.snapshot} controller={current.controller} selection={selection} onSelectionChange={onSelectionChange}
+      onBack={vi.fn()} quality="balanced" reducedMotion={false} onFindResources={vi.fn()} onReturnToWorld={vi.fn()} />;
+  }
+  const rendered = render(<Harness />);
+  try {
+    await act(async () => {}); openMill();
+    const confirm = screen.getByRole('button', { name: 'Confirm placement' });
+    let finishRead!: () => void;
+    read.mockImplementationOnce(() => new Promise(resolve => { finishRead = () => resolve(wire); }));
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+      expect(controller.getSnapshot().phase).toBe('refreshing');
+      // A native click can arrive before React redraws the now-busy controller.
+      expect(confirm).toBeEnabled(); confirm.click();
+    });
+    expect(mutate).not.toHaveBeenCalled(); expect(confirm).toBeDisabled();
+    await act(async () => { finishRead(); });
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'ready', problem: 'none' });
+    expect(screen.queryByRole('button', { name: 'Review updated costs' })).not.toBeInTheDocument();
+    expect(confirm).toBeEnabled();
+    mutate.mockImplementationOnce(async command => {
+      if (command.kind !== 'build') throw new Error('Expected a building confirmation.');
+      const confirmed = constructingWire04();
+      Object.assign(confirmed.buildings[0], { x: command.input.x, z: command.input.z, rotation: command.input.rotation });
+      Object.assign(confirmed, { revision: 2n, lastAcceptedSequence: 2n, food: 980n, wood: 960n, stone: 980n, gold: 1000n });
+      read.mockResolvedValue(confirmed);
+      return { sequence: 2n, revision: 2n };
+    });
+    await act(async () => { confirm.click(); confirm.click(); });
+    expect(mutate).toHaveBeenCalledOnce();
+    expect(mutate.mock.calls[0][0]).toMatchObject({ kind: 'build', input: { sequence: 2n, expectedRevision: 1n } });
+    expect(screen.getByText('Resources for this construction are already committed.')).toBeVisible();
+    expect(controller.getSnapshot().phase).toBe('ready');
+  } finally { rendered.unmount(); visibility.mockRestore(); }
+});
+
 it('names each confirmed return resource independently of a new assignment and explains capped storage', () => {
   const wire = freshWire04();
   wire.workers[0] = { ordinal: 0, assignmentRevision: 1n, assignment: undefined,
@@ -394,8 +535,9 @@ it("keeps zero incoming resources quiet without hiding available balances", () =
 it('makes the first resource journey obvious for a new empty keep', () => {
   const { find, controller } = setup();
   const firstJourney = screen.getByRole('region', { name: 'First journey' });
+  expect(within(screen.getByRole('region', { name: 'Keep loop' })).getByRole('listitem', { name: 'Gather · active' })).toHaveAttribute('aria-current', 'step');
   expect(firstJourney).toHaveTextContent('Start with one useful journey.');
-  expect(firstJourney).toHaveTextContent('Open the Realm and choose a resource location for Worker 1.');
+  expect(firstJourney).toHaveTextContent('Start with a City Mill. It needs Food, Wood, and Stone; City Goldworks also requires Gold. Check costs under Buildings, then send idle Workers to gather missing resources in parallel. Only confirmed returns can fund construction.');
   fireEvent.click(within(firstJourney).getByRole('button', { name: 'Choose a resource location' }));
   expect(find).toHaveBeenCalledWith(null, 0);
   expect(controller.submit).not.toHaveBeenCalled();
@@ -429,10 +571,10 @@ it.each(['refreshing', 'pending'] as const)('retains first-journey focus and nav
   expect(find).toHaveBeenCalledWith(null, 0);
 });
 
-it('keeps the gather-to-return loop legible while the player makes a decision', () => {
+it('keeps the empty first journey at Gather while the player inspects an unaffordable building', () => {
   setup();
   const loop = () => screen.getByRole('region', { name: 'Keep loop' });
-  expect(within(loop()).getByRole('listitem', { name: 'Choose · active' })).toHaveAttribute('aria-current', 'step');
+  expect(within(loop()).getByRole('listitem', { name: 'Gather · active' })).toHaveAttribute('aria-current', 'step');
 
   fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
   expect(within(loop()).getByRole('listitem', { name: 'Gather · active' })).toHaveAttribute('aria-current', 'step');
@@ -440,6 +582,16 @@ it('keeps the gather-to-return loop legible while the player makes a decision', 
   fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
   fireEvent.click(screen.getByRole('button', { name: 'Buildings' }));
   fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
-  expect(within(loop()).getByRole('listitem', { name: 'Build · active' })).toHaveAttribute('aria-current', 'step');
-  expect(within(loop()).getByRole('status')).toHaveTextContent('New benefits begin only after the Realm confirms construction is complete.');
+  expect(screen.getByRole('region', { name: 'First journey' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Confirm placement' })).toBeDisabled();
+  expect(within(loop()).getByRole('listitem', { name: 'Gather · active' })).toHaveAttribute('aria-current', 'step');
+});
+
+it('marks Build active for a funded building selection after the first return', () => {
+  const wire = freshWire04(); wire.food = 20n; wire.wood = 40n; wire.stone = 20n;
+  setup(wire); openMill();
+  expect(screen.queryByRole('region', { name: 'First journey' })).not.toBeInTheDocument();
+  const loop = screen.getByRole('region', { name: 'Keep loop' });
+  expect(within(loop).getByRole('listitem', { name: 'Build · active' })).toHaveAttribute('aria-current', 'step');
+  expect(within(loop).getByRole('status')).toHaveTextContent('New benefits begin only after the Realm confirms construction is complete.');
 });

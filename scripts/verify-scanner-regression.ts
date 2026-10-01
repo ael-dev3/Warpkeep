@@ -68,6 +68,16 @@ function fixture() {
     files.set(copiedPath, `const API_KEY = '${receiptSchema}';\n`);
     expected.push(`generic-api-key:${copiedPath}:1`);
   }
+  // Public shader cache label, independently assembled from its authored value.
+  // The exact path/value pair is allowed; a one-character change or copy is not.
+  const roofCache = ['keep04-cathedral-', 'roof-teal-v1'].join('');
+  const roofCachePath = 'src/components/keep04/keep04CathedralRoofPalette.ts';
+  files.set(roofCachePath, `const CACHE_KEY = '${roofCache}';\nconst OTHER_CACHE_KEY = '${roofCache.slice(0, -1)}2';\n`);
+  positives++; expected.push(`generic-api-key:${roofCachePath}:2`);
+  for (const path of [`${roofCachePath}.copy`, 'src/components/keep04/unrelatedRoofPalette.ts']) {
+    files.set(path, `const CACHE_KEY = '${roofCache}';\n`);
+    expected.push(`generic-api-key:${path}:1`);
+  }
   // Independently reviewed Git commit/tree/blob IDs, including the upstream
   // SpacetimeDB 2.6.1 commit. The real Sourcegraph rule also matches bare SHA-1
   // values when its sourcegraph keyword appears in the scanned fragment.

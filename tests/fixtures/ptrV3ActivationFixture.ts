@@ -1,6 +1,8 @@
 // Synthetic data only; receipt parsing does not mint private producer authority.
 import original from "./ptrV3ActivationCorpus.json" with { type: "json" };
+import { createHash } from "node:crypto";
 import { RECOVERY_BINDING_KEYS_V3 } from "../../scripts/recovery-binding-projection.mjs";
+import { genesis001PolicyObservationBootstrapReceiptDigest } from "../../scripts/genesis001-sealed-launch-adoption.mjs";
 import {
   ptrProductionAtlasImportReceiptDigest,
   ptrOwnerProvisionReceiptDigest,
@@ -12,13 +14,56 @@ export const PTR_V3_ENVELOPE_PROFILE =
   "warpkeep-0.4.0-recovery-activation-evidence-ptr-update-v1";
 const digestBody = (value: Record<string, any>, omitted: string) =>
   Object.fromEntries(Object.entries(value).filter(([key]) => key !== omitted));
-export function ptrV3ActivationFixture() {
+export function ptrV3ActivationFixture(
+  options: { bootstrapBytes?: Uint8Array } = {},
+) {
   const source = structuredClone(original) as {
     receipts: Record<string, any>;
     candidate: Record<string, any>;
   };
   const receipts = source.receipts,
     old = receipts.ptrPublishReceipt;
+  const { bootstrapBytes } = options;
+  if (bootstrapBytes !== undefined) {
+    // Current-source producer cases opt in; the historical corpus stays intact.
+    const bootstrap = receipts.g001PolicyObservationBootstrapReceipt;
+    bootstrap.bootstrapBlob = createHash("sha1")
+      .update(`blob ${bootstrapBytes.byteLength}\0`)
+      .update(bootstrapBytes)
+      .digest("hex");
+    bootstrap.bootstrapSha256 = createHash("sha256")
+      .update(bootstrapBytes)
+      .digest("hex");
+    // Synthetic construction uses the producer's length-framed link ABI;
+    // the adoption validator independently checks the resulting receipt.
+    const link = createHash("sha256");
+    const fields = [
+      ["domain", "warpkeep-production-g001-policy-observation-bootstrap-link-v1"],
+      ...[
+        "protectedCommit",
+        "moduleTreeId",
+        "bootstrapBlob",
+        "bootstrapSha256",
+      ].map((key) => [key, bootstrap[key]]),
+      ["command", "g001-policy-observe"],
+      [
+        "launchCleanup",
+        `${JSON.stringify(Object.fromEntries(Object.entries(bootstrap.launchCleanup).sort(([a], [b]) => a.localeCompare(b))))}\n`,
+      ],
+      ["policyObservationReceipt", `${JSON.stringify(bootstrap.policyObservationReceipt)}\n`],
+    ];
+    for (const [label, value] of fields) {
+      for (const text of [label, value]) {
+        const bytes = Buffer.from(text);
+        const length = Buffer.alloc(8);
+        length.writeBigUInt64BE(BigInt(bytes.length));
+        link.update(length).update(bytes);
+      }
+    }
+    bootstrap.policyObservationReceiptLinkSha256 = link.digest("hex");
+    source.candidate.g001PolicyObservationBootstrapReceiptDigest =
+      genesis001PolicyObservationBootstrapReceiptDigest(bootstrap);
+  }
   const target =
     "c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e";
   for (const member of [

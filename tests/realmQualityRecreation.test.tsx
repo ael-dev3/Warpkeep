@@ -1994,7 +1994,7 @@ describe('live realm quality recreation', () => {
     })).not.toBeNull();
   });
 
-  it('reconciles an occupied-node profile and timeline refresh without rebuilding the renderer', () => {
+  it('reconciles an occupied-node profile and timeline refresh without rebuilding the renderer', async () => {
     installWebGlProbe();
     const initial = activePeerFoodWagonSnapshot({
       phase: 'outbound',
@@ -2038,7 +2038,7 @@ describe('live realm quality recreation', () => {
       siteId: refreshed.site.siteId,
       coord: { q: refreshed.site.q, r: refreshed.site.r }
     }));
-    const record = screen.getByRole('dialog', { name: 'Wheat Farm' });
+    const record = await screen.findByRole('dialog', { name: 'Wheat Farm' });
     expect(within(record).getByText('GATHERING AT SITE')).not.toBeNull();
     expect(within(record).getByText('Harvest Bastion')).not.toBeNull();
     expect(within(record).getByText('@peerharvester')).not.toBeNull();
@@ -2331,7 +2331,7 @@ describe('live realm quality recreation', () => {
     fireEvent.click(screen.getByRole('button', {
       name: /Inspect @peerkeeper gathering at Stone Quarry/i
     }));
-    const castleLocation = screen.getByRole('button', {
+    const castleLocation = await screen.findByRole('button', {
       name: /Focus @peerkeeper's castle on the map/i
     });
     fireEvent.click(castleLocation);
@@ -2387,7 +2387,7 @@ describe('live realm quality recreation', () => {
       });
     });
 
-    fireEvent.click(screen.getByRole('button', {
+    fireEvent.click(await screen.findByRole('button', {
       name: /Recall Expedition to Keep/i
     }));
     await waitFor(() => {
@@ -2434,7 +2434,7 @@ describe('live realm quality recreation', () => {
     })).toBeNull();
   });
 
-  it('blocks fresh legacy dispatch while the staged worker system drains', () => {
+  it('blocks fresh legacy dispatch while the staged worker system drains', async () => {
     installWebGlProbe();
     const fixture = stagedLegacyDrainRealm();
     const onDispatchFoodExpedition = vi.fn().mockResolvedValue(undefined);
@@ -2458,7 +2458,7 @@ describe('live realm quality recreation', () => {
     });
 
     expect(screen.queryByRole('button', { name: 'DISPATCH WAGON' })).toBeNull();
-    expect(screen.getByText(/Legacy wagon dispatch is unavailable/i)).not.toBeNull();
+    expect(await screen.findByText(/Legacy wagon dispatch is unavailable/i)).not.toBeNull();
     expect(onDispatchFoodExpedition).not.toHaveBeenCalled();
   });
 
@@ -2495,7 +2495,7 @@ describe('live realm quality recreation', () => {
     fireEvent.click(screen.getByRole('button', {
       name: /Inspect YOUR WORKER at Stone Quarry/i
     }));
-    fireEvent.click(screen.getByRole('button', { name: /Recall Worker to Keep/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /Recall Worker to Keep/i }));
 
     await waitFor(() => {
       expect(onRecallWorker).toHaveBeenCalledOnce();
@@ -2656,7 +2656,7 @@ describe('live realm quality recreation', () => {
     fireEvent.click(screen.getByRole('button', {
       name: /Inspect @qa-keep-003 gathering at Gold Mine, cell 20,-22/i
     }));
-    expect(screen.getByRole('dialog', { name: 'Gold Mine' })).not.toBeNull();
+    expect(await screen.findByRole('dialog', { name: 'Gold Mine' })).not.toBeNull();
 
     act(() => options.onCastleProjection?.(projection(24, true)));
 
@@ -2788,7 +2788,7 @@ describe('live realm quality recreation', () => {
       coord: { q: fixture.site.q, r: fixture.site.r }
     }));
     scene.focusCell.mockClear();
-    const initialRecord = screen.getByRole('dialog', { name: 'Stone Quarry' });
+    const initialRecord = await screen.findByRole('dialog', { name: 'Stone Quarry' });
     expect(initialRecord.querySelector('[data-resource-occupant-details="true"]')).not.toBeNull();
     expect(within(initialRecord).getByText('PUBLIC WORKER RECORD')).not.toBeNull();
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
@@ -2834,7 +2834,7 @@ describe('live realm quality recreation', () => {
         screen.getByRole('button', { name: 'CLOSE STONE QUARRY RECORD' })
       );
     });
-    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })
+    expect((await screen.findByRole('dialog', { name: 'Stone Quarry' }))
       .querySelector('[data-resource-occupant-details="true"]')).not.toBeNull();
     expect(screen.getAllByRole('dialog')).toHaveLength(1);
 
@@ -2876,7 +2876,7 @@ describe('live realm quality recreation', () => {
       originCastleId: fixture.activeWorker.originCastleId,
       coord: { q: 1, r: 0 }
     }));
-    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })
+    expect((await screen.findByRole('dialog', { name: 'Stone Quarry' }))
       .querySelector('[data-resource-occupant-details="true"]')).not.toBeNull();
     expect(document.querySelector('.worker-inspection')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE STONE QUARRY RECORD' }));
@@ -2920,7 +2920,7 @@ describe('live realm quality recreation', () => {
     expect(document.querySelector('.worker-inspection')).toBeNull();
   });
 
-  it('restores an occupied worker route highlight when the scene is recreated', () => {
+  it('restores an occupied worker route highlight when the scene is recreated', async () => {
     installWebGlProbe();
     const fixture = peerWorkerOccupationRealm('outbound');
     const { rerender } = render(
@@ -2945,7 +2945,7 @@ describe('live realm quality recreation', () => {
     });
     expect(mocked.handles[0]!.setSelectedWorkerRouteId)
       .toHaveBeenLastCalledWith(fixture.activeWorker.workerId);
-    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })).not.toBeNull();
+    expect(await screen.findByRole('dialog', { name: 'Stone Quarry' })).not.toBeNull();
 
     rerender(
       <RealmMapScreen
@@ -2962,10 +2962,10 @@ describe('live realm quality recreation', () => {
       .toHaveBeenLastCalledWith(fixture.activeWorker.workerId);
     act(() => mocked.createRealmScene.mock.calls[1]![0].onCastlesReady?.(2));
     expect(mocked.handles[0]!.dispose).toHaveBeenCalledOnce();
-    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })).not.toBeNull();
+    expect(await screen.findByRole('dialog', { name: 'Stone Quarry' })).not.toBeNull();
   });
 
-  it('locates each worker keeper from the portrait without changing to focus-camera mode', () => {
+  it('locates each worker keeper from the portrait without changing to focus-camera mode', async () => {
     installWebGlProbe();
     const fixture = peerWorkerOccupationRealm('outbound');
     const idleWorkers = fixture.workerProjection.workers.filter(
@@ -2998,7 +2998,7 @@ describe('live realm quality recreation', () => {
         originCastleId: worker.originCastleId,
         coord: { q: castle.q, r: castle.r }
       }));
-      const dialog = screen.getByRole('dialog', {
+      const dialog = await screen.findByRole('dialog', {
         name: `Worker ${worker.ordinal}`
       });
       fireEvent.click(within(dialog).getByRole('button', {
@@ -3013,7 +3013,7 @@ describe('live realm quality recreation', () => {
     expect(scene.locateWorker).not.toHaveBeenCalled();
   });
 
-  it('never revives legacy dispatch on an unoccupied node in active generic mode', () => {
+  it('never revives legacy dispatch on an unoccupied node in active generic mode', async () => {
     installWebGlProbe();
     const fixture = peerWorkerOccupationRealm();
     const unoccupied = fixture.snapshot.stoneSites?.find(
@@ -3041,7 +3041,7 @@ describe('live realm quality recreation', () => {
       });
     });
 
-    expect(screen.getByRole('dialog', { name: 'Stone Quarry' })).not.toBeNull();
+    expect(await screen.findByRole('dialog', { name: 'Stone Quarry' })).not.toBeNull();
     const workerList = screen.getByRole('list', {
       name: /Your workers for this Stone site/i
     });
@@ -3089,7 +3089,7 @@ describe('live realm quality recreation', () => {
       });
     });
 
-    const dialog = screen.getByRole('dialog', { name: 'Stone Quarry' });
+    const dialog = await screen.findByRole('dialog', { name: 'Stone Quarry' });
     expect(within(dialog).getByText('Site state').nextElementSibling?.textContent)
       .toBe('OCCUPANCY UNAVAILABLE');
     expect(within(dialog).queryByText('AVAILABLE')).toBeNull();
@@ -3118,7 +3118,7 @@ describe('live realm quality recreation', () => {
     expect(document.querySelector('.worker-inspection')).toBeNull();
   });
 
-  it('opens every Food resource path without a camera jump', () => {
+  it('opens every Food resource path without a camera jump', async () => {
     installWebGlProbe();
     const fixture = activeFoodWagonRealm();
     render(
@@ -3141,7 +3141,7 @@ describe('live realm quality recreation', () => {
     expect(wagonButton.textContent).toContain('En route to site');
     fireEvent.click(wagonButton);
     expect(scene.focusCell).not.toHaveBeenCalled();
-    expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+    expect(await screen.findByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
     expect(document.querySelector('.realm-camera-neutral-inspector')).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE FOOD FARM RECORD' }));
@@ -3152,7 +3152,7 @@ describe('live realm quality recreation', () => {
       source: 'wagon',
       coord: { q: fixture.site.q, r: fixture.site.r }
     }));
-    expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+    expect(await screen.findByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
     expect(scene.focusCell).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole('button', { name: 'CLOSE FOOD FARM RECORD' }));
@@ -3162,11 +3162,11 @@ describe('live realm quality recreation', () => {
       source: 'site',
       coord: { q: fixture.site.q, r: fixture.site.r }
     }));
-    expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+    expect(await screen.findByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
     expect(scene.focusCell).not.toHaveBeenCalled();
   });
 
-  it('does not replay a resource camera target after static-site selection and scene recreation', () => {
+  it('does not replay a resource camera target after static-site selection and scene recreation', async () => {
     installWebGlProbe();
     const fixture = activeFoodWagonRealm();
     const { rerender } = render(
@@ -3189,7 +3189,7 @@ describe('live realm quality recreation', () => {
         coord: { q: fixture.site.q, r: fixture.site.r }
       });
     });
-    expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+    expect(await screen.findByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
     expect(initialScene.focusCell).not.toHaveBeenCalled();
 
     rerender(
@@ -3208,7 +3208,7 @@ describe('live realm quality recreation', () => {
     expect(initialScene.dispose).toHaveBeenCalledOnce();
     expect(mocked.handles[1]!.focusCell).not.toHaveBeenCalled();
     expect(mocked.handles[1]!.showRealm).toHaveBeenCalledOnce();
-    expect(screen.getByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
+    expect(await screen.findByRole('dialog', { name: 'Wheat Farm' })).not.toBeNull();
   });
 
   it('omits active-wagon shortcuts when the private projection does not exactly join public occupancy', () => {

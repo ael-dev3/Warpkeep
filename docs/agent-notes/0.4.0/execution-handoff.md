@@ -1,68 +1,2652 @@
 # Continue Warpkeep 0.4
 
-## Current checkpoint — 27 September 2026
+## Current local checkpoint — 30 September 2026
 
-GitHub `main` is generated-only M2
-[`007e62f2e5b7440abf483a83aeda2b9621f4054e`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e),
-tree `be80fdd152bca9d8da80702fbb2b77312faca42b`, merged through
-[PR #371](https://github.com/ael-dev3/Warpkeep/pull/371). Its source-only M1
-was [PR #370](https://github.com/ael-dev3/Warpkeep/pull/370), merged as
-[`0817724a9b2a1cfc19d3c53845e0c667fc31e078`](https://github.com/ael-dev3/Warpkeep/commit/0817724a9b2a1cfc19d3c53845e0c667fc31e078),
-tree `fed9ee6c61a28a57c0f3a08bd893aa13fe7623a2`. Native preparation and
-independent check on that exact M1 succeeded: 3,257 source files and 102
-generated outputs. M2 contains the authenticated generated family and the two
-fixed, count-free diagnostics, `g001-admitted-aggregate-drift` and
-`g001-admitted-set-mismatch`.
+October continuation: 1 October 2026, UTC and Europe/Budapest.
 
-PR #371's Verify (including Linux and SpacetimeDB) and CodeQL passed. Exact-M2 push
-[Verify 36279277148](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277148)
-failed: its Linux root-test step reached the 60-minute limit while tests were
-still running, with multiple loaded-runner test timeouts. The module, native,
-bridge and recovery jobs passed. Exact-M2 push
-[CodeQL 36279277087](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277087)
-failed twice. The targeted permission trial on
-[PR #372](https://github.com/ael-dev3/Warpkeep/pull/372) reached SARIF upload,
-where [CodeQL 36281273325](https://github.com/ael-dev3/Warpkeep/actions/runs/36281273325)
-failed because code scanning is disabled for this private repository. GitHub's
-current plan cannot provide that check, so PR #372 removes the unavailable
-workflow; use Verify's Linux, module, native, bridge, recovery, secret-scan and
-dependency-audit jobs as the executable gate. GitHub reports `main` as
-`protected:false`; its private-repo plan also rejects branch-protection API
-access. [PR #372](https://github.com/ael-dev3/Warpkeep/pull/372) is the reviewed
-source M1 for exact-current-main authority, private-repository Pages OIDC and
-bounded parallel Verify tests. Require its full current-head Verify before
-merging. Then prepare and independently check its exact signed main commit in
-native WSL, promote only that generated family as M2, and require successful
-exact-M2 push Verify. Run fresh read-only preflight and G001 policy observation
-before one new census identity. Recheck the live ref immediately before each
-operation; an interim M1 is not an operation source.
+Continue the active, unmerged [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
+on `fix/g001-census-admission-proxy`. It includes reviewed PRs #375–#378;
+do not merge their older heads separately. Main remains `786c0b2b`.
+Resolve the published PR head separately from the current local repaired source.
 
-The previous [G001 freeze census 36271994192](https://github.com/ael-dev3/Warpkeep/actions/runs/36271994192)
-failed closed with the old combined `g001-admitted-aggregate-mismatch` label.
-Its first-sample directory exists, but `first.json`, the second sample and
-`complete.json` do not. There is no validated baseline; no provider mutation
-followed. Preserve that attempt and the earlier incomplete
-[36255794350](https://github.com/ael-dev3/Warpkeep/actions/runs/36255794350)
-without reusing their identities or reading private applicant/admitted rows.
-The old public evidence cannot distinguish drift from set mismatch. A new
-source-bound diagnostic can identify a targeted repair, but only a successful
-two-sample census supplies the baseline needed before preservation or
-deployment mutation. Follow the
-[known blocker recovery path](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths).
+The latest completed development preparation is `7be8ae48`,
+tree `1c19a7e7`. Its `/ptr/` production build is terminal, exit 0:
+2026-10-01T09:04:33.674Z–09:09:21.573Z, with clean unchanged input,
+UID 1000/Node 22.22.3 and verified absent owned actor/group.
+Payload and independently checked mirror/Alpha-preservation
+checks pass at this exact source, preserving all 341 Alpha entries and removing
+none. The rendered keyboard review remains separately bound to `789933e2`.
+Retain `artifacts/qa/ptr-final-build-summary.json` and
+the source-bound preservation receipt; these are development
+preparation receipts, not exact-M1/M2 integration or deployment.
 
-The local rendered WebGL matrix passed on reviewed source, but remains local
-evidence rather than live PTR acceptance. The
-[Pages run 36177192717](https://github.com/ael-dev3/Warpkeep/actions/runs/36177192717)
-skipped build, deploy and live verification because sealed G002 is unmet. 0.4
-remains unshipped. Provider bridge/recovery operation, G001
-preservation/readback, sealed G002, actual owner PTR journey, physical-device
-and measured-performance acceptance, release freeze and delivery remain open.
-The intended `warpkeep.com` frontend currently returns 404: private-repo
-GitHub Pages is disabled on this account plan. A hosting path must be selected
-before owner PTR can be called live.
+The full native suite remains separately bound to `1ab86add`, tree `ee5804e3`:
+12,720 passed, zero failed, 97 skipped across 694 actual files, exit 0.
+Its input stayed clean and unchanged, with zero new fixture roots or historical
+removals. Retain `artifacts/qa/tervain-final-root-*`. Later preview-label checks
+pass 17/17 in two actual files, with app types; they do not relabel the full run.
+The four production-menu images, narrow/landscape/desktop Settings geometry and
+bounded desktop/4× CPU phone-size menu measurements remain scoped to `1ab86add`.
+
+The actual `8d3b4c38` 320×640 Shift+Tab defect is repaired: two caller
+regressions fail before repair and 124 affected tests across nine actual files
+pass afterward (76 menu/modal, 48 realm/worker/chat/lyrics), with pinned app
+types. Fresh `789933e2` production DOM and screenshot review confirms fully
+visible focused controls after reverse entry and both boundary wraps in
+Settings and Terms. Escape restores the correct caller, Terms remains unchecked
+and there is no horizontal overflow. The tab is blank, viewport reset and exact owned
+preview stopped/absent. This closes the built keyboard visibility check;
+it does not establish legal or owner acceptance.
+
+The separate `8d3b4c38` DEV Keep04 retained-switch heap/context diagnostic
+passes its bounded local comparisons and independently verified cleanup.
+Production world/keep/realm R06, actual-owner and physical-phone acceptance
+remain open. The [performance contract](../../evidence/0.4.0/performance.md)
+and [local evidence](../../evidence/0.4.0/local-operations.md#completed-keyboard-readback-and-keep-lifecycle-heap--1-october-2026)
+own exact measurements, receipts and their limits; keep earlier sources separate.
+
+Provider reads on September 30 at 22:33–22:39 UTC verify the documented Cloudflare
+production profile/account, existing native private-config permissions and
+immutable realm targets. CLI/login, deployment and PTR schema reads all succeed;
+no human login is required by this readback. The live PTR still lacks all seven
+required gameplay tables and five procedures. This is a pending source-bound
+existing update, not a demonstrated authentication failure. Metadata reads do
+not prove secret values, update permission, owner-row/session or release acceptance.
+
+The [Tervain study](../../engineering/repository-ecosystem.md#sharing-with-tervain)
+adapts grounded vegetation, stable detail selection and material grouping.
+Existing shared models already match; no duplicates were copied. Its separate
+menu score remains project-specific. Independent world/keep lifetime and
+background/resume source review found no further demonstrated defect.
+
+Both calendars are now October. The read-only repository-wide Actions
+inventory completed at 2026-10-01T00:02:38.033Z: Warpkeep and Warpkeep-Live
+have no queued/running work, their current workflows are active and `0babbc46`
+has no applicable Verify. Retain
+`artifacts/qa/october-actions-inventory-2026-10-01T000017236Z.json`.
+The successful historical main Verify and failed old census/G002 inspections
+retain their original sources; they cannot authorize this candidate. No hosted
+run for the current development head has passed, and no new trigger, merge or
+provider write is established by this inventory.
+
+The first normal October PR Verify is
+[36795398220](https://github.com/ael-dev3/Warpkeep/actions/runs/36795398220),
+attempt 1, on `974a3ae6`, started at 00:17:07 UTC. Its Linux history scan
+rejects one public Cathedral shader cache label at historical `9e07f475`; the
+real scanner regression itself passes. The candidate adds only an exact
+path/value exception, with a same-path changed value and wrong/copied-path
+negative coverage: 49 allowed examples and 98 mandatory findings pass the
+real Gitleaks 8.30.1 regression, plus seven focused unit tests.
+
+The native-contract job separately fails during Dispatcher collection because
+its depth-one checkout lacks retained compiler input `5d175edf`. Set only that
+checkout to full history, preserving original manifests and authentication.
+The existing native Dispatcher suite passes all 90 tests with the genuine
+historical tree available. Retain the original failed job logs and local
+readbacks under `artifacts/qa/october-974a3ae6-*`; do not relabel that hosted
+attempt as passing. It finishes at 01:19:44 UTC with 14 independent jobs
+successful, only the diagnosed Linux/native-contract leaves failed and their
+aggregate failed. The connected migration/module job succeeds at 01:19:37 UTC.
+This hosted attempt does not verify the later local maintenance repair.
+
+Published `7be8ae48` has normal PR Verify
+[36841020942](https://github.com/ael-dev3/Warpkeep/actions/runs/36841020942),
+attempt 1. At 09:40:09 UTC, 13 independent jobs succeed, two diagnosed tests
+fail and only the module job remains active. The failures are a stale Pages
+toolchain service assertion and post-gate SIGKILL test synchronization; both
+existing tests are repaired locally. Preserve the active run and its source.
+
+Current local family checkpoint `a9878234`, tree `78b95888`, derives from
+authored `be9596dd`. Its complete 16-output family independently reproduces
+and native policy passes; manifest is
+`c64fe8b750e8d67bb551137991fb440568349c74cdddaeb34af1cc91f6f939d5`.
+Retain `artifacts/qa/tervain-final-family-verification.json` at this separate source.
+It retains CLI 11.11.0 and explicit no-switch handling; current CI/Pages action
+v6.0.10 uses the reviewed 11.19.0 seed. See
+[maintenance evidence](../../evidence/0.4.0/local-operations.md#patched-pnpm-runtime-and-current-linux-snapshot--1-october-2026).
+Native current-source checks pass 160 cases, zero failures and three Darwin/ARM64
+platform-only skips across seven files. Separate Pages ordering and recovery
+composition cases each pass one selected case; their 163/353 unselected cases
+are not executed evidence. The `7be8ae48` build and earlier hosted/full-suite/
+rendered results retain their source scopes. Final current-source preparation,
+publication and normal hosted Verify remain pending.
+
+Next, await the active module's terminal result and finish exact final-head
+preparation, then publish one coherent
+signed checkpoint without CI skip directives and use its normal PR Verify.
+Verify has no manual dispatch; reopening/dispatching
+the same skipped head is insufficient. Refresh final-head SHA-bound local
+receipts. A notes-only checkpoint needs no additional generated-output commit
+if independent family derivation returns identical bytes. Keep an active run's
+source pinned and do not repeat closed keyboard/heap diagnostics for notes alone.
+Require successful final-head PR Verify, then signed source-only M1, exact-M1
+native prepare/check, generated-only M2 and exact-main Verify before live
+preservation, sealed-realm/owner-PTR operations, owner/device acceptance and
+the delivery ledger. For both M1 and M2, supply an explicit reviewed squash
+subject **and body** without CI skip directives; do not inherit the PR description
+or aggregated historical commit bodies. Verify each resulting signed merge and
+its exact source before continuing. The existing Alpha stays available;
+G002 remains closed.
+PTR publication follows its source, activated configuration and deployment
+gates; final release acceptance still requires owner/device evidence.
+Complete expensive preparation before activation's fresh **inline** G001 census.
+Use the existing [connection/recovery paths](../../operations/0.4.0-infra-access.md#resume-without-guessing)
+and [PTR publisher](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored);
+no new recovery key, hosting clone or Desktop output is needed.
+
+The refreshed complete Actions inventory ends at 01:22:11.841 UTC with no
+active runs in either repository. Retain
+`artifacts/qa/october-actions-refresh-2026-10-01T012042325Z.json`.
+The reviewed signed repair is backed up at the GitHub source-history tag
+`source-history/warpkeep-0.4-october-validation-271946c4`.
+The corrected publication guide targets activated A, and the owner journey
+records the authenticated Farcaster PTR launch; source-bound PTR readbacks
+belong before activation. These instructions do not establish live acceptance.
+
+## Previous delivery checkpoint — 30 September 2026, 17:57 CEST (15:57 UTC)
+
+PR #374 is the open, unmerged candidate on fix/g001-census-admission-proxy
+against main 786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. It includes reviewed
+work from PRs #375–#378; do not merge their older heads separately. Resolve
+the current exact head and final closure/build/publication-plan hashes from
+PR #374 before acting.
+
+Linux recovery now uses kernel boot UUID and start tick rather than a driftable
+wall-clock display. Live legacy/digest mismatches remain unknown. Scoped native
+caller tests pass 276/276 at a23b863c, with zero new private test homes or
+historical removals. Preserve ambiguous records; do not delete locks or create keys.
+
+The complete native run at a23b863c found 110 failures. Repairs now derive the
+missing paired-envelope source pin, bind current-byte recovery fixtures and
+pair retained compiled dispatcher fixtures with their original Git input.
+The actual native release CLI also exposed an older operator refreeze. The
+reviewed seven-helper reference now binds signed 580cd588; all 134 remaining
+frozen blobs, including the module/build recipe, are unchanged. New tests reject
+byte or mode drift in each helper. All previous failure boundaries pass focused
+native checks; a new POSIX test-mode setup issue is repaired and its regression
+passes. The failed attempts remain retained, separately scoped.
+
+The complete four-worker native suite passed at signed 3d47d05e: 12,670 passed,
+zero failed and 97 skipped across 694 files, exit 0. Source tree is
+5a65e56567fe64c80a177326ced7a8015729d0f5; Node 22.22.3/UID 1000 and a clean
+checkout are recorded. Zero new private fixture homes or historical removals
+remain. The job is terminal. Retained source/report/log/summary/exit evidence is
+under artifacts/qa/root-suite-recovery-final-*; keep the earlier failed attempts
+separate. The complete source family independently reproduces after refreeze
+and native policy passes. PR #374 owns the final exact-source build/payload/mirror receipts.
+
+Later public-feedback/legal-contact, project-status and build-stamp repairs pass
+86/86 native checks at signed 601635cd, separate from the 3d47d05e full pass.
+The complete 16-output family independently reproduces and native policy passes.
+See [local evidence](../../evidence/0.4.0/local-operations.md) for exact scope and capture.
+PR #374 maintains final exact-source build/payload/mirror receipts. The 28 retained
+compiler paths and original inputs remain unchanged. These source corrections
+are not yet served; the PTR plan preserves the existing Alpha root.
+
+
+The source-only compiler inventory derives 28 retained paths, all unchanged
+against main; the earlier 22-path summary was incomplete. Original compiler
+inputs remain intact. Fresh audits are clean in all four package boundaries;
+GitHub's main alerts await merge. See the latest local evidence and PR #374.
+
+Existing mobile input, confirmation, focus and readability defects are repaired.
+World controls meet the scoped 44px minimum and opened drawers remain reachable
+in short landscape. Their 81 host tests and rendered viewport checks passed.
+Real SpacetimeDB 2.6.1 testing also repaired first-use initialization: only the
+verified module-host prefix plus a complete known error code is recognized,
+preserving uncertain outcomes and exact retry. Independent capability/controller
+checks passed 143/143. Read [local evidence](../../evidence/0.4.0/local-operations.md)
+for source scopes and reproduction.
+
+Connected loop session 64935 passed at exact 98a561db in 321,215ms (5m21s),
+with all nine outcomes, normal timers and verified cleanup. It proves the
+real module/client gathering, construction, improved return, exact retry/single
+deduction, manual fixture-session renewal and client reconnection. The synthetic owner/atlas and
+running in-memory database do not establish production-owner play, server
+restart or physical-device acceptance. Actual Quick Auth expiry through the
+production browser provider remains part of owner acceptance; synthetic caller
+tests cover it, but this smoke does not.
+
+At exact e308a64d, affected menu/closure/capability/controller/QA tests passed
+315, zero failed, one platform-specific skip; native production build and
+sealed-launch/license/file-size policies passed. The earlier full suite at
+15b88b57 passed 12,603, zero failed, 97 skipped and predates later CSS/wire fixes.
+A subsequent publisher-contract review found a real CNAME LF/CRLF mismatch.
+The old plan hashed the clean Windows working file while the publisher preserves
+its immutable Git blob. The repaired planner preserves exact binary parent bytes;
+all ten planner regressions pass. The e308 mirror plan is superseded. Final
+source-family regeneration and exact-source build/plan receipts belong on PR #374.
+Keep retained compiled outputs and original input identities intact for M1.
+
+Alpha root returned HTTP 200, auth health 200 and /ptr/ HTTP 404 at 15:00 CEST. PTR is unpublished;
+sealed preparation remains 0.3.43, Pages approval false, live IDs unset and PTR
+presentation disabled. No main merge or game-provider/public-hosting write occurred.
+During September use local checks and signed [skip actions] pushes. On October 1
+resume already-authorized exact-head Verify -> signed source-only M1 -> exact-M1
+native prepare/check -> generated-only M2 -> exact-M2 Verify -> preservation/
+readbacks/PTR publication -> owner/device acceptance. No new blanket approval
+or recovery keys are needed. The [known blocker guide](../../operations/0.4.0-infra-access.md#known-blockers-and-recovery-paths)
+covers the actual failed boundaries; use it before requesting human action.
+
+## Native full pass and menu polish — 30 September 2026, 10:49 CEST (08:49 UTC)
+
+Native UID-1000 root Vitest at signed 15b88b57 exited 0: 12,603 passed, zero
+failed, 97 skipped across 693 files. This verifies the gesture/confirmation/
+focus repairs after the narrow bundle-ownership recovery. Its separate source
+receipt, report and log are retained under native artifacts/qa/; the earlier
+failed report remains historical. The full pass precedes only the CSS and
+archive-link repair below; keep its exact source scope.
+
+The current polish changes only the menu's two existing panel gradients so
+ivory controls remain readable over pale castle geometry. Existing menu tests
+passed 27/27; conservative command-label contrast is at least 5.53:1 without
+backdrop-filter assumptions. Source renders at mobile/desktop dimensions
+retained layout, target sizes and keyboard outline with no horizontal overflow
+or console warnings. Two broken G002 soundtrack links now identify its actual
+draft archive by an immutable manifest, without altering rights or publishing.
+The [local evidence](../../evidence/0.4.0/local-operations.md) holds exact scopes.
+
+Signed polish d4465897 passed its outgoing Gitleaks scan and was pushed. All
+3,351 raw native files matched Git; the full 16-output family reproduced
+independently and UID-1000 policy verification passed. Its manifest SHA-256 is
+8c637963331d7c899f695788aaf3b95d9983d4ab54bc5813b5f1c1bb4334de6b.
+Run the final affected native closure/menu checks and rebuild the exact /ptr/ payload
+and independent read-only mirror plan. Record final receipts on PR #374. Keep
+September free of Actions; continue the already-authorized M1/exact-M1/M2
+delivery lane on October 1, preserving Alpha and closed G002 admissions.
+
+## Confirmation, focus and evidence repair — 30 September 2026, 10:10 CEST (08:10 UTC)
+
+The next reviewed checkpoint fixes a confirmation swallowed by a concurrent
+focus refresh and lost destination focus between world and keep. Real caller
+regressions failed before repair; affected suites, independent cross-reviews
+and app/Vite-config types passed. Read the [scoped repair evidence](../../evidence/0.4.0/local-operations.md#confirmation-and-destination-focus-repair--30-september-2026-1010-cest-0810-utc).
+
+The full native root suite at d1474f11 exited 1: 12,591 passed, six failed,
+97 skipped. All six failures were fixture setup against one root-owned ignored
+SpacetimeDB bundle. Restoring that verified file's ownership made the unchanged
+activation suite pass 199/199; it does not turn the earlier full run into a
+pass. Native execution guidance now includes this recovery. Record the next
+exact-source full-suite result on PR #374, keeping its source scope explicit.
+
+The local full-stack browser playthrough described in older entries uses
+legacy Inner Keep/G001, synthetic identity, balances and clocks. It is
+preservation evidence, not gameplay04/PTR owner integration or real pacing.
+The new module tests and UI fixtures remain distinct from the owner journey.
+The candidate stays unmerged and PTR unpublished. Reproduce its complete
+prepared-closure family after the signed source checkpoint, then validate
+the final exact source/build/payload/mirror plan. Signed source repair 485e4ca6
+passed the outgoing Gitleaks scan and was pushed. Its 3,351 raw source files
+matched Git; all 16 family outputs reproduced independently and native
+UID-1000 policy verification passed. The new manifest SHA-256 is
+c47d7d096ff500aeafc5b27a4bc8122002d3c287b0b9800f7dfcded9c4162dd7.
+Record the final candidate's exact-source receipts on PR #374 after execution.
+On October 1 resume the
+existing authorized signed M1/exact-M1/M2 hosted release sequence. September
+remains free of GitHub Actions. Preserve Alpha and closed G002 admissions.
+
+## Mobile gesture repair — 30 September 2026, 09:27 CEST (07:27 UTC)
+
+Independent reviews at 268495f067e155ab76f56977797553de7194a63f found
+Greater Realm camera gestures becoming selections and Keep04 pinch-to-pan
+losing the remaining touch. The repaired real hosts retain valid tap/pan/orbit
+controls, suppress post-pinch placement/selection and retain lifecycle
+cancellation. Five focused suites passed 143/143 with Node 22.22.3;
+app/Vite noEmit checks and independent source reviews passed. Reproductions,
+rendered fixture scope and unchanged server-authority checks are in
+[local operations](../../evidence/0.4.0/local-operations.md#mobile-gesture-repair--30-september-2026-0927-cest-0727-utc).
+
+These runtime files belong to the protected prepared closure. The complete
+family was refreshed from signed repair b696c3b7: all 3,351 source files
+matched raw Git blobs, all 16 derived outputs reproduced independently and
+the 1,250-member native UID-1000 policy passed. Its manifest SHA-256 is
+9a28bb82a32e4f7af2aa212285245e65b30ec8145c42f552b09751bfd5b1d8d0.
+The final signed source and exact build/payload/mirror receipt are recorded
+on PR #374. The candidate is still unmerged and unpublished. Keep September free
+of GitHub Actions; preserve Alpha and keep G002 admissions closed. Final
+owner PTR play, physical-device performance and release evidence remain open.
+
+## Continuation refresh — 30 September 2026, 09:00 CEST (07:00 UTC)
+
+PR #374 remains open and unmerged against unchanged main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. Its signed candidate before this
+notes-only refresh is ac437ea35c708026f2a42b6785110fa6940d5202; game and test
+sources are code-equivalent to 0269ef201c26e312fa0ec55c0548074ebb0ee905.
+The separate native module suite passed 598/598; auth-bridge passed 502 tests
+and release-recovery 1,567 across Node and workerd. Root, Genesis 002 and PTR
+module typechecks passed. Native Windows SpacetimeDB 2.6.1 builds passed for
+root, Genesis 002 and PTR. The prior PTR CLI tsc-discovery warning was fixed
+by installing its package-local locked dependencies with --ignore-workspace
+and --ignore-scripts; no project source changed. The exact commands and scoped
+results are in [local operations](../../evidence/0.4.0/local-operations.md)
+and [development sync](../../operations/0.4.0-development-sync.md).
+
+At this candidate, root npm audit and both service pnpm audits reported zero
+known vulnerabilities. GitHub's three moderate Undici alerts still describe
+the default main lockfiles; this candidate resolves root jsdom's nested
+Undici to 7.30.0 and both service locks to 7.29.1, all beyond the affected
+range. The alerts should clear after integration and GitHub's rescan.
+
+At exact source 9a24d455, the native /ptr/ production build, exclusion and
+public-boundary scans, Farcaster check, license and file-size checks, payload
+writer/check, and independent read-only Warpkeep-Live mirror recheck passed.
+The receipt and SHA-256 values are in local operations and the PR snapshot.
+The same exact-head build, payload write/check and independent mirror-plan
+recheck passed at ac437ea3; the full receipt is on PR #374.
+This documentation refresh requires one more exact-head build, payload check
+and mirror recheck; the exact current-head receipt is recorded on PR #374 after
+the signed push. Its 677.80 kB / 188.23 kB gzip RealmMapScreen warning remains
+a measured bundle-size concern; do not suppress it or split code without a
+profiled, regression-safe change.
+
+The Alpha root remains available and /ptr/ is not yet deployed. Sealed launch
+is still disabled (package 0.3.43, Pages approval false, live G001/G002/PTR
+identities unset, PTR presentation disabled). Do not claim release acceptance.
+Direct status checks at 08:50 CEST returned HTTP 200 for the Alpha root and
+HTTP 404 for /ptr/.
+No GitHub Actions workflow, run, check or status was queried, dispatched,
+rerun or used in September; development publication uses [skip actions].
+
+## Continuation refresh — 30 September 2026, 08:31 CEST (06:31 UTC)
+
+At signed code/test head
+`0269ef201c26e312fa0ec55c0548074ebb0ee905`, native WarpkeepRunner passed the
+separate SpacetimeDB module typecheck and all 598 pure tests (0 failed, 0
+skipped; 782.03 seconds), as UID 1000 `warpkeep` with Node 22.22.3 / pnpm
+11.7.0. The current module result is recorded in [local
+operations](../../evidence/0.4.0/local-operations.md). The native Linux root
+Vitest suite also passed at code/test head
+`198377c6569c08dfe97a8613f8ed098e561784b4`; its terminal stream did not retain
+counts.
+
+SpacetimeDB CLI 2.6.1 reported `Build finished successfully` and a `tsc not
+found in node_modules` warning when invoked as the Windows executable from
+WSL. The installed Linux `.bin/tsc` exists and the separate module typecheck
+passed; the CLI's own TypeScript discovery remains unverified. No publish was
+run. The exact `/ptr/` build, payload check and read-only mirror plan were
+verified at source `0269ef20`; this documentation refresh requires a new
+exact-head build/payload/mirror receipt. September remains a no-Actions period.
+When the WSL verifier reads the Windows public checkout, set per-process
+`safe.directory` to that exact checkout and `core.autocrlf=true`; otherwise
+WSL reports the clean Windows `CNAME` as changed and refuses the mount as
+unsafe. The exact read-only commands and reason are in [local
+operations](../../evidence/0.4.0/local-operations.md). Do not weaken the
+checkout-cleanliness check or persist this workaround globally.
+
+## Current continuation — 30 September 2026, 07:51 CEST (05:51 UTC)
+
+The full native Linux root Vitest suite was rerun after the DEV-only Keep04
+cadence-recorder fix at code/test head `198377c6569c08dfe97a8613f8ed098e561784b4`.
+`npm test -- --reporter=dot` exited 0 on WarpkeepRunner as UID 1000 `warpkeep`
+with Node 22.22.3 / npm 10.9.8, SpacetimeDB 2.6.1 and the hash-verified YAML
+fixture. The terminal stream did not retain final test totals; older counts do
+not describe this rerun. The isolated corrupt-Git-object negative fixture
+emitted its rejection diagnostics. Recurring `context canceled` messages also
+appeared in the output, but no test failed. The detailed result is in [local
+operations](../../evidence/0.4.0/local-operations.md).
+
+Windows, origin and PR #374 remain at signed code/test head `198377c`; the
+native checkout is clean. This tracked evidence update creates a new exact
+documentation head; its `/ptr/` production build, payload verification and
+read-only mirror plan are recorded on PR #374. September remains a no-Actions
+period. The public Alpha root is HTTP 200 and `/ptr/` is HTTP 404, so no 0.4 PTR
+is live. Sealed-launch preparation still reports package 0.3.43, Pages
+approval false, no G001/G002/PTR identities and PTR presentation disabled.
+
+## Current continuation — 30 September 2026, 07:17 CEST (05:17 UTC)
+
+PR #374 remains open and unmerged against unchanged main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; its pushed candidate branch now
+contains `45d569db`, a DEV-only fix to Keep04 cadence reporting. Visible local
+Chrome had exposed a false ~30.8-second p95: event-driven one-shot redraws were
+separated by user-idle time, but the old collector treated the gap as a dropped
+frame. Cadence now continues only when the previous frame reported a scheduled
+successor RAF. The focused contract test passes 19 active cases (1 skipped),
+typecheck passes, and a corrected visible repro with two isolated redraws
+returns zero cadence samples/null percentiles. This confirms recorder behavior,
+not a production performance result.
+
+At exact notes-inclusive candidate `e86230ac70de5aa34f206d7d6c0cf65561d4274e`,
+the native `/ptr/` production build passed with Node 22.22.3 / npm 10.9.8 and
+`DEPLOY_BASE=/ptr/`. Payload write/check and independently rechecked read-only
+Warpkeep-Live mirror planning passed; exact hashes and scope are in the local
+operations record and PR #374 snapshot. This handoff refresh is documentation-
+only. The final exact head and refreshed build/mirror receipt are recorded on
+PR #374; regenerate them after any further tracked change.
+
+The full native suite result remains at pre-fix code/test commit
+`4350ae7a7c190bf65c5515cbb229e5b5485778b4`: 692 files passed / 1 skipped,
+12,582 tests passed / 97 skipped, 847.76 seconds. It has not been rerun after
+this DEV-only source change. Rebuild the exact notes-inclusive candidate in
+native WarpkeepRunner and update the PR #374 exact-head receipt. The public
+Alpha root returned HTTP 200 and `/ptr/` HTTP 404 in a direct check at 07:08
+CEST. September remains a no-Actions period; no Actions workflow or status was
+queried, dispatched, rerun or used. Keep the PTR sealed and resume hosted
+verification only on or after 1 October.
+
+## Current continuation — 30 September 2026, 06:02 CEST (04:02 UTC)
+
+PR #374 remains open and unmerged against unchanged main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. It contains the signed 0.4 candidate
+on fix/g001-census-admission-proxy, including reviewed changes from still-open
+PRs #375–#378. Do not merge their older heads separately. Read PR #374 for the
+current signed candidate SHA and its exact-head build and mirror-plan receipts.
+
+The candidate game and test code is code-equivalent to signed commit
+4350ae7a7c190bf65c5515cbb229e5b5485778b4; subsequent changes are release notes
+only. The full native Linux suite passed at 4350ae7a: 692 files passed / 1
+skipped; 12,582 tests passed / 97 skipped; exit 0 in 847.76 seconds. It used
+Node 22.22.3, npm 10.9.8, SpacetimeDB 2.6.1, the pinned offline YAML fixture
+and umask 0022. A deterministic impossible-PID fixture removed the previously
+observed parallel PID-reuse flake.
+
+The disposable full-stack browser probe passed on code-equivalent source
+`566d2728` with Windows Node 22.23.2 and SpacetimeDB CLI 2.6.1. It exercised
+six direct-menu viewport profiles, City Mill construction/completion,
+discounted Lumber Camp construction, hard-reload persistence, four-Worker
+dispatch/recall/settlement, re-entry and failure-recovery seams. It used a
+temporary local database and synthetic identity; this is not owner PTR
+acceptance or physical-device evidence. Exact scope and outcome are in the
+[local operations record](../../evidence/0.4.0/local-operations.md).
+
+The last Keep/gameplay change is f289c3adf65f7afed8b21059ac3231ea721db571.
+Focused Keep UI, accessibility and placement suites passed 70/70. A 36-case
+Windows Chrome synthetic capture had no horizontal overflow, network-boundary
+violation or cleanup issue, and rendered WebGL in the 844×390 all-buildings
+case. Portrait and landscape captures were inspected. One CSP sandbox warning
+per document remains a synthetic QA review item. These results are not
+actual-owner PTR, physical-phone, production-network or performance acceptance.
+
+Exact-head native `/ptr/` build results are recorded in PR #374. The
+[local operations evidence](../../evidence/0.4.0/local-operations.md) also
+retains the preceding exact-build receipt. The RealmMapScreen chunk remains
+677.80 kB raw / 188.23 kB gzip.
+
+The latest direct status check at 06:02 CEST found the Alpha root at HTTP 200
+and /ptr/ at HTTP 404. Sealed launch remains disabled: package version 0.3.43,
+Pages deployment approval false, G001/G002/PTR identities unset and PTR
+presentation disabled. No merge, provider write, public Pages write or 0.4
+publication has occurred.
+
+No GitHub Actions workflow, run, check or status was queried, dispatched, rerun
+or used during September; development pushes use [skip actions]. On or after
+October 1, resume hosted exact-head Verify and the established signed sequence:
+source-only M1, exact-M1 native prepare/check, generated-only M2, exact-M2
+Verify, fresh G001 preservation, sealed G002 readback, approved PTR
+publication/readback, actual-owner journey and physical-device acceptance.
+Keep Alpha available and G002 admissions closed.
+
+## Superseded continuation — 30 September 2026, 04:23 CEST (02:23 UTC)
+
+The Keep layout source reviewed here is signed commit
+`f289c3adf65f7afed8b21059ac3231ea721db571` on
+`fix/g001-census-admission-proxy`, with PR #374 still open. This checkpoint's
+documentation commit changes no game source; PR #374 records the exact current
+head and its final build receipts. The reviewed feature commits from #375–#378
+remain present in #374; do not merge older feature heads separately.
+
+The existing Keep screen now uses a two-column short-landscape layout at
+761–960 CSS pixels wide and at most 500 pixels tall. Resource/status/navigation
+content stays beside the scene, controls keep 44-pixel minimum targets, an open
+inspection panel stacks below the scene, and the canvas is capped at 180 pixels
+with a 144-pixel minimum. This is presentation work only; it changes no Realm
+authority, interactions, building rules, or resource behavior.
+
+On the exact layout source, `npm run typecheck` passed and the Keep screen,
+accessibility and placement UI suites passed 70/70. Windows Chrome 154 captured
+all 36 synthetic desktop, portrait, landscape, loading, placement, construction,
+completion, fallback and reduced-motion cases with stable source, 0 horizontal
+overflow, no network-boundary violation, WebGL in the 844×390 all-buildings
+case, and verified browser cleanup. The landscape and 390×844 portrait captures
+were visually inspected. These are DEV fixtures, not production gameplay or
+physical-phone acceptance. The capture retains `reviewRequired: true` because
+each document reports the QA CSP sandbox warning (`sandbox-script-origin-tokens`);
+the raw browser text is intentionally not retained. No capture error or boundary
+violation occurred.
+
+At 04:20 CEST the public Alpha root returned HTTP 200 and `/ptr/` HTTP 404.
+Sealed-launch preparation still reports package `0.3.43`, Pages approval false,
+unset G001/G002/PTR identities and disabled PTR presentation. No provider write,
+merge or public release occurred. Do not query, dispatch, rerun or use GitHub
+Actions during September; keep `[skip actions]` on repository pushes. After
+October 1, resume the exact-source verification and signed publication sequence
+only with the owner's direction. Physical-phone performance, production PTR
+gameplay and owner acceptance remain open.
+
+The retained exact-source capture is
+`artifacts/keep04-qa/windows-run-qt9Ty7/`; its report explicitly distinguishes
+render capture from performance or device acceptance.
+
+## Superseded continuation — 30 September 2026, 03:48 CEST (01:48 UTC)
+
+The release candidate's game source is signed commit
+`4613bd04904050ab80e91b4e5eae2e6062da79b4` on
+`fix/g001-census-admission-proxy`. PR #374 remains open and mergeable against
+unchanged `main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; this continuation
+only refreshes release documentation. Its commit list already contains the
+reviewed source commits from #375 (menu), #376 (castle film), #377 (sealed G002
+soundtrack), and #378 (Greater Realm biome trees).
+Do not merge or cherry-pick those feature branches separately while #374
+contains their exact commits; reassess their open PRs after #374 lands. No
+GitHub Actions workflow, run, check or status was queried, dispatched, rerun or
+used during September. Development commits retain `[skip actions]`.
+
+The full native Linux suite passed at code-equivalent source `1b333d0e`:
+692 files passed / 1 skipped; 12,582 tests passed / 97 skipped. The exact
+candidate at `7d12e016` also passed the disposable full-stack browser
+playthrough: six menu viewport profiles, synthetic sign-in and Terms
+continuity, City Mill and discounted Lumber Camp construction, hard-reload
+persistence, Worker recovery and resource dispatch/return. No production
+identity, data or service was used by that playthrough.
+
+The exact `/ptr/` production build passed at `4613bd04`, including typecheck,
+runtime assets, production exclusions, public-boundary, Farcaster, sealed-launch
+preparation, license and file-size checks. The source-bound payload manifest
+SHA-256 is
+`8da0b8ad506b757eedd8bdd2d55b6e2f72b991197c487aca8b55b4df7c5cf004`. The
+read-only mirror plan against `Warpkeep-Live/main@b6afe92` preserves 341 Alpha
+entries, targets 800 PTR entries, removes none and hashes to
+`82abc6cacb6dc62e688f03ddb34bf445d15657f21c7ff867f8b2cc93993528fd`.
+
+A direct top-level Chromium preview of the exact production `/ptr/` output
+rendered the 0.4 menu and loaded its 3D scene. After it settled, the cold
+loopback preview recorded 53 same-origin resources and 3,833,259 encoded body
+bytes (1,818,372 JavaScript, 1,797,980 GLB, 124,420 PNG and 92,487 CSS); local
+transfer size was 3,849,159 bytes including response overhead. The navigation
+load event was 2,736 ms on this machine. The server was uncompressed and had no
+network shaping; these figures are a local asset baseline, not phone or public
+network performance. See the [menu resource baseline](../../evidence/0.4.0/menu-production-local-performance.md).
+
+The public root remains HTTP 200 and `/ptr/` HTTP 404. Sealed-launch
+preparation reports package `0.3.43`, `pagesDeploymentApproved: false`, unset
+G001/G002/PTR identities and disabled PTR presentation. No merge, provider or
+public write, or deployment occurred. The documented `Warpkeep-Live` Pages
+publication is a release operation, so keep it paused under the owner's
+September no-Actions instruction. Resume exact-head hosted verification and
+the signed publication sequence after the pause. Physical-phone performance
+and owner PTR acceptance remain unverified.
+
+The exact-head build and receipts below are ignored local outputs. A temporary
+measurement script existed only in ignored `dist` on the loopback preview; the
+next clean production build removes it. Regenerate exact-head output and
+receipts after this handoff update is pushed. The Linux build owner remains
+`/home/warpkeep/Warpkeep-0.4`; do not build through the Windows-mounted
+`node_modules` in WSL.
+
+## Superseded continuation — 30 September 2026, 03:08 CEST (01:08 UTC)
+
+The reviewed Windows checkout, GitHub branch and idle native release checkout
+are synchronized at signed commit
+1b333d0e56629266223dc090f37d87ea880672ce on
+fix/g001-census-admission-proxy. PR #374 remains open against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32; PRs #374–#378 remain open. No
+GitHub Actions workflow, check, run or status was queried or used during
+September. Development commits carry the Actions-skip marker.
+
+The exact native full suite passed at source 1b333d0e: 692 files passed /
+1 skipped, 12,582 tests passed / 97 skipped, exit 0 in 849.11 seconds.
+Environment was UID 1000 warpkeep, Node 22.22.3, npm 10.9.8, SpacetimeDB
+2.6.1 and the verified offline YAML input
+008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91. A first
+run with umask 077 failed 62 file-mode assertions because that mask changed
+deliberate 0644 rejection fixtures into 0600. The affected focused canary
+authority suite then passed 25/25 with normal umask 0022, and the full suite
+passed with 0022. These were test-environment failures, not source defects.
+Negative-path Git tests printed malformed-object diagnostics for their
+temporary fixtures; a post-run fsck of the actual checkout exited 0 with only
+dangling commits reported.
+
+At exact source 1b333d0e, the native Linux /ptr/ production build, typecheck,
+runtime and production asset integrity, production exclusions,
+public-boundary scan (3,350 tracked paths / 1,907 entries), Farcaster
+integrity, sealed-launch preparation, license policy and file-size policy
+passed. The payload is 446 files / 138,994,282 bytes; payload manifest
+d75d95af2f4f717834fe1338ecfe62edfe277cc97cdd7ecbbc8d98e9f084e26e,
+content manifest fb040b483ab42a982801c6735f08b96dd0e491db2f4d36f1d957e1acd08189b
+and root HTML 1a4fab449bea72b777630cc12ab304f7b167036eca2604183e032d3c0ad81539.
+The read-only mirror plan against Warpkeep-Live main
+b6afe92e7b09197b1578d992103ac3c8f916d8ad preserves 341 Alpha entries,
+targets 800 PTR files, removes zero obsolete paths and hashes to
+76415981696deb8e1cc74297625c1fcb857986208fc0b40313f7f5ee781b931f.
+
+The production root remains HTTP 200 and /ptr/ HTTP 404. Sealed-launch
+preparation still reports package 0.3.43, Pages approval false, unset G001,
+G002 and PTR identities, and disabled PTR presentation. No merge, provider
+mutation, public write or deployment occurred. The 677.80 kB
+RealmMapScreen chunk (188.23 kB gzip) remains; physical-phone performance is
+unverified.
+
+One initial WSL build attempt used the Windows-mounted development checkout
+and stopped before Vite because its shared node_modules only contained the
+win32-x64 esbuild binary. No dependency tree or source was changed. The
+documented native ext4 checkout at /home/warpkeep/Warpkeep-0.4 has the Linux
+dependencies and is the build owner. This documentation-only checkpoint
+changes source identity; after its push, regenerate exact-head build and
+ignored receipts there. Keep PTR sealed and continue without Actions in
+September.
+
+## Superseded continuation — 30 September 2026, 02:25 CEST (00:25 UTC)
+
+Before this documentation-only refresh, Windows, GitHub and native
+WarpkeepRunner were clean and synchronized at signed candidate
+0fc189cf2126b0f283f01f042ed5ab41549b6b81 on
+fix/g001-census-admission-proxy. PR #374 remains open against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32; PRs #374–#378 are open. This
+continuation uses no GitHub Actions during September: no workflow, check,
+run, status or hosted gate is queried, dispatched, rerun or used.
+
+The full native Linux suite evidence remains tied to tested code
+11b2ccbf3b809a44afdbfb47bf5c8d07d3061c1c: 692 files passed / 1 skipped,
+12,580 tests passed / 97 skipped. The later QA-controller code change at
+570112ade8b95c3bccb50f87fc2fe06a2121caf0 passed its focused browser-probe
+tests 5/5 under Node 22.22.3 / npm 10.9.8. Subsequent commits through 0fc
+are documentation-only. No fresh browser capture or physical-phone test was
+performed.
+
+At exact source 0fc189cf, the native /ptr/ production build and typecheck,
+runtime and production-asset integrity, production exclusions,
+public-boundary scan (3,350 tracked paths / 1,907 scanned entries),
+Farcaster integrity and sealed-launch preflight passed. The payload contains
+446 files / 138,994,282 bytes; payload-manifest SHA-256
+fb22fa1a356e6704bfac1850b4ab95b58599cffa551f2c924595fd25759b58e6,
+content-manifest SHA-256
+36d7e2cb950665e0259f68ebc0e311a946cf4a131f52bdfa3dca46ed2276c02e and root
+HTML SHA-256 dd60c63d2ddcb77be4058ddb13a2210114960db1d3124aa246bc3391b82862b0.
+The read-only plan against Warpkeep-Live main at
+b6afe92e7b09197b1578d992103ac3c8f916d8ad preserves 341 Alpha entries,
+targets 800 PTR files, removes zero obsolete paths and hashes to
+5aef11f8fbcd36338914dabb7b821a711375d0c71e08a5104bd9df2c7cfbdb49.
+
+The public root is HTTP 200 and /ptr/ is HTTP 404. Release preflight remains
+sealed: package version 0.3.43, Pages approval false, live realm identities
+unset and PTR presentation disabled. No merge, provider/public write or
+deployment occurred. The 677.80 kB RealmMapScreen chunk (188.23 kB gzip)
+remains a known load-cost concern; physical-phone performance is unverified.
+Continue local QA and exact-source release preparation without Actions in
+September. Keep PTR unpublished until the release gates and owner/device
+acceptance are satisfied. The 0fc build and mirror receipts are ignored local
+outputs; regenerate them after each subsequent source-changing commit.
+This documentation refresh changes the notes-only source identity; rerun the
+exact-source build and regenerate receipts at its pushed head.
+
+## Superseded continuation — 30 September 2026, 01:21 CEST (23:21 UTC)
+
+Windows, GitHub and native `WarpkeepRunner` are clean and synchronized at
+signed candidate `bd0bb0f96bfce6357f4859e47b5035b786204b39` on
+`fix/g001-census-admission-proxy`. PR #374 remains open against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; the open game PR inventory remains
+#374–#378. No Actions workflow, check, run or status was queried, dispatched,
+rerun or used during September.
+
+The full native Linux root suite passed on code commit
+`11b2ccbf3b809a44afdbfb47bf5c8d07d3061c1c`; current `bd0bb0f9` changes only
+release notes. On UID 1000 `warpkeep` with pinned Node 22.22.3 / npm 10.9.8 and
+native SpacetimeDB 2.6.1 it passed with exit 0: 692 files passed / 1 skipped,
+12,580 tests passed / 97 skipped in 1,065.37 seconds. The first invocation
+lacked the local CLI path and failed two tests with `spawnSync spacetime
+ENOENT`; adding the repository's pinned Node directory to `PATH` and setting
+`SPACETIME_BIN=/home/warpkeep/.cache/warpkeep-0.4-local-toolchain/spacetime-2.6.1/spacetime`
+fixed the environment. The corrected full run passed with no source changes.
+Keep this explicit native environment for future WSL root-suite runs; do not
+invoke Windows `spacetime.exe` from WSL.
+
+At exact notes-inclusive source `bd0bb0f9`, the `/ptr/` production build,
+typecheck, runtime and production asset integrity, production exclusions,
+public boundary (3,350 tracked paths / 1,907 scanned entries), Farcaster
+integrity, licenses, file-size checks and sealed-launch preflight passed. The
+payload contains 446 files / 138,994,282 bytes; manifest SHA-256
+`7454a1010308fc3f76b760c278d0364fdb44c05ef242e8bfcc42919c51714eef`, content
+manifest SHA-256
+`38bea726003a48a996afffb37812d6f786b8f25b9081623696c8ab72b725a83e`, root
+HTML SHA-256
+`74a649ed8f6bd0d3748b9ffddfc2bb99796bb8e39877ed85a88faae4563eebc1`.
+Read-only mirror planning against `Warpkeep-Live/main@b6afe92` preserves 341
+Alpha entries, targets 800 files, removes zero and hashes to
+`a80140759c1ca448132fb7b60aac7e8dfdc5d01b780d378782bf8f160a050974`.
+
+The root remains HTTP 200 and `/ptr/` HTTP 404; no Pages or other production
+write occurred. Package 0.3.43, Pages approval false, unset live realm
+identities and disabled PTR presentation keep launch sealed. Vite warns that
+`RealmMapScreen` is 677.80 kB (188.23 kB gzip); physical-phone performance is
+not established. After this notes-only push, rerun the exact-head `/ptr/` build
+and regenerate ignored delivery receipts. Keep #374 open and PTR unpublished
+through September 30; after October 1 confirm the owner's current direction
+before hosted Verify, then continue M1/M2, preservation, sealed readback, PTR
+publication and owner/device acceptance. The ignored build, payload manifest
+and mirror plan were regenerated at exact `bd0bb0f9`; refresh them again after
+this notes-only update is pushed.
+
+## Previous exact `/ptr/` candidate build — 30 September 2026, 00:16 CEST (22:16 UTC)
+
+Windows, GitHub and native `WarpkeepRunner` are clean and synchronized at
+signed candidate `6e2b9ff9e7bfa40d7bdb00091d068e2075a7da7d` on
+`fix/g001-census-admission-proxy`; PR #374 remains open against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. A read-only remote-ref check
+confirmed GitHub has the same candidate. The runtime/gameplay source is
+unchanged from the previously recorded candidate.
+
+Pinned Linux Node 22.22.3 / npm 10.9.8 completed the full production `/ptr/`
+build with the exact source SHA and `umask 077`. TypeScript, runtime and
+production asset integrity, production exclusions, public boundary (3,350
+tracked paths / 1,907 scanned entries), and Farcaster integrity passed. The
+payload contains 446 files / 138,994,282 bytes; manifest SHA-256
+`54cfdb1dd63219ca5b311c80000c8bec729d638f6f5341d858f79813205604b2`, content
+manifest SHA-256
+`952492547e7ee10ed48de2502c25618fe7c65e2c2d046f8e32ff58ee7e42a733`, and
+root HTML SHA-256
+`b994e6f1660cddc1ffffd725b98091213887126322a44ae4095aa3b1d2bf944c`.
+Build-info embeds source 6e2b9ff9 and version 0.4.0-ptr.1. License and
+tracked file-size policies passed. Checked-in release state remains disabled:
+package 0.3.43, Pages approval false, G001/G002/PTR identities unset and PTR
+presentation disabled. The build retains the 677.80 kB RealmMapScreen chunk
+warning; actual-phone performance is not established.
+
+Read-only mirror planning against clean Warpkeep-Live `main`
+`b6afe92e7b09197b1578d992103ac3c8f916d8ad` passed: preserve 341 Alpha-root
+entries, target 800 files, remove zero obsolete paths. WSL needed an
+invocation-scoped exact-path Git ownership exception and `core.autocrlf=true`
+because the checkout lives on the Windows mount. See the development workflow
+for the recovery command. The stable ignored payload manifest has been
+refreshed locally and checked. The mirror plan remains read-only; regenerate
+both receipts after the notes-inclusive source commit.
+
+The production root returned HTTP 200 and `/ptr/` HTTP 404. No Actions,
+provider/public writes, merge or deployment occurred. Keep the September
+pause in force; after October 1, confirm owner direction before hosted Verify,
+then continue exact M1/M2, preservation, live readback, PTR and owner/device
+acceptance. This checkpoint's notes commit changes source identity; build and
+regenerate receipts again at its pushed head.
+
+## Exact candidate browser-integration continuation — 30 September 2026, 00:04 CEST (22:04 UTC)
+
+Windows, GitHub and the clean native `WarpkeepRunner` checkout match signed
+candidate `4123d3dd961b3653b4303275f5d5f15ab23e58a5` on
+`fix/g001-census-admission-proxy`; PR #374 remains open against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Commit 4123 changes only the Linux
+headless-browser test launch and its contract test. It opts Linux headless
+Chrome into SwiftShader; it does not disable Chrome's sandbox or change game
+rendering. No gameplay source changed.
+
+`tests/renderedWebglBrowserProbe.test.ts` passed 45/45 on the pinned Linux Node
+22.22.3 checkout. The Windows Node 24.19.0 run passed 44 tests with one
+platform-specific skip. Pinned Gitleaks 8.30.1 scanned the single outgoing
+commit (365 bytes); no leaks were found. The complete local full-stack browser
+probe passed on Windows Node 24.19.0 / npm 11.7.0, Chrome 154.0.8037.58 and
+SpacetimeDB 2.6.1. It covered six responsive menu profiles, synthetic
+authentication and Terms continuity, City Mill completion, discounted Lumber
+Camp construction, reload persistence, a four-phase Worker recovery, private
+read failure/visibility cases, 10,000 local Realm cells, four-resource
+dispatch/recall/settlement/return and the visual aggregate. Its database and
+identity were disposable synthetic fixtures. This is not actual-owner PTR,
+physical-phone or performance acceptance. Probe-owned Chrome, SpacetimeDB and
+Vite processes were cleaned up.
+
+WSL recovery path: run native commands with `wsl -d WarpkeepRunner -u warpkeep`;
+the distro otherwise starts as root and Chrome refuses to launch with its
+sandbox enabled. Do not add `--no-sandbox`. On this image,
+`/usr/bin/google-chrome` is a symlink rejected by executable attestation; set
+`WARPKEEP_QA_CHROME=/opt/google/chrome/chrome` to use the attested file. With
+those corrections, Linux unit tests pass, but the full emulated 3× portrait
+browser probe still stops on a software-OpenGL GPU-stall diagnostic. Do not
+silence or generalize warning filters to force a pass; the supported Windows
+full-stack run above passed. See the development workflow's browser recovery
+note before repeating this lane.
+
+No GitHub Actions were queried, dispatched, rerun or used. No provider, public
+repository, merge, Pages or database writes occurred. The Alpha root remains
+HTTP 200 and `/ptr/` remains HTTP 404; live PTR still lacks seven Keep/Worker
+tables and five procedures, and sealed-launch approval is false. Keep #374
+open through September. After October 1, confirm the owner's current direction
+before exact-head hosted Verify, then follow the existing M1/M2, preservation,
+sealed-readback, PTR publication and owner/device acceptance sequence. The
+next notes-inclusive candidate needs fresh build and release receipts.
+
+## Previous exact-head source/build checkpoint — 29 September 2026, 21:51 CEST
+
+Windows and origin are clean and synchronized at signed candidate
+`7daea5f55e514f1c25e8b9a5e3258e3a5fa87729` on
+`fix/g001-census-admission-proxy`. PR #374 is open and reported mergeable
+against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The candidate also
+contains the code from open PRs #375–#378; keep those source PRs open for
+provenance during the September no-Actions pause.
+
+At exact source 7daea5f5, the pinned Linux Node 22.22.3 / npm 10.9.8 `/ptr/`
+build exited 0. TypeScript, runtime-asset integrity, production exclusions,
+the public boundary (3,350 tracked paths / 1,907 scanned entries), Farcaster
+integrity, license policy and tracked-file-size policy passed. The focused
+Keep04 document-policy and Windows-capture suites passed 91/91. Sealed-launch
+preparation correctly remains disabled: package 0.3.43, Pages approval false,
+G001/G002/PTR identities unset and PTR presentation disabled.
+
+The build payload contained 446 files / 138,994,282 bytes. Its manifest SHA-256
+was `17e6f60ce7610dde8d5bc51ca00d6b81f715d82de1a219c855648b5e707b90f3`; its
+content manifest SHA-256 was
+`5941b9fc65625f0fe264a349362e790fd7c3c5977d2a8708263885ce8554c4b2`; and its
+root HTML SHA-256 was
+`27e5004b41d16c968683871af6de416b18360a53b3b5c111cc3c082d9a7e804b`. The
+independently checked read-only plan against clean Warpkeep-Live
+`b6afe92e7b09197b1578d992103ac3c8f916d8ad` preserves 341 Alpha-root entries,
+targets 800 generated paths, removes zero obsolete files, and hashes to
+`5293912d89646974247b570a3c0964d586cc6305a5a10e6d4fb12d1ba0a4b6b1`.
+
+The public Alpha root returned HTTP 200 and `/ptr/` returned HTTP 404. The
+candidate has not been deployed. No GitHub Actions, provider writes, public
+repository writes, merge or PTR publication occurred. The notes-only commit
+below requires a fresh stamped build and regenerated receipts at its pushed
+head before publication. Physical-phone performance and owner PTR acceptance
+remain unverified; no production performance claim is made. See the latest
+[next-work checkpoint](next-work.txt), [live delivery status](../../operations/0.4.0-live-delivery-status.md),
+and [local operations evidence](../../evidence/0.4.0/local-operations.md).
+
+## September no-Actions exact-head release continuation — 29 September 2026, 21:11 CEST (19:11 UTC)
+
+The signed G001 test-fixture fix 7aa95148a1837f767cec7249d20fdb201bb665b2
+and notes-only checkpoint b7c1b5224340806ced542d96c93d31e0c220794c are on
+fix/g001-census-admission-proxy, with PR #374 open against signed main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. The runtime/product source is
+unchanged after 7aa. No GitHub Actions were queried, dispatched, rerun or used;
+no provider mutation, public-repository write, merge or PTR publication
+occurred.
+
+The remaining privileged preflight failure was a fixture mismatch: it supplied
+a fixed current-run title, while the checked-in workflow run-name is operation
+plus source commit. After correcting the fixture, the workflow-evidence suite
+passed 118/118 and the native Linux preflight suite passed 104/104 against the
+prepared candidate, including all 97 root-gated cases and the G001 success
+path. The simulated GitHub transport is GET-only and the test confirms there
+are no private writes. The ordinary native Linux suite passed on product
+source 2f1cc066: 692 files passed / 1 skipped; 12,579 tests passed / 97
+skipped.
+
+The documented local assembler prepare and independent check both passed at
+development source 2f1cc066. Candidate
+release-workspace-d2953d97bf5117d8ec29c0b2991657b8, transaction
+48bcb949e37f411bc7968dfe054cf998: 102 generated outputs; 3,350
+source/candidate files checked; 3,248 preserved; 624 compiled bundle inputs
+and 7 recovery inputs. Journal SHA-256
+cb0a22b59e6ce6c7394e031b861ededa9170f55b7e70b0c1fc45ad7d54098954; generated
+family 7cc6fc1d4c6492100ddf3c3639a625a2a0009f532c338d488e891eb0b9f7c041;
+closure a6990b37d837e2d9450013e8606d7299166f6158c6b55a450040ac15a9ad75c1;
+scanner edebf17145ef78a7ff921041dcc5b5916c94de10a522bd87dbe21461849e1e71.
+finalReleasePrepared remains false; this is development preparation, not M1
+or deployment authority.
+
+At signed source `7a5f0ef04a69ec12eeb7b7d89af3904d3cd337ba`, the pinned native
+Node 22.22.3 / npm 10.9.8 `/ptr/` production build passed TypeScript, runtime
+asset verification, production exclusions, public boundary (3,350 paths / 1,907
+entries) and Farcaster integrity. Payload: 446 files / 138,994,282 bytes;
+manifest SHA-256 `6bc83b4235e62b3c2cb022c6c572195af1a29b7af2fee7136988e36d333b8950`;
+content manifest SHA-256
+`e223e894f3e01c00509f7eb9ab9f663f09aa76942dff1ba0bdc20c948e2e4150`. The
+read-only plan against Warpkeep-Live@b6afe92 has SHA-256
+`20c81e4b6e2c4d4042ba71ffa8b63e16c563cadb08051a3d5823dd0bbaf53728`:
+341 Alpha-root entries preserved, 800 target files and zero obsolete generated
+files. The PTR host chunk is 108.81 kB / 33.54 kB gzip; RealmMapScreen remains
+677.80 kB / 188.23 kB gzip. Sealed-launch remains in preparation: package
+0.3.43, Pages approval false, live realm IDs unset and PTR presentation
+disabled.
+
+The local release store had 205 retained run directories before this work;
+prepare/check added two retained runs. Historical and incomplete records remain
+intact by design; no automatic pruning occurred. About 1.1 TB remained free.
+No new Desktop file, sibling backup or archive was created; the existing
+next-work note is updated in place. Do not merge #374 or publish the PTR in
+September. After October 1, confirm owner direction before hosted verification
+and exact M1/M2 release gates.
+## September no-Actions continuation — 29 September 2026, 17:46 CEST (15:46 UTC)
+
+Signed product commit `53c2bc42eeb98e5b896b08db249bbfee9e2807ea` is synced to
+the Windows development checkout and GitHub branch
+`fix/g001-census-admission-proxy`; PR #374 remains open against signed main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. It clarifies the empty Keep's
+first-return guidance: check City Mill costs, gather shortages with idle Workers
+in parallel, and spend only Realm-confirmed returns. It changes no economy or
+Worker rules. No GitHub Actions were used; keep the PR open and do not publish
+PTR or write `Warpkeep-Live/main` during the September pause.
+
+`Keep04Screen.test.tsx` passed 39/39 and `npm run typecheck` passed on this
+source (Windows Node 24.19.0 / npm 11.7.0). Guarded Chrome 154 capture
+`windows-run-A0VUGC` is stable at the exact source: 36 synthetic cases, 32
+WebGL and four intended fallback, zero horizontal overflow or guard violations,
+and verified Chrome cleanup. Manual 390×844 review confirms the updated copy
+and resource-location action fit in the first-journey card; the construction
+name and progress remain visible in the active-build view. Single render
+snapshots of all six level-five sites are within the current draw/triangle caps,
+but are not workload or percentile measurements. One `browser-log-security`
+warning remains classified only as a bounded document warning for each case;
+the raw message was not retained, so review is still open. The capture uses a
+desktop RTX 3080 Ti and a synthetic fixture, not a phone, production build,
+owner session or performance acceptance. The exact 53c2 `/ptr/` production
+build has not been rerun after this copy-only change; rebuild before final
+release freeze.
+
+The prior exact `/ptr/` production build is source `4e73261f`: 446 files /
+138,994,239 bytes, manifest SHA-256
+`f42b355ba042d912a10b3d47bfa8cfbcd70c1de25ac1e08bf52ee30a3e1393af`, content
+manifest SHA-256
+`c01eb7a7e786b045b46930269e68e1f2d6e4099c8e269ffe3e023fe4c4640741`. The
+read-only live-root plan preserves 341 Alpha entries, targets 800 files and
+removes zero obsolete files. These receipts predate 53c2 and do not attest its
+production payload.
+
+Read-only PR inventory at 15:39 UTC found no new Warpkeep code PR beyond #378;
+Warpkeep #374–#378 remain open. Relevant asset proposals #37–#41 remain open;
+older draft asset PRs #36, #29 and #28 are outside this 0.4 intake. A fresh
+HTTP read returned 200 at `https://warpkeep.com/` and 404 at `/ptr/`; the
+existing Alpha is available and 0.4 is not published. After October 1, resume
+with current owner direction, exact-head hosted Verify, final source-bound
+receipts, live readback, owner PTR play and physical-phone evidence.
+
+## September no-Actions continuation — 29 September 2026, 17:12 CEST (15:12 UTC)
+
+Signed product-source commit `29e94dfa3ca396dcc75f74b4b63edc996971e888` is
+synced across the Windows checkout, origin and native Linux WarpkeepRunner on
+`fix/g001-census-admission-proxy`. PR #374 remains open against signed main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. This checkpoint adds release notes
+only; final-head receipts are regenerated and checked after that sync. No
+GitHub Actions were queried, dispatched, rerun or used during September;
+source commits carry `[skip actions]`.
+
+The candidate includes the menu from #375 and castle-film action from #376.
+Signed commit `53aa334d` integrated #377's Genesis 002 soundtrack. Its exact
+runtime file is 4,539,823 bytes and uses the requested official-game path; the
+asset record keeps its unresolved source terms explicit. G002 remains sealed
+and inaccessible, so the new score does not open an entry path or affect the
+PTR/G001 Lowlands selection. The v3 tree catalog and 40 runtime models from
+#378 are present (2,738,208 bytes). The candidate loader prefixes assets with
+the configured deployment base and clears rejected requests from its cache so
+transient fetch failures can retry. The exact-path and retry regressions are
+covered in `tests/greaterRealmBiomeTreeAssetLoader.test.ts`.
+
+Shipping validation found that the checked-in Pages payload boundary rejected
+the newly approved G002 M4A. Signed fix `29e94dfa` now admits only the exact
+`audio/warpkeep-genesis-002-theme.m4a` path and includes it in the manifest
+fixture; unrelated M4A files remain rejected. The four focused PTR, payload,
+mirror-plan and tree-loader files pass 39/39 on pinned Linux Node 22.22.3 and
+native SpacetimeDB 2.6.1.
+
+The complete native Linux suite passed on immediate predecessor `53aa334d`
+before that release-validator-only fix: Vitest 4.1.11, Node 22.22.3, npm
+10.9.8 and native SpacetimeDB 2.6.1; 692 files passed / 1 skipped and 12,579
+tests passed / 97 skipped, exit 0 in 932.26 seconds. Raw output contained 15
+`context canceled` messages and existing React `act(...)` warnings, but no test
+failed. The subsequent change is limited to the exact payload allowlist and
+its regression fixture; its affected tests and the PTR build passed at 29e94.
+
+At exact source `29e94dfa`, the `/ptr/` production build passed TypeScript,
+runtime-asset checks, production exclusions, the public-boundary scan (3,350
+tracked paths / 1,907 scanned entries), Farcaster integrity, file-size policy
+and license policy. The payload contains 446 files / 138,994,239 bytes. The
+read-only mirror plan against clean `Warpkeep-Live@b6afe92` preserves 341
+Alpha-root entries, targets 800 files and removes zero obsolete paths. These
+ignored local receipts are regenerated and checked after this notes-only sync
+so they bind to the final checkout. The existing `RealmMapScreen` chunk warning
+remains 677.80 kB raw / 188.23 kB gzip.
+
+The exact-head sealed-launch verifier reports package `0.3.43`, Pages approval
+false, G001/G002/PTR identities unset and PTR presentation disabled. A fresh
+HTTP check returned 200 for the public root and 404 for `/ptr/`; no 0.4
+publication occurred. Keep #374 open and do not write `Warpkeep-Live/main` or
+publish PTR during September. Remaining gates are source-bound live release
+receipts and readback, owner PTR acceptance, review of the privacy-safe browser
+diagnostic, and physical-device performance. Resume hosted Verify only after
+the September pause ends.
+
+### PR intake status
+
+The current open main-repository PRs are #374–#378. #375/#376 code is already
+in the candidate, #377 is integrated while G002 stays sealed, and #378's v3
+models are present with the base-aware/retryable loader behavior. Keep those
+source PRs open for provenance; do not merge older heads separately. No newer
+Warpkeep PR was open at the last inventory. Warpkeep-Assets PRs #37–#41 remain
+separate source archives and are not publication approval.
+
+## Previous September no-Actions continuation — 29 September 2026, 15:56 CEST (13:56 UTC)
+
+Product source 65b3d6cd37d0a0dc4435c37e8276440f60f6bfa5 remains the tested
+candidate on fix/g001-census-admission-proxy. Windows, origin, the clean idle
+WarpkeepRunner checkout and open PR #374 match signed head
+8cdf8967c96897ea9c3b512b9d9b77f2a2feffdf against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. PR #374 is not a draft. No GitHub
+Actions were queried, dispatched, rerun or used during September.
+
+The product change frames existing rear and side forest bands with a
+single-geometry, three-instance shallow bank and adds two units of scenic-camera
+room. Tree count, support geometry and game authority are unchanged. Five focused
+Keep04 suites passed 116/116, TypeScript passed, and a guarded Chrome capture
+covered 36 synthetic cases over four viewport profiles with no guard violation,
+overflow or cleanup failure. Synthetic evidence does not establish phone
+performance or owner acceptance. One privacy-safe browser-log warning per
+document remains under review; RealmMapScreen is 677.80 kB raw / 188.23 kB gzip.
+
+The full native Linux suite was rerun from exact checkout head 8cdf8967 as
+UID 1000 warpkeep, with Node 22.22.3, npm 10.9.8 and native SpacetimeDB 2.6.1.
+Command: npm test -- --reporter=dot. Vitest 4.1.11 completed in 871.42 seconds
+with exit 0: 692 test files passed / 1 skipped; 12,577 tests passed / 97
+skipped; no test failed. The raw output still contained nine context canceled
+messages, but the completed process and test summary were successful. This clean
+repeat supersedes the earlier exit-1 run, whose cause was not isolated. The
+isolated ptrProductionExistingUpdateContinuation suite passed 37/37 and native
+ptrRealmBackend passed 15/15. The prior run using Windows spacetime.exe from WSL
+remains invalid cross-OS evidence; its two environment-specific failures remain
+documented.
+
+At exact head 8cdf8967, pinned Node 22.22.3 / npm 10.9.8 DEPLOY_BASE=/ptr/
+production build passed TypeScript, asset integrity, production exclusions,
+the public-boundary scan (3,347 tracked paths / 1,902 scanned entries) and
+Farcaster integrity. Payload: 445 files / 134,453,821 bytes; manifest SHA-256
+188cdb42c41309199ca6faa357d3e25809c889fe2bddd1c2aa78ceaf2c15b1ec; content
+manifest SHA-256 1121505aef6c8beb8a03d67298d1be0912c4adefcee6dc6c7beeb6f5311f44fd.
+The read-only mirror plan against Warpkeep-Live parent
+b6afe92e7b09197b1578d992103ac3c8f916d8ad preserves 341 Alpha-root entries
+(manifest SHA-256 7699d03b70c901e4fb8453b8b515af03376d398bf79e9eabea1c85f6e303c3ef),
+targets 799 files and removes zero obsolete generated paths. Plan SHA-256:
+a848eccfa559e74082c3198747b0e38f40a60a4f7cc2b7300fd523cf36686bdc. These
+ignored receipts are local preparation evidence, not publication approval.
+Regenerate them after this documentation checkpoint for the exact final head.
+
+The exact-head preparation verifier, run as the checkout owner warpkeep UID
+1000, reports package 0.3.43, Pages approval false, G001/G002/PTR identities
+unset and PTR presentation disabled. A fresh direct HTTP check returned 200 for
+the public root and 404 for /ptr/. No 0.4 publication occurred. Keep PR #374
+open and continue local exact-source work without Actions during September.
+Remaining release evidence includes sealed G001/G002/PTR receipts and live
+readback, actual owner PTR acceptance, physical-device performance and review
+of the browser diagnostic. The full test suite now passes locally.
+
+### Read-only provider and incoming PR check
+
+At 12:31 UTC, authenticated SpacetimeDB CLI 2.6.1 listed the account's three
+production targets: G001 `c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e`,
+sealed G002 `c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194`,
+and PTR `c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e`.
+Read-only `describe` returned 56/49/140 tables, reducers and types for G001;
+23/8/35 for G002; and 24/10/49 for PTR. This verifies account access and that
+these database schemas are present. It does not establish source equality,
+live row-level seal/activation state, PTR atlas finalization or owner
+provisioning. The checked-in release binding still lacks the receipts that
+authorize these identities, so keep its identities unset and make no database
+writes until those proofs are verified.
+
+The open PR inventory contains #375, #376, #377 and #378 alongside #374.
+PR #375's menu and #376's castle-film commits are already ancestors of the
+candidate. PR #378's current head `394df3c6ba69900ddc881c4c4b1e5d6bcd2aa1d6`
+was cherry-picked into the candidate as signed commit `758d655b`; the original
+OID is therefore not an ancestor, but its v3 tree code and assets are already
+present. PR #377 adds a soundtrack for sealed G002 and remains deferred because
+that realm has no player path in the owner PTR. Do not merge the older source
+PRs independently or add #377 audio to the PTR without a playable release
+scope.
+
+### Default-branch dependency alert triage — 29 September 2026
+
+GitHub's read-only Dependabot alert endpoint reports three medium `undici`
+alerts on default `main`: the root `package-lock.json`, Auth Bridge lockfile and
+Release Recovery lockfile. The candidate diff already raises jsdom's nested
+root copy from 7.29.0 to 7.30.0 and both service Miniflare overrides from
+7.29.0 to the advisory's fixed 7.29.1. These are default-branch alerts; the
+candidate locks are patched, and the alerts should close when the source reaches
+main. They are not a reason to merge during the September no-Actions window.
+
+### Full-suite Linux runner correction — 29 September 2026, 14:40 CEST
+
+The first full run used Windows `spacetime.exe` from WSL. It finished with 690
+passed test files, two skipped files and one failed file (12,569 tests passed,
+103 skipped, two failed). Both failures were in `ptrRealmBackend.test.ts`:
+generated bundle sections contained `wsl.localhost` absolute module paths,
+and cleanup hit a root-owned file emitted by the Windows CLI. With the cached
+native Linux SpacetimeDB 2.6.1 executable, that exact test file passed 15/15.
+The subsequent full run on pinned Linux at `92fb93d0` reported 692 test files
+passed / 1 skipped and 12,577 tests passed / 97 skipped, with no failing test
+listed, but Vitest exited 1 after printing `context canceled`. Do not mark this
+as a clean full-suite pass until the runner-level exit is explained or a clean
+full rerun succeeds. The slow isolated `ptrProductionExistingUpdateContinuation`
+suite passed 37/37 with exit 0 and no cancellation message. Keep the original
+cross-OS failure separate from the later successful run. The exact-head rerun at 8cdf8967 passed 692 files / 1 skipped and 12,577 tests / 97 skipped, exit 0 in 871.42 seconds. The earlier exit-1 cause remains unknown.
+
+## September no-Actions continuation — 29 September 2026, 13:26 CEST (11:26 UTC)
+
+Signed product source `0c9447e299c607f4685735cfe44b55c17ba77199` is
+synchronized across Windows, origin and WarpkeepRunner on
+`fix/g001-census-admission-proxy`. PR #374 against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` remains open and mergeable. No
+GitHub Actions were queried, dispatched, rerun or used during September.
+
+The Keep04 scene now frames the rear and both side terraces with its existing
+shallow static moat while leaving the front gate approach open. The indexed
+water surface and instanced shoreline remain non-pickable; support height,
+placement and game authority are unchanged. The focused scene, voxel-dressing
+and screen suites passed 97/97, and TypeScript build-mode checking passed.
+The local 390×844 synthetic keep preview shows the new side/rear water and
+clear gate spine. This is visual fixture evidence only, not a phone, owner or
+performance acceptance result. See [visual evidence](../../evidence/0.4.0/visuals.md).
+
+The exact `0c9447e299c607f4685735cfe44b55c17ba77199` `/ptr/` production build
+passed on pinned Node 22.22.3 / npm 10.9.8, including asset integrity,
+production exclusions, the public-boundary scan (3,347 tracked paths / 1,902
+scanned entries) and Farcaster integrity. Its full source SHA is embedded.
+The local payload has 445 files / 134,453,359 bytes (receipt SHA-256
+`a50ee4a4f6a4b928229184474510d1beb34c7a21ebe02a4d1076072dd33a45ba`; content
+manifest `c1db4e3d1cad702ee14c0597f38c9d9b1941a7ee2de1725c11010ae3f1ac95ea`).
+The mirror plan preserves 341 Alpha-root entries, targets 799 files, removes
+zero obsolete paths, and has SHA-256
+`ae12b90c68b6fb21200b9be3131193c2d74684ba341ad0e9ae00caa131c139cc`.
+These receipts are ignored local evidence, not publication approval; refresh
+them after this evidence-only update is pushed.
+
+The checked-in sealed-launch state remains Pages approval false, package
+`0.3.43`, G001/G002/PTR identities unset, and PTR presentation disabled. At
+11:12 UTC the live root returned HTTP 200 and `/ptr/` HTTP 404; no 0.4
+deployment occurred. Vite still warns on the retained G001 `RealmMapScreen`
+bundle (677.80 kB / 188.23 kB gzip); physical-device performance and the
+retained browser-log security warning remain open. Keep #374 and PTR
+unpublished through September 30; resume hosted Verify after September.
+
+## Previous September no-Actions continuation — 29 September 2026, 13:06 CEST (11:06 UTC)
+
+## Previous September no-Actions continuation — 29 September 2026, 12:40 CEST (10:40 UTC)
+
+Windows and origin are synchronized on `fix/g001-census-admission-proxy` at
+`0b44301c139356db866abcb3977d45662f7d0566`; WarpkeepRunner is clean at the same
+commit. PR #374 against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` is
+open and mergeable. The latest update is documentation-only after the fully
+tested product candidate `4e3d7cd`; no product code changed. No GitHub Actions
+were queried, dispatched, rerun or used during September.
+
+All four local root-test shards passed on code-equivalent predecessor
+`b23d67f48755bbc2ae98d3152ba2751b6b7da690`; separate lanes passed auth-bridge
+prepared workflow 164/164, production canary closure 3/3, PTR existing-update
+continuation 37/37, Greater Realm runtime release 36/36, and sealed production
+activation records 69/69. Shards 2 and 3 reported 3,210 passed / 48 skipped
+and 2,398 passed / 13 skipped; shards 1 and 4 passed, but their exact counts
+were not retained. Focused closure suites previously passed 227/227.
+
+The product candidate passed the disposable Windows full-stack browser probe
+on Node 22.23.2 with SpacetimeDB CLI 2.6.1. It covered six menu profiles,
+City Mill construction/completion, discounted Lumber Camp construction,
+reload persistence, Worker re-entry and retry seams, the local realm, all four
+resource-return paths and cleanup. See [`owner-journey.md`](../../evidence/0.4.0/owner-journey.md)
+for coverage and limits. The sealed-launch verifier passed and correctly
+reported `pagesDeploymentApproved: false`, package `0.3.43`, all live database
+identities unset and PTR presentation disabled.
+
+The exact `0b44301c139356db866abcb3977d45662f7d0566` `/ptr/` build passed with
+pinned Node 22.22.3 / npm 10.9.8, including TypeScript, runtime-asset and
+production-exclusion checks, the public-boundary scan, and Farcaster Mini App
+integrity. Its full source SHA is embedded in the build. The local payload
+receipt verifies 445 files / 134,452,795 bytes (receipt SHA-256
+`8e42f5af155325e435e4d5a76d89f8b0a96b1332ffbe4705a89baa63d4d16b31`, content
+manifest SHA-256 `44764b05dc7720a7ac0df0693eac91ed628731c16090c33eba56e02fd7c901a4`).
+The mirror plan preserves 341 Alpha-root entries, targets 799 files, removes
+zero obsolete generated paths, and has SHA-256
+`6dd57fb51abf7343a6cfbb75f4cd48bbe045c4abb39f7de0e4860f45985facdb`.
+Vite still warns that `RealmMapScreen` is 677.80 kB (188.23 kB gzip); actual
+phone performance has not been measured.
+These ignored receipts do not authorize publication. After this
+documentation-only checkpoint is pushed, rebuild and regenerate both receipts
+at its exact head.
+
+The live root returned HTTP 200 and `/ptr/` HTTP 404 at 10:40 UTC; no 0.4
+deployment occurred. Keep #374 open and PTR unpublished through September 30.
+Physical-device/performance acceptance, authenticated owner journey, actual
+route timing and review of the retained browser security warning remain open.
+Continue from the previous checkpoint below for unchanged release gates.
+
+## Previous September no-Actions continuation — 29 September 2026, 10:46 CEST (08:46 UTC)
+
+PR #374 against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32` remains open
+and is currently mergeable. The Windows checkout, origin branch and dedicated
+WarpkeepRunner checkout are synchronized at closure-refresh commit
+`3e0f24a084264134bc07a0d9ea2ab0336547d99b` on
+`fix/g001-census-admission-proxy`. No GitHub Actions were queried, dispatched,
+rerun or used as evidence during September. Keep the PR open and PTR
+unpublished through September 30; confirm the owner's direction before using
+hosted checks on or after October 1.
+
+Product commit `9e07f475` adjusts Cathedral upward-facing roof facets through
+cloned materials, preserving the violet vertical banners and emblem. Focused
+Keep tests passed 403 tests across 21 files with one existing skip. Stable-source
+local Chrome QA covered 36 scenarios (32 WebGL, four fallback), with no
+horizontal overflow or recorded violation. The capture is flagged for review
+because each page emitted one `browser-log-security` class warning; the capture
+did not retain raw diagnostics. This is synthetic visual evidence and does not
+establish physical-device acceptance or performance.
+
+The prepared deployment closure was derived from `9e07f475` and refreshed in
+`3e0f24a`: 1,250 protected members, 16 installed outputs, manifest SHA-256
+`2421cc7be91fdbf84da0ebe8d5c2b857bb3d2e5f575347cda1ce21a773609726`. Fresh
+process output comparison and prepared-deployment policy verification passed.
+Seven native closure and release-projection suites passed 227/227, including
+the full one-byte mutation sweep. The candidate remains development source;
+this closure refresh does not prepare or authorize deployment.
+
+The pinned Node 22.22.3 / npm 10.9.8 `/ptr/` production build previously passed
+at product source `9e07f475`, with TypeScript, runtime-asset validation,
+production exclusions, public-boundary scan (3,347 tracked paths / 1,902
+scanned entries), and Farcaster Mini App integrity. Its existing
+`RealmMapScreen` chunk warning is 677.80 kB / 188.23 kB gzip, and physical-phone
+performance remains unmeasured. Rebuild and regenerate both ignored local
+receipts at the final docs-inclusive pushed head after updating this checkpoint.
+At 08:46 UTC on September 29, the public root returned HTTP 200 and `/ptr/`
+returned HTTP 404. No publication occurred.
+
+The private prepared-receipt input remains unavailable; do not create a
+placeholder or another recovery key. G002 remains sealed. PRs #375 and #378
+are represented in #374; #376 and #377 remain outside pending film/mobile
+playback and G002 scope/rights decisions. After October 1, confirm direction,
+then resume exact M1/M2 preparation and verification, G001 preservation, sealed
+G002 readback, PTR publication/readback, and owner/device acceptance. Keep
+scheduled automation paused and do not create Desktop files.
+
+## September no-Actions continuation — 29 September 2026, 09:22 CEST (07:22 UTC)
+
+PR #374 is the open 0.4 source candidate against main
+786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32. The signed pushed head is
+8a292056ef33fc9e81ad9bab9f57be1d4f1f0e17 on
+fix/g001-census-admission-proxy; the native Windows checkout was fast-forwarded
+to this exact head. This September pass does not query, dispatch, rerun, or rely
+on GitHub Actions. Keep #374 open and PTR unpublished through September 30;
+confirm the owner's direction before hosted checks on or after October 1.
+
+At product-code commit 66d4e9cb, the existing completed economic craft signs
+in the Inner Keep were enlarged for mobile legibility along with their resource
+symbols and craft-level marks. They remain in the existing merged decoration
+layer with one draw; this adds no new gameplay mechanic or scene layer. Five
+focused suites passed 124/124, including Keep marker geometry, Keep scene,
+prepared closure projection, closure-family derivation, and its 1,249-member
+source graph.
+
+The closure generator returned 16 outputs for 1,249 protected members. A fresh
+Node process reproduced all 16 outputs and matched their installed bytes;
+manifest SHA-256 is
+5a8b1295765c4b7d1fb6dbd0a83062b260f3f45e40c196c2726df5620085a4fb.
+It corrected two stale protected-source pins: the updated Keep building source
+and an already-stale realm-choice stylesheet pin. The complete generated family
+was committed in signed commit 8a292056, pushed with [skip actions], and synced
+into the native checkout. The prepared-deployment policy verifier,
+checked-in sealed-launch verifier, and preparation verifier all pass on the
+clean commit. Sealed state remains package 0.3.43, Pages approval false,
+G001/G002/PTR identities unset, and PTR presentation disabled.
+
+On exact source 8a292056, pinned Node 22.22.3 / npm 10.9.8 passed the PTR
+production build: TypeScript, runtime assets, production exclusions, public
+boundary (3,346 tracked paths / 1,901 scanned entries), and Farcaster Mini App
+integrity. The existing RealmMapScreen chunk is 677.80 kB / 188.23 kB gzip;
+physical-device performance is unmeasured. At 07:22 UTC on September 29,
+https://warpkeep.com/ returned HTTP 200 and /ptr/ returned HTTP 404.
+No public file changed or deployment occurred.
+
+Payload and read-only mirror-plan receipts have not yet been regenerated for
+the candidate after this change. Rebuild and regenerate/check both at the final
+docs-inclusive pushed source; preserve all 341 Alpha-root entries in the plan.
+PRs #375 and #378 have their integrated work staged in #374. PRs #376 and #377
+remain outside because click-to-load film/mobile behavior and G002 scope/rights
+remain unresolved. Keep G002 sealed. After October 1, follow exact M1/M2
+preparation and verification, then G001 preservation, sealed G002 readback,
+PTR publication/readback, and owner/device acceptance.
+
+Do not use the DegenDogsRunner for production-admin operations. Keep scheduled
+automation paused, do not create Desktop files, and do not request or generate
+another recovery key.
+## Realm chooser readability fix — 29 September 2026, 08:23 CEST (06:23 UTC)
+
+A rendered local `/ptr/` check exposed an overlap that source-only layout tests
+missed: the realm-status tooltip floated above its card, obscuring the directory
+heading on desktop and the preceding card at 390x844. The tooltip now expands
+in the grid below its own card on hover or keyboard-visible focus. Its
+`aria-describedby` explanation remains attached to each realm. On the updated
+local preview, the portrait explanation and both actions fit without covering
+another choice; at 936x672 it stays within the expanded directory panel. The
+568x320 landscape panel remains scrollable through its existing rail.
+
+The four focused menu/realm suites pass 59/59 after this change. The first
+browser attempt used bare `vite preview` at `/ptr/`; Vite returned the SPA HTML
+fallback for prefixed CSS, JavaScript and image paths, which made the page look
+blank and unstyled. A temporary local prefix mount served the same built files
+with their correct MIME types. This was a preview-host path issue, not an app
+asset failure. The repeatable mount command is in
+[`0.4.0-local-release-preparation.md`](../../operations/0.4.0-local-release-preparation.md).
+
+The full root suite remains green on code/test commit
+`822a0f466e2f63fc28c9441445d857d4b864616d`; this follow-up adds only menu CSS,
+layout-test assertions and removal of a superseded tooltip-position test. After
+committing this checkpoint, rebuild `/ptr/` and regenerate/check the ignored
+payload and mirror-plan receipts at the pushed head. No hosted Actions were
+used, the source PR remains open, and the PTR remains unpublished through
+September.
+
+## Exact-head local PTR preflight — 29 September 2026, 08:03 CEST (06:03 UTC)
+
+At signed source head `2ff579960af776345bdce32eaf52888e87c582c9`, the pinned
+Node 22.22.3 / npm 10.9.8 `/ptr/` production build passed TypeScript, runtime
+asset checks, production exclusions, the public-boundary scan (3,346 tracked
+paths / 1,901 scanned entries), and Farcaster Mini App integrity. The existing
+large-chunk warning remains: `RealmMapScreen` is 677.80 kB / 188.23 kB gzip;
+the PTR host is 106.32 kB / 32.62 kB gzip. Physical-phone performance remains
+unmeasured.
+
+The ignored local payload receipt binds to source tree `927f667f27eb0f944c779378c9121bb6fe5735e0`:
+445 files / 134,451,503 bytes, payload-manifest SHA-256
+`9cdcdc749f7068327fc57c0bfe0350b7faf270f355b4b6193ccac6f4139a20ea`, and
+content-manifest SHA-256
+`3a8dbca4aa7a4921bdc4d38b28c10e5ffea88558365620086483b2ee7fbb6aea`. Both
+the payload write and its immediate check passed. The read-only local mirror
+plan passed against existing `Warpkeep-Live` parent
+`b6afe92e7b09197b1578d992103ac3c8f916d8ad`; it preserves 341 root entries,
+targets 799 files, and removes zero obsolete generated paths. Its local plan
+SHA-256 is `d8b27c99dffbd6427dead2717b16cd7b397109a536a142787c0a071026653753`.
+These ignored receipts do not publish or modify the public repository. This
+note-only source commit advances PR #374, so rebuild and refresh both local
+receipts after pushing it. No GitHub Actions were used; all September commits
+carry `[skip actions]`.
+
+## Local root-suite recovery — 29 September 2026, 07:36 CEST (05:36 UTC)
+
+The local candidate and PR #374 were synchronized at signed source `5bd2435b`
+when the full root test command completed in the dedicated `WarpkeepRunner`
+WSL distribution. Vitest 4.1.11 reported 693 files: 688 passed, 3 failed and
+2 skipped; 12,551 tests passed, 20 failed and 103 skipped. The 20 failures were
+fully accounted for across the three failing files.
+
+Six failures were missing local verification prerequisites: pinned SpacetimeDB
+CLI 2.6.1 was not on the test process PATH, and the expected offline YAML
+archive was absent from that checkout's Git metadata. The existing local tool
+cache and exact archive were provisioned without changing tracked files; the
+two suites then passed 19/19. Fourteen failures were immediate synchronous
+queries against inspection panels intentionally loaded through React
+`Suspense`. The tests now await their accessible panel or control; the isolated
+realm recreation file passes 59/59. These changes make the checks respect the
+UI's loading boundary without changing product behavior.
+
+The full suite was rerun on signed code/test commit
+`822a0f466e2f63fc28c9441445d857d4b864616d` after those corrections. Vitest
+4.1.11 completed in 888.36 seconds with no failures: 692 files passed, 1 was
+skipped; 12,577 tests passed and 97 were skipped. The run included the backend
+and YAML suites with their exact local prerequisites. This follow-up changes
+documentation only; the test evidence binds to exact `822a0f46`. The note
+commit advances the PR head, so rebuild `/ptr/` and regenerate both ignored
+receipts after pushing it. For future local runs, use `WarpkeepRunner` as
+`warpkeep` with pinned Node 22.22.3 / npm 10.9.8, expose the cached SpacetimeDB
+2.6.1 binary on `PATH`, and ensure `.git/yaml-2.9.0.tgz` exists with SHA-256
+`008fa204cb1ba700e0272ba045abbf09a6ffe63456e8146ba97cac6c2ad1ef91`. A
+missing CLI or archive is a runner setup failure, not evidence of a product
+regression. The earlier `DegenDogsRunner` root mode 0777 remains unsuitable for
+production-admin ancestor checks.
+
+No GitHub Actions workflow, check, run or status was used in September; commits
+continue to carry `[skip actions]`. This source-only verification work does not
+authorize publication. Keep PR #374 open and PTR unchanged until the existing
+owner, M1/M2, G001/G002, publication/readback and device-acceptance gates pass.
+
+## Exact-source PTR preflight — 29 September 2026, 06:46 CEST (04:46 UTC)
+
+At the start of this checkpoint, PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374)
+and the local candidate were synchronized at signed head `9cda070e`, against
+operational main `786c0b2b`. PRs #375, #376 and #378 are represented in the
+candidate; #375 and #378 remain open as source provenance, #376 remains open
+until #374 lands, and Genesis 002 soundtrack PR #377 is deferred while G002 is
+sealed and has no player path on the owner PTR.
+
+Node 22.23.2 / npm 10.9.8 passed the exact `/ptr/` production build, all runtime
+asset checks, production exclusions, the public-boundary scan (3,346 tracked
+paths / 1,903 scanned entries), and Farcaster Mini App integrity. The PTR host
+is 106.32 kB / 32.62 kB gzip; `RealmMapScreen` is 677.80 kB / 188.23 kB gzip
+with 16.88 kB gzip CSS. The G001 chunk warning remains, and physical-phone
+performance is unmeasured.
+
+The exact-source payload write and recheck passed for 447 files / 134,507,691
+bytes. The read-only plan against clean `Warpkeep-Live@b6afe92e` preserves 341
+Alpha-root entries, targets 801 files and identifies no obsolete generated
+paths. The ignored payload manifest and plan bind their full source SHA and
+must be regenerated after every source commit. The checked-in sealed-launch
+verifier confirms preparation only; the prepared-deployment policy passes in
+the supported Linux environment. Pages approval is false, package version is
+`0.3.43`, and G001/G002/PTR identities remain unset.
+
+The Linux-only policy verifier initially rejected the Windows checkout because
+it requires POSIX ownership and mode checks. It passed from a temporary Linux
+worktree under `/tmp`; that worktree and its temporary dependency install were
+removed. No GitHub Actions workflow, check or run was queried or used, and no
+public file changed. The public root returned HTTP 200 and `/ptr/` returned
+HTTP 404 at the latest direct check.
+
+This documentation update advances PR #374's source identity. After it is
+pushed, read the new exact head from both `git rev-parse HEAD` and GitHub PR
+metadata, then rebuild `/ptr/` and regenerate/recheck the ignored payload and
+mirror plan at that SHA before further release operations. The root test suite
+remains incomplete: the 761-file run was stopped after more than eight minutes.
+Keep hosted Verify pending during September and retain the M1/M2, G001/G002,
+PTR readback and owner-device acceptance gates.
+
+## PTR boundary and release-guard update — 29 September 2026, 06:26 CEST (04:26 UTC)
+
+At this checkpoint PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) was
+open against `main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`; GitHub reported
+signed candidate head `1c3504aafb513b414c065f73890b50b88183c934`. Product commit
+`fe8dc80f` removed the duplicate PTR admission path from `RealmMapScreen`, its
+PTR-specific props and authority selector, and left owner, anchor, bridge and
+gameplay-capability checks in `PtrGameplay04SurfaceHost`. This makes the PTR
+host the single renderer boundary and keeps the Genesis component API free of
+PTR session state. The route and host tests now render the same standalone
+component used by `WarpkeepExperience`.
+
+Pinned Node 22.22.3 / npm 10.9.8 passed TypeScript and six affected suites
+(175/175). The test exposed an unwrapped async viewport refresh; `d52b5868`
+wrapped the resize and microtask settlement so the PTR host suite runs cleanly.
+The full Pages live-receipt suite passed all 20 tests after `14f0f7e1` updated
+its closure expectations. The direct production route now protects both
+`PtrGameplay04SurfaceHost` and `GreaterRealmWorldScene`; only the lazy Genesis
+`RealmMapScreen` edge is excluded from the menu presentation source closure.
+
+The `/ptr/` production build passed on product head `d52b5868`, including the
+runtime-asset and Mini App checks, public-boundary scan and production output
+exclusions. Vite emitted `PtrGameplay04SurfaceHost` at 106.32 kB / 32.62 kB
+gzip, and `RealmMapScreen` at 677.80 kB / 188.23 kB gzip with 16.88 kB gzip
+CSS. The G001 size warning remains; physical-device performance is unmeasured.
+The repository-wide 761-file Vitest run was stopped after more than eight
+minutes. It had exposed the two stale closure assertions fixed above, but it
+did not produce a complete root-suite result.
+
+Signed candidate commit `1c3504aa` refreshes the prepared closure outputs. The
+family has 1,249 members and 16 generated files, manifest SHA-256
+`3901d1cd779ce4690179a1ade87a4a73fb8a9350e28e4acd6a8c743ee2ea2968`. A fresh
+independent Linux checkout reproduced every byte; checked-in sealed-launch
+verification and the prepared-deployment policy verifier passed. The release
+remains in `preparation`, with package version `0.3.43`, Pages approval false,
+G001/G002/PTR identities unset and PTR presentation disabled.
+
+No GitHub Actions workflow, run, check or status was used in September; all
+candidate commits carry `[skip actions]`. No public file changed and no
+deployment occurred. The September pause leaves hosted Verify pending and PR
+#374 open. After October 1, confirm the owner's direction before exact-head
+Verify and the M1/M2 sequence. This handoff edit advances the source identity,
+so rebuild the `/ptr/` distribution and regenerate both ignored delivery
+receipts from the final clean commit before any publication. Do not reuse the
+older payload/plan hashes or treat local preparation as deployment authority.
+
+## Current shipping continuation — 29 September 2026, 05:10 CEST (03:10 UTC)
+
+The PTR payload preflight exposed a real allowlist gap after PR #378's tree
+catalog landed: Vite copies
+`public/models/greater-realm/biome-trees/v3/manifest.json` into production,
+while the payload boundary allowed model GLBs only. The exact manifest path is
+now admitted; unrelated model JSON and metadata remain rejected. Signed code
+commit [`23a73814`](https://github.com/ael-dev3/Warpkeep/commit/23a738144b47b7c12d76f6e97ce9c53460fd9b33)
+contains this narrow fix and regression coverage.
+
+Pinned Linux Node 22.22.3 / npm 10.9.8 verification passed: the payload suite
+passed 14/14, and the payload, mirror-plan, publication-operator and postflight
+suites passed 38/38. The full `/ptr/` production build on this source passed
+TypeScript, runtime assets, production exclusions, public boundary and Mini App
+integrity. `RealmMapScreen` remains 680.25 kB raw / 188.87 kB gzip, above the
+600 kB warning threshold; physical-device performance is still unmeasured.
+
+For source `23a73814`, the exact `/ptr/` payload recheck passed with 447 files
+and 134,454,617 bytes (manifest SHA-256
+`42e92578ee6faef7196236e13ace950b2d791e96f735bfc31a0f85a4e3d66aa0`). The
+read-only mirror plan against clean `Warpkeep-Live@b6afe92e` preserves 341
+Alpha-root files, targets 801 total files and has zero obsolete generated
+paths; plan SHA-256 is
+`2ee10b910b8fa1825c18c94e791b31d8d470b10aac81f858b470a944c8cd6b8a`. These
+receipts are local candidate evidence only. This handoff update advances the
+source commit, so rebuild and regenerate both ignored receipts against the
+resulting exact head before relying on them for publication.
+
+At 03:09 UTC, `https://warpkeep.com/` returned HTTP 200 and `/ptr/` returned
+HTTP 404. No Pages file was changed or deployed. No GitHub Actions workflow
+was dispatched, rerun or queried during September; commits continue to use
+`[skip actions]`, leaving hosted required checks pending. 0.4 is not merged,
+deployed or accepted.
+
+## Previous shipping continuation — 29 September 2026, 04:54 CEST (02:54 UTC)
+
+PR #374 remains open against `main` at `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+Its current signed head is `53a8227c899f2b2abf9068817e11e46d836a2ee3`; the
+Windows checkout, fetched origin branch and GitHub PR metadata agree. The
+product-code source is `860370ab`; `53a8227c` adds only its verification
+checkpoint documentation.
+
+Both WSL checkouts used for shipping are now clean at the same exact head:
+`/home/warpkeep/Warpkeep-0.4` in the `WarpkeepRunner` distribution and
+`/home/warpkeep/warpkeep-closure-check-675d8294`. The latter is owned by the
+verification service account, so inspect it with a per-command
+`git -c safe.directory=/home/warpkeep/warpkeep-closure-check-675d8294` override;
+do not add this disposable path to global Git configuration. The former
+detached checkout's five superseded generated-closure edits were preserved in
+`stash@{0}` (`preserve superseded c1eb083 closure outputs`) before it was
+aligned to the candidate. No tracked edits were discarded.
+
+The September GitHub Actions pause remains in force. No workflow was
+dispatched, rerun, queried or used, and the pushed documentation update also
+uses `[skip actions]`. The skipped required checks keep #374 unmergeable. The
+public Alpha remains live while `/ptr/` is unavailable; Warpkeep 0.4 is not
+merged, deployed or accepted. Continue local review and preparation that do not
+depend on hosted checks; after October 1, confirm the owner's direction and
+resume the documented exact-head release gates.
+
+## Current shipping continuation — 29 September 2026, 03:30 CEST (01:30 UTC)
+
+Open PR #374 now contains signed integration commit
+[`758d655b`](https://github.com/ael-dev3/Warpkeep/commit/758d655b2344cfdf0d51e00bd3153754a97cc071)
+carrying the current tree implementation from PR #378, plus signed product fix
+[`be04c322`](https://github.com/ael-dev3/Warpkeep/commit/be04c3221aaffa880d329ad26e495b13c2fae84d).
+The tested product-code tree is `be04c322`; this handoff update changes only
+documentation. The v3 set covers all 20 tree-bearing biomes and contains 40
+profile-specific GLBs totaling 2,738,208 bytes. High selects near geometry;
+Balanced and Reduced select mobile geometry. Their per-biome instancing and
+existing upload budgets remain in place.
+
+Review found that the incoming catalog used domain-root model URLs, which
+would miss assets in the `/ptr/` app. The loader now prefixes Vite's deployment
+base and evicts rejected requests from its cache so a later view can retry.
+Focused Node 22.22.3 / Vitest 4.1.11 coverage passed 51/51 across four Greater
+Realm suites, including base-path resolution and a failed-then-successful
+mobile fetch. A source-SHA-bound `/ptr/` build at candidate head
+`5e3bc5b0ba39c86c0cf269007b7571ce1b0f23e7` verified TypeScript, asset
+integrity, production exclusions, public boundary (3,346 tracked paths / 1,903
+scanned entries), and Mini App integrity. The temporary worktree had no npm
+CLI, so the exact `scripts.build` command string was executed directly; its
+first attempt exposed a missing ignored auth-bridge dependency link, which was
+reused from the existing lock-matched checkout before the successful pass.
+
+The production bundle remains 680.36 kB / 188.79 kB gzip for
+`RealmMapScreen`, above the 600 kB warning threshold. Asset budgets and local
+build verification do not establish physical-phone performance. No PTR is
+available for owner play. Warpkeep-Assets PR #41's source-release attachment
+is still unpublished; Warpkeep's own runtime copies are hash-pinned and pass
+the build verifier without an external download. Retain #41 as the open
+long-term source archive/provenance follow-up.
+
+Payload and public-mirror plan receipts at a89798c5 predate the added tree
+models; they are stale and must be regenerated against the final candidate
+head. The last independent live check at 00:59 UTC saw Alpha return HTTP 200
+and `/ptr/` return HTTP 404. Warpkeep 0.4 remains unshipped.
+
+No GitHub Actions workflow was dispatched, rerun, or queried in September.
+The current source commits include `[skip actions]` so pushes do not start the
+repository's `push` or `pull_request` workflows. Those skipped checks remain
+pending and do not allow PR #374 to merge. After October 1, first confirm the
+owner's current direction, then require Verify on the exact final head. Continue
+with exact M1/M2 preparation and verification, G001 preservation, sealed G002
+readback, PTR publication, and owner/device acceptance.
+
+## Previous shipping continuation — 29 September 2026, 01:46 CEST (23:46 UTC)
+
+Product guidance at code commit
+[675d8294](https://github.com/ael-dev3/Warpkeep/commit/675d8294042786cea9e60bcae5ed52a73e12853f)
+names the City Mill in the first empty-keep step. The protected closure was
+regenerated from that code at 1,247 members, manifest SHA-256
+748bc2a0f7b81d34556a5f58c5cac854f7ee1b4b1d4fb4696bcb3f88430d2c3e.
+The closure verifier, closure policy and static prepared policy passed. Seven
+focused suites passed 133 tests. The prepared-workflow test file
+tests/authBridgeNotificationPreparedWorkflow.test.ts then passed all 164 tests
+in a verbose single-worker run (305.62 seconds). The suite is slow because it
+starts a fresh verifier process repeatedly and includes a 53-second per-member
+mutation check; it completed successfully. Combined evidence: eight focused
+suites and 297 passing tests, for code source 0754260d.
+
+A /ptr/ production build bound to source 0754260d929c36df885727f36a8fb23afbf3034e
+passed on pinned Linux Node 22.22.3, including type/project checks, runtime
+assets, production exclusions, the public-boundary audit (3,300 tracked,
+1,780 scanned) and Farcaster Mini App integrity. RealmMapScreen measured
+748.60 kB (202.67 kB gzip); phone performance is unmeasured.
+
+The payload write and recheck passed: 373 files, 131,571,432 bytes, manifest
+SHA-256 78f11be36d8cd96a8ddc14c24b64126927df4c597308133d1918fb08a47653c0.
+The read-only plan passed against Warpkeep-Live at b6afe92e: 341 existing Alpha
+root files preserved, 727 target files, zero obsolete generated paths, plan
+SHA-256 8553b07171f4d029dca251e6e986675c1ff46f7b911d5bcb596112fec210d805.
+No public file was changed or published.
+
+The exact-source Windows Chrome synthetic matrix captured 36 desktop/mobile/
+reduced-motion/landscape states with zero horizontal overflow. I inspected the
+390x844 empty-keep card; the City Mill copy and action fit. A bounded
+browser-log-security warning appeared for each document, without raw messages;
+the cause remains unclassified. No stderr warning/error or capture failure was
+reported, and owned Chrome cleanup passed. This does not establish physical
+phone usability or performance.
+
+At 23:32 UTC, the public root returned HTTP 200 and /ptr/ returned HTTP 404.
+No GitHub Actions were dispatched, queried or used in September. #374 remains
+open; #375, #376 and #378 are staged for provenance, and #377 remains deferred
+while G002 is sealed. The candidate plan is local and read-only. After October
+1, require exact-head Verify, M1/M2 preparation and verification, G001
+preservation, sealed G002 readback, PTR publication and owner/device acceptance.
+0.4 remains unshipped.
+
+## Shipping continuation — 29 September 2026, 00:52 CEST (22:52 UTC)
+
+The product code remains signed `2d6121cfc3c0693636c9e5e7d775625e5d7bff09`
+on the clean, synced candidate branch for open PR #374. This local checkpoint
+uses the latest exact candidate source before this documentation-only refresh,
+`b1afbb2f14eaf1221d11508eaf3f7c3f27d32aa9`. The `/ptr/` production build passed
+with Node 22.23.2, including TypeScript/build mode, assets, production
+exclusions, the public-boundary audit (3,300 tracked paths; 1,782 scanned
+entries), and Farcaster Mini App integrity. The `RealmMapScreen` chunk is still
+748.56 kB (202.65 kB gzip); no physical-phone performance result exists.
+
+The exact-source `/ptr/` payload write/check passed for 375 files and 131,724,169
+bytes (manifest SHA-256 `d399648c4f6af64579385f37f76d6d67552ea33620f49c0291c96ba38d093abb`).
+The read-only public mirror plan passed against clean
+[`Warpkeep-Live@b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad):
+it preserves 341 Alpha root files, plans 729 total files, and has zero obsolete
+generated paths. Preserved-root manifest SHA-256 is
+`32397edc2c9f7afed14f960f7d929b575dea00470a3368d7385cb4ead816832e`; plan SHA-256
+is `62de9bbbe7d1c7989df9464e83010ff258eefbaafcf6d1000d243d90334ba348`. This
+read-only plan is candidate evidence only; it did not change the public checkout,
+publish, or authorize deployment. For local planning, set
+`VITE_WARPKEEP_BUILD_SHA` to the exact source commit before running the payload
+verifier; without it, the verifier correctly rejects the generated build
+identity.
+
+At 00:52 CEST, the public root returned HTTP 200 and `/ptr/` returned HTTP 404.
+No 0.4 PTR is deployed or accepted. No GitHub Actions were dispatched, queried,
+or used in September. The Windows full suite targets 692 test files. After over
+ten minutes it still showed many failing-case markers and repeated
+`Greater Realm publish supervisor directory was not private` fixture
+diagnostics, so it was stopped before the aggregate report. Root causes remain
+unclassified; this is not a suite verdict. Focused native Linux release suites
+passed on the unchanged product-code source `2d6121cf`; the broad full-suite
+result remains pending a supported Linux run.
+
+The existing release order remains: after October 1, run final-head Verify and
+complete source review/integration, prepare and independently check exact M1,
+promote generated-only M2, verify exact M2, then perform G001/G002 readback,
+verified `/ptr/` publication, owner journey and mobile/performance acceptance.
+Until those gates pass, Warpkeep 0.4 is not shipped.
+
+## Latest release checkpoint — 29 September 2026, 00:27 CEST (22:27 UTC)
+
+The tested candidate code is signed commit
+[`2d6121cf`](https://github.com/ael-dev3/Warpkeep/commit/2d6121cfc3c0693636c9e5e7d775625e5d7bff09)
+on `fix/g001-census-admission-proxy`, pushed to open PR #374 against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Local, origin and PR #374 matched
+this code checkpoint. The following handoff refresh is documentation only.
+GitHub Actions remain paused for September; none were dispatched, queried or
+used.
+
+This checkpoint makes the first empty-keep journey name Food, Wood and Stone,
+call out Gold for City Goldworks, direct players to compare costs under
+Buildings, and tell them to send an idle Worker to gather what they lack. It
+does not change costs, yields, timers, routes, authority or commands.
+
+The protected deployment closure had fallen behind the code already integrated
+into the 0.4 candidate: six current files were absent. Regenerating the full
+closure family brings its count to 1,247 and manifest SHA-256 to
+`7f2a1b348b1549a97711e928e415256e5f4f94f843885e11f43191f55380b4bf`. The added
+members are the castle-film action/config/eligibility files and
+`src/greater-realm/biomeTreeGeometry.ts`. Native WSL scanner-backed policy
+verification passed on the exact signed source.
+
+Validation passed: the first-journey screen tests (39), local closure-family
+tests (7), closure inventory and B0 topology tests (39, one skipped), closure
+derivation tests (24, two skipped), native release projection and deploy-boundary
+tests (14), and the protected workflow suite (164). `tsc -b` and the full
+`DEPLOY_BASE=/ptr/ npm run build` also passed. The build verified 3,300 tracked
+paths and 1,782 scanned entries, plus the production asset/exclusion and Mini App
+checks. It continues to report the existing `RealmMapScreen` bundle at 748.56
+kB (202.65 kB gzip); physical-device performance is unmeasured.
+
+The checked-in sealed-launch verifier still reports
+`pagesDeploymentApproved: false`, with G001, G002 and PTR identities unset.
+At 00:27 CEST, the public root returned HTTP 200 and `/ptr/` returned HTTP 404.
+The 0.4 PTR is not deployed or accepted; a genuine owner journey, exact-M1/M2
+preparation and deployment readback, G001 preservation, sealed G002 verification
+and phone/performance acceptance remain. Keep the candidate PR open and continue
+signed `[skip actions]` checkpoints until hosted Verify resumes in October.
+
+## Previous release checkpoint — 28 September 2026, 23:47 CEST (21:47 UTC)
+
+The candidate code exercised here is signed source
+[`1b295b3d`](https://github.com/ael-dev3/Warpkeep/commit/1b295b3d2e57447485f0f581dafc65f0e8725304),
+which matched local, origin and open PR #374 before this documentation update.
+PR #374 remains open against main `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+GitHub Actions remain paused for September; none were dispatched, queried or
+used.
+
+The disposable full-stack browser probe passed under the existing Node 22.23.2
+runtime. It exercised six responsive direct-menu profiles, synthetic sign-in
+and Terms continuity, City Mill construction and completion, the discounted
+Lumber Camp with one Builder, hard-reload persistence, retained Realm camera
+and Worker presentation, fresh-process four-phase Worker re-entry, delayed and
+failing private reads with recovery, the 10,000-cell local Realm, and dispatch,
+recall, automatic settlement and return completion for all four resources.
+The test database, accelerated Worker timings and shortened first-building
+duration are disposable QA substitutions; this does not prove the real-route
+ten-minute target or an authenticated owner journey.
+
+At 390×844, rendered local review showed the first-return cue, resource cards,
+primary keep actions, City Mill progress and placement controls. This is local
+browser evidence, not physical-phone acceptance. The current production bundle
+measurement is 748.56 kB (202.65 kB gzip) for `RealmMapScreen`; phone performance
+remains unmeasured.
+
+At 21:47 UTC, `https://warpkeep.com/` returned HTTP 200 and
+`https://warpkeep.com/ptr/` returned HTTP 404. The Alpha 0.3.43 root is live;
+0.4 is not deployed or accepted. Continue local source work and signed,
+`[skip actions]` checkpoints through September. In October, final-head Verify,
+exact-M1 preparation/check, generated-only M2 verification, G001 preservation,
+sealed G002 readback, backend and PTR deployment/readback, and owner/device
+acceptance remain required.
+
+## Previous release checkpoint — 28 September 2026, 23:24 CEST (21:24 UTC)
+
+Signed source [`abe2fae2`](https://github.com/ael-dev3/Warpkeep/commit/abe2fae24f34ad1da76a952848fea5835c6e42e3)
+is pushed and synced to open PR #374 on
+`fix/g001-census-admission-proxy`. The PTR production build previously showed
+0.3.43 and opened Genesis 001's old patch notes. The packaged build identity
+now selects `PTR_RELEASE_VERSION` only when Vite's deployment base is exactly
+`/ptr/`; its footer and Farcaster diagnostic therefore show
+`ALPHA 0.4.0-ptr.1`, with the existing sealed 0.4 patch notes. The root build and
+package remain 0.3.43, preserving Genesis 001.
+
+The exact source closure was re-derived to 1,241 members with manifest SHA-256
+`57ea459bc8fbcde9f9c5e194e227990342ecf75e3d86c219294ec71db760ff3b`. The
+native ownership-bound closure verifier passed. Checked-in sealed-launch
+verification passed in Windows and Linux and correctly returned
+`pagesDeploymentApproved: false` with G001/G002/PTR identities unset. Native
+closure projection and manifest tests passed 27/27. Four focused Windows
+suites passed 204 tests with three skips. The full `/ptr/` production build,
+asset and production-exclusion checks, public-boundary audit, Mini App
+integrity, file-size policy and license policy passed. A 390×844 local browser
+preview showed `ALPHA 0.4.0-ptr.1` and the matching 0.4 notes. The large
+`RealmMapScreen` bundle remains 748.56 kB (202.65 kB gzip); physical-device
+performance is still unmeasured. An independent root-base production build
+and browser preview still show Alpha 0.3.43 and its original patch notes.
+
+No GitHub Actions were dispatched, queried or used during September. At 23:14
+CEST, `https://warpkeep.com/` returned HTTP 200 and `/ptr/` returned HTTP 404.
+This change repairs candidate identity only; it is not a PTR publication or
+owner acceptance. Keep #374 open. After the September pause, require exact-head
+Verify, reviewed source integration, exact-M1 preparation/check, generated-only
+M2 promotion, exact-M2 verification, G001 preservation and G002 sealed
+readback, backend deployment/readback, PTR publication and owner/device
+acceptance.
+
+## Previous release checkpoint — 28 September 2026, 22:41 CEST (20:41 UTC)
+
+The owner paused GitHub Actions for September; none were dispatched, queried or
+used. Before integration, signed local/origin/PR #374 matched `513dac09` on main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Signed merge
+[`3e135906`](https://github.com/ael-dev3/Warpkeep/commit/3e135906df7956426f61c3e6ff8d9bbd3753bf4c)
+integrates exact Warpkeep PR [#376](https://github.com/ael-dev3/Warpkeep/pull/376)
+head `d924e2e99e471add91f22e14db98be3a637eae9d` into candidate #374. This is
+candidate integration only. PRs #375, #376 and #378 remain open as provenance
+until #374 lands; their older source closures should not be merged separately.
+
+PR #376 adds the owner-commissioned castle-film action for the verified FID
+539854 record and narrow-screen castle-selection focus handling. The action is
+bound to the resolved castle identity, and stale selections cannot reveal it.
+Its module is lazy-loaded; the built JS is 3.02 kB (1.24 kB gzip), with 3.09 kB
+(1.03 kB gzip) of CSS. The 288,869,749-byte video stays in its versioned public
+release and loads only after the player opens. The release checksum matches
+`ASSETS-LICENSE.md`; no video enters the Warpkeep package. PR #377 remains
+deferred because G002 is sealed and no current player path can exercise its
+score in the owner PTR.
+
+The combined local suites passed 196/196 across 10 affected test files. The
+full `npm run build` passed build-mode typechecking, asset integrity, production
+exclusions, public-boundary and Farcaster Mini App checks. `npm run
+verify:file-sizes` passed. On signed merge `3e135906`,
+`npm run verify:sealed-launch` passed its checked-in phase and correctly
+returned `pagesDeploymentApproved: false`, with G001/G002/PTR identities unset.
+The build reports `RealmMapScreen` at 748.45 kB (202.64 kB gzip); continue to
+measure mobile load and physical-device performance. The earlier 18-case Keep
+render probe and 15-case rendered-WebGL matrix remain synthetic browser evidence.
+
+At 22:41 CEST, the public root returned HTTP 200 and `/ptr/` returned HTTP 404.
+No 0.4 PTR, authenticated owner journey, ten-minute real-route result or phone
+acceptance is claimed. Continue syncing the source and notes without Actions.
+After September, run final-head Verify, integrate the signed source, prepare
+and independently check exact M1, promote generated-only M2, then verify and
+complete G001/G002 readback, backend deployment, PTR publication and owner
+acceptance. The documentation-only sync following this checkpoint does not
+change runtime source.
+
+## Latest release checkpoint — 28 September 2026, 19:46 CEST (17:46 UTC)
+
+The owner directed this workflow to proceed without GitHub Actions during
+September. No workflow was dispatched or rerun for this checkpoint, and no
+hosted check status was used as evidence. The maintained branch
+`fix/g001-census-admission-proxy` is synced to PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374)
+at signed commit [`f0fcd1a0`](https://github.com/ael-dev3/Warpkeep/commit/f0fcd1a0a537ee4b4763f629ff5784f9226f962d),
+based on `main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. The source change
+refreshes `SEALED_LAUNCH_PACKAGE_STRUCTURE_SHA256` in
+`scripts/verify-0.4.0-sealed-launch.mjs` to `5cf98e7b…32a1367f`, matching the
+current root package structure. Local `tests/localPreparedSourcePins.test.ts`
+passed 25/25 and `tests/sealedLaunchVerifier.test.ts` passed 169/169. This is a
+protected/prepared-closure output: the correction still needs the workflow's
+fresh exact-source M1/M2 preparation after integration. It does not mean the
+prepared closure or release was accepted.
+
+On the isolated Linux test checkout, root shard 1 passed 4,105 tests (32
+skipped), shard 3 passed 2,398 (13 skipped), and shard 4 passed 2,543 (4
+skipped). Shard 2 initially exposed an environment setup issue: the pinned
+`spacetimedb/ptr` pnpm workspace was absent and its generated `dist` directory
+had the wrong owner. After installing with the lockfile and correcting only
+that disposable checkout's ownership, the affected
+`tests/ptrRealmBackend.test.ts` passed 15/15; shard 2 as a whole was not rerun.
+The five separately scheduled suites were not run in this continuation.
+`git diff --check` passed. A preparation attempt made before committing the
+source correction correctly rejected the dirty checkout with
+`SEALED_LAUNCH_CHECKOUT_INVALID`; it is recorded as pending exact-source
+preparation, not a product regression. The repository's separate native M1/M2
+sequence and hosted Verify remain required acceptance gates.
+
+Public status is unchanged: `https://warpkeep.com/` serves Alpha 0.3.43 and
+`https://warpkeep.com/ptr/` returns 404. Sealed launch remains in preparation;
+there is no accepted 0.4 PTR deployment. Keep #374 open during the September
+Actions pause. Continue independent local review and integration work, but do
+not merge or describe local evidence as a hosted-check waiver. See the
+[September workflow rule](../../engineering/development-workflow.md#temporary-github-actions-pause--september-2026).
+
+## Latest release checkpoint — 28 September 2026, 09:15 CEST (07:15 UTC)
+
+At this checkpoint, maintained branch `fix/g001-census-admission-proxy` and
+`origin` matched at signed source
+[`dd24abb`](https://github.com/ael-dev3/Warpkeep/commit/dd24abb135600295e3b0675c92088124a54aee9a).
+PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) is open against
+`main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Exact-head Verify
+[36389656795](https://github.com/ael-dev3/Warpkeep/actions/runs/36389656795)
+failed all 17 jobs before runner allocation. GitHub attributes this to failed
+account payments or the Actions spending limit; the jobs had no test steps,
+so hosted source verification has not run. The account owner must clear this
+gate and rerun Verify on the live exact PR head. This checkpoint's documentation
+updates advance that head; always resolve the pushed SHA before release work.
+
+The local Node 22.23.2 `/ptr/` production build and source-bound payload check
+passed on `dd24abb`: 369 files and 131,605,137 bytes. The local 390×844 Chrome
+capture reached model-ready with a visible canvas and no console warnings; the
+resource waterfall was 3,738,720 bytes, versus 9,516,527 bytes in the earlier
+capture. The castle and guardian source models are preserved unchanged; the
+optimized runtime files total 1,036,412 bytes, down from 6,814,140 bytes. This
+is synthetic local evidence, not physical-device acceptance.
+
+The read-only `/ptr/` mirror plan passed against public
+`Warpkeep-Live@b6afe92`: it preserves 341 current Alpha root files and
+describes a 723-file target tree. No public files or refs changed. The previous
+claim that delivery required the root path was stale; the checked-in planner
+and publisher support `/ptr/` while preserving the live root. Production still
+serves Alpha 0.3.43 at `/` (HTTP 200), while `/ptr/` is HTTP 404. The PTR is not
+deployed or accepted.
+
+PR #375 repeats the older menu source already staged in #374. #376's 288.9 MB
+castle film remains deferred pending mobile transfer/playback review; #377's
+Genesis 002 soundtrack remains deferred pending realm scope and rights review.
+Assets #38 stacks Genesis 002 audio on Assets #37 and remains deferred with
+that realm-scope decision. Re-inventory incoming PRs before integration.
+Resume with account billing and hosted Verify, then complete the documented
+exact-source M1/M2 integration, G001 preservation/readback, sealed G002
+verification, owner PTR deployment, mobile/performance checks and owner
+acceptance in order. Do not use the persistent privileged production runner as
+a substitute for hosted checks.
+
+## Shipping continuation — 28 September 2026, 06:15 CEST (04:15 UTC)
+
+PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) is still open against
+`main` (`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`), with no submitted review.
+The maintained checkout is clean and matches
+`origin/fix/g001-census-admission-proxy` at signed head
+[`0893cf4b`](https://github.com/ael-dev3/Warpkeep/commit/0893cf4b0ecd9b37e8cfb594606afb302819899f).
+The immediately preceding `/ptr/` production build and source-bound payload
+manifest write/check passed on that exact source; the build includes the source
+SHA and validates runtime assets, production exclusions, public boundaries and
+Farcaster integrity. Its payload contained 369 files (137,380,979 bytes).
+After the documentation-only update in this commit, regenerate the build and
+manifest against the resulting exact source head before any publication plan.
+
+Focused filesystem, payload and publication tests had 163 passes and four
+capability/platform skips; the mirror-plan suite passed all eight when rerun
+serially after one disk-contention timeout. The full local test/build evidence
+for the candidate is recorded below. Exact-head [Verify
+36376745041](https://github.com/ael-dev3/Warpkeep/actions/runs/36376745041)
+on `0893cf4b` failed all 17 jobs before any job step ran. GitHub's check-run
+annotation says recent account payments failed or the Actions spending limit
+must be increased. This is a runner-allocation failure, not a hosted source
+test verdict. Do not bypass the hosted gate; clear the account billing/budget
+issue and rerun Verify on the eventual exact final PR head.
+
+At 04:15 UTC, the production Alpha root returned HTTP 200 and
+`https://warpkeep.com/ptr/` returned HTTP 404. The checked-in sealed-launch
+verification remains in `preparation`, package version `0.3.43`,
+`pagesDeploymentApproved: false`, with no PTR database identity or activated
+production receipts. No public mirror mutation, 0.4 PTR deployment or release
+acceptance occurred. Do not merge PR #375 directly because its older menu
+branch is already staged in #374. PRs #376 and #377 remain open,
+separate candidates deferred by the recorded media-size, mobile, readiness
+and rights review; Assets #38 remains stacked on #37. Re-inventory both
+repositories and review any new PR before integration.
+
+Resume in order: clear GitHub Actions billing/spending limit, obtain a successful
+exact-head hosted Verify and review, complete remaining sealed-realm/native
+acceptance and PTR production bindings/receipts, prepare and verify the signed
+`/ptr/` publication, then get the owner's PTR acceptance. Preserve the live
+Alpha root throughout. See the release checklist for current public checks and
+the detailed gate sequence.
+
+## Shipping continuation — 28 September 2026, 05:29 CEST (03:29 UTC)
+
+PR #374 now carries a source-pinned GitHub Pages candidate path at `/ptr/`, so
+the 0.4 owner PTR can coexist with the Alpha at `/`. This supersedes the older
+root-replacement proposal below; never publish an earlier root-targeted plan.
+The versioned mirror plan records every existing Alpha generated/host file and
+its digest, builds only the PTR payload under `ptr/`, refreshes provenance
+documents, and pins the preserved-root inventory. The signed publication
+operator reads preserved blobs from the reviewed public parent, verifies the
+complete new tree and PTR fallback, and retains the exact-parent rollback. Live
+postflight verifies all PTR files, the Alpha index/404/Farcaster manifest and
+the root assets referenced by the Alpha HTML; it compares every preserved root
+file against the publication parent before network checks.
+
+The public `Warpkeep-Live` checkout remains unchanged at `b6afe92e`. Its current
+352-file Alpha tree is 124,665,064 bytes (118.89 MiB); the existing local dist
+was 124,859,424 bytes (119.08 MiB). The publication/postflight tree cap is
+320 MiB to fit the preserved root plus the payload's existing 150 MiB maximum.
+The candidate workflow is configured to build with `/ptr/` and binds its saved
+payload manifest and asset paths to that prefix; the separate sealed G002 lane
+retains its root base.
+
+Verification on this source passed the focused publisher/payload/postflight
+groups (**37 tests**), another selected payload/planner/config/sealed-launch run
+(**23 passed; unrelated cases filtered**), TypeScript build mode, Node syntax
+checks and `git diff --check`. The live root HTML's five application assets
+also pass the independent root asset parser. No public repository mutation or
+PTR deployment has occurred. After syncing this change, recheck GitHub's exact
+PR head and Verify; the most recent hosted run still stopped before runner
+allocation on the Actions payment/spending-limit gate. The PTR backend bindings,
+final source approval, live publication and owner PTR play remain pending.
+
+## Exact-head shipping checkpoint — 28 September 2026, 04:38 CEST (02:38 UTC)
+
+The maintained checkout and `origin/fix/g001-census-admission-proxy` were clean
+and matched signed commit
+[`4ceba245`](https://github.com/ael-dev3/Warpkeep/commit/4ceba245db011ea5d5c2b8e764a3ba340ed8a9b5).
+PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) remains open against
+`main` `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`, with no submitted review.
+The application checks below ran on exact source `feaade75`; `4ceba245` changes
+only the release notes. The outgoing documentation commit passed the pinned
+Gitleaks scan (8.58 KB, no leaks) and scanner-regression fixture (48 positives,
+95 negatives). Exact-head
+[Verify 36370609811](https://github.com/ael-dev3/Warpkeep/actions/runs/36370609811)
+on `4ceba245` then failed all 17 jobs before any step. GitHub's check annotation
+states that recent account payments failed or the Actions spending limit must
+increase. This is the same external runner-allocation gate, not a hosted source
+test result. This notes-only update will advance PR #374 again; recheck the new
+exact head and run, and do not merge until a successful hosted Verify and
+review are recorded.
+
+Local verification on the exact source completed successfully:
+
+- All four root-test shards passed: **12,138 passed, 201 skipped**. During the
+  initial concurrent run, one 10-second test timed out under CPU contention;
+  the isolated test and a serial rerun of its full shard both passed. This is
+  recorded as runner contention, not hidden as a clean first attempt.
+- The additional root workflow groups passed **309/309**. Auth-bridge checks
+  passed **502** tests; release-recovery passed **68**. Their dependency audits
+  reported no known vulnerabilities.
+- TypeScript, licenses, runtime-asset inventory, file-size, checked-in
+  sealed-launch, atlas-public-boundary, root/GitHub-Pages/subpath production
+  builds, and the primary SpaceTimeDB typecheck, **598/598** pure tests and
+  module build passed. The connected migration, import, relocation/rollback,
+  active-population/gathering, access-request, worker and admission-CAS
+  rehearsals passed. The schema fixtures through v18 built successfully.
+- The additive-migration proof printed a complete pass, but its combined
+  wrapper exited 1; a separate rerun of the database audit exited 0 and found
+  no known vulnerabilities. The wrapper's nonzero source was not isolated, so
+  retain it as an unresolved local-command anomaly rather than claiming every
+  aggregate command exited successfully.
+- The native sealed-existing-update contract passed **260 tests with one
+  platform skip** using its documented privileged entrypoint that drops
+  privileges for the test body; the extra native activation/receipt group
+  passed **156/156**. No host sudo policy was changed.
+- Gitleaks scanner regression passed (**48 positives, 95 negatives**) and the
+  full 667-commit Git history scan found no leaks. `npm audit` found zero
+  vulnerabilities; npm signature verification checked 249 packages and 74
+  attestations.
+
+GitHub exact-head Verify 36360727066 on `feaade75` and 36370609811 on
+`4ceba245` both failed all 17 jobs before executing a step. The latest
+runner-allocation annotation cites failed account payments or the Actions
+spending limit. This is an external billing gate, not a hosted source-test
+result. Do not merge or substitute the privileged production runner; the owner
+must clear billing/enable an Actions budget, then rerun Verify on the final PR
+head. The public Alpha root returned HTTP 200; `https://warpkeep.com/ptr/`
+returned HTTP 404. A `/ptr/` candidate build succeeds, but the current
+generated-only public-mirror publisher and verifier are pinned to `/` and the
+exact existing root tree. No 0.4 PTR has been deployed, and preserving Alpha
+requires a reviewed subpath delivery path or access to the intended hosting
+account. No owner PTR play, G001 preservation, G002 activation, or release
+acceptance is claimed.
+
+The latest PR inventory still shows #375, #376, #377 and Warpkeep-Assets #37,
+#38 open without submitted reviews; #38 depends on #37. Recheck exact heads,
+diffs, rights and hosted checks before any later integration. Keep the large
+film and G002 score deferred from the initial PTR candidate under the mobile,
+realm-readiness and rights criteria already recorded in the next-work brief.
+The tracked repository is the canonical local/GitHub note; create no Desktop
+copy or other project file while syncing this checkpoint.
+
+## Deployment and gameplay continuation — 28 September 2026, 01:55 CEST (27 September, 23:55 UTC)
+
+At the start of this check, local `fix/g001-census-admission-proxy` and GitHub
+matched signed head
+[`1f7872f0`](https://github.com/ael-dev3/Warpkeep/commit/1f7872f00dd214b8ec719295cf6a99a1c03d397f),
+with PR #374 open against `main` at
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Eight gameplay, renderer,
+resource-route, loop-rail and mobile-layout suites passed locally: **194/194**
+on Windows Node 24.19.0. This focused run is useful regression evidence, not
+the pinned Linux full-suite or exact-head hosted Verify. Exact-head
+[Verify 36359661370](https://github.com/ael-dev3/Warpkeep/actions/runs/36359661370)
+failed all 17 jobs before any step because GitHub rejected runner allocation on
+the account payment/spending-limit gate.
+
+A new read-only hosting check found that the current Cloudflare browser and
+Wrangler session can see one account, while the configured Pages request targets
+a different account and returns API authentication error 10000. Direct browser
+access to that target also returns Cloudflare's “page may not exist or you may
+not have permission” response. No project, DNS, Worker or deployment was changed.
+Do not use the currently selected account as evidence for production Pages
+access. The protected GitHub workflow may have separate provider credentials;
+its operations remain untested because GitHub did not start the jobs.
+
+The existing generated-only publisher and its manifest verifier pin the custom
+domain artifact to publication path `/` and validate an exact root tree. Using it
+for 0.4 would replace the live Alpha. The separate `/owner-canary/` entry is an
+operator/canary page bound to the shared Alpha configuration; it does not satisfy
+the playable 0.4 PTR. Keep the current Alpha at `/`. Before PTR deployment, either
+restore access to the correct Cloudflare account and implement its source-pinned
+subdomain, rollback and postflight route, or extend the reviewed public mirror to
+publish a verified `/ptr/` subtree while preserving and byte-verifying every
+existing root file. Preserve `https://warpkeep.com` as the login origin; test the
+subpath build and all same-origin auth, legal, asset and mobile routes before
+using it. Then require exact-source hosted Verify and owner PTR acceptance.
+
+The browser dashboard and local Wrangler account IDs disagree with the account
+target used by the configured profile; treat this as an access mismatch, not a
+missing Cloudflare project. Do not create another recovery key or publish to the
+wrong account. The existing PTR still requires owner authentication and the
+server-side sealed-launch bindings. No live 0.4 PTR or release acceptance is
+claimed.
+
+## Current continuation — 28 September 2026, 01:42 CEST (27 September, 23:42 UTC)
+
+The maintained `fix/g001-census-admission-proxy` checkout and GitHub ref match
+signed commit
+[`e48221bc`](https://github.com/ael-dev3/Warpkeep/commit/e48221bc411fc7675ecfb1f5ceef870cf84fd191).
+PR [#374](https://github.com/ael-dev3/Warpkeep/pull/374) remains open against
+`main` at `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+
+The 0.4 menu replaced the old GitHub link with the Farcaster community link,
+so the QA journey test's previous accessible name was stale. It now checks the
+current link's new-tab and referrer protections and confirms that mounting the
+local fixture causes no navigation. The focused Linux run passed all 50 tests.
+Earlier local checks on the same application source passed license, runtime
+asset, file-size and checked-in sealed-launch verification, TypeScript checks,
+and standard plus both GitHub Pages production builds. The full local four-shard
+root suite was not completed; do not represent it as a full-suite pass.
+
+Exact-head [Verify 36359580351](https://github.com/ael-dev3/Warpkeep/actions/runs/36359580351)
+on `e48221bc` completed with all 17 jobs failing before any step ran. GitHub's
+runner-allocation annotation again cites failed account payments or the Actions
+spending limit. This is not a source-test result. Hosted Verify must pass on
+the exact final PR head before integrating the source. The current Alpha remains
+separate; no live 0.4 PTR or release acceptance is claimed.
+
+Resume by resolving GitHub **Billing & plans**, then rerun exact-head Verify.
+After that, integrate PR #374 through its required review path, prepare and
+independently check the exact merged M1, promote only its generated M2, pass
+exact-main Verify and protected provider/preservation gates, and publish and
+accept the owner PTR. Keep #376 (large on-demand film), #377 (sealed G002 audio),
+and Assets #38 (stacked on #37) deferred under the existing mobile, realm-readiness,
+rights and hosted-check criteria. Re-inventory incoming PRs before integration.
+
+## Current continuation — 28 September 2026, 00:38 CEST (27 September, 22:38 UTC)
+
+The maintained checkout is clean and matched GitHub before this documentation
+refresh at signed source head
+[`5f67d36a`](https://github.com/ael-dev3/Warpkeep/commit/5f67d36a7c52da2d68ce46eea653fb80f221f477).
+PR #374 remains open against `main` at
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. Its exact-head [Verify
+36355948438](https://github.com/ael-dev3/Warpkeep/actions/runs/36355948438)
+completed at 22:38:28 UTC. GitHub's check-run API confirms all 17 jobs have
+zero steps and the failure annotation is: “The job was not started because
+recent account payments have failed or your spending limit needs to be
+increased.” This is account billing/runner allocation, not a source-test
+verdict. Local checks on the source head passed: 31 targeted tests, TypeScript
+project build, and the full rendered-WebGL browser probe (15 render cases,
+terrain fallback, Worker lifecycle/locomotion/occupancy, 25 journey checks,
+loopback LOD boundaries and aggregate fidelity). The direct-menu and Credits
+link expectations were corrected to match local versus commit-stamped builds
+and the single licensed Credits link.
+
+The owner reported a fresh QR scan login succeeded; the conversation clock
+observation was 22:17:54 UTC. This is the time the report was observed, not the
+untraced scan/exchange time. No new Worker trace, browser identity or served
+build hash is available. The detailed failure diagnosis and exact evidence
+limits remain in the [QR incident record](../../evidence/0.4.0/qr-auth-incident-2026-09-27.md).
+
+New open 0.4 candidates appeared and need review before integration:
+[Warpkeep #376](https://github.com/ael-dev3/Warpkeep/pull/376) adds a gated
+castle lyric-film action; [#377](https://github.com/ael-dev3/Warpkeep/pull/377)
+adds a Genesis 002 soundtrack while that realm stays sealed; and
+[Warpkeep-Assets #38](https://github.com/ael-dev3/Warpkeep-Assets/pull/38)
+archives that score, stacked on open Assets #37. At this checkpoint, #376 and
+#377 have no submitted reviews and their Verify jobs did not start under the
+same account billing gate. Assets #38 also has no review; its Verify/CodeQL
+checks failed before execution. Inspect actual diffs, rights/provenance,
+accessibility, mobile behavior and dependency order; do not treat PR prose or
+local author results as hosted approval. The user expects additional 0.4 PRs,
+so re-inventory both repositories before every integration decision.
+
+This docs refresh does not claim a live 0.4 PTR or release. A docs-only commit
+will advance the PR head, so the eventual passing Verify must match the final
+head exactly. Do not bypass it with the privileged production runner. After
+reviewing incoming PRs, resolve the account Billing & plans gate and resume
+the existing M1 → native proof → generated M2 → exact-main Verify → provider /
+preservation → owner PTR sequence below.
+
+## Incoming PR review — 28 September 2026, 00:50 CEST
+
+The current pushed docs head is signed
+[`4e8d8cf5`](https://github.com/ael-dev3/Warpkeep/commit/4e8d8cf5b3df09ddee81188c23ee53b265dad0d3);
+local and `origin/fix/g001-census-admission-proxy` match. Exact-head [Verify
+36356502820](https://github.com/ael-dev3/Warpkeep/actions/runs/36356502820)
+completed at 22:48:17 UTC. GitHub reports 17 jobs with zero executed steps;
+the failure is the same account payment/Actions spending-limit block. The
+public Alpha home still returned HTTP 200 at 22:50 UTC.
+
+Independent local checks were run against each unchanged PR head. Warpkeep
+[#376](https://github.com/ael-dev3/Warpkeep/pull/376) passed its five changed
+test suites (66 tests), `tsc -b`, and the full production build. Its remote
+film is 288,869,749 bytes and loads only after the user opens the player. Hold
+it outside the release candidate until mobile delivery cost and a poor-network
+playback experience are reviewed; hosted Verify has not run. Warpkeep
+[#377](https://github.com/ael-dev3/Warpkeep/pull/377) passed 23 audio tests,
+`tsc -b`, file-size/runtime-asset verification and the full production build.
+Keep it out of the initial PTR candidate while Genesis 002 is sealed: it adds
+no experience to the currently reachable realm, and the source's `made with
+suno` metadata does not establish ownership or service terms. Preserve the
+PR's narrow use record; do not claim an open or broader redistribution license.
+
+Warpkeep-Assets [#38](https://github.com/ael-dev3/Warpkeep-Assets/pull/38)
+correctly stacks on Assets #37; do not retarget or merge it before that parent
+lands. The archive manifests state unresolved/original terms, and both its
+Verify and CodeQL jobs stopped before execution on the account billing gate.
+Assets #37 also has no submitted review and its checks are blocked. Keep these
+asset changes separate from the reachable PTR candidate until their dependency,
+rights record and hosted checks are resolved. Vite's build warning about the
+existing ~748 kB realm screen chunk remains; #376 changes it by under 1 kB, so
+this is not a regression from that PR.
+
+These candidates have been reviewed for scope and locally validated where the
+game repo is available, but none is integrated or host-verified. Check for new
+PRs before any later decision. Keep the next release checkpoint exact-head
+aware because every docs commit also advances PR #374.
+
+## Previous release checkpoint — 27 September 2026, 21:58 UTC
+
+Local `fix/g001-census-admission-proxy` and GitHub match signed head
+[`8d20e2bb`](https://github.com/ael-dev3/Warpkeep/commit/8d20e2bbff8dea0a4a46cd2eacb289a70fdbba4e).
+PR #374 is open against `main` at `786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`.
+The mandatory [release checklist](../../operations/0.4.0-release-checklist.md)
+was refreshed on that head with the QR outcome, source-closure evidence,
+current gate and remaining release sequence.
+
+Exact-head [Verify 36353616339](https://github.com/ael-dev3/Warpkeep/actions/runs/36353616339)
+started at **21:58:12 UTC** on `8d20e2bb`. All 17 jobs failed before any step
+ran; the annotation says recent account payments failed or the Actions spending
+limit must increase. This is a runner-allocation failure and contains no source
+test verdict. Do not bypass hosted PR verification by running untrusted PR code
+on the production-admin self-hosted runner. Restore GitHub Actions billing,
+then rerun Verify on the exact final PR head before source integration. The
+current 0.4 source still needs reviewed main integration, exact-M1 native
+preparation/check, generated-only M2 promotion, exact-M2 Verify, protected
+provider/preservation checks and a live owner PTR before it can be called
+shipped.
+
+## QR authentication continuation — 27 September 2026, 21:50 UTC
+
+The owner reported a fresh phone QR scan and confirmed successful browser login.
+The conversation clock was read at **21:50:52 UTC** immediately after that
+report. The scan and exchange have no accompanying Worker trace, exact request
+time, browser identity or served build hash, so this is recorded as owner
+confirmation, not as an independently timestamped exchange. The prior
+failure's route timestamps, RPC edge probes, secret-only repair and causal
+confidence are detailed in the [QR incident record](../../evidence/0.4.0/qr-auth-incident-2026-09-27.md).
+
+At the start of this continuation, local `fix/g001-census-admission-proxy`
+matched its GitHub branch at `18935876b9bf1f3f655b9aaefec7de06f58b5d49` and
+was clean. PR #374 remained open against `main` at `786c0b2b`. Exact-head
+[Verify run 36352639028](https://github.com/ael-dev3/Warpkeep/actions/runs/36352639028)
+started at 21:41:20 UTC; all 17 jobs failed before any step ran. GitHub's
+annotation explicitly says recent account payments failed or the Actions
+spending limit must increase. This is an account-level runner allocation gate,
+not a source verdict. Do not bypass PR verification or send untrusted PR code to
+the production-admin self-hosted runner. The current 0.4 source still needs a
+passing exact-head Verify, reviewed main integration and a live owner PTR before
+it can be called shipped.
+
+## Prior checkpoint — 27 September 2026, 21:39 UTC
+
+The open [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) is on
+`fix/g001-census-admission-proxy`. Its latest gameplay/runtime source change is
+[`66a9724a`](https://github.com/ael-dev3/Warpkeep/commit/66a9724ae9c1e7dc16b01b5227a491415855305b).
+The Windows checkout and pushed GitHub ref matched at
+[`8dd3904b`](https://github.com/ael-dev3/Warpkeep/commit/8dd3904b5ffd70e2f81e5a730b281d97b53f4a4b)
+before this checkpoint's test correction and evidence update. The latest
+completed exact-head [Verify 36349486249](https://github.com/ael-dev3/Warpkeep/actions/runs/36349486249)
+on that source failed all 17 jobs before any job step ran. GitHub's failure annotation says
+recent account payments failed or the spending limit needs to increase. This
+run provides no source verdict. Do not call 0.4 shipped; the owner's playable
+PTR remains outstanding. Restore Actions billing in GitHub's **Billing & plans**,
+then require fresh successful Verify on the exact final PR head and exact merged
+main head.
+
+After another fresh scan, the owner reported successful sign-in at the
+**20:56:33 UTC conversation-clock observation**. The exact exchange time,
+browser and served build hash were not provided. This is an owner confirmation,
+not a new Worker trace; the full failure diagnosis and timestamp limits are in
+the [QR incident record](../../evidence/0.4.0/qr-auth-incident-2026-09-27.md).
+
+Local checks on this Windows host found and corrected one real test assumption:
+the reviewed menu closure removes obsolete title-screen files, so the complete
+current prepared manifest is 259,978 bytes, below the former 256 KiB limit and
+inside the current 512 KiB cap. The outdated assertion claiming the current
+family was above that old limit was removed; full canonical parsing, inventory,
+cap and digest assertions remain. On the available Node 22.23.2 runtime, the
+owning closure-derivation test now passes 24 tests (2 skipped), and the auth
+configuration, QR-panel and responsive-menu tests pass 69/69. The full
+production build, typecheck, asset checks, production exclusions, public
+boundary and Mini App integrity checks also pass. The available npm is 12.0.2,
+outside the repository's declared npm 10.9.8 line, so these are local checks,
+not exact pinned-toolchain acceptance.
+
+The broad local Vitest run on this Windows filesystem is not a Linux CI result:
+it reports POSIX-only failures for `/usr/bin/git`, `/bin/sh`, owner-only
+directory modes and symlinks, and an earlier unsharded run under unsupported
+Node 24.19.0 hit the worker heap limit. The Windows failures do not override the
+focused passes, but the full Linux Verify remains necessary once GitHub can
+allocate its hosted jobs.
+
+Reviewing the current built menu found its secondary tagline crossed the
+primary action in the 844×390 landscape screenshot. Signed source `66a9724a`
+hides only that tagline at widths of 600px or more and heights of 420px or less
+in landscape. A production-dist Chrome 154 capture at 844×390, 667×375,
+568×320 and 390×844 confirmed the three menu actions, 44px action/link targets,
+community link and WebGL canvas remained present, with no horizontal overflow
+or title-to-primary-action collision. The tagline remains visible at 568×320
+and in portrait. The responsive suite passed 13/13 and the production build
+and asset/boundary checks passed on code head `66a9724a`. Pinned Gitleaks 8.30.1
+found no leaks in the two exact outgoing commits, `5fad7332..66a9724a` and
+`66a9724a..9926f139`. This is local synthetic-browser evidence; it is not a
+physical-phone test or 0.4 PTR acceptance.
+
+The pre-0.4 Alpha 0.3.43 site remains online at
+[`warpkeep.com`](https://warpkeep.com/) through the public, generated-assets-only
+[`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live) repository. The
+latest signed public head [`b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad)
+passed [Pages build 36343178620](https://github.com/ael-dev3/Warpkeep-Live/actions/runs/36343178620).
+Live root, SPA fallback, owner canary and main asset matched the reviewed Alpha
+build from signed source
+[`5f77c3ce`](https://github.com/ael-dev3/Warpkeep/commit/5f77c3cec555823fd52b73c90080032867fc2ed4).
+The deployed Alpha preserves the bounded QR clock-lag repair and distinguishes
+privacy-safe QR failure classes. The owner QR sign-in succeeded at
+2026-09-27 19:06:14 UTC, before this new public build deployed; the sanitized
+bridge trace confirms session creation, but no frontend build hash was captured
+for that exact browser attempt.
+
+The owner's fresh phone-approved QR scan was traced through a sanitized Worker
+tail under **`warpkeep-production`**: challenge HTTP 201, followed by three
+exchange HTTP 503 responses after browser-binding verification. The route never
+reached `auth_epoch_resolved`, so Maincloud admission was not the cause of this
+failure. A disposable, syntactically valid but unauthorized SIWF proof also got
+a fast 503. From this Windows host, both expected RPCs accepted registry reads;
+a temporary Cloudflare edge preview instead saw dRPC return HTTP 429 repeatedly,
+while PublicNode and `https://mainnet.optimism.io/` returned valid registry
+reads. The preview had no production routes, bindings or secrets and was stopped.
+This is strong evidence that the primary RPC path was rate-limited at the edge.
+
+To restore the existing two-provider verifier without changing Worker code,
+production version `2b28a266-862b-45da-a747-3cea0a0d858c` replaced only the
+`FARCASTER_RPC_URL` secret with the tested OP Mainnet public endpoint and was
+deployed at 100% by deployment `b338c098-a33e-4922-a3a4-1c2d92a3b035`.
+The candidate retained the prior script etag, runtime, all 27 binding names and
+types, and all plain-text binding values. The prior version
+`79dfceec-9810-4868-afca-5b794d08a9a5` is the rollback target. Live health
+and public attestation still pass with bridge source `308f901d`. After the
+switch, the same disposable unauthorized proof got challenge HTTP 201 and
+exchange HTTP 401 with binding verification, the expected fail-closed result;
+this proves the verifier executed but did not by itself prove an owner session.
+The owner's next live attempt did: challenge HTTP 201 and exchange HTTP 200 at
+2026-09-27 19:06:14.479 UTC with `exchange_binding_verified`,
+`auth_epoch_resolved`, `session_created` and `exchange_succeeded`. The owner
+confirmed the browser was logged in. Record only route/status/fixed event
+labels; never channel tokens, FIDs or proof. Private RPC-role fingerprint
+attestation still needs the existing operator credential; it was not available
+in this environment. The signed Alpha diagnostic source passed 129 focused
+auth tests, production build, Pages configuration/release validators, Mini App
+release validator and file-size policy. A separate Mini App Quick Auth success
+is not desktop QR evidence. The
+[hosting record](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
+has the source, verification and recovery path. The 0.4 PTR is not live.
+
+Read the live head of signed 0.4
+[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) before any operation;
+documentation checkpoints may follow its protected-closure source. The signed
+protected-source checkpoint is
+[`175e3257`](https://github.com/ael-dev3/Warpkeep/commit/175e325771768d8427bedeff8280a9cb2a9de282),
+and its signed, pushed 16-output closure is
+[`6b9bcb1f`](https://github.com/ael-dev3/Warpkeep/commit/6b9bcb1f6bf27fa70d7870b4b0eb074a7f698242).
+The 1,241-member closure manifest hashes to
+`26f7a57e406fc239f6d7b42222d92293ca4402e83d863fba1de05b51be898f2e`.
+Protected-closure derivation matched 3,285 raw Git blobs and independently
+byte-reproduced all 16 derived outputs. Native Linux ownership-bound closure
+policy and checked-in sealed-launch verification passed on the exact clean
+closure head. These source checks do not attest a generated M2 family or a
+live 0.4 deployment.
+
+The reviewed 0.4 menu was integrated into PR #374 at signed merge
+[`397b9697`](https://github.com/ael-dev3/Warpkeep/commit/397b9697),
+with the loaded media in the presentation receipt and its reachable menu
+graph in the release tests. Follow-up signed fixes preserve glTF-authored
+double-sided materials and pause WebGL animation behind full-screen overlays.
+The notification receipt fixture now accommodates the reviewed menu assets
+without changing the production per-asset bound. The packaged version still
+comes from `package.json` (`0.3.43`); coordinate its 0.4 change with actual
+PTR/release cutover. The original
+[menu PR #375](https://github.com/ael-dev3/Warpkeep/pull/375) remains open as
+the source of the reviewed work; do not merge its stale closure into `main`.
+Asset provenance [PR #37](https://github.com/ael-dev3/Warpkeep-Assets/pull/37)
+also remains open.
+
+The 0.4 QR diagnostic correction, backported to live Alpha, distinguishes
+privacy-safe bridge failures and uses a neutral error heading. The
+[timestamped incident record](../../evidence/0.4.0/qr-auth-incident-2026-09-27.md)
+records strong evidence linking the failed 503 exchanges to the rate-limited
+primary RPC path and documents
+the secret-only bridge repair. A fresh owner scan reached exchange HTTP 200
+with `session_created` at **2026-09-27 19:06:14.479 UTC**; the owner confirmed
+login. The separately published Alpha diagnostic frontend came later and did
+not cause that successful exchange.
+
+The local and GitHub PR branch were clean and synchronized at signed head
+[`6733620d`](https://github.com/ael-dev3/Warpkeep/commit/6733620d2335e317aa221b56ef20866ecf5d11bd)
+when this follow-up began. The signed documentation update `9f43f0dd` had been
+pushed and confirmed remote-equal; this follow-up advances the branch again.
+Closure-head Verify 36345079867, documentation-head Verify
+36345736413 and latest [Verify 36347362794](https://github.com/ael-dev3/Warpkeep/actions/runs/36347362794)
+each stopped all 17 jobs before runner steps. The latest exact-head annotation
+says recent account payments failed or the Actions spending limit must increase.
+This is neither a source failure nor a pass. `main` remains the earlier signed
+M2 `786c0b2b`.
+Restore account billing, then require a passing hosted Verify on the live final
+PR head before signed source M1 merge; prepare/check exact M1 natively, promote
+generated-only M2, verify its exact main head and complete the protected live
+gates before 0.4 PTR.
+
+The Desktop daily action brief is now tracked at
+[`next-work.txt`](next-work.txt). Update that canonical repo copy and the
+existing Desktop companion together; do not create Desktop duplicates. The
+existing Desktop copy was refreshed in place and its SHA-256 matches the
+tracked copy (`a7629d0c9b4c4826d304623dcf197753d6cf938a9b2b1c439068f32157a418d`).
+
+### Rendered QA compatibility note — 27 September 2026
+
+The legacy `qa:title-transition` browser run at **20:07:24.870 UTC** timed out
+at `owner-full-hd-half-renderer-repeated-gateway-ready`. Its initial-route
+predicate still requires the retired title screen, title gateway and title
+canvas, while the current app intentionally starts at `#menu`. This run is not
+evidence that the integrated menu failed to render and is not current menu
+visual acceptance. Keep it out of the release verdict until its contract is
+retargeted to a live 0.4 transition; use the existing menu/resource lifecycle
+and production-render evidence meanwhile. The failed probe left an empty
+ignored artifact directory, not a tracked build output.
+
+The same pinned Node 22 Windows run also executed `WarpkeepExperience.test.tsx`,
+`menuWorldResourceLifecycle.test.tsx` and `titleTransitionFrameBrowserProbe.test.ts`:
+26 tests passed. One probe-server test could not execute its symlink rejection
+case because Windows returned `EPERM` while creating the test symlink
+(`2026-09-27 20:12:49 UTC` run start). Treat that single case as environment-
+limited; the other tests do not replace final-head hosted Verify.
+
+### Earlier 27 September QR-diagnostic closure (superseded)
+
+Before menu integration, signed source `1ef66c94` and closure `7d13a4a2`
+held 16 derived outputs and 1,258 members (manifest
+`afcbba80fda34b4a14908224092228429f5c26dd19dbd8ff5af4a5ae2f676566`).
+Its native closure policy and checked-in sealed-launch checks passed; hosted
+[Verify 36340576287](https://github.com/ael-dev3/Warpkeep/actions/runs/36340576287)
+stopped before runner steps at the account billing gate. This checkpoint did
+not include the reviewed menu and is not the current source closure.
+
+### Earlier 27 September source checkpoint
+
+At this earlier checkpoint, the 0.4 development [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
+has a signed, remote-equal protected-closure checkpoint at
+[`a0cd382b`](https://github.com/ael-dev3/Warpkeep/commit/a0cd382bb599ba10402e52b62f6412c77f670644),
+refrozen from signed source
+[`4855890e`](https://github.com/ael-dev3/Warpkeep/commit/4855890e8088ad0b34cd001d8da675f2fdb9251a).
+The committed 1,258-member closure manifest has SHA-256
+`7852979eaac799f096abc714aa84aa2a7c3cceedbf3e086b4250da9af47ec53a`.
+The exact-source native refreeze matched 3,266 Git blobs, regenerated all 16
+outputs, and passed the independent 1,258-member policy and clean checked-in
+sealed verifier on both Linux and Windows. The current source preserves the
+earlier Keep guidance and QR clock repair; it also makes construction progress
+visible above the first mobile fold and bounds public Realm resource-site reads
+with a retry that keeps keyboard focus. The 98 combined affected tests,
+typecheck and full production build passed locally. This improves the first
+journey in source; it does not prove actual owner play or physical-phone
+performance.
+
+The earlier exact-head
+[Verify 36326796457](https://github.com/ael-dev3/Warpkeep/actions/runs/36326796457)
+failed all 17 jobs before any step ran. GitHub's job annotation cites recent
+failed payments or the spending limit. This is an account gate, not a source
+test failure or a CI pass. Require a successful Verify on the final PR head
+before protected-main M1 integration, then exact-M1 native preparation/check,
+generated-only M2, exact-main Verify and authenticated deployment. Current
+`main` remains the earlier `786c0b2b` M2. The public Alpha hotfix is a separate
+build; 0.4 owner PTR is not live. The latest closure head still needs its own
+successful hosted Verify; do not reuse the earlier zero-step run as evidence.
+[Verify 36330429158](https://github.com/ael-dev3/Warpkeep/actions/runs/36330429158)
+on subsequent signed documentation head `0e1fcedd` also stopped all 17 jobs
+before any step with the same billing annotation. A passing Verify on the
+eventual final PR head remains absent.
+
+### Earlier 27 September source checkpoints
+
+An earlier signed protected source/closure checkpoint on PR #374 was
+[`46b4c3b7`](https://github.com/ael-dev3/Warpkeep/commit/46b4c3b7c969460ad6f231d53d311c7ac9eb9e56),
+refrozen from signed source
+[`aaa128bb`](https://github.com/ael-dev3/Warpkeep/commit/aaa128bb41a1fda853a9d5c11983c06dfbac83ca)
+for the public-mirror-candidate lane. Its
+[Verify 36319626894](https://github.com/ael-dev3/Warpkeep/actions/runs/36319626894)
+failed before the later source and closure refresh.
+
+An earlier signed source/closure checkpoint on PR #374 is
+[`89a29c01`](https://github.com/ael-dev3/Warpkeep/commit/89a29c01e597c5fb677611b9dfe047715cb4eb73),
+from signed source [`a82cb0c9`](https://github.com/ael-dev3/Warpkeep/commit/a82cb0c9408f768516eada7b8eb22db219bd2793).
+World initial/refresh reads now expose Retry after a bounded 30-second stall;
+late intermediate phases cannot hide it, the last validated map stays visible,
+and Worker commands require fresh authority. The parent Realm status no longer
+claims a retained map is absent. The public Pages payload verifier rejects
+index-hidden source drift. A read-only public-mirror planner checks exact clean
+source/build and the existing public checkout, and inventories only reviewed
+generated output, hosting files and current-source attribution documents. It
+does not stage, publish or authorize 0.4. The 90 focused World/Realm/PTR tests,
+17 payload/mirror tests, typecheck, root-base production build, checked-in
+sealed-launch check, outgoing secret scan and signed remote readback passed.
+The real source build passed payload `--write`/`--check` and a plan against the
+clean `Warpkeep-Live@616eebfc` checkout: 381 target files and 26 obsolete old
+generated paths. The disposable local manifest was removed; no public repo
+mutation occurred. Native Linux matched all 3,261 source blobs, independently
+regenerated all 16 closure outputs and passed the 1,258-member policy.
+[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) now stages a
+`public-mirror-candidate` lane for activated 0.4 bindings. After a successful
+exact-main Verify, the contents-read build validates the sealed binding, PTR
+inputs, canonical/auth configuration, admission suspension and generated public
+payload. It requires shared Alpha access for owner sign-in. It neither uploads
+nor deploys Pages and does not change `Warpkeep-Live`; signed publication,
+live-byte postflight and owner PTR remain separate release work. This lane is
+source-level preparation: its closure was refreshed at `46b4c3b7` at that
+checkpoint. The later refreeze at `4df24928` still lacks a passing final-head hosted Verify.
+[Verify 36318043715](https://github.com/ael-dev3/Warpkeep/actions/runs/36318043715)
+on that closure head rejected all 17 jobs before runner start. GitHub's billing
+page shows the Actions budget at $0 with stop usage enabled and says a valid
+payment method is missing. Owner action is pending; no merge or PTR deployment
+is justified by local checks.
+
+An earlier signed source/closure checkpoint on PR #374 was
+[`24c90daa`](https://github.com/ael-dev3/Warpkeep/commit/24c90daa9b92aa84e2c0322e226119d115b4c120).
+The Greater Realm now explains an initial or refresh failure, offers a reachable
+mobile retry, retains the last verified map during refresh failure and disables
+stale recall commands until a current read succeeds. A standalone candidate
+verifier checks that an exact clean source build contains only reviewed public
+static paths and that its embedded source SHA is reachable from the root page;
+it writes a deterministic file-hash manifest outside `dist`. It does not publish
+or authorize 0.4. The 70 combined focused World/PTR/payload tests, typecheck,
+root-base production build, checked-in sealed-launch check, outgoing secret scan
+and signed remote readback passed. A real local build from this exact head
+passed payload manifest `--write`/`--check` with 366 files and 124,852,956 bytes;
+the disposable manifest was removed. Clean native Linux passed the eight
+payload tests, checked-in sealed-launch and the 1,258-member closure policy.
+The changed World and CSS protected members were independently refrozen from
+raw Git blobs; all 16 derived outputs matched. These are local/preparatory
+checks, not actual owner PTR or live deployment acceptance.
+[Verify 36315983892](https://github.com/ael-dev3/Warpkeep/actions/runs/36315983892)
+on that head again rejected all 17 jobs before runner start with the account
+payment/spending-limit annotation. Do not merge under the release gate.
+
+An earlier signed source/closure checkpoint on PR #374 is
+[`8ef5f510`](https://github.com/ael-dev3/Warpkeep/commit/8ef5f510a086d6b7e64623080d8b440937ac93cf).
+It keeps unchanged Keep polls from reconciling the 3D scene and allows panel
+navigation against the retained validated view while a refresh or command is
+pending; mutation gates remain closed in those phases. The affected 128 UI
+tests, root typecheck, production build, visual-foundation check and clean
+checked-in sealed-launch verifier passed locally. The two changed protected
+members were refrozen from raw Git blobs in a disposable Linux checkout:
+1,258 closure members, all 16 derived outputs and the policy verifier matched.
+This is local evidence, not hosted CI or actual owner PTR acceptance.
+[Verify 36314339079](https://github.com/ael-dev3/Warpkeep/actions/runs/36314339079)
+on that head rejected every job before runner start with the account
+payment/spending-limit annotation; the PR cannot merge under the release gate.
+
+The source repairs below and a first-session Keep cue correction are published
+in [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374). The untouched Keep
+now marks Gather, matching its resource-journey action; a funded Keep can mark
+Choose. The code was reviewed, its 41 focused UI tests, typecheck and production
+build passed locally, and the clean checked-in sealed-launch check passed.
+A later mobile countdown repair on signed PR head
+[`1b115a9b`](https://github.com/ael-dev3/Warpkeep/commit/1b115a9b61c114610cb64ae09183fd9492b4c4e0)
+stops unchanged Keep 3D content from rerendering each second. Its 138 focused
+tests, typecheck, production build, source/closure rederivation and native
+sealed-launch checks passed. Verify on that source/closure head
+[Verify 36309210745](https://github.com/ael-dev3/Warpkeep/actions/runs/36309210745)
+rejected all 17 jobs before runner start with the same account payment/limit
+annotation, so this is not a CI pass.
+A provider-free diagnostic at earlier signed PR head `a157e3a7` built and
+reattested the real G002 artifact with the pinned Linux tools and locked cache.
+An initial manual rerun at source head `1b115a9b` stopped at
+`GREATER_REALM_PRODUCTION_MATERIALIZATION_CHANGED` from a shell with
+`umask 0022`; the verifier requires the built `dist` directory to be `0700`.
+Repeating the same provider-free test with `umask 077` in the launching shell,
+as the production workflow does, passed: the pinned build exited 0, `dist` was
+`0700`, its bundle was `0600`, and locked-source closure verification completed.
+Both disposable diagnostic checkouts were removed; maintained native `main`
+remains clean. No provider request or G002 mutation occurred. The successful
+mode-correct rerun supports diagnostic-context drift over a source regression;
+neither local test grants
+protected-main release authority. The final PR head still needs full Verify.
+Earlier Verify
+[36299816585](https://github.com/ael-dev3/Warpkeep/actions/runs/36299816585)
+passed 15 of 16 jobs; Linux alone failed `npm audit signatures` although the
+lockfile and published attestation digests matched. The retry and later
+[Verify 36304028415](https://github.com/ael-dev3/Warpkeep/actions/runs/36304028415)
+were refused before runners started. GitHub reports an account payment or
+spending-limit block; the account's Actions budget is $0 with usage stopped.
+Restore GitHub-hosted runner availability in account billing, then require a
+fully successful Verify on the live final PR head before merge. Do not route
+untrusted PR checks to the persistent privileged production runner. The
+private-repository Pages destination is also unavailable on the current Free
+plan; the public artifact-only Pages site is a possible 0.4 delivery target only
+after its sealed release path is implemented and reviewed. No live PTR
+exists yet, and this checkpoint does not claim 0.4 shipped.
+
+At the start of this repair, the last validated operational `main` was signed
+generated-only M2
+[`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`](https://github.com/ael-dev3/Warpkeep/commit/786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32),
+tree `b6af76785f1cc37d2cfc6778a0b287f4ab0bd3fa`, merged through
+[PR #373](https://github.com/ael-dev3/Warpkeep/pull/373). Its source-only M1
+was [PR #372](https://github.com/ael-dev3/Warpkeep/pull/372), merged as signed
+[`5d175edf25ee1555b27c8220844352fdbc4e99ff`](https://github.com/ael-dev3/Warpkeep/commit/5d175edf25ee1555b27c8220844352fdbc4e99ff),
+tree `e7f36c6c35fa126025220e0b70865ff17a62a93f`. Native preparation and
+independent check on that exact M1 succeeded: 3,256 source/candidate files,
+102 generated outputs. Exact-M2 push
+[Verify 36294403406](https://github.com/ael-dev3/Warpkeep/actions/runs/36294403406)
+succeeded. CodeQL was removed after GitHub refused private-repository code
+scanning on the current plan; Verify remains the executable source gate. Recheck
+live `main` and its exact-head Verify before any operation; this dated SHA is
+an evidence checkpoint, not a permanent ref pin.
+
+Read-only [preflight 36297501189](https://github.com/ael-dev3/Warpkeep/actions/runs/36297501189)
+and [G001 policy observation 36297585906](https://github.com/ael-dev3/Warpkeep/actions/runs/36297585906)
+succeeded on this exact M2. Fresh
+[G001 freeze census 36297722529](https://github.com/ael-dev3/Warpkeep/actions/runs/36297722529)
+failed closed with the count-free `g001-admitted-set-mismatch` diagnostic. It
+did not establish a two-sample baseline or authorize provider mutation. The
+fallback code enumerated `player_v2`, which is absent until bootstrap even
+for valid `admitted_needs_bootstrap` founders. A targeted source repair now
+enumerates public `realm_profile_v1.fid`, created at admission, while requiring
+the existing profile/founder aggregate witnesses and per-FID administrator
+status. This identifies a code-path defect; it does not reveal or establish
+the private live admitted set. Merge the reviewed source-only M1 only after
+its successful final-head Verify, generate its exact M2 from native
+preparation, require both exact-main Verify gates,
+then use a fresh operation identity. Do not reuse the failed attempt or query
+private `allowed_fid` with an unreviewed credential.
+
+[G002 update inspect 36297899627](https://github.com/ael-dev3/Warpkeep/actions/runs/36297899627)
+failed at `phase=workflow` before provider transport; it supplies no G002
+update authority. An artifact-only reproduction in a temporary detached checkout
+of this exact M2 returned `GENESIS_002_SOURCE_BUILD_FAILED`. The pinned
+`spacetime build` exited 2 with TypeScript `TS2307` for `spacetimedb/server`
+and `spacetimedb` imported by shared `spacetimedb/src/*`. The locked G002
+builder installed the verified package tree only under
+`spacetimedb/genesis002/node_modules`, which those parent source files cannot
+resolve. The source repair stages the same pinned dependency closure at the
+common `spacetimedb/node_modules` root and updates the G001 materializer and
+G002 runtime worker to use that path for typecheck and build;
+the closure snapshot, before/after verification and cleanup remain exact. The
+temporary diagnostic checkout was removed without a provider request. The
+source repair is in PR #374 with the census repair. Once that M1 is
+exact protected main, repeat the provider-free artifact build, then prepare
+and verify its exact M2 before a fresh `g002-update-inspect`. Neither the local
+diagnostic nor the source change establishes a live G002 result. G001
+preservation/readback, sealed G002, actual
+owner PTR journey, physical-device and measured-performance acceptance,
+release freeze and delivery remain open. The local rendered WebGL matrix is
+local evidence rather than live PTR acceptance. `warpkeep.com` serves the old
+Alpha 0.3.43 through a separate public artifact-only Pages repository; the
+private repository's existing 0.4 Pages workflow still cannot deploy there.
+Implement and verify that delivery boundary before calling owner PTR live.
 PTR owner access is mandatory; public admissions are not. Keep scheduled
 automations paused, create no Desktop artifacts, and publish each reviewed
 development checkpoint with a signed commit and verified GitHub SHA.
+
+## Historical checkpoint — earlier 27 September 2026 (superseded above)
+
+Generated M2 [`007e62f2`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e)
+from [PR #371](https://github.com/ael-dev3/Warpkeep/pull/371) had exact-main
+[Verify 36279277148](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277148)
+time out in the loaded Linux root-test step. CodeQL
+[36279277087](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277087)
+could not upload on the private-repository plan. Earlier
+[G001 freeze census 36271994192](https://github.com/ael-dev3/Warpkeep/actions/runs/36271994192)
+failed with the old combined `g001-admitted-aggregate-mismatch` diagnostic,
+without a validated baseline or provider mutation. Preserve its private
+incomplete attempt and the earlier incomplete
+[36255794350](https://github.com/ael-dev3/Warpkeep/actions/runs/36255794350);
+do not reuse identities or inspect private applicant/admitted rows.
 
 ---
 
@@ -402,7 +2986,9 @@ The earlier diagnosis that all remaining failures require owner-supplied private
 state was too broad. This audit found an agent-owned build defect: the native
 G001 materializer looked for SDK/compiler dependencies in `spacetimedb/node_modules`,
 but its Genesis 002 builder installs them in `spacetimedb/genesis002/node_modules`.
-The correction uses the owning module. Read-only census run `35499384780` failed
+The correction used the owning module at that checkpoint; the current repair
+changes the builder itself to install at the common parent for shared source
+imports. Read-only census run `35499384780` failed
 at `workflow` before this repair; no successful census or provider mutation is
 claimed. The private build roots exist with the required ownership and modes.
 
@@ -3011,3 +5597,142 @@ observation. Do not start census until the fresh observation has returned a
 completed source-bound receipt.
 Keep scheduled automation paused, do not create Desktop files, and do not
 request or generate another recovery key. 0.4 remains unshipped.
+
+## PR #374 recovery observer and Keep review — September 27
+
+Independent audit found that the Auth Bridge release-recovery resolver still
+used `player_v2` to enumerate admitted G001 founders. Admission creates
+`realm_profile_v1`, castle, marks and allowed-FID state before first-login
+`bootstrap_player_v2` creates the player and ownership pair. The resolver now
+enumerates profile FIDs twice, obtains each administrator admission status, and
+requires the alpha player/ownership counts to match and be no greater than the
+admitted count. Existing zero orphan/founder-gap checks and raw/canonical HMAC
+bindings remain. A two-admitted, one-bootstrapped fixture passes; malformed
+aggregate and orphan cases fail closed. The independent reviewer found no
+remaining resolver defect. The source checkpoint is signed `b41d434e`.
+
+Mobile scene guidance now precedes the canvas and switches between desktop
+scroll and touch pinch wording under coarse-pointer emulation. The DEV fixture
+uses the existing hashed favicon, removing the previous lone browser network
+error. This is synthetic presentation evidence, not physical-phone acceptance.
+Auth Bridge checks passed 484 unit tests, 18 Workerd tests and both typechecks;
+root typecheck, production build, 18 Inner Keep browser cases, and a 36-case
+Windows Chrome capture passed. The capture had zero horizontal overflow and no
+network errors; one bounded security diagnostic per document remains for
+review. Synthetic frame timings do not establish production transfer or phone
+performance.
+
+The resolver, its test and Keep files are protected prepared-closure members.
+All 3,256 tracked files at the signed source checkpoint matched their raw Git
+blobs. `derivePreparedClosureFamily` returned 1,258 members, 16 outputs and
+manifest SHA-256
+`01ba31b6cea4d5e4559a4f5f95ffa5d32fdcb99ec0717e724e3fc9467fb82d11`;
+a fresh process reproduced every installed output byte-for-byte. The
+ownership-bound policy verifier rejects the Windows checkout by design. On the
+exact clean signed `317fa0e0` in the supported Linux ext4 checkout, the policy
+verified the same 1,258-member manifest, checked-in sealed-launch verification
+passed, and five focused Linux suites passed all 193 tests, including a one-byte
+mutation check for every member. The native checkout was restored to clean
+`main` `786c0b2b` afterward. Require final-head hosted Verify before M1 merge, exact-M1 native
+prepare and independent check, generated-only M2 and exact-M2 Verify before
+fresh G001/G002 operations. Old M2 authority cannot cover this source.
+Exact-head [Verify 36307725762](https://github.com/ael-dev3/Warpkeep/actions/runs/36307725762)
+rejected all 17 jobs before runner start due account
+payment/spending-limit state; private Pages also cannot serve this private repo
+on the present plan. No live owner PTR or 0.4 release is claimed.
+
+## 28 September 2026 — mobile menu transfer and current release gate
+
+The 0.4 menu's castle and guardian are now served as separately optimized,
+content-addressed models. Their exact 4,977,796-byte and 1,836,344-byte source
+GLBs were moved from `public/` into
+`docs/reference/menu/2026-09-27-warplet-castle/` without changing their bytes.
+`npm run prepare:menu-world-models` uses the checksum-pinned gltfpack 1.2
+executable and verifies both source and output lengths and SHA-256 before
+installation. The castle output uses Meshopt, quantization, and maximum-quality
+WebP without triangle simplification; the guardian keeps its 12-joint skin and
+both authored clips, sampled at 30 Hz. The runtime outputs are 801,300 and
+235,112 bytes, with explicit structural checks for all nine castle meshes,
+per-mesh vertex/index counts, the WebP texture, guardian joints, and animation
+names. The focused Windows asset-tool fix replaces `tar.exe` with the fixed
+Git-for-Windows Info-ZIP locations required by `-Z1` and `-p`.
+
+Commit `9a8bdac9c131b90ec0f0ac1873f4331cf7892d0e` passed the complete local
+Node 22 production build, runtime assets, production exclusions, public-boundary
+scan (3,289 tracked paths, 1,768 scanned), and Farcaster Mini App verification.
+`tsc -b`, asset-license policy, file-size policy and 15 focused unzip/menu
+lifecycle tests passed. A separate `notificationPagesLiveReceipt.test.ts`
+attempt on native Windows could not start because that test suite hard-codes
+`/usr/bin/git`; the supported hosted Linux full suite remains necessary. At
+390×844, the built `/ptr/` menu reached model-ready with a visible canvas and
+no console warnings. The measured resource waterfall was 3,738,720 bytes,
+down from 9,516,527 bytes in the prior capture (about 60.7%); this is local
+synthetic browser evidence, not a physical-phone test.
+
+The exact-head [Verify 36388987777](https://github.com/ael-dev3/Warpkeep/actions/runs/36388987777)
+on commit `9a8bdac9` failed before runner allocation. GitHub's job annotation
+explicitly attributes it to failed recent account payments or an Actions
+spending limit that must be increased; jobs contain no steps, so this gives no
+code verdict. The owner must resolve the GitHub account's **Billing & plans**
+state and then rerun Verify on the latest PR #374 head. Do not bypass hosted
+Verify with the privileged production runner. At this check `main` is still
+`786c0b2b`; Alpha 0.3.43 remains live at `https://warpkeep.com/` (HTTP 200),
+and `https://warpkeep.com/ptr/` remains HTTP 404. This branch is a locally
+validated candidate, not a merged, deployed, or accepted 0.4 release.
+
+Open candidates Warpkeep #376 (the large click-to-load castle film) and #377
+(the Genesis 002 score), plus Assets #38 (the stacked score archive), were
+checked and remain intentionally outside this candidate while film/mobile
+playback, G002 scope and rights evidence remain unresolved. Re-list their
+current heads and checks before future integration; more 0.4 PRs are expected.
+
+## 29 September 2026 — protected closure refresh and inspector camera hold
+
+PR #374 is signed and synchronized at `860370ab6ca2b1473bd339f7617cc42388d57482`
+on `fix/g001-census-admission-proxy`, against main
+`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`. This checkpoint contains the
+prepared deployment source-closure refresh and a camera-neutral inspector fix.
+
+The map previously decided whether to preserve the last camera composition by
+looking only for a rendered `.realm-camera-neutral-inspector` element. Opening a
+code-split water, resource or Worker panel sets `inspectorOpen` before the lazy
+panel finishes loading. A scheduled composition measurement could run in that
+gap, observe no panel element and replace the stable composition, allowing the
+camera to shift during a passive inspection. The measurement now also checks the
+current semantic inspector state. The recovery UI tests wait for each lazy panel
+to mount and retain the no-focus and stable-composition assertions.
+
+`tests/realmRendererRecoveryUi.test.tsx` passed 8/8; adjacent
+`realmMapScreen` and camera-controller suites passed 58/58; the QA agent's
+mutable build-contract test passed; TypeScript project build and full production
+build passed. The build completed all runtime asset, production exclusion,
+public-boundary and Farcaster Mini App checks. The production build used Windows
+Node 24.19, outside the repository's pinned Node 22 range. It retains the known
+`RealmMapScreen` chunk warning (680.22 kB raw / 188.87 kB gzip).
+
+`derivePreparedClosureFamily` returned 1,249 members and 16 outputs with
+manifest SHA-256
+`55894f834179e505739f83a4978b50310fb726ce9f1e4261feb79af6515e4f33`; a fresh
+process reproduced every installed byte. The clean committed checkout passed
+`verify:sealed-launch --phase=checked-in` and remains in preparation with
+package version `0.3.43`, Pages deployment approval false, and G001, G002 and
+PTR identities unset. On this exact head, the pinned Linux closure-policy and
+sealed-launch verifiers passed, as did six focused suites (216/216), including
+the full 164-case prepared-workflow mutation matrix. The test checkout reused
+its existing shared dependency link. A pinned Node 22 production-build attempt
+stopped before the build because that link resolves the Windows esbuild binary;
+the retained Linux npm cache is from 8 September and differs by 39 resolved
+package versions, so it was not substituted. The local Windows full build and
+TypeScript checks passed under Node 24, but the exact locked Linux build remains
+unverified. Earlier Windows attempts of the Linux-only policy tests reject the
+host's missing POSIX UID and `/usr/bin/git`; those were environment failures.
+
+Commit `860370ab` was pushed to PR #374; local `HEAD`, the remote branch, and the
+open PR head were confirmed equal. The commit uses `[skip actions]`. No GitHub
+Actions workflow was dispatched, rerun, queried or used during September, per
+the owner's instruction. At 02:47 UTC the public Alpha root returned HTTP 200
+and `/ptr/` returned HTTP 404. The PTR remains unavailable, no release is
+claimed, and skipped hosted checks remain pending. After October 1, confirm the
+owner's direction before resuming hosted checks; continue with exact-head M1/M2
+preparation, G001 preservation, sealed G002 readback, PTR publication/readback,
+and owner/device acceptance.

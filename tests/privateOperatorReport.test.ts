@@ -1,14 +1,16 @@
 import {
   chmodSync,
-  mkdtempSync,
+  existsSync,
   readFileSync,
   readdirSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { createOwnedTemporaryFixtures } from './helpers/ownedTemporaryFixture';
 
 import {
   PrivateOperatorReportError,
@@ -17,13 +19,34 @@ import {
   writePrivateOperatorReport,
 } from '../scripts/private-operator-report';
 
+const temporaryFixtures = createOwnedTemporaryFixtures();
+afterEach(() => temporaryFixtures.cleanup());
+
 function privateDirectory(): string {
-  const path = mkdtempSync(join(tmpdir(), 'warpkeep-private-operator-'));
+  const path = temporaryFixtures.create('warpkeep-private-operator-');
   chmodSync(path, 0o700);
   return path;
 }
 
 describe('private operator report boundaries', () => {
+  it('removes owned fixtures without following links into another fixture owner', () => {
+    const borrowedFixtures = createOwnedTemporaryFixtures();
+    const borrowed = borrowedFixtures.create('warpkeep-fixture-cleanup-sentinel-');
+    try {
+      const sentinel = join(borrowed, 'preserved.txt');
+      writeFileSync(sentinel, 'preserved\n');
+      const owned = temporaryFixtures.create('warpkeep-fixture-cleanup-owned-');
+      writeFileSync(join(owned, 'disposable.txt'), 'disposable\n');
+      symlinkSync(borrowed, join(owned, 'borrowed'), 'junction');
+      temporaryFixtures.cleanup();
+      expect(existsSync(owned)).toBe(false);
+      expect(readFileSync(sentinel, 'utf8')).toBe('preserved\n');
+      // A second teardown is harmless and still cannot select another owner's root.
+      temporaryFixtures.cleanup();
+      expect(existsSync(borrowed)).toBe(true);
+    } finally { borrowedFixtures.cleanup(); }
+  });
+
   it('writes only mode-0600 privacy-screened reports in a mode-0700 directory', () => {
     const directory = privateDirectory();
     writePrivateOperatorReport({

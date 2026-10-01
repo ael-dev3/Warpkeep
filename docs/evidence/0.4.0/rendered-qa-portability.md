@@ -30,9 +30,21 @@ Verified on the synchronized Windows checkout:
 - `npm run typecheck`, `npm run verify:visual-foundation`, `npm run build`, and
   `npm run qa:inner-keep` passed.
 
-The full `npm run qa:rendered-webgl` matrix now reaches the real local Realm
-fixture on Windows. It still fails closed on a Windows Chrome runtime exception
-in the `desktop-high` case. This checkpoint therefore proves portability and
-the asset boundary, but it does not claim rendered-release acceptance. Rerun
-the matrix on the supported Linux runner and retain the exact failure category
-if it reproduces.
+On 2026-09-28, `npm run qa:rendered-webgl` passed its complete local Windows
+browser matrix on the current candidate: 15 rendered cases, shader fallback,
+Worker lifecycle, six locomotion checks, occupancy stress, 25 journeys, the
+loopback LOD boundary, LOD fidelity and High/Balanced/Reduced metrics. One
+initial Android Chrome-emulation attempt reported
+`log-error-network-unclassified`; the two mobile touch cases then passed in
+isolation and the full matrix passed on rerun. Keep the first warning in the
+record, but treat it as non-reproducing runner noise rather than a waived case.
+This is local rendered evidence, not physical-device or PTR acceptance.
+
+The existing local cache contains the exact source archive at 10,672,929 bytes
+with SHA-256
+`c029a636ee0a791ca54072d5f32fcf68263677951fd59c338dfe242264335d5f`. The
+release is attached to private `Warpkeep-Assets`; consequently the generic
+unauthenticated fetch helper can return 404 on a fresh checkout. Use the
+authenticated recovery command in the
+[QA observatory](../../operations/qa-observatory.md) and verify the digest
+before probing. Do not copy the archive into the repository or Desktop.

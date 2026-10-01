@@ -5,23 +5,23 @@ import {
   cpSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   realpathSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { createOwnedTemporaryFixtures } from './helpers/ownedTemporaryFixture';
+
+const temporaryFixtures = createOwnedTemporaryFixtures();
+afterEach(() => temporaryFixtures.cleanup());
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 
 describe('notification Pages private runtime resolution', () => {
   it('imports the receipt from a clean archive with only service-local packages', () => {
-    const temporary = mkdtempSync(join(
-      realpathSync(tmpdir()),
-      'warpkeep-pages-private-runtime-',
-    ));
+    const temporary = temporaryFixtures.create('warpkeep-pages-private-runtime-');
     const archive = join(temporary, 'source.tar');
     const extracted = join(temporary, 'source');
     mkdirSync(extracted, { mode: 0o700 });

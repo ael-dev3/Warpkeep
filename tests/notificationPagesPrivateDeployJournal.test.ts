@@ -2,17 +2,19 @@ import { createHash } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
+  lstatSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
   realpathSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   NOTIFICATION_PAGES_PRIVATE_DEPLOY_ABANDONMENT_PROOF_PROFILE,
@@ -26,12 +28,31 @@ const REPOSITORY_ROOT = resolve(import.meta.dirname, '..');
 const CANDIDATE = 'a'.repeat(40);
 const ROOT_DIGEST = 'b'.repeat(64);
 const ROOT_SOURCE = 'c'.repeat(40);
+const fixtureHomes = new Set<string>();
+
+afterEach(() => {
+  for (const directory of fixtureHomes) {
+    const status = lstatSync(directory);
+    const uid = process.getuid?.();
+    if (
+      dirname(directory) !== realpathSync(tmpdir())
+      || !basename(directory).startsWith('warpkeep-pages-journal-home-')
+      || realpathSync(directory) !== directory
+      || !status.isDirectory()
+      || status.isSymbolicLink()
+      || (uid !== undefined && status.uid !== uid)
+    ) throw new Error('NOTIFICATION_PAGES_JOURNAL_FIXTURE_CLEANUP_TARGET_INVALID');
+    rmSync(directory, { recursive: true });
+    fixtureHomes.delete(directory);
+  }
+});
 
 function privateHome(): string {
   const path = mkdtempSync(join(
     realpathSync(tmpdir()),
     'warpkeep-pages-journal-home-',
   ));
+  fixtureHomes.add(path);
   chmodSync(path, 0o700);
   return path;
 }
@@ -372,6 +393,32 @@ async function emptyJournalDirectory(home: string): Promise<string> {
 }
 
 describe('notification Pages private deployment journal', () => {
+  it('preserves a live legacy partial lock after clock drift and blocks the next operation', async () => {
+    const home = privateHome();
+    const directory = await emptyJournalDirectory(home);
+    const original = 'Tue Sep 29 17:50:47 2026';
+    const current = 'Tue Sep 29 17:50:57 2026';
+    const stable = 'linux-v1:12345678-1234-1234-1234-123456789abc:8573835';
+    const identityDigest = createHash('sha256').update(original).digest('hex').slice(0, 16);
+    const partial = join(directory,
+      `.notification-pages-private-deploy-lock-${process.pid}-${identityDigest}-${'1'.repeat(24)}.tmp`);
+    const bytes = Buffer.from('{"owner":');
+    writeFileSync(partial, bytes, { flag: 'wx', mode: 0o600 });
+    let invoked = false;
+    await expect(withNotificationPagesPrivateDeployJournal({
+      contract: contract(), repositoryRoot: REPOSITORY_ROOT, reportedHome: home,
+      runId: '17', runAttempt: 1,
+      clock: () => new Date('2026-08-13T12:00:00.000Z'),
+      randomBytesImpl: deterministicRandom(), processIdentity: stable,
+      processIdentityProbe: (_pid: number, expected?: string) => ({
+        state: 'present' as const, identity: expected === 'legacy' ? current : stable,
+      }),
+      operation() { invoked = true; },
+    })).rejects.toMatchObject({ code: 'NOTIFICATION_PAGES_DEPLOY_JOURNAL_LOCK_AMBIGUOUS' });
+    expect(invoked).toBe(false);
+    expect(readFileSync(partial)).toEqual(bytes);
+  });
+
   it('persists one effect boundary and completes through exact-current recovery', async () => {
     const home = privateHome();
     const random = deterministicRandom();

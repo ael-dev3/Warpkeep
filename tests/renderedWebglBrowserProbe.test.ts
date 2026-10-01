@@ -2532,6 +2532,11 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(contract.args).not.toContain(expect.stringMatching(
       /^--remote-debugging-(?:address|port)=/
     ));
+    if (process.platform === 'linux') {
+      expect(contract.args).toContain('--enable-unsafe-swiftshader');
+    } else {
+      expect(contract.args).not.toContain('--enable-unsafe-swiftshader');
+    }
 
     const fakeChild = { pid: 1234 };
     const spawnProcess = vi.fn(() => fakeChild);

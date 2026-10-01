@@ -7,6 +7,7 @@ const hookState = vi.hoisted(() => ({
   miniApp: {} as Record<string, unknown>,
   miniAppBack: undefined as (() => void) | undefined,
   gameplayProbe: false,
+  legacyRealmScreenLoaded: false,
 }));
 
 vi.mock('../src/farcaster/FarcasterAuthProviderCore', () => ({
@@ -26,7 +27,25 @@ vi.mock('../src/farcaster/miniapp', () => ({
   useMiniAppHost: () => hookState.miniApp,
 }));
 
+vi.mock('../src/components/menu/WarpkeepMenuWorld3D', async () => {
+  const { createElement } = await import('react');
+  return {
+    WarpkeepMenuWorld3D: (props: { guardianUrl?: string | null }) => createElement('div', {
+      'data-testid': 'menu-warplet-world',
+      'data-guardian': props.guardianUrl === null ? 'unassigned' : props.guardianUrl ?? 'showcase',
+    }),
+  };
+});
+
 vi.mock('../src/components/realm/RealmMapScreen', async () => {
+  const { createElement } = await import('react');
+  hookState.legacyRealmScreenLoaded = true;
+  return {
+    RealmMapScreen: () => createElement('main', { 'aria-label': 'Legacy realm renderer' }),
+  };
+});
+
+vi.mock('../src/ptr/PtrGameplay04SurfaceHost', async () => {
   const { createElement, useLayoutEffect } = await import('react');
   function GameplayProbe(props: Record<string, unknown>) {
     const { controller, snapshot } = useGameplay04Controller(props.ptrGameplay04 as import('../src/ptr/ptrRealmConnection').PtrGameplay04Capability);
@@ -48,7 +67,7 @@ vi.mock('../src/components/realm/RealmMapScreen', async () => {
     );
   }
   return {
-    RealmMapScreen: (props: Record<string, unknown>) => createElement(
+    PtrGameplay04SurfaceHost: (props: Record<string, unknown>) => createElement(
       'main',
       {
         'aria-label': 'PTR realm test surface',
@@ -92,7 +111,7 @@ import { quoteBuilding04 } from '../src/ptr/gameplay04/gameplay04Presentation';
 import { scriptedCapability04, freshWire04, constructingWire04, wireWithBuilding04, ATLAS04, MILL_PLACEMENT04 } from './fixtures/gameplay04Client';
 
 const NOW = 1_800_000_000_000;
-const OWNER_FID = 12_345;
+const OWNER_FID = 539_854;
 const DATABASE_IDENTITY = 'd'.repeat(64);
 const CONFIG: AvailablePtrRealmConfig = Object.freeze({
   availability: 'available',
@@ -347,6 +366,7 @@ beforeEach(() => {
   installBrowserStubs();
   hookState.miniAppBack = undefined;
   hookState.gameplayProbe = false;
+  hookState.legacyRealmScreenLoaded = false;
   hookState.farcaster = Object.freeze({
     state: Object.freeze({ phase: 'anonymous' }),
     accessRequest: Object.freeze({ phase: 'request-available' }),
@@ -438,6 +458,20 @@ afterEach(() => {
 });
 
 describe('Warpkeep PTR realm integration', () => {
+  it('keeps a Mini App without host user context on the neutral Warplet until verification', async () => {
+    const host = hookState.miniApp;
+    hookState.miniApp = Object.freeze({ ...host, context: null });
+    const harness = runtimeHarness(await ownerAuthority());
+    render(
+      <PtrRealmProvider config={CONFIG} runtime={harness.runtime}>
+        <WarpkeepExperience />
+      </PtrRealmProvider>,
+    );
+
+    expect((await screen.findByTestId('menu-warplet-world')).getAttribute('data-guardian'))
+      .toBe('unassigned');
+  });
+
   it('keeps explicit Genesis 002 entry sealed before every auth and connection boundary', async () => {
     const authority = await ownerAuthority();
     const harness = runtimeHarness(authority);
@@ -475,6 +509,9 @@ describe('Warpkeep PTR realm integration', () => {
       </PtrRealmProvider>,
     );
 
+    expect((await screen.findByTestId('menu-warplet-world')).getAttribute('data-guardian'))
+      .toBe('unassigned');
+
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     expect(hookState.miniApp.quickAuth).toMatchObject({
       getToken: expect.any(Function),
@@ -494,6 +531,8 @@ describe('Warpkeep PTR realm integration', () => {
     await waitFor(() => expect(screen.getByRole('radio', {
       name: /Public Test Realm.*Admitted/i,
     })).not.toBeNull());
+    await waitFor(() => expect(screen.getByTestId('menu-warplet-world').getAttribute('data-guardian'))
+      .toContain('warplet-guardian'));
     await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
     expect((hookState.miniApp.quickAuth as { getToken: ReturnType<typeof vi.fn> }).getToken)
       .toHaveBeenCalledTimes(1);
@@ -503,6 +542,7 @@ describe('Warpkeep PTR realm integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
 
     const ptrSurface = await screen.findByRole('main', { name: 'PTR realm test surface' });
+    expect(hookState.legacyRealmScreenLoaded).toBe(false);
     expect(ptrSurface.getAttribute('data-has-ptr-authority')).toBe('true');
     expect(ptrSurface.getAttribute('data-has-ptr-gameplay')).toBe('true');
     expect(ptrSurface.getAttribute('data-ptr-castle-id')).toBe(String(OWNER_FID));
@@ -512,6 +552,8 @@ describe('Warpkeep PTR realm integration', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Return to Menu' }));
     await waitFor(() => expect(screen.getByRole('button', { name: 'ENTER REALM' })).not.toBeNull());
+    expect(screen.getByTestId('menu-warplet-world').getAttribute('data-guardian'))
+      .toBe('unassigned');
     expect(harness.runtime.closeSession).toHaveBeenCalled();
   });
 
@@ -928,7 +970,7 @@ describe('Warpkeep PTR realm integration', () => {
     },
   );
 
-  it('host Back toward title cancels a deferred PTR entry and closes its late session', async () => {
+  it('leaves host Back unbound while a deferred PTR entry remains on the root menu', async () => {
     const authority = await ownerAuthority();
     const harness = deferredRuntimeHarness(authority);
     render(
@@ -938,13 +980,13 @@ describe('Warpkeep PTR realm integration', () => {
     );
 
     await beginDeferredPtrEntry(harness);
-    act(() => hookState.miniAppBack?.());
+    expect(hookState.miniAppBack).toBeUndefined();
+    expect(window.location.hash).toBe('#menu');
+    expect(screen.queryByRole('button', { name: 'Return to Title' })).toBeNull();
 
+    fireEvent.click(screen.getByRole('button', { name: 'BACK' }));
     await waitFor(() => expect(harness.connectSignal()?.aborted).toBe(true));
-    expect(isCurrentPtrRealmAuthority(authority, NOW)).toBe(false);
     await releaseDeferredConnection(harness);
-
     await waitFor(() => expect(harness.runtime.closeSession).toHaveBeenCalledTimes(1));
-    expect(screen.queryByRole('main', { name: 'PTR realm test surface' })).toBeNull();
   });
 });

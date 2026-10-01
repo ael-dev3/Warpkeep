@@ -1,13 +1,17 @@
 {
   "schemaVersion": 1,
   "profile": "warpkeep-auth-bridge-notification-prepared-pnpm-linux-x64-v1",
-  "packageManager": "pnpm@11.7.0",
+  "packageManager": "pnpm@11.11.0",
   "platform": "linux",
   "architecture": "x64",
   "nodeVersion": "v22.22.3",
-  "pnpmExecutable": "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.7.0-linux-x64/pnpm",
-  "pnpmExecutableSha256": "5eb52f5b7fe3c4ef589393f81f33b28482f7657109239de7bc5dc4e4e56aafc4",
-  "pnpmPackagePath": "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.7.0-linux-x64/package/bin/pnpm.cjs",
+  "pnpmExecutable": "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/pnpm",
+  "pnpmExecutableSha256": "60e9225a0e34ea09a78feda05282faf5bb1feb808c16a71df3ed58a684ba6edd",
+  "pnpmPackagePath": "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/package/bin/pnpm.cjs",
   "pnpmPackageSha256": "67b035e322203961795e8e34ca63a08c37a4386eda94107fb3d28f3246d882ad",
-  "archiveSha256": "deafa7ec98a1218b6a047289b92fbe2395c1e22d3495bb711653013218ee15ee"
+  "pnpmLauncherPath": "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/package/bin/pnpm.mjs",
+  "pnpmLauncherSha256": "ff3224d46b47fbb24a7e9fe15fededef7e00892d07d4e376b6762d4899906bfd",
+  "pnpmRuntimePath": "/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/package/dist/pnpm.mjs",
+  "pnpmRuntimeSha256": "e8abc02d5fbffb8f9d8817d44d6eee84c379ea8d5006dd5aa8694bb5e4428d8a",
+  "archiveSha256": "85ef2eff216a1ae90804c00c8dfbfa6685353644650d10906a893c05aedcd884"
 }

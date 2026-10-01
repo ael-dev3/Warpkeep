@@ -12,7 +12,7 @@ const deployedBuild = createWarpkeepBuildInfo({
   productVersion: '0.2.0',
   releaseChannel: 'alpha',
   buildSha: FULL_SHA,
-  repositoryUrl: 'https://github.com/ael-dev3/Warpkeep'
+  repositoryUrl: 'https://github.com/example/game'
 });
 
 beforeEach(() => {
@@ -26,6 +26,21 @@ afterEach(() => {
 });
 
 describe('Warpkeep menu build stamp', () => {
+  it('keeps the actual private-source build identity visible without a broken public commit link', () => {
+    const privateBuild = createWarpkeepBuildInfo({
+      productVersion: '0.4.0-ptr.1',
+      buildSha: FULL_SHA,
+      repositoryUrl: 'https://github.com/ael-dev3/Warpkeep/'
+    });
+    const { container } = render(
+      <WarpkeepMainMenu active buildInfo={privateBuild} onRequestReturn={vi.fn()} />
+    );
+    const stamp = container.querySelector('[data-build-stamp="commit"]');
+    expect(stamp?.textContent).toBe('ALPHA 0.4.0-ptr.1 · BUILD abcdef0');
+    expect(within(stamp as HTMLElement).queryByRole('link')).toBeNull();
+    expect(privateBuild.fullSha).toBe(FULL_SHA);
+  });
+
   it('renders the Alpha version as the patch-notes disclosure and keeps exact build provenance separate', () => {
     const { container } = render(
       <WarpkeepMainMenu
@@ -45,7 +60,7 @@ describe('Warpkeep menu build stamp', () => {
     expect(stamp?.textContent).toBe('ALPHA 0.2.0 · BUILD abcdef0');
     expect(patchNotes.getAttribute('aria-controls')).toBe('warpkeep-latest-patch-notes');
     expect(patchNotes.getAttribute('aria-expanded')).toBe('false');
-    expect(buildLink.getAttribute('href')).toBe(`https://github.com/ael-dev3/Warpkeep/commit/${FULL_SHA}`);
+    expect(buildLink.getAttribute('href')).toBe(`https://github.com/example/game/commit/${FULL_SHA}`);
     expect(buildLink.getAttribute('target')).toBe('_blank');
     expect(buildLink.getAttribute('rel')).toContain('noopener');
     expect(buildLink.getAttribute('rel')).toContain('noreferrer');

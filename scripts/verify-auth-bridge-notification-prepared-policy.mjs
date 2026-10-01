@@ -988,14 +988,14 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
     || installedLinuxToolchain.profile
       !== 'warpkeep-auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1'
     || installedLinuxToolchain.lockfileSha256
-      !== '369a7a6de6f874ffe7bb7a79617561daa771ce3dcfe79c35153a4446e614461b'
+      !== 'e1478d3eaaaf16505f4171f5c2570164f94a5abb17dcf592ed433c14ae524327'
     || installedLinuxToolchain.packageManager !== 'pnpm@11.7.0'
     || installedLinuxToolchain.platform !== 'linux'
     || installedLinuxToolchain.architecture !== 'x64'
     || installedLinuxToolchain.nodeVersion !== 'v22.22.3'
-    || installedLinuxToolchain.resolverNamespaceEntryCount !== 26
+    || installedLinuxToolchain.resolverNamespaceEntryCount !== 27
     || installedLinuxToolchain.resolverNamespaceDirectoryCount !== 7
-    || installedLinuxToolchain.resolverNamespaceFileCount !== 8
+    || installedLinuxToolchain.resolverNamespaceFileCount !== 9
     || installedLinuxToolchain.resolverNamespaceSymbolicLinkCount !== 11
     || installedLinuxToolchain.topLevelLinks?.at(-1)?.path !== 'yaml'
     || installedLinuxToolchain.topLevelLinks?.at(-1)?.target

@@ -21,10 +21,19 @@ export function keep04LoopDetail04(stage: Keep04LoopStage04): string {
   return LOOP_COPY04[stage].detail;
 }
 
+export function isKeep04FirstJourney04(view: View04): boolean {
+  return view.buildings.length === 0
+    && view.workers.some(worker => worker.phase === 'idle')
+    && view.workers.every(worker => worker.assignmentRevision === 0n)
+    && Object.values(view.balances).every(amount => amount === 0n)
+    && Object.values(view.pending).every(amount => amount === 0n);
+}
+
 export function activeKeep04LoopStage04(selection: Keep04LoopSelection04, view: View04): Keep04LoopStage04 {
   if (view.workers.some(worker => worker.phase === 'returning')
     || Object.values(view.pending).some(amount => amount > 0n)) return 'return';
   if (view.state.project !== undefined) return 'build';
+  if (isKeep04FirstJourney04(view)) return 'gather';
   if (selection.panel === 'buildings' && selection.selectedKind !== null) {
     return view.buildings.some(building => building.kind === selection.selectedKind && building.phase === 'complete' && building.completedLevel > 0)
       ? 'benefit' : 'build';

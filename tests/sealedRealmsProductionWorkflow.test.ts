@@ -488,7 +488,7 @@ printf '%s\\n' ptr-fixed-argument-transport-ok
     const document = verification(); const job = document.jobs['native-contract'];
     expect(job['runs-on']).toBe('ubuntu-24.04'); expect(job['timeout-minutes']).toBe(30);
     expect(document.permissions).toEqual({ contents: 'read' });
-    expect(document).not.toHaveProperty('env');
+    expect(document.env).toEqual({ pnpm_config_pm_on_fail: 'ignore' });
     for (const field of ['environment', 'permissions', 'env', 'if', 'continue-on-error', 'uses', 'secrets']) expect(job).not.toHaveProperty(field);
     expect(JSON.stringify(job)).not.toMatch(/secrets\s*\.|warpkeep-production-admin|self-hosted/u);
     for (const step of job.steps) expect(step).not.toHaveProperty('env');
@@ -509,9 +509,9 @@ printf '%s\\n' ptr-fixed-argument-transport-ok
       'Verify isolated existing-update dispatch and recovery', 'Verify native production contracts'];
     expect(steps.map(step => step.name)).toEqual(expectedNames);
     expect(steps[2]).toMatchObject({ uses: 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020', with: { 'node-version': '22.22.3', cache: 'npm' } });
-    expect(steps[3]).toMatchObject({ uses: 'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271', with: { version: '11.7.0', run_install: false } });
+    expect(steps[3]).toMatchObject({ uses: 'pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86', with: { version: '11.11.0', run_install: false } });
     expect(steps[5].run?.trim().split(/\s+/u)).toEqual(['npm', 'ci']);
-    expect(steps[6].run?.trim().split(/\s+/u)).toEqual(['pnpm', '--dir', 'services/auth-bridge', 'install', '--frozen-lockfile', '--ignore-scripts']);
+    expect(steps[6].run?.trim().split(/\s+/u)).toEqual(['pnpm', '--pm-on-fail=ignore', '--dir', 'services/auth-bridge', 'install', '--frozen-lockfile', '--ignore-scripts']);
     // Reuse the existing Linux job's complete staging/attestation contract, not a
     // second subtly different toolchain policy or weaker native-only variant.
     for (const index of [4, 7]) {

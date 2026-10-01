@@ -31,6 +31,10 @@ function pathExists(path) {
   return lstatSync(path, { throwIfNoEntry: false });
 }
 
+function sameKnownDeviceIdentity(left, right) {
+  return left === 0 || right === 0 || left === right;
+}
+
 function readPinnedRegularFile(path, label, expectedBytes) {
   let descriptor;
   try {
@@ -55,7 +59,9 @@ function readPinnedRegularFile(path, label, expectedBytes) {
       || bytes.byteLength !== after.size
       || !pathStat?.isFile()
       || pathStat.isSymbolicLink()
-      || pathStat.dev !== after.dev
+      // Node 22 on Windows reports lstat().dev as 0 (unknown) while fstat()
+      // still reports the volume ID. Keep checking the path's inode and size.
+      || !sameKnownDeviceIdentity(pathStat.dev, after.dev)
       || pathStat.ino !== after.ino
       || pathStat.size !== after.size
     ) throw new Error(`${label} changed while it was being read.`);
@@ -364,7 +370,7 @@ export function installAtomicFileFamily({
         if (
           Boolean(current) !== entry.existed
           || (current && (
-            current.dev !== entry.existingIdentity.dev
+            !sameKnownDeviceIdentity(current.dev, entry.existingIdentity.dev)
             || current.ino !== entry.existingIdentity.ino
             || current.size !== entry.existingIdentity.size
           ))

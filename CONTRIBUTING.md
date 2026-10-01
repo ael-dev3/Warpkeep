@@ -1,7 +1,8 @@
 # Contributing to Warpkeep
 
-Thank you for helping build Warpkeep in the open. Contributions should keep the
-software commercially reusable, forkable, mod-friendly, and clear about
+Thank you for helping build Warpkeep. The development repository is private;
+contributors need repository access. Contributions should keep the software
+commercially reusable, forkable, mod-friendly, and clear about
 provenance. Media terms vary by asset and are recorded separately. Participation
 follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
@@ -19,9 +20,10 @@ follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 ## Realm Council intake
 
 Use the [Warpkeep Farcaster channel](https://farcaster.xyz/~/channel/warpkeep)
-for open conversation, early ideas, and community stories. Use the
+for public feedback, early ideas, and community stories. Contributors with
+access to this private repository can use the
 [Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose)
-for a durable public bug report or realm wish that contributors can triage.
+for a durable bug report or realm wish that contributors can triage.
 
 Keep every public report privacy-safe. Describe only public product behavior or
 a reproduction using synthetic/local data. Do not attach private logs or
@@ -57,14 +59,15 @@ See [`LICENSING.md`](LICENSING.md),
 
 ## Choose the source you intend to change
 
-`main` contains the integrated 0.4 gameplay, owner PTR, new keep and local
-release/recovery source alongside the preserved Genesis 001 implementation.
-The integrated 0.4 release is not yet shipped. Use the
+`main` contains an earlier integrated 0.4 foundation alongside the preserved
+Genesis 001 implementation. The active, unmerged candidate is on
+[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374); its latest changes are
+not on main. Alpha 0.3.43 is live and the 0.4 owner PTR is unpublished. Use the
 [source map](docs/agent-notes/0.4.0/repo-map.md) and
 [architecture](docs/technical-architecture.md) to find the subsystem, then read
 [AGENTS.md](AGENTS.md) and the [current handoff](docs/agent-notes/0.4.0/README.md).
 
-For a new 0.4 checkout:
+For independent new work from the integrated main baseline:
 
 ```sh
 git clone https://github.com/ael-dev3/Warpkeep.git
@@ -74,7 +77,8 @@ git switch -c my-change
 
 Inspect your branch, remote and existing changes before editing. Follow the
 [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md), current refs and
-open pull requests before continuing existing work. Submit your working branch
+open pull requests to select the actual candidate branch before continuing
+existing release work. Submit your working branch
 through a pull request to `main`; source integration does not deploy the game.
 
 Keep local development backed up on its authorized GitHub branch. Follow the

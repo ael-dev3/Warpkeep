@@ -62,8 +62,8 @@ function normalizeDeploymentBase(value: string) {
 }
 
 /**
- * Custom-domain deployments explicitly pass `/`; legacy project Pages builds
- * retain `/Warpkeep/` until the canonical-domain cutover is complete.
+ * The canonical Alpha uses `/`, its isolated 0.4 owner PTR uses `/ptr/`, and
+ * legacy project Pages builds retain `/Warpkeep/` until the canonical cutover.
  */
 export function resolveDeploymentBase(environment: DeploymentEnvironment = process.env) {
   const requestedBase = environment.DEPLOY_BASE

@@ -6,6 +6,8 @@ import {
 } from 'react';
 
 import { useMiniAppHost } from '../../farcaster/miniapp';
+import { LazyCastleLyricFilmAction } from './LazyCastleLyricFilmAction';
+import { WARPKEEP_LYRIC_FILM_OWNER_FID } from './castleLyricFilmConfig';
 import { CastleProfileAvatar } from './RealmCastleLabels';
 import { RealmRecordField } from './RealmRecordPrimitives';
 import {
@@ -54,6 +56,7 @@ export type CastleInspectionPanelProps = Readonly<{
   /** Owner-only route into the caller-bound Inner Keep destination. */
   onEnterInnerKeep?: () => void;
   innerKeepButtonRef?: Ref<HTMLButtonElement>;
+  onLyricFilmOpenChange?: (open: boolean) => void;
 }>;
 
 export function CastleInspectionPanel({
@@ -67,7 +70,8 @@ export function CastleInspectionPanel({
   onRequestClose,
   focusTargetRef,
   onEnterInnerKeep,
-  innerKeepButtonRef
+  innerKeepButtonRef,
+  onLyricFilmOpenChange
 }: CastleInspectionPanelProps) {
   const dialogRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -189,6 +193,12 @@ export function CastleInspectionPanel({
 
           {profile.publicBio ? (
             <p className="castle-inspection__bio">{profile.publicBio}</p>
+          ) : null}
+
+          {castle.ownerFid === WARPKEEP_LYRIC_FILM_OWNER_FID ? (
+            <section className="castle-inspection__film-feature" aria-label="Warpkeep lyric film">
+              <LazyCastleLyricFilmAction onOpenChange={onLyricFilmOpenChange} />
+            </section>
           ) : null}
 
           {own && !observer && onEnterInnerKeep ? (

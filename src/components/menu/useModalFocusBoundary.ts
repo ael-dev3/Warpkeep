@@ -92,21 +92,22 @@ export function useModalFocusBoundary<T extends HTMLElement>({
 
       // Programmatically focused headings are intentionally outside the tab
       // order. Treat them (and any escaped focus) as an entry boundary.
+      // Keyboard traversal must reveal its target inside a scrollable panel.
       if (
         !dialog.contains(activeElement)
         || !focusableElements.includes(activeElement as HTMLElement)
       ) {
         event.preventDefault();
-        (event.shiftKey ? last : first).focus({ preventScroll: true });
+        (event.shiftKey ? last : first).focus();
         return;
       }
 
       if (event.shiftKey && activeElement === first) {
         event.preventDefault();
-        last.focus({ preventScroll: true });
+        last.focus();
       } else if (!event.shiftKey && activeElement === last) {
         event.preventDefault();
-        first.focus({ preventScroll: true });
+        first.focus();
       }
     };
 

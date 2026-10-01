@@ -1004,8 +1004,10 @@ describe('RealmMapScreen', () => {
     ).toBe('failed'));
     const realm = screen.getByRole('main', { name: 'Greater Realm' });
     expect(realm.getAttribute('aria-busy')).toBe('false');
-    expect(screen.getByRole('status').textContent)
-      .toContain('The public atlas could not be loaded');
+    expect(realm.textContent).toContain('Realm needs a retry');
+    expect(screen.getAllByRole('status').some((status) =>
+      status.textContent?.includes('Current Worker commands are paused')
+    )).toBe(true);
     expect(screen.getByRole('button', { name: 'Return to Menu' })).not.toBeNull();
   });
 

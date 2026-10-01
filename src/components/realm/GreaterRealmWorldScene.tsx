@@ -21,9 +21,11 @@ import type {
 } from '../../greater-realm/greaterRealmPublicContract';
 import { greaterRealmRegionPresentation } from '../../greater-realm/greaterRealmPresentationPlan';
 import { useMiniAppHost } from '../../farcaster/miniapp';
+import { normalizePublicProfileText } from '../../security/publicProfileText';
 import type { GraphicsQualityTier } from '../../settings/graphicsPreference';
 import type { AvailableGreaterRealmProviderBridge } from '../../spacetime/greaterRealmProviderBridge';
 import { useReducedMotionPreference } from './realmMapPresentationHelpers';
+import { LazyCastleLyricFilmAction } from './LazyCastleLyricFilmAction';
 import {
   createGreaterRealmWorldCanvasHost,
   type GreaterRealmWorldCanvasHost,
@@ -43,6 +45,7 @@ type BrowserPresentation = Readonly<{
 }>;
 
 export const GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS = 60_000;
+export const GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS = 30_000;
 
 function readWorkerControl(bridge: AvailableGreaterRealmProviderBridge) {
   try {
@@ -63,6 +66,7 @@ type GreaterRealmResourceSelection = Readonly<{
   locationId: string;
   atlasId: string;
   revision: bigint;
+  focus: Resource04 | null;
   source: readonly GreaterRealmResourceLocationSummaryDto[];
 }>;
 
@@ -108,12 +112,17 @@ export type GreaterRealmWorldSceneProps = Readonly<{
   identityFid: number;
   identityKey: string;
   ownCastle: Readonly<{ castleId: number; q: number; r: number }>;
+  /** Verified caller display name; never used for another castle. */
+  ownKeeperName?: string;
+  /** Castle ID resolved from an authoritative public FID mapping for this realm. */
+  lyricFilmCastleId?: number;
   resolvedGraphicsQuality?: GraphicsQualityTier;
   onPhaseChange: (phase: GreaterRealmClientPhase) => void;
   narrowOpenPanel?: 'controls' | 'resources';
   onNarrowOpenPanelChange?: (panel: 'controls' | 'resources' | undefined) => void;
   onGameplay04WorldSelection?: (selection: WorldSelection04 | null) => void;
   resourceFocus04?: Resource04 | null;
+  onLyricFilmOpenChange?: (open: boolean, requestClose?: () => void) => void;
   /** Public presentation only. The freshness guard is not owner authority or capacity proof. */
   renderGameplay04WorldPanel?: (selection: WorldSelection04 | null, validateSelection: (selection: WorldSelection04) => boolean) => ReactNode;
 }>;
@@ -127,12 +136,15 @@ export function GreaterRealmWorldScene({
   identityFid,
   identityKey,
   ownCastle,
+  ownKeeperName,
+  lyricFilmCastleId,
   resolvedGraphicsQuality,
   onPhaseChange,
   narrowOpenPanel,
   onNarrowOpenPanelChange,
   onGameplay04WorldSelection,
   resourceFocus04,
+  onLyricFilmOpenChange,
   renderGameplay04WorldPanel
 }: GreaterRealmWorldSceneProps) {
   const miniAppHost = useMiniAppHost();
@@ -146,8 +158,11 @@ export function GreaterRealmWorldScene({
   const snapshotBridgeRef = useRef<typeof bridge | undefined>(undefined);
   const gameplaySelectionRef = useRef<WorldSelection04 | null>(null);
   const gameplayLiveRef = useRef(false);
+  const retryWorldLoadRef = useRef<(() => void) | null>(null);
   const [snapshot, setSnapshot] = useState<GreaterRealmClientSnapshot>();
   const [commandSnapshot, setCommandSnapshot] = useState<GreaterRealmClientSnapshot>();
+  const [worldPhase, setWorldPhase] = useState<GreaterRealmClientPhase>('idle');
+  const [runtimeAttempt, setRuntimeAttempt] = useState(0);
   const [renderer, setRenderer] = useState<'loading' | 'webgl' | 'unavailable'>('loading');
   const [worldSelection, setWorldSelection] = useState<GreaterRealmWorldSelection>();
   const [localVesselState, setLocalVesselState] = useState<GreaterRealmLocalVesselState>(
@@ -155,9 +170,16 @@ export function GreaterRealmWorldScene({
   );
   const [resourceSelection, setResourceSelection] =
     useState<GreaterRealmResourceSelection>();
+  const previousResourceFocusRef = useRef(resourceFocus04);
   const [pendingWorkerId, setPendingWorkerId] = useState<string>();
   const [commandError, setCommandError] = useState(false);
   const [localOpenPanel, setLocalOpenPanel] = useState<'controls' | 'resources'>();
+  useLayoutEffect(() => {
+    if (previousResourceFocusRef.current === resourceFocus04) return;
+    previousResourceFocusRef.current = resourceFocus04;
+    setResourceSelection(undefined);
+    setCommandError(false);
+  }, [resourceFocus04]);
   const openPanel = onNarrowOpenPanelChange === undefined
     ? localOpenPanel
     : narrowOpenPanel;
@@ -167,6 +189,10 @@ export function GreaterRealmWorldScene({
   };
   const controlsTriggerRef = useRef<HTMLButtonElement>(null);
   const resourcesTriggerRef = useRef<HTMLButtonElement>(null);
+  const resourcesPanelRef = useRef<HTMLElement>(null);
+  const castleRecordRef = useRef<HTMLElement>(null);
+  const selectingFromControlsRef = useRef(false);
+  const focusCastleFromControlsRef = useRef(false);
   const controlStatusIsAnnouncement = worldSelection !== undefined
     || localVesselState.status === 'selected'
     || localVesselState.status === 'blocked';
@@ -253,6 +279,29 @@ export function GreaterRealmWorldScene({
     snapshotCurrent
   ]);
   const currentSnapshotRef = useRef<GreaterRealmClientSnapshot | undefined>(undefined);
+  const selectedCastle = worldSelection?.kind === 'castle'
+    ? snapshotCurrent?.window?.castles.find((castle) => (
+        castle.castleId === worldSelection.castleId
+        && castle.atlasQ === worldSelection.atlasQ
+        && castle.atlasR === worldSelection.atlasR
+      ))
+    : undefined;
+  const selectedCastleIsOwn = selectedCastle?.castleId === BigInt(ownCastle.castleId);
+  const ownKeeperDisplayName = selectedCastleIsOwn
+    ? normalizePublicProfileText(ownKeeperName, 80)
+    : undefined;
+  const selectedCastleHasLyricFilm = selectedCastle !== undefined
+    && lyricFilmCastleId !== undefined
+    && Number.isSafeInteger(lyricFilmCastleId)
+    && lyricFilmCastleId > 0
+    && selectedCastle.castleId === BigInt(lyricFilmCastleId);
+  useLayoutEffect(() => {
+    if (!focusCastleFromControlsRef.current) return;
+    focusCastleFromControlsRef.current = false;
+    if (selectedCastle !== undefined) {
+      castleRecordRef.current?.focus({ preventScroll: true });
+    }
+  }, [selectedCastle, worldSelection]);
   currentSnapshotRef.current = snapshotCurrent;
   const publicResourceSource = snapshotCurrent?.resourceLocationPhase === 'ready'
     ? snapshotCurrent.resourceLocations
@@ -261,6 +310,17 @@ export function GreaterRealmWorldScene({
     () => boundedPublicResources(publicResourceSource),
     [publicResourceSource]
   );
+  const shownResources = publicResources.filter(
+    location => !resourceFocus04 || location.resourceKind === resourceFocus04
+  );
+  const resourceReadPhase = snapshotCurrent?.resourceLocationPhase;
+  const resourceRetryInFlight = resourceReadPhase === 'failed' && worldPhase === 'bootstrapping';
+  const resourceReadNotice = resourceReadPhase === 'failed'
+    ? worldPhase === 'ready' || worldPhase === 'bootstrapping' || worldPhase === 'failed'
+    : worldPhase === 'ready' && (
+      resourceReadPhase === 'loading'
+      || (resourceReadPhase === 'ready' && publicResources.length === 0)
+    );
   const visibleRegionIds = useMemo(() => new Set(
     snapshotCurrent?.chunks.flatMap(({ chunk }) => (
       [...chunk.coreCells, ...chunk.apronCells].map((cell) => cell.regionId)
@@ -269,13 +329,14 @@ export function GreaterRealmWorldScene({
   const tierOneRegions = snapshotCurrent?.bootstrap?.regions ?? Object.freeze([]);
   const resourceAtlasId = snapshotCurrent?.bootstrap?.atlasId;
   const resourceRevision = snapshotCurrent?.bootstrap?.revision;
-  const selectedLocation = publicResources.find(
+  const selectedLocation = shownResources.find(
     (location) => (
       resourceSelection !== undefined
       && publicResourceSource !== undefined
       && resourceSelection.source === publicResourceSource
       && resourceSelection.atlasId === resourceAtlasId
       && resourceSelection.revision === resourceRevision
+      && resourceSelection.focus === (resourceFocus04 ?? null)
       && location.locationId === resourceSelection.locationId
     )
   );
@@ -328,6 +389,10 @@ export function GreaterRealmWorldScene({
   const dispatchCurrent = commandSnapshotCurrent?.bootstrap !== undefined
     && commandSnapshotCurrent.bootstrap.mode === 'active'
     && workerControl?.value.resourceState.workerSystemMode === 'active'
+    && workerControl.atlasId === commandSnapshotCurrent.bootstrap.atlasId
+    && workerControl.atlasRevision === commandSnapshotCurrent.bootstrap.revision;
+  const recallCurrent = commandSnapshotCurrent?.bootstrap !== undefined
+    && workerControl !== undefined
     && workerControl.atlasId === commandSnapshotCurrent.bootstrap.atlasId
     && workerControl.atlasRevision === commandSnapshotCurrent.bootstrap.revision;
   const runWorkerCommand = (workerId: string, command: () => Promise<void>) => {
@@ -423,7 +488,12 @@ export function GreaterRealmWorldScene({
         canvas.dataset.greaterRealmPublicResources = String(telemetry.publicResourceCount);
         canvas.dataset.greaterRealmVisibleRegions = String(telemetry.visibleRegionCount);
       },
-      onSelectionChange: setWorldSelection,
+      onSelectionChange: (selection) => {
+        focusCastleFromControlsRef.current = selectingFromControlsRef.current
+          && selection?.kind === 'castle';
+        setWorldSelection(selection);
+        if (selection?.kind === 'castle') setOpenPanel(undefined);
+      },
       onLocalVesselStateChange: setLocalVesselState,
       onFailure: () => setRenderer('unavailable')
     });
@@ -466,11 +536,21 @@ export function GreaterRealmWorldScene({
   useEffect(() => {
     let active = true;
     let initialLoadComplete = false;
+    let initialLoadSuperseded = false;
     let refreshInFlight = false;
+    let refreshAttempt = 0;
+    let readTimedOut = false;
     let lastReleaseAttemptAt = Date.now();
     let runtime: ReturnType<typeof bridge.createRuntime> | undefined;
     let unsubscribe: (() => void) | undefined;
     let refreshTimer: number | undefined;
+    let initialLoadTimeout: number | undefined;
+    let refreshTimeout: number | undefined;
+    const reportPhase = (next: GreaterRealmClientPhase) => {
+      if (!active) return;
+      setWorldPhase(next);
+      onPhaseChange(next);
+    };
     const requestedView = Object.freeze({
       centerQ: policy.centerQ,
       centerR: policy.centerR,
@@ -481,7 +561,7 @@ export function GreaterRealmWorldScene({
     setResourceSelection(undefined);
     setSnapshot(undefined);
     setCommandSnapshot(undefined);
-    onPhaseChange('idle');
+    reportPhase('idle');
     try {
       runtime = bridge.createRuntime({
         deviceClass: policy.deviceClass,
@@ -503,15 +583,16 @@ export function GreaterRealmWorldScene({
           setResourceSelection(undefined);
           setSnapshot(undefined);
           setCommandSnapshot(undefined);
-          onPhaseChange('failed');
+          reportPhase('failed');
           return;
         }
         if (usable) {
+          readTimedOut = false;
           snapshotBridgeRef.current = bridge;
           snapshotIdentityKeyRef.current = identityKey;
           setSnapshot(next);
           setCommandSnapshot(next);
-          onPhaseChange('ready');
+          reportPhase('ready');
           return;
         }
         // Refresh clears the controller while it obtains a new release. Keep
@@ -519,39 +600,79 @@ export function GreaterRealmWorldScene({
         // until a new exact ready snapshot arrives.
         setResourceSelection(undefined);
         setCommandSnapshot(undefined);
-        onPhaseChange(next.phase === 'ready' ? 'failed' : next.phase);
+        // A late intermediate publication from a timed-out request must not
+        // hide Retry again. Only an exact ready read can recover implicitly.
+        if (!readTimedOut) reportPhase(next.phase === 'ready' ? 'failed' : next.phase);
       });
+      // A provider request can stay pending without reporting failure. Surface
+      // recovery while preserving the last validated atlas and revoking commands.
+      initialLoadTimeout = window.setTimeout(() => {
+        if (!active || initialLoadComplete || initialLoadSuperseded) return;
+        initialLoadComplete = true;
+        readTimedOut = true;
+        setResourceSelection(undefined);
+        setCommandSnapshot(undefined);
+        reportPhase('failed');
+      }, GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS);
       void Promise.resolve().then(() => runtime!.loadView(requestedView)).catch(() => {
-        if (active) {
+        if (active && !initialLoadSuperseded) {
           setResourceSelection(undefined);
           setCommandSnapshot(undefined);
-          onPhaseChange('failed');
+          reportPhase('failed');
         }
       }).finally(() => {
+        if (initialLoadTimeout !== undefined) window.clearTimeout(initialLoadTimeout);
         initialLoadComplete = true;
       });
-      const refreshIfDue = () => {
+      const refreshWorld = (manual: boolean) => {
         if (
           !active
-          || !initialLoadComplete
           || refreshInFlight
-          || document.hidden
           || runtime === undefined
-          || Date.now() - lastReleaseAttemptAt
-            < GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS
+          || (!manual && (
+            !initialLoadComplete
+            || document.hidden
+            || Date.now() - lastReleaseAttemptAt
+              < GREATER_REALM_RELEASE_REFRESH_INTERVAL_MILLISECONDS
+          ))
         ) return;
         refreshInFlight = true;
+        const attempt = ++refreshAttempt;
+        // Any refresh supersedes an unresolved initial read, including an
+        // automatic refresh after its watchdog expires.
+        initialLoadSuperseded = true;
+        initialLoadComplete = true;
+        readTimedOut = false;
         lastReleaseAttemptAt = Date.now();
+        gameplaySelectionRef.current = null;
+        setResourceSelection(undefined);
+        setCommandSnapshot(undefined);
+        if (manual) reportPhase('bootstrapping');
+        refreshTimeout = window.setTimeout(() => {
+          if (!active || attempt !== refreshAttempt) return;
+          ++refreshAttempt;
+          refreshInFlight = false;
+          refreshTimeout = undefined;
+          readTimedOut = true;
+          setResourceSelection(undefined);
+          setCommandSnapshot(undefined);
+          reportPhase('failed');
+        }, GREATER_REALM_WORLD_READ_TIMEOUT_MILLISECONDS);
         void Promise.resolve().then(() => runtime!.refreshRelease(requestedView)).catch(() => {
-          if (active) {
+          if (active && attempt === refreshAttempt) {
             setResourceSelection(undefined);
             setCommandSnapshot(undefined);
-            onPhaseChange('failed');
+            reportPhase('failed');
           }
         }).finally(() => {
+          if (attempt !== refreshAttempt) return;
+          if (refreshTimeout !== undefined) window.clearTimeout(refreshTimeout);
+          refreshTimeout = undefined;
           refreshInFlight = false;
         });
       };
+      retryWorldLoadRef.current = () => refreshWorld(true);
+      const refreshIfDue = () => refreshWorld(false);
       const visibilityChange = () => {
         if (!document.hidden) refreshIfDue();
       };
@@ -563,19 +684,26 @@ export function GreaterRealmWorldScene({
       const removeRefreshListeners = () => {
         document.removeEventListener('visibilitychange', visibilityChange);
         if (refreshTimer !== undefined) window.clearInterval(refreshTimer);
+        if (initialLoadTimeout !== undefined) window.clearTimeout(initialLoadTimeout);
+        if (refreshTimeout !== undefined) window.clearTimeout(refreshTimeout);
       };
       return () => {
         active = false;
+        retryWorldLoadRef.current = null;
         removeRefreshListeners();
         unsubscribe?.();
         runtime?.dispose();
       };
     } catch {
-      if (active) onPhaseChange('failed');
+      retryWorldLoadRef.current = () => setRuntimeAttempt(value => value + 1);
+      reportPhase('failed');
     }
     return () => {
       active = false;
+      retryWorldLoadRef.current = null;
       if (refreshTimer !== undefined) window.clearInterval(refreshTimer);
+      if (initialLoadTimeout !== undefined) window.clearTimeout(initialLoadTimeout);
+      if (refreshTimeout !== undefined) window.clearTimeout(refreshTimeout);
       unsubscribe?.();
       runtime?.dispose();
     };
@@ -593,7 +721,8 @@ export function GreaterRealmWorldScene({
     policy.deviceClass,
     policy.graphicsProfile,
     policy.lod,
-    policy.radius
+    policy.radius,
+    runtimeAttempt
   ]);
 
   return (
@@ -607,6 +736,7 @@ export function GreaterRealmWorldScene({
       data-greater-realm-lod={policy.lod}
       data-greater-realm-reduced-motion={policy.reducedMotion}
       data-greater-realm-farcaster={miniAppHost.isMiniApp}
+      data-castle-selected={selectedCastle !== undefined}
     >
       <canvas
         ref={canvasRef}
@@ -617,6 +747,14 @@ export function GreaterRealmWorldScene({
         aria-describedby="greater-realm-world-help greater-realm-world-status"
         data-testid="greater-realm-world-canvas"
       />
+      {worldPhase === 'failed' ? (
+        <div className="greater-realm-world__load-status">
+          <p role="status">{snapshotCurrent === undefined
+            ? 'The Realm did not load. Try again to view your map.'
+            : 'The Realm could not refresh. The last verified map remains visible; Worker commands are paused.'}</p>
+          <button type="button" onClick={() => retryWorldLoadRef.current?.()}>Retry Realm</button>
+        </div>
+      ) : null}
       <div
         className="greater-realm-world__controls"
         aria-label="Greater Realm view controls"
@@ -698,7 +836,15 @@ export function GreaterRealmWorldScene({
           <button
             type="button"
             disabled={renderer !== 'webgl'}
-            onClick={() => canvasHostRef.current?.control({ kind: 'select-next' })}
+            onClick={() => {
+              selectingFromControlsRef.current = narrowPresentation
+                && openPanel === 'controls';
+              try {
+                canvasHostRef.current?.control({ kind: 'select-next' });
+              } finally {
+                selectingFromControlsRef.current = false;
+              }
+            }}
           >SELECT NEXT</button>
         </div>
         <div className="greater-realm-world__helm" aria-label="Local vessel controls">
@@ -777,12 +923,41 @@ export function GreaterRealmWorldScene({
           </ol>
         </aside>
       )}
-      {publicResources.length === 0 && activeWorkers.length === 0 && renderGameplay04WorldPanel === undefined ? null : (
+      {selectedCastle === undefined ? null : (
         <aside
+          ref={castleRecordRef}
+          className="greater-realm-world__castle-record"
+          aria-label="Selected castle profile"
+          tabIndex={-1}
+        >
+          <header>
+            <span>{selectedCastleIsOwn
+              ? 'YOUR FOUNDED KEEP'
+              : 'FOUNDED KEEP'}</span>
+            <button
+              aria-label="Close castle profile"
+              onClick={() => {
+                canvasHostRef.current?.control({ kind: 'clear-selection' });
+                setWorldSelection(undefined);
+              }}
+              type="button"
+            >×</button>
+          </header>
+          <h2>{selectedCastleIsOwn ? ownKeeperDisplayName ?? 'Your keep' : 'Founded keep'}</h2>
+          <p>Level {selectedCastle.level} · Atlas {selectedCastle.atlasQ}, {selectedCastle.atlasR}</p>
+          {selectedCastleHasLyricFilm ? (
+            <LazyCastleLyricFilmAction onOpenChange={onLyricFilmOpenChange} />
+          ) : null}
+        </aside>
+      )}
+      {publicResources.length === 0 && activeWorkers.length === 0 && renderGameplay04WorldPanel === undefined && !resourceReadNotice ? null : (
+        <aside
+          ref={resourcesPanelRef}
           className="greater-realm-world__resources"
           data-open={openPanel === 'resources'}
           hidden={narrowPresentation && openPanel === 'controls'}
-          aria-label={publicResources.length === 0
+          tabIndex={-1}
+          aria-label={publicResources.length === 0 && !resourceReadNotice
             ? 'Greater Realm Worker controls'
             : 'Nearby public resources'}
         >
@@ -802,11 +977,28 @@ export function GreaterRealmWorldScene({
             className="greater-realm-world__resources-body"
             hidden={narrowPresentation && openPanel !== 'resources'}
           >
+          {worldPhase === 'ready' && resourceReadPhase === 'loading'
+            ? <p role="status">Loading nearby resource sites…</p> : null}
+          {resourceRetryInFlight ? <p role="status">Retrying nearby resource sites…</p> : null}
+          {resourceReadPhase === 'failed' && (worldPhase === 'ready' || worldPhase === 'failed') ? (
+            <div>
+              <p role="status">{worldPhase === 'failed'
+                ? 'The Realm retry did not finish. Worker dispatch still needs a fresh resource-site read.'
+                : 'Nearby resource sites did not load. Worker dispatch needs a fresh Realm read.'}</p>
+              <button type="button" onClick={() => {
+                (narrowPresentation ? resourcesTriggerRef.current : resourcesPanelRef.current)
+                  ?.focus({ preventScroll: true });
+                retryWorldLoadRef.current?.();
+              }}>Retry resource sites</button>
+            </div>
+          ) : null}
+          {worldPhase === 'ready' && resourceReadPhase === 'ready' && publicResources.length === 0
+            ? <p role="status">No public resource sites are shown in this Realm view.</p> : null}
           {publicResources.length === 0 ? null : (
             <>
               <strong>Nearby resources</strong>
               <div className="greater-realm-world__resource-list">
-                {publicResources.filter(location => !resourceFocus04 || location.resourceKind === resourceFocus04).map((location) => (
+                {shownResources.map((location) => (
                   <button
                     key={location.locationId}
                     type="button"
@@ -822,6 +1014,7 @@ export function GreaterRealmWorldScene({
                         locationId: location.locationId,
                         atlasId: resourceAtlasId,
                         revision: resourceRevision,
+                        focus: resourceFocus04 ?? null,
                         source: publicResourceSource
                       }));
                       setCommandError(false);
@@ -831,6 +1024,8 @@ export function GreaterRealmWorldScene({
                   </button>
                 ))}
               </div>
+              {resourceFocus04 && shownResources.length === 0
+                ? <p role="status">No {resourceFocus04} sites are shown in this Realm view.</p> : null}
               {selectedLocation === undefined || (renderGameplay04WorldPanel !== undefined && workerControl === undefined) ? null : (
                 <div className="greater-realm-world__worker-command">
                   <span>
@@ -875,12 +1070,15 @@ export function GreaterRealmWorldScene({
                   type="button"
                   disabled={
                     pendingWorkerId !== undefined
+                    || !recallCurrent
                     || workerBridge.recallWorker === undefined
                     || worker.status === 'returning'
                   }
                   onClick={() => {
                     if (
-                      workerBridge.recallWorker === undefined
+                      !recallCurrent
+                      || pendingWorkerId !== undefined
+                      || workerBridge.recallWorker === undefined
                       || worker.status === 'returning'
                     ) return;
                     runWorkerCommand(worker.workerId, () => (
@@ -895,8 +1093,9 @@ export function GreaterRealmWorldScene({
               {recallableWorkers.length < 2 || workerBridge.recallAllWorkers === undefined ? null : (
                 <button
                   type="button"
-                  disabled={pendingWorkerId !== undefined}
+                  disabled={pendingWorkerId !== undefined || !recallCurrent}
                   onClick={() => {
+                    if (!recallCurrent || pendingWorkerId !== undefined) return;
                     runWorkerCommand('all', () => workerBridge.recallAllWorkers!());
                   }}
                 >

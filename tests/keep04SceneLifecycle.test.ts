@@ -6,12 +6,13 @@ import type { InnerKeepRuntimeAssetBundle } from '../src/components/inner-keep/l
 afterEach(() => vi.restoreAllMocks());
 const assets = (): InnerKeepRuntimeAssetBundle => ({ staticPrefabs: new Map(), populationPrefabs: new Map(), failures: [], dispose: vi.fn() });
 
-it('emits one disposal event per scene-owned forest instance, without disposing borrowed assets', () => {
+it('emits one disposal event per scene-owned instanced mesh, without disposing borrowed assets', () => {
   const bundle = assets(); const scene = createKeep04Scene({ quality: 'balanced', reducedMotion: true, assets: bundle });
-  const events: number[] = [];
-  scene.scene.traverse(object => { if (object instanceof THREE.InstancedMesh) object.addEventListener('dispose', () => events.push(object.id)); });
+  const events: Array<{ id: number; name: string }> = [];
+  scene.scene.traverse(object => { if (object instanceof THREE.InstancedMesh) object.addEventListener('dispose', () => events.push({ id: object.id, name: object.name })); });
   scene.dispose(); scene.dispose();
-  expect(events).toHaveLength(2); expect(new Set(events).size).toBe(2);
+  expect(events).toHaveLength(4); expect(new Set(events.map(event => event.id)).size).toBe(4);
+  expect(events.map(event => event.name).sort()).toEqual(['forest-band:0', 'forest-band:1', 'forest-bank:perimeter', 'moat-water-edge']);
   expect(scene.scene.children).toHaveLength(0); expect(bundle.dispose).not.toHaveBeenCalled();
 });
 

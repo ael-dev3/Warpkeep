@@ -59,6 +59,20 @@ Historical plans are context, not an automatic restriction on better solutions.
    where evidence lives and the next real caller/gate. Do not invent percentages
    from time spent, line count, test count or number of commits.
 
+### Temporary GitHub Actions pause — September 2026
+
+The owner directed contributors to proceed without GitHub Actions during
+September. Do not dispatch, rerun, or depend on a hosted Actions workflow before
+October 1, 2026. Publish reviewable source checkpoints with `[skip actions]` in
+the commit message so synchronization does not start workflows. GitHub will
+leave the skipped required checks pending; local test results are useful
+evidence but do not waive hosted Verify or authorize merging. Keep affected PRs
+open and continue independent local work. On or after October 1, resume the
+already-authorized exact-head Verify and signed M1/M2 delivery sequence unless
+the owner changes that direction. The end of this dated pause does not require
+another blanket approval; hosted verification and operation-specific evidence
+still apply.
+
 For a maintenance-only request, keep the agreed mechanics and feature set. Fix
 demonstrated defects and inconsistencies through their existing callers. A review
 may find no defect; report that coverage honestly instead of adding speculative
@@ -131,8 +145,11 @@ prepare/check releases the input, rather than installing into shared Windows
 dependency junctions or making another clone. The [execution handoff](../agent-notes/0.4.0/execution-handoff.md)
 records current run identities and owning results.
 
-The connected local full-stack browser probe owns a disposable SpacetimeDB
-module copy. Before running `npm run qa:fullstack:local`, install the module's
+The connected local full-stack browser probe exercises preserved G001/legacy
+Inner Keep, using a disposable copy of `spacetimedb/src/`, synthetic sign-in,
+accelerated clocks and starting balances. It does not exercise the gameplay04
+PTR/Keep04 caller or establish its first-session pacing. Before running
+`npm run qa:fullstack:local`, install the module's
 locked dependencies in the existing checkout:
 
 ```powershell
@@ -143,6 +160,98 @@ npm run qa:fullstack:local
 The install populates only the ignored `spacetimedb/node_modules` tree. If it is
 missing, the probe fails closed with this exact recovery command; it never
 installs dependencies implicitly or changes a production module.
+
+For the new gameplay04 client/server path, use `npm run qa:ptr:local` from
+the clean committed native checkout as `warpkeep` with pinned Node 22.22.3,
+the existing locked `spacetimedb/node_modules`, and `SPACETIME_BIN` selecting
+the attested 2.6.1 CLI. It builds a private copy of the PTR module and uses a
+disposable numeric-loopback database, synthetic atlas and ephemeral signed
+fixture sessions. Production connection/authentication guards remain intact.
+Construction and gathering use their normal server timers; allow several
+minutes rather than changing the clock or treating startup as completion.
+The bounded runner tests the real generated client, controller, persistence,
+stale quotes, exact retry, resource deduction and improved return. It writes
+`artifacts/qa/ptr-gameplay04-local-smoke.json` only after successful cleanup.
+Each attempt invalidates its exact owned prior receipt before runtime/source
+checks; unexpected linked objects are preserved and rejected. Record the command
+exit code and exact source from the fresh result. Rerun this real wire boundary
+when the SDK/server pin changes; a synthetic bare-code response does not establish
+the server's actual error format.
+A failed run reports its bounded stage; fix that failure before claiming a
+pass. This is connected local integration evidence, not a browser playthrough,
+actual-owner PTR journey, production-atlas pacing or phone acceptance.
+
+For the current production menu, build the reviewed source and run
+`npm run qa:menu-entry`. It checks direct menu entry at desktop, phone,
+320px portrait and short landscape sizes using fresh owned Chrome profiles.
+The historical `qa:title-transition` command remains a build-then-check alias;
+it no longer grades the retired title gateway or claims a transition result.
+The runner derives the supported `/` or `/ptr/` asset base from the built HTML,
+waits for castle/guardian readiness, and preserves traversal/link and loopback
+boundaries. Optional scenery may still be loading: inspect the saved images
+and record build source/HTML identity separately from performance acceptance.
+
+On Windows, `npm run qa:menu-entry -- --native-dist` reads the fixed existing
+`WarpkeepRunner` build at
+`\\wsl.localhost\WarpkeepRunner\home\warpkeep\Warpkeep-0.4\dist`; it does not
+create another build tree. Use the pinned Node executable if the shell's Node
+differs. Keep native source/build frozen through the run, verify its source and
+payload receipts before and after, and retain each unique manifest/PNG output.
+No arbitrary directory, owner credential or remote origin is accepted by that
+CLI flag. This is public menu presentation QA, not owner sign-in or gameplay.
+
+On `WarpkeepRunner`, invoke native checks as `warpkeep` with
+`wsl -d WarpkeepRunner -u warpkeep`; the distro's default shell is root, and
+Chrome must keep its sandbox enabled. This image's `/usr/bin/google-chrome` is
+a symlink rejected by executable attestation, so select the attested binary
+with `WARPKEEP_QA_CHROME=/opt/google/chrome/chrome`. Linux headless QA opts into
+SwiftShader; high-DPI software rendering can still emit a GPU-stall diagnostic.
+Keep unknown browser warnings fail-closed and use the Windows Chrome full-stack
+run for G001 preservation integration evidence. Neither emulated run establishes
+phone performance.
+
+Verify `id -u` is `1000` and the native checkout is owned by `warpkeep` before
+running its Git, build, test or sealed-launch commands. The sealed-launch
+verifier deliberately clears user/global Git configuration; invoking it as
+root against this checkout fails with `SEALED_LAUNCH_CHECKOUT_INVALID`. A root
+fetch or build can also leave `.git`, tracked files and ignored outputs owned by
+root. If that happens, inventory the exact files created by the run and restore
+only those paths to `warpkeep`; do not hide the mismatch with `safe.directory`
+or a broad recursive ownership change.
+
+Before a full root suite, also inspect the ignored canonical artifact at
+`spacetimedb/dist/bundle.js` if it exists. A clean Git status does not establish
+its ownership. On 30 September it was a root-owned regular file, so six
+`activationToolingSecurity` cases failed at fixture setup with `EACCES`. With
+the build idle and the exact path verified inside the native checkout,
+restoring only that file to `warpkeep:warpkeep` preserved its bytes and made
+all 199 cases pass. Do not delete a referenced artifact, broadly relax modes,
+or rerun the suite as root. Rebuild release artifacts from the final exact
+source; a fixture-restored bundle is not a preparation receipt.
+
+When the read-only public Pages mirror planner runs from WSL against the
+Windows-mounted `Warpkeep-Live` checkout, Git can reject its mounted ownership
+or report a CRLF `CNAME` as modified. Do not change global Git configuration
+or rewrite the checkout. First confirm the Windows checkout is clean on the
+expected `main` commit, then scope both compatibility settings to the single
+planner process, using the checkout's resolved WSL path:
+
+```bash
+export GIT_CONFIG_COUNT=2
+export GIT_CONFIG_KEY_0=safe.directory
+export WARPKEEP_LIVE_ROOT=/mnt/c/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep-live-pages
+export GIT_CONFIG_VALUE_0="$WARPKEEP_LIVE_ROOT"
+export GIT_CONFIG_KEY_1=core.autocrlf
+export GIT_CONFIG_VALUE_1=true
+node scripts/verify-public-pages-mirror-plan.mjs \
+  --public-root "$WARPKEEP_LIVE_ROOT" \
+  "$WARPKEEP_PUBLIC_SOURCE_COMMIT" "$WARPKEEP_LIVE_PARENT_COMMIT"
+```
+
+Replace the example mount path only after resolving the actual public checkout;
+keep `safe.directory` exact and process-scoped. The planner is read-only unless
+`--write-plan` is explicitly supplied. Check the public checkout identity and
+cleanliness again after planning.
 
 ## Output locations and retention
 

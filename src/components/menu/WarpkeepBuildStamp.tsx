@@ -34,7 +34,10 @@ export const WarpkeepBuildStamp = forwardRef<HTMLButtonElement, WarpkeepBuildSta
     patchNotesState
   }, buttonRef) {
     const releaseText = `${buildInfo.channel.toUpperCase()} ${buildInfo.version}`;
-    const deployed = Boolean(buildInfo.commitUrl && buildInfo.fullSha);
+    const patchNotesAction = patchNotesState === 'preview'
+      ? 'Pin'
+      : patchNotesState === 'pinned' ? 'Close' : 'Open';
+    const deployed = Boolean(buildInfo.fullSha);
     const provenanceText = deployed ? `BUILD ${buildInfo.shortSha}` : buildInfo.shortSha;
 
     return (
@@ -47,7 +50,7 @@ export const WarpkeepBuildStamp = forwardRef<HTMLButtonElement, WarpkeepBuildSta
         <button
           aria-controls="warpkeep-latest-patch-notes"
           aria-expanded={expanded}
-          aria-label={`${expanded ? 'Close' : 'Open'} patch notes for Warpkeep ${releaseText}`}
+          aria-label={`${patchNotesAction} patch notes for Warpkeep ${releaseText}`}
           className="warpkeep-menu-build-stamp__version"
           disabled={!interactive}
           onClick={onRequestPatchNotes}
@@ -60,7 +63,7 @@ export const WarpkeepBuildStamp = forwardRef<HTMLButtonElement, WarpkeepBuildSta
           {releaseText}
         </button>
         <span aria-hidden="true" className="warpkeep-menu-build-stamp__separator">{' · '}</span>
-        {deployed ? (
+        {deployed && buildInfo.commitUrl ? (
           <a
             aria-label={`Open Warpkeep ${releaseText} build ${buildInfo.shortSha} on GitHub`}
             className="warpkeep-menu-build-stamp__build"

@@ -389,6 +389,7 @@ const ALPHA_0_3_22_PATCH_NOTES: LatestPatchNotes = Object.freeze({
 export const WARPKEEP_PATCH_NOTES_BY_VERSION: Readonly<Record<string, LatestPatchNotes>> =
   Object.freeze({
     '0.4.0': ALPHA_0_4_0_PATCH_NOTES,
+    '0.4.0-ptr.1': ALPHA_0_4_0_PATCH_NOTES,
     '0.3.43': ALPHA_0_3_43_PATCH_NOTES,
     '0.3.42': ALPHA_0_3_42_PATCH_NOTES,
     '0.3.41': ALPHA_0_3_41_PATCH_NOTES,

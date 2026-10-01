@@ -13,10 +13,12 @@ permissions:
 # exclusive jobs. The source-closure manifest canonicalizes only these exact
 # values, so changing any protected executable requires an explicit refreeze.
 env:
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'd7d4600bb8cd248b79131a96de4d03698508e7f08b40bea094e838d132d9c162'
-  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: '6021a9c9dfa70ebd4b1cec2c137d4cbe17195aa8b0f774071e63f90b7d1c03ba'
+  # Preserve historical dependency metadata without switching the patched CLI.
+  pnpm_config_pm_on_fail: 'ignore'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_VERIFIER_SHA256: 'cef373c061864a779876a24a69d4c0006bd3f0c447ce8b6e16d7608c5a0b18a4'
+  WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: 'c64fe8b750e8d67bb551137991fb440568349c74cdddaeb34af1cc91f6f939d5'
   WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_VERIFIER_SHA256: '639d78a525a0592d25d06a103074c2ab961c229bf3b9c97c3079759f55a09e97'
-  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '68e05292c7162b982781e2eb673e6e39ed8ddbb99b4f3aa61f7507d3dc7c144b'
+  WARPKEEP_PREPARED_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: '9fbdfc888b2df0d1c91d1e8f59e37a0690b39d50b95a535eb783714c533c6103'
   WARPKEEP_NOTIFICATION_PAGES_PROTECTED_DEPLOY_LAUNCHER_SHA256: '692420c1a2a1d8d0b76893caaf720be11f2b3dcb559bf777be4a2cc70c59a0c2'
 
 concurrency:
@@ -63,20 +65,20 @@ jobs:
             9>>"$GITHUB_OUTPUT"
 
   build:
+    name: Verify public mirror candidate (no publication)
     needs: classify
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_branch == 'main' &&
-      needs.classify.outputs.deployment-lane == 'sealed-g002'
+      needs.classify.outputs.deployment-lane == 'public-mirror-candidate'
     runs-on: ubuntu-latest
     # Bound the receipt-checked build, audits, and artifact preparation.
     timeout-minutes: 75
     permissions:
       contents: read
-      pages: read
     env:
-      DEPLOY_BASE: '/'
+      DEPLOY_BASE: '/ptr/'
       VITE_WARPKEEP_RELEASE_CHANNEL: alpha
       VITE_WARPKEEP_BUILD_SHA: ${{ github.event.workflow_run.head_sha }}
       VITE_WARPKEEP_REPOSITORY_URL: https://github.com/ael-dev3/Warpkeep
@@ -114,13 +116,10 @@ jobs:
         env:
           VITE_WARPKEEP_SHARED_ALPHA_ENABLED: ${{ vars.WARPKEEP_SHARED_ALPHA_ENABLED }}
         run: |
-          case "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" in
-            true | false) ;;
-            *)
-              echo 'WARPKEEP_SHARED_ALPHA_ENABLED must be exactly true or false.' >&2
-              exit 1
-              ;;
-          esac
+          if [[ "$VITE_WARPKEEP_SHARED_ALPHA_ENABLED" != 'true' ]]; then
+            echo 'WARPKEEP_SHARED_ALPHA_ENABLED must be true for owner PTR.' >&2
+            exit 1
+          fi
 
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -136,9 +135,9 @@ jobs:
           cache: npm
 
       - name: Setup pinned pnpm for bridge runtime-contract tests
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
-          version: 11.7.0
+          version: 11.11.0
           run_install: false
 
       - name: Stage Node in a runner-private toolchain path
@@ -200,17 +199,17 @@ jobs:
         run: npm ci
 
       - name: Install exact bridge runtime-test toolchain
-        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+        run: pnpm --pm-on-fail=ignore --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
 
       - name: Validate PTR lock and install SpacetimeDB module dependencies
         shell: bash
         run: |
           set -euo pipefail
           test ! -e spacetimedb/ptr/node_modules
-          pnpm --dir spacetimedb/ptr install \
+          pnpm --pm-on-fail=ignore --dir spacetimedb/ptr install \
             --frozen-lockfile --lockfile-only --ignore-workspace
           test ! -e spacetimedb/ptr/node_modules
-          pnpm --dir spacetimedb install --frozen-lockfile
+          pnpm --pm-on-fail=ignore --dir spacetimedb install --frozen-lockfile
           test ! -e spacetimedb/ptr/node_modules
 
       - name: Re-attest runner-private Node after dependency install
@@ -283,6 +282,9 @@ jobs:
           npm audit
           npm audit signatures
 
+      - name: Validate exact public frontend configuration
+        run: npm run validate:pages-config
+
       - name: Validate the exact receipt-bound sealed Pages release
         run: npm run verify:sealed-launch:activation
 
@@ -297,16 +299,14 @@ jobs:
       - name: Verify signed Mini App release metadata
         run: npm run verify:miniapp:release
 
-      - name: Setup Pages
-        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
-
-      # v5 excludes hidden files by default and pins its nested upload-artifact
-      # v7 dependency to a full SHA, satisfying the immutable-action policy.
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: ./dist
-          include-hidden-files: true
+      - name: Verify exact candidate files without publishing
+        shell: bash
+        env:
+          WARPKEEP_PUBLIC_SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          node scripts/verify-public-pages-payload.mjs --write "$WARPKEEP_PUBLIC_SOURCE_COMMIT" --publication-path /ptr/
+          node scripts/verify-public-pages-payload.mjs --check "$WARPKEEP_PUBLIC_SOURCE_COMMIT" --publication-path /ptr/
 
   deploy:
     needs: [classify, build]
@@ -560,9 +560,9 @@ jobs:
           node-version: 22.22.3
 
       - name: Setup the pinned recovery build package manager
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
-          version: 11.7.0
+          version: 11.11.0
           run_install: false
 
       - name: Stage the recovery runtime in a private path
@@ -646,7 +646,7 @@ jobs:
 
       - name: Install the recovery build validation parser
         if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
-        run: pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
+        run: pnpm --pm-on-fail=ignore --dir services/auth-bridge install --frozen-lockfile --ignore-scripts
 
       - name: Re-attest the recovery runtime and source before build
         if: ${{ steps.recovery-resume.outputs.resumed == 'false' }}
@@ -806,9 +806,9 @@ jobs:
             scripts/notification-pages-private-deploy-launcher.mjs
 
       - name: Setup exact pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
-          version: 11.7.0
+          version: 11.11.0
           run_install: false
 
       - name: Setup exact Node
@@ -823,8 +823,8 @@ jobs:
         run: |
           set -euo pipefail
           [[ "$(node --version)" == 'v22.22.3' ]]
-          [[ "$(pnpm --version)" == '11.7.0' ]]
-          pnpm --dir services/auth-bridge install \
+          [[ "$(pnpm --version)" == '11.11.0' ]]
+          pnpm --pm-on-fail=ignore --dir services/auth-bridge install \
             --offline \
             --frozen-lockfile \
             --ignore-scripts \

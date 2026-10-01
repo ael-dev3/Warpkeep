@@ -34,7 +34,7 @@ import {
   executeGreaterRealmProductionRelocationOperator,
   parseGreaterRealmProductionRelocationArguments,
 } from '../scripts/greater-realm-production-relocation-operator';
-import { createGreaterRealmCutoverExpectedAfterPredicate } from '../scripts/greater-realm-cutover-operation-journal';
+import { createGreaterRealmCutoverExpectedAfterPredicate, requireGreaterRealmCutoverPrivateDirectory } from '../scripts/greater-realm-cutover-operation-journal';
 import { readGreaterRealmProductionAdminSecretFile } from '../scripts/greater-realm-production-transport';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -829,6 +829,24 @@ describe('Greater Realm cutover operation journal crash recovery', () => {
     expect(readdirSync(directory).filter(name => name.includes('cutover'))).toEqual([]);
     expect(operationNames(counterPath)).toEqual([]);
   }, 45_000);
+
+  it.each(['initial-lock', 'recovery-owner'] as const)(
+    'preserves a live %s partial authority when its digest cannot prove owner reuse', kind => {
+      const parent = temporaryDirectory('warpkeep-gr-live-prelink-temp-');
+      const directory = join(parent, 'receipts');
+      requireGreaterRealmCutoverPrivateDirectory({ directory, repositoryRoot: process.cwd() });
+      const name = kind === 'initial-lock'
+        ? `.greater-realm-cutover-${'1'.repeat(32)}-${process.pid}-${'f'.repeat(64)}.lock.tmp`
+        : `.greater-realm-cutover-recovery-owner-${'1'.repeat(32)}-00000001-${'2'.repeat(32)}-${process.pid}-${'f'.repeat(64)}-${'3'.repeat(12)}.json.tmp`;
+      const partial = join(directory, name);
+      const bytes = Buffer.from('{"schemaVersion":');
+      writeFileSync(partial, bytes, { flag: 'wx', mode: 0o600 });
+      expect(() => requireGreaterRealmCutoverPrivateDirectory({
+        directory, repositoryRoot: process.cwd(),
+      })).toThrow('GREATER_REALM_CUTOVER_JOURNAL_LINKED_TEMPORARY_INVALID');
+      expect(readFileSync(partial)).toEqual(bytes);
+    },
+  );
 
   it('inspects and confirms exact lock-only recovery through both operators without an admin secret or network target', async () => {
     const parent = temporaryDirectory('warpkeep-gr-lock-only-operator-');

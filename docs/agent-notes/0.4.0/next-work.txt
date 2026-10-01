@@ -1,0 +1,326 @@
+WARPKEEP 0.4 — NEXT WORK
+Refreshed 1 October 2026, UTC and Europe/Budapest.
+
+
+CURRENT SHIPPING STATE
+
+Continue PR #374 on fix/g001-census-admission-proxy; main remains 786c0b2b.
+It includes reviewed PRs #375–#378; do not merge their older heads separately.
+Resolve the published PR head separately from the current local repaired source.
+
+Latest completed development preparation: 7be8ae48/tree 1c19a7e7.
+Its /ptr/ build is terminal, exit 0, October 1 09:04:33.674–09:09:21.573 UTC:
+clean unchanged UID-1000/Node-22.22.3 input and absent owned actor/group.
+Payload and independent mirror/Alpha-preservation checks pass at this exact source, preserving
+every Alpha entry and removing none. Rendered keyboard review retains 789933e2.
+Retain artifacts/qa/ptr-final-build-summary.json and
+artifacts/qa/ptr-final-preservation-independent.json.
+Full native suite stays bound to 1ab86add/tree ee5804e3: 12,720 passed,
+zero failed, 97 skipped, 694 actual files; zero new roots/historical removals.
+Four menu images, broader Settings geometry and bounded menu measurements retain
+that source. Later preview-label checks pass 17/17 in two files plus app types.
+
+The shared Settings/Terms focus repair retains two failing caller regressions
+before repair and passes 124 affected tests in nine actual files plus app types.
+Fresh 789933e2 production review at 320x640 closes the actual keyboard defect:
+reverse entry and both wraps keep focused controls fully visible. Escape restores
+callers, Terms remains unchecked and there is no horizontal overflow.
+The task tab is blank, viewport reset and exact owned preview absent.
+Keep the earlier 8d3b4c38 failure evidence separate.
+
+Bounded menu measurements and the separate 8d3b4c38 DEV Keep04 retained-switch
+heap/context diagnostic complete with independently verified local cleanup.
+Full production world/keep/realm R06, owner and physical-phone acceptance remain
+open. Exact values and retained attempts belong in local-operations and
+performance evidence, rather than duplicated daily status summaries.
+
+Provider reads on September 30 at 22:33–22:39 UTC verify the documented production
+profile/account, native private-config permissions and immutable realm targets.
+Login, bridge deployment and PTR schema reads succeed; no human login is
+required by this readback. Live PTR still lacks seven gameplay tables and five
+procedures, pending the gated source-bound existing update. Read access does not
+prove secret values, update permission or owner rows/session/acceptance.
+
+The Tervain study adapts grounded vegetation, stable detail selection and
+material grouping. Shared models already match existing originals; none were
+copied. The separate Tervain score is not a shared Warpkeep asset.
+See docs/engineering/repository-ecosystem.md for source and ownership.
+
+No final quality score or shipped claim: Alpha remains available, G002 stays
+closed and PTR is unpublished. Both calendars are now October. The read-only
+repository-wide inventory completed October 1 at 00:02:38 UTC: Warpkeep and
+Warpkeep-Live have no active runs, current workflows are active and 0babbc46 has
+no applicable Verify. Retain
+artifacts/qa/october-actions-inventory-2026-10-01T000017236Z.json.
+No current-head hosted pass, new trigger or provider write follows from this read.
+
+Normal PR Verify 36795398220 attempt1 subsequently starts on 974a3ae6.
+Its public shader-cache false positive and shallow-history Dispatcher collection
+failure are locally diagnosed and narrowly repaired; the execution handoff owns
+the exact failing jobs, scanner regression and Dispatcher evidence. This run
+finishes failed at 01:19:44 UTC; its connected migration/module job succeeds.
+Only the two diagnosed leaves and their aggregate fail; no final-head hosted
+success is established.
+
+Published 7be8ae48 has normal PR Verify 36841020942 attempt 1. At 09:40:09 UTC,
+13 independent jobs succeed, two diagnosed tests fail and only the module job
+remains active. The failures are a stale Pages-toolchain service assertion and
+the post-gate SIGKILL test's synchronization; both existing tests are repaired.
+Do not cancel or reuse that run as a pass for later local source.
+
+Current local family checkpoint: signed a9878234/tree 78b95888, derived from
+authored be9596dd. Its 16-output family independently reproduces and native
+policy passes, manifest c64fe8b7. It retains CLI 11.11.0 and no-switch handling;
+current CI/Pages action v6.0.10 uses the reviewed seed 11.19.0. See
+docs/evidence/0.4.0/local-operations.md, "Patched pnpm runtime and current Linux
+snapshot — 1 October 2026". Current native checks pass 160, zero failures and
+three Darwin/ARM64-only skips in seven files. Separate Pages ordering and the
+recovery composition case each pass one selected case, with 163/353 unselected.
+The 7be8ae48 build and prior 974a3ae6/full-suite/rendered results retain their sources.
+Final current-source build, publication and normal hosted Verify remain pending.
+Await the active module's terminal result, finish exact final-head preparation,
+then publish one coherent unskipped checkpoint for normal final-head PR Verify.
+
+The refreshed complete Actions inventory ends at 01:22:11.841 UTC with no
+active runs in either repository. Retain
+artifacts/qa/october-actions-refresh-2026-10-01T012042325Z.json.
+The reviewed signed repair is backed up at the GitHub source-history tag
+source-history/warpkeep-0.4-october-validation-271946c4.
+The corrected publication guide targets activated A, and the owner journey
+records the authenticated Farcaster PTR launch; source-bound PTR readbacks
+belong before activation. These instructions do not establish live acceptance.
+
+EARLIER SOURCE-BOUND RECEIPTS
+
+Recovery now uses boot UUID plus kernel start tick; live legacy/digest mismatches
+remain unknown. Preserve ambiguous records and historical private directories.
+Scoped native caller tests pass 276/276. The subsequent full report's 110 failures
+identified a missing paired-envelope source pin, historical/current fixture
+mismatches and an older operator refreeze. Repairs are signed and pushed.
+All original failure boundaries now pass native focused checks. The new POSIX
+mode fixture is also repaired and its actual byte/mode rejection test passes.
+The seven reviewed operator helpers bind signed 580cd588; all other frozen
+G001 module/build authority stays unchanged. No keys or manual lock deletion.
+
+The four-worker full native suite passed at signed 3d47d05e, exit 0:
+12,670 passed, zero failed, 97 skipped across 694 files. Node 22.22.3/UID 1000,
+clean source and zero new/historical-removed private fixture homes are recorded.
+The job is terminal. Its exact source/report/log/summary/exit records are under
+artifacts/qa/root-suite-recovery-final-*; preserve earlier failed evidence.
+Complete source-family reproduction and native policy pass. Resolve final
+build/payload/mirror receipts on PR #374, then follow the October delivery sequence.
+For any future job, inspect actual stable birth/group before restarting or
+moving source. A lost tool handle or wrapper exit alone is not child termination.
+The compiler inventory is 28 unchanged retained paths, preserving original inputs.
+See current local-operations evidence and PR #374 for exact source scopes.
+
+Later public-feedback/legal-contact, project-status and build-stamp repairs pass
+86/86 native checks at signed 601635cd, separate from the 3d47d05e full pass.
+The complete 16-output family independently reproduces and native policy passes.
+See docs/evidence/0.4.0/local-operations.md for exact scope and capture.
+PR #374 maintains final exact-source build/payload/mirror receipts. The 28 retained
+compiler paths and original inputs remain unchanged. These source corrections
+are not yet served; the PTR plan preserves the existing Alpha root.
+
+
+Existing gesture, confirmation, focus, menu contrast and mobile-control defects
+are repaired. Real server testing found the first-use keep read has a fixed
+module-host prefix; the repaired classifier restores initialization and retains
+exact retry for unknown outcomes. Independent capability/controller tests passed
+143/143; WorldScene/PTR host checks passed 81/81 with scoped rendered review.
+
+CONNECTED QA PASSED: exact 98a561db, session 64935, exit 0 in 321,215ms (5m21s).
+All nine normal-clock outcomes passed, including gather/build/improved return,
+stale quote unsent, exact retry/single deduction, manual fixture-session renewal
+and client reconnect. Automatic Quick Auth/browser-provider expiry remains part
+of actual-owner acceptance; the smoke does not exercise that path.
+Cleanup and identical ignored Windows/native receipts are verified. Synthetic
+owner/atlas and a running in-memory database are separate from actual-owner
+production-atlas/browser/physical-phone acceptance and server restart.
+
+At exact e308a64d, affected checks passed 315, zero failed, one platform skip;
+native production build, sealed-launch, license and file-size policies passed.
+The earlier full native suite at 15b88b57 passed 12,603, zero failed, 97 skipped
+across 693 files; it predates later CSS/wire repairs. Unchanged module pure
+tests passed 598/598, auth-bridge 502 and release-recovery 1,567. Candidate
+audits reported zero known vulnerabilities; main's three moderate Undici
+alerts await integration/rescan.
+
+The publication-contract review then exposed clean Windows CRLF CNAME bytes
+differing from the preserved LF parent blob. The planner now hashes exact
+binary parent blobs, matching the publisher; ten planner regressions pass.
+The e308 saved mirror plan is superseded. PR #374 maintains the final complete
+16-output closure and exact-head build/payload/mirror receipts. Refresh these
+after any further source change, preserving compiled lane/input ancestry.
+Do not repeat the real gameplay loop merely for notes or release-tool changes.
+The shared process-owner/recovery changes are covered by the 3d47d05e full pass.
+Reopen checks only for a concrete source change or failure.
+
+Alpha root/auth health HTTP 200; /ptr/ HTTP 404 at 15:00 CEST. No main merge, game-provider/public-hosting
+write or 0.4 publication occurred. Sealed preparation remains 0.3.43, Pages
+approval false, IDs unset and PTR presentation disabled. Actual-phone
+performance and the RealmMapScreen bundle warning remain open. Hosting,
+publication and rollback tools already exist. Use the known blocker paths in
+docs/operations/0.4.0-infra-access.md rather than recreating infrastructure,
+requesting another recovery key or repeating QR approval for a gameplay error.
+
+September: do not query, dispatch, rerun or use GitHub Actions. Continue local
+checks and signed [skip actions] synchronization. Resume the already-authorized
+hosted release sequence on October 1. Historical hashes and dates remain
+source-bound evidence.
+
+NEXT ACTION
+
+Publish one coherent signed checkpoint without CI skip directives and use
+normal PR Verify on its final exact head. Verify has no manual dispatch;
+reopening/dispatching the same skipped head cannot resume it. Refresh final-head
+SHA-bound local receipts. If notes-only independent family derivation returns
+identical bytes, no additional generated-output commit is needed. Do not repeat
+closed keyboard/DEV heap diagnostics for notes alone. Keep active source pinned.
+
+After successful final-head PR Verify, use signed source-only M1, exact-M1
+native prepare/check, generated-only M2 and exact-main Verify. For BOTH M1 and
+M2, supply an explicit reviewed squash subject AND body without CI skip
+directives; do not inherit a PR description or aggregated historical commit
+bodies. Verify each actual signed merge and its exact source before continuing.
+Only with fresh source-bound authority should the workflow capture and preserve
+G001, verify sealed G002 readback, obtain Pages approval and required identities,
+publish/read back PTR, then finish the actual-owner journey, physical-device
+performance and release-ledger evidence. Complete expensive preparation before
+activation's fresh inline G001 census. Keep Alpha available and G002 closed.
+
+The repository execution handoff and release checklist hold the detailed gates.
+The Desktop handoff supplies product context and reference studies, not current
+release status. This daily brief retains the current state and next action;
+superseded checkpoints live in the execution handoff/evidence, not here.
+
+WHAT STILL NEEDS PROOF, IN ORDER
+
+A. A rewarding actual-owner journey.
+   Gather on the real atlas; receive spendable resources; choose/place/build an
+   economy improvement; receive its improved next return within ten minutes.
+   Then return/reconnect/background/resume without lost or duplicated progress.
+   Show what is missing, incoming, committed, complete and improved.
+   Cover all six building effects/progression and required failure cases separately.
+
+B. A professional mobile experience.
+   Compare matching empty, occupied, placement, construction and completed scenes.
+   Prioritize legible buildings, useful framing, reachable controls, coherent ground
+   and shores. Test the production build, not just a decorative fixture.
+   Obtain named physical-phone results; prepare emulated/instrumented runs locally
+   while actual-owner/device access is unavailable. Label those limits honestly.
+
+C. Safe, complete delivery.
+   G001: preserve existing 0.3 progress/access/timers/presentation; freeze new admissions.
+   G002: deployed and accurately CLOSED; admissions TBD; denial causes no unauthorized writes.
+   PTR: isolated actual-owner play, not admission expansion or fixture impersonation.
+   Final source/artifact freeze follows required source changes, then authenticated
+   deployment and live verification. Recovery must preserve post-deployment writes.
+   Finish the evidence ledger and credential-free artifacts/delivery/0.4.0 package.
+
+These are summaries of the existing R01-R18 checklist, not new requirements:
+C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep/docs/operations/0.4.0-release-checklist.md
+
+OLD FINDINGS THAT SHOULD NOT BE REIMPLEMENTED
+
+- Duration labels now use formatKeep04Duration in Worker/building panels.
+- Barracks and Cathedral benefit explanations now exist in the building panel.
+- Capture diagnostics gained bounded cause/resource fields.
+- Responsive framing, action discovery and timeout/retry work have local evidence.
+- The untouched Keep stays on Gather even with an unaffordable selection;
+  funded state can mark Choose. Empty-scene requests avoid unused building
+  models; later buildings hydrate in place with a silhouette fallback. These
+  are source/test observations, not measured speed or owner acceptance.
+
+Source fixes do not prove user comprehension or device performance. Recheck the
+remaining outcome, not the obsolete implementation task. Earlier unexplained
+capture warnings are not retroactively explained by a better collector.
+No exact-head hosted Verify result is recorded for the current PR head; local focused checks do not replace it.
+
+MOBILE BUDGETS ALREADY EXIST — MEASURE THEM
+
+Cold usable scene p95: desktop <=10s; mobile <=15s.
+Frame interval p95: high <=33.4ms; balanced <=50ms; reduced <=75ms.
+Input-to-visible feedback p95: <=100ms.
+Compressed JS through first usable keep: <=2MiB.
+Static transfer through world/keep: high <=12MiB / balanced <=8MiB / reduced <=5MiB.
+Keep draws/triangles: high 180/300k; balanced 120/180k; reduced 80/90k.
+Switch heap: final <=warmed baseline+8MiB; growth <=0.25MiB/cycle.
+At most one active world/keep renderer; clean up scene-owned resources.
+
+Use the exact existing profiles and procedure: ten cold runs, three 60-second
+workloads, 20 world/keep switches, 10 realm re-entries and three context restores.
+Current render caps are 30/24/15 FPS, not a new 60-FPS requirement.
+Record actual phone model, OS/browser, quality, thermal context, touch,
+portrait/landscape, background/resume and reconnect. Emulation is not a phone.
+No final physical-phone result is established in the current evidence.
+
+Canonical measurements/methodology:
+C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep/docs/evidence/0.4.0/performance.md
+
+The cadence recorder's visible Chrome regression was a synthetic one-shot
+sequence: five redraws included a roughly 30.8-second user-idle gap, which the
+old summary misreported as a slow frame. The fix connects only frames whose
+predecessor scheduled a successor RAF. The corrected two-redraw repro reports
+zero cadence samples/null percentiles; this is observer QA, not performance
+acceptance.
+
+HOW TO USE THE INSPIRATIONS
+
+- Voxel / Verdant Forest: readable silhouettes, layered vegetation, controlled density.
+- Pelagic / Koi / Reynisfjara: coherent water, bank/wet-edge treatment and calm movement.
+- Townscaper / Tiny Glade: a completed improvement should visibly change the keep.
+- Selo / Widelands: explain shortages, pending returns and the next useful choice.
+- Antikythera / Portal Heist: one clear immediate objective and visible progress.
+- Mapgen4: readable geography and selected routes.
+- Dream Loop: capture, identify one visible problem, repair its owner, compare again.
+- Renderer studies: adopt an optimization only if the actual measured scene benefits.
+
+These are presentation/product lessons, not separate engine, boat, diving,
+heist, terrain-editing, logistics or leaderboard commitments.
+The handoff preserves every old reference and detailed study. Key owner links:
+
+https://www.reddit.com/r/aigamedev/comments/1w7kp5b/custom_voxel_engine_done_with_gpt_astra/
+https://verdant-forest.lexn8.chatgpt.site
+https://pelagic-ocean.lexn8.chatgpt.site
+https://github.com/achimala/dream-loop
+https://dream-loop-demo.anshu.dev/
+https://koi-canal.vercel.app/
+https://t.co/TeAWPY6XNa
+https://claude.ai/artifact/ReCBQGZ4EirKSiEmT8XXfs
+https://t.co/Mdnn5unDPS
+https://reynisfjara-photoreal.netlify.app/
+https://www.spawn.co/@j/portal-heist/play
+
+External demos were not revisited in this edit. Their past viewport observations
+are not mobile performance claims or permission to copy assets/source.
+
+WHERE TO WORK
+
+Gameplay authority: spacetimedb/gameplay04/
+Owner/session/controller: src/ptr/ and src/ptr/gameplay04/
+0.4 keep: src/components/keep04/
+0.4 atlas/water: src/greater-realm/
+G001 compatibility: spacetimedb/src/ and src/spacetime/
+Identity: services/auth-bridge/
+Delivery/recovery: scripts/, .github/workflows/, services/release-recovery/
+
+Paths above are relative to the maintained checkout. Do not tune the legacy realm
+scene assuming it owns the 0.4 keep. Read AGENTS.md and the 0.4 agent index first.
+
+DAILY WORK RULE
+
+Name the observed player/delivery problem, smallest responsible component,
+expected improvement, evidence and next action if it fails. Resolve one useful
+uncertainty at a time. Reopen settled design only for a material reason.
+Preserve working code; a different model's authorship alone is not a defect.
+
+Publish reviewable project changes to the proper GitHub branch/PR. Never publish
+secrets or private player/operation data. Report local, pushed, merged, deployed
+and live-verified separately. Do not equate commit volume with release completion.
+
+Replace this current snapshot when it changes; do not prepend another long history.
+The repository is the detailed source/evidence authority; the handoff holds the
+project context/library; this TXT holds the next actions.
+
+END OF CURRENT BRIEF

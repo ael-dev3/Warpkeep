@@ -37,7 +37,9 @@ flowchart LR
 | Shared 0.4 gameplay core | Deterministic policy, transitions, arithmetic and validation | Uses storage interfaces; does not depend on browser, network or database SDK |
 | Release tooling and recovery service | Build provenance, deployment authorization and reconciliation | Deployment authority is separate from player authority |
 
-The intended browser origin is `warpkeep.com`; it currently has no live frontend.
+The browser origin is `warpkeep.com`; it currently serves the older 0.3.43
+Alpha from a [generated-assets-only Pages repository](operations/0.4.0-infra-access.md#existing-alpha-frontend-restored).
+The 0.4 frontend has not been deployed.
 The auth bridge is at `auth.warpkeep.com`.
 G001, G002 and PTR use distinct database identities. Provider configuration and
 live observations are documented in [infrastructure access](operations/0.4.0-infra-access.md).
@@ -93,6 +95,13 @@ The connected browser route runs through
 [`WarpkeepExperience`](../src/components/WarpkeepExperience.tsx),
 [`PtrRealmProvider`](../src/ptr/PtrRealmProvider.tsx) and
 [`PtrGameplay04SurfaceHost`](../src/ptr/PtrGameplay04SurfaceHost.tsx).
+PTR and Genesis 001 enter through separate lazy surfaces: `WarpkeepExperience`
+chooses the owner PTR host or the Genesis 001 renderer, and
+`RealmMapScreenProps` contains no PTR authority or session fields.
+`PtrGameplay04SurfaceHost` owns validation of the branded owner authority,
+virtual anchor, provider bridge and gameplay capability. This keeps the large
+legacy renderer out of the PTR route's module load path and leaves one place
+responsible for PTR renderer admission.
 The provider obtains a scoped owner session and constructs the narrow atlas and
 gameplay capabilities in [`ptrRealmConnection.ts`](../src/ptr/ptrRealmConnection.ts).
 Views receive those capabilities rather than arbitrary RPC or credentials.

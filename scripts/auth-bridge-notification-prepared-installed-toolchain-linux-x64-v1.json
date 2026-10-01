@@ -3,7 +3,7 @@
   "profile": "warpkeep-auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1",
   "sourceClosureProfile": "warpkeep-auth-bridge-notification-prepared-deploy-closure-v1",
   "sourceClosureManifestPath": "scripts/auth-bridge-notification-prepared-deploy-closure-v1.json",
-  "lockfileSha256": "369a7a6de6f874ffe7bb7a79617561daa771ce3dcfe79c35153a4446e614461b",
+  "lockfileSha256": "e1478d3eaaaf16505f4171f5c2570164f94a5abb17dcf592ed433c14ae524327",
   "packageManager": "pnpm@11.7.0",
   "platform": "linux",
   "architecture": "x64",
@@ -31,17 +31,17 @@
     ".pnpm/@typescript+typescript-linux-x64@7.0.2/node_modules/@typescript/typescript-linux-x64/lib/tsc",
     ".pnpm/wrangler@4.110.0_@cloudflare+workers-types@5.20260708.1_@types+node@26.1.1/node_modules/wrangler/bin/wrangler.js"
   ],
-  "resolverNamespaceEntryCount": 26,
+  "resolverNamespaceEntryCount": 27,
   "resolverNamespaceDirectoryCount": 7,
-  "resolverNamespaceFileCount": 8,
+  "resolverNamespaceFileCount": 9,
   "resolverNamespaceSymbolicLinkCount": 11,
-  "resolverNamespaceSha256": "4c92ff4f1e1a6830f2fd43e521bf90f11805eaaec9feb5531cb0b60c2e96f29a",
+  "resolverNamespaceSha256": "a3c520526e4b3fa7c0271b4d88d91ac645b499c57c3aa39cbde7e2c800958061",
   "normalizedShimFileCount": 31,
   "entryCount": 18141,
   "directoryCount": 1529,
   "fileCount": 16373,
   "symbolicLinkCount": 239,
   "executableFileCount": 64,
-  "totalFileBytes": 324376726,
-  "treeSha256": "c994526856eb225735fa645fcfd6756bdc6c90d8a416c69268a9b4d57a326375"
+  "totalFileBytes": 324386709,
+  "treeSha256": "fd89bb7c416db71aecddec50464a7188df738b4c23671091e769079a968103ed"
 }

@@ -15,6 +15,7 @@ import type {
   FarcasterAuthViewState,
   VerifiedFarcasterIdentity
 } from '../../farcaster/farcasterAuthTypes';
+import { getBrowserFarcasterWebMenuUrl } from '../../farcaster/farcasterAuthContext';
 import {
   useMiniAppBackNavigation,
   useMiniAppHost,
@@ -302,7 +303,7 @@ function MiniAppLaunchStatusPanel({
         <div className="farcaster-miniapp-entry__support">
           <a
             className="farcaster-auth-panel__action farcaster-auth-panel__action--secondary"
-            href="https://warpkeep.com/#menu"
+            href={getBrowserFarcasterWebMenuUrl()}
             onClick={onOpenWebVersion ? (event) => {
               event.preventDefault();
               const fallbackUrl = event.currentTarget.href;
@@ -374,8 +375,9 @@ export function FarcasterMiniAppEntryGate({
 }: FarcasterMiniAppEntryGateProps) {
   const miniAppHost = useMiniAppHost();
   const approvalNotificationLaunch = miniAppHost.context?.notificationId !== undefined;
+  const webMenuUrl = getBrowserFarcasterWebMenuUrl();
   const openWebVersion = miniAppHost.isMiniApp
-    ? () => miniAppHost.actions.openUrl('https://warpkeep.com/#menu')
+    ? () => miniAppHost.actions.openUrl(webMenuUrl)
     : undefined;
   const reopenMiniApp = useCallback(() => {
     // A document reload is deliberate here: the installed SDK owns an

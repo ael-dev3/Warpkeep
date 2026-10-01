@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
-  closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, realpathSync, symlinkSync, unlinkSync,
+  closeSync, constants, fsyncSync, lstatSync, mkdirSync, openSync, readdirSync, realpathSync, unlinkSync,
   writeSync,
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
@@ -233,15 +233,16 @@ function genesis001CommandEnvironment(request) {
 }
 
 function runGenesis002Typecheck(request, moduleRoot) {
+  const dependencyRoot = join(dirname(moduleRoot), 'node_modules');
   const configPath = join(request.materializationRoot, 'genesis002-typecheck-v1.json');
   const body = Buffer.from(`${JSON.stringify({
     extends: join(moduleRoot, 'tsconfig.json'),
     compilerOptions: {
       baseUrl: moduleRoot,
       paths: {
-        spacetimedb: [join(moduleRoot, 'node_modules', 'spacetimedb', 'dist', 'index.d.ts')],
+        spacetimedb: [join(dependencyRoot, 'spacetimedb', 'dist', 'index.d.ts')],
         'spacetimedb/server': [
-          join(moduleRoot, 'node_modules', 'spacetimedb', 'dist', 'server', 'index.d.ts'),
+          join(dependencyRoot, 'spacetimedb', 'dist', 'server', 'index.d.ts'),
         ],
       },
     },
@@ -265,7 +266,7 @@ function runGenesis002Typecheck(request, moduleRoot) {
     opened.body.fill(0);
     identity = opened.identity;
     command(request.nodePath, [
-      join(moduleRoot, 'node_modules', 'typescript', 'bin', 'tsc'),
+      join(dependencyRoot, 'typescript', 'bin', 'tsc'),
       '--noEmit', '--project', configPath,
     ], moduleRoot, 10 * 60_000);
   } catch (error) { primary = error; }
@@ -295,13 +296,8 @@ function runGenesis002Typecheck(request, moduleRoot) {
 }
 
 function runGenesis002Build(request, lane, materializedRoot, moduleRoot) {
-  const dependencyRoot = join(moduleRoot, 'node_modules');
   const sharedModuleRoot = dirname(moduleRoot);
-  const linkPath = join(sharedModuleRoot, 'node_modules');
-  const target = process.platform === 'win32'
-    ? dependencyRoot : join(basename(moduleRoot), 'node_modules');
-  let identity;
-  let primary;
+  const dependencyRoot = join(sharedModuleRoot, 'node_modules');
   try {
     for (const path of [sharedModuleRoot, dependencyRoot]) {
       const state = lstatSync(path, { bigint: true });
@@ -310,42 +306,8 @@ function runGenesis002Build(request, lane, materializedRoot, moduleRoot) {
         fail('LOCAL_BINDING_WORKER_BUILD_RESOLUTION_INVALID');
       }
     }
-    try {
-      lstatSync(linkPath);
-      fail('LOCAL_BINDING_WORKER_BUILD_RESOLUTION_INVALID');
-    } catch (error) {
-      if (error?.code !== 'ENOENT') throw error;
-    }
-    symlinkSync(target, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
-    const state = lstatSync(linkPath, { bigint: true });
-    if (!state.isSymbolicLink() || state.uid !== 1000n || realpathSync(linkPath) !== dependencyRoot) {
-      fail('LOCAL_BINDING_WORKER_BUILD_RESOLUTION_INVALID');
-    }
-    identity = directoryIdentity(state);
-    command(request.cliPath, ['build', '--module-path', lane.modulePath], materializedRoot, 10 * 60_000);
-  } catch (error) { primary = error; }
-  let cleanupError;
-  try {
-    if (identity !== undefined) {
-      const state = lstatSync(linkPath, { bigint: true });
-      if (!state.isSymbolicLink() || !sameDirectoryIdentity(state, identity)
-          || realpathSync(linkPath) !== dependencyRoot) {
-        fail('LOCAL_BINDING_WORKER_BUILD_RESOLUTION_CHANGED');
-      }
-      unlinkSync(linkPath);
-      if (process.platform !== 'win32') {
-        const directory = openSync(sharedModuleRoot,
-          constants.O_RDONLY | (constants.O_DIRECTORY ?? 0) | (constants.O_NOFOLLOW ?? 0));
-        try { fsyncSync(directory); } finally { closeSync(directory); }
-      }
-    }
-  } catch (error) { cleanupError = error; }
-  if (primary !== undefined || cleanupError !== undefined) {
-    if (primary !== undefined && cleanupError === undefined) throw primary;
-    throw new AggregateError([primary, cleanupError].filter(Boolean), 'LOCAL_BINDING_WORKER_COMMAND_FAILED', {
-      cause: primary,
-    });
-  }
+  } catch (error) { fail('LOCAL_BINDING_WORKER_BUILD_RESOLUTION_INVALID', error); }
+  command(request.cliPath, ['build', '--module-path', lane.modulePath], materializedRoot, 10 * 60_000);
 }
 
 function assertWorkerHost() {

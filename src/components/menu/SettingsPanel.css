@@ -12,6 +12,7 @@
 
 .warpkeep-settings__panel {
   width: min(46rem, 100%);
+  min-inline-size: 0;
   max-height: 100%;
   overflow: auto;
   padding: clamp(1.1rem, 3vw, 2.25rem);
@@ -51,6 +52,7 @@
 
 .warpkeep-settings__choices {
   display: grid;
+  min-inline-size: 0;
   gap: 0.65rem;
   margin: 1.5rem 0 0;
   padding: 0;
@@ -67,7 +69,7 @@
 
 .warpkeep-settings__choice {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 0.85rem;
   align-items: start;
   min-height: 3.25rem;
@@ -110,12 +112,17 @@
 
 .warpkeep-settings__choice span {
   display: grid;
+  min-inline-size: 0;
   gap: 0.3rem;
+  overflow-wrap: anywhere;
 }
 
 .warpkeep-settings__choice strong {
-  padding-right: 4.5rem;
   letter-spacing: 0.12em;
+}
+
+.warpkeep-settings__choice[data-default="true"] strong {
+  padding-right: 4.5rem;
 }
 
 .warpkeep-settings__choice small {
@@ -171,7 +178,70 @@
     width: 100%;
   }
 
+  .warpkeep-settings__choice[data-default="true"] {
+    padding-top: 1.9rem;
+  }
+
+  .warpkeep-settings__choice[data-default="true"] strong {
+    padding-right: 0;
+  }
+
   .warpkeep-settings__actions button {
     flex: 1 1 10rem;
   }
+}
+
+/* Match the menu's clear, neutral glass. */
+.warpkeep-settings {
+  color: #f6e9d9;
+  background: rgba(9, 17, 22, 0.68);
+  backdrop-filter: blur(12px);
+}
+
+.warpkeep-settings__panel {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.055)), rgba(15, 25, 30, 0.6);
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, 0.035), 0 1.5rem 5rem rgba(7, 14, 21, 0.45);
+  scrollbar-color: #9aabac #1a2429;
+  scrollbar-width: thin;
+}
+
+.warpkeep-settings__panel header > p:first-child,
+.warpkeep-settings__choices legend,
+.warpkeep-settings__resolved {
+  color: #d9dad4;
+}
+
+.warpkeep-settings__panel header p:last-child,
+.warpkeep-settings__choice small {
+  color: #e4dfd2;
+}
+
+.warpkeep-settings__choice {
+  border-color: rgba(255, 255, 255, 0.26);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.warpkeep-settings__choice[data-selected="true"] {
+  border-color: #d7c99e;
+  background: linear-gradient(112deg, rgba(255, 255, 255, 0.17), rgba(255, 255, 255, 0.045));
+  box-shadow: inset 0 0 0 1px rgba(232, 224, 183, 0.14);
+}
+
+.warpkeep-settings__choice[data-default="true"]::after {
+  color: #decda5;
+}
+
+.warpkeep-settings__choice:hover {
+  border-color: #d7c99e;
+}
+
+.warpkeep-settings__choice input {
+  accent-color: #e5bc7c;
+}
+
+.warpkeep-settings__actions button {
+  border-color: rgba(203, 192, 156, 0.55);
+  color: #eee5cf;
+  background: rgba(255, 255, 255, 0.11);
 }

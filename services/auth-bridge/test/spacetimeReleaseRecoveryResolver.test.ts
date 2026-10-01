@@ -137,9 +137,9 @@ function fidSql(fids: readonly number[] = [42]): string {
   return sqlStatement('fid', 'U64', fids.map(fid => [fid]))
 }
 
-function alphaStatus(count = 1): unknown[] {
+function alphaStatus(count = 1, bootstrapped = count): unknown[] {
   return [
-    10_000, count, 10_000, 1, 100, count, 0, count, count, count,
+    10_000, count, 10_000, 1, 100, count, 0, bootstrapped, bootstrapped, count,
     count, count, 2, 3, 4, 5, 6, 7, count, count, 8,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     3, 3_445_214_658, 'HEGEMONY_GENESIS_001',
@@ -227,7 +227,7 @@ function config(): ReleaseRecoveryConfig {
 
 type SeenRequest = Readonly<{ url: string; init: RequestInit }>
 
-function successfulFetcher(fids: readonly number[] = [42], delay = false) {
+function successfulFetcher(fids: readonly number[] = [42], delay = false, bootstrapped = fids.length) {
   const seen: SeenRequest[] = []
   let active = 0
   let maximumActive = 0
@@ -240,12 +240,12 @@ function successfulFetcher(fids: readonly number[] = [42], delay = false) {
     try {
       const body = String(init.body)
       if (body === 'SELECT program_hash FROM st_module') return response(url, programSql())
-      if (body === 'SELECT fid FROM player_v2') return response(url, fidSql(fids))
+      if (body === 'SELECT fid FROM realm_profile_v1') return response(url, fidSql(fids))
       if (url.endsWith('/call/genesis_001_access_policy_v1')) {
         return response(url, JSON.stringify(policyStatus()))
       }
       if (url.endsWith('/call/admin_get_alpha_status_v3')) {
-        return response(url, JSON.stringify(alphaStatus(fids.length)))
+        return response(url, JSON.stringify(alphaStatus(fids.length, bootstrapped)))
       }
       if (url.includes('/call/admin_get_access_request_admission_status_v1')) {
         return response(url, JSON.stringify(memberStatus()))
@@ -477,9 +477,9 @@ describe('Spacetime release-recovery resolution', () => {
       ['sql', 'SELECT program_hash FROM st_module'],
       ['genesis_001_access_policy_v1', '[]'],
       ['admin_get_alpha_status_v3', '[]'],
-      ['sql', 'SELECT fid FROM player_v2'],
+      ['sql', 'SELECT fid FROM realm_profile_v1'],
       ['admin_get_access_request_admission_status_v1', '[42]'],
-      ['sql', 'SELECT fid FROM player_v2'],
+      ['sql', 'SELECT fid FROM realm_profile_v1'],
       ['admin_get_alpha_status_v3', '[]'],
       ['admin_get_greater_realm_status_v1', '[]'],
       ['admin_get_greater_realm_status_v1', '[]'],
@@ -488,8 +488,47 @@ describe('Spacetime release-recovery resolution', () => {
       ['sql', 'SELECT program_hash FROM st_module'],
       ['sql', 'SELECT program_hash FROM st_module'],
     ])
-    expect(transport.seen.filter(entry => entry.init.body === 'SELECT fid FROM player_v2')).toHaveLength(2)
+    expect(transport.seen.filter(entry => entry.init.body === 'SELECT fid FROM realm_profile_v1')).toHaveLength(2)
     expect(transport.seen.find(entry => entry.url.endsWith('/call/admin_get_access_request_admission_status_v1'))?.init.body).toBe('[42]')
+  })
+
+  it('observes an admitted founder who has not bootstrapped a player', async () => {
+    const transport = successfulFetcher([42, 77], false, 1)
+    const result = await resolver(transport.fetcher).resolve()
+
+    expect(result.g001.admittedPlayerCount).toBe(2)
+    expect(result.g001.enabledPlayerCount).toBe(2)
+    expect(transport.seen.filter(entry => entry.init.body === 'SELECT fid FROM realm_profile_v1')).toHaveLength(2)
+    expect(transport.seen.filter(entry => entry.url.endsWith('/call/admin_get_access_request_admission_status_v1'))
+      .map(entry => entry.init.body)).toEqual(['[42]', '[77]'])
+    expect(result.g001.alphaInvariantHmacSha256).not.toBe(
+      (await resolver(successfulFetcher([42, 77]).fetcher).resolve()).g001.alphaInvariantHmacSha256,
+    )
+  })
+
+  it.each([
+    ['more player rows than admitted founders', { playersV2: 2, playerOwnershipsV2: 2 }],
+    ['unmatched player ownership', { playerOwnershipsV2: 0 }],
+    ['missing admitted profile', { realmProfiles: 0 }],
+    ['founder graph gap', { founderStateGaps: 1 }],
+    ['orphaned profile', { orphanedRealmProfiles: 1 }],
+  ] as const)('rejects %s before accepting the profile proxy', async (_case, changes) => {
+    const transport = successfulFetcher()
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString()
+      if (url.endsWith('/call/admin_get_alpha_status_v3')) {
+        const alpha = alphaStatus()
+        for (const [field, value] of Object.entries(changes)) {
+          alpha[G001_ALPHA_STATUS_FIELDS.indexOf(field as typeof G001_ALPHA_STATUS_FIELDS[number])] = value
+        }
+        return response(url, JSON.stringify(alpha))
+      }
+      return transport.fetcher(input, init)
+    }
+    await expect(resolver(fetcher).resolve()).rejects.toThrow(
+      'SPACETIME_RELEASE_RECOVERY_RESOLUTION_FAILED',
+    )
+    expect(transport.seen.some(entry => entry.url.endsWith('/call/admin_get_access_request_admission_status_v1'))).toBe(false)
   })
 
   it('binds every one of the 11 upstream digest inputs to its specified raw or canonical transcript', async () => {
@@ -516,7 +555,7 @@ describe('Spacetime release-recovery resolution', () => {
         const body = String(init?.body)
         if (body === 'SELECT program_hash FROM st_module') programReads += 1
         if (url.endsWith('/call/admin_get_alpha_status_v3')) alphaReads += 1
-        if (body === 'SELECT fid FROM player_v2') fidReads += 1
+        if (body === 'SELECT fid FROM realm_profile_v1') fidReads += 1
         const programOrdinal = programReads
         const alphaOrdinal = alphaReads
         const fidOrdinal = fidReads
@@ -850,7 +889,7 @@ describe('Spacetime release-recovery resolution', () => {
     let fidReads = 0
     const base = successfulFetcher()
     const changedCensus = async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.body === 'SELECT fid FROM player_v2' && ++fidReads === 2) {
+      if (init?.body === 'SELECT fid FROM realm_profile_v1' && ++fidReads === 2) {
         return response(input.toString(), fidSql([43]))
       }
       return base.fetcher(input, init)

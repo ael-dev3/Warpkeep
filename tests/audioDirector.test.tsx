@@ -7,6 +7,7 @@ import {
   WARPKEEP_MENU_LOOP,
   WARPKEEP_MENU_TO_REALM_TRANSITION_MS,
   WARPKEEP_REALM_LOOP,
+  WARPKEEP_GENESIS_002_LOOP,
   WARPKEEP_REALM_TO_MENU_TRANSITION_MS,
   WarpkeepAudioDirector,
   clampUnit,
@@ -18,6 +19,7 @@ import {
   getOtherMenuSource,
   getScenePlaybackPlan,
   getSceneTransitionDuration,
+  getRealmSoundtrackId,
   type WarpkeepAudioDirectorHandle
 } from '../src/components/audio';
 
@@ -46,6 +48,7 @@ beforeEach(() => {
   ) {
     pausedMedia.set(this, true);
   });
+  vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => undefined);
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
     animationFrameCallbacks.push(callback);
     return animationFrameCallbacks.length;
@@ -89,11 +92,11 @@ describe('audio director helpers', () => {
     expect(getEqualPowerGains(1).outgoing).toBeCloseTo(0, 8);
   });
 
-  it('schedules the measured 400.128s → 401.920s menu overlap without a paused loop', () => {
+  it('schedules the Verdant score’s 205.1s → 208.1s menu overlap without a paused loop', () => {
     expect(WARPKEEP_MENU_LOOP).toEqual({
-      crossfadeStartSeconds: 400.128,
-      endSeconds: 401.92,
-      overlapSeconds: 1.792
+      crossfadeStartSeconds: 205.1,
+      endSeconds: 208.1,
+      overlapSeconds: 3
     });
 
     expect(getMenuLoopSchedule(100, true)).toEqual({
@@ -101,18 +104,18 @@ describe('audio director helpers', () => {
       delayMs: null,
       shouldCrossfadeNow: false
     });
-    expect(getMenuLoopSchedule(399.128, false)).toEqual({
+    expect(getMenuLoopSchedule(204.1, false)).toEqual({
       crossfadeProgress: 0,
       delayMs: 1_000,
       shouldCrossfadeNow: false
     });
-    expect(getMenuLoopSchedule(399.128, false, 2).delayMs).toBe(500);
+    expect(getMenuLoopSchedule(204.1, false, 2).delayMs).toBe(500);
 
-    const midpoint = getMenuLoopSchedule(401.024, false);
+    const midpoint = getMenuLoopSchedule(206.6, false);
     expect(midpoint.shouldCrossfadeNow).toBe(true);
     expect(midpoint.delayMs).toBe(0);
     expect(midpoint.crossfadeProgress).toBeCloseTo(0.5, 8);
-    expect(getMenuLoopSchedule(401.92, false).crossfadeProgress).toBe(1);
+    expect(getMenuLoopSchedule(208.1, false).crossfadeProgress).toBe(1);
     expect(getOtherSource(0)).toBe(1);
     expect(getOtherSource(1)).toBe(0);
     expect(getOtherMenuSource(0)).toBe(1);
@@ -134,6 +137,24 @@ describe('audio director helpers', () => {
     expect(midpoint.crossfadeProgress).toBeCloseTo(0.5, 8);
     expect(
       getLoopSchedule(WARPKEEP_REALM_LOOP, WARPKEEP_REALM_LOOP.crossfadeStartSeconds - 1, false)
+    ).toEqual({
+      crossfadeProgress: 0,
+      delayMs: 1_000,
+      shouldCrossfadeNow: false
+    });
+  });
+
+  it('maps Genesis 002 to its own eight-second soundtrack wrap', () => {
+    expect(getRealmSoundtrackId('genesis-001')).toBe('lowlands');
+    expect(getRealmSoundtrackId('ptr')).toBe('lowlands');
+    expect(getRealmSoundtrackId('genesis-002')).toBe('genesis-002');
+    expect(WARPKEEP_GENESIS_002_LOOP).toEqual({
+      crossfadeStartSeconds: 215.613,
+      endSeconds: 223.613,
+      overlapSeconds: 8
+    });
+    expect(
+      getLoopSchedule(WARPKEEP_GENESIS_002_LOOP, 214.613, false)
     ).toEqual({
       crossfadeProgress: 0,
       delayMs: 1_000,
@@ -166,6 +187,88 @@ describe('audio director helpers', () => {
 });
 
 describe('WarpkeepAudioDirector', () => {
+  it('keeps the direct menu source-free until an unmuted player gesture, then starts and loops it', () => {
+    const { container } = render(
+      <WarpkeepAudioDirector scene="menu" preloadMenu={false} deferUntilGesture />
+    );
+    const menu = getAudio(container, 'menu-primary');
+    const standby = getAudio(container, 'menu-standby');
+    const playSpy = vi.mocked(HTMLMediaElement.prototype.play);
+
+    expect([...container.querySelectorAll('audio')].every((audio) => !audio.hasAttribute('src'))).toBe(true);
+    expect(playSpy).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(window);
+    expect(menu.getAttribute('src')).toMatch(/\/audio\/warpkeep-verdant-menu-theme\.m4a$/);
+    expect(standby.getAttribute('src')).toBe(menu.getAttribute('src'));
+    expect(playSpy.mock.instances).toContain(menu);
+    expect(menu.preload).toBe('auto');
+    expect(standby.preload).toBe('none');
+
+    playSpy.mockClear();
+    menu.currentTime = WARPKEEP_MENU_LOOP.crossfadeStartSeconds;
+    fireEvent.timeUpdate(menu);
+    expect(playSpy.mock.instances).toContain(standby);
+  });
+
+  it('does not request a soundtrack while muted and starts under the unmute gesture', () => {
+    const directorRef = createRef<WarpkeepAudioDirectorHandle>();
+    const { container, rerender } = render(
+      <WarpkeepAudioDirector
+        ref={directorRef}
+        scene="menu"
+        muted
+        preloadMenu={false}
+        deferUntilGesture
+      />
+    );
+    const menu = getAudio(container, 'menu-primary');
+    const playSpy = vi.mocked(HTMLMediaElement.prototype.play);
+    fireEvent.pointerDown(window);
+    expect(menu.hasAttribute('src')).toBe(false);
+    expect(playSpy).not.toHaveBeenCalled();
+
+    act(() => directorRef.current?.unmuteFromGesture());
+    rerender(
+      <WarpkeepAudioDirector
+        ref={directorRef}
+        scene="menu"
+        muted={false}
+        preloadMenu={false}
+        deferUntilGesture
+      />
+    );
+    expect(menu.getAttribute('src')).toMatch(/\/audio\/warpkeep-verdant-menu-theme\.m4a$/);
+    expect(playSpy.mock.instances).toContain(menu);
+    expect(menu.muted).toBe(false);
+
+    rerender(
+      <WarpkeepAudioDirector
+        ref={directorRef}
+        scene="menu"
+        muted
+        preloadMenu={false}
+        deferUntilGesture
+      />
+    );
+    expect(menu.hasAttribute('src')).toBe(false);
+    expect(menu.paused).toBe(true);
+
+    playSpy.mockClear();
+    act(() => directorRef.current?.unmuteFromGesture());
+    rerender(
+      <WarpkeepAudioDirector
+        ref={directorRef}
+        scene="menu"
+        muted={false}
+        preloadMenu={false}
+        deferUntilGesture
+      />
+    );
+    expect(menu.getAttribute('src')).toMatch(/\/audio\/warpkeep-verdant-menu-theme\.m4a$/);
+    expect(playSpy.mock.instances).toContain(menu);
+  });
+
   it('applies and updates the player soundtrack mute preference to every source', () => {
     const mutedAtPlay: boolean[] = [];
     vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(function (
@@ -197,7 +300,7 @@ describe('WarpkeepAudioDirector', () => {
     expect(title.src).toMatch(/\/audio\/warpkeep-title-theme-[ab]\.mp3$/);
     expect(title.dataset.track).toMatch(/^theme-[ab]$/);
     expect(title.loop).toBe(true);
-    expect(primary.src).toMatch(/\/audio\/warpkeep-menu-theme\.mp3$/);
+    expect(primary.src).toMatch(/\/audio\/warpkeep-verdant-menu-theme\.m4a$/);
     expect(standby.src).toBe(primary.src);
     expect(primary.loop).toBe(false);
     expect(standby.loop).toBe(false);
@@ -281,6 +384,34 @@ describe('WarpkeepAudioDirector', () => {
     rerender(<WarpkeepAudioDirector ref={directorRef} scene="realm" />);
     act(() => directorRef.current?.ensurePlaybackFromGesture());
     expect(playSpy.mock.instances).toContain(realmPrimary);
+  });
+
+  it('selects the Genesis 002 score only when that realm is explicitly prepared', () => {
+    const directorRef = createRef<WarpkeepAudioDirectorHandle>();
+    const { container } = render(
+      <WarpkeepAudioDirector ref={directorRef} scene="realm" />
+    );
+    const realmPrimary = getAudio(container, 'realm-primary');
+    const realmStandby = getAudio(container, 'realm-standby');
+
+    expect(realmPrimary.getAttribute('src')).toBeNull();
+    expect(realmStandby.getAttribute('src')).toBeNull();
+
+    act(() => directorRef.current?.prepareScene('realm', 'genesis-002'));
+
+    expect(realmPrimary.src).toMatch(/\/audio\/warpkeep-genesis-002-theme\.m4a$/);
+    expect(realmStandby.src).toBe(realmPrimary.src);
+    expect(realmPrimary.preload).toBe('auto');
+    expect(realmStandby.preload).toBe('none');
+    expect(realmPrimary.volume).toBeCloseTo(0.58, 8);
+
+    realmPrimary.currentTime = 36;
+    act(() => directorRef.current?.prepareScene('realm', 'genesis-001'));
+
+    expect(realmPrimary.src).toMatch(/\/audio\/warpkeep-lowlands-theme\.mp3$/);
+    expect(realmStandby.src).toBe(realmPrimary.src);
+    expect(realmPrimary.currentTime).toBe(0);
+    expect(realmPrimary.volume).toBe(WARPKEEP_AUDIO_LEVELS.realm);
   });
 
   it('crossfades from the retained menu position into Lowlands and back', () => {

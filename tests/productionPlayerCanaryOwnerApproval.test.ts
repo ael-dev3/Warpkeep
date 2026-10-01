@@ -1,15 +1,15 @@
 import {
   chmodSync,
   linkSync,
-  mkdtempSync,
   readdirSync,
   realpathSync,
   writeFileSync,
 } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { createOwnedTemporaryFixtures } from './helpers/ownedTemporaryFixture';
 
 import {
   ProductionPlayerCanaryOwnerApprovalError,
@@ -32,12 +32,15 @@ import {
   deriveProductionPlayerCanaryCommandAuthorityV2,
 } from '../scripts/production-player-canary-command-authority.mjs';
 
+const temporaryFixtures = createOwnedTemporaryFixtures();
+afterEach(() => temporaryFixtures.cleanup());
+
 const NONCE = 'a'.repeat(64);
 const PLAN = 'b'.repeat(64);
 const APPROVED_AT = new Date('2026-08-13T12:00:00.000Z');
 
 function privateDirectory() {
-  const directory = mkdtempSync(join(tmpdir(), 'warpkeep-canary-approval-'));
+  const directory = temporaryFixtures.create('warpkeep-canary-approval-');
   chmodSync(directory, 0o700);
   return realpathSync(directory);
 }

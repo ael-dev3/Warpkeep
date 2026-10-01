@@ -144,8 +144,9 @@ afterEach(() => {
 });
 
 describe('Warpkeep realm choice integration', () => {
-  it('keeps the admitted Genesis 001 entry callback unchanged', () => {
+  it('keeps the admitted Genesis 001 entry callback unchanged', async () => {
     const { handlers } = renderMenu(authenticatedState, {}, true);
+    await settleDeferredPresentation();
 
     fireEvent.click(screen.getByRole('button', { name: 'ENTER REALM' }));
     fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));

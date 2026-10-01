@@ -157,6 +157,14 @@ export function resolveFarcasterAuthContext({
   return Object.freeze({ domain: host, siweUri });
 }
 
+/** Keep browser fallbacks on this deployment's root or isolated PTR path. */
+export function resolveFarcasterWebMenuUrl(input: FarcasterAuthLocationInput) {
+  const { siweUri } = resolveFarcasterAuthContext(input);
+  const menuUrl = new URL(siweUri);
+  menuUrl.hash = 'menu';
+  return menuUrl.toString();
+}
+
 /** Resolve the current host and Vite base without using location.href/hash. */
 export function getBrowserFarcasterAuthContext(
   baseUrl = import.meta.env.BASE_URL,
@@ -171,6 +179,25 @@ export function getBrowserFarcasterAuthContext(
   }
 
   return resolveFarcasterAuthContext({
+    origin: location.origin,
+    host: location.host,
+    baseUrl
+  });
+}
+
+export function getBrowserFarcasterWebMenuUrl(
+  baseUrl = import.meta.env.BASE_URL,
+  location: Pick<Location, 'origin' | 'host'> | undefined = (
+    typeof window === 'undefined' ? undefined : window.location
+  )
+) {
+  if (!location) {
+    throw new FarcasterAuthContextError(
+      'Warpkeep web navigation is only available in a browser.'
+    );
+  }
+
+  return resolveFarcasterWebMenuUrl({
     origin: location.origin,
     host: location.host,
     baseUrl

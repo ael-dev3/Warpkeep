@@ -99,12 +99,15 @@ it('rejects scanner output missing the mandatory negative findings and cleans it
     'generic-api-key:services/release-recovery/src/githubEvidence.ts.copy:1',
     'generic-api-key:tests/fixtures/recoveryG002PtrAdoptionCandidate.ts.copy:1',
     'generic-api-key:wrong-public-values.ts:7',
+    'generic-api-key:src/components/keep04/keep04CathedralRoofPalette.ts:2',
+    'generic-api-key:src/components/keep04/keep04CathedralRoofPalette.ts.copy:1',
+    'generic-api-key:src/components/keep04/unrelatedRoofPalette.ts:1',
   ]));
-  expect(result.missing).toHaveLength(95);
+  expect(result.missing).toHaveLength(98);
 });
 it('reports unexpected finding identities without exposing scanner payloads', () => {
   const result = run(() => ({ status: 1, stdout: JSON.stringify([{ RuleID: 'jwt', File: 'unexpected.ts', StartLine: 7, Secret: 'DO-NOT-PRINT', Match: 'DO-NOT-PRINT' }]), stderr: '' }));
-  expect(result.unexpected).toEqual(['jwt:unexpected.ts:7']); expect(result.missing).toHaveLength(95);
+  expect(result.unexpected).toEqual(['jwt:unexpected.ts:7']); expect(result.missing).toHaveLength(98);
   expect(JSON.stringify(result)).not.toContain('DO-NOT-PRINT');
 });
 it('fails closed on scanner failure or malformed output', () => {

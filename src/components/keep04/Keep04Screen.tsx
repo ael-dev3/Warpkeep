@@ -1,13 +1,14 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Building04, Resource04 } from '../../../spacetimedb/gameplay04/policy';
 import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
 import type { Controller04, Snapshot04 } from '../../ptr/gameplay04/createGameplay04Controller';
 import { initialPlacement04 } from '../../ptr/gameplay04/gameplay04Placement';
 import { PENDING_LABEL04 } from '../../ptr/gameplay04/gameplay04Presentation';
 import { BUILDING_NAMES04, Keep04BuildingPanel, RESOURCES04 } from './Keep04BuildingPanel';
-import { activeKeep04LoopStage04, Keep04LoopRail } from './Keep04LoopRail';
+import { activeKeep04LoopStage04, isKeep04FirstJourney04, Keep04LoopRail } from './Keep04LoopRail';
 import { Keep04Schematic } from './Keep04Schematic';
 import { Keep04SceneHost, type Keep04SceneHostProps } from './Keep04SceneHost';
+import type { VisualState04 } from './createKeep04Scene';
 import { evaluatePlacement04 } from '../../../spacetimedb/gameplay04/placement';
 import { constructionProgress04 } from './constructionProgress04';
 import { estimatedTime04, Keep04WorkerPanel } from './Keep04WorkerPanel';
@@ -23,6 +24,23 @@ export type Keep04ScreenProps = Readonly<{
   onFindResources: (resource: Resource04 | null, workerOrdinal?: number) => void; onReturnToWorld: () => void;
   onSceneObservation?: Keep04SceneHostProps['onObservation']; qaFault?: Keep04SceneHostProps['qaFault'];
 }>;
+
+function samePlacement04(first: Placement04 | null, second: Placement04 | null): boolean {
+  return first === second || (first !== null && second !== null
+    && first.kind === second.kind && first.x === second.x && first.z === second.z && first.rotation === second.rotation);
+}
+
+function sameSceneVisual04(first: VisualState04, second: VisualState04): boolean {
+  if (first.selectedKind !== second.selectedKind || first.draftValid !== second.draftValid
+    || !samePlacement04(first.draft, second.draft) || first.buildings.length !== second.buildings.length) return false;
+  return first.buildings.every((building, index) => {
+    const next = second.buildings[index];
+    return building.kind === next.kind && samePlacement04(building.placement, next.placement)
+      && building.completedLevel === next.completedLevel && building.targetLevel === next.targetLevel
+      && building.phase === next.phase && building.startsAtMicros === next.startsAtMicros
+      && building.completesAtMicros === next.completesAtMicros;
+  });
+}
 
 export function Keep04Screen({ snapshot, controller, selection, onSelectionChange, onBack, quality, reducedMotion, onFindResources, onReturnToWorld, onSceneObservation, qaFault }: Keep04ScreenProps) {
   const { view, phase, problem } = snapshot;
@@ -44,10 +62,39 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   // focus. Only ready grants command authority; failures and expired scopes hide it.
   const visible = (phase === 'ready' || phase === 'refreshing' || phase === 'pending') && view !== null;
   const firstIdleWorker = view?.workers.find(worker => worker.phase === 'idle');
-  const showFirstJourney = visible && view !== null && view.buildings.length === 0
-    && firstIdleWorker !== undefined
-    && view.workers.every(worker => worker.assignmentRevision === 0n)
-    && RESOURCES04.every(resource => view.balances[resource] === 0n && view.pending[resource] === 0n);
+  const showFirstJourney = visible && view !== null && isKeep04FirstJourney04(view);
+  const constructionStatuses = view?.buildings.filter(building => building.phase === 'constructing').map(building => {
+    const construction = building.startsAtMicros !== null && building.completesAtMicros !== null
+      ? constructionProgress04(building.startsAtMicros, building.completesAtMicros, nowMs)
+      : null;
+    return <section key={building.kind} className="keep04-construction" aria-label={`${BUILDING_NAMES04[building.kind]} construction`}>
+      <p><strong>{BUILDING_NAMES04[building.kind]}</strong> · Constructing level {building.targetLevel} · Estimated time remaining: <span>{construction?.remaining ?? estimatedTime04(building.completesAtMicros!, nowMs)}</span></p>
+      {construction && <div className="keep04-construction-progress">
+        <div className="keep04-construction-progress-track" role="progressbar" aria-label={`${BUILDING_NAMES04[building.kind]} scene construction progress`}
+          aria-valuemin={0} aria-valuemax={100} aria-valuenow={construction.percent} aria-valuetext={construction.label}>
+          <span style={{ width: `${construction.percent}%` }} />
+        </div>
+        <span className="keep04-construction-progress-label">{construction.label}</span>
+      </div>}
+    </section>;
+  }) ?? [];
+  const sceneBuildings = view?.buildings;
+  const previousSceneVisual = useRef<VisualState04 | null>(null);
+  // Countdown text updates once a second; only actual placement/structure changes
+  // should reconcile the 3D scene or wake its renderer.
+  const sceneVisual = useMemo(() => {
+    const buildings = sceneBuildings ?? [];
+    const candidate = selection.panel === 'buildings' ? selection.draft : null;
+    const next: VisualState04 = { buildings, selectedKind: selection.selectedKind,
+      draft: candidate,
+      draftValid: candidate !== null && evaluatePlacement04(candidate,
+        buildings.filter(building => building.kind !== candidate.kind).map(building => building.placement)).valid };
+    if (previousSceneVisual.current !== null && sameSceneVisual04(previousSceneVisual.current, next)) {
+      return previousSceneVisual.current;
+    }
+    return next;
+  }, [sceneBuildings, selection.selectedKind, selection.draft, selection.panel]);
+  useLayoutEffect(() => { previousSceneVisual.current = sceneVisual; }, [sceneVisual]);
   const wasVisible = useRef(visible);
   const activeTimer = visible && (view.state.project !== undefined || view.workers.some(worker => worker.phase !== 'idle'));
   useEffect(() => {
@@ -120,9 +167,9 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   function alignAndFocus(element: HTMLElement | SVGSVGElement | null) {
     element?.scrollIntoView?.({ block: 'start', behavior: 'instant' }); element?.focus({ preventScroll: true });
   }
-  function focusReview() { if (ready) alignAndFocus(reviewHeading.current); }
+  function focusReview() { if (visible) alignAndFocus(reviewHeading.current); }
   function viewSite() {
-    if (!ready || !schematic.current) return;
+    if (!visible || !schematic.current) return;
     schematic.current.open = true;
     alignAndFocus(schematic.current.querySelector('svg'));
   }
@@ -142,7 +189,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     </section>}
     {phase === 'refreshing' && visible && <p role="status">Refreshing keep from the Realm… Commands are temporarily unavailable.</p>}
     {ready && view.atlas === null && <p role="status">Return to world to refresh the Realm before building or recalling Workers.</p>}
-    {view !== null && <div hidden={!visible}>
+    {view !== null && <div className="keep04-ready" hidden={!visible}>
       <div ref={decisionHeader} className="keep04-decision-header">
         <section className="keep04-resources" aria-label="Resources">
           {RESOURCES04.map(resource => {
@@ -167,17 +214,21 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       {showFirstJourney && firstIdleWorker !== undefined && <section className="keep04-first-journey" aria-label="First journey">
         <p className="keep04-eyebrow">YOUR FIRST RETURN</p>
         <h2>Start with one useful journey.</h2>
-        <p>Open the Realm and choose a resource location for Worker {firstIdleWorker.ordinal + 1}. What comes home can shape your first improvement.</p>
+        <p>Start with a City Mill. It needs Food, Wood, and Stone; City Goldworks also requires Gold. Check costs under Buildings, then send idle Workers to gather missing resources in parallel. Only confirmed returns can fund construction.</p>
         <button type="button" onClick={() => onFindResources(null, firstIdleWorker.ordinal)}>Choose a resource location</button>
       </section>}
-      {problem === 'capacity' && <p role="status">That resource location is full. Find another location.</p>}
-      {problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}
+      {constructionStatuses.length === 1 ? constructionStatuses[0] : constructionStatuses.length > 1 ?
+        <details className="keep04-construction-group">
+          <summary>{constructionStatuses.length} constructions underway · View progress</summary>
+          {constructionStatuses}
+        </details> : null}
+      {problem === 'capacity' && <p className="keep04-problem" role="status">That resource location is full. Find another location.</p>}
+      {problem === 'target' && <p className="keep04-problem" role="status">That resource location changed. Choose a current Realm location.</p>}
       <div className="keep04-workspace" data-panel-open={selection.panel !== null}>
         <div className="keep04-scene-region">
           {visible && <Keep04SceneHost quality={quality} reducedMotion={reducedMotion} onMode={setSceneMode}
             onObservation={onSceneObservation} {...(import.meta.env.DEV ? { qaFault } : {})}
-            visual={{ buildings: view.buildings, selectedKind: selection.selectedKind, draft: selection.panel === 'buildings' ? selection.draft : null,
-              draftValid: selection.draft !== null && evaluatePlacement04(selection.draft, view.buildings.filter(building => building.kind !== selection.draft!.kind).map(building => building.placement)).valid }}
+            visual={sceneVisual}
             onSelect={selectBuilding} onPlacement={draft => onSelectionChange({ ...selection, draft })} />}
           {sceneMode === 'fallback' && <p role="status">3D graphics are unavailable. Your keep and commands remain available in the placement schematic.</p>}
           <details ref={schematic} open>
@@ -186,21 +237,6 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
               onSelect={selectBuilding} onChange={draft => onSelectionChange({ ...selection, draft })}
               onReview={selection.panel === 'buildings' ? focusReview : undefined} />
           </details>
-          {view.buildings.filter(building => building.phase === 'constructing').map(building => {
-            const construction = building.startsAtMicros !== null && building.completesAtMicros !== null
-              ? constructionProgress04(building.startsAtMicros, building.completesAtMicros, nowMs)
-              : null;
-            return <section key={building.kind} className="keep04-construction" aria-label={`${BUILDING_NAMES04[building.kind]} construction`}>
-              <p>Constructing level {building.targetLevel} · Estimated build time: <span>{construction?.remaining ?? estimatedTime04(building.completesAtMicros!, nowMs)}</span></p>
-              {construction && <div className="keep04-construction-progress">
-                <div className="keep04-construction-progress-track" role="progressbar" aria-label={`${BUILDING_NAMES04[building.kind]} scene construction progress`}
-                  aria-valuemin={0} aria-valuemax={100} aria-valuenow={construction.percent} aria-valuetext={construction.label}>
-                  <span style={{ width: `${construction.percent}%` }} />
-                </div>
-                <span className="keep04-construction-progress-label">{construction.label}</span>
-              </div>}
-            </section>;
-          })}
         </div>
         {selection.panel && <aside ref={commandPanel} id={panelId} className="keep04-panel" aria-label="Command panel">
           <button ref={closeButton} className="keep04-close" type="button" onClick={closePanel}>Close panel</button>
@@ -209,7 +245,10 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
               if (view.atlas) void controller.submit({ kind: 'recall', workerOrdinal: ordinal, atlasRevision: view.atlas.revision });
             }} />
             : <Keep04BuildingPanel view={view} nowMs={nowMs} selectedKind={selection.selectedKind} draft={selection.draft} enabled={ready} problem={problem}
-              onSelect={selectBuilding} onConfirm={quote => { void controller.submit({ kind: 'build', quote }); }} onFindResources={onFindResources}
+              onSelect={selectBuilding} onConfirm={quote => {
+                if (controller.getSnapshot().phase !== 'ready') return false;
+                void controller.submit({ kind: 'build', quote }); return true;
+              }} onFindResources={onFindResources}
               onViewSite={viewSite} reviewHeadingRef={reviewHeading}
               onCancelDraft={() => { onSelectionChange({ ...selection, selectedKind: null, draft: null }); closeButton.current?.focus(); }} />}
         </aside>}

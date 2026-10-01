@@ -1336,7 +1336,7 @@ describe('GitHub candidate evidence', () => {
     })
     expect(named('Setup exact recovery Node').with).toEqual({ 'node-version': '22.22.3' })
     expect(named('Setup the pinned recovery build package manager').with).toEqual({
-      version: '11.7.0', run_install: false,
+      version: '11.11.0', run_install: false,
     })
     const prerequisites = named('Require the installed recovery runner and private state')
     expect(prerequisites.run).toContain("test \"$RUNNER_NAME\" = 'warpkeep-wsl-production-01'")
@@ -1356,7 +1356,7 @@ describe('GitHub candidate evidence', () => {
     const install = named('Install exact recovery build dependencies')
     expect(install.run).toBe('npm ci')
     const parser = named('Install the recovery build validation parser')
-    expect(parser.run).toBe('pnpm --dir services/auth-bridge install --frozen-lockfile --ignore-scripts')
+    expect(parser.run).toBe('pnpm --pm-on-fail=ignore --dir services/auth-bridge install --frozen-lockfile --ignore-scripts')
     const runtime = named('Re-attest the recovery runtime and source before build')
     expect(runtime.run).toContain('sha256sum --check --strict')
     expect(runtime.run).toContain('npm run validate:pages-config')

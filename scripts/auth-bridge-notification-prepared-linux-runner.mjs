@@ -29,19 +29,27 @@ const SHA256 = /^[a-f0-9]{64}$/u;
 const NODE_EXECUTABLE =
   '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node';
 const PNPM_EXECUTABLE =
-  '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.7.0-linux-x64/pnpm';
+  '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/pnpm';
 const PNPM_MANIFEST =
   'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json';
 const PNPM_EXECUTABLE_SHA256 =
-  '5eb52f5b7fe3c4ef589393f81f33b28482f7657109239de7bc5dc4e4e56aafc4';
+  '60e9225a0e34ea09a78feda05282faf5bb1feb808c16a71df3ed58a684ba6edd';
 const PNPM_PACKAGE_SHA256 =
   '67b035e322203961795e8e34ca63a08c37a4386eda94107fb3d28f3246d882ad';
 const PNPM_PACKAGE_PATH =
-  '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.7.0-linux-x64/package/bin/pnpm.cjs';
+  '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/package/bin/pnpm.cjs';
+const PNPM_LAUNCHER_PATH =
+  '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/package/bin/pnpm.mjs';
+const PNPM_LAUNCHER_SHA256 =
+  'ff3224d46b47fbb24a7e9fe15fededef7e00892d07d4e376b6762d4899906bfd';
+const PNPM_RUNTIME_PATH =
+  '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/package/dist/pnpm.mjs';
+const PNPM_RUNTIME_SHA256 =
+  'e8abc02d5fbffb8f9d8817d44d6eee84c379ea8d5006dd5aa8694bb5e4428d8a';
 const PNPM_ARCHIVE_SHA256 =
-  'deafa7ec98a1218b6a047289b92fbe2395c1e22d3495bb711653013218ee15ee';
+  '85ef2eff216a1ae90804c00c8dfbfa6685353644650d10906a893c05aedcd884';
 const EXPECTED_PNPM_MANIFEST_SHA256 =
-  '346661bf89426db64f2911b6b0e7d3f5abf0d717d067b0b6c81602e6c570519a';
+  '2f74f205f1a6ddd54263d8eb6f362d92491f157177e3be8e518e85bb7e53a8ab';
 const LINUX_TOOLCHAIN_MANIFEST =
   'scripts/auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1.json';
 
@@ -181,7 +189,9 @@ async function main() {
     fail('AUTH_BRIDGE_PREPARED_LINUX_RUNNER_CHECKOUT_INVALID');
   }
   if (sha256File(PNPM_EXECUTABLE) !== PNPM_EXECUTABLE_SHA256
-    || sha256File(PNPM_PACKAGE_PATH) !== PNPM_PACKAGE_SHA256) {
+    || sha256File(PNPM_PACKAGE_PATH) !== PNPM_PACKAGE_SHA256
+    || sha256File(PNPM_LAUNCHER_PATH) !== PNPM_LAUNCHER_SHA256
+    || sha256File(PNPM_RUNTIME_PATH) !== PNPM_RUNTIME_SHA256) {
     fail('AUTH_BRIDGE_PREPARED_LINUX_RUNNER_TOOL_INVALID');
   }
   const manifestPath = resolve(repositoryRoot, PNPM_MANIFEST);
@@ -192,7 +202,7 @@ async function main() {
   if (
     manifest.schemaVersion !== 1
     || manifest.profile !== 'warpkeep-auth-bridge-notification-prepared-pnpm-linux-x64-v1'
-    || manifest.packageManager !== 'pnpm@11.7.0'
+    || manifest.packageManager !== 'pnpm@11.11.0'
     || manifest.platform !== 'linux'
     || manifest.architecture !== 'x64'
     || manifest.nodeVersion !== 'v22.22.3'
@@ -200,6 +210,10 @@ async function main() {
     || manifest.pnpmExecutableSha256 !== PNPM_EXECUTABLE_SHA256
     || manifest.pnpmPackagePath !== PNPM_PACKAGE_PATH
     || manifest.pnpmPackageSha256 !== PNPM_PACKAGE_SHA256
+    || manifest.pnpmLauncherPath !== PNPM_LAUNCHER_PATH
+    || manifest.pnpmLauncherSha256 !== PNPM_LAUNCHER_SHA256
+    || manifest.pnpmRuntimePath !== PNPM_RUNTIME_PATH
+    || manifest.pnpmRuntimeSha256 !== PNPM_RUNTIME_SHA256
     || manifest.archiveSha256 !== PNPM_ARCHIVE_SHA256
   ) fail('AUTH_BRIDGE_PREPARED_LINUX_RUNNER_MANIFEST_INVALID');
   if (requireString('WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256')

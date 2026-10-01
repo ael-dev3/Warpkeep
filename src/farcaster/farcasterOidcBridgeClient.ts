@@ -18,6 +18,7 @@ import {
   isCanonicalFarcasterBrowserBindingValue
 } from './farcasterBrowserBinding';
 import {
+  FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS,
   FARCASTER_OIDC_DEFAULT_AUDIENCE,
   parseFarcasterOidcJwt,
   readSafeFarcasterOidcAudience,
@@ -109,7 +110,7 @@ const definitiveAccessRequestNoMutationErrors = new WeakMap<
 >();
 
 function createRetryableExchangeError() {
-  const error = new FarcasterOidcBridgeClientError();
+  const error = bridgeClientError('service-unavailable');
   retryableExchangeErrors.add(error);
   return error;
 }
@@ -318,7 +319,7 @@ function readSafeSessionResponse(
     || (expectedFid !== undefined && identity.fid !== expectedFid)
     || sessionExpiresAt === undefined
     || sessionExpiresAt <= now
-    || sessionExpiresAt - now > FARCASTER_SERVER_SESSION_MAX_TTL_MS
+    || sessionExpiresAt - now > FARCASTER_SERVER_SESSION_MAX_TTL_MS + FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS
   ) {
     return undefined;
   }
@@ -897,9 +898,12 @@ export function createFarcasterOidcBridgeClient(
     ) {
       const body = readSafeExchangeBody(request);
       if (!body) {
-        throw new FarcasterOidcBridgeClientError();
+        throw bridgeClientError('exchange-request-invalid');
       }
       const initialWallRemaining = request.expiresAt - Date.now();
+      if (Number.isFinite(initialWallRemaining) && initialWallRemaining <= 0) {
+        throw bridgeClientError('exchange-request-expired');
+      }
       const exchangeBudget = Math.min(
         BRIDGE_EXCHANGE_TIMEOUT_MS,
         initialWallRemaining
@@ -919,7 +923,10 @@ export function createFarcasterOidcBridgeClient(
           request.expiresAt
         );
         if (!Number.isFinite(remainingMilliseconds) || remainingMilliseconds <= 0) {
-          throw new FarcasterOidcBridgeClientError();
+          if (request.expiresAt <= Date.now()) {
+            throw bridgeClientError('exchange-request-expired');
+          }
+          throw bridgeClientError('timeout');
         }
         try {
           result = await postJson(
@@ -943,7 +950,7 @@ export function createFarcasterOidcBridgeClient(
             throw error;
           }
           if (retryDelay === undefined) {
-            throw new FarcasterOidcBridgeClientError();
+            throw error;
           }
           await waitForExchangeRetry(
             retryDelay,
@@ -961,7 +968,7 @@ export function createFarcasterOidcBridgeClient(
         request.fid
       );
       if (!session) {
-        throw new FarcasterOidcBridgeClientError();
+        throw bridgeClientError('invalid-response');
       }
       return session;
     },

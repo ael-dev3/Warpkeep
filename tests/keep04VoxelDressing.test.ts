@@ -125,3 +125,34 @@ it.each(['high', 'balanced', 'reduced'] as const)('separates vegetated %s terrac
     expect(geometry.groups).toHaveLength(0);
   } finally { geometry.dispose(); }
 });
+
+it.each(['high', 'balanced', 'reduced'] as const)('varies terrace turf by world position without color seams at %s quality', quality => {
+  const { geometry } = createKeep04Dressing(quality);
+  try {
+    const positions = geometry.getAttribute('position');
+    const normals = geometry.getAttribute('normal');
+    const colors = geometry.getAttribute('color');
+    const turfColors = new Set<string>();
+    const sharedCorners = new Map<string, string>();
+    for (let vertex = 0; vertex < positions.count; vertex++) {
+      if (normals.getY(vertex) < .9) continue;
+      const color = [colors.getX(vertex), colors.getY(vertex), colors.getZ(vertex)].join(':');
+      const corner = [positions.getX(vertex), positions.getY(vertex), positions.getZ(vertex)].join(':');
+      turfColors.add(color);
+      if (sharedCorners.has(corner)) expect(color).toBe(sharedCorners.get(corner));
+      sharedCorners.set(corner, color);
+      expect(colors.getY(vertex)).toBeGreaterThan(colors.getX(vertex));
+    }
+    expect(turfColors.size).toBeGreaterThan(1);
+    expect(colors.array.byteLength).toBe(480);
+  } finally { geometry.dispose(); }
+});
+
+it('keeps the same terrain color field when switching graphics quality', () => {
+  const scenes = ['high', 'balanced', 'reduced'].map(quality => createKeep04Dressing(quality as 'high' | 'balanced' | 'reduced'));
+  try {
+    const colors = scenes.map(({ geometry }) => Array.from(geometry.getAttribute('color').array));
+    expect(colors[1]).toEqual(colors[0]);
+    expect(colors[2]).toEqual(colors[0]);
+  } finally { scenes.forEach(({ geometry }) => geometry.dispose()); }
+});

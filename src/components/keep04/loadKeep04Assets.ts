@@ -4,6 +4,7 @@ import { KEEP04_VISUAL_PROFILE as P, type Quality04 } from './keep04VisualProfil
 
 export const KEEP04_BUILDING_IDS = ['city-mill', 'lumber-camp', 'city-stoneworks', 'city-goldworks', 'city-barracks', 'grand-covenant-cathedral'] as const;
 export const KEEP04_TREE_IDS = ['courtyard-linden-teardrop', 'pruned-ornamental-three-tier'] as const;
+export type Keep04StaticAssetId = typeof KEEP04_BUILDING_IDS[number] | typeof KEEP04_TREE_IDS[number];
 
 /** Raw pinned bytes are a conservative keep-only preflight, NOT a world+keep transfer measurement. */
 export function planKeep04Assets(quality: Quality04) {
@@ -27,8 +28,10 @@ export function planKeep04Assets(quality: Quality04) {
   throw new RangeError('Keep asset catalog exceeds the selected budget.');
 }
 
-export async function loadKeep04Assets(options: Readonly<{ quality: Quality04; reducedMotion: boolean; signal: AbortSignal }>): Promise<InnerKeepRuntimeAssetBundle> {
+export async function loadKeep04Assets(options: Readonly<{ quality: Quality04; reducedMotion: boolean; signal: AbortSignal;
+  staticAssetIds: readonly Keep04StaticAssetId[] }>): Promise<InnerKeepRuntimeAssetBundle> {
   const plan = planKeep04Assets(options.quality);
+  if (options.staticAssetIds.some(id => !plan.staticAssetIds.includes(id))) throw new TypeError('Unknown Keep asset.');
   return loadInnerKeepRuntimeAssetBundle({ ...options, quality: plan.sourceQuality, baseUrl: import.meta.env.BASE_URL,
-    staticAssetIds: plan.staticAssetIds, populationActorIds: plan.populationActorIds });
+    staticAssetIds: options.staticAssetIds, populationActorIds: plan.populationActorIds });
 }

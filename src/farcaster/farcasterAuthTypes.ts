@@ -21,7 +21,7 @@ export type FarcasterAuthErrorCode =
   | 'unknown';
 
 /**
- * Privacy-safe checkpoints for the Mini App entry path. These labels contain
+ * Privacy-safe checkpoints for Mini App and browser sign-in. These labels contain
  * no identity, credential, request, URL, or server-response material and are
  * the only auth details presentation code may copy into a support report.
  */
@@ -83,6 +83,8 @@ export type FarcasterQuickAuthTokenResult =
  */
 export type FarcasterOidcBridgeFailureKind =
   | 'configuration'
+  | 'exchange-request-invalid'
+  | 'exchange-request-expired'
   | 'invalid-credential'
   | 'forbidden'
   | 'rate-limited'

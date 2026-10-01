@@ -25,10 +25,11 @@ describe('CreditsRoll', () => {
     vi.unstubAllGlobals();
   });
 
-  it('opens with the human idea and gives Clawberto the remaining gamedev roles', () => {
+  it('credits the owner, the castle model author, and the game roles', () => {
     expect(CREDITS_ROLES[0]).toEqual({ role: 'IDEAS MAN', name: 'AEL' });
-    expect(CREDITS_ROLES.slice(1).length).toBeGreaterThan(1);
-    expect(CREDITS_ROLES.slice(1).every((credit) => credit.name === 'CLAWBERTO')).toBe(true);
+    expect(CREDITS_ROLES[1]).toEqual({ role: "WARPLET'S WATCH 3D MODEL", name: 'ASTRA' });
+    expect(CREDITS_ROLES.slice(2).length).toBeGreaterThan(1);
+    expect(CREDITS_ROLES.slice(2).every((credit) => credit.name === 'CLAWBERTO')).toBe(true);
   });
 
   it('renders every credit and closes through its accessible control', () => {
@@ -52,7 +53,7 @@ describe('CreditsRoll', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('contains focus and keeps moving attribution links out of the tab order until paused', () => {
+  it('contains focus and keeps the moving attribution link out of the tab order until paused', () => {
     const onClose = vi.fn();
     render(<CreditsRoll onClose={onClose} />);
 
@@ -62,12 +63,10 @@ describe('CreditsRoll', () => {
       name: 'Pause the credits roll and switch to a manually scrollable view'
     });
     const license = screen.getByRole('link', { name: 'CC BY 4.0' });
-    const archive = screen.getByRole('link', { name: 'View archive' });
 
     expect(document.activeElement).toBe(close);
     expect(dialog.getAttribute('data-presentation')).toBe('rolling');
     expect(license.getAttribute('tabindex')).toBe('-1');
-    expect(archive.getAttribute('tabindex')).toBe('-1');
 
     fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
     expect(document.activeElement).toBe(pause);
@@ -77,7 +76,6 @@ describe('CreditsRoll', () => {
     fireEvent.click(pause);
     expect(dialog.getAttribute('data-presentation')).toBe('reading');
     expect(license.getAttribute('tabindex')).toBe('0');
-    expect(archive.getAttribute('tabindex')).toBe('0');
     const transcript = screen.getByRole('region', {
       name: 'Scrollable credits transcript'
     });
@@ -86,12 +84,12 @@ describe('CreditsRoll', () => {
     expect(document.activeElement).toBe(transcript);
     expect(fireEvent.keyDown(transcript, { key: 'PageDown' })).toBe(true);
 
-    archive.focus();
+    license.focus();
     fireEvent.keyDown(document, { key: 'Tab' });
     expect(document.activeElement).toBe(close);
     close.focus();
     fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
-    expect(document.activeElement).toBe(archive);
+    expect(document.activeElement).toBe(license);
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);

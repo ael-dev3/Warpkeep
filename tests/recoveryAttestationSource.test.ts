@@ -124,11 +124,11 @@ it('rejects an index concealment flag introduced after the initial source check'
   expect(changed).toBe(true);
 });
 
-it.skipIf(process.platform !== 'linux').each([3, 4, 5, 6] as const)('routes a committed V%s update binding through the native recovery lane', version => {
+it.skipIf(process.platform !== 'linux').each([3, 4, 5, 6] as const)('routes a committed V%s update binding to the public mirror candidate lane', version => {
   const head = commitPtrUpdateBinding(version);
   expect(classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit: head }))
     .toEqual({ profile: version === 6 ? 'warpkeep-0.4.0-sealed-launch-g001-linux-freeze-v6' : version === 5 ? 'warpkeep-0.4.0-sealed-launch-g002-ptr-adoption-v5' : version === 3 ? 'warpkeep-0.4.0-sealed-launch-ptr-update-v3' : 'warpkeep-0.4.0-sealed-launch-ptr-adoption-v4', candidatePagesSourceCommit: head,
-      mode: 'sealed-g002-recovery' });
+      mode: 'public-mirror-candidate' });
 });
 
 function sourceAuthority(operation: (typeof SEALED_REALMS_OPERATIONS)[number], verified: string[] = []) {
@@ -190,13 +190,13 @@ it('rejects a V2 source whose package behavior changes alongside the version', (
   expect(() => sourceAuthority('preflight')).toThrow('SEALED_REALMS_SOURCE_AUTHORITY_BINDING_INVALID');
 });
 // The Pages classifier intentionally uses the fixed /usr/bin/git boundary.
-it.skipIf(process.platform !== 'linux')('routes an exact schema-2 activation child only to the recovery lane', () => {
+it.skipIf(process.platform !== 'linux')('routes an exact schema-2 activation child to the public mirror candidate lane', () => {
   const candidatePagesSourceCommit = git('rev-parse', 'HEAD');
   expect(classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit })).toEqual({
-    profile: 'warpkeep-0.4.0-sealed-launch-v2', candidatePagesSourceCommit, mode: 'sealed-g002-recovery',
+    profile: 'warpkeep-0.4.0-sealed-launch-v2', candidatePagesSourceCommit, mode: 'public-mirror-candidate',
   });
 });
-it.skipIf(process.platform !== 'linux')('rejects recovery routing with a stale source SHA or untracked source', () => {
+it.skipIf(process.platform !== 'linux')('rejects public mirror candidate routing with a stale source SHA or untracked source', () => {
   expect(() => classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit: 'a'.repeat(40) })).toThrow();
   writeFileSync(join(root, 'untracked.js'), 'unreviewed');
   expect(() => classifySealedLaunchPagesDeployLane({ repositoryRoot: root, candidatePagesSourceCommit: git('rev-parse', 'HEAD') })).toThrow();
@@ -205,7 +205,7 @@ it('rejects dirty source outside the three activation files', () => {
   writeFileSync(join(root, 'source.js'), 'changed');
   expect(() => readRecoveryAttestationSource(root)).toThrow();
 });
-it.skipIf(process.platform !== 'linux')('runs the real recovery Pages build CLI and rejects wrong PTR targeting', () => {
+it.skipIf(process.platform !== 'linux')('runs the real public mirror candidate build CLI and rejects wrong PTR targeting', () => {
   const candidate = git('rev-parse', 'HEAD');
   const binding = JSON.parse(readFileSync(join(root, 'config/releases/0.4.0-sealed-launch.json'), 'utf8'));
   const env = { PATH: '/usr/bin:/bin', CI: 'true', GITHUB_ACTIONS: 'true',
@@ -219,7 +219,7 @@ it.skipIf(process.platform !== 'linux')('runs the real recovery Pages build CLI 
   const accepted = invoke(env);
   expect(accepted.stderr).toBe(''); expect(accepted.status).toBe(0);
   expect(JSON.parse(accepted.stdout)).toEqual({ profile: 'warpkeep-0.4.0-sealed-launch-v2',
-    candidatePagesSourceCommit: candidate, mode: 'sealed-g002-recovery', ptrEnabled: true,
+    candidatePagesSourceCommit: candidate, mode: 'public-mirror-candidate', ptrEnabled: true,
     ptrDatabaseIdentity: binding.ptrDatabaseIdentity });
   const rejected = invoke({ ...env, VITE_PTR_SPACETIMEDB_DATABASE: binding.g001DatabaseIdentity });
   expect(rejected.status).toBe(1); expect(rejected.stdout).toBe('');

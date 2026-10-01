@@ -1499,7 +1499,7 @@ function readLaunchRecord(input) {
     const runStatus = lstatSync(input.runRoot, { bigint: true });
     if (
       record.pid !== process.pid || record.protectedMain !== input.commit
-      || record.processStartIdentity !== processStartIdentity(process.pid)
+      || bootstrapProcessIdentityState(process.pid, record.processStartIdentity) !== 'live-exact'
       || record.runDev !== runStatus.dev.toString() || record.runIno !== runStatus.ino.toString()
       || record.moduleTree !== input.tree || record.bootstrapBlob !== input.bootstrapBlob
       || record.bootstrapSha256 !== input.bootstrapSha256 || record.command !== input.commandName
@@ -2945,7 +2945,53 @@ function createBootstrapSignalController() {
   });
 }
 
+const LINUX_PROCESS_START_IDENTITY =
+  /^linux-v1:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(?:0|[1-9][0-9]{0,19})$/u;
+
+function readLinuxProcessBirthFile(path, maximum) {
+  const descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const bytes = Buffer.alloc(maximum + 1);
+    const size = readSync(descriptor, bytes, 0, bytes.length, null);
+    if (size > maximum || readSync(descriptor, Buffer.alloc(1), 0, 1, null) !== 0) {
+      throw new Error('PROCESS_IDENTITY_PROC_OVERSIZED');
+    }
+    // The ignored comm field can contain bytes that are not valid UTF-8.
+    return bytes.subarray(0, size).toString('latin1');
+  } finally {
+    closeSync(descriptor);
+  }
+}
+
+function linuxProcessStartIdentity(pid, readProc = readLinuxProcessBirthFile) {
+  if (!Number.isSafeInteger(pid) || pid < 1) throw new Error('PROCESS_IDENTITY_PID_INVALID');
+  const boot = readProc('/proc/sys/kernel/random/boot_id', 64);
+  if (/[^\x00-\x7f]/u.test(boot)) throw new Error('PROCESS_IDENTITY_PROC_INVALID');
+  const bootId = boot.trim();
+  const stat = readProc(`/proc/${pid}/stat`, 4_096);
+  // comm may contain whitespace and parentheses. The last closing delimiter
+  // precedes field 3 (state); field 22 is its nineteenth following field.
+  const delimiter = stat.lastIndexOf(') ');
+  const suffix = stat.slice(delimiter + 2);
+  if (!/^[\x09\x0a\x0d\x20-\x7e]+$/u.test(suffix)) {
+    throw new Error('PROCESS_IDENTITY_PROC_INVALID');
+  }
+  const fields = suffix.trim().split(/\s+/u);
+  const identity = `linux-v1:${bootId}:${fields[19]}`;
+  if (boot.length > 64 || stat.length > 4_096 || !stat.startsWith(`${pid} (`) || delimiter < 3
+    || fields.length < 20 || !/^[A-Za-z]$/u.test(fields[0])
+    || !LINUX_PROCESS_START_IDENTITY.test(identity)) {
+    throw new Error('PROCESS_IDENTITY_PROC_INVALID');
+  }
+  return identity;
+}
+
 function processStartIdentity(pid) {
+  if (process.platform === 'linux') {
+    try { return linuxProcessStartIdentity(pid); } catch (error) {
+      fail('GREATER_REALM_PRODUCTION_BOOTSTRAP_OPERATOR_IDENTITY_INVALID', error);
+    }
+  }
   const output = runExact('/bin/ps', ['-o', 'lstart=', '-p', String(pid)], {
     env: { PATH: '/usr/bin:/bin' },
     code: 'GREATER_REALM_PRODUCTION_BOOTSTRAP_OPERATOR_IDENTITY_INVALID',
@@ -2967,23 +3013,38 @@ function bootstrapProcessGroupExists(pgid) {
   }
 }
 
-function bootstrapProcessIdentityState(pid, expectedStartIdentity) {
+function bootstrapProcessIdentityState(pid, expectedStartIdentity, dependencies = {}) {
+  const platform = dependencies.platform ?? process.platform;
   try {
-    process.kill(pid, 0);
+    (dependencies.kill ?? process.kill)(pid, 0);
   } catch (error) {
     if (error?.code === 'ESRCH') return 'dead';
     if (error?.code === 'EPERM') return 'live-uninspectable';
     throw error;
   }
-  const result = spawnSync('/bin/ps', ['-o', 'lstart=', '-p', String(pid)], {
+  if (platform === 'linux' && LINUX_PROCESS_START_IDENTITY.test(expectedStartIdentity)) {
+    try {
+      const actual = linuxProcessStartIdentity(pid, dependencies.readProc);
+      return actual === expectedStartIdentity ? 'live-exact' : 'live-reused';
+    } catch {
+      return 'live-uninspectable';
+    }
+  }
+  const result = (dependencies.spawnSync ?? spawnSync)('/bin/ps', ['-o', 'lstart=', '-p', String(pid)], {
     encoding: 'utf8',
     env: { PATH: '/usr/bin:/bin' },
     stdio: ['ignore', 'pipe', 'ignore'],
+    timeout: 2_000,
+    maxBuffer: 4_096,
   });
-  if (result.status !== 0 || typeof result.stdout !== 'string' || result.stdout.trim() === '') {
+  if (result.error || result.signal != null || result.status !== 0
+    || typeof result.stdout !== 'string' || result.stdout.trim() === '') {
     return 'live-uninspectable';
   }
-  return result.stdout.trim() === expectedStartIdentity ? 'live-exact' : 'live-reused';
+  if (result.stdout.trim() === expectedStartIdentity) return 'live-exact';
+  // A legacy displayed start time is not stable birth evidence. Its mismatch
+  // cannot prove that a live PID was reused on any supported platform.
+  return 'live-uninspectable';
 }
 
 function bootstrapDelay(milliseconds) {
@@ -3618,10 +3679,13 @@ export const greaterRealmProductionBootstrapTestSeams = Object.freeze({
   gitBlobOid,
   installHermesSourceParserResolver,
   launchArgumentsDigest,
+  linuxProcessStartIdentity,
   parseGenesis001PolicyObservationOutput,
   parseLaunchRecord,
   parseLaunchLifecycleRecord,
   publishLaunchLifecycleRecord,
+  processStartIdentity,
+  processIdentityState: bootstrapProcessIdentityState,
   readLaunchLifecycleChain,
   repairLaunchLifecyclePublications,
   runFinalOperator,

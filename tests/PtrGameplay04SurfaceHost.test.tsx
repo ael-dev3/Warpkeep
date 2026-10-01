@@ -2,7 +2,7 @@ import '@testing-library/jest-dom/vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { RealmMapScreen } from '../src/components/realm/RealmMapScreen';
+import { PtrGameplay04SurfaceHost } from '../src/ptr/PtrGameplay04SurfaceHost';
 import { createPtrRealmAuthClient } from '../src/ptr/ptrRealmAuthClient';
 import { connectPtrRealm, createPtrGameplay04Capability, closePtrRealmConnectionSession, type PtrRealmConnectionBuilder, type PtrRealmConnectionLike } from '../src/ptr/ptrRealmConnection';
 import { PtrRealmProvider, usePtrRealm, type PtrRealmProviderRuntime } from '../src/ptr/PtrRealmProvider';
@@ -48,7 +48,11 @@ async function setup(generation = 17) {
   });
   const authority = await client.exchangeQuickAuth('quick.auth.token');
   let wire = freshWire04();
-  const read = vi.fn(async () => structuredClone(wire));
+  let uninitialized = false;
+  const read = vi.fn(async () => {
+    if (uninitialized) throw 'GAMEPLAY04_NOT_INITIALIZED';
+    return structuredClone(wire);
+  });
   const build = vi.fn((_input: BuildWire04) => new Promise<{ sequence: bigint; revision: bigint }>(() => {}));
   const dispatch = vi.fn(async (input: DispatchWire04) => {
     wire.revision = input.expectedRevision + 1n; wire.lastAcceptedSequence = input.sequence;
@@ -66,11 +70,12 @@ async function setup(generation = 17) {
   const session = await connectPtrRealm({ config, authority, generation, signal: new AbortController().signal, builderFactory: () => builder });
   const capability = createPtrGameplay04Capability(session, authority, anchor);
   let listener!: (value: GreaterRealmClientSnapshot) => void;
+  let resourceLocations = fixture.resourceLocations;
   const ready = (): GreaterRealmClientSnapshot => ({ phase: 'ready', sessionGeneration: generation, deviceClass: 'desktop', graphicsProfile: 'balanced',
     cellSize: 1, bootstrap: { ...fixture.bootstrap, mode: 'active', myCastleId: 1n },
     window: { ...fixture.window, centerQ: -1, centerR: 0, radius: hostValue.isMiniApp ? 2 : 3 }, view: { centerQ: -1, centerR: 0, radius: hostValue.isMiniApp ? 2 : 3, lod: 1 },
     chunks: fixture.chunks.map((chunk, index) => ({ chunk: { ...chunk, lod: 1, resourceLocations: [] }, distanceChunks: index })),
-    selectedChunkCount: fixture.chunks.length, resourceLocationPhase: 'ready', resourceLocations: fixture.resourceLocations,
+    selectedChunkCount: fixture.chunks.length, resourceLocationPhase: 'ready', resourceLocations,
     resourceLocationsTruncated: false, stream: {},
   } as unknown as GreaterRealmClientSnapshot);
   const bridge = { phase: 'available', presentationAllowed: true, sessionGeneration: generation,
@@ -81,6 +86,8 @@ async function setup(generation = 17) {
   const props = { identity: { fid: 1 }, ptrRealmAuthority: authority, ptrViewAnchor: anchor, greaterRealm: bridge,
     ptrGameplay04: capability, resolvedGraphicsQuality: 'balanced' as const, onRequestReturn };
   return { props, session, capability, bridge, authority, read, dispatch, build, ready, publish: (value: GreaterRealmClientSnapshot) => listener(value),
+    setResourceLocations(value: typeof fixture.resourceLocations) { resourceLocations = value; },
+    setUninitialized(value: boolean) { uninitialized = value; },
     fund() { wire.food = 1000n; wire.wood = 1000n; wire.stone = 1000n; wire.gold = 1000n; },
     journeys(points = 8193) {
       for (const worker of wire.workers) {
@@ -99,6 +106,12 @@ async function setup(generation = 17) {
         route: [{ q: -2, r: 1 }, { q: -1, r: 1 }], destinationCellKey: 'CELL:-1:1' };
       wire.revision++;
     },
+    pendingFoodWorker() {
+      wire.workers[0].assignmentRevision++;
+      wire.workers[0].assignment = { ...assignmentWire04(), phase: 'returning', earned: 60n,
+        route: [{ q: -2, r: 1 }, { q: -1, r: 1 }], destinationCellKey: 'CELL:-1:1' };
+      wire.revision++;
+    },
   };
 }
 
@@ -111,21 +124,124 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-it('opens keep only through current matching branded PTR capability; legacy and capability-only inputs fail closed', async () => {
+it.each([true, false])('restores destination focus when moving between world and keep (miniApp=%s)', async miniApp => {
+  hostValue = { ...hostValue, isMiniApp: miniApp };
   const h = await setup();
-  const mounted = render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
+  const open = await screen.findByRole('button', { name: 'Open keep' });
+  const content = screen.getByRole('main', { name: 'PTR' }).querySelector('.ptr-gameplay-surface__content')!;
+  // Mounting and the initial read do not move focus into an unrequested view.
+  expect(content).not.toHaveFocus();
+  open.focus();
+  fireEvent.click(open);
+  await screen.findByRole('heading', { name: 'Your keep' });
+  expect(content).toHaveFocus();
+
+  const back = screen.getByRole('button', { name: 'Back' });
+  back.focus();
+  fireEvent.click(back);
+  await screen.findByRole('button', { name: 'Open keep' });
+  expect(content).toHaveFocus();
+  expect(h.props.onRequestReturn).not.toHaveBeenCalled();
+});
+
+it('restores destination focus through browser Back and Forward without reopening a keep panel', async () => {
+  hostValue = { ...hostValue, isMiniApp: false };
+  const h = await setup();
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
+  const open = await screen.findByRole('button', { name: 'Open keep' });
+  const content = screen.getByRole('main', { name: 'PTR' }).querySelector('.ptr-gameplay-surface__content')!;
+  const worldState = window.history.state;
+  fireEvent.click(open);
+  await screen.findByRole('heading', { name: 'Your keep' });
+  const keepState = window.history.state;
+  screen.getByRole('button', { name: 'Back' }).focus();
+  act(() => {
+    window.history.replaceState(worldState, '');
+    window.dispatchEvent(new PopStateEvent('popstate', { state: worldState }));
+  });
+  await screen.findByRole('button', { name: 'Open keep' });
+  expect(content).toHaveFocus();
+  screen.getByRole('button', { name: 'Open keep' }).focus();
+  act(() => {
+    window.history.replaceState(keepState, '');
+    window.dispatchEvent(new PopStateEvent('popstate', { state: keepState }));
+  });
+  await screen.findByRole('heading', { name: 'Your keep' });
+  expect(content).toHaveFocus();
+  expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull();
+});
+
+it.each(['world', 'keep'] as const)('preserves %s control focus through healthy refresh and notice rendering', async surface => {
+  const h = await setup();
+  const mounted = render(<PtrGameplay04SurfaceHost {...h.props} />);
+  const open = await screen.findByRole('button', { name: 'Open keep' });
+  let control: HTMLElement;
+  if (surface === 'keep') {
+    fireEvent.click(open);
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage Workers' }));
+    control = screen.getByRole('button', { name: 'Close panel' });
+    expect(control).toHaveFocus();
+    fireEvent.click(screen.getByRole('button', { name: 'Open building catalog' }));
+    expect(control).toHaveFocus();
+  } else control = screen.getByTestId('greater-realm-world-canvas');
+  control.focus();
+  const reads = h.read.mock.calls.length;
+  await act(async () => window.dispatchEvent(new Event('focus')));
+  expect(h.read.mock.calls.length).toBeGreaterThan(reads);
+  expect(control).toHaveFocus();
+  mounted.rerender(<PtrGameplay04SurfaceHost {...h.props} ptrContinuationNotice />);
+  expect(screen.getByRole('region', { name: 'Session renewal' })).toBeVisible();
+  expect(control).toHaveFocus();
+});
+
+it('guides an uninitialized first-session World entry to the existing keep establishment flow', async () => {
+  const h = await setup();
+  h.setUninitialized(true);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
+
+  expect(await screen.findByText('Establish your keep before sending Workers.')).toBeVisible();
+  expect(screen.queryByText('Refresh keep state before dispatch.')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /food site at/ }));
+  expect(screen.queryByRole('button', { name: 'Dispatch Worker 1' })).toBeNull();
+  expect(screen.queryByText('Select a current public resource location to dispatch.')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Open keep to establish' }));
+  expect(await screen.findByRole('heading', { name: 'Your keep' })).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Establish keep' })).toBeEnabled();
+  expect(h.dispatch).not.toHaveBeenCalled();
+});
+
+it('keeps the setup guidance and action visible at phone width with the resources drawer closed', async () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+  const h = await setup();
+  h.setUninitialized(true);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
+
+  expect(await screen.findByText('Establish your keep before sending Workers.')).toBeVisible();
+  expect(document.getElementById('greater-realm-world-resources-panel')).toHaveAttribute('hidden');
+  const setupAction = screen.getByRole('button', { name: 'Open keep to establish' });
+  expect(setupAction).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Open keep' })).toBeNull();
+  fireEvent.click(setupAction);
+  expect(await screen.findByRole('button', { name: 'Establish keep' })).toBeEnabled();
+  expect(h.dispatch).not.toHaveBeenCalled();
+});
+
+it('opens keep only through current matching branded PTR capability; copied or stale inputs fail closed', async () => {
+  const h = await setup();
+  const mounted = render(<PtrGameplay04SurfaceHost {...h.props} />);
   expect(await screen.findByRole('button', { name: 'Open keep' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Open keep' }));
   expect(await screen.findByRole('heading', { name: 'Your keep' })).toBeTruthy();
   expect(host.canvases).toBe(0);
   for (const patch of [
-    { innerKeep: {} as never }, { ptrGameplay04: { ...h.capability } },
+    { ptrGameplay04: { ...h.capability } },
     { greaterRealm: { ...h.bridge, sessionGeneration: 18 } },
     { ptrRealmAuthority: undefined, ptrViewAnchor: undefined },
     { ptrViewAnchor: { ...anchor, q: 0 } },
   ]) {
     const creates = host.creates;
-    mounted.rerender(<RealmMapScreen {...h.props} {...patch} />);
+    mounted.rerender(<PtrGameplay04SurfaceHost {...h.props} {...patch} />);
     expect(screen.queryByRole('button', { name: 'Open keep' })).toBeNull();
     expect(screen.getByText(/unavailable/i)).toBeTruthy();
     expect(host.creates).toBe(creates);
@@ -140,7 +256,7 @@ it('provider ready publishes the branded gameplay capability into the real route
     createGameplay04: createPtrGameplay04Capability, isSessionCurrent: () => true, closeSession: closePtrRealmConnectionSession };
   function Entry() {
     const ptr = usePtrRealm();
-    return ptr.phase === 'ready' ? <RealmMapScreen {...h.props} ptrGameplay04={ptr.gameplay04!} />
+    return ptr.phase === 'ready' ? <PtrGameplay04SurfaceHost {...h.props} ptrGameplay04={ptr.gameplay04!} />
       : <><button onClick={() => void ptr.checkAccess()}>Check</button><button onClick={() => void ptr.enter()}>Enter</button><output>{ptr.phase}</output></>;
   }
   render(<PtrRealmProvider config={config} runtime={runtime}><Entry /></PtrRealmProvider>);
@@ -151,14 +267,14 @@ it('provider ready publishes the branded gameplay capability into the real route
 
 it('fails the capability-only PTR route before any renderer or keep read', async () => {
   const h = await setup();
-  render(<RealmMapScreen {...h.props} ptrRealmAuthority={undefined} ptrViewAnchor={undefined} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} ptrRealmAuthority={undefined} ptrViewAnchor={undefined} />);
   expect(screen.getByText(/unavailable/i)).toBeTruthy();
   expect(host.creates).toBe(0); expect(h.read).not.toHaveBeenCalled();
 });
 
 it('submits the explicitly selected idle ordinal and eight-hour duration', async () => {
   const h = await setup();
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   fireEvent.click(await screen.findByRole('button', { name: /food site at/ }));
   expect(screen.getByText(/^food site at -?\d+, -?\d+$/)).toBeTruthy();
   expect(screen.queryByText(/food site at .* ·/)).toBeNull();
@@ -176,7 +292,7 @@ it('submits the explicitly selected idle ordinal and eight-hour duration', async
 it.each([1280, 390])('carries Worker 3 from keep resource navigation into explicit dispatch review with Worker 1 busy (width=%s)', async width => {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
   const h = await setup(); h.occupyWorker(0);
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Manage Workers' }));
   fireEvent.click(screen.getByRole('button', { name: 'Find resources for Worker 3' }));
@@ -194,7 +310,7 @@ it.each([1280, 390])('carries Worker 3 from keep resource navigation into explic
 
 it('requires another explicit worker choice if the requested Worker becomes busy during resource review', async () => {
   const h = await setup(); h.occupyWorker(0);
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Manage Workers' }));
   fireEvent.click(screen.getByRole('button', { name: 'Find resources for Worker 3' }));
@@ -218,7 +334,7 @@ it('requires another explicit worker choice if the requested Worker becomes busy
 
 it('rejects out-of-range, noncanonical and busy worker selections without replacing the reviewed Worker', async () => {
   const h = await setup(); h.occupyWorker(0);
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   fireEvent.click(await screen.findByRole('button', { name: /food site at/ }));
   const chooser = screen.getByRole('combobox', { name: 'Idle Worker' }) as HTMLSelectElement;
   fireEvent.change(chooser, { target: { value: '2' } });
@@ -236,7 +352,7 @@ it('rejects out-of-range, noncanonical and busy worker selections without replac
 
 it('resets the requested Worker, selected target and duration under a replacement capability', async () => {
   const h = await setup();
-  const mounted = render(<RealmMapScreen {...h.props} />);
+  const mounted = render(<PtrGameplay04SurfaceHost {...h.props} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Manage Workers' }));
   fireEvent.click(screen.getByRole('button', { name: 'Find resources for Worker 3' }));
@@ -244,7 +360,7 @@ it('resets the requested Worker, selected target and duration under a replacemen
   fireEvent.click(screen.getByRole('button', { name: '8 hours' }));
   expect((screen.getByRole('combobox', { name: 'Idle Worker' }) as HTMLSelectElement).value).toBe('2');
   const replacement = await setup(18);
-  mounted.rerender(<RealmMapScreen {...replacement.props} />);
+  mounted.rerender(<PtrGameplay04SurfaceHost {...replacement.props} />);
   const resource = await screen.findByRole('button', { name: /food site at/ });
   expect(screen.queryByRole('button', { name: /^Dispatch Worker/ })).toBeNull();
   fireEvent.click(resource);
@@ -256,7 +372,7 @@ it('resets the requested Worker, selected target and duration under a replacemen
 
 it('dispatches selected actual resources, refreshes authoritative return and keeps one controller across world/keep routes', async () => {
   const h = await setup();
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   fireEvent.click(await screen.findByRole('button', { name: /food site at/ }));
   const panel = await screen.findByRole('region', { name: '0.4 Workers' });
   expect(screen.queryByText('NO IDLE WORKER')).toBeNull();
@@ -287,7 +403,7 @@ it('dispatches selected actual resources, refreshes authoritative return and kee
 it('refreshes the world after target rejection with no optimistic assignment or retained target', async () => {
   const h = await setup();
   h.dispatch.mockRejectedValueOnce('GAMEPLAY04_TARGET_INVALID');
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   fireEvent.click(await screen.findByRole('button', { name: /food site at/ }));
   const creates = host.creates;
   fireEvent.click(await screen.findByRole('button', { name: 'Dispatch Worker 1' }));
@@ -308,7 +424,7 @@ it.each([
   hostValue = { ...hostValue, isMiniApp: miniApp };
   const h = await setup(); h.fund();
   const go = vi.spyOn(window.history, 'go');
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Buildings' }));
   fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
@@ -339,7 +455,7 @@ it.each([
   hostValue = { ...hostValue, isMiniApp: miniApp };
   const h = await setup(); h.fund();
   const commandState = vi.fn();
-  render(<RealmMapScreen {...h.props} onPtrCommandStateChange={commandState} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} onPtrCommandStateChange={commandState} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
   const opener = await screen.findByRole('button', { name: 'Buildings' });
   fireEvent.click(opener);
@@ -380,9 +496,17 @@ it.each([
   }
   expect(status).toBeVisible();
   expect(commandState).toHaveBeenLastCalledWith(phase === 'pending');
-  // Dismissal must not grant a new selection, cancel a held read, or replay a mutation.
+  // Retained, verified state remains navigable, but never grants command authority.
   fireEvent.click(screen.getByRole('button', { name: 'Open building catalog' }));
+  expect(screen.getByRole('complementary', { name: 'Command panel' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  const reviewedConfirm = screen.getByRole('button', { name: /Confirm placement/ });
+  expect(reviewedConfirm).toBeDisabled();
+  fireEvent.click(reviewedConfirm);
   fireEvent.click(screen.getByRole('button', { name: 'Manage Workers' }));
+  expect(screen.getByRole('region', { name: 'Workers' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+  await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull());
   act(() => window.dispatchEvent(new Event('focus')));
   expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull();
   expect(screen.queryByRole('button', { name: /Confirm placement/ })).toBeNull();
@@ -403,7 +527,7 @@ it.each([
 it('does not restore a closed placement draft through browser Forward', async () => {
   hostValue = { ...hostValue, isMiniApp: false };
   const h = await setup(); h.fund();
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Buildings' }));
   fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
@@ -422,7 +546,7 @@ it.each([true, false])('backs out of a pending placement, keep and ready world (
   hostValue = { ...hostValue, isMiniApp: miniApp };
   const h = await setup(); h.fund();
   const push = vi.spyOn(window.history, 'pushState');
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   await screen.findByRole('button', { name: /food site at/ });
   const worldState = window.history.state;
   fireEvent.click(screen.getByRole('button', { name: 'Open keep' }));
@@ -464,7 +588,7 @@ it.each([true, false])('backs out of a pending placement, keep and ready world (
 it('rejects foreign presentation routes and cannot reconstruct a placement draft from browser history', async () => {
   hostValue = { ...hostValue, isMiniApp: false };
   const h = await setup(); h.fund();
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   await screen.findByRole('button', { name: 'Open keep' });
   const state = window.history.state;
   const envelope = state[REALM_SURFACE_HISTORY_KEY];
@@ -484,7 +608,7 @@ it('rejects foreign presentation routes and cannot reconstruct a placement draft
 it('shows four exact bounded Journey routes in fallback and rejects an oversized returned route', async () => {
   host.fallback = true;
   const h = await setup(); h.journeys();
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   await screen.findByText('WebGL 2 is unavailable on this device. Public Realm controls do not depend on the canvas.');
   await waitFor(() => expect(screen.getAllByText('Journey route')).toHaveLength(4));
   const panel = screen.getByRole('region', { name: '0.4 Workers' });
@@ -496,14 +620,14 @@ it('shows four exact bounded Journey routes in fallback and rejects an oversized
   expect(within(panel).getByText('Worker 2 · gathering')).toBeTruthy();
   expect(within(panel).getByText('Worker 3 · returning')).toBeTruthy();
   cleanup(); h.journeys(8194);
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   await screen.findByRole('button', { name: 'Refresh keep' });
   expect(screen.queryByText('Journey route')).toBeNull();
 });
 
 it('Find food returns to the actual focused resource panel and requires a fresh selection', async () => {
   const h = await setup();
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   fireEvent.click(await screen.findByRole('button', { name: /food site at/ }));
   fireEvent.click(screen.getByRole('button', { name: 'Open keep' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Buildings' }));
@@ -517,14 +641,60 @@ it('Find food returns to the actual focused resource panel and requires a fresh 
   expect(screen.getByRole('button', { name: /wood site at/ })).toBeTruthy();
 });
 
+it('Find wood from a keep with food pending opens a fresh wood dispatch on the first idle Worker at phone width', async () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+  const h = await setup(); h.pendingFoodWorker();
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Buildings' }));
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  const mill = within(screen.getByRole('article', { name: 'City Mill' }));
+  expect(mill.getByText('Incoming (not spendable yet): food 60')).toBeVisible();
+  fireEvent.click(mill.getByRole('button', { name: 'Find wood' }));
+  expect(screen.queryByRole('button', { name: /^Dispatch Worker/ })).toBeNull();
+  fireEvent.click(await screen.findByRole('button', { name: /wood site at/ }));
+  const chooser = screen.getByRole('combobox', { name: 'Idle Worker' }) as HTMLSelectElement;
+  expect(chooser.value).toBe('1');
+  expect(screen.getByRole('option', { name: 'Worker 1 · returning' })).toBeDisabled();
+  const dispatch = screen.getByRole('button', { name: 'Dispatch Worker 2' }) as HTMLButtonElement;
+  expect(dispatch).toBeEnabled();
+  expect(h.dispatch).not.toHaveBeenCalled();
+  fireEvent.click(dispatch);
+  await waitFor(() => expect(h.dispatch).toHaveBeenCalledOnce());
+  expect(h.dispatch.mock.calls[0][0]).toMatchObject({ workerOrdinal: 1, resource: 'wood', gatheringDurationMicros: 60_000_000n });
+});
+
+it('Find wood from the keep explains when no wood site is shown in the phone Realm view', async () => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+  const h = await setup(); h.pendingFoodWorker();
+  h.setResourceLocations(fixture.resourceLocations.filter(location => location.resourceKind === 'food'));
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open keep' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Buildings' }));
+  fireEvent.click(screen.getByRole('button', { name: 'City Mill' }));
+  fireEvent.click(within(screen.getByRole('article', { name: 'City Mill' })).getByRole('button', { name: 'Find wood' }));
+
+  expect((await screen.findByRole('status')).textContent).toContain('No wood sites are shown in this Realm view');
+  expect(screen.queryByRole('button', { name: /wood site at/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /^Dispatch Worker/ })).toBeNull();
+  expect(h.dispatch).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Show all resources' }));
+  expect(await screen.findByRole('button', { name: /food site at/ })).toBeVisible();
+  expect(screen.queryByText('No wood sites are shown in this Realm view.')).toBeNull();
+});
+
 it('viewport refresh removes dispatch until a current world snapshot and explicit selection arrive', async () => {
   hostValue = { ...hostValue, isMiniApp: false };
   const h = await setup();
-  render(<RealmMapScreen {...h.props} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} />);
   fireEvent.click(await screen.findByRole('button', { name: /food site at/ }));
   expect((screen.getByRole('button', { name: 'Dispatch Worker 1' }) as HTMLButtonElement).disabled).toBe(false);
-  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
-  fireEvent(window, new Event('resize'));
+  await act(async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    fireEvent(window, new Event('resize'));
+    await Promise.resolve();
+    await Promise.resolve();
+  });
   expect(screen.queryByRole('button', { name: 'Dispatch Worker 1' })).toBeNull();
   const next = h.ready();
   act(() => h.publish({ ...next, view: { ...next.view!, radius: 2 }, window: { ...next.window!, radius: 2 } }));
@@ -538,7 +708,7 @@ it.each([true, false])('restores only the keep root after a navigation reset in 
   hostValue = { ...hostValue, isMiniApp: miniApp };
   const h = await setup();
   const surface = vi.fn();
-  render(<StrictMode><RealmMapScreen {...h.props} ptrInitialSurface="keep" onPtrSurfaceChange={surface} /></StrictMode>);
+  render(<StrictMode><PtrGameplay04SurfaceHost {...h.props} ptrInitialSurface="keep" onPtrSurfaceChange={surface} /></StrictMode>);
   await screen.findByRole('heading', { name: 'Your keep' });
   await screen.findByRole('button', { name: 'Buildings' });
   expect(host.creates).toBe(0);
@@ -559,7 +729,7 @@ it('reopens the keep under a fresh capability without carrying or replaying a pe
   old.build.mockImplementationOnce(() => new Promise(resolve => { completeOld = resolve; }));
   const commandState = vi.fn();
   const surface = vi.fn();
-  const mounted = render(<RealmMapScreen {...old.props} onPtrSurfaceChange={surface} onPtrCommandStateChange={commandState} />);
+  const mounted = render(<PtrGameplay04SurfaceHost {...old.props} onPtrSurfaceChange={surface} onPtrCommandStateChange={commandState} />);
   await screen.findByRole('button', { name: /food site at/ });
   fireEvent.click(screen.getByRole('button', { name: 'Open keep' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Buildings' }));
@@ -573,7 +743,7 @@ it('reopens the keep under a fresh capability without carrying or replaying a pe
   const fresh = await setup(18);
   const creates = host.creates;
   closePtrRealmConnectionSession(old.session);
-  mounted.rerender(<RealmMapScreen {...fresh.props} ptrInitialSurface="keep" onPtrSurfaceChange={surface} onPtrCommandStateChange={commandState} />);
+  mounted.rerender(<PtrGameplay04SurfaceHost {...fresh.props} ptrInitialSurface="keep" onPtrSurfaceChange={surface} onPtrCommandStateChange={commandState} />);
   await waitFor(() => expect(commandState).toHaveBeenLastCalledWith(false));
   expect(screen.getByRole('heading', { name: 'Your keep' })).toBeTruthy();
   expect(screen.queryByRole('complementary', { name: 'Command panel' })).toBeNull();
@@ -594,7 +764,7 @@ it('shows a dismissible continuation notice only after a fresh keep read', async
   h.read.mockImplementationOnce(() => new Promise(resolve => { finishRead = resolve; }));
   const dismiss = vi.fn();
   const commandState = vi.fn();
-  render(<RealmMapScreen {...h.props} ptrInitialSurface="keep" ptrContinuationNotice onDismissPtrContinuationNotice={dismiss} onPtrCommandStateChange={commandState} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} ptrInitialSurface="keep" ptrContinuationNotice onDismissPtrContinuationNotice={dismiss} onPtrCommandStateChange={commandState} />);
   await waitFor(() => expect(h.read).toHaveBeenCalledOnce());
   expect(screen.queryByRole('region', { name: 'Session renewal' })).toBeNull();
   expect(commandState).not.toHaveBeenCalled();
@@ -612,7 +782,7 @@ it('does not report an interrupted action for an ordinary first-read failure', a
   const h = await setup();
   h.read.mockRejectedValueOnce(new Error('read unavailable'));
   const commandState = vi.fn();
-  render(<RealmMapScreen {...h.props} onPtrCommandStateChange={commandState} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} onPtrCommandStateChange={commandState} />);
   await screen.findByRole('button', { name: 'Refresh keep' });
   expect(commandState).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Refresh keep' }));
@@ -623,7 +793,7 @@ it('does not report an interrupted action for an ordinary first-read failure', a
 it('retains the unconfirmed signal through a failed post-command read until refreshed state arrives', async () => {
   const h = await setup();
   const commandState = vi.fn();
-  render(<RealmMapScreen {...h.props} onPtrCommandStateChange={commandState} />);
+  render(<PtrGameplay04SurfaceHost {...h.props} onPtrCommandStateChange={commandState} />);
   fireEvent.click(await screen.findByRole('button', { name: /food site at/ }));
   await waitFor(() => expect((screen.getByRole('button', { name: 'Dispatch Worker 1' }) as HTMLButtonElement).disabled).toBe(false));
   h.read.mockRejectedValueOnce(new Error('confirmation read unavailable'));

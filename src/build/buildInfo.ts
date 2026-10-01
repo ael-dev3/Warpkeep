@@ -3,6 +3,10 @@ import type {
   WarpkeepBuildInfoInput,
   WarpkeepReleaseChannel
 } from './buildInfoTypes';
+import {
+  PTR_RELEASE_VERSION,
+  WARPKEEP_LAUNCHER_RELEASE_VERSION
+} from '../release/realmReleaseIdentity';
 
 export type { WarpkeepBuildInfo } from './buildInfoTypes';
 
@@ -70,14 +74,31 @@ export function createWarpkeepBuildInfo({
   const channel = normalizeWarpkeepReleaseChannel(releaseChannel);
   const fullSha = readWarpkeepBuildSha(buildSha);
   const repository = readWarpkeepRepositoryUrl(repositoryUrl) ?? DEFAULT_WARPKEEP_REPOSITORY_URL;
+  // The owning source repository is private. Keep its exact build identity,
+  // without offering public players a commit link that returns 404.
+  const commitUrl = fullSha && repository.toLowerCase() !== DEFAULT_WARPKEEP_REPOSITORY_URL.toLowerCase()
+    ? `${repository}/commit/${fullSha}`
+    : undefined;
 
   return Object.freeze({
     channel,
     version,
     shortSha: fullSha?.slice(0, 7) ?? WARPKEEP_LOCAL_BUILD_LABEL,
     ...(fullSha ? { fullSha } : {}),
-    ...(fullSha ? { commitUrl: `${repository}/commit/${fullSha}` } : {}),
+    ...(commitUrl ? { commitUrl } : {}),
     realm: WARPKEEP_REALM_SEED
+  });
+}
+
+export function createWarpkeepDeploymentBuildInfo({
+  deploymentBase,
+  ...input
+}: WarpkeepBuildInfoInput & Readonly<{ deploymentBase: string }>) {
+  return createWarpkeepBuildInfo({
+    ...input,
+    productVersion: deploymentBase === '/ptr/'
+      ? PTR_RELEASE_VERSION
+      : input.productVersion
   });
 }
 
@@ -88,7 +109,8 @@ export function formatWarpkeepBuildStamp(buildInfo: WarpkeepBuildInfo) {
     : `${release} · ${WARPKEEP_LOCAL_BUILD_LABEL}`;
 }
 
-export const WARPKEEP_BUILD_INFO = createWarpkeepBuildInfo({
+const packagedBuildInfo = createWarpkeepDeploymentBuildInfo({
+  deploymentBase: import.meta.env.BASE_URL,
   productVersion: typeof __WARPKEEP_PRODUCT_VERSION__ === 'string'
     ? __WARPKEEP_PRODUCT_VERSION__
     : undefined,
@@ -96,3 +118,14 @@ export const WARPKEEP_BUILD_INFO = createWarpkeepBuildInfo({
   buildSha: import.meta.env.VITE_WARPKEEP_BUILD_SHA,
   repositoryUrl: import.meta.env.VITE_WARPKEEP_REPOSITORY_URL
 });
+
+// Keep the unapproved sealed-launch package at 0.3.43 while previewing the
+// 0.4 presentation locally. Public builds always expose the package version.
+export const WARPKEEP_BUILD_INFO = import.meta.env.DEV
+  ? createWarpkeepBuildInfo({
+      productVersion: WARPKEEP_LAUNCHER_RELEASE_VERSION,
+      releaseChannel: import.meta.env.VITE_WARPKEEP_RELEASE_CHANNEL,
+      buildSha: import.meta.env.VITE_WARPKEEP_BUILD_SHA,
+      repositoryUrl: import.meta.env.VITE_WARPKEEP_REPOSITORY_URL
+    })
+  : packagedBuildInfo;

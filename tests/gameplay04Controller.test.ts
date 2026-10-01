@@ -118,6 +118,22 @@ describe('authoritative gameplay controller', () => {
     expect(read).toHaveBeenCalledTimes(2); expect(mutate).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['GAMEPLAY04_LOCATION_FULL', 'capacity'],
+    ['GAMEPLAY04_TARGET_INVALID', 'target'],
+  ] as const)('clears a previous site warning after a later healthy refresh for %s', async (code, problem) => {
+    const { controller, mutate, read } = await setup();
+    mutate.mockRejectedValueOnce(new Gameplay04ClientError('rejected', code));
+    await controller.submit(dispatch);
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'ready', problem });
+    read.mockRejectedValueOnce(uncertain());
+    await controller.refresh();
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'failed', problem });
+    await controller.refresh();
+    expect(controller.getSnapshot()).toMatchObject({ phase: 'ready', problem: 'none' });
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the definitive rejection explanation through a failed follow-up read', async () => {
     const { controller, mutate, read } = await setup();
     mutate.mockRejectedValueOnce(new Gameplay04ClientError('rejected', 'GAMEPLAY04_INPUT_INVALID'));

@@ -3,12 +3,16 @@ import { GAMEPLAY04_WORKER_COUNT, type Building04, type Resource04 } from '../..
 import type { Placement04 } from '../../spacetimedb/gameplay04/placement';
 import { Keep04Screen, type Keep04UiSelection } from '../components/keep04/Keep04Screen';
 import { GreaterRealmWorldScene, type WorldSelection04 } from '../components/realm/GreaterRealmWorldScene';
-import type { RealmMapScreenProps } from '../components/realm/RealmMapScreen';
+import { lyricFilmCastleIdFromPtrAnchor } from '../components/realm/castleLyricFilmEligibility';
+import type { RealmIdentity } from '../components/realm/realmTypes';
+import type { GraphicsQualityTier } from '../settings/graphicsPreference';
+import type { GreaterRealmProviderBridge } from '../spacetime/greaterRealmProviderBridge';
 import type { RealmSurfaceRoute } from '../components/realm/realmSurfaceNavigation';
 import { useRealmSurfaceNavigation } from '../components/realm/useRealmSurfaceNavigation';
 import { useReducedMotionPreference } from '../components/realm/realmMapPresentationHelpers';
 import { useMiniAppHost, useMiniAppBackNavigation } from '../farcaster/miniapp';
-import { resolvePtrRealmPresentation } from './ptrRealmPresentationPolicy';
+import { resolvePtrRealmPresentation, type PtrRealmViewAnchor } from './ptrRealmPresentationPolicy';
+import type { PtrRealmAuthority } from './ptrRealmAuthClient';
 import { isCurrentPtrGameplay04Capability, type PtrGameplay04Capability } from './ptrRealmConnection';
 import { useGameplay04Controller } from './gameplay04/useGameplay04Controller';
 import type { Controller04, Snapshot04 } from './gameplay04/createGameplay04Controller';
@@ -16,7 +20,22 @@ import type { WorkerView04 } from './gameplay04/gameplay04Presentation';
 import { PtrSessionRenewalNotice } from './PtrSessionContinuation';
 import { formatKeep04Duration } from '../components/keep04/formatKeep04Duration';
 
-type Props = RealmMapScreenProps & { ptrGameplay04: PtrGameplay04Capability };
+export type PtrGameplay04SurfaceProps = Readonly<{
+  identity: RealmIdentity;
+  ptrRealmAuthority?: PtrRealmAuthority;
+  ptrViewAnchor?: PtrRealmViewAnchor;
+  ptrGameplay04?: PtrGameplay04Capability;
+  ptrInitialSurface?: 'world' | 'keep';
+  onPtrSurfaceChange?: (surface: 'world' | 'keep') => void;
+  onPtrCommandStateChange?: (unconfirmed: boolean) => void;
+  ptrContinuationNotice?: boolean;
+  onDismissPtrContinuationNotice?: () => void;
+  greaterRealm?: GreaterRealmProviderBridge;
+  resolvedGraphicsQuality?: GraphicsQualityTier;
+  onLyricFilmOpenChange?: (open: boolean, requestClose?: () => void) => void;
+  onRequestReturn: () => void;
+}>;
+type Props = PtrGameplay04SurfaceProps;
 const BUILDINGS: readonly Building04[] = ['city-mill', 'lumber-camp', 'city-stoneworks', 'city-goldworks', 'city-barracks', 'grand-covenant-cathedral'];
 function buildingKind(value: string): value is Building04 { return BUILDINGS.includes(value as Building04); }
 function isWorkerOrdinal04(value: unknown): value is number {
@@ -26,8 +45,11 @@ function isWorkerOrdinal04(value: unknown): value is number {
 /** The outer boundary stays inert for an expired, copied or mismatched capability. */
 export function PtrGameplay04SurfaceHost(props: Props): ReactElement {
   const { ptrRealmAuthority: authority, ptrViewAnchor: anchor, greaterRealm: bridge, ptrGameplay04: capability } = props;
-  if (!authority || !anchor || !bridge || bridge.phase !== 'available' || bridge.presentationAllowed !== true
-    || !resolvePtrRealmPresentation({ authority, viewAnchor: anchor, legacySurfacePresent: false })
+  if (!authority || !anchor || !bridge || bridge.phase !== 'available' || !capability) {
+    return <main><p role="status">PTR is unavailable.</p><button onClick={props.onRequestReturn}>Return to Menu</button></main>;
+  }
+  if (bridge.presentationAllowed !== true
+    || !resolvePtrRealmPresentation({ authority, viewAnchor: anchor })
     || props.identity.fid !== authority.fid
     || !isCurrentPtrGameplay04Capability(capability, authority, bridge.sessionGeneration)
     || capability.scope.databaseIdentity !== authority.databaseIdentity
@@ -35,10 +57,19 @@ export function PtrGameplay04SurfaceHost(props: Props): ReactElement {
     return <main><p role="status">PTR is unavailable.</p><button onClick={props.onRequestReturn}>Return to Menu</button></main>;
   }
   const identityKey = [capability.scope.generation, capability.scope.databaseIdentity, anchor.castleId, anchor.q, anchor.r, authority.fid].join(':');
-  return <CurrentSurface {...props} key={identityKey} identityKey={identityKey} />;
+  return <CurrentSurface {...props} ptrRealmAuthority={authority} ptrViewAnchor={anchor}
+    greaterRealm={bridge} ptrGameplay04={capability} key={identityKey} identityKey={identityKey} />;
 }
 
-function CurrentSurface(props: Props & { identityKey: string }) {
+type CurrentProps = Props & Readonly<{
+  ptrRealmAuthority: PtrRealmAuthority;
+  ptrViewAnchor: PtrRealmViewAnchor;
+  greaterRealm: AvailableBridge;
+  ptrGameplay04: PtrGameplay04Capability;
+  identityKey: string;
+}>;
+
+function CurrentSurface(props: CurrentProps) {
   const miniAppHost = useMiniAppHost();
   const reducedMotion = useReducedMotionPreference();
   const { controller, snapshot } = useGameplay04Controller(props.ptrGameplay04);
@@ -77,13 +108,32 @@ function CurrentSurface(props: Props & { identityKey: string }) {
       setWorldRevision(value => value + 1);
     }
   }, [snapshot.problem]);
+  const lyricFilmCloseRef = useRef<(() => void) | null>(null);
+  const handleLyricFilmOpenChange = useCallback((open: boolean, requestClose?: () => void) => {
+    lyricFilmCloseRef.current = open ? requestClose ?? null : null;
+    props.onLyricFilmOpenChange?.(open);
+  }, [props.onLyricFilmOpenChange]);
   const handleBack = useCallback(() => {
+    if (lyricFilmCloseRef.current) {
+      lyricFilmCloseRef.current();
+      return;
+    }
     if (surface.depth > 0) surface.back(); else props.onRequestReturn();
   }, [surface.depth, surface.back, props.onRequestReturn]);
   useMiniAppBackNavigation(surface.depth + 1, handleBack);
   const route = surface.current;
   const knownRoute = route === undefined || route.kind === 'inner-keep' || route.kind === 'inner-keep-catalogue' || route.kind === 'workers'
     || ((route.kind === 'inner-keep-placement' || route.kind === 'inner-keep-building') && buildingKind(route.buildingKind));
+  const destination = route === undefined ? 'world' : 'keep';
+  const previousDestination = useRef<'world' | 'keep' | null>(null);
+  useLayoutEffect(() => {
+    if (restoringSurface || !knownRoute) return;
+    const previous = previousDestination.current;
+    previousDestination.current = destination;
+    // Switching surfaces removes the activated control. Restore a named
+    // destination once; keep panels and authoritative refreshes own their focus.
+    if (previous !== null && previous !== destination) content.current?.focus({ preventScroll: true });
+  }, [destination, knownRoute, restoringSurface]);
   useLayoutEffect(() => {
     if (!restoringSurface && knownRoute) props.onPtrSurfaceChange?.(route === undefined ? 'world' : 'keep');
   }, [knownRoute, restoringSurface, route, props.onPtrSurfaceChange]);
@@ -106,7 +156,9 @@ function CurrentSurface(props: Props & { identityKey: string }) {
       surface.backTo({ kind: 'inner-keep' });
       return;
     }
-    if (snapshot.phase !== 'ready' || !snapshot.view) return;
+    // A retained, validated view remains navigable while a read or mutation is
+    // in flight. The controller and panels still require ready for commands.
+    if (!snapshot.view || (snapshot.phase !== 'ready' && snapshot.phase !== 'refreshing' && snapshot.phase !== 'pending')) return;
     let nextRoute: RealmSurfaceRoute;
     if (next.panel === 'workers') nextRoute = { kind: 'workers' };
     else if (next.selectedKind !== null && buildingKind(next.selectedKind)) {
@@ -125,9 +177,11 @@ function CurrentSurface(props: Props & { identityKey: string }) {
   }, [controller, props.ptrGameplay04]);
   const onPhaseChange = useCallback(() => {}, []);
   function findResources(resource: Resource04 | null, workerOrdinal?: number) {
-    // Keep only the requested Worker for this capability's next resource review.
-    // The new world scene still requires a fresh target and current idle state.
-    setResourceWorkerOrdinal(isWorkerOrdinal04(workerOrdinal) ? workerOrdinal : 0);
+    // Keep an explicitly requested Worker, or start an untargeted search with
+    // the first currently idle Worker. The world still requires a fresh target
+    // and rechecks that Worker before dispatch.
+    const firstIdle = controller.getSnapshot().view?.workers.find(worker => worker.phase === 'idle')?.ordinal;
+    setResourceWorkerOrdinal(isWorkerOrdinal04(workerOrdinal) ? workerOrdinal : firstIdle ?? 0);
     setResourceFocus(resource); setOpenPanel('resources'); setDraft(null); surface.closeToRealm();
   }
   if (restoringSurface) return <p role="status">Opening keep…</p>;
@@ -135,15 +189,20 @@ function CurrentSurface(props: Props & { identityKey: string }) {
   return <main className="realm-map-screen realm-map-screen--greater-realm ptr-gameplay-surface" aria-label="PTR" data-realm-world-scene-strategy="greater-realm">
     {props.ptrContinuationNotice && !noticeDismissed && (snapshot.view !== null || snapshot.phase === 'uninitialized') &&
       <PtrSessionRenewalNotice onDismiss={() => { setNoticeDismissed(true); props.onDismissPtrContinuationNotice?.(); content.current?.focus({ preventScroll: true }); }} />}
-    <div ref={content} tabIndex={-1} className={`ptr-gameplay-surface__content${route === undefined ? '' : ' ptr-gameplay-surface__content--keep'}`}>
+    <div ref={content} role="group" aria-label={destination === 'world' ? 'Greater Realm' : 'Your keep'} tabIndex={-1}
+      className={`ptr-gameplay-surface__content${route === undefined ? '' : ' ptr-gameplay-surface__content--keep'}`}>
     {route === undefined ? <>
       <GreaterRealmWorldScene key={worldRevision} bridge={props.greaterRealm as AvailableBridge} identityFid={props.identity.fid}
-        identityKey={props.identityKey} ownCastle={props.ptrViewAnchor!} resolvedGraphicsQuality={props.resolvedGraphicsQuality}
+        identityKey={props.identityKey} ownKeeperName={props.identity.displayName ?? props.identity.username}
+        ownCastle={props.ptrViewAnchor!} resolvedGraphicsQuality={props.resolvedGraphicsQuality}
+        lyricFilmCastleId={lyricFilmCastleIdFromPtrAnchor(props.ptrRealmAuthority!.fid, props.ptrViewAnchor!.castleId)}
+        onLyricFilmOpenChange={handleLyricFilmOpenChange}
         onPhaseChange={onPhaseChange} narrowOpenPanel={openPanel} onNarrowOpenPanelChange={setOpenPanel}
         resourceFocus04={resourceFocus} onGameplay04WorldSelection={worldSelection}
         renderGameplay04WorldPanel={(value, validate) => <WorldWorkerPanel snapshot={snapshot} controller={controller} selection={value} validateSelection={validate} initialWorkerOrdinal={resourceWorkerOrdinal} />} />
       <div className="greater-realm-world__continuity"><button type="button" onClick={handleBack}>Back</button>
-        <button type="button" onClick={() => surface.push({ kind: 'inner-keep' })}>Open keep</button>
+        {snapshot.phase === 'uninitialized' && <span role="status">Establish your keep before sending Workers.</span>}
+        <button type="button" onClick={() => surface.push({ kind: 'inner-keep' })}>{snapshot.phase === 'uninitialized' ? 'Open keep to establish' : 'Open keep'}</button>
         {resourceFocus && <button type="button" onClick={() => setResourceFocus(null)}>Show all resources</button>}
       </div>
     </> : <Keep04Screen snapshot={snapshot} controller={controller} selection={selection} onSelectionChange={changeSelection}
@@ -153,7 +212,7 @@ function CurrentSurface(props: Props & { identityKey: string }) {
   </main>;
 }
 
-type AvailableBridge = Extract<NonNullable<RealmMapScreenProps['greaterRealm']>, { phase: 'available' }>;
+type AvailableBridge = Extract<GreaterRealmProviderBridge, { phase: 'available' }>;
 const DURATIONS = [['60 seconds', 60_000_000n], ['10 minutes', 600_000_000n], ['1 hour', 3_600_000_000n], ['8 hours', 28_800_000_000n]] as const;
 
 function JourneyRoute({ worker }: { worker: WorkerView04 }) {
@@ -186,6 +245,7 @@ function WorldWorkerPanel({ snapshot, controller, selection, validateSelection, 
   const enabled = ready && idle && selection !== null && target != null && validateSelection(selection);
   const effects = view?.state.completedEffects;
   const rate = target && effects ? { food: effects.foodYieldPerQuantum, wood: effects.woodYieldPerQuantum, stone: effects.stoneYieldPerQuantum, gold: effects.goldYieldPerQuantum }[target.resource] : null;
+  if (snapshot.phase === 'uninitialized') return null;
   return <section aria-label="0.4 Workers">
     <h2>Workers</h2>
     {snapshot.problem === 'target' && <p role="status">That resource location changed. Choose a current Realm location.</p>}

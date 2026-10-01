@@ -7,18 +7,149 @@ CI receipts. The dated engineering results below retain their original input;
 do not use an old passing run or Pages classification as a release grant for a
 later source. 0.4 remains unshipped.
 
-Current main is generated-only M2
-[`007e62f2e5b7440abf483a83aeda2b9621f4054e`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e).
-Its exact-main Verify failed at the bounded Linux root-test step; private-repo
-CodeQL upload is unavailable. PR #372 carries the source M1 authority and CI
-repair; its Verify run `36285086874` has failed jobs on head `67bc09c1`, so
-a fixed head still needs its own complete pass. Require full final-head Verify,
-exact signed M1 merge, native prepare/check, generated-only M2 promotion and
-successful exact-M2 push Verify
-before new read-only operations. Private GitHub Pages is disabled on the
-current account plan and `https://warpkeep.com/` returns 404; deployment also
-needs an enabled host. The [live delivery status](../../operations/0.4.0-live-delivery-status.md)
-tracks this checkpoint; no current run is a live release grant.
+## Current PR candidate checkpoint — 29 September 2026, 03:08 CEST
+
+The exact candidate source checkpoint is signed PR #374 head
+[a89798c5](https://github.com/ael-dev3/Warpkeep/commit/a89798c559dee7d71ed110520615f71639cc6918),
+against main 786c0b2b. Product code is signed 83876cba; the candidate also
+contains its refreshed protected closure family, derived from tree
+`d9cd6258b8c7241b3ed70f1d29a7ffeccb86e7c9` (1,247 members; manifest SHA-256
+`65f034634ab34390bf23e44910c202d3e762e1a2cbc4c7b9f306809b6e8bff35`). Local,
+origin and PR head matched before these notes were edited.
+
+A clean exact-source ext4 checkout passed the guarded prepared deployment
+policy under pinned Node 22.22.3. Five protected release suites passed 193/193
+on Node 22.22.3 and Vitest 4.1.11; the prepared-workflow suite's 164 tests took
+291.94 seconds. Six focused UI files passed 123 tests. `realmMapScreen.test.tsx`
+emitted two React `act()` warnings for `GreaterRealmWorldScene` and
+`RetiredRealmWorldHost`; assertions passed, but the trigger is unclassified.
+`tsc -b` and checked-in sealed-launch verification passed. Run
+the sealed-launch verifier as the ext4 checkout owner (`warpkeep`), because its
+Git subprocess intentionally rejects a root-owned mismatch. The Windows Node
+24 run is not used as a source verdict.
+
+Repository build variables were fetched with read-only GETs to GitHub's Actions
+variables settings API. No Actions workflow, run or check was dispatched or
+queried. Pages configuration validation passed
+with shared Alpha enabled and admission notifications disabled. The pinned
+Node 22.22.3 production build used the exact `/ptr/` base and candidate SHA
+`a89798c559dee7d71ed110520615f71639cc6918`. Type/project, runtime and game
+assets, production exclusions, public boundary (3,300 tracked; 1,813 scanned),
+and Farcaster Mini App integrity checks passed. `RealmMapScreen` is 680.36 kB
+raw / 188.79 kB gzip; the >600 kB chunk warning remains.
+
+The source-bound public payload write and recheck passed: 406 files,
+131,584,281 bytes, manifest SHA-256
+`4c95453f6edbf9e774353684ce016448fff11243d0f04b45b463cd5bbaf7176f`. A fresh
+read-only mirror plan against clean public `Warpkeep-Live@b6afe92` preserves
+all 341 existing Alpha-root entries, targets 760 total files and finds zero
+obsolete PTR outputs. Preserved-root manifest SHA-256 is
+`7699d03b70c901e4fb8453b8b515af03376d398bf79e9eabea1c85f6e303c3ef`. The plan
+made no public change. The Windows-mounted mirror checkout is root-owned from
+WSL; use a clean ext4 checkout for this verifier.
+
+These build and manifest receipts identify source a89798c5. Any later PR-head
+commit, including this documentation refresh, needs a fresh exact-head build
+and payload check before publication. GitHub Actions remain unused through
+September by instruction. The last independent live check was 00:59 UTC on
+29 September: the existing Alpha root returned HTTP 200 and `/ptr/` HTTP 404.
+0.4 is not deployed. After October 1, require final-head hosted Verify, exact
+M1/M2 preparation and verification, G001 preservation, sealed G002 readback,
+PTR publication, and owner/device acceptance.
+
+## Previous PR candidate checkpoint — 29 September 2026, before 83876cba
+
+Product code commit
+[675d8294](https://github.com/ael-dev3/Warpkeep/commit/675d8294042786cea9e60bcae5ed52a73e12853f)
+names the City Mill in the first empty-keep instruction. Its regenerated
+prepared closure has 1,247 members and manifest SHA-256
+748bc2a0f7b81d34556a5f58c5cac854f7ee1b4b1d4fb4696bcb3f88430d2c3e. Native
+closure/policy checks and seven focused suites (133 tests) passed. The broader
+`tests/authBridgeNotificationPreparedWorkflow.test.ts` suite then passed all
+164 tests in a verbose single-worker run (305.62 seconds). Its runtime comes
+from repeated fresh verifier processes and a 53-second per-member mutation
+check, not a failure. Combined: eight focused suites, 297 passing tests on
+code source 0754260d.
+
+On exact source 0754260d929c36df885727f36a8fb23afbf3034e, a pinned Node 22.22.3
+/ptr/ production build passed TypeScript/project checks, asset verification,
+production exclusions, public-boundary scan (3,300 tracked / 1,780 scanned)
+and Farcaster Mini App integrity. The RealmMapScreen bundle is 748.60 kB
+(202.67 kB gzip). Payload write/check passed for 373 files / 131,571,432 bytes,
+manifest SHA-256 78f11be36d8cd96a8ddc14c24b64126927df4c597308133d1918fb08a47653c0.
+A read-only plan for clean Warpkeep-Live b6afe92 preserves 341 Alpha root files
+and plans 727 total files with zero obsolete generated paths; plan SHA-256 is
+8553b07171f4d029dca251e6e986675c1ff46f7b911d5bcb596112fec210d805. Publication
+was not attempted.
+
+The 36-state rendered synthetic capture has zero horizontal overflow; the
+390x844 first-journey view was inspected. One bounded browser-log-security
+warning per document remains unclassified. This is not physical-device or
+performance acceptance. At 23:32 UTC, the public root returned HTTP 200 and
+/ptr/ HTTP 404. GitHub Actions remain paused during September; none were
+dispatched, queried or used. Final-head hosted Verify and exact M1/M2 operations
+remain for October and later release gates remain open.
+
+## Historical main/source checkpoint — 27 September 2026
+
+Signed PR source [`4855890e`](https://github.com/ael-dev3/Warpkeep/commit/4855890e8088ad0b34cd001d8da675f2fdb9251a)
+was refrozen into signed protected closure
+[`a0cd382b`](https://github.com/ael-dev3/Warpkeep/commit/a0cd382bb599ba10402e52b62f6412c77f670644).
+An isolated full native checkout matched all 3,266 source Git blobs, derived
+the 1,258 protected members and all 16 deterministic outputs, then passed an
+independent fresh-process rederivation and policy check. The new manifest
+SHA-256 is `7852979eaac799f096abc714aa84aa2a7c3cceedbf3e086b4250da9af47ec53a`.
+Clean final-head Linux and Windows checked-in sealed verifiers and an outgoing
+secret scan passed. The current source's full production build passed locally.
+These are source checks, not a hosted Verify or deployment grant. The GitHub
+Actions billing gate still needs correction and a successful Verify on the
+final PR head before promotion.
+
+An isolated provider-free diagnostic at clean signed PR checkpoint
+[`389375bb`](https://github.com/ael-dev3/Warpkeep/commit/389375bb335a4eb6a776e4cb088581f9a7cd890e)
+rechecked the repaired G002 build with pinned Linux Node 22.22.3, the attested
+SpacetimeDB 2.6.1 CLI, locked dependencies and `umask 077`. The module build,
+private/public ABI generation, standalone schema extraction and exact
+source/artifact assertion all passed. The resulting module SHA-256 was
+`8c3eddfbce4e41a08856a949876febd2b79230051d05f2595091311f051e099b`;
+the artifact was owner-private mode `0400`. The repaired builder blob is
+identical at this checkpoint and source `70a92a4e`. No provider credentials,
+request or mutation were used; disposable diagnostic state was removed. This
+checks that the source can produce the G002 artifact locally. It does not
+replace a successful final-head Verify, exact-M1 preparation, a protected
+inspect or live sealed G002 deployment.
+
+The last validated operational main at this checkpoint is signed generated-only
+M2 [`786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32`](https://github.com/ael-dev3/Warpkeep/commit/786c0b2be6f2d2e7eb2de02ef3b6826c8907fc32)
+from [PR #373](https://github.com/ael-dev3/Warpkeep/pull/373). Exact-main
+[Verify 36294403406](https://github.com/ael-dev3/Warpkeep/actions/runs/36294403406),
+[preflight 36297501189](https://github.com/ael-dev3/Warpkeep/actions/runs/36297501189)
+and [G001 policy observation 36297585906](https://github.com/ael-dev3/Warpkeep/actions/runs/36297585906)
+passed. [G001 census 36297722529](https://github.com/ael-dev3/Warpkeep/actions/runs/36297722529)
+failed closed on `g001-admitted-set-mismatch` before completing its first
+sample; it established no validated baseline. [G002 update inspect 36297899627](https://github.com/ael-dev3/Warpkeep/actions/runs/36297899627)
+failed at workflow phase before provider transport. [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374)
+repairs the census membership source and the shared pinned dependency build.
+Require full final-head Verify, signed source M1 merge, provider-free artifact
+build, exact-M1 native prepare/check, generated-only M2 promotion and successful
+exact-M2 push Verify before fresh protected inspections. CodeQL scanning is
+unavailable for this private repository; Verify is the executable CI gate.
+Private-repository GitHub Pages is disabled on the current account plan. The
+old 0.3.43 Alpha is live again through a separate, public generated-assets-only
+[Pages repository](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored);
+the 0.4 workflow has not been connected to that host. Owner PTR still requires
+a reviewed 0.4 deployment and acceptance. The [live delivery status](../../operations/0.4.0-live-delivery-status.md) tracks
+the release gate; no current run is a live release grant.
+
+## Historical operating checkpoint — earlier 27 September 2026 (superseded)
+
+Generated-only M2 [`007e62f2`](https://github.com/ael-dev3/Warpkeep/commit/007e62f2e5b7440abf483a83aeda2b9621f4054e)
+had exact-main [Verify 36279277148](https://github.com/ael-dev3/Warpkeep/actions/runs/36279277148)
+time out at the bounded Linux root-test step. The then-open
+[PR #372](https://github.com/ael-dev3/Warpkeep/pull/372) first failed Verify on
+head `67bc09c1` in run `36285086874`, then passed on its final source and
+merged. The private-repository CodeQL upload failed on this older source;
+its unavailable workflow was removed in the later repair.
 
 ## Historical source checkpoint — 25 September 2026
 
@@ -1741,8 +1872,8 @@ reader also validates the same receipt. See `captureG001ActivationRecord`,
 `reopenPolicyObservationRecord` and `verifyGenesis001LinuxPolicyReceipt` before
 diagnosing persistence again. This local/source capability does not prove that a
 new live observation completed. The cited M3 `g001-observation` failure is
-historical and superseded. Current M2 census failures and source M1 PR #357
-are recorded in the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md);
+historical and superseded. Later census failures and source repairs are
+recorded in the [execution handoff](../../agent-notes/0.4.0/execution-handoff.md);
 do not reuse the old run as current authority.
 
 The workflow Verify reader, other live transport adapters, remaining realm

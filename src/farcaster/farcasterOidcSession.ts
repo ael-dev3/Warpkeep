@@ -3,6 +3,8 @@ import type { FarcasterOidcSession } from './farcasterAuthTypes';
 export const FARCASTER_OIDC_PLAYER_TOKEN_TYPE = 'spacetime-access' as const;
 export const FARCASTER_OIDC_DEFAULT_AUDIENCE = 'warpkeep-spacetimedb' as const;
 export const FARCASTER_OIDC_ACCESS_TOKEN_TTL_MS = 10 * 60 * 1_000;
+/** Maximum browser clock lag tolerated for signed server-issued timestamps. */
+export const FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS = 60 * 1_000;
 /** Compatibility alias; player access credentials are now capped at ten minutes. */
 export const FARCASTER_OIDC_PLAYER_TOKEN_TTL_MS = FARCASTER_OIDC_ACCESS_TOKEN_TTL_MS;
 
@@ -208,7 +210,7 @@ function readPlayerClaims(
     && (
       !Number.isSafeInteger(now)
       || now < 0
-      || now < notBefore
+      || notBefore - now > FARCASTER_OIDC_CLOCK_SKEW_TOLERANCE_MS
       || now >= expiresAt
     )
   ) {

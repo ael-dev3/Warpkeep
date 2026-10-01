@@ -55,6 +55,7 @@ import {
 } from './spacetime-publish-receipt.mjs';
 import {
   assertProductionAdminTrustedAncestors,
+  probeProductionAdminProcessIdentity,
 } from './production-admin-token-budget.mjs';
 
 export {
@@ -4924,8 +4925,47 @@ export function verifyPostPublishResourcePublicationCheckpoints(
   );
 }
 
+const PUBLISH_SUPERVISOR_PROCESS_IDENTITY_PYTHON = String.raw`
+def process_start_identity(pid):
+    if sys.platform == "linux":
+        with open("/proc/sys/kernel/random/boot_id", "r", encoding="ascii") as source:
+            boot_source = source.read(65)
+        if not boot_source.isascii():
+            raise RuntimeError("process identity invalid")
+        boot_id = boot_source.strip()
+        # comm is opaque kernel bytes and need not be ASCII or valid UTF-8.
+        with open("/proc/" + str(pid) + "/stat", "r", encoding="latin-1", newline="") as source:
+            stat = source.read(4097)
+        closing = stat.rfind(") ")
+        suffix = stat[closing + 2:] if closing >= 0 else ""
+        fields = suffix.split()
+        if (
+            re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", boot_id) is None
+            or len(boot_source) > 64
+            or len(stat) > 4096
+            or not stat.startswith(str(pid) + " (")
+            or closing < len(str(pid)) + 2
+            or re.fullmatch(r"[\x09\x0a\x0d\x20-\x7e]+", suffix) is None
+            or len(fields) < 20
+            or re.fullmatch(r"[A-Za-z]", fields[0]) is None
+            or re.fullmatch(r"0|[1-9][0-9]{0,19}", fields[19]) is None
+        ):
+            raise RuntimeError("process identity invalid")
+        return "linux-v1:" + boot_id + ":" + fields[19]
+    identity = subprocess.check_output(
+        ["/bin/ps", "-o", "lstart=", "-p", str(pid)],
+        env={"PATH": "/usr/bin:/bin", "LANG": "C", "LC_ALL": "C", "TZ": "UTC"},
+        timeout=5,
+    ).decode("ascii", "strict").strip()
+    if len(identity) < 8 or len(identity) > 160 or any(ord(c) < 32 or ord(c) > 126 for c in identity):
+        raise RuntimeError("process identity invalid")
+    return identity
+`;
+
 const GREATER_REALM_PUBLISH_SUPERVISOR_SCRIPT = String.raw`
-import hashlib, json, os, signal, subprocess, sys
+import hashlib, json, os, re, signal, subprocess, sys
+
+${PUBLISH_SUPERVISOR_PROCESS_IDENTITY_PYTHON}
 
 supervisor_id = sys.argv[1]
 previous_digest = sys.argv[2]
@@ -4992,13 +5032,7 @@ def status(ordinal, previous, state, pid=None, process_start_identity=None, pgid
 
 pid = os.getpid()
 pgid = os.getpgrp()
-identity = subprocess.check_output(
-    ["/bin/ps", "-o", "lstart=", "-p", str(pid)],
-    env={"PATH": "/usr/bin:/bin"},
-    timeout=5,
-).decode("ascii", "strict").strip()
-if len(identity) < 8 or len(identity) > 160 or any(ord(c) < 32 or ord(c) > 126 for c in identity):
-    raise RuntimeError("process identity invalid")
+identity = process_start_identity(pid)
 
 def read_bound():
     descriptor = os.open(
@@ -5843,20 +5877,16 @@ function waitForSupervisorStatus(identity, expected, childState) {
 }
 
 function publishSupervisorProcessStartIdentity(pid) {
-  const result = spawnSync('/bin/ps', ['-o', 'lstart=', '-p', String(pid)], {
-    encoding: 'utf8',
-    env: { PATH: '/usr/bin:/bin' },
-    timeout: 5_000,
-    maxBuffer: 4 * 1_024,
-  });
-  const identity = result.status === 0 && result.signal === null
-    ? result.stdout.trim()
-    : '';
-  if (!/^[\u0020-\u007e]{8,160}$/u.test(identity)) {
+  const result = probeProductionAdminProcessIdentity(pid);
+  if (result.state !== 'present' || !/^[\u0020-\u007e]{8,160}$/u.test(result.identity)) {
     fail('The Greater Realm publish supervisor identity was invalid.');
   }
-  return identity;
+  return result.identity;
 }
+
+export const publishSupervisorProcessIdentityTestSeams = Object.freeze({
+  pythonSource: PUBLISH_SUPERVISOR_PROCESS_IDENTITY_PYTHON,
+});
 
 export function planGreaterRealmPublishSupervisor(
   supervisorRoot,

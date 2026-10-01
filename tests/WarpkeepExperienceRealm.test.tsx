@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { WarpkeepExperience } from '../src/components/WarpkeepExperience';
 import { FarcasterAuthProvider } from '../src/farcaster/FarcasterAuthProvider';
+import { getBrowserFarcasterWebMenuUrl } from '../src/farcaster/farcasterAuthContext';
 import {
   getFarcasterDeviceSessionControlKey,
   getFarcasterDeviceSessionStorageKey,
@@ -597,8 +598,9 @@ describe('Warpkeep Farcaster Mini App direct entry', () => {
     expect(screen.getByRole('heading', {
       name: 'OPEN WARPKEEP DIRECTLY'
     })).not.toBeNull();
-    expect(screen.getByRole('link', { name: 'OPEN WARPKEEP' })
-      .getAttribute('target')).toBe('_top');
+    const webFallback = screen.getByRole('link', { name: 'OPEN WARPKEEP' });
+    expect(webFallback.getAttribute('target')).toBe('_top');
+    expect(webFallback.getAttribute('href')).toBe(getBrowserFarcasterWebMenuUrl());
     expect(screen.queryByRole('button', { name: 'ENTER REALM' })).toBeNull();
   });
 

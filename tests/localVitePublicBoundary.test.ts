@@ -16,6 +16,25 @@ import {
 } from '../scripts/qa-observer/local-vite-fs-deny.mjs';
 import { GREATER_REALM_PRIVATE_MARKER_TEXT } from '../scripts/atlas/greater-realm-private-markers.mjs';
 
+function supportsFileSymlinks(): boolean {
+  const root = mkdtempSync(join(tmpdir(), 'warpkeep-file-symlink-capability-'));
+  const target = join(root, 'target');
+  const link = join(root, 'link');
+  try {
+    writeFileSync(target, 'fixture');
+    symlinkSync(target, link, 'file');
+    return true;
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error
+      && ['EPERM', 'EACCES', 'ENOSYS'].includes(String(error.code))) return false;
+    throw error;
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+const FILE_SYMLINKS_SUPPORTED = supportsFileSymlinks();
+
 const PRIVATE_MARKER_CASES = (GREATER_REALM_PRIVATE_MARKER_TEXT as readonly string[])
   .map((marker, index): [number, string] => [index, marker]);
 
@@ -595,21 +614,24 @@ describe('local Vite public boundary', () => {
     }
   });
 
-  it('rejects a renamed public symlink before scanning its target', () => {
-    const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-linked-marker-'));
-    const publicDirectory = join(root, 'public');
-    const outside = join(root, 'outside.bin');
-    mkdirSync(publicDirectory);
-    writeFileSync(outside, 'ordinary external fixture');
-    symlinkSync(outside, join(publicDirectory, 'ordinary-map.bin'));
-    try {
-      expect(() => configuredBoundary(publicDirectory)).toThrow(
-        'Warpkeep public directory contains a prohibited local artifact.',
-      );
-    } finally {
-      rmSync(root, { force: true, recursive: true });
-    }
-  });
+  it.skipIf(!FILE_SYMLINKS_SUPPORTED)(
+    'rejects a renamed public symlink before scanning its target',
+    () => {
+      const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-linked-marker-'));
+      const publicDirectory = join(root, 'public');
+      const outside = join(root, 'outside.bin');
+      mkdirSync(publicDirectory);
+      writeFileSync(outside, 'ordinary external fixture');
+      symlinkSync(outside, join(publicDirectory, 'ordinary-map.bin'));
+      try {
+        expect(() => configuredBoundary(publicDirectory)).toThrow(
+          'Warpkeep public directory contains a prohibited local artifact.',
+        );
+      } finally {
+        rmSync(root, { force: true, recursive: true });
+      }
+    },
+  );
 
   it('blocks sensitive and encoded filenames created after startup', () => {
     const root = mkdtempSync(join(tmpdir(), 'warpkeep-public-request-'));
@@ -646,7 +668,11 @@ describe('local Vite public boundary', () => {
     try {
       const middleware = configuredBoundary(publicDirectory);
       rmSync(publicDirectory, { recursive: true });
-      symlinkSync(outside, publicDirectory, 'dir');
+      symlinkSync(
+        outside,
+        publicDirectory,
+        process.platform === 'win32' ? 'junction' : 'dir',
+      );
       const { next, response } = invoke(middleware, '/innocent.txt');
       expect(next).not.toHaveBeenCalled();
       expect(response.statusCode).toBe(404);

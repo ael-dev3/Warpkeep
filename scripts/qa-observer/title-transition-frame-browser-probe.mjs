@@ -40,6 +40,7 @@ import {
 
 const REPOSITORY_ROOT = resolve(import.meta.dirname, '..', '..');
 const PRODUCTION_DIST_DIRECTORY = join(REPOSITORY_ROOT, 'dist');
+const NATIVE_PRODUCTION_DIST_DIRECTORY = String.raw`\\wsl.localhost\WarpkeepRunner\home\warpkeep\Warpkeep-0.4\dist`;
 const TITLE_TRANSITION_ARTIFACT_ROOT = join(
   REPOSITORY_ROOT,
   '.cache',
@@ -59,6 +60,14 @@ const TITLE_TRANSITION_OWNER_CYCLE_INPUTS = Object.freeze([
   'pointer',
   'pointer',
 ]);
+// The production entry now goes directly to the menu. Keep the historical
+// transition helpers below for their retained evidence, outside the active CLI.
+const PRODUCTION_MENU_ENTRY_CASES = Object.freeze([
+  { id: 'desktop-menu-entry', viewport: { width: 1440, height: 900 }, mobile: false, input: 'keyboard', reducedMotion: false },
+  { id: 'mobile-menu-entry', viewport: { width: 390, height: 844 }, mobile: true, input: 'touch', reducedMotion: false },
+  { id: 'narrow-menu-entry', viewport: { width: 320, height: 844 }, mobile: true, input: 'touch', reducedMotion: false },
+  { id: 'landscape-menu-entry', viewport: { width: 844, height: 390 }, mobile: true, input: 'touch', reducedMotion: true },
+].map((entry) => Object.freeze({ ...entry, viewport: Object.freeze(entry.viewport), deviceScaleFactor: 1, zoomPercent: 100 })));
 const MIME_TYPES = new Map([
   ['.avif', 'image/avif'],
   ['.css', 'text/css; charset=utf-8'],
@@ -382,6 +391,7 @@ export async function createProductionDistLoopbackServer(
     );
   }
   const distRoot = await realpath(requestedDist);
+  const deploymentBase = productionDeploymentBase(await readFile(join(distRoot, 'index.html')));
   let expectedHost;
   const sockets = new Set();
   const httpServer = createHttpServer((request, response) => {
@@ -399,7 +409,10 @@ export async function createProductionDistLoopbackServer(
         response.end('Forbidden\n');
         return;
       }
-      const relativeAsset = productionAssetRelativePath(request.url);
+      const localRequest = deploymentBase === '/' ? request.url
+        : typeof request.url === 'string' && request.url.startsWith(deploymentBase)
+          ? `/${request.url.slice(deploymentBase.length)}` : undefined;
+      const relativeAsset = productionAssetRelativePath(localRequest);
       if (!relativeAsset) {
         response.writeHead(404, {
           'content-type': 'text/plain; charset=utf-8',
@@ -513,6 +526,21 @@ export async function createProductionDistLoopbackServer(
     origin: `http://${expectedHost}`,
     port: address.port,
   });
+}
+
+function productionDeploymentBase(indexBytes) {
+  if (indexBytes.byteLength > 1024 * 1024) throw new TitleTransitionFrameBrowserError('Production entry HTML exceeded its bound.');
+  const html = indexBytes.toString('utf8');
+  const bases = new Set();
+  for (const match of html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)=["']([^"']+)["'][^>]*>/gu)) {
+    const path = match[1];
+    if (!path.includes('/assets/')) continue;
+    if (path.startsWith('/assets/')) bases.add('/');
+    else if (path.startsWith('/ptr/assets/')) bases.add('/ptr/');
+    else throw new TitleTransitionFrameBrowserError('Production entry deployment base was unsupported.');
+  }
+  if (bases.size > 1) throw new TitleTransitionFrameBrowserError('Production entry deployment bases disagreed.');
+  return [...bases][0] ?? '/';
 }
 
 function titleStressInjectionSource(probeCase) {
@@ -1996,6 +2024,91 @@ async function runTitleTransitionCase(
   });
 }
 
+async function runProductionMenuEntryCase(session, state, origin, artifactDirectory, probeCase, deploymentBase) {
+  await configureCaseEnvironment(session, probeCase);
+  await session.command('Network.setCacheDisabled', { cacheDisabled: true });
+  const entryUrl = `${origin}${deploymentBase}`;
+  state.allowedNavigationUrls.add(entryUrl);
+  state.allowedNavigationUrls.add(`${entryUrl}#menu`);
+  await session.command('Page.navigate', { url: entryUrl });
+  const deadline = Date.now() + TITLE_TRANSITION_STABLE_TIMEOUT_MILLISECONDS;
+  let observation;
+  while (Date.now() <= deadline) {
+    if (state.violation) throw new TitleTransitionFrameBrowserError(
+      `Production menu entry browser boundary failed at ${state.violation}.`,
+    );
+    const result = await session.command('Runtime.evaluate', {
+      returnByValue: true,
+      expression: `(() => {
+        const experience = document.querySelector('.warpkeep-experience');
+        const screen = document.querySelector('.warpkeep-experience__screen--menu');
+        const menu = document.querySelector('.warpkeep-menu');
+        const title = document.querySelector('#warpkeep-menu-title');
+        const primary = menu?.querySelector('button[data-command="enter-realm"]');
+        const world = menu?.querySelector('.warpkeep-menu-world-3d');
+        const canvas = world?.querySelector('canvas');
+        const modelReady = world instanceof HTMLElement && world.dataset.modelReady === 'true';
+        const reportedModelState = world instanceof HTMLElement ? world.dataset.modelState : undefined;
+        const modelState = reportedModelState === undefined || reportedModelState === '' ? ''
+          : ['webgl-unavailable', 'castle-unavailable'].includes(reportedModelState)
+            ? reportedModelState : 'unexpected-model-state';
+        const bounds = primary instanceof HTMLButtonElement ? primary.getBoundingClientRect() : null;
+        const style = primary instanceof HTMLElement ? getComputedStyle(primary) : null;
+        const hit = bounds && bounds.width > 0 && bounds.height > 0
+          ? document.elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 2) : null;
+        const overflowX = Math.max(document.documentElement.scrollWidth, document.body?.scrollWidth ?? 0) > innerWidth + 1;
+        const primaryReady = primary instanceof HTMLButtonElement && !primary.disabled
+          && primary.tabIndex === 0 && style?.display !== 'none' && style?.visibility !== 'hidden'
+          && Number(style?.opacity ?? 0) > 0 && bounds?.left >= -1 && bounds?.top >= -1
+          && bounds?.right <= innerWidth + 1 && bounds?.bottom <= innerHeight + 1
+          && hit instanceof Element && (hit === primary || primary.contains(hit));
+        const context = canvas instanceof HTMLCanvasElement && canvas.width > 0 && canvas.height > 0
+          ? canvas.getContext('webgl2') || canvas.getContext('webgl') : null;
+        const webgl = context !== null && !context.isContextLost();
+        return {
+          phase: experience?.getAttribute('data-phase'), primaryReady, overflowX, webgl, modelReady, modelState,
+          width: innerWidth, height: innerHeight,
+          ready: document.readyState === 'complete' && experience?.getAttribute('data-phase') === 'menu'
+            && screen instanceof HTMLElement && screen.dataset.presented === 'true'
+            && screen.getAttribute('aria-hidden') === 'false' && !screen.inert
+            && menu instanceof HTMLElement && menu.dataset.active === 'true' && menu.dataset.visible === 'true'
+            && menu.getAttribute('aria-hidden') === 'false' && !menu.inert
+            && title instanceof HTMLElement && title.textContent?.trim() === 'WARPKEEP'
+            && primaryReady && !overflowX && webgl && modelReady && modelState === ''
+        };
+      })()`,
+    });
+    if (result?.exceptionDetails) throw new TitleTransitionFrameBrowserError('Production menu entry observation failed.');
+    observation = result?.result?.value;
+    if (observation?.modelState) throw new TitleTransitionFrameBrowserError(
+      'Production menu model unavailable.', { cause: observation.modelState },
+    );
+    if (observation?.ready === true && observation.width === probeCase.viewport.width
+      && observation.height === probeCase.viewport.height) break;
+    await delay(100);
+  }
+  if (observation?.ready !== true || observation.width !== probeCase.viewport.width
+    || observation.height !== probeCase.viewport.height) {
+    throw new TitleTransitionFrameBrowserError('Production menu entry remained unusable.', { cause: observation });
+  }
+  const frame = await captureFrame(session, artifactDirectory, `${probeCase.id}-ready`, probeCase.viewport, Date.now(), 0);
+  frame.screenshot.fill(0);
+  if (frame.dimensions.width !== probeCase.viewport.width || frame.dimensions.height !== probeCase.viewport.height) {
+    throw new TitleTransitionFrameBrowserError('Production menu entry screenshot viewport mismatched.');
+  }
+  if (state.violation) throw new TitleTransitionFrameBrowserError('Production menu entry browser boundary failed during capture.');
+  return Object.freeze({
+    id: probeCase.id, viewport: probeCase.viewport, reducedMotion: probeCase.reducedMotion,
+    transitionMeasured: false, imageInspected: false,
+    passes: [{
+      kind: 'direct-menu-entry', primaryReady: observation.primaryReady,
+      webgl: observation.webgl, modelReady: observation.modelReady, modelState: observation.modelState,
+      overflowX: observation.overflowX,
+    }],
+    screenshot: { filename: frame.filename, sha256: frame.sha256, bytes: frame.bytes, dimensions: frame.dimensions },
+  });
+}
+
 function browserViolationCategory(method, params, origin) {
   if (method === 'Page.windowOpen' || method === 'Page.downloadWillBegin') {
     return 'page-side-effect';
@@ -2023,6 +2136,7 @@ function browserViolationCategory(method, params, origin) {
 
 async function runTitleTransitionCaseInFreshChrome({
   artifactDirectory,
+  deploymentBase,
   origin,
   probeCase,
   reviewedChromeIdentity,
@@ -2101,12 +2215,13 @@ async function runTitleTransitionCaseInFreshChrome({
         patterns: [{ requestStage: 'Request', urlPattern: '*' }],
       }),
     ]);
-    return await runTitleTransitionCase(
+    return await runProductionMenuEntryCase(
       devtools,
       state,
       origin,
       artifactDirectory,
       probeCase,
+      deploymentBase,
     );
   } finally {
     await cleanupRenderedWebglProbeResources({
@@ -2120,7 +2235,7 @@ async function runTitleTransitionCaseInFreshChrome({
   }
 }
 
-export async function runTitleTransitionFrameBrowserProbe(options = {}) {
+async function runProductionMenuProbe(distDirectory, options = {}) {
   if (
     options !== null
     && (
@@ -2144,40 +2259,53 @@ export async function runTitleTransitionFrameBrowserProbe(options = {}) {
   ) throw new TitleTransitionFrameBrowserError(
     'Title transition package contract was invalid.',
   );
-  const distIndex = await readFile(join(PRODUCTION_DIST_DIRECTORY, 'index.html'));
+  const distIndex = await readFile(join(distDirectory, 'index.html'));
   const distIndexSha256 = createHash('sha256').update(distIndex).digest('hex');
+  const deploymentBase = productionDeploymentBase(distIndex);
   distIndex.fill(0);
   const artifactDirectory = await createTitleTransitionArtifactDirectory();
   const reviewedChromeIdentity = await attestStableHeadlessChromeExecutable();
   let productionServer;
   try {
-    productionServer = await createProductionDistLoopbackServer();
+    productionServer = await createProductionDistLoopbackServer(distDirectory);
     const cases = options.ownerOnly
-      ? TITLE_TRANSITION_FRAME_CASES.slice(0, 1)
-      : TITLE_TRANSITION_FRAME_CASES;
+      ? PRODUCTION_MENU_ENTRY_CASES.slice(0, 1)
+      : PRODUCTION_MENU_ENTRY_CASES;
     const observations = [];
     for (const probeCase of cases) {
       try {
         observations.push(await runTitleTransitionCaseInFreshChrome({
           artifactDirectory,
+          deploymentBase,
           origin: productionServer.origin,
           probeCase,
           reviewedChromeIdentity,
         }));
       } catch (error) {
         throw new TitleTransitionFrameBrowserError(
-          `Title transition case ${probeCase.id} failed.`,
+          `Production menu entry case ${probeCase.id} failed.`,
           { cause: error },
         );
       }
     }
+    const finalIndex = await readFile(join(distDirectory, 'index.html'));
+    const stableDistIndex = createHash('sha256').update(finalIndex).digest('hex') === distIndexSha256;
+    finalIndex.fill(0);
+    if (!stableDistIndex) throw new TitleTransitionFrameBrowserError('Production entry changed during capture.');
     const manifest = Object.freeze({
       artifactSchema: 1,
       caseCount: observations.length,
       cases: observations,
       chromeIdentity: reviewedChromeIdentity,
       distIndexSha256,
+      stableDistIndex,
+      deploymentBase,
+      distInput: distDirectory === NATIVE_PRODUCTION_DIST_DIRECTORY ? 'native-wsl' : 'repository-dist',
       packageVersion: packageJson.version,
+      scope: 'production direct-menu entry; images require inspection; performance not measured',
+      // The existing menu owner publishes this after castle/guardian resolution;
+      // optional scenery loads continue afterwards and are outside this check.
+      modelReadinessScope: 'castle and guardian ready; optional scenery settlement not measured',
     });
     await writeFile(
       join(artifactDirectory, 'manifest.json'),
@@ -2197,30 +2325,36 @@ export async function runTitleTransitionFrameBrowserProbe(options = {}) {
   }
 }
 
+// Retain the existing public caller/CLI alias; its outcome is menu entry,
+// not the retired title transition. The fixed native input is CLI-only.
+export async function runTitleTransitionFrameBrowserProbe(options = {}) {
+  return runProductionMenuProbe(PRODUCTION_DIST_DIRECTORY, options);
+}
+
 async function main() {
+  const args = process.argv.slice(2);
   if (
-    process.argv.length > 3
-    || (
-      process.argv.length === 3
-      && process.argv[2] !== '--owner-only'
-    )
+    args.length > 2 || new Set(args).size !== args.length
+    || args.some((arg) => !['--owner-only', '--native-dist'].includes(arg))
+    || (args.includes('--native-dist') && process.platform !== 'win32')
   ) {
     process.stderr.write(
-      'Usage: title-transition-frame-browser-probe [--owner-only]\n',
+      'Usage: title-transition-frame-browser-probe [--owner-only] [--native-dist (Windows)]\n',
     );
     process.exitCode = 64;
     return;
   }
   try {
-    const result = await runTitleTransitionFrameBrowserProbe({
-      ownerOnly: process.argv[2] === '--owner-only',
+    const result = await runProductionMenuProbe(args.includes('--native-dist')
+      ? NATIVE_PRODUCTION_DIST_DIRECTORY : PRODUCTION_DIST_DIRECTORY, {
+      ownerOnly: args.includes('--owner-only'),
     });
     process.stdout.write(
-      `Warpkeep production title transition QA passed: ${result.caseCount} cases, `
-      + `${result.passCount} transition passes; evidence ${result.artifactDirectory}.\n`,
+      `Warpkeep production menu entry QA passed: ${result.caseCount} cases, `
+      + `${result.passCount} entry checks; evidence ${result.artifactDirectory}.\n`,
     );
   } catch {
-    process.stderr.write('Warpkeep production title transition QA failed closed.\n');
+    process.stderr.write('Warpkeep production menu entry QA failed closed.\n');
     process.exitCode = 1;
   }
 }
