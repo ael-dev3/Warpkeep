@@ -2,6 +2,66 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## QR recovery predecessor compatibility — 1 October 2026
+
+Exact corrected-head PR Verify 36871156278 passed all 17 jobs in the
+14:52:27 UTC terminal readback. Its module job completed at 14:49:15 UTC.
+That evidence covers signed 091c3228 and its historical-fixture repair; it
+does not cover the newly authored predecessor correction below.
+
+Read-only provider inspection at 14:13:51–14:13:57 UTC found live deployment
+`b338c098-a33e-4922-a3a4-1c2d92a3b035`, created
+`2026-09-27T19:01:23.825605Z`, and v50
+`2b28a266-862b-45da-a747-3cea0a0d858c`, created
+`2026-09-27T19:00:15.748685Z`. It declares reviewed source
+`308f901d91a1fb68d90f157a2ec164ed1acaf51d`, v5 migration, compatibility
+2026-07-11 and nodejs_compat. Public authentication and expected-FID checks are
+enabled. Its original plaintext namespace has no PTR flag. Six secret names
+and five Durable Object bindings match the reviewed contract; secret values and
+the real operator email were neither retained nor printed.
+
+Separate exact v49/v50 metadata reads at 14:21:47–14:21:49 UTC verify the known
+v50 Wrangler tag `alpha-qr-rpc-recovery-20260927` and recovery message.
+Its metadata, handlers, runtime, bindings and etag agree with the retained
+original v49 where expected. This is metadata evidence: etag is not the
+multipart source digest, and no raw module-byte proof is claimed by these reads.
+The actual prepared adapter still requires the original reviewed multipart
+source digest before upload. Retain sanitized `october-auth-bridge-b0-predecessor-metadata.json`,
+`october-auth-bridge-b0-version-shape.json` and
+`october-auth-bridge-b0-contract-analysis.json` under `artifacts/qa/`.
+
+At baseline `091c3228`, the preparation runtime invented predecessor
+`PTR_ENABLED=false` and required original API-upload provenance. Two new
+real-caller regressions against simulated read-only API fixtures failed at
+14:35:23.952 UTC, exit 1, both with predecessor-binding mismatch; 111 other
+cases were unselected. This proves an adapter incompatibility, not a new failure
+of the working public login. Retain `october-b0-predecessor-before-091c-summary.json`
+and its raw report/log. Passing repair records retain their actual file hashes,
+selected cases and executed runtime; they do not become provider deployment proof.
+
+The repair removes only the nonexistent predecessor binding and adds a separate,
+exact known-v50 provenance attestation. Original v49 and prepared-successor API
+validation remain strict. Version/deployment identities, dates, tag/message,
+metadata and script shape, auth modes, namespace and original byte authority
+remain checked. Modified known-v50 metadata and arbitrary Wrangler API-shaped
+predecessors/successors are denied; the existing authenticated legacy export-shape
+path is unchanged.
+
+The runtime is a prepared-closure member and an activation/G002/PTR compiler
+input. Refresh the supported 16-output source family, retain real `acbb5128`
+compiled authority during source integration, then run the supported assembler
+against actual signed resulting main and accept its generated family before
+provider work. G001 and recovery compiler identities are not hand-edited. This
+supersedes the earlier excluded-only correction plan: excluding documentation
+and Dispatcher tests does not exclude the new runtime repair.
+
+The installed GitHub CLI's removed GraphQL classic-project field is a distinct
+metadata-update failure: the source push had succeeded. Use exact structured
+REST PR metadata and merge requests, verify remote readback, and never repeat a
+successful push merely because a later metadata command failed. Windows-to-WSL
+local fetch recovery uses the reviewed exact upload-pack safe.directory command
+in the preparation guide; no global trust setting or new key is needed.
+
 ## M1 native preparation and M2 publication — 1 October 2026
 
 Signed source-only M1 `acbb51285485d918ae861db4bc18046e32378951`, tree

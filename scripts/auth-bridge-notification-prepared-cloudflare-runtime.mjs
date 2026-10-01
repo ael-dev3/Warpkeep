@@ -130,6 +130,21 @@ const REVIEWED_V5_API_NAMED_HANDLER_NAMES = Object.freeze([
   'createMiniAppWebhookVerifier',
   'serializeAdmissionNotificationDeliveryContract',
 ]);
+// Known secret-only QR recovery metadata is distinct from the v49 API upload.
+// The frozen B0 module bytes and namespace must independently match before
+// this provenance branch; neither etag nor email replaces that authority.
+const REVIEWED_B0_RPC_RECOVERY_PREDECESSOR = Object.freeze({
+  deploymentId: 'b338c098-a33e-4922-a3a4-1c2d92a3b035',
+  deploymentCreatedAt: '2026-09-27T19:01:23.825605Z',
+  versionId: '2b28a266-862b-45da-a747-3cea0a0d858c',
+  versionNumber: 50,
+  versionCreatedAt: '2026-09-27T19:00:15.748685Z',
+  versionTag: 'alpha-qr-rpc-recovery-20260927',
+  versionMessage:
+    'Restore Alpha QR verification: replace dRPC edge 429 with OP Mainnet public RPC',
+  scriptEtag:
+    'cdee9e7c208ef35a41acc925dfb4494292d696af3699c2363829468be2d7f7a1',
+});
 
 export class AuthBridgeNotificationPreparedCloudflareRuntimeError extends Error {
   constructor(code, deploymentMayHaveChanged = false) {
@@ -1789,14 +1804,14 @@ function detailBindingProjection(binding) {
   fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_VERSION_BINDING_UNEXPECTED');
 }
 
-function exactApiScriptAttestation(script, expectedNamedHandlers, code) {
+function exactApiScriptAttestation(script, expectedNamedHandlers, code, expectedSource = 'api') {
   if (
     !isRecord(script)
     || Object.keys(script).sort().join(',')
       !== 'etag,handlers,last_deployed_from,named_handlers'
     || !SHA256_HEX.test(script.etag ?? '')
     || !exactJson(script.handlers, ['fetch'])
-    || script.last_deployed_from !== 'api'
+    || script.last_deployed_from !== expectedSource
     || !Array.isArray(script.named_handlers)
   ) fail(code);
   const namedHandlers = script.named_handlers.map(namedHandler => {
@@ -1855,6 +1870,54 @@ function exactApiVersionShape(
     || runtime.usage_model !== 'standard'
   ) fail(code);
   exactApiScriptAttestation(resources.script, expectedNamedHandlers, code);
+}
+
+function exactReviewedB0RpcRecoveryVersion(value, deployment, contract, code) {
+  const reviewed = REVIEWED_B0_RPC_RECOVERY_PREDECESSOR;
+  const metadata = value.metadata;
+  const annotations = value.annotations;
+  const resources = value.resources;
+  const runtime = resources.script_runtime;
+  if (
+    value.id !== reviewed.versionId
+    || value.number !== reviewed.versionNumber
+    || deployment.deploymentId !== reviewed.deploymentId
+    || deployment.createdAtRaw !== reviewed.deploymentCreatedAt
+    || Object.keys(value).sort().join(',')
+      !== 'annotations,id,metadata,number,resources'
+    || Object.keys(metadata).sort().join(',')
+      !== 'author_email,author_id,created_on,has_preview,source'
+    || typeof metadata.author_email !== 'string'
+    || metadata.author_email.length > 320
+    || !/^[^\s@\u0000-\u001f\u007f]+@[^\s@\u0000-\u001f\u007f]+$/u.test(metadata.author_email)
+    || !ACCOUNT_ID.test(metadata.author_id ?? '')
+    || metadata.source !== 'wrangler'
+    || metadata.has_preview !== false
+    || metadata.created_on !== reviewed.versionCreatedAt
+    || !isRecord(annotations)
+    || Object.keys(annotations).sort().join(',')
+      !== 'workers/message,workers/tag,workers/triggered_by'
+    || annotations['workers/message'] !== reviewed.versionMessage
+    || annotations['workers/tag'] !== reviewed.versionTag
+    || annotations['workers/triggered_by'] !== 'version_upload'
+    || Object.keys(resources).sort().join(',')
+      !== 'bindings,script,script_runtime'
+    || resources.script.etag !== reviewed.scriptEtag
+    || Object.keys(runtime).sort().join(',')
+      !== 'compatibility_date,compatibility_flags,migration_tag,usage_model'
+    || runtime.compatibility_date !== contract.compatibilityDate
+    || !exactJson(runtime.compatibility_flags, contract.compatibilityFlags)
+    || runtime.migration_tag !== contract.migrations.at(-1).tag
+    || runtime.usage_model !== 'standard'
+    || contract.variables.PUBLIC_AUTH_ENABLED !== 'true'
+    || contract.variables.ACCESS_EXPECTED_FID_REQUIRED !== 'true'
+  ) fail(code);
+  exactApiScriptAttestation(
+    resources.script,
+    REVIEWED_V5_API_NAMED_HANDLER_NAMES,
+    code,
+    'wrangler',
+  );
 }
 
 function expectedReviewedDurableObjectBindings(contract, code) {
@@ -2066,6 +2129,7 @@ function exactDeployment(result) {
       latest.created_on,
       'AUTH_BRIDGE_PREPARED_CLOUDFLARE_DEPLOYMENT_INVALID',
     ),
+    createdAtRaw: latest.created_on,
   });
 }
 
@@ -2138,7 +2202,6 @@ function reviewedB0PredecessorVariables(contract) {
     OIDC_AUDIENCE: 'warpkeep-spacetimedb',
     OIDC_KEY_ID: 'warpkeep-alpha-2026-07-01',
     PUBLIC_AUTH_ENABLED: contract.variables.PUBLIC_AUTH_ENABLED,
-    PTR_ENABLED: 'false',
     QA_OBSERVER_ENABLED: 'false',
     SPACETIMEDB_DATABASE: PRODUCTION_SPACETIMEDB_DATABASE,
     SPACETIMEDB_URI: 'https://maincloud.spacetimedb.com',
@@ -2210,14 +2273,23 @@ function exactPredecessorVersion(
   if (!exactJson(bindings, expected)) {
     fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_BINDING_MISMATCH');
   }
-  exactExportsOrApiScript(
-    result,
-    contract,
-    `notification-b0-${contract.predecessorSourceCommit}`,
-    `Warpkeep notification B0 ${contract.predecessorSourceCommit}`,
-    Object.freeze([]),
-    'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_EXPORT_MISMATCH',
-  );
+  if (result.id === REVIEWED_B0_RPC_RECOVERY_PREDECESSOR.versionId) {
+    exactReviewedB0RpcRecoveryVersion(
+      result,
+      deployment,
+      contract,
+      'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_EXPORT_MISMATCH',
+    );
+  } else {
+    exactExportsOrApiScript(
+      result,
+      contract,
+      `notification-b0-${contract.predecessorSourceCommit}`,
+      `Warpkeep notification B0 ${contract.predecessorSourceCommit}`,
+      Object.freeze([]),
+      'AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_EXPORT_MISMATCH',
+    );
+  }
   if (deployed.versionId !== deployment.versionId) {
     fail('AUTH_BRIDGE_PREPARED_CLOUDFLARE_PREDECESSOR_MISMATCH');
   }

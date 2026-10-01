@@ -2,40 +2,43 @@
 
 ## Current release checkpoint — 1 October 2026
 
-PR #374 is merged. Signed source-only M1 is
-`acbb51285485d918ae861db4bc18046e32378951`, tree
-`3fab7749ce35a2904b57194b3de42340bfce9710`, merged at 11:08:48 UTC.
-Reviewed head `6e9f50bf` passed all 17 jobs in
-[Verify 36847966470](https://github.com/ael-dev3/Warpkeep/actions/runs/36847966470).
-Actual-M1 push-main [Verify 36853528379](https://github.com/ael-dev3/Warpkeep/actions/runs/36853528379)
-passed all 17 jobs at 12:10:56 UTC. Its downstream Pages run skipped publication;
-Alpha remains 0.3.43 and the owner PTR is unpublished.
+The corrected Dispatcher checkpoint `091c3228` is published in
+[PR #379](https://github.com/ael-dev3/Warpkeep/pull/379), with normal
+[Verify 36871156278](https://github.com/ael-dev3/Warpkeep/actions/runs/36871156278).
+All 17 jobs passed in the 14:52:27 UTC terminal readback; the module job
+completed at 14:49:15 UTC. This is exact 091c PR evidence, not verification of
+the new predecessor correction. The retained local four-file result is 260
+passed, zero failed and one unchanged platform skip at its original inputs.
 
-Native preparation and independent checking of actual M1 ran at 11:15:57–11:49:09 UTC
-with identical 19-field results. The authenticated 102-output export changes
-11 paths. Signed generated-only M2 `5ecd17c0f091418c52f101eaca5964b0c45517bb`,
-tree `d2ce0e6d34f4fe37fc65130ecc4342be68368e7b`, was published in
-[PR #379](https://github.com/ael-dev3/Warpkeep/pull/379) at 12:34:13 UTC.
-[Verify 36862649149](https://github.com/ael-dev3/Warpkeep/actions/runs/36862649149)
-has failures in the same 45 historical Darwin-fixture cases in two jobs.
-A reviewed fixture repair passed the identical isolated native suite at 13:03:28
-UTC: 260 passed, zero failed and one unsupported-runtime skip. Production pins
-and coverage remain intact; these failures do not establish a new runtime defect.
-No provider write or 0.4 publication is established by this checkpoint.
+The deployment audit found a separate, real auth predecessor incompatibility.
+The live v50 is the known 27 September QR RPC recovery of reviewed B0 source
+`308f901d`, with Wrangler provenance and the original binding namespace.
+The preparation adapter incorrectly required a predecessor `PTR_ENABLED`
+binding and original API-upload metadata. This checkpoint repairs those exact
+predecessor checks; successor API validation and the original B0 multipart
+source authority remain intact. No new auth mode or gameplay feature is added.
 
-Publish and integrate the reviewed excluded test repair together with these notes
-as one coherent M2 checkpoint after applicable active CI finishes. Require the
-corrected head's normal Verify and actual resulting main's Verify.
-The six refreshed notes and `tests/sealedRealmsProductionDispatcher.test.ts`
-are absent from the actual received prepared-deploy closure, sealed production
-graphs and recovery compiler-input manifest. Recheck that exclusion against the
-final diff. Their repair preserves M1 compiler ancestry and does not require
-regenerating the authenticated family or relabeling its source. M2 integration
-and successful exact-main Verify remain pending.
+This is now an authored source checkpoint. The supported 16-output source family
+must reproduce after the correction, retaining the genuine `acbb5128` compiler
+manifests until actual new-main preparation. Require corrected-head Verify,
+integrate the reviewed source, run actual resulting-main native prepare/check,
+then publish and verify its genuine generated family before freezing operating S.
+A local PR-head compile or equal tree cannot replace signed main ancestry and
+exact push-main Verify evidence. Do not relabel earlier preparation receipts.
+
+Alpha remains live at 0.3.43; owner 0.4 PTR publication is pending. Full shaped
+production R06, the actual-owner journey and physical-device acceptance remain
+open. The planned frozen-S, separate signer-component F and direct-child A
+route remains the publication path. No provider write follows from metadata,
+simulated caller regressions or source-family verification alone.
+
+Detailed source-bound failures, provider metadata and recovery steps are in
+[local operations](../../evidence/0.4.0/local-operations.md#qr-recovery-predecessor-compatibility--1-october-2026).
 
 ### Operating source and signer-component route
 
-Freeze accepted operating main **S** after M2 and the excluded repairs pass.
+Freeze accepted operating main **S** after the authored predecessor correction
+and its genuine actual-main generated family pass.
 Keep this source fixed from the first prepared auth-bridge deployment through
 activation. Current bridge receipts require that exact operating source. Historical
 realm adoptions have a separate authenticated route; they do not authorize a
