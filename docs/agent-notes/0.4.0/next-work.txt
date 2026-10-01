@@ -4,17 +4,34 @@ Refreshed 1 October 2026, UTC and Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
-Known live QR-recovery v50 has original B0 bindings without PTR_ENABLED and
-Wrangler provenance. This source checkpoint corrects the preparation adapter;
-original byte authority and successor API validation stay intact. It does not
-change working public sign-in or add gameplay.
+PR #379 merged at 16:30:55 UTC after reviewed d16355f2 Verify 36883391676 passed
+all 17 jobs. Actual signed main is cb282bab/tree feeeff15, parent acbb5128.
+The preparation checkouts were synchronized to it; the d163 branch remains.
+Resolve the next generated checkpoint/local ref/open PR separately from its
+retained cb282 compiler-input main and the later accepted operating main S.
+Actual-main Verify 36892578403 passed all 17 jobs in the 17:36:29.827 UTC terminal
+readback; its Pages classification is separate from publication evidence.
 
-Next: reproduce the supported 16-output source family, keeping genuine acbb5128
-compiler manifests; require corrected PR #379 Verify and integrate authored
-source; run actual resulting-main native prepare/check; publish and verify the
-new genuine generated family. Do not use PR-head compilation/equal tree as
-main ancestry or push-main Verify evidence. The earlier excluded-only correction
-plan does not cover this runtime compiler-input repair.
+The adapter now recognizes known live QR-recovery v50: original B0 bindings
+without PTR_ENABLED and exact Wrangler provenance, with original byte authority
+and successor validation intact. Current working public sign-in is unchanged.
+
+Actual cb282 native prepare/check completed at 17:46:10.895 UTC with tool exit 0,
+matching 19-field results, independently absent owned group and unchanged source/
+index. Handle release-workspace-5fd662e2cd5d954fd6b50961384369b4; receipt stem
+artifacts/qa/october-release-cb282bab-actual-main. Its genuine 102-output export
+changes ten paths; both compiler manifests bind cb282/tree feeeff15.
+Isolated receive completed at 17:53:29.966 UTC with normal index/HEAD/nonoutputs intact.
+Next: review, sign, scan and publish this family plus seven excluded notes;
+accept normal PR and resulting-main CI before freezing S. Do not repeat successful
+compilation for these notes or rerun completed source merges. A PR-head compile/
+equal tree cannot supply main ancestry or exact push-main CI authority.
+
+The failed production-component Keep diagnostic actually reached ready/no
+fallback after a fully received model was canceled by intentional loader cleanup.
+Correct the measurement classification and exercise existing controls for active
+cadence; a settled Keep intentionally idles. Retain failed diagnostics and their
+original source scopes. No full R06 or owner/device acceptance is claimed.
 
 Freeze accepted operating main S before prepared bridge deployment. Keep the
 existing frozen-S/separate five-output signer component F/direct-child activation

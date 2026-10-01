@@ -2,13 +2,19 @@
 
 ## Current release checkpoint — 1 October 2026
 
-The corrected Dispatcher checkpoint `091c3228` is published in
-[PR #379](https://github.com/ael-dev3/Warpkeep/pull/379), with normal
-[Verify 36871156278](https://github.com/ael-dev3/Warpkeep/actions/runs/36871156278).
-All 17 jobs passed in the 14:52:27 UTC terminal readback; the module job
-completed at 14:49:15 UTC. This is exact 091c PR evidence, not verification of
-the new predecessor correction. The retained local four-file result is 260
-passed, zero failed and one unchanged platform skip at its original inputs.
+The authored source correction is integrated into signed main
+`cb282bab1f6df094643e4b18b20db3ce39e96ddf`, tree
+`feeeff15c458e18b793c071e67c16eb707d28a6f`, parent `acbb5128`.
+[PR #379](https://github.com/ael-dev3/Warpkeep/pull/379) merged at 16:30:55 UTC
+after all 17 jobs passed for its exact reviewed head `d16355f2` in
+[Verify 36883391676](https://github.com/ael-dev3/Warpkeep/actions/runs/36883391676).
+Actual-main [Verify 36892578403](https://github.com/ael-dev3/Warpkeep/actions/runs/36892578403)
+passed all 17 jobs in the 17:36:29.827 UTC terminal readback. Retain its actual
+terminal result and subsequent Pages classification separately from PR evidence.
+The preparation checkouts were synchronized to this exact compiler-input main;
+the earlier development branch at `d16355f2` is retained. The next generated
+checkpoint is a separate source. Resolve the actual local ref, open PR and
+accepted operating main from Git/GitHub before continuing.
 
 The deployment audit found a separate, real auth predecessor incompatibility.
 The live v50 is the known 27 September QR RPC recovery of reviewed B0 source
@@ -18,13 +24,19 @@ binding and original API-upload metadata. This checkpoint repairs those exact
 predecessor checks; successor API validation and the original B0 multipart
 source authority remain intact. No new auth mode or gameplay feature is added.
 
-This is now an authored source checkpoint. The supported 16-output source family
-must reproduce after the correction, retaining the genuine `acbb5128` compiler
-manifests until actual new-main preparation. Require corrected-head Verify,
-integrate the reviewed source, run actual resulting-main native prepare/check,
-then publish and verify its genuine generated family before freezing operating S.
-A local PR-head compile or equal tree cannot replace signed main ancestry and
-exact push-main Verify evidence. Do not relabel earlier preparation receipts.
+Actual `cb282bab` native prepare/check ran 17:20:59.498–17:46:10.895 UTC as
+UID 1000 with pinned Node 22.22.3 and actual tool exit 0. Its genuine handle is
+`release-workspace-5fd662e2cd5d954fd6b50961384369b4`; receipt stem
+`artifacts/qa/october-release-cb282bab-actual-main`. All 19 completion fields
+matched; independent full-group, raw-source and physical-index checks passed.
+The authenticated export covers 102 outputs, changing exactly ten paths, with
+genuine `cb282bab` compiler manifests. Isolated receive completed at
+17:53:29.966 UTC, preserving HEAD, normal index and nonoutputs.
+Next: review, sign, scan and publish the generated family with these excluded
+notes; require normal PR and resulting-main verification before freezing S.
+Do not repeat this successful preparation for the seven excluded note changes.
+Do not rerun the completed source merge or stale M2 merge helper. A PR-head
+compile or equal tree cannot replace signed main ancestry or push-main CI.
 
 Alpha remains live at 0.3.43; owner 0.4 PTR publication is pending. Full shaped
 production R06, the actual-owner journey and physical-device acceptance remain
@@ -34,6 +46,12 @@ simulated caller regressions or source-family verification alone.
 
 Detailed source-bound failures, provider metadata and recovery steps are in
 [local operations](../../evidence/0.4.0/local-operations.md#qr-recovery-predecessor-compatibility--1-october-2026).
+The production-component Keep diagnostic reached a real ready scene without
+fallback. Its complete model request was canceled by the loader's intentional
+post-read cleanup; the measurement guard had rejected it. Keep failed attempts
+and source bindings intact, correct only this demonstrated measurement issue,
+and drive existing controls for active cadence. A settled scene intentionally
+idles. No full production R06 pass follows from this diagnostic.
 
 ### Operating source and signer-component route
 

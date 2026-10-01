@@ -2,6 +2,141 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Authored main integration and Keep measurement diagnosis — 1 October 2026
+
+The corrected auth predecessor runtime and supported source-family pins are
+published at signed reviewed head `d16355f24045ff8580341a663b46c93d826ac356`.
+Exact [PR Verify 36883391676](https://github.com/ael-dev3/Warpkeep/actions/runs/36883391676),
+attempt 1, passed all 17 jobs, updated at 16:22:24 UTC. The module job passed
+598 pure tests without failures or skips; connected migration and generated-binding
+proofs also passed. Local native affected auth runtime tests passed 113 cases; the actual
+prepared policy, sealed verifier, selected POSIX static caller and app types
+passed in their separately retained records. Outgoing-range scanning found no
+secrets. Retain `october-auth-d163-verify-terminal-summary.json` and
+`october-release-auth-d163-final-review.json` under ignored `artifacts/qa/`.
+
+PR #379 merged at 16:30:55 UTC into actual signed main
+`cb282bab1f6df094643e4b18b20db3ce39e96ddf`, tree
+`feeeff15c458e18b793c071e67c16eb707d28a6f`, single parent
+`acbb51285485d918ae861db4bc18046e32378951`. GitHub verified the actual merge
+signature; its message has no CI skip. Retain
+`october-release-auth-source-integration.json`, SHA-256
+`2dc6ce0592fbbbb644f309e70378679341ef46e199ff45683ace475f10977288`.
+Primary synchronization finished at 16:33:13.436 UTC; its tracked bytes and
+normal index matched the reviewed source. Native synchronization finished at
+17:20:34.856 UTC after independent cleanup of the failed QA diagnostic below.
+Both checkouts retain the earlier development branch at `d16355f2`.
+This is source integration, with actual-main
+[Verify 36892578403](https://github.com/ael-dev3/Warpkeep/actions/runs/36892578403)
+passing all 17 jobs in the 17:36:29.827 UTC terminal readback. Its downstream
+Pages classification is separate from PR evidence and actual publication.
+
+Downstream [Pages 36900175046](https://github.com/ael-dev3/Warpkeep/actions/runs/36900175046),
+attempt 1, completed at 17:33:11 UTC. Exact-source classification passed and
+all six deployment/publication/live jobs were skipped. The blocked preparation
+lane is a source-supported inference from schema 1/Pages approval false, rather
+than a value printed by the raw log. Retain
+`october-auth-cb282-workflow-terminal-summary.json`, SHA-256
+`7a3d35212c45af66f2e97a638f1e2d4deaadf30fcd09fe8dd1332f299d44b069`.
+
+Actual resulting-main native prepare/check started at 17:20:59.498 UTC.
+The wrapper's real PID/PGID is 528293, boot UUID
+`b838a6fd-94ef-43a6-9d58-ed8f2141dd66`, start tick 24826902; its first actual
+prepare child is 528373, start tick 24827023 in the same group. The receipt stem
+is `artifacts/qa/october-release-cb282bab-actual-main`. It runs as UID/GID 1000
+with pinned Node 22.22.3 and the existing private tool/cache namespace. Follow
+these actual process identities and terminal phase receipts for continuation.
+Prepare and independent check completed at 17:46:10.895 UTC, actual tool session
+50549 exit 0. Their genuine 19-field results are identical, SHA-256
+`8fe9b0fcc0a477d9cee6ea497737f8f4ab12f1262d3239a46d6871dd24b52efa`,
+with handle `release-workspace-5fd662e2cd5d954fd6b50961384369b4`.
+Independent review at 17:48:09.580 verifies the whole group and all three recorded
+owners absent, all 3,355 raw source files and the physical index unchanged,
+102 outputs/backups and 3,253 preserved files. Complete generated family is
+`4b5240e99fa4fd75a2b6acf7268f0fbe76b7ee7f61d88387cc05423bd60ca003`.
+Retain the actual `-exec-terminal.json`, `-receipt.json`, `-independent.json`
+and `-transfer.json` under this stem. Private candidates/journals remain intact.
+
+Authenticated export is SHA-256
+`2898b83c465822d986d1457d38624992904a50ba5316f128573cb6cc26f1886f`;
+its complete output inventory produces generated tree
+`2172883986bc76af899ef2f42dbc23ad4fe6cdb9`, with exactly ten changed paths.
+Independent review verifies all 102 allowlisted outputs and the full family,
+patch and Git tree. Both sealed and recovery manifests retain genuine
+`cb282bab`/tree `feeeff15` compilation authority. Each workflow changes only its
+closure SHA pin. Isolated receive completed at 17:53:29.966 UTC, actual exit 0,
+preserving HEAD, normal index and nonoutputs. Retain this stem's `-export.json`,
+`-export-independent.json` and `-received.json`; the last has SHA-256
+`6449593df7a9ec183543e92325f016a3af204e7faafda16532017ddc20c00837`.
+The seven README/current-note updates are excluded from all actual compiler
+graphs and the protected closure; independently rederive its fixed family
+after copying them, preserving the authenticated 102 outputs. No extra compile
+is needed for those notes. Signed generated-checkpoint review, normal PR and
+resulting-main acceptance remain separate from this successful local receive.
+
+An additional authenticated production read at 17:54:02.961–17:54:14.674 UTC
+proves the known live v50's original B0 bytes. Existing pinned Node/Wrangler
+4.110 and profile `warpkeep-production` matched the configured account; the
+token remained only in process memory. Deployment-before, version, original
+content and deployment-after GETs confirmed stable `b338c098`/v50 `2b28a266`.
+The single `index.js` is 1,124,442 bytes, SHA-256
+`1442aca3fda8cc9d408d8614261ba8c472526ec0a17d2e513385f3885f33c4b3`;
+multipart source digest is
+`8744a3767fb0cbe9b99c34ab3351f9744b0b4134d6244c393dea5e828296654d`.
+These match original authority exactly. Retain sanitized
+`october-auth-v50-original-byte-read-20261001T175402961Z.json`, SHA-256
+`cd93f1e3f482af70a3a53d00d1a97ba728f7d5e14741a28811f206b0a240b839`.
+No raw body/credentials were persisted and no Worker was changed. The future
+accepted-S protected upload must repeat its own live configuration and byte
+checks; this read supplies no substitute S or deployment receipt.
+
+Production-component Keep diagnosis remains scoped to `d16355f2`/tree `feeeff15`.
+The isolated fixture compiles real Keep components with production optimizations
+and no player connection or command authority. Its corrected producer uses the
+actual npm root lock; the initial nonexistent pnpm-lock failure is retained.
+The fixture is separate from final-A bootstrap. Reused static assets retain the
+genuine `6e9f50bf` production build, not the fixture's source identity.
+
+Four browser attempts retain their actual failed terminals and collect no timed
+cadence samples. The first, 16:04:57.847–16:05:18.904 UTC, reported a generic
+boundary failure without its first event. The next, 16:13:20.789–16:13:40.347,
+identified the browser's implicit `/favicon.ico` request. Adding an explicit link
+to the existing hash-pinned favicon corrected only the ignored fixture HTML.
+The 16:21:35.325–16:21:55.924 attempt then identified canceled model requests;
+the final targeted diagnostic ran 16:41:34.682–16:41:58.705. Retain each original
+runner/guard input and corresponding `october-release-r06-desktop-advanced-20261001-…-run.json`.
+
+In the targeted diagnostic the real linden model request returned HTTP 200,
+`model/gltf-binary`, no blocked reason and all 74,720 declared raw body bytes.
+Chrome reported canceled `net::ERR_ABORTED`; its encoded-body counter was 68,336,
+which is not the raw-byte counter. Existing `requestExactModel` deliberately
+aborts its controller in `finally` after complete read/integrity validation.
+The scene subsequently reached real ready state at 16:41:49.816 with no fallback:
+45 draw calls, 145,640 triangles, 6,746,640 geometry bytes, zero active loaders
+and pending SceneHost RAFs. The 420.7 ms initial frame is warmup evidence,
+not a steady-state cadence statistic. The strict measurement guard, rather
+than a demonstrated product load defect, caused this rejection.
+
+Retain `october-release-r06-desktop-advanced-20261001-request-facts-run.json`,
+SHA-256 `2ba4b84fed71eeee8777cba1ee5dd811663c9058921decc4bb70e36d5a5836fb`,
+and the actual outer terminal in `october-release-r06-request-facts-exec-terminal.json`.
+Normal browser/server closure and independent cleanup confirm all nine matching
+Chrome creation identities absent and all recorded native groups empty.
+Independent full raw-source/mode and physical-index checks passed; retain
+`october-release-r06-request-facts-independent.json`, SHA-256
+`a2402e6c492645852c8c55f5bb21062d6bad20e8651029bb48fede126da4129f`.
+The fixed cleanup proof authorized synchronization of an idle checkout; it
+does not convert the failed diagnostic into R06 acceptance.
+
+Handle only verified, fully received, exact content-addressed local model cleanup
+cancellations in the measurement guard. Partial, unknown, blocked, redirected,
+bad-status and mismatched requests remain failures. A settled advanced Keep
+intentionally stops rendering; active cadence requires actual existing camera
+or placement input. Do not force product RAFs, score idle as lag, call CPU
+submission timing GPU completion, or treat desktop mobile emulation as a
+physical phone. Full shaped production R06 and owner/device acceptance remain
+open; no provider or publication write follows from these diagnostics.
+
 ## QR recovery predecessor compatibility — 1 October 2026
 
 Exact corrected-head PR Verify 36871156278 passed all 17 jobs in the

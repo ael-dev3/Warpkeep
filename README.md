@@ -40,15 +40,16 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**Alpha 0.3.43 is live; Warpkeep 0.4 is an open, unpublished candidate.** The
-candidate is assembled on [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374).
-It includes the reviewed work from still-open PRs #375–#378; those older heads
-must not be merged separately while their changes are already in #374.
+**Alpha 0.3.43 is live; owner PTR delivery for Warpkeep 0.4 is in progress.**
+The 0.4 foundation and reviewed contributions have been integrated into main
+through [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) and
+[PR #379](https://github.com/ael-dev3/Warpkeep/pull/379). Existing PRs #375–#378
+are already included; their older heads must not be merged again.
 
 The candidate brings together:
 
 - The Verdant Citadel 3D menu, castle presentation and Hegemony banners ([#375](https://github.com/ael-dev3/Warpkeep/pull/375)).
-- The eligible FID 539854 castle-film action ([#376](https://github.com/ael-dev3/Warpkeep/pull/376)). Its 289 MB video remains
+- The owner-eligible castle-film action ([#376](https://github.com/ael-dev3/Warpkeep/pull/376)). Its large video remains
   external and click-to-load.
 - Sealed Genesis 002 soundtrack wiring ([#377](https://github.com/ael-dev3/Warpkeep/pull/377)). G002 remains inaccessible;
   the soundtrack derivative's source terms are unresolved.
@@ -62,8 +63,8 @@ dedicated lazy-loaded gameplay host that preserves /ptr/ routing and checks its
 owner/session capabilities. No candidate change opens Genesis 002 admissions
 or widens the Genesis 001 admission freeze.
 
-The latest exact source, test/build receipts and publication-plan receipts are maintained on
-[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374). Recent repairs improve
+The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) tracks the
+current source, verification and next delivery step. Recent repairs improve
 mobile gestures, reachable controls, short-landscape drawers, confirmation,
 world/keep focus and menu readability. Real client/server testing also found
 and fixed a new-keep initialization failure caused by the server's error format.
@@ -74,21 +75,25 @@ make an active owner look reused. Ambiguous legacy records remain preserved;
 private deployment tests clean only their newly allocated temporary homes.
 Release preparation also verifies the paired launch scripts and binds reviewed
 operator corrections while preserving the frozen G001 module and build recipe.
-Independent affected tests and scoped rendered checks pass.
+The preparation adapter now recognizes the existing September QR recovery
+deployment, preserving its original authentication modes, bindings and byte authority.
+Affected local checks and reviewed-source CI pass; compiled release preparation
+and resulting-main CI retain their own source identities.
 
 The connected local PTR lane exercises the real module and client with normal
 server timers and synthetic authority/atlas. Gathering, construction, improved
 return, exact retry, manual fixture-session renewal and client reconnection pass.
 Automatic Quick Auth expiry through the real browser host still needs the planned
-owner acceptance. Actual-owner play,
-production-atlas pacing and physical-phone performance remain release requirements. Earlier G001 browser fixtures and the
-12,603-test native pass retain their original source scopes. The build's existing
+owner acceptance. Actual-owner play, production-atlas pacing and physical-phone
+performance remain release requirements. Earlier fixture tests, full suites and
+rendered captures retain their original source scopes. The build's existing
 RealmMapScreen size warning remains under measurement.
 
-Alpha returned HTTP 200 and the unpublished /ptr/ HTTP 404 on 30 September.
-Sealed preparation remains disabled. After the owner's September Actions pause,
-resume exact-head verification, the signed M1/M2 sequence, preservation/readbacks
-and PTR publication on or after October 1. Current [delivery status](docs/operations/0.4.0-live-delivery-status.md)
+Alpha returned HTTP 200 on 1 October. Owner PTR publication remains pending.
+The October release sequence is active: accept the source-bound prepared family,
+preserve existing realms, deploy the isolated PTR and publish its frontend beside
+Alpha. Complete production performance and real owner/device acceptance before
+claiming the full release. Current [delivery status](docs/operations/0.4.0-live-delivery-status.md)
 and [the handoff](docs/agent-notes/0.4.0/execution-handoff.md) identify the next action.
 
 
