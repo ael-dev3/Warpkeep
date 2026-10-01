@@ -1,15 +1,15 @@
 {
   "schemaVersion": 1,
   "profile": "warpkeep-spacetime-binding-final-preparation-linux-x64-v1",
-  "sourceCommit": "5d175edf25ee1555b27c8220844352fdbc4e99ff",
-  "sourceTree": "e7f36c6c35fa126025220e0b70865ff17a62a93f",
+  "sourceCommit": "acbb51285485d918ae861db4bc18046e32378951",
+  "sourceTree": "3fab7749ce35a2904b57194b3de42340bfce9710",
   "bundles": [
     {
       "lane": "activation",
       "path": "scripts/sealed-realms-production-activation-lane.bundle.mjs",
-      "byteLength": 1205441,
-      "sha256": "817d785294b536b0ac5793f48b667ad5a6ddf912c8f529c85f0a7e3533b247fe",
-      "sourceClosureDigest": "896ad9d608400ded8b349a1160a011e770ac2755201abaa3c234141773e1267f",
+      "byteLength": 1207112,
+      "sha256": "c6f1baa567a0095c1779e016eda0c71fa4e64e2c413bca7cb78ade385bce8231",
+      "sourceClosureDigest": "d7ac32d1f73e897ca82b247d7e930f0be8df4eb12dd6224eb831d3d2279d415e",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -503,8 +503,8 @@
         },
         {
           "path": "scripts/auth-bridge-config-attestation.mjs",
-          "byteLength": 27562,
-          "sha256": "2553802babb4284f14faf5ee21834bc7254630c56b141758211a84d530283850"
+          "byteLength": 27564,
+          "sha256": "a469fa6a3559991e4a5638f463d798d94912e3cdb491c5f421017b14c4646c77"
         },
         {
           "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs",
@@ -518,8 +518,8 @@
         },
         {
           "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
-          "byteLength": 132201,
-          "sha256": "d7d4600bb8cd248b79131a96de4d03698508e7f08b40bea094e838d132d9c162"
+          "byteLength": 131824,
+          "sha256": "cef373c061864a779876a24a69d4c0006bd3f0c447ce8b6e16d7608c5a0b18a4"
         },
         {
           "path": "scripts/auth-bridge-notification-prepared-deploy-journal.mjs",
@@ -538,8 +538,8 @@
         },
         {
           "path": "scripts/genesis001-admitted-player-census.mjs",
-          "byteLength": 21692,
-          "sha256": "f00f2b21932b584606134c23838d4d5338a5dbe6f3b350fa1c878b514de76736"
+          "byteLength": 21891,
+          "sha256": "e7fe54a174fe71abb057aff3be6f451aca972da9ba6fabcbd92cbaae0005f09a"
         },
         {
           "path": "scripts/genesis001-binding-frozen-source.mjs",
@@ -598,8 +598,8 @@
         },
         {
           "path": "scripts/greater-realm-cutover-operation-journal.ts",
-          "byteLength": 169438,
-          "sha256": "7660e77de4b640a85628d75c6f49ed576dbc1c2741f3eccd75b5a624afb249c3"
+          "byteLength": 169121,
+          "sha256": "495712181cae325c6a50ecc6f84f7316f083953ba4f4e9d236ee9ae99d5bac25"
         },
         {
           "path": "scripts/greater-realm-cutover-receipts.ts",
@@ -638,8 +638,8 @@
         },
         {
           "path": "scripts/local-binding-bounded-file.mjs",
-          "byteLength": 10104,
-          "sha256": "13e01b2e7f858fa076ca6b53fbc99c2e0ba08720d7ee6b966bb1446b68b90682"
+          "byteLength": 10433,
+          "sha256": "3e0b7387a2c2d6a2e83070366263aa46a52174a1c4348f870928c43d8424b568"
         },
         {
           "path": "scripts/local-binding-native-ts-hooks.mjs",
@@ -678,8 +678,8 @@
         },
         {
           "path": "scripts/production-admin-token-budget.mjs",
-          "byteLength": 33837,
-          "sha256": "0ac956518ebbed5e893adcb8159c2a4c287d684850921249b18ba6bc9352648e"
+          "byteLength": 38116,
+          "sha256": "d08de6d7d709eadf9132d815b6c81df34ffe3460475b212954c360475894533e"
         },
         {
           "path": "scripts/ptr-artifact-description.mjs",
@@ -693,8 +693,8 @@
         },
         {
           "path": "scripts/ptr-binding-locked-source-build-core.ts",
-          "byteLength": 49970,
-          "sha256": "a484ca4984d061786942d56d0f5c487300976db8c266dd00beed7482b15d055b"
+          "byteLength": 50102,
+          "sha256": "33278f763214a0f4b6f1fa228a5567e46dc69520b43270700232f35d9c3117a9"
         },
         {
           "path": "scripts/ptr-binding-locked-source-build.ts",
@@ -1013,14 +1013,14 @@
     {
       "lane": "g001",
       "path": "scripts/sealed-realms-production-g001-lane.bundle.mjs",
-      "byteLength": 367015,
-      "sha256": "6a66572979e04ebb172df9c365d6cadcfa4e973812b365d70314b8fdb14d3f37",
-      "sourceClosureDigest": "e2bb7eb0ccae43e1d00a11fb086273341381123b71aa68205377a4764d94afb4",
+      "byteLength": 366769,
+      "sha256": "844b47e260fee97a7aa49544ef94bca32278bc9b30183b14359342da2bb0f55d",
+      "sourceClosureDigest": "e200062011c2987d338cf58c082ac9c26cb024b1eeccd78af844f9c87b816424",
       "graphManifest": [
         {
           "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
-          "byteLength": 132201,
-          "sha256": "d7d4600bb8cd248b79131a96de4d03698508e7f08b40bea094e838d132d9c162"
+          "byteLength": 131824,
+          "sha256": "cef373c061864a779876a24a69d4c0006bd3f0c447ce8b6e16d7608c5a0b18a4"
         },
         {
           "path": "scripts/genesis001-admission-monitor-current-state.mjs",
@@ -1029,8 +1029,8 @@
         },
         {
           "path": "scripts/genesis001-admitted-player-census.mjs",
-          "byteLength": 21692,
-          "sha256": "f00f2b21932b584606134c23838d4d5338a5dbe6f3b350fa1c878b514de76736"
+          "byteLength": 21891,
+          "sha256": "e7fe54a174fe71abb057aff3be6f451aca972da9ba6fabcbd92cbaae0005f09a"
         },
         {
           "path": "scripts/genesis001-linux-census-attempt.mjs",
@@ -1064,8 +1064,8 @@
         },
         {
           "path": "scripts/local-binding-bounded-file.mjs",
-          "byteLength": 10104,
-          "sha256": "13e01b2e7f858fa076ca6b53fbc99c2e0ba08720d7ee6b966bb1446b68b90682"
+          "byteLength": 10433,
+          "sha256": "3e0b7387a2c2d6a2e83070366263aa46a52174a1c4348f870928c43d8424b568"
         },
         {
           "path": "scripts/local-binding-runtime-process.mjs",
@@ -1168,9 +1168,9 @@
     {
       "lane": "g002",
       "path": "scripts/sealed-realms-production-g002-lane.bundle.mjs",
-      "byteLength": 1140514,
-      "sha256": "b87cf44987f7526f39fa225388e417bd14debeecada2567433bc53dd539a605c",
-      "sourceClosureDigest": "2a264c43cb97f154a7218b38f66644baca172d9b2e0f2f024e28eb7d61b0e4da",
+      "byteLength": 1142181,
+      "sha256": "1d7ce1cf085c919003230a07dee9f6400a3efc3c76038681f98aff2b09a21a21",
+      "sourceClosureDigest": "a6f382aeefb8af9f990b0ec08b39501a852ca2e2f3db5df8c5a4a4a5ee6febc0",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -1664,8 +1664,8 @@
         },
         {
           "path": "scripts/auth-bridge-config-attestation.mjs",
-          "byteLength": 27562,
-          "sha256": "2553802babb4284f14faf5ee21834bc7254630c56b141758211a84d530283850"
+          "byteLength": 27564,
+          "sha256": "a469fa6a3559991e4a5638f463d798d94912e3cdb491c5f421017b14c4646c77"
         },
         {
           "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs",
@@ -1679,8 +1679,8 @@
         },
         {
           "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
-          "byteLength": 132201,
-          "sha256": "d7d4600bb8cd248b79131a96de4d03698508e7f08b40bea094e838d132d9c162"
+          "byteLength": 131824,
+          "sha256": "cef373c061864a779876a24a69d4c0006bd3f0c447ce8b6e16d7608c5a0b18a4"
         },
         {
           "path": "scripts/auth-bridge-notification-prepared-deploy-journal.mjs",
@@ -1699,8 +1699,8 @@
         },
         {
           "path": "scripts/genesis001-admitted-player-census.mjs",
-          "byteLength": 21692,
-          "sha256": "f00f2b21932b584606134c23838d4d5338a5dbe6f3b350fa1c878b514de76736"
+          "byteLength": 21891,
+          "sha256": "e7fe54a174fe71abb057aff3be6f451aca972da9ba6fabcbd92cbaae0005f09a"
         },
         {
           "path": "scripts/genesis001-binding-frozen-source.mjs",
@@ -1759,8 +1759,8 @@
         },
         {
           "path": "scripts/greater-realm-cutover-operation-journal.ts",
-          "byteLength": 169438,
-          "sha256": "7660e77de4b640a85628d75c6f49ed576dbc1c2741f3eccd75b5a624afb249c3"
+          "byteLength": 169121,
+          "sha256": "495712181cae325c6a50ecc6f84f7316f083953ba4f4e9d236ee9ae99d5bac25"
         },
         {
           "path": "scripts/greater-realm-cutover-receipts.ts",
@@ -1799,8 +1799,8 @@
         },
         {
           "path": "scripts/local-binding-bounded-file.mjs",
-          "byteLength": 10104,
-          "sha256": "13e01b2e7f858fa076ca6b53fbc99c2e0ba08720d7ee6b966bb1446b68b90682"
+          "byteLength": 10433,
+          "sha256": "3e0b7387a2c2d6a2e83070366263aa46a52174a1c4348f870928c43d8424b568"
         },
         {
           "path": "scripts/local-binding-native-ts-hooks.mjs",
@@ -1839,8 +1839,8 @@
         },
         {
           "path": "scripts/production-admin-token-budget.mjs",
-          "byteLength": 33837,
-          "sha256": "0ac956518ebbed5e893adcb8159c2a4c287d684850921249b18ba6bc9352648e"
+          "byteLength": 38116,
+          "sha256": "d08de6d7d709eadf9132d815b6c81df34ffe3460475b212954c360475894533e"
         },
         {
           "path": "scripts/ptr-artifact-description.mjs",
@@ -1854,8 +1854,8 @@
         },
         {
           "path": "scripts/ptr-binding-locked-source-build-core.ts",
-          "byteLength": 49970,
-          "sha256": "a484ca4984d061786942d56d0f5c487300976db8c266dd00beed7482b15d055b"
+          "byteLength": 50102,
+          "sha256": "33278f763214a0f4b6f1fa228a5567e46dc69520b43270700232f35d9c3117a9"
         },
         {
           "path": "scripts/ptr-binding-locked-source-build.ts",
@@ -2188,9 +2188,9 @@
     {
       "lane": "ptr",
       "path": "scripts/sealed-realms-production-ptr-lane.bundle.mjs",
-      "byteLength": 1138080,
-      "sha256": "325cef1c5ff1afeb13e7882d5e70cddce7d5b14426b93d3fa6d778355dd03546",
-      "sourceClosureDigest": "57c92440125e18f0ab448e6da4cb774870557a0157b22439e5962011cc43e1fc",
+      "byteLength": 1139751,
+      "sha256": "d54fdbe7a735dbd49d4a64e489bd08b8f2b35cccff75e731c697d2228ce1d6f1",
+      "sourceClosureDigest": "308cb5d5be292d40d0d522c456c72869589347594e230d0076d5f3fd03c028ce",
       "graphManifest": [
         {
           "path": "node_modules/@noble/hashes/esm/_u64.js",
@@ -2684,8 +2684,8 @@
         },
         {
           "path": "scripts/auth-bridge-config-attestation.mjs",
-          "byteLength": 27562,
-          "sha256": "2553802babb4284f14faf5ee21834bc7254630c56b141758211a84d530283850"
+          "byteLength": 27564,
+          "sha256": "a469fa6a3559991e4a5638f463d798d94912e3cdb491c5f421017b14c4646c77"
         },
         {
           "path": "scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs",
@@ -2699,8 +2699,8 @@
         },
         {
           "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
-          "byteLength": 132201,
-          "sha256": "d7d4600bb8cd248b79131a96de4d03698508e7f08b40bea094e838d132d9c162"
+          "byteLength": 131824,
+          "sha256": "cef373c061864a779876a24a69d4c0006bd3f0c447ce8b6e16d7608c5a0b18a4"
         },
         {
           "path": "scripts/auth-bridge-notification-prepared-deploy-journal.mjs",
@@ -2719,8 +2719,8 @@
         },
         {
           "path": "scripts/genesis001-admitted-player-census.mjs",
-          "byteLength": 21692,
-          "sha256": "f00f2b21932b584606134c23838d4d5338a5dbe6f3b350fa1c878b514de76736"
+          "byteLength": 21891,
+          "sha256": "e7fe54a174fe71abb057aff3be6f451aca972da9ba6fabcbd92cbaae0005f09a"
         },
         {
           "path": "scripts/genesis001-binding-frozen-source.mjs",
@@ -2779,8 +2779,8 @@
         },
         {
           "path": "scripts/greater-realm-cutover-operation-journal.ts",
-          "byteLength": 169438,
-          "sha256": "7660e77de4b640a85628d75c6f49ed576dbc1c2741f3eccd75b5a624afb249c3"
+          "byteLength": 169121,
+          "sha256": "495712181cae325c6a50ecc6f84f7316f083953ba4f4e9d236ee9ae99d5bac25"
         },
         {
           "path": "scripts/greater-realm-cutover-receipts.ts",
@@ -2819,8 +2819,8 @@
         },
         {
           "path": "scripts/local-binding-bounded-file.mjs",
-          "byteLength": 10104,
-          "sha256": "13e01b2e7f858fa076ca6b53fbc99c2e0ba08720d7ee6b966bb1446b68b90682"
+          "byteLength": 10433,
+          "sha256": "3e0b7387a2c2d6a2e83070366263aa46a52174a1c4348f870928c43d8424b568"
         },
         {
           "path": "scripts/local-binding-native-ts-hooks.mjs",
@@ -2859,8 +2859,8 @@
         },
         {
           "path": "scripts/production-admin-token-budget.mjs",
-          "byteLength": 33837,
-          "sha256": "0ac956518ebbed5e893adcb8159c2a4c287d684850921249b18ba6bc9352648e"
+          "byteLength": 38116,
+          "sha256": "d08de6d7d709eadf9132d815b6c81df34ffe3460475b212954c360475894533e"
         },
         {
           "path": "scripts/ptr-artifact-description.mjs",
@@ -2874,8 +2874,8 @@
         },
         {
           "path": "scripts/ptr-binding-locked-source-build-core.ts",
-          "byteLength": 49970,
-          "sha256": "a484ca4984d061786942d56d0f5c487300976db8c266dd00beed7482b15d055b"
+          "byteLength": 50102,
+          "sha256": "33278f763214a0f4b6f1fa228a5567e46dc69520b43270700232f35d9c3117a9"
         },
         {
           "path": "scripts/ptr-binding-locked-source-build.ts",
