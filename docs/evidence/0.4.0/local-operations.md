@@ -35,9 +35,22 @@ The changed cache-restore branch is inactive for these consumers. The official
 exact-version advisory query returns no published matches; no absolute security
 guarantee or exploitation claim follows. Retain
 `october-action-setup-v6010-audit.json`. Focused Windows caller checks pass
-36 cases, zero failures and 39 platform skips across three files. These repairs
-await complete-family regeneration and one coherent publication after the
-current hosted run finishes; no final-head hosted pass is claimed.
+36 cases, zero failures and 39 platform skips across three files. At signed
+`a9878234`, tree `78b95888`, the complete 16-output family independently
+reproduces with manifest `c64fe8b750e8d67bb551137991fb440568349c74cdddaeb34af1cc91f6f939d5`.
+Native policy and seven affected files pass 160 cases, zero failures and three
+Darwin/ARM64 skips. The selected Pages and service caller each pass separately;
+their 163 and 353 unselected cases remain outside that evidence. All actual
+children exit 0 at unchanged clean UID-1000/Node-22.22.3 input. Retain the
+`october-pnpm1111-native-*-a9878234-*` source/identity/terminal records.
+One coherent publication follows the current hosted run's terminal result;
+no final-head hosted pass is claimed.
+
+The credential-free temporary install workspace is removed at 09:47:34 UTC,
+after exact contained-path/ownership and absent owned PID/group checks. Its
+1,240,421,465 logical regular-file bytes are removed; no physical free-space
+measurement is claimed. The candidate, raw receipts, private patched runtime
+and actual release cache remain intact. Retain `october-pnpm-shadow-cleanup.json`.
 
 Official GitHub advisory metadata retained in
 `artifacts/qa/october-pnpm-11.7-advisories.json` identifies four high-severity

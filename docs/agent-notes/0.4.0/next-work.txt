@@ -8,14 +8,13 @@ Continue PR #374 on fix/g001-census-admission-proxy; main remains 786c0b2b.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the published PR head separately from the current local repaired source.
 
-Latest completed development preparation: 271946c4/tree 9a5b539b.
-Its /ptr/ build is terminal, exit 0, October 1 00:42:01.872–00:46:38.831 UTC:
+Latest completed development preparation: 7be8ae48/tree 1c19a7e7.
+Its /ptr/ build is terminal, exit 0, October 1 09:04:33.674–09:09:21.573 UTC:
 clean unchanged UID-1000/Node-22.22.3 input and absent owned actor/group.
-Its 16-output family independently reproduces; native policy, payload and
-independent mirror/Alpha-preservation checks pass at this exact source, preserving
+Payload and independent mirror/Alpha-preservation checks pass at this exact source, preserving
 every Alpha entry and removing none. Rendered keyboard review retains 789933e2.
-Retain artifacts/qa/ptr-final-build-summary.json
-and artifacts/qa/tervain-final-family-verification.json.
+Retain artifacts/qa/ptr-final-build-summary.json and
+artifacts/qa/ptr-final-preservation-independent.json.
 Full native suite stays bound to 1ab86add/tree ee5804e3: 12,720 passed,
 zero failed, 97 skipped, 694 actual files; zero new roots/historical removals.
 Four menu images, broader Settings geometry and bounded menu measurements retain
@@ -63,19 +62,24 @@ finishes failed at 01:19:44 UTC; its connected migration/module job succeeds.
 Only the two diagnosed leaves and their aggregate fail; no final-head hosted
 success is established.
 
-Current local family checkpoint: signed 9f13974e/tree d07a5020, derived from
-authored f09d82c4. Its complete family independently reproduces and native policy
-passes, manifest 2cf75c0d. It binds the separate pnpm 11.11.0 runtime, explicit
-no-switch handling and genuinely derived current Linux snapshot. See
+Published 7be8ae48 has normal PR Verify 36841020942 attempt 1. At 09:40:09 UTC,
+13 independent jobs succeed, two diagnosed tests fail and only the module job
+remains active. The failures are a stale Pages-toolchain service assertion and
+the post-gate SIGKILL test's synchronization; both existing tests are repaired.
+Do not cancel or reuse that run as a pass for later local source.
+
+Current local family checkpoint: signed a9878234/tree 78b95888, derived from
+authored be9596dd. Its 16-output family independently reproduces and native
+policy passes, manifest c64fe8b7. It retains CLI 11.11.0 and no-switch handling;
+current CI/Pages action v6.0.10 uses the reviewed seed 11.19.0. See
 docs/evidence/0.4.0/local-operations.md, "Patched pnpm runtime and current Linux
-snapshot — 1 October 2026". Native affected checks at 9f13974e pass 93 in six files,
-zero failures and three Darwin/ARM64-only skips; separate Pages ordering passes
-one selected case. Windows Linux-workflow checks pass 8/8 at the same runtime and
-family source with only these five notes edited; retain october-pnpm-linux-final-*.
-Final current-source production preparation, publication and normal hosted Verify
-remain pending; retain the older 271946c4 build and 974a3ae6 hosted scopes.
-Finish preparation, then publish one coherent unskipped checkpoint for normal
-final-head PR Verify.
+snapshot — 1 October 2026". Current native checks pass 160, zero failures and
+three Darwin/ARM64-only skips in seven files. Separate Pages ordering and the
+recovery composition case each pass one selected case, with 163/353 unselected.
+The 7be8ae48 build and prior 974a3ae6/full-suite/rendered results retain their sources.
+Final current-source build, publication and normal hosted Verify remain pending.
+Await the active module's terminal result, finish exact final-head preparation,
+then publish one coherent unskipped checkpoint for normal final-head PR Verify.
 
 The refreshed complete Actions inventory ends at 01:22:11.841 UTC with no
 active runs in either repository. Retain

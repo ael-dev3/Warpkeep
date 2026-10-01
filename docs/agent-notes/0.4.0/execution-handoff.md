@@ -9,16 +9,15 @@ on `fix/g001-census-admission-proxy`. It includes reviewed PRs #375–#378;
 do not merge their older heads separately. Main remains `786c0b2b`.
 Resolve the published PR head separately from the current local repaired source.
 
-The latest completed development preparation is `271946c4`,
-tree `9a5b539b`. Its `/ptr/` production build is terminal, exit 0:
-2026-10-01T00:42:01.872Z–00:46:38.831Z, with clean unchanged input,
-UID 1000/Node 22.22.3 and verified absent owned actor/group. All 16
-source-family outputs independently reproduce; native policy passes with 1,250
-closure members. Payload and independently checked mirror/Alpha-preservation
+The latest completed development preparation is `7be8ae48`,
+tree `1c19a7e7`. Its `/ptr/` production build is terminal, exit 0:
+2026-10-01T09:04:33.674Z–09:09:21.573Z, with clean unchanged input,
+UID 1000/Node 22.22.3 and verified absent owned actor/group.
+Payload and independently checked mirror/Alpha-preservation
 checks pass at this exact source, preserving all 341 Alpha entries and removing
 none. The rendered keyboard review remains separately bound to `789933e2`.
 Retain `artifacts/qa/ptr-final-build-summary.json` and
-`artifacts/qa/tervain-final-family-verification.json`; these are development
+the source-bound preservation receipt; these are development
 preparation receipts, not exact-M1/M2 integration or deployment.
 
 The full native suite remains separately bound to `1ab86add`, tree `ee5804e3`:
@@ -90,22 +89,30 @@ successful, only the diagnosed Linux/native-contract leaves failed and their
 aggregate failed. The connected migration/module job succeeds at 01:19:37 UTC.
 This hosted attempt does not verify the later local maintenance repair.
 
-The current local family checkpoint is signed `9f13974e`, tree `d07a5020`,
-derived from authored repair `f09d82c4`. The complete family independently
-reproduces and native policy passes; manifest is
-`2cf75c0d2b23722b034a1fb5a611a3fb93a07070d94472a741af8c5e1efa0930`.
-It binds the separately attested pnpm 11.11.0 runtime, explicit no-switch handling
-and genuinely derived current Linux snapshot; see
-[maintenance evidence](../../evidence/0.4.0/local-operations.md#patched-pnpm-runtime-and-current-linux-snapshot--1-october-2026).
-Native affected checks at `9f13974e` pass 93 cases in six files, zero failures,
-with three Darwin/ARM64-only skips. Separate Pages ordering passes its one selected
-case. The Windows Linux-workflow suite passes 8/8 at the same runtime/family
-source with only these five notes edited; retain `october-pnpm-linux-final-*`.
-Final current-source production preparation, publication and normal hosted Verify
-remain pending. The `271946c4` build and `974a3ae6` hosted results retain their
-original source scopes.
+Published `7be8ae48` has normal PR Verify
+[36841020942](https://github.com/ael-dev3/Warpkeep/actions/runs/36841020942),
+attempt 1. At 09:40:09 UTC, 13 independent jobs succeed, two diagnosed tests
+fail and only the module job remains active. The failures are a stale Pages
+toolchain service assertion and post-gate SIGKILL test synchronization; both
+existing tests are repaired locally. Preserve the active run and its source.
 
-Next, finish current-source production preparation, then publish one coherent
+Current local family checkpoint `a9878234`, tree `78b95888`, derives from
+authored `be9596dd`. Its complete 16-output family independently reproduces
+and native policy passes; manifest is
+`c64fe8b750e8d67bb551137991fb440568349c74cdddaeb34af1cc91f6f939d5`.
+Retain `artifacts/qa/tervain-final-family-verification.json` at this separate source.
+It retains CLI 11.11.0 and explicit no-switch handling; current CI/Pages action
+v6.0.10 uses the reviewed 11.19.0 seed. See
+[maintenance evidence](../../evidence/0.4.0/local-operations.md#patched-pnpm-runtime-and-current-linux-snapshot--1-october-2026).
+Native current-source checks pass 160 cases, zero failures and three Darwin/ARM64
+platform-only skips across seven files. Separate Pages ordering and recovery
+composition cases each pass one selected case; their 163/353 unselected cases
+are not executed evidence. The `7be8ae48` build and earlier hosted/full-suite/
+rendered results retain their source scopes. Final current-source preparation,
+publication and normal hosted Verify remain pending.
+
+Next, await the active module's terminal result and finish exact final-head
+preparation, then publish one coherent
 signed checkpoint without CI skip directives and use its normal PR Verify.
 Verify has no manual dispatch; reopening/dispatching
 the same skipped head is insufficient. Refresh final-head SHA-bound local
