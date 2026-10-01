@@ -4,6 +4,45 @@ Refreshed 1 October 2026, UTC and Europe/Budapest.
 
 CURRENT SHIPPING STATE
 
+1 October release checkpoint: PR #374 merged at 11:08:48 UTC as signed source-only
+M1 acbb5128/tree 3fab7749. Reviewed head 6e9f50bf passed all 17 hosted Verify jobs;
+preparation Pages skipped publication. Native actual-M1 prepare/check completed
+11:15:57–11:49:09 UTC with matching 19-field results. The authenticated export has
+102 outputs and 11 changed paths. Signed M2 5ecd17c0/tree d2ce0e6d was published
+at 12:34:13 UTC in PR #379. Verify 36862649149 currently fails the same 45
+historical Darwin-fixture cases in two jobs; the local test-fixture repair is
+complete locally: the identical isolated suite passed at 13:03:28 UTC with 260
+passed, zero failed and one unsupported-runtime skip. Production pins/coverage
+are unchanged. No new runtime defect or provider write is established by those failures.
+
+Publish/integrate the reviewed excluded Dispatcher test/notes repair; inspect the final diff and
+actual manifest exclusions, and batch one checkpoint after applicable active CI
+finishes, then require corrected-head and actual resulting-main Verify. Preserve
+M1 compiler source; do not regenerate or relabel the accepted
+family for excluded-only changes. M2 integration and exact-main Verify are pending.
+
+After accepted main is frozen as operating S:
+- Linux preflight/G001 observation -> prepared bridge -> initial disabled
+  preparation signer/gateway -> signed existing PTR/G002 updates and adoptions.
+- Generate/check the five genuine signer fixture outputs against S/adoptions;
+  publish only those five on signed/scanned component branch F, separate from main.
+- Prove the full F signer package, generate activation inputs using the initial
+  signer with its exact RECOVERY_PREPARATION_POLICY, then promote/verify the full
+  signer with genuine arming inputs before activation publication. Preserve the
+  existing key/RPC/ledger/epoch; final TOML does not preserve omitted vars by itself.
+- Create fresh actual A as the supported activation-only direct child of S;
+  complete provider/publication/postflight and owner/device acceptance.
+
+Do not change operating main between prepared bridge S and A. No F fixtures,
+promotion or activation proof exists yet. Alpha remains live 0.3.43; owner PTR
+is unpublished. Full shaped production R06 and actual-owner/phone acceptance
+remain open. Detailed current route and evidence:
+docs/agent-notes/0.4.0/execution-handoff.md
+docs/evidence/0.4.0/local-operations.md
+
+HISTORICAL SHIPPING STATE — 30 SEPTEMBER / EARLIER 1 OCTOBER 2026
+The following source-bound checkpoint is superseded for the next action above.
+
 Continue PR #374 on fix/g001-census-admission-proxy; main remains 786c0b2b.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the published PR head separately from the current local repaired source.

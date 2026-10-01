@@ -1,6 +1,87 @@
 # Continue Warpkeep 0.4
 
+## Current release checkpoint — 1 October 2026
+
+PR #374 is merged. Signed source-only M1 is
+`acbb51285485d918ae861db4bc18046e32378951`, tree
+`3fab7749ce35a2904b57194b3de42340bfce9710`, merged at 11:08:48 UTC.
+Reviewed head `6e9f50bf` passed all 17 jobs in
+[Verify 36847966470](https://github.com/ael-dev3/Warpkeep/actions/runs/36847966470).
+Actual-M1 push-main [Verify 36853528379](https://github.com/ael-dev3/Warpkeep/actions/runs/36853528379)
+passed all 17 jobs at 12:10:56 UTC. Its downstream Pages run skipped publication;
+Alpha remains 0.3.43 and the owner PTR is unpublished.
+
+Native preparation and independent checking of actual M1 ran at 11:15:57–11:49:09 UTC
+with identical 19-field results. The authenticated 102-output export changes
+11 paths. Signed generated-only M2 `5ecd17c0f091418c52f101eaca5964b0c45517bb`,
+tree `d2ce0e6d34f4fe37fc65130ecc4342be68368e7b`, was published in
+[PR #379](https://github.com/ael-dev3/Warpkeep/pull/379) at 12:34:13 UTC.
+[Verify 36862649149](https://github.com/ael-dev3/Warpkeep/actions/runs/36862649149)
+has failures in the same 45 historical Darwin-fixture cases in two jobs.
+A reviewed fixture repair passed the identical isolated native suite at 13:03:28
+UTC: 260 passed, zero failed and one unsupported-runtime skip. Production pins
+and coverage remain intact; these failures do not establish a new runtime defect.
+No provider write or 0.4 publication is established by this checkpoint.
+
+Publish and integrate the reviewed excluded test repair together with these notes
+as one coherent M2 checkpoint after applicable active CI finishes. Require the
+corrected head's normal Verify and actual resulting main's Verify.
+The six refreshed notes and `tests/sealedRealmsProductionDispatcher.test.ts`
+are absent from the actual received prepared-deploy closure, sealed production
+graphs and recovery compiler-input manifest. Recheck that exclusion against the
+final diff. Their repair preserves M1 compiler ancestry and does not require
+regenerating the authenticated family or relabeling its source. M2 integration
+and successful exact-main Verify remain pending.
+
+### Operating source and signer-component route
+
+Freeze accepted operating main **S** after M2 and the excluded repairs pass.
+Keep this source fixed from the first prepared auth-bridge deployment through
+activation. Current bridge receipts require that exact operating source. Historical
+realm adoptions have a separate authenticated route; they do not authorize a
+historical bridge. Integrating fixture outputs into main would change the bridge's
+operating source before activation.
+
+1. At S, run supported Linux preflight and the real G001 policy observation;
+   deploy the prepared auth bridge, then the initial disabled preparation signer
+   and gateway. Keep their source-bound receipts and actual provider readbacks.
+2. Inspect and apply the gated existing PTR/G002 updates, retaining real signed
+   pre/post observations and adoption records. Read-only inspection alone does
+   not satisfy the signer dependency of an actual update.
+3. Run the real fixture generator and its check against S and those adoptions.
+   Publish a separately signed and scanned **component F** branch from S containing
+   exactly the generator's five outputs under `services/release-recovery/`:
+   `fixtures/toolchains/linux-x64.json`,
+   `fixtures/spacetime/g001.raw-module-def-v10.json`,
+   `fixtures/spacetime/g002.raw-module-def-v10.json`,
+   `fixtures/spacetime/ptr.raw-module-def-v10.json` and
+   `fixtures/spacetime/manifest.json`.
+   Keep F separate from operating main; its genuine realm provenance remains S.
+4. Prove the exact F fixture bytes and full signer package. Generate activation
+   inputs while the initial signer's exact `RECOVERY_PREPARATION_POLICY` is still
+   installed. Then promote and verify the full signer with the actual arming
+   inputs, retaining the existing key, RPC authority, ledger and epoch, before
+   publishing activation. Final TOML does not automatically preserve omitted
+   variables; do not depend on policy survival across promotion.
+5. Create and publish actual **A** as an exact direct child of S, containing only
+   the supported activation binding/package/lock changes. Keep its real commit
+   timestamp and source proofs. This audit found no Git commit-date freshness
+   guard; census/confirmation freshness belongs to their actual validation phase.
+   Execute
+   the existing provider, Pages/mirror and postflight gates before claiming PTR
+   publication or release acceptance.
+
+This is a planned route, not evidence that F, fixture generation, signer promotion
+or A exists. Full shaped production R06, actual-owner journey and physical-device
+acceptance remain open. The [local operations record](../../evidence/0.4.0/local-operations.md#m1-native-preparation-and-m2-publication--1-october-2026)
+owns the receiver reconciliation and source-bound receipts; the
+[release checklist](../../operations/0.4.0-release-checklist.md#current-release-verification--1-october-2026)
+owns acceptance. Earlier checkpoints below retain their original dates and
+source scopes and are superseded for the next action by this section.
+
 ## Current local checkpoint — 30 September 2026
+
+Historical checkpoint, superseded by the 1 October release checkpoint above.
 
 October continuation: 1 October 2026, UTC and Europe/Budapest.
 
