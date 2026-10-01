@@ -13,6 +13,13 @@ import {
   type GreaterRealmSceneRuntime,
   type GreaterRealmSceneTelemetry
 } from '../../greater-realm/createGreaterRealmSceneRuntime';
+import {
+  createGreaterRealmAtmosphere,
+  GREATER_REALM_ATMOSPHERE_MAXIMUM_DRAW_CALLS,
+  GREATER_REALM_ATMOSPHERE_MAXIMUM_INSTANCES,
+  GREATER_REALM_SKY,
+  type GreaterRealmAtmosphere
+} from '../../greater-realm/greaterRealmAtmosphere';
 import type {
   GreaterRealmClientSnapshot
 } from '../../greater-realm/greaterRealmClientRuntime';
@@ -40,11 +47,13 @@ type GreaterRealmRenderer = Readonly<{
 /** Voxel castle buffers plus 600 matrix/color instance attributes. */
 export const GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES = 65_536 as const;
 export const GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES = 98_304 as const;
-export const GREATER_REALM_HOST_DRAW_CALL_RESERVE = 6 as const;
+/** Castle, region and four resource layers, plus the daylight atmosphere layers. */
+export const GREATER_REALM_HOST_DRAW_CALL_RESERVE = 8 as const;
 export const GREATER_REALM_HOST_INSTANCE_RESERVE = (
   GREATER_REALM_PUBLIC_LIMITS.maximumCastlesPerWindow
   + GREATER_REALM_PUBLIC_LIMITS.maximumResourceLocations
   + 6
+  + GREATER_REALM_ATMOSPHERE_MAXIMUM_INSTANCES
 );
 
 type GreaterRealmWorldSelectionBase = Readonly<{
@@ -654,9 +663,11 @@ export function createGreaterRealmWorldCanvasHost(
   const scene = new THREE.Scene();
   const worldGroup = new THREE.Group();
   worldGroup.name = 'greater-realm-world';
-  scene.background = new THREE.Color('#11171b');
+  // Daylight haze rather than a black void: the returned window reads as the
+  // known land rising from cloud, matching the keep's Verdant Citadel light.
+  scene.background = new THREE.Color(GREATER_REALM_SKY.background);
   const normalFogDensity = 0.0075;
-  const fog = new THREE.FogExp2('#172126', normalFogDensity);
+  const fog = new THREE.FogExp2(GREATER_REALM_SKY.fog, normalFogDensity);
   scene.fog = fog;
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 2_000);
   const center = axialToWorld({ q: options.atlasQ, r: options.atlasR }, 1);
@@ -668,6 +679,7 @@ export function createGreaterRealmWorldCanvasHost(
   const minimumCameraDistance = 4;
   let maximumCameraDistance = Math.max(96, span * 4);
   let normalViewDistance = Math.hypot(span * 0.48, span * 0.72, span * 0.74);
+  let atmosphere: GreaterRealmAtmosphere | undefined;
   const applyCamera = () => {
     const horizontal = Math.cos(cameraPitch) * cameraDistance;
     camera.position.set(
@@ -691,11 +703,12 @@ export function createGreaterRealmWorldCanvasHost(
     maximumCameraDistance = Math.max(maximumCameraDistance, cameraDistance);
     cameraYaw = Math.atan2(offsetX, offsetZ);
     cameraPitch = Math.atan2(offsetY, Math.hypot(offsetX, offsetZ));
+    atmosphere?.setFrame(center.x, center.z, viewSpan);
     applyCamera();
   };
   frameCamera(span);
 
-  scene.add(new THREE.HemisphereLight('#dcecff', '#38402d', 1.55));
+  scene.add(new THREE.HemisphereLight('#e2f0ff', '#46513a', 1.7));
   const sunlight = new THREE.DirectionalLight('#ffe4b0', 2.2);
   sunlight.position.set(center.x - 25, 48, center.z + 18);
   scene.add(sunlight, worldGroup);
@@ -703,6 +716,10 @@ export function createGreaterRealmWorldCanvasHost(
   const resourceLayer = createPublicResourceLayer();
   const regionLayer = createVisibleRegionLayer();
   worldGroup.add(castleLayer.group, resourceLayer.group, regionLayer.group);
+  // Outside the fitted world group: it never changes bounds, picking or fit.
+  atmosphere = createGreaterRealmAtmosphere({ profile: currentPolicy.graphicsProfile, reducedMotion: currentPolicy.reducedMotion });
+  atmosphere.setFrame(center.x, center.z, span);
+  scene.add(atmosphere.group);
   let selectionTargets: readonly GreaterRealmSelectionTarget[] = Object.freeze([]);
   let selectedTargetIndex = -1;
   let selectedSelection: GreaterRealmWorldSelection | undefined;
@@ -729,8 +746,10 @@ export function createGreaterRealmWorldCanvasHost(
   ) => {
     const castleDrawCalls = castleLayer.count > 0 ? 1 : 0;
     const regionDrawCalls = regionLayer.count > 0 ? 1 : 0;
-    const hostDrawCalls = castleDrawCalls + regionDrawCalls + resourceLayer.drawCallCount;
-    const hostInstances = castleLayer.count + regionLayer.count + resourceLayer.count;
+    const hostDrawCalls = castleDrawCalls + regionDrawCalls + resourceLayer.drawCallCount
+      + (atmosphere?.drawCalls() ?? 0);
+    const hostInstances = castleLayer.count + regionLayer.count + resourceLayer.count
+      + (atmosphere?.instanceCount() ?? 0);
     const voxelFallbackReasons = Object.freeze([
       ...(sceneTelemetry.voxelFallbackReasons ?? []),
       ...castleLayer.voxelFallbackReasons
@@ -851,6 +870,7 @@ export function createGreaterRealmWorldCanvasHost(
       let castleUploadBytesThisFrame = 0;
       let hostUploadBytesThisFrame = 0;
       if (!telemetry.contextLost) {
+        atmosphere?.update(performance.now() / 1000);
         activeRenderer.render(scene, camera);
         castleUploadBytesThisFrame = castleLayer.consumePendingUploadBytes();
         hostUploadBytesThisFrame = castleUploadBytesThisFrame
@@ -895,6 +915,7 @@ export function createGreaterRealmWorldCanvasHost(
     try { castleLayer.dispose(); } catch { /* Continue teardown. */ }
     try { resourceLayer.dispose(); } catch { /* Continue teardown. */ }
     try { regionLayer.dispose(); } catch { /* Continue teardown. */ }
+    try { atmosphere?.dispose(); } catch { /* Continue teardown. */ }
     try { scene.clear(); } catch { /* Teardown is complete. */ }
     notifyFailure();
     return undefined;
@@ -1269,6 +1290,7 @@ export function createGreaterRealmWorldCanvasHost(
       maximumCameraDistance = Math.max(96, span * 4);
       normalViewDistance = Math.hypot(span * 0.48, span * 0.72, span * 0.74);
       camera.userData.greaterRealmReducedMotion = currentPolicy.reducedMotion;
+      atmosphere?.configure(policy.graphicsProfile, policy.reducedMotion);
       appliedSignature = undefined;
       try { previousRuntime.stopAnimation(); } catch { /* Continue replacement. */ }
       try { previousRuntime.dispose(); } catch { /* Continue replacement. */ }
@@ -1348,6 +1370,7 @@ export function createGreaterRealmWorldCanvasHost(
     try { castleLayer.dispose(); } catch { /* Continue teardown. */ }
     try { resourceLayer.dispose(); } catch { /* Continue teardown. */ }
     try { regionLayer.dispose(); } catch { /* Continue teardown. */ }
+    try { atmosphere?.dispose(); } catch { /* Continue teardown. */ }
     try { scene.clear(); } catch { /* Continue teardown. */ }
     try { activeRenderer.dispose(); } catch { /* Teardown is complete. */ }
   };

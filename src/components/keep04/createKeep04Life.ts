@@ -181,10 +181,10 @@ export function createKeep04Life(options: Readonly<{
       const worker = person.worker!; const resource = worker.resource;
       if (worker.phase === 'idle' || worker.phase === 'gathering') {
         if (worker.phase === 'gathering') return;
-        const angle = (worker.ordinal / 4) * Math.PI * 2 + .5; const x = Math.sin(angle) * 3.4; const z = 2 + Math.cos(angle) * 3.4;
-        const yaw = angle + Math.PI;
-        writePerson(x, .04, z, yaw + Math.sin(time * .7 + worker.ordinal) * .25, 0, WORKER_TUNIC, SKINS[worker.ordinal % SKINS.length]);
-        writeCart(x + Math.sin(angle + .9) * 1.6, .04, z + Math.cos(angle + .9) * 1.6, yaw, null);
+        // Idle Workers wait in a tidy row at the front of the commons, carts beside them, facing the gate.
+        const x = -3.75 + worker.ordinal * 2.5; const z = 6.1;
+        writePerson(x, .04, z, Math.sin(time * .6 + worker.ordinal) * .3, 0, WORKER_TUNIC, SKINS[worker.ordinal % SKINS.length]);
+        writeCart(x + .55, .04, z - 1.9, 0, null);
         return;
       }
       let distance: number;
@@ -233,8 +233,8 @@ export function createKeep04Life(options: Readonly<{
       const innerCount = Math.min(limits.inner, 4 + settled.length * 2 + Math.floor(prosperity / 3));
       const innerRandom = keep04Random(1201 + prosperity * 7 + settled.length);
       const inner: Person[] = [];
-      const routes: Point2[][] = walkways.map((walkway, index) => [...walkway.points.map(point => [point[0], point[1]] as Point2),
-        [Math.sin(index * 1.9) * 3.2, 2 + Math.cos(index * 1.9) * 3.2]]);
+      // Each walkway ends where it joins the civic network, spreading people around the commons.
+      const routes: Point2[][] = walkways.map(walkway => walkway.points.map(point => [point[0], point[1]] as Point2));
       routes.push([[-1.6, 6.5], [-1.6, 30.5]], [[1.6, 30.5], [1.6, 6.5]], [[-4, -2.4], [4, -2.4], [4, 6.4], [-4, 6.4], [-4, -2.4]]);
       for (let i = 0; i < innerCount; i++) {
         const route = routes[i % routes.length];

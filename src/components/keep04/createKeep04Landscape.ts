@@ -185,7 +185,8 @@ export function createKeep04Landscape(options: Readonly<{
     const fort = createKeep04Kit();
     try {
       const ground = options.plinthGroundAt;
-      const towers: Array<[number, number, number, number]> = [[-49, -50, 10, 3], [49, -50, 10, 3], [-49, 37.5, 8, 2.6], [49, 37.5, 8, 2.6]];
+      // Rear towers may be tall; the two camera-side corners stay low so they never hide the deck.
+      const towers: Array<[number, number, number, number]> = [[-49, -50, 10, 3], [49, -50, 10, 3], [-49, 37.5, 4.6, 2.3], [49, 37.5, 4.6, 2.3]];
       for (const [x, z, height, radius] of towers) {
         const y = ground(x, z); fort.push([x, y, z]); const top = addTower(fort, height, radius); fort.pop();
         banners.push({ position: new THREE.Vector3(x, y + top, z), yaw: Math.atan2(-x, -z) });

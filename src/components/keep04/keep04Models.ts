@@ -60,15 +60,18 @@ export function addTower(kit: Keep04Kit, height: number, radius: number) {
   return top + 2.5;
 }
 
-/** Square gate tower with a pyramid roof. */
+/**
+ * Squat square gate turret with a pyramid roof. It stands on the camera side of
+ * the keep, so it stays low enough never to hide buildings near the gate.
+ */
 export function addGateTower(kit: Keep04Kit) {
-  kit.box(4.4, .6, 4.4, C.masonryShade, 0, .3, 0);
-  kit.box(4, 7.5, 4, C.masonry, 0, 4.35, 0);
-  for (const [x, z] of [[-1.6, -1.6], [1.6, -1.6], [-1.6, 1.6], [1.6, 1.6], [0, 1.6], [0, -1.6], [1.6, 0], [-1.6, 0]] as const) kit.box(.6, .6, .6, C.masonry, x, 8.4, z);
-  kit.cone(3.3, 3.2, 4, C.roofTeal, 0, 10.2, 0, Math.PI / 4);
-  kit.box(.6, 1.1, .1, C.window, 0, 5.6, 2.03);
-  kit.box(.1, 2.6, .1, C.timber, 0, 12.6, 0);
-  return 13.4;
+  kit.box(4.2, .5, 4.2, C.masonryShade, 0, .25, 0);
+  kit.box(3.8, 4.4, 3.8, C.masonry, 0, 2.7, 0);
+  for (const [x, z] of [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5], [0, 1.5], [0, -1.5], [1.5, 0], [-1.5, 0]] as const) kit.box(.55, .5, .55, C.masonry, x, 5.15, z);
+  kit.cone(3, 2.2, 4, C.roofTeal, 0, 6.3, 0, Math.PI / 4);
+  kit.box(.55, .9, .1, C.window, 0, 3.4, 1.93);
+  kit.box(.1, 2.4, .1, C.timber, 0, 8.4, 0);
+  return 9.1;
 }
 
 /** Straight wall with merlons, centred on its length along local X. */

@@ -162,9 +162,10 @@ const STATIC_GEOMETRY_BYTES = Object.freeze({
   crossing: 840,
   grass: 516,
   flower: 656,
-  npc: 1_208,
-  wildlife: 840,
-  boat: 840,
+  // Exact bytes of the vertex-coloured villager, rabbit and boat geometries.
+  npc: 3_888,
+  wildlife: 2_592,
+  boat: 3_024,
   signpost: 2_304,
   waystone: 796,
   lampPost: 3_072,
