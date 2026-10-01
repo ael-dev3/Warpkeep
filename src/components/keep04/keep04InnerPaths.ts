@@ -72,17 +72,24 @@ export function planKeep04Walkways(placements: readonly Placement04[]): readonly
   for (const placement of placements) {
     const door = keep04DoorPoint(placement); if (!insideDeck(door)) continue;
     const [fx, fz] = keep04FrontDirection(placement.rotation);
-    const stoop: Keep04Point = [door[0] + fx * 1.5, door[1] + fz * 1.5];
+    // A door facing the deck edge steps straight onto its walkway instead.
+    const step: Keep04Point = [door[0] + fx * 1.5, door[1] + fz * 1.5];
+    const stoop: Keep04Point = insideDeck(step) ? step : door;
     const join = civicJoin(stoop);
     // The door sits outside its own footprint, so the walkway may never re-enter it.
     const own = keep04FootprintRect(placement, -.2);
     const others = placements.filter(other => other !== placement).map(other => keep04FootprintRect(other, .6));
+    const doorJoin = civicJoin(door);
     const options: Keep04Point[][] = [
       [door, stoop, [join[0], stoop[1]], join],
       [door, stoop, [stoop[0], join[1]], join],
       [door, stoop, join],
+      // A neighbour standing on the doorstep: leave sideways straight from the door.
+      [door, [doorJoin[0], door[1]], doorJoin],
+      [door, [door[0], doorJoin[1]], doorJoin],
     ];
-    const chosen = options.find(option => clear(option, [own, ...others])) ?? options.find(option => clear(option, [own])) ?? null;
+    // Never draw a walkway through a building; a boxed-in door simply has none.
+    const chosen = options.find(option => clear(option, [own, ...others])) ?? null;
     if (!chosen) continue;
     // Drop zero-length legs so ribbons and walkers never meet degenerate segments.
     const points = chosen.filter((point, index) => index === 0 || Math.hypot(point[0] - chosen[index - 1][0], point[1] - chosen[index - 1][1]) > .05);
