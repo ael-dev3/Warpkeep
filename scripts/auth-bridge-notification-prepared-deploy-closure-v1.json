@@ -25,7 +25,7 @@
     {
       "path": ".github/workflows/verify.yml",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a77aa2e42267f32eaebc4ab88de5b5cf850c69e8fb27f0e8907d46f172e85581"
+      "sha256": "7fe235fb0274e6e7f2c006497d4b2050e22bfc036bdd2a1f0e753bace8164d84"
     },
     {
       "path": "config/releases/0.4.0-sealed-launch.json",
