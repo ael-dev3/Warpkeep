@@ -8,8 +8,8 @@ Continue PR #374 on fix/g001-census-admission-proxy; main remains 786c0b2b.
 It includes reviewed PRs #375–#378; do not merge their older heads separately.
 Resolve the final exact development head and build receipts from PR #374.
 
-Latest completed development preparation: 974a3ae6/tree a25b6128.
-Its /ptr/ build is terminal, exit 0, October 1 00:18:53.944–00:23:32.901 UTC:
+Latest completed development preparation: 271946c4/tree 9a5b539b.
+Its /ptr/ build is terminal, exit 0, October 1 00:42:01.872–00:46:38.831 UTC:
 clean unchanged UID-1000/Node-22.22.3 input and absent owned actor/group.
 Its 16-output family independently reproduces; native policy, payload and
 independent mirror/Alpha-preservation checks pass at this exact source, preserving
@@ -58,9 +58,19 @@ No current-head hosted pass, new trigger or provider write follows from this rea
 Normal PR Verify 36795398220 attempt1 subsequently starts on 974a3ae6.
 Its public shader-cache false positive and shallow-history Dispatcher collection
 failure are locally diagnosed and narrowly repaired; the execution handoff owns
-the exact failing jobs, scanner regression and Dispatcher evidence. Finish the
-remaining hosted checks before publishing the coherent repair; no final-head
-hosted success has been established.
+the exact failing jobs, scanner regression and Dispatcher evidence. This run
+finishes failed at 01:19:44 UTC; its connected migration/module job succeeds.
+Only the two diagnosed leaves and their aggregate fail. Publish the coherent
+repair for normal final-head Verify; no final-head hosted success is established.
+
+The refreshed complete Actions inventory ends at 01:22:11.841 UTC with no
+active runs in either repository. Retain
+artifacts/qa/october-actions-refresh-2026-10-01T012042325Z.json.
+The reviewed signed repair is backed up at the GitHub source-history tag
+source-history/warpkeep-0.4-october-validation-271946c4.
+The corrected publication guide targets activated A, and the owner journey
+records the authenticated Farcaster PTR launch; source-bound PTR readbacks
+belong before activation. These instructions do not establish live acceptance.
 
 EARLIER SOURCE-BOUND RECEIPTS
 

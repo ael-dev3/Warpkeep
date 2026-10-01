@@ -2,6 +2,67 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## October validation repair and preparation — 1 October 2026
+
+The first normal October PR Verify is
+[36795398220](https://github.com/ael-dev3/Warpkeep/actions/runs/36795398220),
+attempt 1, with PR head `974a3ae6` and base `786c0b2b`. The module job actually
+checks out their CI merge `ef0b72a37956bd15540860a1ba908ac8b2a98cf8`;
+its results must not be relabeled as tests of the later repaired source.
+The run starts at 00:17:07 UTC and finishes failed at 01:19:44 UTC:
+14 independent jobs succeed, two leaves fail and their aggregate fails.
+
+The [Linux history scan](https://github.com/ael-dev3/Warpkeep/actions/runs/36795398220/job/110157556144)
+finds only historical `9e07f475`'s public
+`keep04-cathedral-roof-teal-v1` shader-program cache label in
+`src/components/keep04/keep04CathedralRoofPalette.ts`. The label is not a
+credential. The repair requires the exact rule, path and literal together;
+same-path changed-value and copied/wrong-path examples remain mandatory
+findings. Real Gitleaks 8.30.1 regression passes 49 allowed examples and
+98 mandatory negatives; seven focused unit tests pass. The full retained
+history at signed `b3c6a072` and complete outgoing `974a3ae6` → `271946c4`
+range both finish with zero findings. Original failed logs remain intact.
+
+The [native-contract collection](https://github.com/ael-dev3/Warpkeep/actions/runs/36795398220/job/110157555953)
+cannot resolve genuine retained compiler input `5d175edf` from its shallow
+checkout. Only this checkout changes to full history; compiler manifests,
+original input identities and authentication remain unchanged. The native
+Dispatcher passes all 90 cases with the real historical tree. Separate
+workflow-boundary checks pass 35 cases with 39 Windows platform skips, then
+all 74 cases across three actual files on native Linux at `271946c4`.
+
+The [module job](https://github.com/ael-dev3/Warpkeep/actions/runs/36795398220/job/110157556183)
+succeeds at 01:19:37 UTC. Its pure suite passes 598 cases with zero failures
+or skips in 20m42.965s. Main/G002/PTR typechecks and builds, CLI 2.6.1
+binding comparison, actual disposable G002 private loopback, worker/access
+migration and all eight admission-rejection surfaces pass. Full additive
+protocol-v18 migration takes 33m1.604s and succeeds; connected synthetic
+import, relocation/rollback and active population also pass. Module dependency
+audit reports no known vulnerabilities. The long run establishes no hang
+or module timing failure. Saved module log is 307,974 bytes, SHA-256
+`1ae5ec694a4b0035cf1bc285a3c2349714b404590b66439d1687f1f4aa2d62de`.
+
+Signed repair `271946c447c4238653cdc4e9a0be86635d080447`, tree
+`9a5b539b8c2199ee109887697ed0b7f772b22807`, completes exact native production
+preparation at 00:42:01.872–00:46:38.831 UTC: exit 0, unchanged clean
+UID-1000/Node-22.22.3 source and verified absent owned actor/group. Its complete
+16-output/1,250-member family independently reproduces, with manifest
+`0e0d9de130abda66e2cb17c4e5a753ab0b68aeb291a218085afaa315e71506cb`.
+The payload manifest is
+`443af894ac2282572bb0bae745337798d4dd07fbf63d70e165a3da61f6a88b9e`.
+Independent raw-Git preservation against public parent `b6afe92e` retains
+all 341 Alpha entries and removes none; plan is
+`c1294aefbe4be0620472ad43fb839a0ffa55fd0952592bc201c5946952d03113`.
+The exact signed repair is backed up on GitHub under
+`source-history/warpkeep-0.4-october-validation-271946c4`; no duplicate
+Actions run follows that tag. The complete refreshed inventory finishes at
+01:22:11.841 UTC with no active runs in either repository.
+
+These are scoped development and original-PR receipts. Require normal Verify
+on the repaired final head, actual M1/M2 integration, supported source-bound
+realm operations, activated-A publication and real-owner/device acceptance.
+Neither local preparation nor this original failed run establishes a release.
+
 ## Completed keyboard readback and Keep lifecycle heap — 1 October 2026
 
 At signed `789933e2`, tree `a157a78d`, all 16 family outputs / 1,250 members

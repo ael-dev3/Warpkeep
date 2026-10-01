@@ -3,6 +3,55 @@
 Recorded 2026-09-09 from the Windows development checkout. This record is an
 evidence boundary, not a claim that the live owner journey is complete.
 
+## Production PTR launch procedure — 2026-10-01
+
+This is a source-backed procedure for the next authenticated visit, not a
+completed owner-session receipt.
+
+1. Complete [M1, exact-M1 native preparation/check and generated M2](../../operations/0.4.0-local-release-preparation.md#source-only-m1-before-native-release-preparation),
+   the existing-realm sealed operations and retained adoption evidence. Obtain
+   supported source-bound PTR bridge/realm readbacks on accepted preparation
+   source `S` before the [direct `S` → activation `A` commit](../../operations/genesis-002-sealed-launch.md).
+   Require exact-`A` Verify and binding/history checks, then the
+   [signed `/ptr/` publication and live PTR/Alpha postflight](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
+   before starting this visit. Keep the existing owner, realm identities and
+   preserved Alpha root.
+2. In the logged-in Farcaster Mini App Debug Tool, preview exactly
+   `https://warpkeep.com/ptr/?miniApp=true`, using the existing
+   [Mini App host-launch mechanism](../../operations/owner-player-canary.md#approved-mini-app-reachability).
+   PTR uses the standard game entry below; keep that reference's canary URL and
+   signed packet stages with their existing G001 scope. The PTR preview URL is
+   derived from the published `/ptr/` base and exact launch-hint parser; its
+   host reachability still needs an observed result. No app ID/slug or universal
+   deep link is inferred here.
+   Verify the canonical apex/subpath and exactly one literal `miniApp=true`
+   query value. The [PTR provider](../../../src/ptr/PtrRealmProvider.tsx) requires
+   a verified Mini App host and Quick Auth `getToken`; the URL hint alone and
+   desktop Alpha QR sign-in do not establish PTR access. The current published
+   [Mini App home URL](../../../public/.well-known/farcaster.json) opens the Alpha
+   root, so use this explicit PTR subpath for the PTR visit.
+3. Reach the main menu. On the automatic Mini App entry gate, choose **BACK TO
+   MENU** when offered, or use the host Back control (desktop **Escape**).
+   If Terms is open, the first Back/Escape dismisses it; the next returns to the
+   menu. This keeps the verified host and disables automatic Alpha entry for
+   the visit. If Alpha already opened, use its **MAIN MENU** control.
+   Choose **ENTER REALM**, **Public Test Realm**, then
+   **ENTER SELECTED REALM**. When access is unknown, the first activation checks
+   it; wait for server-verified **Admitted**, then activate **ENTER SELECTED
+   REALM** again. Record an unavailable/not-admitted result and resolve its
+   existing bridge/realm boundary before continuing. The [actual menu caller](../../../src/components/menu/WarpkeepMainMenu.tsx)
+   controls this two-step check and entry.
+4. Record the activated source/tree, published commit, UTC timing, host and
+   device/browser/viewport/quality, and observed outcomes without tokens,
+   private owner identifiers or player rows. Verify the actual atlas journey
+   **gather → choose → build → benefit → return**, including the first building
+   and improved return within ten minutes, persistence, reconnect and
+   background/resume. Keep synthetic and authenticated results separate.
+5. Follow the [production R06 profiles and workload](performance.md#workload-and-method)
+   for cold loading, actual world/keep rendering, transfer, repeated switches
+   and resource disposal. A successful login or menu capture is not full R06;
+   physical-phone and real-owner results remain separately required.
+
 ## Scope clarified — 2026-09-30
 
 Earlier qa:fullstack:local browser runs use a disposable spacetimedb/src/ copy

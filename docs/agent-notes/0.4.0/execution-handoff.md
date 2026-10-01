@@ -9,9 +9,9 @@ on `fix/g001-census-admission-proxy`. It includes reviewed PRs #375–#378;
 do not merge their older heads separately. Main remains `786c0b2b`.
 Resolve the current exact development head and final build receipts from the PR.
 
-The latest completed development preparation is `974a3ae6`,
-tree `a25b6128`. Its `/ptr/` production build is terminal, exit 0:
-2026-10-01T00:18:53.944Z–00:23:32.901Z, with clean unchanged input,
+The latest completed development preparation is `271946c4`,
+tree `9a5b539b`. Its `/ptr/` production build is terminal, exit 0:
+2026-10-01T00:42:01.872Z–00:46:38.831Z, with clean unchanged input,
 UID 1000/Node 22.22.3 and verified absent owned actor/group. All 16
 source-family outputs independently reproduce; native policy passes with 1,250
 closure members. Payload and independently checked mirror/Alpha-preservation
@@ -85,8 +85,10 @@ checkout to full history, preserving original manifests and authentication.
 The existing native Dispatcher suite passes all 90 tests with the genuine
 historical tree available. Retain the original failed job logs and local
 readbacks under `artifacts/qa/october-974a3ae6-*`; do not relabel that hosted
-attempt as passing. Let its remaining jobs finish, review their diagnostics,
-then publish the coherent locally checked repair for normal final-head Verify.
+attempt as passing. It finishes at 01:19:44 UTC with 14 independent jobs
+successful, only the diagnosed Linux/native-contract leaves failed and their
+aggregate failed. The connected migration/module job succeeds at 01:19:37 UTC.
+Publish the coherent locally checked repair for normal final-head Verify.
 
 Next, publish one coherent signed checkpoint without CI skip directives and
 use its normal PR Verify. Verify has no manual dispatch; reopening/dispatching
@@ -108,6 +110,15 @@ Complete expensive preparation before activation's fresh **inline** G001 census.
 Use the existing [connection/recovery paths](../../operations/0.4.0-infra-access.md#resume-without-guessing)
 and [PTR publisher](../../operations/0.4.0-infra-access.md#existing-alpha-frontend-restored);
 no new recovery key, hosting clone or Desktop output is needed.
+
+The refreshed complete Actions inventory ends at 01:22:11.841 UTC with no
+active runs in either repository. Retain
+`artifacts/qa/october-actions-refresh-2026-10-01T012042325Z.json`.
+The reviewed signed repair is backed up at the GitHub source-history tag
+`source-history/warpkeep-0.4-october-validation-271946c4`.
+The corrected publication guide targets activated A, and the owner journey
+records the authenticated Farcaster PTR launch; source-bound PTR readbacks
+belong before activation. These instructions do not establish live acceptance.
 
 ## Previous delivery checkpoint — 30 September 2026, 17:57 CEST (15:57 UTC)
 
