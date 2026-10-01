@@ -4,6 +4,41 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Patched pnpm runtime and current Linux snapshot — 1 October 2026
 
+The published repair `7be8ae48` starts normal PR Verify
+[36841020942](https://github.com/ael-dev3/Warpkeep/actions/runs/36841020942),
+attempt 1. Its Linux scanner and full-history native-contract jobs pass;
+the two original blockers are exercised successfully. The recovery job finishes
+failed at 09:12:10 UTC with 1,498 passes and one stale Pages-toolchain assertion
+across 49 files. The precise service test now expects CLI 11.11.0 and the explicit
+no-switch command: its selected case fails before and passes after, with 353
+unselected cases. Retain `october-recovery-pages-focused-summary.json`.
+
+Root shard 4 finishes failed at 09:19:58 UTC with 2,572 passes and one
+post-gate SIGKILL fixture timeout. The fixture announces its identity before
+releasing the gate; killing immediately can legitimately leave it pre-gate.
+The test now observes durable gate consumption and the live group before
+killing its parent, then retains both ambiguity-denial checks and verifies the
+same surviving group. No publisher runtime, fixture, timeout or skip changes.
+The unmodified selected case passes locally; the retained hosted failure is
+the before evidence. The patched full native file passes 67/67; owned actors
+and groups are absent and the original clean native source is restored.
+Retain `october-postgate-summary.json` with its exact report hashes.
+
+That hosted run also shows the v6.0.9 Actions installer first installing its
+older 11.7 seed before switching to the requested CLI 11.11.0. The reviewed
+[official v6.0.10 release](https://github.com/pnpm/action-setup/releases/tag/v6.0.10),
+verified commit `0977fd99725f1db4007ccb2928dbb4e90d06cc86`, replaces all nine
+current CI/Pages installer pins. Its integrity-pinned pnpm and standalone seeds
+are 11.19.0; the bundled implementation matches those locks. Explicit requested
+CLI 11.11.0, no-switch settings, historical declarations and fixtures stay fixed.
+The changed cache-restore branch is inactive for these consumers. The official
+exact-version advisory query returns no published matches; no absolute security
+guarantee or exploitation claim follows. Retain
+`october-action-setup-v6010-audit.json`. Focused Windows caller checks pass
+36 cases, zero failures and 39 platform skips across three files. These repairs
+await complete-family regeneration and one coherent publication after the
+current hosted run finishes; no final-head hosted pass is claimed.
+
 Official GitHub advisory metadata retained in
 `artifacts/qa/october-pnpm-11.7-advisories.json` identifies four high-severity
 advisories affecting pnpm 11.7.0. Three first require 11.11.0:

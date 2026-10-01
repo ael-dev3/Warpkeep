@@ -509,7 +509,7 @@ printf '%s\\n' ptr-fixed-argument-transport-ok
       'Verify isolated existing-update dispatch and recovery', 'Verify native production contracts'];
     expect(steps.map(step => step.name)).toEqual(expectedNames);
     expect(steps[2]).toMatchObject({ uses: 'actions/setup-node@820762786026740c76f36085b0efc47a31fe5020', with: { 'node-version': '22.22.3', cache: 'npm' } });
-    expect(steps[3]).toMatchObject({ uses: 'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271', with: { version: '11.11.0', run_install: false } });
+    expect(steps[3]).toMatchObject({ uses: 'pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86', with: { version: '11.11.0', run_install: false } });
     expect(steps[5].run?.trim().split(/\s+/u)).toEqual(['npm', 'ci']);
     expect(steps[6].run?.trim().split(/\s+/u)).toEqual(['pnpm', '--pm-on-fail=ignore', '--dir', 'services/auth-bridge', 'install', '--frozen-lockfile', '--ignore-scripts']);
     // Reuse the existing Linux job's complete staging/attestation contract, not a

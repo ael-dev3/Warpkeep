@@ -1288,13 +1288,19 @@ describe('Greater Realm production publisher lanes', () => {
     let pgid: number | undefined;
     try {
       fixture = await startPublishSupervisorCrashFixture('post-gate', supervisorRoot);
+      // The identity is emitted before release; observe the durable gate before parent death.
+      const ready = await waitForPublishSupervisor(
+        fixture.identity,
+        value => value.status.state === 'gate-consumed' && value.processGroupExists,
+      );
+      pgid = ready.status.pgid as number;
       fixture.child.kill('SIGKILL');
       await new Promise<void>(resolvePromise => fixture!.child.once('close', () => resolvePromise()));
       const live = await waitForPublishSupervisor(
         fixture.identity,
         value => value.status.state === 'gate-consumed' && value.processGroupExists,
       );
-      pgid = live.status.pgid as number;
+      expect(live.status.pgid).toBe(pgid);
       expect(authorizeGreaterRealmPublishExactBeforeClear(fixture.identity)).toBe(false);
       process.kill(-pgid, 'SIGKILL');
       await waitForPublishSupervisor(fixture.identity, value => !value.processGroupExists);

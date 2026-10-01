@@ -135,7 +135,7 @@ jobs:
           cache: npm
 
       - name: Setup pinned pnpm for bridge runtime-contract tests
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 11.11.0
           run_install: false
@@ -560,7 +560,7 @@ jobs:
           node-version: 22.22.3
 
       - name: Setup the pinned recovery build package manager
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 11.11.0
           run_install: false
@@ -806,7 +806,7 @@ jobs:
             scripts/notification-pages-private-deploy-launcher.mjs
 
       - name: Setup exact pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
           version: 11.11.0
           run_install: false

@@ -57,7 +57,7 @@ describe('required recovery verification', () => {
       },
       {
         name: 'Setup pnpm',
-        uses: 'pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271',
+        uses: 'pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86',
         with: { version: '11.11.0', run_install: false },
       },
     ]);
