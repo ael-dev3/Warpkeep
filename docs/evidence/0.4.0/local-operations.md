@@ -2,13 +2,21 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current unpublished PTR fixture correction — 2 October 2026
+## Current verified Living Realm state — 2 October 2026
 
-The first native closure validation of local `1b20c8dd` ran 02:30:02.245–02:36:16.017 UTC and ended outer exit 1: **223 passes and one failure out of 224 assertions in eight actual files**. The sole failure is the exact PTR browser dependency fixture: the protected closure correctly includes the existing `src/ptr/gameplay04/gameplay04Journeys.ts` module, while the expected array omits it. No later app/types, Vite/types or policy phases ran. Independent failed-run cleanup proved the actual wrapper/child births and full process group absent, with raw source and index unchanged. These receipts are retained as failure and cleanup evidence.
+Runtime checkpoint 8b57f62a, tree 3f810073, is signed with ordered parents PR381 8c22fddb and R2 d4f40cb5. Native 224/224 assertions in eight files, app/Vite-config noEmit, sealed/policy checks, owned cleanup, zero-finding scan 817e2296, primary sync c4e9ecee and unopened remote backup 31dd3e64 are complete. Main cb282bab and PR380/381 are unchanged; the backup created no CI.
 
-The pending correction is one sorted fixture literal and three current note prefixes. A normal signed amend of our own unpublished merge must retain PR381/R2 parents, all 16 source-family bytes, 1,263 protected members and the authentic historical `cb282bab` compiler manifests/five bodies. The earlier source-only frontend overlay's 474 passes/21 files and two scoped typechecks remain unchanged and have not been repeated. No new successor identity or validation outcome is asserted.
+Keep the 1b20 failure a556248b and cleanup df00c504 as historical evidence: 223/224 passed; later phases did not run. The repaired 8b pass supersedes it. Earlier 474-pass/21-file frontend overlay dcb3706b remains separately scoped.
 
-New checkpoint, native release checks, scan, primary sync and backup remain pending. GitHub Actions billing requires the already requested human handoff; main `cb282bab`, PR380 `53edd619` and PR381 `8c22fddb` remain unchanged. This is local development evidence, with no production, owner/phone or R06 acceptance. Initial PTR/G002 updates/adoptions remain before later activation's supported import-authority establishment; future accepted-main compilation must supply current compiler authority.
+Production-optimized synthetic Keep: all 12 eligible 60s+ camera samples pass unchanged CPU draw-submission p95 ceilings. Profile worst values are 17.2/18.0/33.8/17.7ms against 33.4/50/75/50ms (desktop/balanced/reduced/landscape).
+
+World v2: all 12 eligible 60s+ ambient samples miss unchanged nominal p95 ceilings. Profile worst values are 50.9/67.5/84.7/67.4ms against 50/66.7/83.4/66.7ms. Original mobile fixture failure 0ac4149d is retained; the reviewed QA selector repair passed eight decoder cases while preserving the real LOD contract. That fixture failure and residual clock variation do not establish a production bug.
+
+Each component's four runs retain normal owned Chrome/native cleanup and unchanged 8b source/index. These CPU/RAF/GL-call observations do not establish GPU/presented frames, touch latency, maximum World density, cold loads, heap/lifecycle, physical-phone, owner-journey or full R06 acceptance.
+
+Billing still blocks hosted acceptance. Learn the notes-only follow-on HEAD from its actual signed receipt; runtime remains 8b with no code/family/compiler change. Resume with fresh billing readback, retarget existing PR381 base to main, then one fast-forward head update to the reviewed integrated notes HEAD. Obtain exact-source 17-job Verify, accepted M1/main Verify, genuine M1 prepare/check and generated-only M2, then actual S/main Verify before provider/PTR work. CB compiler bodies stay historical; initial PTR/G002 updates/adoptions precede later activation establishment.
+
+Evidence under artifacts/qa: october-release-r06-living-8b57f62a-keep-four-profile-summary.json; october-release-r06-living-8b57f62a-world-v2-four-profile-independent-summary.json; october-release-living-realm-native-checks-v2-20261002T030747534Z-summary.json.
 
 ## Historical unpublished integration record — 2 October 2026
 

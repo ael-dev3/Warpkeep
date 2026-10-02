@@ -3,15 +3,21 @@
 <!-- Preserve the incoming current-checkpoint link in live-delivery-status.md. -->
 <a id="current-release-checkpoint--1-october-2026"></a>
 
-## Current unpublished PTR fixture correction — 2 October 2026
+## Current verified Living Realm state — 2 October 2026
 
-The signed local integration `1b20c8dd` is unpublished. Its first native release-closure run failed one assertion: the exact PTR browser inventory omitted the already protected `src/ptr/gameplay04/gameplay04Journeys.ts` path. The reviewed correction adds that single sorted literal to the fixture and updates these current notes; it does not change product behavior or authority.
+Runtime checkpoint 8b57f62a, tree 3f810073, is signed with ordered parents PR381 8c22fddb and R2 d4f40cb5. Native 224/224 assertions in eight files, app/Vite-config noEmit, sealed/policy checks, owned cleanup, zero-finding scan 817e2296, primary sync c4e9ecee and unopened remote backup 31dd3e64 are complete. Main cb282bab and PR380/381 are unchanged; the backup created no CI.
 
-The run lasted 02:30:02.245–02:36:16.017 UTC: **223 passed, 1 failed, 224 total** across eight actual files, outer exit 1. It stopped after the closure phase; the later app/types, Vite/types and policy phases did not run. Independent cleanup proved the wrapper/child births and full group absent, with raw bytes of all tracked files and the native index preserved. This failure remains evidence, not acceptance. The earlier source-only frontend overlay retains its actual **474 passes across 21 files and two successful scoped typechecks**; those checks have not been repeated.
+Keep the 1b20 failure a556248b and cleanup df00c504 as historical evidence: 223/224 passed; later phases did not run. The repaired 8b pass supersedes it. Earlier 474-pass/21-file frontend overlay dcb3706b remains separately scoped.
 
-A normal signed amendment of the own unpublished integration is being prepared, retaining ordered PR381/R2 parents. No successor SHA is assigned yet. The existing 1,263-member closure, all 16 derived files and the authentic earlier `cb282bab` compiler manifests/five bodies must remain byte-identical; their authority is historical until actual accepted-main compilation. The new checkpoint, native checks, outgoing scan, primary sync and unopened backup remain pending.
+Production-optimized synthetic Keep: all 12 eligible 60s+ camera samples pass unchanged CPU draw-submission p95 ceilings. Profile worst values are 17.2/18.0/33.8/17.7ms against 33.4/50/75/50ms (desktop/balanced/reduced/landscape).
 
-GitHub Actions billing remains blocked with the human handoff pending. Remote main remains `cb282bab`; PR380 remains `53edd619` and PR381 remains `8c22fddb`. No PR head, provider state, production release, owner/phone or R06 acceptance has changed. Resume from genuine signed/check/scan/sync receipts, then preserve the reviewed source on its unopened backup branch. Initial PTR/G002 updates and adoptions still precede later activation's supported import-authority establishment.
+World v2: all 12 eligible 60s+ ambient samples miss unchanged nominal p95 ceilings. Profile worst values are 50.9/67.5/84.7/67.4ms against 50/66.7/83.4/66.7ms. Original mobile fixture failure 0ac4149d is retained; the reviewed QA selector repair passed eight decoder cases while preserving the real LOD contract. That fixture failure and residual clock variation do not establish a production bug.
+
+Each component's four runs retain normal owned Chrome/native cleanup and unchanged 8b source/index. These CPU/RAF/GL-call observations do not establish GPU/presented frames, touch latency, maximum World density, cold loads, heap/lifecycle, physical-phone, owner-journey or full R06 acceptance.
+
+Billing still blocks hosted acceptance. Learn the notes-only follow-on HEAD from its actual signed receipt; runtime remains 8b with no code/family/compiler change. Resume with fresh billing readback, retarget existing PR381 base to main, then one fast-forward head update to the reviewed integrated notes HEAD. Obtain exact-source 17-job Verify, accepted M1/main Verify, genuine M1 prepare/check and generated-only M2, then actual S/main Verify before provider/PTR work. CB compiler bodies stay historical; initial PTR/G002 updates/adoptions precede later activation establishment.
+
+Evidence under artifacts/qa: october-release-r06-living-8b57f62a-keep-four-profile-summary.json; october-release-r06-living-8b57f62a-world-v2-four-profile-independent-summary.json; october-release-living-realm-native-checks-v2-20261002T030747534Z-summary.json.
 
 ## Historical unpublished integration record — 2 October 2026
 
