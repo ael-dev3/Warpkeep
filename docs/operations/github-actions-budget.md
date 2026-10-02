@@ -121,11 +121,15 @@ are bound without copying a Windows-only local config. Each successful build ret
 output inventory and validates actual application/owner script and stylesheet
 targets before the next build replaces `dist`.
 
-At the retained development checkpoint, build-mode types and all three complete
-production builds passed locally. A stale package fingerprint stopped the sealed
-source check; the supported pin derivation repairs only that reviewed package
-change. Preserve the failed run and validate the resulting signed source before
-claiming an aggregate pass. These checks consume no hosted runner execution.
+The corrected fixed lane passed at its retained signed development source,
+including the sealed-source check, build-mode types and all three complete builds.
+Its earlier failed runs remain separate. The preparation graph also requires
+the production-dist verifier declaration: its actual four-export ABI and the
+mechanically derived family now pass the affected focused checks. Keep the earlier
+timeout, type and stale expectation failures separate from the corrected results.
+Derive the family through the existing attested scanner; do not exempt a missing
+declaration or type generated hashes by hand. Neither result is compiler,
+accepted-main or deployment authority. These checks use no hosted runners.
 
 The lane is diagnostic and cannot authorize deployment. Complete dependency
 bytes, npm audit/signature provenance, services, connected module, full test

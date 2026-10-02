@@ -16,7 +16,6 @@ import {
   publishPublicPagesPublication,
   publishPublicPagesRollback,
 } from '../scripts/public-pages-publication-operator.mjs';
-// @ts-expect-error Production output policy is an executable ESM module.
 import { allowedProductionHtmlPaths, expectedProductionCspByPath } from '../scripts/verify-production-dist-exclusions.mjs';
 
 const workflowTemplateBytes = readFileSync(resolve(process.cwd(), PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH));
@@ -72,7 +71,7 @@ function fixture(workflowDeployment = false) {
   git(source, ['commit', '--quiet', '-m', 'Exact signed source fixture']);
   const sourceCommit = git(source, ['rev-parse', 'HEAD']);
   const dist = join(source, 'dist');
-  for (const path of allowedProductionHtmlPaths as readonly string[]) {
+  for (const path of allowedProductionHtmlPaths) {
     const document = path === 'index.html'
       ? sourceIndex.replace('/src/main.tsx', '/assets/application-reviewed.js')
       : path === 'owner-canary/index.html'

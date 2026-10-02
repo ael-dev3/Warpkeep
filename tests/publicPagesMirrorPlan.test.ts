@@ -17,7 +17,6 @@ import { parse } from 'yaml';
 import { writePublicPagesPayloadManifest } from '../scripts/verify-public-pages-payload.mjs';
 // @ts-expect-error Standalone release utility has named test seams.
 import { SOURCE_PUBLIC_DOCUMENTS, PUBLIC_PAGES_WORKFLOW_PATH, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH, generatedPath, inspectPublicMirror, renderPublicPagesMirrorReadme, verifyPublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
-// @ts-expect-error Production output policy is an executable ESM module.
 import { allowedProductionHtmlPaths, expectedProductionCspByPath } from '../scripts/verify-production-dist-exclusions.mjs';
 
 const workflowTemplateBytes = readFileSync(resolve(process.cwd(), PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH));
@@ -68,7 +67,7 @@ function candidate() {
   write(join(root, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH), workflowTemplateBytes);
   const expectedSourceCommit = commit(root, 'Create exact source fixture');
   const dist = join(root, 'dist');
-  for (const path of allowedProductionHtmlPaths as readonly string[]) {
+  for (const path of allowedProductionHtmlPaths) {
     const document = path === 'index.html'
       ? sourceIndex.replace('/src/main.tsx', '/assets/application-reviewed.js')
       : path === 'owner-canary/index.html'

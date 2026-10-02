@@ -70,7 +70,7 @@ describe('notification bridge B0 security closure topology', () => {
     expect(derived).toEqual(
       AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
     );
-    expect(derived).toHaveLength(1263);
+    expect(derived).toHaveLength(1272);
     // New shipped browser modules must be reached by the real import graph,
     // rather than admitted only by editing the builtins-only literal.
     for (const path of LIVING_REALM_BROWSER_CLOSURE_PATHS) {
