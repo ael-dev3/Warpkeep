@@ -16,23 +16,11 @@ before following historical hosted-Verify directions. Actions is globally
 disabled; complete local verification is being integrated with the existing
 release callers. Selected local diagnostics do not authorize deployment. The
 intended route retains genuine GitHub dispatch/OIDC for bounded operations.
-The maintained verifier, explicitly closed native consumer and opt-in Pages
-workflow/publication/postflight are implemented. Complete verification coverage,
-durable namespace access, prepared reuse and cumulative admission remain open;
-none of those source additions has enabled or deployed a workflow.
-Separate source-check and service-check plans retain actual command/report
-results and uncovered dependency scope. At signed code source `41e760fe`, the
-service slice passed nine commands: 2,069 assertions across 76 files plus five
-separate type/declaration checks, with independent raw-report and actor/source
-readback. This is local service evidence; full verification and production
-authority remain closed. Genuine development preparation retains its recorded
-`b9ca8ca7` scope. The minimal privileged receipt reader remains independent of
-local execution tools and refuses incomplete evidence.
-The connected-module plan is retained in native `artifacts/qa` and remains
-planning-only; its actual execution request was refused before any connected check. Complete native tests, connected containment
-and authenticated source transport are next. Read the latest handoff for the
-original failed attempts, completed service proof and remaining acceptance.
-Signed `bd6c0b7c` publishes the workflow-evidence fixture repair and current notes (`cb0a1d22`). Its complete native/Windows 134-case proofs retain their original overlay scope. Six maintained namespace changes are now integrated in both checkouts; the focused native run passed all 78 assertions in its two changed files plus app/all-tests types and helper syntax, with independent actor/source closure. The helper's physical 0755 correction is retained; its next signed checkpoint must record Git 100755. Provisioning and isolated runtime execution remain pending. Sign and publish the coherent checkpoint, then provision and validate the fixed launcher before full ordinary/module verification. Full coverage and release authority remain closed.
+The maintained verifier and explicitly closed native consumer retain real local reports without granting production authority. Signed `5cddb1a7` / tree `f2b1e73e` is the published clean baseline. Its maintained namespace run passed 260 assertions with one known source-declared skip; that skip is not a pass. The full ordinary run completed with 12,970 passes, 11 failures and 68 skips, then failed canonical-index preservation. It did not time out.
+
+This coherent repair checkpoint descends from the published baseline and integrates eleven reviewed repair candidates plus five mechanically derived metadata changes; its signed identity must come from actual receipts. The completed focused run covers 15 whole files: 715 passed, nine failed and none skipped or unfinished of 724 assertions. Its first group retains nine notification clean-checkout failures; the other groups passed 400 and 194 cases. App/all-tests types and three module syntax checks returned normal 0/null. Independent cleanup preserved the focused source/index/refs, but the aggregate remains failed. Rerun the complete 20-case notification file from a clean local signed checkpoint and retain closure before remote backup, without weakening its guard. A separate three-mode unprivileged sleep-fixture crash rehearsal passed independent audits; maintained connected execution remains closed.
+
+Completed service evidence at `41e760fe` remains 2,069 assertions across 76 files plus five separate type/declaration checks. Genuine development preparation retains its `b9ca8ca7` scope. The opt-in public workflow is not installed or deployed. Complete native/dependency coverage, authenticated transport, prepared reuse and cumulative hosted admission remain open. Read the current handoff for actual failures and the next source-bound checks.
 
 Recheck that accepted main still names the exact verified source before each
 operation. Source changes to the release workflow require a fresh native

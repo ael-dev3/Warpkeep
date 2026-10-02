@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import {
   chmodSync,
+  closeSync,
+  fstatSync,
   copyFileSync,
   cpSync,
   existsSync,
@@ -11,7 +13,9 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readFileSync,
+  readSync,
   readlinkSync,
   realpathSync,
   readdirSync,
@@ -1239,23 +1243,72 @@ describe('Greater Realm production bootstrap', () => {
 
   it('makes a clean root-npm clone able to load durable Hermes authority', () => {
     const root = privateDirectory();
-    const archive = spawnSync('git', [
-      'archive', 'HEAD',
-      'scripts',
-      'package.json',
-      'package-lock.json',
-      'services/auth-bridge/package.json',
-    ], {
-      encoding: null,
-      maxBuffer: 16 * 1024 * 1024,
-    });
-    expect(archive.status).toBe(0);
-    const extracted = spawnSync('tar', ['-x', '-C', root], {
-      encoding: null,
-      input: archive.stdout,
-      maxBuffer: 4 * 1024 * 1024,
-    });
-    expect(extracted.status).toBe(0);
+    // The actual tracked scripts archive outgrew a 16MiB stdout buffer. Keep the
+    // complete archive in an exclusive private fixture file, not a larger pipe.
+    const archivePath = join(root, 'source.tar');
+    const archiveDescriptor = openSync(archivePath, 'wx+', 0o600);
+    try {
+      const archive = spawnSync('git', [
+        'archive', 'HEAD',
+        'scripts',
+        'package.json',
+        'package-lock.json',
+        'services/auth-bridge/package.json',
+      ], {
+        encoding: null,
+        stdio: ['ignore', archiveDescriptor, 'pipe'],
+        maxBuffer: 4 * 1024 * 1024,
+        timeout: 30_000,
+      });
+      if (archive.error !== undefined) throw archive.error;
+      expect(archive.signal).toBeNull();
+      expect(archive.status, archive.stderr?.toString('utf8')).toBe(0);
+      const state = fstatSync(archiveDescriptor, { bigint: true });
+      expect(state.isFile()).toBe(true);
+      expect(state.nlink).toBe(1n);
+      expect(state.size).toBeGreaterThan(0n);
+      expect(state.size).toBeLessThanOrEqual(64n * 1024n * 1024n);
+      if (process.getuid !== undefined) {
+        expect(state.uid).toBe(BigInt(process.getuid()));
+        expect(state.mode & 0o777n).toBe(0o600n);
+      }
+      const identity = (value: typeof state) => [value.dev, value.ino, value.mode,
+        value.uid, value.gid, value.nlink, value.size, value.mtimeNs, value.ctimeNs].join(':');
+      const archiveIdentity = identity(state);
+      const digest = () => {
+        const hash = createHash('sha256');
+        const buffer = Buffer.alloc(64 * 1024);
+        try {
+          for (let position = 0; position < Number(state.size);) {
+            const count = readSync(archiveDescriptor, buffer, 0,
+              Math.min(buffer.length, Number(state.size) - position), position);
+            expect(count).toBeGreaterThan(0);
+            hash.update(buffer.subarray(0, count));
+            position += count;
+          }
+          return hash.digest('hex');
+        } finally {
+          buffer.fill(0);
+        }
+      };
+      expect(lstatSync(archivePath).isSymbolicLink()).toBe(false);
+      expect(identity(lstatSync(archivePath, { bigint: true }))).toBe(archiveIdentity);
+      const archiveDigest = digest();
+      const extracted = spawnSync('tar', ['-x', '-f', archivePath, '-C', root], {
+        encoding: null,
+        maxBuffer: 4 * 1024 * 1024,
+        timeout: 30_000,
+      });
+      if (extracted.error !== undefined) throw extracted.error;
+      expect(extracted.signal).toBeNull();
+      expect(extracted.status, extracted.stderr?.toString('utf8')).toBe(0);
+      expect(identity(fstatSync(archiveDescriptor, { bigint: true }))).toBe(archiveIdentity);
+      expect(identity(lstatSync(archivePath, { bigint: true }))).toBe(archiveIdentity);
+      expect(digest()).toBe(archiveDigest);
+    } finally {
+      closeSync(archiveDescriptor);
+      unlinkSync(archivePath);
+    }
     materializeHermesParserRootDependencies(root);
     const authorityUrl = pathToFileURL(join(
       root,

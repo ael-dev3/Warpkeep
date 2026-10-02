@@ -4,16 +4,16 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { tmpdir, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildSync } from 'esbuild';
 import {
-  deriveNativeTestPartitions, nativeTestCommands, NAMESPACE_FILES, REQUIRED_NATIVE_DOMAINS,
+  deriveNativeTestPartitions, deriveNativeOrdinaryTestBatches, nativeTestCommands, NAMESPACE_FILES, REQUIRED_NATIVE_DOMAINS,
   NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE, nativeSourceCheckCommands,
   captureNativeSourceCheckConfiguration,
   captureNativeServiceConfiguration,
-  nativeVerificationEnvironment, NATIVE_NAMESPACE_LAUNCHER_PATH,
+  nativeVerificationEnvironment, nativeOrdinaryTestEnvironment, NATIVE_NAMESPACE_LAUNCHER_PATH,
   retainNativeVerificationOutput,
   requireCompleteNativeSourceVerificationEvidence, nativeNamespaceCleanupCommand,
 } from '../scripts/native-source-verification.mjs';
@@ -26,8 +26,11 @@ const repository = process.cwd();
 const folders: string[] = [];
 const vite = "test: { include: ['tests/**/*.{test,spec}.{ts,tsx}'] }";
 const packageBytes = JSON.stringify({ scripts: { 'test:pure': 'tsx --test tests/*.test.ts' } });
+const isolatedOrdinaryFiles = ['tests/authBridgeNotificationPreparedWorkflow.test.ts',
+  'tests/productionPlayerCanaryClosure.test.ts', 'tests/greaterRealmRuntimeRelease.test.ts',
+  'tests/sealedRealmsProductionActivationRecords.test.ts'];
 const source = ['tests/ordinary.test.ts', 'tests/nested/other.spec.tsx', 'src/untested.ts',
-  'spacetimedb/tests/first.test.ts', 'spacetimedb/tests/second.test.ts', ...NAMESPACE_FILES];
+  'spacetimedb/tests/first.test.ts', 'spacetimedb/tests/second.test.ts', ...NAMESPACE_FILES, ...isolatedOrdinaryFiles];
 const tools = { node: { path: '/native/node' }, vitest: { path: '/installed/vitest.mjs' }, tsx: { path: '/installed/tsx.mjs' }, namespaceLauncher: { path: NATIVE_NAMESPACE_LAUNCHER_PATH } };
 const fixtureRoot = '/repo', fixtureFile = 'tests/fixture.test.mjs';
 const scope = { repositoryRoot: fixtureRoot, expectedFiles: [fixtureFile] };
@@ -39,6 +42,27 @@ afterEach(() => {
 });
 
 describe.skipIf(process.platform !== 'linux' || process.getuid?.() !== 1000)('native source-check configuration inventory', () => {
+  it('allows genuine fixture replacement objects while strict source Git reads keep the original object', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-replacement-')); folders.push(root);
+    const ordinary = nativeOrdinaryTestEnvironment();
+    const git = (args: string[], env = ordinary) => {
+      const result = spawnSync('/usr/bin/git', ['-c', 'commit.gpgsign=false', '-c', 'user.name=Fixture',
+        '-c', 'user.email=fixture@local.invalid', ...args], { cwd: root, env, shell: false,
+        encoding: 'utf8', timeout: 15_000, maxBuffer: 1024 * 1024 });
+      expect(result.error).toBeUndefined(); expect(result.status).toBe(0); expect(result.signal).toBeNull();
+      expect(result.stderr).toBe('');
+      return result.stdout.trim();
+    };
+    git(['init', '--quiet', '--initial-branch=main']);
+    writeFileSync(join(root, 'fixture.txt'), 'original bytes\n');
+    git(['add', 'fixture.txt']); git(['commit', '--quiet', '-m', 'Original fixture']);
+    const original = git(['rev-parse', 'HEAD']);
+    writeFileSync(join(root, 'fixture.txt'), 'replacement bytes\n');
+    git(['add', 'fixture.txt']); git(['commit', '--quiet', '-m', 'Replacement fixture']);
+    git(['replace', original, git(['rev-parse', 'HEAD'])]);
+    expect(git(['show', `${original}:fixture.txt`])).toBe('replacement bytes');
+    expect(git(['show', `${original}:fixture.txt`], nativeVerificationEnvironment())).toBe('original bytes');
+  }, 30_000);
   it('executes the actual fixed type script with pnpm while missing dependencies remain uninstalled', () => {
     const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-pnpm-')); folders.push(root);
     const packageSource = readFileSync(join(repository, 'package.json'));
@@ -149,12 +173,30 @@ describe.skipIf(process.platform !== 'linux' || process.getuid?.() !== 1000)('na
 });
 
 describe('native source test inventory and execution recipe', () => {
+  it('separates ordinary fixture configuration from strict inspection without inheriting ambient variables', () => {
+    const tools = { pnpm: { path: '/pinned/pnpm' }, spacetime: { path: '/pinned/spacetime' } };
+    const strict = nativeVerificationEnvironment(tools), ordinary = nativeOrdinaryTestEnvironment(tools);
+    expect(strict.HOME).toBe('/nonexistent');
+    expect(strict.GIT_NO_REPLACE_OBJECTS).toBe('1'); expect(strict.GIT_GRAFT_FILE).toBe('/dev/null');
+    expect(ordinary.HOME).toBe(userInfo().homedir);
+    expect(ordinary.GIT_NO_REPLACE_OBJECTS).toBeUndefined(); expect(ordinary.GIT_GRAFT_FILE).toBeUndefined();
+    expect(ordinary.GIT_OPTIONAL_LOCKS).toBe('0');
+    expect(ordinary.SPACETIME_BIN).toBe('/pinned/spacetime');
+    expect(Object.keys(ordinary).sort()).toEqual(Object.keys(strict)
+      .filter(key => !['GIT_NO_REPLACE_OBJECTS', 'GIT_GRAFT_FILE'].includes(key)).sort());
+    for (const [key, value] of Object.entries(strict)) {
+      if (!['HOME', 'GIT_NO_REPLACE_OBJECTS', 'GIT_GRAFT_FILE'].includes(key)) expect(ordinary[key]).toBe(value);
+    }
+    for (const key of ['NODE_OPTIONS', 'GITHUB_TOKEN', 'GH_TOKEN', 'GIT_INDEX_FILE', 'CLOUDFLARE_API_TOKEN']) {
+      expect(ordinary[key]).toBeUndefined(); expect(strict[key]).toBeUndefined();
+    }
+  });
   it('covers the exact disjoint ordinary/namespace union and every pure module file', () => {
     const result = deriveNativeTestPartitions(source, vite, packageBytes);
-    expect(result.ordinaryVitestFiles).toEqual(['tests/nested/other.spec.tsx', 'tests/ordinary.test.ts']);
+    expect(result.ordinaryVitestFiles).toEqual([...isolatedOrdinaryFiles, 'tests/nested/other.spec.tsx', 'tests/ordinary.test.ts'].sort());
     expect(result.namespaceVitestFiles).toEqual(NAMESPACE_FILES);
     expect(result.moduleFiles).toEqual(['spacetimedb/tests/first.test.ts', 'spacetimedb/tests/second.test.ts']);
-    expect(new Set([...result.ordinaryVitestFiles, ...result.namespaceVitestFiles]).size).toBe(6);
+    expect(new Set([...result.ordinaryVitestFiles, ...result.namespaceVitestFiles]).size).toBe(10);
     expect(result.ordinaryVitestFiles.some(file => NAMESPACE_FILES.includes(file))).toBe(false);
   });
   it.each(NAMESPACE_FILES)('refuses a source inventory missing required namespace file %s', file => {
@@ -178,23 +220,91 @@ describe('native source test inventory and execution recipe', () => {
         .toThrow('NAMESPACE_LAUNCHER_REQUIRED');
     }
   });
-  it('uses exact isolated namespace runner and no test-name/shard filters', () => {
+  it('uses exact isolated namespace/module runners and no test-name/shard filters', () => {
     const partitions = deriveNativeTestPartitions(source, vite, packageBytes);
     const commands = nativeTestCommands('/repo', partitions, tools, '/repo/artifacts/qa/proof');
-    expect(commands).toHaveLength(4);
-    expect(commands[0].files).toEqual(partitions.ordinaryVitestFiles);
-    expect(commands[0].args).toEqual(['/installed/vitest.mjs', 'run', ...partitions.ordinaryVitestFiles,
-      '--maxWorkers=1', '--testTimeout=180000', '--no-cache', '--reporter=json', '--outputFile=/repo/artifacts/qa/proof-ordinary-tests.report.json']);
-    expect(commands[1].executable).toBe('/usr/bin/sudo');
-    expect(commands[1].args.slice(0, 3)).toEqual(['-n', NATIVE_NAMESPACE_LAUNCHER_PATH, '--as']);
-    expect(commands[1].args.slice(-2)).toEqual(['--report-json', '/repo/artifacts/qa/proof-namespace-tests.report.json']);
+    const ordinary = commands.filter(command => command.id.startsWith('ordinary-'));
+    const namespace = commands.find(command => command.id === 'namespace-tests')!;
+    const modules = commands.filter(command => command.kind === 'node-events');
+    expect(commands).toHaveLength(8);
+    expect(NATIVE_VERIFICATION_PROFILE).toBe('warpkeep-native-source-test-partitions-v1');
+    expect(ordinary.flatMap(command => command.files).sort()).toEqual(partitions.ordinaryVitestFiles);
+    for (const command of ordinary) {
+      expect(command.args).toEqual(['/installed/vitest.mjs', 'run', ...command.files,
+        '--maxWorkers=1', '--testTimeout=180000', '--no-cache', '--reporter=default', '--reporter=json',
+        `--outputFile=${command.reportPath}`]);
+      expect(command.reportPath).toBe(`/repo/artifacts/qa/proof-${command.id}.report.json`);
+    }
+    expect(namespace).toEqual({ id: 'namespace-tests', kind: 'vitest-json', files: [...NAMESPACE_FILES], cwd: '/repo',
+      executable: '/usr/bin/sudo', args: ['-n', NATIVE_NAMESPACE_LAUNCHER_PATH, '--as',
+        String(process.getuid?.()), String(process.getgid?.()), '/native/node', '/repo',
+        '--report-json', '/repo/artifacts/qa/proof-namespace-tests.report.json'],
+      reportPath: '/repo/artifacts/qa/proof-namespace-tests.report.json', deadlineMs: 900_000 });
     expect(commands.flatMap(command => command.args).some(argument => /test-name|shard/u.test(argument))).toBe(false);
-    expect(commands[2].files).toEqual(['spacetimedb/tests/first.test.ts']);
-    expect(commands[2].args.at(-1)).toBe('tests/first.test.ts');
-    expect(commands[2].args).toContain('--test-timeout=120000');
-    expect(commands[2].args.some(argument => argument.startsWith('--test-reporter=file:'))).toBe(true);
+    for (const [index, command] of modules.entries()) {
+      expect(command).toEqual({ id: `module-pure-${index + 1}`, kind: 'node-events',
+        files: [`spacetimedb/tests/${index === 0 ? 'first' : 'second'}.test.ts`], cwd: join('/repo', 'spacetimedb'),
+        executable: '/native/node', args: ['/installed/tsx.mjs', '--test', '--test-timeout=120000',
+          `--test-reporter=${pathToFileURL(join('/repo', 'scripts/native-source-verification-node-reporter.mjs')).href}`,
+          `tests/${index === 0 ? 'first' : 'second'}.test.ts`],
+        reportPath: `/repo/artifacts/qa/proof-module-pure-${index + 1}.events.ndjson`, deadlineMs: 180_000 });
+    }
+    expect(new Set(commands.map(command => command.id)).size).toBe(commands.length);
+    expect(new Set(commands.map(command => command.reportPath)).size).toBe(commands.length);
     expect(commands.every(command => command.deadlineMs > 0 && Number.isFinite(command.deadlineMs))).toBe(true);
     expect(() => nativeTestCommands('/repo', { ...partitions, ordinaryVitestFiles: [NAMESPACE_FILES[0]] }, tools, '/repo/artifacts/qa/proof')).toThrow('PARTITIONS_INVALID');
+  });
+  it('isolates four fixed heavy files and balances a complete 701-file inventory without duplication', () => {
+    const remaining = Array.from({ length: 697 }, (_, index) => `tests/ordinary/fixture-${String(index).padStart(3, '0')}.test.ts`);
+    const files = [...remaining, ...isolatedOrdinaryFiles];
+    const batches = deriveNativeOrdinaryTestBatches(files);
+    expect(batches.map(batch => batch.id)).toEqual(['ordinary-security', 'ordinary-greater-realm',
+      'ordinary-activation-records', 'ordinary-batch-1', 'ordinary-batch-2', 'ordinary-batch-3', 'ordinary-batch-4']);
+    expect(batches.map(batch => batch.files.length)).toEqual([2, 1, 1, 175, 174, 174, 174]);
+    expect(batches[0].files).toEqual(isolatedOrdinaryFiles.slice(0, 2));
+    expect(batches[1].files).toEqual([isolatedOrdinaryFiles[2]]);
+    expect(batches[2].files).toEqual([isolatedOrdinaryFiles[3]]);
+    const union = batches.flatMap(batch => batch.files);
+    expect(union).toHaveLength(701);
+    expect(new Set(union).size).toBe(701);
+    expect([...union].sort()).toEqual([...files].sort());
+    expect(deriveNativeOrdinaryTestBatches([...files].reverse())).toEqual(batches);
+    expect(batches[2].deadlineMs).toBe(7_200_000);
+    expect(batches[2].deadlineMs).toBeGreaterThan(17 * 360_000 + 120_000 + 10_000);
+    expect(batches[1].deadlineMs).toBeGreaterThan(33 * 90_000 + 3 * 180_000);
+    for (const [index, batch] of batches.slice(3).entries()) {
+      expect(batch.files).toEqual(remaining.filter((_, position) => position % 4 === index));
+    }
+  });
+  it('covers the actual discovered ordinary inventory once, keeping PTR continuation only in namespace', () => {
+    const discover = (directory: string): string[] => readdirSync(join(repository, directory), { withFileTypes: true })
+      .flatMap(entry => entry.isDirectory() ? discover(`${directory}/${entry.name}`) : [`${directory}/${entry.name}`]);
+    const rootFiles = discover('tests').filter(file => /\.(?:test|spec)\.tsx?$/u.test(file));
+    const partitions = deriveNativeTestPartitions([...rootFiles, 'spacetimedb/tests/fixture.test.ts'],
+      readFileSync(join(repository, 'vite.config.ts')), packageBytes);
+    const commands = nativeTestCommands('/repo', partitions, tools, '/repo/artifacts/qa/proof');
+    const vitest = commands.filter(command => command.kind === 'vitest-json');
+    expect(vitest.flatMap(command => command.files).sort()).toEqual([...rootFiles].sort());
+    expect(new Set(vitest.flatMap(command => command.files)).size).toBe(rootFiles.length);
+    expect(vitest.flatMap(command => command.files).filter(file => file === NAMESPACE_FILES[0])).toHaveLength(1);
+    expect(vitest.find(command => command.files.includes(NAMESPACE_FILES[0]))?.id).toBe('namespace-tests');
+  });
+  it.each(isolatedOrdinaryFiles)('refuses a missing fixed isolated source file %s', file => {
+    expect(() => deriveNativeOrdinaryTestBatches(source.filter(value => value.startsWith('tests/')
+      && !NAMESPACE_FILES.includes(value) && value !== file))).toThrow('ORDINARY_ISOLATED_INVENTORY_MISSING');
+  });
+  it('rejects malformed, duplicate, namespace and externally selected ordinary inventory entries', () => {
+    const files = deriveNativeTestPartitions(source, vite, packageBytes).ordinaryVitestFiles;
+    for (const entry of [files[0], NAMESPACE_FILES[0], '../outside.test.ts', 'tests/../outside.test.ts',
+      'tests\\outside.test.ts', 'tests/outside.test.ts\n', '--test-name-pattern=one', 'src/ordinary.test.ts']) {
+      expect(() => deriveNativeOrdinaryTestBatches([...files, entry])).toThrow('ORDINARY_INVENTORY_INVALID');
+    }
+    expect(() => deriveNativeOrdinaryTestBatches(undefined as never)).toThrow('ORDINARY_INVENTORY_INVALID');
+    expect(() => deriveNativeOrdinaryTestBatches([...files, undefined] as never)).toThrow('ORDINARY_INVENTORY_INVALID');
+    const sparse = [...files]; sparse.length += 1;
+    expect(() => deriveNativeOrdinaryTestBatches(sparse)).toThrow('ORDINARY_INVENTORY_INVALID');
+    expect(() => nativeTestCommands('/repo', { ...deriveNativeTestPartitions(source, vite, packageBytes),
+      ordinaryVitestFiles: [...files, files[0]] }, tools, '/repo/artifacts/qa/proof')).toThrow('ORDINARY_INVENTORY_INVALID');
   });
 });
 

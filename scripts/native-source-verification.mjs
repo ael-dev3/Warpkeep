@@ -4,6 +4,7 @@ import cp from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { userInfo } from 'node:os';
 import { isDeepStrictEqual } from 'node:util';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { probeProductionAdminProcessIdentity } from './production-admin-token-budget.mjs';
@@ -63,6 +64,13 @@ export function nativeVerificationEnvironment(tools) {
     GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'advice.graftFileDeprecated', GIT_CONFIG_VALUE_0: 'false',
     GIT_NO_REPLACE_OBJECTS: '1', GIT_GRAFT_FILE: '/dev/null', GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0',
     ...(tools ? { SPACETIME_BIN: tools.spacetime.path, pnpm_config_pm_on_fail: 'ignore' } : {}) };
+}
+/** Fixture Git may intentionally install replacement objects; source inspection stays strict. */
+export function nativeOrdinaryTestEnvironment(tools) {
+  const fixture = { ...nativeVerificationEnvironment(tools), HOME: userInfo().homedir };
+  delete fixture.GIT_NO_REPLACE_OBJECTS;
+  delete fixture.GIT_GRAFT_FILE;
+  return fixture;
 }
 const environment = nativeVerificationEnvironment;
 function git(root, args) {
@@ -158,6 +166,31 @@ export function deriveNativeTestPartitions(paths, viteConfig, modulePackage) {
   const moduleFiles = paths.filter(path => /^spacetimedb\/tests\/[^/]+\.test\.ts$/u.test(path)).sort();
   if (!ordinaryVitestFiles.length || !moduleFiles.length) fail('TEST_INVENTORY_EMPTY');
   return { ordinaryVitestFiles, namespaceVitestFiles: [...NAMESPACE_FILES], moduleFiles };
+}
+/** Fixed complete-file batches; balancing is by file count, not a runtime estimate. */
+export function deriveNativeOrdinaryTestBatches(files) {
+  if (!Array.isArray(files) || new Set(files).size !== files.length
+    || Array.from(files).some(file => typeof file !== 'string' || !/^tests\/.+\.(?:test|spec)\.tsx?$/u.test(file)
+      || /[\\\x00-\x1f]/u.test(file) || file.split('/').some(part => ['', '.', '..'].includes(part))
+      || NAMESPACE_FILES.includes(file))) fail('ORDINARY_INVENTORY_INVALID');
+  const ordered = [...files].sort();
+  const isolated = [
+    { id: 'ordinary-security', files: ['tests/authBridgeNotificationPreparedWorkflow.test.ts',
+      'tests/productionPlayerCanaryClosure.test.ts'], deadlineMs: 900_000 },
+    { id: 'ordinary-greater-realm', files: ['tests/greaterRealmRuntimeRelease.test.ts'], deadlineMs: 4_500_000 },
+    // The seventeen candidate cases alone allow 102 minutes, before Linux hooks and other cases.
+    // Two hours is a finite execution ceiling, not proof every declared allowance fits or a completion claim.
+    { id: 'ordinary-activation-records', files: ['tests/sealedRealmsProductionActivationRecords.test.ts'], deadlineMs: 7_200_000 },
+  ];
+  const isolatedFiles = new Set(isolated.flatMap(batch => batch.files));
+  if (![...isolatedFiles].every(file => ordered.includes(file))) fail('ORDINARY_ISOLATED_INVENTORY_MISSING');
+  const remaining = ordered.filter(file => !isolatedFiles.has(file));
+  const balanced = Array.from({ length: 4 }, (_, index) => ({ id: `ordinary-batch-${index + 1}`,
+    files: remaining.filter((_, position) => position % 4 === index), deadlineMs: 3_600_000 }))
+    .filter(batch => batch.files.length > 0);
+  const batches = [...isolated, ...balanced], union = batches.flatMap(batch => batch.files);
+  if (new Set(union).size !== union.length || !isDeepStrictEqual([...union].sort(), ordered)) fail('ORDINARY_BATCHES_INVALID');
+  return batches;
 }
 function installedTool(path, expectedLinks = 1, uid = process.getuid?.()) {
   const full = fs.realpathSync(path), descriptor = fs.openSync(full, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
@@ -255,10 +288,12 @@ export function nativeTestCommands(root, partitions, tools, stem) {
   if (tools.namespaceLauncher?.path !== NATIVE_NAMESPACE_LAUNCHER_PATH) fail('NAMESPACE_LAUNCHER_REQUIRED');
   if (partitions.ordinaryVitestFiles.some(path => NAMESPACE_FILES.includes(path))
     || !isDeepStrictEqual(partitions.namespaceVitestFiles, [...NAMESPACE_FILES])) fail('PARTITIONS_INVALID');
-  return [{ id: 'ordinary-tests', kind: 'vitest-json', files: partitions.ordinaryVitestFiles, cwd: root,
-    executable: tools.node.path, args: [tools.vitest.path, 'run', ...partitions.ordinaryVitestFiles,
-      '--maxWorkers=1', '--testTimeout=180000', '--no-cache', '--reporter=json', `--outputFile=${stem}-ordinary-tests.report.json`],
-    reportPath: `${stem}-ordinary-tests.report.json`, deadlineMs: 3_600_000 },
+  return [...deriveNativeOrdinaryTestBatches(partitions.ordinaryVitestFiles).map(batch => ({
+    id: batch.id, kind: 'vitest-json', files: batch.files, cwd: root,
+    executable: tools.node.path, args: [tools.vitest.path, 'run', ...batch.files,
+      '--maxWorkers=1', '--testTimeout=180000', '--no-cache', '--reporter=default', '--reporter=json',
+      `--outputFile=${stem}-${batch.id}.report.json`],
+    reportPath: `${stem}-${batch.id}.report.json`, deadlineMs: batch.deadlineMs })),
   { id: 'namespace-tests', kind: 'vitest-json', files: partitions.namespaceVitestFiles, cwd: root,
     executable: '/usr/bin/sudo', args: ['-n', NATIVE_NAMESPACE_LAUNCHER_PATH,
       '--as', String(process.getuid?.()), String(process.getgid?.()), tools.node.path, root,
@@ -644,7 +679,8 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
     try {
       // Recheck ignored ambient/config and tool inputs immediately before every child.
       same(sourceSnapshot(root), source); same(currentTools(), plan.tools);
-      child = cp.spawn(command.executable, command.args, { cwd: command.cwd, env: { ...environment(plan.tools), ...command.environment }, shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = cp.spawn(command.executable, command.args, { cwd: command.cwd, env: { ...(command.id.startsWith('ordinary-') ? nativeOrdinaryTestEnvironment(plan.tools) : environment(plan.tools)),
+        ...command.environment }, shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
       closed = new Promise(done => { child.once('error', error => done({ exitCode: null, signal: null, spawnError: error.code ?? 'SPAWN_ERROR' }));
         child.once('close', (exitCode, signal) => done({ exitCode, signal, spawnError: null })); });
       captureBounded(child.stdout, stdout, stdoutPath, rejectOutput);
