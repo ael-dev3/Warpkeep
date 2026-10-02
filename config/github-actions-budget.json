@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "dailyRunnerMinutes": 10,
+  "repositories": [
+    "ael-dev3/Warpkeep",
+    "ael-dev3/Warpkeep-Live",
+    "ael-dev3/Warpkeep-Assets",
+    "ael-dev3/Warpkeep-Water-Engine"
+  ],
+  "dayBoundary": "UTC",
+  "enforcement": "repository-actions-disabled",
+  "admissionEnabled": false,
+  "maxInventoryAgeSeconds": 300,
+  "enabledPlans": []
+}

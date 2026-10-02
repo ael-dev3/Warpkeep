@@ -2,7 +2,21 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current local development operations — 2 October 2026
+## Current Actions policy and mobile diagnosis — 2 October 2026
+
+The signed docs checkpoint 784e7942/tree 5cf596de was published at 06:46:08.642–06:46:10.519 UTC; final readback e74b7ac7 preserves its actual source/signature/index and remote bindings. No main, PR or provider acceptance was created.
+
+Complete policy inventory b183169e and sibling inventory 8b9cb5e2 retained all four repositories’ run coverage, attempts, active statuses and trigger chains. Repository disabling ran 07:33:18.778–07:33:34.493 UTC (45e6cc96). Retain earlier attempts: bfdba726 applied the first disable then rejected GitHub’s normalized disabled response; b5ee16da rejected a request combining disabled state with optional allowed-action fields. The final operation and independent GET-only readback 2ceeccc1 at 07:40:22.513–07:41:23.414 confirm all four repositories disabled, all active-status queries empty, unchanged main/PR/catalog/retained-attempt facts. Original enabled settings remain in the first receipt; disabled API omits allowed_actions and reports SHA pinning false, so preservation of those dormant settings was not asserted. No Actions runner was started or cancelled. Additional execution under the disabled policy is zero; total daily usage is unknown. The numeric policy lives in runtime config, not this note. Alpha root returned HTTP 200 at 07:34:02.049 UTC (3e0ff6ee).
+
+World touch v1 at operating 784e/runtime 8b stopped before interactions with WORLD_TOUCH_READBACK (run 9ffe1458). The test expression referenced an undeclared selector; reviewed smoke v2 74b1bb22 embeds the literal selector and preserves bounded actual exception detail. Runner v2 26904290 changes only helper filenames. Original v1 evidence was not rewritten.
+
+Portrait v2 ran 07:40:55.949–07:41:32.597 UTC: run eb254ea7, touch 11e36642. Landscape v2 ran 07:42:19.914–07:42:58.335: run 374042bb, touch aad13581. Both selected a real returned castle through trusted controls, then measured its Close target at 30.390625px square and failed WORLD_TOUCH_CONTROL_BELOW_44PX. Screenshots f9826f8f and the landscape receipt preserve geometry; root reviewed the portrait render. Source/index remained unchanged, browser close acknowledgements and actual exits were 0/null, owned actors/profiles were gone, native server exits were 0/null and two original-boot whole-group probes were empty. Contact/observer/motion cleanup passed. No remaining camera/gesture completion or full R06 result was inferred.
+
+The current patch extends the existing narrow/coarse 44px minimum to the castle header button. Native local worktree checks passed 77/77 assertions in two files (46 budget, 31 existing World scene) with zero failed/pending cases; tool 84ab2e exited 0. Explicit app/tests noEmit tool abccf2 exited 0. These checks cover the source patch, not final-main/hosted/production acceptance.
+
+Reviewed CSS probe efd40cad ran 07:59:36.970–07:59:43.212 UTC; tool bb319a exited 0, receipt 832f2307. Exact current CSS d90da417 and component 11c30d55 stayed unchanged, and the one-selector reversal matched immutable 784e CSS 4a21ec94. All four before/after portrait/landscape cases passed: original 30.390625px square, repaired 44px square, visible center/interior hit points and no horizontal overflow. Both repaired targets received actual trusted touch pointerdown/up and click. Root separately viewed portrait 6db889f5 and landscape 79a49543 without visible clipping. Normal Browser.close acknowledgement, actual exit 0/null, zero remaining owned actors/contacts and removed profile are recorded. This static source-derived header did not mount the React component or execute its clear-selection handler. No production Close behavior, full World gesture/camera, physical-device or R06 acceptance was asserted. Source operations and later checkpoint identity belong to their own actual receipts.
+
+## Previous local development operations — 2 October 2026
 
 Operating source is signed, synchronized 14ac294e/tree 73ea369f, the docs-only child of runtime 8b57f62a/tree 3f810073. Its prior backup completed 05:05:04.500 UTC (953eecf0), without a main/PR/provider change or new Actions run. Later notes HEADs must be read from actual receipts; no future commit identity is invented here.
 

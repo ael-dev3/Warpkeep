@@ -3,7 +3,21 @@
 <!-- Preserve the incoming current-checkpoint link in live-delivery-status.md. -->
 <a id="current-release-checkpoint--1-october-2026"></a>
 
-## Current verified development checkpoint — 2 October 2026
+## Current Actions policy and mobile correction — 2 October 2026
+
+The published development base is signed 784e7942/tree 5cf596de, backed up at 06:46 UTC (checkpoint e74b7ac7). Main cb282bab and PR380/381 remain unchanged. Subsequent checkpoint identity must come from actual Git and remote readback. Alpha remains available; owner PTR 0.4 is unpublished.
+
+The current Actions limit belongs only in config/github-actions-budget.json. The owner’s latest policy supersedes the older restore-billing/full-Verify resumption order below. Actions is disabled at repository level in Warpkeep, Warpkeep-Live, Warpkeep-Assets and Warpkeep-Water-Engine. Operation 45e6cc96 and independent readback 2ceeccc1 confirm the stop, empty active queues and unchanged refs/PRs/retained attempts. Catalog entries marked active do not mean repository Actions is enabled. Public root readback at 07:34 UTC returned HTTP 200; it is not PTR or authenticated-session proof.
+
+Continue local checks and coherent signed, scanned, synchronized development checkpoints. scripts/github-actions-budget.mjs is pure conservative accounting and always refuses execution under this policy; it cannot enforce a distributed reservation or enable/dispatch a workflow. Unknown job allocation, stale/incomplete data and omitted attempts are not zero usage. See docs/operations/github-actions-budget.md before any remote action. No financial change, new key, workflow trial or automatic daily reset was made.
+
+Local World touch validation at operating 784e/runtime 8b established one product defect: the castle-profile Close button was 30.390625px square in both portrait and landscape. Real control selection/focus succeeded before the unchanged 44px geometry guard failed. The current CSS correction extends the existing mobile/coarse minimum target rule to that button. A first harness failure was an undeclared selector in the test expression; reviewed v2 corrected that expression without changing the guard. All three browser/native runs closed normally, removed owned profiles, preserved source/index and confirmed native group absence. Full gesture/camera completion remains unverified after the early stop.
+
+The worktree change passed 77 local assertions: 46 budget accounting/refusal cases and 31 existing World scene cases, with no failed/pending cases. Explicit app/tests noEmit also passed. Exact-source CSS regression probe 832f2307 ran 07:59:36.970–07:59:43.212 UTC: both mobile orientations reproduced the original 30.390625px target, then measured the repaired target at 44px with visible interior hit points, no horizontal overflow and trusted touch/click delivery. Root reviewed both current-CSS PNGs (6db889f5/79a49543). Inputs stayed unchanged; Chrome closed normally with acknowledgement, exit 0/null, zero remaining owned actors/contacts and profile removal. This was source-derived static header markup: the real React Close handler was not mounted. Clear-selection behavior, the remaining World gestures/camera and full R06 remain open; these results do not replace final release or physical-phone acceptance.
+
+The existing populated-PTR release route still requires real hosted Verify, workflow dispatch and signed OIDC/check-run observations. Its source-authority adapter alone is insufficient to make the route native. Continue the explicit native provenance adaptation described in the budget guide, preserving actual owner, source/main, G001 freeze, G002 sealing, signed observations, update/adoption and S-to-A invariants. Never manufacture hosted IDs or relabel local receipts. The prior development compiler candidate does not become production authority.
+
+## Previous verified development snapshot — 2 October 2026
 
 At this notes snapshot, local source is signed, backed-up 14ac294e/tree 73ea369f, a three-note child of runtime 8b57f62a/tree 3f810073. Main cb282bab, PR380/381 and Alpha 0.3.43 remain unchanged; owner PTR 0.4 is unpublished. Resolve subsequent notes HEADs from actual Git and publication receipts rather than treating this dated snapshot as a permanent branch status.
 

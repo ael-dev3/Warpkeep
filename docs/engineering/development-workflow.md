@@ -27,6 +27,28 @@ when it materially benefits the game or delivery. Record the reason, update the
 owning specification, and preserve real player-state and security invariants.
 Historical plans are context, not an automatic restriction on better solutions.
 
+## Current GitHub Actions policy
+
+Read [the operational configuration](../../config/github-actions-budget.json)
+and [the Actions operating guide](../operations/github-actions-budget.md).
+Actions is disabled at repository level across the configured Warpkeep
+repositories. This applies to automatic events, explicit dispatches, reruns and
+downstream publication. A billing change or the end of the September pause does
+not resume execution under the current policy.
+
+Continue proportionate local checks, independent review and coherent signed,
+scanned source checkpoints with explicit non-forced pushes and remote readback.
+Reuse complete run histories with fresh activity, attempt and trigger checks
+before remote steps. Never automatically enable Actions, repeat a workflow or
+reset a branch to recover a check. Local evidence does not establish hosted CI
+or release authority; replacing the existing hosted lane requires review of its
+actual source, checks, identity and downstream contracts.
+
+Use `npm run verify:actions-hold` for the standalone read-only settings and idle
+queue check described in [the operating guide](../operations/github-actions-budget.md#check-the-current-stop).
+It does not replace retained-history, rerun-attempt or downstream review, and
+does not establish daily usage or release acceptance.
+
 ## Change cycle
 
 1. **Orient.** Read the applicable requirement, identify subsystem owner and real
@@ -60,6 +82,9 @@ Historical plans are context, not an automatic restriction on better solutions.
    from time spent, line count, test count or number of commits.
 
 ### Temporary GitHub Actions pause — September 2026
+
+This dated interval is historical. Its later resume direction is superseded by
+the [current operational policy](#current-github-actions-policy).
 
 The owner directed contributors to proceed without GitHub Actions during
 September. Do not dispatch, rerun, or depend on a hosted Actions workflow before

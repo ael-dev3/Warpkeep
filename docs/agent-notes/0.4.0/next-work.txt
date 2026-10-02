@@ -1,5 +1,17 @@
 WARPKEEP 0.4 — NEXT WORK
-CURRENT RESUMPTION — 2 OCTOBER 2026
+CURRENT RESUMPTION — 2 OCTOBER 2026, AFTER ACTIONS POLICY CHANGE
+
+Published development base: signed 784e7942/tree 5cf596de, synchronized and backed up (e74b7ac7). Main cb282bab and PR380/381 remain unchanged. Resolve subsequent source from actual Git/publication receipts. Alpha root returned HTTP 200; owner PTR 0.4 is unpublished.
+
+1. Read config/github-actions-budget.json and docs/operations/github-actions-budget.md. Repository Actions is disabled in the game, live, assets and water-engine repositories, confirmed independently by 2ceeccc1 after operation 45e6cc96. This policy supersedes the older billing/full-Verify ordering below. Do not re-enable, dispatch, rerun or assume a daily reset. Continue local validation and signed/scanned/nonforced checkpoint synchronization.
+
+2. Commit and synchronize the verified mobile castle-profile Close correction with the Actions policy checkpoint. Actual portrait/landscape v2 World runs measured 30.390625px and failed the unchanged 44px guard after successful selection. Source-derived CSS probe 832f2307 reproduced that size and verified the repaired 44px target, visible hit area, no horizontal overflow and trusted touch/click delivery in both orientations. Root reviewed both PNGs; source inputs stayed unchanged and owned Chrome closed normally with no remaining actors/contacts/profile. Budget plus existing World scene tests passed 77 cases; app/tests noEmit passed. Preserve original failures. The probe did not mount React's Close handler: real clear-selection behavior, remaining World gesture/camera work and full R06 remain open.
+
+3. Build a genuinely supported local release provenance lane. Existing populated-PTR update/adoption needs real verification, execution identity and signed pre/post observations; replacing only Verify is insufficient. Keep hosted selectors intact, use explicitly native receipts/permits and existing pinned signing authority, preserve actual main/S-to-A and owner/G001/G002 invariants, then perform genuine exact-source preparation and integration. Do not spoof OIDC/check-run IDs or reuse bootstrap import/provision on an already-owned PTR.
+
+4. Complete source/PR integration, current-source compilation, actual owner PTR delivery and final production/mobile acceptance through that supported lane. The former development candidate and synthetic fixture evidence remain separate. Keep Desktop/storage rules below and publish each coherent checkpoint.
+
+PREVIOUS RESUMPTION SNAPSHOT — 2 OCTOBER 2026
 
 Current source/notes base: signed, backed-up 14ac294e/tree 73ea369f; presentation evidence retains runtime 8b57f62a/tree 3f810073. Main cb282bab and PR380/381 are unchanged. Alpha 0.3.43 remains live; owner PTR 0.4 is unpublished. Resolve later notes HEADs from actual Git/remote receipts.
 
