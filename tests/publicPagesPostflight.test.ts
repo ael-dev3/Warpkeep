@@ -1,20 +1,21 @@
 // @vitest-environment node
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // @ts-expect-error Standalone release utilities expose named test seams.
 import { allowedGeneratedPath, verifyPublicPagesPostflight } from '../scripts/verify-public-pages-postflight.mjs';
 // @ts-expect-error Standalone release utility exposes reviewed document and README policy.
-import { PUBLIC_PAGES_MIRROR_MANIFEST_PATH, renderPublicPagesMirrorReadme, SOURCE_PUBLIC_DOCUMENTS } from '../scripts/verify-public-pages-mirror-plan.mjs';
+import { PUBLIC_PAGES_MIRROR_MANIFEST_PATH, PUBLIC_PAGES_WORKFLOW_PATH, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH, renderPublicPagesMirrorReadme, SOURCE_PUBLIC_DOCUMENTS } from '../scripts/verify-public-pages-mirror-plan.mjs';
 
 const temporaryRoots: string[] = [];
 const sourceCommit = 'a'.repeat(40);
 const sourceTree = 'b'.repeat(40);
 const sha = (value: Uint8Array | string) => createHash('sha256').update(value).digest('hex');
+const workflowTemplateBytes = readFileSync(resolve(process.cwd(), PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH));
 
 function write(root: string, path: string, bytes: Uint8Array | string) {
   const target = join(root, path);
@@ -206,11 +207,112 @@ function fixture(mutateGenerated?: (files: Map<string, Buffer>) => void) {
   return { root, plan, manifest, generated, routeBytes, remoteState, readRemoteState, fetchImpl, options };
 }
 
+function workflowFixture() {
+  const f = fixture();
+  write(f.root, PUBLIC_PAGES_WORKFLOW_PATH, workflowTemplateBytes);
+  git(f.root, ['add', PUBLIC_PAGES_WORKFLOW_PATH]);
+  git(f.root, ['commit', '--amend', '--no-edit', '--quiet']);
+  const expectedPublicCommit = git(f.root, ['rev-parse', 'HEAD']);
+  const expectedPublicTree = git(f.root, ['rev-parse', 'HEAD^{tree}']);
+  const targetEntries = [...f.plan.targetEntries, { path: PUBLIC_PAGES_WORKFLOW_PATH,
+    byteLength: workflowTemplateBytes.length, sha256: sha(workflowTemplateBytes), origin: 'reviewed-control' }]
+    .sort((a, b) => Buffer.compare(Buffer.from(a.path), Buffer.from(b.path)));
+  const plan = { ...f.plan, deploymentMode: 'workflow', targetEntries, targetFileCount: targetEntries.length };
+  const reviewedPlanBytes = Buffer.from(`${JSON.stringify(plan)}\n`);
+  const run = { id: 41, run_attempt: 1, name: 'Publish signed public PTR',
+    path: PUBLIC_PAGES_WORKFLOW_PATH, event: 'workflow_dispatch', head_branch: 'main',
+    head_sha: expectedPublicCommit, status: 'completed', conclusion: 'success',
+    repository: { full_name: 'ael-dev3/Warpkeep-Live' },
+    head_repository: { full_name: 'ael-dev3/Warpkeep-Live' } };
+  const steps = ['Validate exact manual main request', 'Check out the exact public commit',
+    'Attest signed tree and stage existing served files', 'Upload the already built site',
+    'Recheck exact current public main', 'Deploy the exact Pages artifact']
+    .map((name, index) => ({ name, number: index + 1, status: 'completed', conclusion: 'success',
+      started_at: '2026-10-03T00:10:00Z', completed_at: '2026-10-03T00:11:00Z' }));
+  const remoteState = {
+    main: { ref: 'refs/heads/main', object: { type: 'commit', sha: expectedPublicCommit } },
+    pages: { build_type: 'workflow', html_url: 'https://warpkeep.com/', status: 'built',
+      cname: 'warpkeep.com', https_enforced: true },
+    commit: { sha: expectedPublicCommit, tree: { sha: expectedPublicTree },
+      verification: { verified: true, reason: 'valid' } },
+    runs: { total_count: 1, workflow_runs: [{ ...run }] },
+    currentRun: { ...run }, currentAttempt: { ...run }, currentRunAfter: { ...run },
+    jobs: { total_count: 1, jobs: [{ id: 101, run_id: 41, run_attempt: 1, name: 'deploy-pages',
+      status: 'completed', conclusion: 'success', runner_id: 999,
+      labels: ['ubuntu-24.04'], started_at: '2026-10-03T00:10:00Z', completed_at: '2026-10-03T00:11:00Z', steps }] },
+  };
+  const readRemoteState = vi.fn(async (_commit: string, _mode?: unknown) => remoteState);
+  const options = { ...f.options, expectedPublicCommit, expectedPublicTree, reviewedPlanBytes,
+    expectedReviewedPlanSha256: sha(reviewedPlanBytes), readRemoteState };
+  return { ...f, plan, remoteState, readRemoteState, options };
+}
+
 afterEach(() => {
   for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
 describe('read-only public Pages postflight', () => {
+  it('attests a genuine workflow-mode run and its exact job while still proving all live Alpha and PTR hashes', async () => {
+    const f = workflowFixture();
+    const result = await verifyPublicPagesPostflight(f.options);
+    expect(result).toMatchObject({ publicCommit: f.options.expectedPublicCommit,
+      publicTree: f.options.expectedPublicTree, deploymentMode: 'workflow',
+      pagesRunId: 41, pagesRunAttempt: 1, pagesJobId: 101, verifiedRouteCount: f.routeBytes.size });
+    expect(f.readRemoteState).toHaveBeenCalledTimes(2);
+    expect(f.readRemoteState.mock.calls.every(([, mode]) => JSON.stringify(mode) === '{"deploymentMode":"workflow"}')).toBe(true);
+    expect(f.fetchImpl.mock.calls.map(([url]) => url).sort()).toEqual(
+      [...f.routeBytes.keys()].map(path => `https://warpkeep.com${path}`).sort());
+    expect(f.fetchImpl.mock.calls.some(([url]) => url.includes('/.github/'))).toBe(false);
+  }, 30_000);
+
+  it('rejects incomplete run/job pages, a stale successful attempt and mismatched dispatch or tree authority', async () => {
+    const f = workflowFixture();
+    const state = f.remoteState;
+    state.runs.total_count = 2;
+    await expect(verifyPublicPagesPostflight(f.options)).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
+    state.runs.total_count = 1;
+    state.jobs.total_count = 2;
+    await expect(verifyPublicPagesPostflight(f.options)).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
+    state.jobs.total_count = 1;
+    state.currentRun.run_attempt = 2;
+    await expect(verifyPublicPagesPostflight(f.options)).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
+    state.currentRun.run_attempt = 1;
+    state.currentAttempt.event = 'push';
+    await expect(verifyPublicPagesPostflight(f.options)).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
+    state.currentAttempt.event = 'workflow_dispatch';
+    state.commit.tree.sha = '0'.repeat(40);
+    await expect(verifyPublicPagesPostflight(f.options)).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
+    state.commit.tree.sha = f.options.expectedPublicTree;
+    state.jobs.jobs[0].steps.at(-1)!.conclusion = 'failure';
+    await expect(verifyPublicPagesPostflight(f.options)).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
+    expect(f.fetchImpl).not.toHaveBeenCalled();
+  }, 45_000);
+
+  it('does not accept successful run metadata when current Pages content is stale', async () => {
+    const f = workflowFixture();
+    f.routeBytes.set('/ptr/index.html', Buffer.alloc(f.routeBytes.get('/ptr/index.html')!.length, 0x78));
+    await expect(verifyPublicPagesPostflight(f.options)).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_HTTP_HASH_INVALID');
+    expect(f.readRemoteState).toHaveBeenCalledTimes(1);
+  }, 30_000);
+
+  it('rejects unsupported deployment mode or a substituted workflow digest before remote reads', async () => {
+    const f = workflowFixture();
+    for (const mutate of [
+      (plan: { deploymentMode: string }) => { plan.deploymentMode = 'workflow-v2'; },
+      (plan: { targetEntries: { path: string; sha256: string }[] }) => {
+        plan.targetEntries.find(entry => entry.path === PUBLIC_PAGES_WORKFLOW_PATH)!.sha256 = '0'.repeat(64);
+      },
+    ]) {
+      const plan = JSON.parse(f.options.reviewedPlanBytes.toString('utf8'));
+      mutate(plan);
+      const bytes = Buffer.from(`${JSON.stringify(plan)}\n`);
+      await expect(verifyPublicPagesPostflight({ ...f.options, reviewedPlanBytes: bytes,
+        expectedReviewedPlanSha256: sha(bytes) })).rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
+    }
+    expect(f.readRemoteState).not.toHaveBeenCalled();
+    expect(f.fetchImpl).not.toHaveBeenCalled();
+  }, 30_000);
+
   it('attests the exact signed tree, PTR assets and preserved Alpha entry routes', async () => {
     const f = fixture();
     const before = git(f.root, ['rev-parse', 'HEAD']);

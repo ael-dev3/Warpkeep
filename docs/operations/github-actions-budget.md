@@ -97,3 +97,25 @@ intact: do not relabel local receipts as successful GitHub CI, synthesize workfl
 identity or execute arbitrary PR tests on the privileged production-admin runner.
 Older directions to restore billing and rerun the entire lane are historical;
 the current configuration and owner policy take precedence.
+
+### Source implementation in progress
+
+The maintained [native verifier](../../scripts/verify-native-source.mjs) now owns
+test discovery, bounded structured reports and original-process cleanup. Its
+release reader and actual workflow consumer explicitly reject incomplete coverage;
+local test receipts cannot silently select hosted fallback or create a release proof.
+Other verification domains, authenticated proof reopening and durable namespace
+access still need completion. Source/tool identity and real GitHub dispatch/OIDC
+remain separate requirements.
+
+The [reviewed public workflow template](../../config/public-pages-ptr-workflow-v1.yml)
+has a manual main-only deployment job and no build/install or automatic branch
+trigger. The mirror planner accepts its exact source-bound control only with
+explicit workflow opt-in; publication rechecks retain that mode, and postflight
+checks the actual current run/attempt/job plus every planned Alpha/PTR file hash.
+It is a private source template, not an installed or admitted public workflow.
+
+Neither implementation performs atomic cumulative reservation or enforces daily
+allocation through a job timeout. Preserve the repository-wide stop until the
+remaining contracts and cumulative admission are implemented and independently
+verified. A new UTC day or successful local test does not enable Actions.

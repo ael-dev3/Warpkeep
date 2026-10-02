@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 // @ts-expect-error Standalone release utility exposes named test seams.
 import { writePublicPagesPayloadManifest } from '../scripts/verify-public-pages-payload.mjs';
 // @ts-expect-error Standalone release utility exposes named test seams.
-import { inspectPublicMirror, SOURCE_PUBLIC_DOCUMENTS, writePublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
+import { inspectPublicMirror, SOURCE_PUBLIC_DOCUMENTS, PUBLIC_PAGES_WORKFLOW_PATH, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH, writePublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
 import {
   preparePublicPagesPublication,
   preparePublicPagesRollback,
@@ -19,6 +19,7 @@ import {
 // @ts-expect-error Production output policy is an executable ESM module.
 import { allowedProductionHtmlPaths, expectedProductionCspByPath } from '../scripts/verify-production-dist-exclusions.mjs';
 
+const workflowTemplateBytes = readFileSync(resolve(process.cwd(), PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH));
 const sourceIndex = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
 const sourceOwnerCanary = readFileSync(resolve(process.cwd(), 'owner-canary/index.html'), 'utf8');
 const temporaryRoots: string[] = [];
@@ -41,7 +42,7 @@ function command(binary: string, args: string[], cwd: string) {
 
 const git = (root: string, args: string[]) => command('git', args, root);
 
-function fixture() {
+function fixture(workflowDeployment = false) {
   const source = mkdtempSync(join(tmpdir(), 'warpkeep-pages-operator-source-'));
   const publicRoot = mkdtempSync(join(tmpdir(), 'warpkeep-pages-operator-public-'));
   const signer = mkdtempSync(join(tmpdir(), 'warpkeep-pages-operator-signer-'));
@@ -66,6 +67,7 @@ function fixture() {
   for (const path of SOURCE_PUBLIC_DOCUMENTS as readonly string[]) {
     write(join(source, path), `source-reviewed ${path}\n`);
   }
+  write(join(source, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH), workflowTemplateBytes);
   git(source, ['add', '--all']);
   git(source, ['commit', '--quiet', '-m', 'Exact signed source fixture']);
   const sourceCommit = git(source, ['rev-parse', 'HEAD']);
@@ -114,7 +116,8 @@ function fixture() {
   const parentTree = git(publicRoot, ['rev-parse', 'HEAD^{tree}']);
   git(publicRoot, ['branch', '-M', 'main']);
   const savedPlan = writePublicPagesMirrorPlan({ sourceRoot: source,
-    expectedSourceCommit: sourceCommit, publicRoot, expectedPublicHead: parent });
+    expectedSourceCommit: sourceCommit, publicRoot, expectedPublicHead: parent,
+    ...(workflowDeployment ? { deploymentMode: 'workflow' } : {}) });
   const planBytes = readFileSync(savedPlan.path);
   expect(savedPlan.planSha256).toBe(sha(planBytes));
   const signerFingerprint = git(source, ['log', '-1', '--format=%GK']);
@@ -133,6 +136,51 @@ afterEach(() => {
 });
 
 describe('signed public Pages publication and rollback operator', () => {
+  it('prepares and publishes the source-bound workflow control while preserving Alpha and PTR bytes', () => {
+    const f = fixture(true);
+    const prepared = preparePublicPagesPublication({ ...f.common, sourceRoot: f.source });
+    expect(git(f.publicRoot, ['rev-parse', 'HEAD'])).toBe(f.parent);
+    let remote = f.parent;
+    const pushCommit = (_root: string, commit: string) => { remote = commit; };
+    publishPublicPagesPublication({ ...f.common, expectedPublicCommit: prepared.publicCommit,
+      readRemoteHead: () => remote, pushCommit });
+    expect(readFileSync(join(f.publicRoot, PUBLIC_PAGES_WORKFLOW_PATH)))
+      .toEqual(workflowTemplateBytes);
+    expect(inspectPublicMirror(f.publicRoot, prepared.publicCommit).tracked).toContain(PUBLIC_PAGES_WORKFLOW_PATH);
+    for (const path of ['index.html', '404.html', 'CNAME', 'assets/application-old.js',
+      'audio/warpkeep-genesis-002-theme.m4a', 'models/greater-realm/biome-trees/v3/manifest.json']) {
+      expect(git(f.publicRoot, ['rev-parse', `${prepared.publicCommit}:${path}`]))
+        .toBe(git(f.publicRoot, ['rev-parse', `${f.parent}:${path}`]));
+    }
+    expect(readFileSync(join(f.publicRoot, 'ptr/index.html'), 'utf8')).toContain('/ptr/assets/');
+    expect(JSON.parse(readFileSync(join(f.publicRoot,
+      'docs/releases/0.4.0/public-pages-ptr-payload-v1.json'), 'utf8')).files
+      .some((entry: { path: string }) => entry.path.startsWith('.github/'))).toBe(false);
+  }, 60_000);
+
+  it('rejects changed, copied or incorrectly declared workflow controls before a source or signer read', () => {
+    const f = fixture(true);
+    for (const change of [
+      (plan: { deploymentMode?: string }) => { plan.deploymentMode = 'workflow-v2'; },
+      (plan: { deploymentMode?: string }) => { delete plan.deploymentMode; },
+      (plan: { targetEntries: { path: string; sha256: string }[] }) => {
+        plan.targetEntries.find(entry => entry.path === PUBLIC_PAGES_WORKFLOW_PATH)!.sha256 = '0'.repeat(64);
+      },
+      (plan: { targetEntries: { path: string }[] }) => {
+        plan.targetEntries.find(entry => entry.path === PUBLIC_PAGES_WORKFLOW_PATH)!.path = '.github/workflows/other.yml';
+      },
+    ]) {
+      const plan = JSON.parse(f.common.reviewedPlanBytes.toString('utf8'));
+      change(plan);
+      plan.targetEntries.sort((a: { path: string }, b: { path: string }) => Buffer.compare(Buffer.from(a.path), Buffer.from(b.path)));
+      const bytes = Buffer.from(`${JSON.stringify(plan)}\n`);
+      expect(() => preparePublicPagesPublication({ ...f.common, sourceRoot: join(f.source, 'missing-source'),
+        reviewedPlanBytes: bytes, expectedReviewedPlanSha256: sha(bytes) }))
+        .toThrow('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
+    }
+    expect(git(f.publicRoot, ['rev-parse', 'HEAD'])).toBe(f.parent);
+  }, 60_000);
+
   it('prepares the signed LF parent CNAME from a clean CRLF checkout without changing the public ref', () => {
     const f = fixture();
     const workingCname = join(f.publicRoot, 'CNAME');

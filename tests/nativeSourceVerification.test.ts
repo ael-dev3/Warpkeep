@@ -1,0 +1,216 @@
+// @vitest-environment node
+import { afterEach, describe, expect, it } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { buildSync } from 'esbuild';
+import {
+  deriveNativeTestPartitions, nativeTestCommands, NAMESPACE_FILES, REQUIRED_NATIVE_DOMAINS,
+  NATIVE_VERIFICATION_PROFILE, requireCompleteNativeSourceVerificationEvidence, nativeNamespaceCleanupCommand,
+} from '../scripts/native-source-verification.mjs';
+import { parseVitestReport, parseNodeEvents } from '../scripts/native-source-verification-reports.mjs';
+import reporter from '../scripts/native-source-verification-node-reporter.mjs';
+
+const repository = process.cwd();
+const folders: string[] = [];
+const vite = "test: { include: ['tests/**/*.{test,spec}.{ts,tsx}'] }";
+const packageBytes = JSON.stringify({ scripts: { 'test:pure': 'tsx --test tests/*.test.ts' } });
+const source = ['tests/ordinary.test.ts', 'tests/nested/other.spec.tsx', 'src/untested.ts',
+  'spacetimedb/tests/first.test.ts', 'spacetimedb/tests/second.test.ts', ...NAMESPACE_FILES];
+const tools = { node: { path: '/native/node' }, vitest: { path: '/installed/vitest.mjs' }, tsx: { path: '/installed/tsx.mjs' } };
+const fixtureRoot = '/repo', fixtureFile = 'tests/fixture.test.mjs';
+const scope = { repositoryRoot: fixtureRoot, expectedFiles: [fixtureFile] };
+const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+
+afterEach(() => {
+  process.chdir(repository);
+  for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: false });
+});
+
+describe('native source test inventory and execution recipe', () => {
+  it('covers the exact disjoint ordinary/namespace union and every pure module file', () => {
+    const result = deriveNativeTestPartitions(source, vite, packageBytes);
+    expect(result.ordinaryVitestFiles).toEqual(['tests/nested/other.spec.tsx', 'tests/ordinary.test.ts']);
+    expect(result.namespaceVitestFiles).toEqual(NAMESPACE_FILES);
+    expect(result.moduleFiles).toEqual(['spacetimedb/tests/first.test.ts', 'spacetimedb/tests/second.test.ts']);
+    expect(new Set([...result.ordinaryVitestFiles, ...result.namespaceVitestFiles]).size).toBe(6);
+    expect(result.ordinaryVitestFiles.some(file => NAMESPACE_FILES.includes(file))).toBe(false);
+  });
+  it.each(NAMESPACE_FILES)('refuses a source inventory missing required namespace file %s', file => {
+    expect(() => deriveNativeTestPartitions(source.filter(value => value !== file), vite, packageBytes)).toThrow('NAMESPACE_INVENTORY_MISSING');
+  });
+  it('refuses duplicate, traversal and unsupported runner inventories', () => {
+    for (const paths of [[...source, source[0]], [...source, 'tests/../outside.test.ts']]) {
+      expect(() => deriveNativeTestPartitions(paths, vite, packageBytes)).toThrow('INVENTORY_INVALID');
+    }
+    for (const config of [vite.replace('{test,spec}', 'test'), `${vite}, include: ['other/**']`]) {
+      expect(() => deriveNativeTestPartitions(source, config, packageBytes)).toThrow('RUNNER_CONFIG_CHANGED');
+    }
+    expect(() => deriveNativeTestPartitions(source, vite, JSON.stringify({ scripts: { 'test:pure': 'tsx --test --test-name-pattern=one tests/*.test.ts' } })))
+      .toThrow('RUNNER_CONFIG_CHANGED');
+  });
+  it('uses exact isolated namespace runner and no test-name/shard filters', () => {
+    const partitions = deriveNativeTestPartitions(source, vite, packageBytes);
+    const commands = nativeTestCommands('/repo', partitions, tools, '/repo/artifacts/qa/proof');
+    expect(commands).toHaveLength(4);
+    expect(commands[0].files).toEqual(partitions.ordinaryVitestFiles);
+    expect(commands[0].args).toEqual(['/installed/vitest.mjs', 'run', ...partitions.ordinaryVitestFiles,
+      '--maxWorkers=1', '--no-cache', '--reporter=json', '--outputFile=/repo/artifacts/qa/proof-ordinary-tests.report.json']);
+    expect(commands[1].executable).toBe('/usr/bin/sudo');
+    expect(commands[1].args.slice(0, 4)).toEqual(['-n', '/bin/bash', '/repo/scripts/test-sealed-realms-existing-update-linux.sh', '--as']);
+    expect(commands[1].args.slice(-2)).toEqual(['--report-json', '/repo/artifacts/qa/proof-namespace-tests.report.json']);
+    expect(commands.flatMap(command => command.args).some(argument => /test-name|shard/u.test(argument))).toBe(false);
+    expect(commands[2].files).toEqual(['spacetimedb/tests/first.test.ts']);
+    expect(commands[2].args.at(-1)).toBe('tests/first.test.ts');
+    expect(commands[2].args).toContain('--test-timeout=120000');
+    expect(commands[2].args.some(argument => argument.startsWith('--test-reporter=file:'))).toBe(true);
+    expect(commands.every(command => command.deadlineMs > 0 && Number.isFinite(command.deadlineMs))).toBe(true);
+    expect(() => nativeTestCommands('/repo', { ...partitions, ordinaryVitestFiles: [NAMESPACE_FILES[0]] }, tools, '/repo/artifacts/qa/proof')).toThrow('PARTITIONS_INVALID');
+  });
+});
+
+describe('owned namespace cleanup requests', () => {
+  const bootId = '11111111-2222-3333-4444-555555555555';
+  const owner = { uid: 1000, gid: 1000, pid: 101, pgid: 101, bootId, identity: `linux-v1:${bootId}:700` };
+  const member = { pid: 102, pgid: 101, identity: `linux-v1:${bootId}:701` };
+  it('routes one exact birth-bound member through the existing privileged namespace helper', () => {
+    const command = nativeNamespaceCleanupCommand('/repo', owner, member, 'SIGTERM');
+    expect(command).toEqual({ executable: '/usr/bin/sudo', args: ['-n', '/bin/bash',
+      '/repo/scripts/test-sealed-realms-existing-update-linux.sh', '--cleanup', '1000', '1000', '/repo',
+      '101', '101', owner.identity, '102', member.identity, 'SIGTERM'] });
+    expect(nativeNamespaceCleanupCommand('/repo', owner, member, 'SIGKILL').args.at(-1)).toBe('SIGKILL');
+  });
+  it('refuses leader, foreign-group, wrong-boot and unsupported signal requests before launch', () => {
+    for (const invalid of [{ ...member, pid: owner.pid }, { ...member, pgid: 202 },
+      { ...member, identity: 'linux-v1:aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee:701' },
+      { ...member, identity: `${member.identity}junk` }, { ...member, pid: -102 }]) {
+      expect(() => nativeNamespaceCleanupCommand('/repo', owner, invalid, 'SIGTERM')).toThrow('CLEANUP_IDENTITY_INVALID');
+    }
+    for (const invalid of [{ ...owner, uid: 0 }, { ...owner, gid: 0 }, { ...owner, pgid: 202 },
+      { ...owner, bootId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee' }]) {
+      expect(() => nativeNamespaceCleanupCommand('/repo', invalid, member, 'SIGTERM')).toThrow('CLEANUP_IDENTITY_INVALID');
+    }
+    for (const signal of ['SIGINT', '0', '-1', '']) {
+      expect(() => nativeNamespaceCleanupCommand('/repo', owner, member, signal)).toThrow('CLEANUP_IDENTITY_INVALID');
+    }
+    expect(() => nativeNamespaceCleanupCommand('../repo', owner, member, 'SIGTERM')).toThrow('CLEANUP_IDENTITY_INVALID');
+  });
+});
+
+function vitestReport(statuses = ['passed', 'passed']) {
+  return { numTotalTestSuites: 3, numPassedTestSuites: 3, numFailedTestSuites: 0, numPendingTestSuites: 0,
+    numTotalTests: statuses.length, numPassedTests: statuses.filter(status => status === 'passed').length,
+    numFailedTests: statuses.filter(status => status === 'failed').length,
+    numPendingTests: statuses.filter(status => ['skipped', 'pending'].includes(status)).length,
+    numTodoTests: statuses.filter(status => status === 'todo').length, success: !statuses.includes('failed'), snapshot: { failure: false },
+    testResults: [{ name: `${fixtureRoot}/${fixtureFile}`, status: statuses.includes('failed') ? 'failed' : 'passed', message: '',
+      assertionResults: statuses.map((status, index) => ({ title: `leaf${index}`, fullName: `outer leaf${index}`, status,
+        ancestorTitles: ['outer'], failureMessages: [] })) }] };
+}
+describe('raw report completeness', () => {
+  it('counts nested suites separately from files and assertions', () => {
+    const parsed = parseVitestReport(JSON.stringify(vitestReport()), scope);
+    expect([parsed.files.length, parsed.suiteCount, parsed.assertions.length]).toEqual([1, 3, 2]);
+    expect(parsed.success).toBe(true);
+    expect(parsed.childTerminalRequired).toBe(true);
+  });
+  it('retains exact skipped/todo/pending outcomes without claiming they passed', () => {
+    const parsed = parseVitestReport(JSON.stringify(vitestReport(['passed', 'skipped', 'todo', 'pending'])), scope);
+    expect([parsed.passed, parsed.skipped, parsed.todo, parsed.pending]).toEqual([1, 1, 1, 1]);
+    expect(parsed.complete).toBe(false);
+    expect(parsed.success).toBe(false);
+  });
+  it('rejects missing files, duplicate files, leaf counts and suite/todo mismatches', () => {
+    const count = vitestReport(); count.numPassedTests++;
+    const suites = vitestReport(); suites.numTotalTestSuites++;
+    const todo = vitestReport(); todo.numTodoTests++;
+    const duplicate = vitestReport(); duplicate.testResults.push(duplicate.testResults[0]);
+    for (const value of [count, suites, todo, duplicate]) expect(() => parseVitestReport(JSON.stringify(value), scope)).toThrow();
+    expect(() => parseVitestReport(JSON.stringify(vitestReport()), { ...scope, expectedFiles: [fixtureFile, 'tests/missing.test.mjs'] })).toThrow('inventory');
+  });
+  it('does not accept snapshot, file setup or reported unhandled failures', () => {
+    const snapshot = vitestReport(); snapshot.snapshot.failure = true;
+    const setup = vitestReport(); setup.testResults[0].message = 'beforeAll failure';
+    for (const value of [snapshot, setup, { ...vitestReport(), unhandledErrors: ['runtime failure'] }]) {
+      expect(parseVitestReport(JSON.stringify(value), scope).success).toBe(false);
+    }
+    expect(() => parseVitestReport(Buffer.from([0xff]), scope)).toThrow();
+  });
+});
+
+function actualNodeFixture(contents: string) {
+  const folder = mkdtempSync(join(tmpdir(), 'warpkeep-native-report-')); folders.push(folder);
+  const file = join(folder, 'fixture.test.mjs'); writeFileSync(file, contents, { flag: 'wx', mode: 0o600 });
+  const environment = { ...process.env }; delete environment.NODE_TEST_CONTEXT;
+  const result = spawnSync(process.execPath, ['--test', `--test-reporter=${pathToFileURL(join(repository, 'scripts/native-source-verification-node-reporter.mjs')).href}`, file],
+    { cwd: folder, env: environment, windowsHide: true, shell: false, encoding: 'utf8', timeout: 15_000, maxBuffer: 4 * 1024 * 1024 });
+  expect(result.error).toBeUndefined(); expect(result.signal).toBeNull();
+  return { result, folder, bytes: result.stdout, parsed: parseNodeEvents(result.stdout, { repositoryRoot: folder, expectedFiles: ['fixture.test.mjs'] }) };
+}
+describe('installed Node structured reports', () => {
+  it('preserves real nested suite leaves, skip/todo/failure and nonenumerable errors', () => {
+    const observed = actualNodeFixture("import {describe,it} from 'node:test';import assert from 'node:assert/strict';describe('outer',()=>{it('pass',()=>{});describe('inner',()=>{it('skip',{skip:true},()=>{});it('todo',{todo:'later'},()=>{});it('failure',()=>assert.fail('actual fixture failure'));});});");
+    expect(observed.result.status).toBe(1);
+    expect(observed.bytes).toContain('actual fixture failure');
+    expect(observed.parsed.suiteCount).toBe(2);
+    expect([observed.parsed.passed, observed.parsed.failed, observed.parsed.skipped, observed.parsed.todo]).toEqual([1, 1, 1, 1]);
+    expect(observed.parsed.success).toBe(false);
+  });
+  it('recognizes clean nested suites and startup file failures without invented coverage', () => {
+    const good = actualNodeFixture("import {describe,it} from 'node:test';describe('outer',()=>describe('inner',()=>it('pass',()=>{})));");
+    expect(good.result.status).toBe(0); expect(good.parsed.passed).toBe(1); expect(good.parsed.success).toBe(true);
+    expect(() => parseNodeEvents(good.bytes.slice(0, -1), { repositoryRoot: good.folder, expectedFiles: ['fixture.test.mjs'] })).toThrow('Truncated');
+    const bad = actualNodeFixture("throw Error('startup fixture failure');");
+    expect(bad.result.status).toBe(1); expect(bad.parsed.assertions).toHaveLength(0);
+    expect(bad.parsed.fileFailureCount).toBe(1); expect(bad.parsed.success).toBe(false);
+  });
+  it('rejects an authentic reporter stream without terminal summary/plan', async () => {
+    let bytes = '';
+    for await (const line of reporter((async function* () { yield { type: 'test:diagnostic', data: { message: 'Bail out! incomplete run' } }; })())) bytes += line;
+    expect(() => parseNodeEvents(bytes, scope)).toThrow('summary/root plan absent');
+  });
+});
+
+describe('release authority remains closed and imports are safe', () => {
+  it('cannot turn a forged coverage envelope into a native source proof', () => {
+    const folder = mkdtempSync(join(tmpdir(), 'warpkeep-native-closed-')); folders.push(folder);
+    mkdirSync(join(folder, 'artifacts', 'qa'), { recursive: true });
+    const commit = 'a'.repeat(40), body = Buffer.from(JSON.stringify({ schemaVersion: 1, profile: NATIVE_VERIFICATION_PROFILE,
+      repositoryRoot: folder, source: { sourceCommit: commit }, completeCoverage: true, productionAuthorized: true,
+      implementedDomains: REQUIRED_NATIVE_DOMAINS, acceptedMain: true, signatureVerified: true, results: [] }));
+    const locator = digest(body); writeFileSync(join(folder, 'artifacts', 'qa', `native-source-verification-${locator}.json`), body, { flag: 'wx', mode: 0o600 });
+    process.chdir(folder);
+    // Windows does not emulate native POSIX mode600; it must still never return proof.
+    expect(() => requireCompleteNativeSourceVerificationEvidence(locator, commit)).toThrow();
+    if (process.platform !== 'win32') {
+      // A matching real byte digest reaches the closed authority boundary, not a nonexistent reader hash field.
+      expect(() => requireCompleteNativeSourceVerificationEvidence(locator, commit)).toThrow('NATIVE_SOURCE_VERIFICATION_INCOMPLETE');
+      writeFileSync(join(folder, 'artifacts', 'qa', `native-source-verification-${locator}.json`), Buffer.concat([body, Buffer.from('x')]));
+      expect(() => requireCompleteNativeSourceVerificationEvidence(locator, commit)).toThrow('NATIVE_SOURCE_VERIFICATION_ARTIFACT_CHANGED');
+    }
+  });
+  it('rejects path-shaped and malformed native locators before filesystem access', () => {
+    for (const locator of ['../receipt.json', 'A'.repeat(64), 'a'.repeat(63), '']) {
+      expect(() => requireCompleteNativeSourceVerificationEvidence(locator, 'a'.repeat(40))).toThrow('EVIDENCE_LOCATOR_INVALID');
+    }
+  });
+  it('imports successfully from the actual CJS sealed-bundle compilation boundary', () => {
+    const compiled = buildSync({ stdin: { contents: "export { requireCompleteNativeSourceVerificationEvidence } from './scripts/native-source-verification.mjs';",
+      resolveDir: repository }, platform: 'node', format: 'cjs', bundle: true, write: false, logLevel: 'silent' });
+    const module = { exports: {} as Record<string, unknown> };
+    new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);
+    expect(typeof module.exports.requireCompleteNativeSourceVerificationEvidence).toBe('function');
+  });
+  it('maintained CLI defaults to help and explicitly refuses release verification', () => {
+    for (const args of [[], ['--help']]) {
+      const help = spawnSync(process.execPath, ['scripts/verify-native-source.mjs', ...args], { cwd: repository, shell: false, encoding: 'utf8', timeout: 15_000, windowsHide: true });
+      expect(help.status).toBe(0); expect(help.stderr).toBe(''); expect(help.stdout).toContain('no release authority');
+    }
+    const refused = spawnSync(process.execPath, ['scripts/verify-native-source.mjs', '--verify-release'], { cwd: repository, shell: false, encoding: 'utf8', timeout: 15_000, windowsHide: true });
+    expect(refused.status).toBe(1); expect(refused.stderr).toContain('NATIVE_SOURCE_VERIFICATION_INCOMPLETE');
+  });
+});

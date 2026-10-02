@@ -9,6 +9,10 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import {
   inspectPublicMirror,
   PUBLIC_PAGES_MIRROR_MANIFEST_PATH,
+  PUBLIC_PAGES_WORKFLOW_PATH,
+  PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH,
+  PUBLIC_PAGES_WORKFLOW_TEMPLATE_SHA256,
+  PUBLIC_PAGES_WORKFLOW_TEMPLATE_BYTE_LENGTH,
   renderPublicPagesMirrorReadme,
   SOURCE_PUBLIC_DOCUMENTS,
   verifyPublicPagesMirrorPlan,
@@ -133,6 +137,7 @@ function parseReviewedPlan(bytes, expectedSha256) {
     || !Buffer.from(`${JSON.stringify(plan)}\n`).equals(bytes)
     || plan.schemaVersion !== 2 || plan.profile !== 'warpkeep-public-pages-ptr-mirror-plan-v1'
     || plan.publicationPath !== '/ptr/'
+    || (plan.deploymentMode !== undefined && plan.deploymentMode !== 'workflow')
     || !COMMIT.test(plan.sourceCommit ?? '') || !COMMIT.test(plan.sourceTree ?? '')
     || !COMMIT.test(plan.publicParentCommit ?? '') || !COMMIT.test(plan.publicParentTree ?? '')
     || !DIGEST.test(plan.payloadManifestSha256 ?? '')
@@ -142,7 +147,7 @@ function parseReviewedPlan(bytes, expectedSha256) {
     || plan.targetEntries.length < REQUIRED_PTR_GENERATED.length + PRESERVED_ROOT_REQUIRED.length
       + HOSTING_FILES.size + DOCUMENTS.size + 1
     || plan.targetEntries.length > MAX_FILES + REQUIRED_PTR_GENERATED.length
-      + PRESERVED_ROOT_REQUIRED.length + HOSTING_FILES.size + DOCUMENTS.size + 1
+      + PRESERVED_ROOT_REQUIRED.length + HOSTING_FILES.size + DOCUMENTS.size + 2
     || plan.targetFileCount !== plan.targetEntries.length) {
     fail('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
   }
@@ -154,7 +159,8 @@ function parseReviewedPlan(bytes, expectedSha256) {
       || (previous !== undefined && Buffer.compare(Buffer.from(previous), Buffer.from(entry.path)) >= 0)
       || !Number.isSafeInteger(entry.byteLength) || entry.byteLength < 0
       || entry.byteLength > MAX_FILE_BYTES || !DIGEST.test(entry.sha256 ?? '')
-      || entry.origin !== (HOSTING_FILES.has(entry.path) ? 'hosting'
+      || entry.origin !== (plan.deploymentMode === 'workflow' && entry.path === PUBLIC_PAGES_WORKFLOW_PATH
+        ? 'reviewed-control' : HOSTING_FILES.has(entry.path) ? 'hosting'
         : DOCUMENTS.has(entry.path) ? 'reviewed-source'
           : allowedPtrGeneratedPath(entry.path) ? 'generated'
             : (PRESERVED_ROOT_HOST_FILES.has(entry.path) || allowedGeneratedPath(entry.path))
@@ -169,6 +175,13 @@ function parseReviewedPlan(bytes, expectedSha256) {
     ...PRESERVED_ROOT_REQUIRED, 'ptr/404.html'].some(path => !entries.has(path))) {
     fail('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
   }
+  const control = entries.get(PUBLIC_PAGES_WORKFLOW_PATH);
+  if (plan.deploymentMode === 'workflow') {
+    if (!control || control.byteLength !== PUBLIC_PAGES_WORKFLOW_TEMPLATE_BYTE_LENGTH
+      || control.sha256 !== PUBLIC_PAGES_WORKFLOW_TEMPLATE_SHA256) {
+      fail('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
+    }
+  } else if (control) fail('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
   const preserved = preservedRootEntries(entries);
   if (preserved.length !== plan.preservedRootEntryCount
     || preservedRootManifestSha256(entries) !== plan.preservedRootManifestSha256
@@ -212,6 +225,8 @@ function readTargetFile(entry, sourceRoot, publicRoot, plan, manifestBytes, mani
   if (path === 'README.md') return renderPublicPagesMirrorReadme(manifest, plan.payloadManifestSha256);
   if (path === PUBLIC_PAGES_MIRROR_MANIFEST_PATH) return Buffer.from(manifestBytes);
   const sourcePath = path === 'ptr/404.html' ? 'dist/index.html'
+    : path === PUBLIC_PAGES_WORKFLOW_PATH && plan.deploymentMode === 'workflow'
+      ? PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH
     : DOCUMENTS.has(path) ? path
       : entry.origin === 'generated' ? `dist/${path.slice('ptr/'.length)}` : undefined;
   if (!sourcePath) fail('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
@@ -375,6 +390,7 @@ export function preparePublicPagesPublication({
   const fresh = verifyPublicPagesMirrorPlan({
     sourceRoot: source, expectedSourceCommit: plan.sourceCommit,
     publicRoot: publicPath, expectedPublicHead: plan.publicParentCommit,
+    ...(plan.deploymentMode === 'workflow' ? { deploymentMode: 'workflow' } : {}),
   });
   if (!Buffer.from(`${JSON.stringify(fresh)}\n`).equals(reviewedPlanBytes)) {
     fail('PUBLIC_PAGES_PUBLICATION_PLAN_DRIFT');
@@ -417,6 +433,7 @@ export function preparePublicPagesPublication({
     if (!Buffer.from(`${JSON.stringify(verifyPublicPagesMirrorPlan({
       sourceRoot: source, expectedSourceCommit: plan.sourceCommit,
       publicRoot: publicPath, expectedPublicHead: plan.publicParentCommit,
+      ...(plan.deploymentMode === 'workflow' ? { deploymentMode: 'workflow' } : {}),
     }))}\n`).equals(reviewedPlanBytes)) {
       fail('PUBLIC_PAGES_PUBLICATION_PLAN_DRIFT');
     }

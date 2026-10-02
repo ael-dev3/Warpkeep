@@ -11,14 +11,16 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 // @ts-expect-error Standalone release utility has named test seams.
 import { writePublicPagesPayloadManifest } from '../scripts/verify-public-pages-payload.mjs';
 // @ts-expect-error Standalone release utility has named test seams.
-import { SOURCE_PUBLIC_DOCUMENTS, generatedPath, renderPublicPagesMirrorReadme, verifyPublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
+import { SOURCE_PUBLIC_DOCUMENTS, PUBLIC_PAGES_WORKFLOW_PATH, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH, generatedPath, inspectPublicMirror, renderPublicPagesMirrorReadme, verifyPublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
 // @ts-expect-error Production output policy is an executable ESM module.
 import { allowedProductionHtmlPaths, expectedProductionCspByPath } from '../scripts/verify-production-dist-exclusions.mjs';
 
+const workflowTemplateBytes = readFileSync(resolve(process.cwd(), PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH));
 const sourceIndex = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
 const sourceOwnerCanary = readFileSync(resolve(process.cwd(), 'owner-canary/index.html'), 'utf8');
 const temporaryRoots: string[] = [];
@@ -63,6 +65,7 @@ function candidate() {
   for (const path of SOURCE_PUBLIC_DOCUMENTS as readonly string[]) {
     write(join(root, path), `source-reviewed ${path}\n`);
   }
+  write(join(root, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH), workflowTemplateBytes);
   const expectedSourceCommit = commit(root, 'Create exact source fixture');
   const dist = join(root, 'dist');
   for (const path of allowedProductionHtmlPaths as readonly string[]) {
@@ -114,11 +117,12 @@ function publicMirror(source: ReturnType<typeof candidate>) {
   return {
     root,
     expectedPublicHead,
-    plan: () => verifyPublicPagesMirrorPlan({
+    plan: (deploymentMode?: 'workflow') => verifyPublicPagesMirrorPlan({
       sourceRoot: source.root,
       expectedSourceCommit: source.expectedSourceCommit,
       publicRoot: root,
       expectedPublicHead,
+      ...(deploymentMode ? { deploymentMode } : {}),
     }),
   };
 }
@@ -128,6 +132,68 @@ afterEach(() => {
 });
 
 describe('read-only public Pages mirror plan', () => {
+  it('adds the exact source-reviewed control only through explicit workflow opt-in', () => {
+    const source = candidate();
+    const mirror = publicMirror(source);
+    const legacy = mirror.plan();
+    expect(legacy).not.toHaveProperty('deploymentMode');
+    expect(legacy.targetEntries.some((entry: { path: string }) => entry.path.startsWith('.github/'))).toBe(false);
+    const controlled = mirror.plan('workflow');
+    expect(controlled.deploymentMode).toBe('workflow');
+    expect(controlled.targetEntries.find((entry: { path: string }) => entry.path === PUBLIC_PAGES_WORKFLOW_PATH))
+      .toEqual({ path: PUBLIC_PAGES_WORKFLOW_PATH, origin: 'reviewed-control',
+        byteLength: workflowTemplateBytes.length, sha256: sha(workflowTemplateBytes) });
+    expect(controlled.preservedRootManifestSha256).toBe(legacy.preservedRootManifestSha256);
+    expect(controlled.payloadManifestSha256).toBe(legacy.payloadManifestSha256);
+    const workflow = parse(workflowTemplateBytes.toString('utf8'));
+    expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch']);
+    expect(Object.keys(workflow.jobs)).toEqual(['deploy-pages']);
+    expect(workflow.jobs['deploy-pages']['timeout-minutes']).toBe(3);
+    expect(workflow.jobs['deploy-pages'].steps.filter((step: { uses?: string }) => step.uses)
+      .map((step: { uses: string }) => step.uses)).toEqual([
+      'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0',
+      'actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9',
+      'actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128',
+    ]);
+    expect(workflow.jobs['deploy-pages'].steps.filter((step: { run?: string }) => step.run)
+      .every((step: { run: string }) => !step.run.includes('${{'))).toBe(true);
+    expect(git(mirror.root, ['rev-parse', 'HEAD'])).toBe(mirror.expectedPublicHead);
+  }, 30_000);
+
+  it('accepts only the exact committed template and never silently removes an existing workflow', () => {
+    const source = candidate();
+    const mirror = publicMirror(source);
+    write(join(mirror.root, PUBLIC_PAGES_WORKFLOW_PATH), workflowTemplateBytes);
+    const publicHead = commit(mirror.root, 'Install exact fixture control');
+    expect(inspectPublicMirror(mirror.root, publicHead).tracked).toContain(PUBLIC_PAGES_WORKFLOW_PATH);
+    const options = { sourceRoot: source.root, expectedSourceCommit: source.expectedSourceCommit,
+      publicRoot: mirror.root, expectedPublicHead: publicHead };
+    expect(() => verifyPublicPagesMirrorPlan(options)).toThrow('PUBLIC_PAGES_MIRROR_DEPLOYMENT_MODE_INVALID');
+    expect(verifyPublicPagesMirrorPlan({ ...options, deploymentMode: 'workflow' }).deploymentMode).toBe('workflow');
+    write(join(mirror.root, PUBLIC_PAGES_WORKFLOW_PATH), Buffer.concat([workflowTemplateBytes, Buffer.from('# unreviewed\n')]));
+    const changed = commit(mirror.root, 'Mutate fixture control');
+    expect(() => inspectPublicMirror(mirror.root, changed)).toThrow('PUBLIC_PAGES_MIRROR_WORKFLOW_INVALID');
+  }, 30_000);
+
+  it.each(['.github/workflows/other.yml', '.github/WORKFLOWS/ptr-pages.yml', '.github/workflows/nested/ptr-pages.yml'])(
+    'rejects a copied control at %s', path => {
+      const source = candidate();
+      const mirror = publicMirror(source);
+      write(join(mirror.root, path), workflowTemplateBytes);
+      const changed = commit(mirror.root, 'Copy fixture control to an unapproved path');
+      expect(() => inspectPublicMirror(mirror.root, changed)).toThrow('PUBLIC_PAGES_MIRROR_FILE_BOUNDARY_INVALID');
+    }, 30_000,
+  );
+
+  it.each(['legacy', 'workflow-v2', null])('rejects unsupported explicit deployment mode %s', deploymentMode => {
+    const source = candidate();
+    const mirror = publicMirror(source);
+    expect(() => verifyPublicPagesMirrorPlan({ sourceRoot: source.root,
+      expectedSourceCommit: source.expectedSourceCommit, publicRoot: mirror.root,
+      expectedPublicHead: mirror.expectedPublicHead, deploymentMode }))
+      .toThrow('PUBLIC_PAGES_MIRROR_DEPLOYMENT_MODE_INVALID');
+  });
+
   it('recognizes only the reviewed M4A tracks and exact tree metadata at root and PTR paths', () => {
     expect(generatedPath('ptr/assets/../application.js')).toBe(false);
     expect(generatedPath('ptr/ptr/assets/application.js')).toBe(false);

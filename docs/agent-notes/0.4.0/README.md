@@ -15,8 +15,11 @@ CodeQL code scanning. Read the [current Actions policy](../../operations/github-
 before following historical hosted-Verify directions. Actions is globally
 disabled; complete local verification is being integrated with the existing
 release callers. Selected local diagnostics do not authorize deployment. The
-intended route retains genuine GitHub dispatch/OIDC for bounded operations;
-its source-evidence adapter and execution admission are not yet available.
+intended route retains genuine GitHub dispatch/OIDC for bounded operations.
+The maintained verifier, explicitly closed native consumer and opt-in Pages
+workflow/publication/postflight are implemented. Complete verification coverage,
+durable namespace access, prepared reuse and cumulative admission remain open;
+none of those source additions has enabled or deployed a workflow.
 Recheck that accepted main still names the exact verified source before each
 operation. Source changes to the release workflow require a fresh native
 prepare/check and generated-only promotion before live observations.

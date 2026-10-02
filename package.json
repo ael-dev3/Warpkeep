@@ -27,6 +27,7 @@
     "verify:actions-hold": "node scripts/check-github-actions-hold.mjs --check",
     "validate:pages-release-build": "node scripts/notification-pages-build-release-validator.mjs",
     "verify:sealed-launch": "node scripts/verify-0.4.0-sealed-launch.mjs --phase=checked-in",
+    "verify:source-native": "node scripts/verify-native-source.mjs",
     "verify:sealed-launch:preparation": "node scripts/verify-0.4.0-sealed-launch.mjs --phase=preparation",
     "verify:sealed-launch:activation": "node scripts/verify-0.4.0-sealed-launch.mjs --phase=activation",
     "generate:sealed-launch:activation": "node scripts/generate-0.4.0-sealed-launch-activation.mjs",
