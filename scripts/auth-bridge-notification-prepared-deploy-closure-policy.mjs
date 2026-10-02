@@ -136,6 +136,9 @@ const SCRIPT_GRAPH_ROOTS = Object.freeze([
   'scripts/profiles/profiles-operator.ts',
   'scripts/verify-0.4.0-sealed-launch.mjs',
   'scripts/verify-auth-bridge-notification-prepared-receipt.mjs',
+  // A fixed production-build CLI owns a real exported ABI even when no
+  // workflow module imports it. Keep its adjacent declaration independently.
+  'scripts/verify-production-dist-exclusions.mjs',
   'scripts/water-revision-operator.ts',
   'scripts/worker-return-repair-operator.ts',
   'scripts/worker-rollout-operator.ts',

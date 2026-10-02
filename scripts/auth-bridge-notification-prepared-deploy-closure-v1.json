@@ -350,7 +350,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure-policy.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "98ec849dc4f39be0c8cd181d877b7888dc572e0197e09ce1f03f0d7dbbd8c973"
+      "sha256": "acf868f39fe412fe73d2319c9b4662d04d3a5baf837602279fde6765ec62b071"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.d.mts",
@@ -360,7 +360,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "bcfe35b0dd184fd76895e19ea0ea514e0653d29d5e6c0d15df222915f7a01eef"
+      "sha256": "5ae21f2a384a8515336af5a036e18b7f2b1bd733b5ecdd92d2213992c0121a07"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -1208,44 +1208,14 @@
       "sha256": "5eb5ec583656abe889fc3a0e8a2d032b5f2beec7aea041e96924b7d4f3607163"
     },
     {
-      "path": "scripts/native-source-verification-build-output.d.mts",
+      "path": "scripts/native-source-verification-evidence.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ca02f97b84f11abff9bcb04e74ee49702dc0dcf216210811e1aeeebaca515c4f"
+      "sha256": "ec12e785db23c9508a87a6ea3369b30ecc53230ad4fc846a37e0f287ac3a878e"
     },
     {
-      "path": "scripts/native-source-verification-build-output.mjs",
+      "path": "scripts/native-source-verification-evidence.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ae1bb0ed13d18c1a1fd734b24c4834ce54f45f4dd6882791eedad42bf6fd908c"
-    },
-    {
-      "path": "scripts/native-source-verification-node-reporter.d.mts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5eb229b94f811a5531a3178eec6bd223c12c24bd2d310a911067967414ee742c"
-    },
-    {
-      "path": "scripts/native-source-verification-node-reporter.mjs",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e2b0d278d56f3bad5fef0b7de5280bc0dd9d069fd1f997adfd653d01489c6a6f"
-    },
-    {
-      "path": "scripts/native-source-verification-reports.d.mts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "592c77a912660accdf613243f9f34f1146d67dd4be8baeda211060e5f3af3192"
-    },
-    {
-      "path": "scripts/native-source-verification-reports.mjs",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "97b6783d82c87805b512775f5d4bf403602b760f08dd02de8a345e4c29fc99ca"
-    },
-    {
-      "path": "scripts/native-source-verification.d.mts",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d5ef9871166648e1b909b83cfd5402796bb8759909878d463bb8ab7159d283f4"
-    },
-    {
-      "path": "scripts/native-source-verification.mjs",
-      "digestProfile": "raw-file-sha256-v1",
-      "sha256": "3912604138bff15f145e512fc2c326194303798e66029aa22b9162a49d24ac6d"
+      "sha256": "f7c84f0ae908e35f5b30fe4b15ccd073ef376d7978c0cc2e9c0a0780d83bbde7"
     },
     {
       "path": "scripts/notification-pages-build-release-validator.d.mts",
@@ -1380,7 +1350,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "75f298f483200a084230d20aa2bd12d6980a60258961738664b957f2b25ec41d"
+      "sha256": "062db4b35cd979e49688ba357c1f047ef897bb2f51fdd4140efd438816ce4cbf"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -2140,7 +2110,7 @@
     {
       "path": "scripts/sealed-realms-production-workflow-evidence.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ecf395e8934e552fc514d789b871abf26d0cacf7611d0aa7f29f13aa2899d6bb"
+      "sha256": "1fb4ca4c5813a5cabc6a129d279c070e81f6cbf971cb838822bc2f4110761ecd"
     },
     {
       "path": "scripts/spacetime-additive-migration-proof.d.mts",

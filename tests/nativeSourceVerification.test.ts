@@ -12,12 +12,15 @@ import {
   deriveNativeTestPartitions, nativeTestCommands, NAMESPACE_FILES, REQUIRED_NATIVE_DOMAINS,
   NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE, nativeSourceCheckCommands,
   captureNativeSourceCheckConfiguration,
+  captureNativeServiceConfiguration,
   nativeVerificationEnvironment,
   retainNativeVerificationOutput,
   requireCompleteNativeSourceVerificationEvidence, nativeNamespaceCleanupCommand,
 } from '../scripts/native-source-verification.mjs';
 import { parseVitestReport, parseNodeEvents } from '../scripts/native-source-verification-reports.mjs';
 import reporter from '../scripts/native-source-verification-node-reporter.mjs';
+import { requireCompleteNativeSourceVerificationEvidence as inertEvidenceReader } from '../scripts/native-source-verification-evidence.mjs';
+import { NATIVE_SERVICE_CHECKS_PROFILE } from '../scripts/native-source-verification-services.mjs';
 
 const repository = process.cwd();
 const folders: string[] = [];
@@ -94,6 +97,25 @@ describe.skipIf(process.platform !== 'linux' || process.getuid?.() !== 1000)('na
     expect(result.workspace).toEqual({ path: join(root, 'pnpm-workspace.yaml'), present: false });
     expect(result.absentPaths).toContain(join(root, '.env.production.local'));
     expect(captureNativeSourceCheckConfiguration(root)).toEqual(result);
+  });
+  it('refuses service credential files and a Node executable shadowing the attested runtime', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-service-config-')); folders.push(root);
+    for (const service of ['auth-bridge', 'release-recovery']) mkdirSync(join(root, 'services', service, 'node_modules/.bin'), { recursive: true, mode: 0o700 });
+    const initial = captureNativeServiceConfiguration(root);
+    expect(initial.absentPaths).toContain(join(root, 'services/auth-bridge/node_modules/.bin/node'));
+    expect(captureNativeServiceConfiguration(root)).toEqual(initial);
+    for (const service of ['auth-bridge', 'release-recovery']) {
+      for (const name of ['.env.test', '.dev.vars', '.npmrc']) {
+        const path = join(root, 'services', service, name);
+        writeFileSync(path, 'fixture-only value', { flag: 'wx', mode: 0o600 });
+        expect(() => captureNativeServiceConfiguration(root)).toThrow('AMBIENT_SERVICE_CONFIGURATION');
+        rmSync(path);
+      }
+      const node = join(root, 'services', service, 'node_modules/.bin/node');
+      symlinkSync(process.execPath, node);
+      expect(() => captureNativeServiceConfiguration(root)).toThrow('SERVICE_NODE_SHADOWED');
+      rmSync(node);
+    }
   });
   it('binds actual ignored workspace bytes and rejects ambient Vite/package configuration', () => {
     const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-config-')); folders.push(root);
@@ -258,6 +280,18 @@ describe('raw report completeness', () => {
     expect(parsed.complete).toBe(false);
     expect(parsed.success).toBe(false);
   });
+  it('retains raw success and suite failures even when every assertion passed', () => {
+    const unsuccessful = vitestReport(); unsuccessful.success = false;
+    const failedSuite = vitestReport(); failedSuite.numPassedTestSuites--; failedSuite.numFailedTestSuites++;
+    for (const value of [unsuccessful, failedSuite]) {
+      const parsed = parseVitestReport(JSON.stringify(value), scope);
+      expect(parsed.complete).toBe(true); expect(parsed.success).toBe(false);
+      expect(parsed.reportSuccess).toBe(value.success);
+      expect(parsed.failedSuiteCount).toBe(value.numFailedTestSuites);
+      expect(parsed.pendingSuiteCount).toBe(0);
+      expect(parsed.passed).toBe(2);
+    }
+  });
   it('rejects missing files, duplicate files, leaf counts and suite/todo mismatches', () => {
     const count = vitestReport(); count.numPassedTests++;
     const suites = vitestReport(); suites.numTotalTestSuites++;
@@ -310,10 +344,10 @@ describe('installed Node structured reports', () => {
 });
 
 describe('release authority remains closed and imports are safe', () => {
-  it('cannot turn a forged coverage envelope into a native source proof', () => {
+  it.each([NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE, NATIVE_SERVICE_CHECKS_PROFILE])('cannot turn a forged %s coverage envelope into a native source proof', profile => {
     const folder = mkdtempSync(join(tmpdir(), 'warpkeep-native-closed-')); folders.push(folder);
     mkdirSync(join(folder, 'artifacts', 'qa'), { recursive: true });
-    const commit = 'a'.repeat(40), body = Buffer.from(JSON.stringify({ schemaVersion: 1, profile: NATIVE_VERIFICATION_PROFILE,
+    const commit = 'a'.repeat(40), body = Buffer.from(JSON.stringify({ schemaVersion: 1, profile,
       repositoryRoot: folder, source: { sourceCommit: commit }, completeCoverage: true, productionAuthorized: true,
       implementedDomains: REQUIRED_NATIVE_DOMAINS, acceptedMain: true, signatureVerified: true, results: [] }));
     const locator = digest(body); writeFileSync(join(folder, 'artifacts', 'qa', `native-source-verification-${locator}.json`), body, { flag: 'wx', mode: 0o600 });
@@ -333,7 +367,8 @@ describe('release authority remains closed and imports are safe', () => {
     }
   });
   it('imports successfully from the actual CJS sealed-bundle compilation boundary', () => {
-    const compiled = buildSync({ stdin: { contents: "export { requireCompleteNativeSourceVerificationEvidence } from './scripts/native-source-verification.mjs';",
+    expect(requireCompleteNativeSourceVerificationEvidence).toBe(inertEvidenceReader);
+    const compiled = buildSync({ stdin: { contents: "export { requireCompleteNativeSourceVerificationEvidence } from './scripts/native-source-verification-evidence.mjs';",
       resolveDir: repository }, platform: 'node', format: 'cjs', bundle: true, write: false, logLevel: 'silent' });
     const module = { exports: {} as Record<string, unknown> };
     new Function('require', 'module', 'exports', compiled.outputFiles[0].text)(createRequire(import.meta.url), module, module.exports);

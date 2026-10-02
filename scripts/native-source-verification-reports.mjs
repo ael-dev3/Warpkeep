@@ -81,6 +81,7 @@ export function parseVitestReport(bytes, suppliedOptions) {
   if (Object.hasOwn(report, 'numUnhandledErrors') && integer(report.numUnhandledErrors, 'unhandled errors')) runtimeFailures.push({ file: null, message: 'Reported unhandled errors' });
   const complete = counts.pending === 0 && report.numPendingTestSuites === 0;
   return { kind: 'vitest-json', files, assertions, suiteCount, ...counts, complete,
+    reportSuccess: report.success, failedSuiteCount: report.numFailedTestSuites, pendingSuiteCount: report.numPendingTestSuites,
     success: complete && report.success && counts.failed === 0 && counts.skipped === 0 && counts.todo === 0 && report.numFailedTestSuites === 0 && runtimeFailures.length === 0,
     runtimeFailures, childTerminalRequired: true, runtimeErrorScope: 'JSON contains file/snapshot errors; installed JsonReporter omits global unhandled-error inventory. Actual child exit/stderr are separately required.' };
 }

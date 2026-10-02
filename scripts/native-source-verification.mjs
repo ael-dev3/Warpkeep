@@ -9,6 +9,11 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { probeProductionAdminProcessIdentity } from './production-admin-token-budget.mjs';
 import { parseVitestReport, parseNodeEvents } from './native-source-verification-reports.mjs';
 import { captureNativeBuildOutput } from './native-source-verification-build-output.mjs';
+import { assessNativeNamespaceDispositions } from './native-source-verification-dispositions.mjs';
+import { NATIVE_SERVICE_CHECKS_PROFILE, NATIVE_SERVICE_SOURCE_INPUTS, NATIVE_SERVICE_PREREQUISITES,
+  deriveNativeServicePartitions, nativeServiceCommands } from './native-source-verification-services.mjs';
+import { NATIVE_ROOT_DEPENDENCY_PACKAGE_PATHS, captureNativeRootDependencyAttestation }
+  from './native-source-verification-dependencies.mjs';
 
 export const NATIVE_VERIFICATION_PROFILE = 'warpkeep-native-source-test-partitions-v1';
 export const NATIVE_SOURCE_CHECKS_PROFILE = 'warpkeep-native-source-checks-v1';
@@ -24,6 +29,7 @@ export const REQUIRED_NATIVE_DOMAINS = Object.freeze(['source-policy', 'ordinary
   'auth-bridge', 'release-recovery', 'connected-module', 'genuine-preparation']);
 const IMPLEMENTED_DOMAINS = Object.freeze(['ordinary-tests', 'namespace-tests', 'module-pure-tests']);
 const SOURCE_CHECK_DOMAINS = Object.freeze(['root-types', 'production-builds']);
+const SERVICE_CHECK_DOMAINS = Object.freeze(['auth-bridge', 'release-recovery']);
 const GITLEAKS_SHA256 = '88f91962aa2f93ac6ab281d553b9e125f5197bbbce38f9f2437f7299c32e5509';
 const SOURCE_CHECK_SCRIPTS = Object.freeze({
   build: 'de5307c5c53b88ce0a0c6fb1e31632830045af1f10f17aadf30c3f20295cdc3b',
@@ -196,7 +202,32 @@ function inputFacts(root) {
     yamlArchive: { path: join(root, '.git/yaml-2.9.0.tgz'), sha256: yaml.sha256, identity: yaml.identity, bytes: yaml.body.length },
     producer: { path: join(root, 'scripts/native-source-verification.mjs'), sha256: read(join(root, 'scripts/native-source-verification.mjs')).sha256 },
     reporter: { path: join(root, 'scripts/native-source-verification-node-reporter.mjs'), sha256: read(join(root, 'scripts/native-source-verification-node-reporter.mjs')).sha256 },
-    limitation: 'Installed entry/package bytes only; complete installed dependency-graph attestation remains required.' };
+    rootDependencySlice: rootDependencyInputs(root, lock),
+    limitation: 'Selected root archive/package files and installed entry bytes only; full root, module and service graphs, audit and registry signatures remain required.' };
+}
+function rootDependencyInputs(root, lock) {
+  const captured = captureNativeRootDependencyAttestation(root, rootDependencyArchives(root, lock));
+  // The capture holds all directory fields during its two passes. Across commands,
+  // owned build outputs may change the checkout directory's entry count/times;
+  // hold its location/owner/mode while retaining every dependency/archive/lock fact.
+  const { dev, ino, mode, uid, gid } = captured.repositoryIdentity;
+  return { ...captured, repositoryIdentity: { dev, ino, mode, uid, gid } };
+}
+function rootDependencyArchives(root, lock) {
+  // Source-owned cache locations and package selection. A locator supplies no expected digest.
+  // Missing cache entries remain uncovered; never install or download during verification.
+  return NATIVE_ROOT_DEPENDENCY_PACKAGE_PATHS.flatMap(packagePath => {
+    const integrity = lock.packages[packagePath]?.integrity;
+    if (typeof integrity !== 'string' || !/^sha512-[A-Za-z0-9+/]{86}==$/u.test(integrity)) fail('DEPENDENCY_LOCK_INVALID');
+    const hex = Buffer.from(integrity.slice(7), 'base64').toString('hex');
+    const candidates = [join('/home/warpkeep/.npm/_cacache/content-v2/sha512', hex.slice(0, 2), hex.slice(2, 4), hex.slice(4))];
+    if (packagePath === 'node_modules/yaml') candidates.push(join(root, '.git/yaml-2.9.0.tgz'));
+    for (const archivePath of candidates) {
+      try { fs.lstatSync(archivePath); return [{ packagePath, archivePath }]; }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+    }
+    return [];
+  });
 }
 export function nativeTestCommands(root, partitions, tools, stem) {
   if (partitions.ordinaryVitestFiles.some(path => NAMESPACE_FILES.includes(path))
@@ -289,6 +320,74 @@ function sourceCheckInputs(root, inputs) {
   if (tools.gitleaks.sha256 !== GITLEAKS_SHA256) fail('GITLEAKS_PREREQUISITE_INVALID');
   nativeSourceCheckCommands(root, { ...inputs, ...tools }, join(root, 'artifacts/qa/recipe-check'), read(join(root, 'package.json')).body);
   return { ...inputs, ...tools };
+}
+/** Metadata-only refusal of service ambient configuration; private values are never read. */
+export function captureNativeServiceConfiguration(root) {
+  if (typeof root !== 'string' || resolve(root) !== root || fs.realpathSync(root) !== root) fail('ROOT_INVALID');
+  const absentPaths = [];
+  for (const relative of ['', ...NATIVE_SERVICE_PREREQUISITES.serviceRoots]) {
+    const directory = join(root, relative), stat = fs.lstatSync(directory);
+    if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== process.getuid() || stat.mode & 0o022) fail('SERVICE_DIRECTORY_INVALID');
+    const names = fs.readdirSync(directory);
+    if (names.length > 8192) fail('SERVICE_CONFIGURATION_UNBOUNDED');
+    const forbidden = new Set([...NATIVE_SERVICE_PREREQUISITES.forbiddenConfigBasenames,
+      ...names.filter(name => NATIVE_SERVICE_PREREQUISITES.forbiddenConfigPrefixes.some(prefix => name.startsWith(prefix)))]);
+    for (const name of [...forbidden, ...NATIVE_SERVICE_PREREQUISITES.forbiddenConfigDirectories].sort()) {
+      const relativePath = relative ? `${relative}/${name}` : name;
+      if (NATIVE_SERVICE_PREREQUISITES.allowedExamplePaths.includes(relativePath)) continue;
+      const path = join(root, relativePath);
+      try { fs.lstatSync(path); fail('AMBIENT_SERVICE_CONFIGURATION'); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+      absentPaths.push(path);
+    }
+    if (relative) for (const name of ['node', 'node.exe']) {
+      const path = join(directory, 'node_modules/.bin', name);
+      try { fs.lstatSync(path); fail('SERVICE_NODE_SHADOWED'); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; }
+      absentPaths.push(path);
+    }
+  }
+  return { absentPaths, rootConfiguration: captureNativeSourceCheckConfiguration(root) };
+}
+function servicePartitions(root, source) {
+  return deriveNativeServicePartitions(source.files.map(file => file.path),
+    Object.fromEntries(Object.keys(NATIVE_SERVICE_SOURCE_INPUTS).map(path => [path, read(join(root, path)).body])));
+}
+function serviceCheckInputs(root, inputs) {
+  const tools = { ...inputs, closedServiceConfiguration: captureNativeServiceConfiguration(root), authBridge: {}, releaseRecovery: {} };
+  tools.pnpmBuiltinConfiguration = installedTool(join(dirname(inputs.pnpmInputs.runtime.path), 'pnpmrc')).fact;
+  if (tools.pnpmBuiltinConfiguration.sha256 !== '6985e6e532eed7e6fd69a7d560ac5a5753d74a9f9709627092d5be02afddd84e') fail('PNPM_CONFIGURATION_INVALID');
+  for (const input of NATIVE_SERVICE_PREREQUISITES.installedInputs) {
+    const packagePath = join(root, input.packagePath), entryPath = join(root, input.entryPath);
+    const linkRoot = `${root}/${input.serviceRoot}/node_modules/`;
+    const links = input.serviceRoot === 'services/release-recovery' ? 2 : 1;
+    const entry = installedTool(entryPath, links), metadata = installedTool(packagePath, links);
+    const declared = JSON.parse(read(join(root, input.sourcePackagePath)).body).devDependencies[input.dependency];
+    const installed = JSON.parse(metadata.body);
+    if (!entry.fact.path.startsWith(linkRoot) || !metadata.fact.path.startsWith(linkRoot)
+      || installed.name !== input.dependency || installed.version !== declared) fail('SERVICE_INSTALLED_PACKAGE_MISMATCH');
+    const service = input.serviceRoot === 'services/auth-bridge' ? tools.authBridge : tools.releaseRecovery;
+    const key = input.dependency === '@cloudflare/vitest-pool-workers' ? 'workersPool' : input.dependency;
+    service[key] = entry.fact; service[`${key}Package`] = metadata.fact;
+    if (input.dependency === 'typescript') {
+      // pnpm resolves its generated .bin shim, so retain its actual bytes as well.
+      // This is held execution input, not archive proof of the generated shim.
+      service.typescriptBin = installedTool(join(root, input.serviceRoot, 'node_modules/.bin/tsc')).fact;
+      if (!service.typescriptBin.path.startsWith(linkRoot)) fail('SERVICE_INSTALLED_BIN_MISMATCH');
+    }
+  }
+  tools.limitation = 'Service package/entry and actual TypeScript shim bytes are held; complete service transitive graph, generated shim provenance, audit and registry signatures remain uncovered.';
+  return tools;
+}
+export function createNativeServiceChecksPlan(planPath) {
+  const root = nativeRoot(), source = sourceSnapshot(root), partitions = servicePartitions(root, source);
+  const plan = { schemaVersion: 1, profile: NATIVE_SERVICE_CHECKS_PROFILE, source, partitions,
+    tools: serviceCheckInputs(root, inputFacts(root)), repositoryRoot: root,
+    productionAuthorized: false, completeCoverage: false, implementedDomains: SERVICE_CHECK_DOMAINS,
+    requiredDomains: REQUIRED_NATIVE_DOMAINS,
+    scope: 'Separate service types, generated Workerd declaration check and exact ordinary/Workerd test partitions; no provider deployment, aggregate test count or full dependency provenance.' };
+  same(sourceSnapshot(root), source);
+  return output(root, planPath, json(plan));
 }
 export function createNativeSourceChecksPlan(planPath) {
   const root = nativeRoot(), source = sourceSnapshot(root), tools = sourceCheckInputs(root, inputFacts(root));
@@ -467,11 +566,12 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
   if (!HEX64.test(digest)) fail('PLAN_DIGEST_INVALID');
   const planRef = artifact(root, planPath, digest), plan = JSON.parse(read(planRef.path).body), source = sourceSnapshot(root);
   const checks = plan.profile === NATIVE_SOURCE_CHECKS_PROFILE;
-  const partitions = checks ? null : deriveNativeTestPartitions(source.files.map(file => file.path), read(join(root, 'vite.config.ts')).body,
+  const services = plan.profile === NATIVE_SERVICE_CHECKS_PROFILE;
+  const partitions = services ? servicePartitions(root, source) : checks ? null : deriveNativeTestPartitions(source.files.map(file => file.path), read(join(root, 'vite.config.ts')).body,
     read(join(root, 'spacetimedb/package.json')).body);
-  const domains = checks ? SOURCE_CHECK_DOMAINS : IMPLEMENTED_DOMAINS;
-  const currentTools = () => checks ? sourceCheckInputs(root, inputFacts(root)) : inputFacts(root);
-  if (![NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE].includes(plan.profile) || plan.schemaVersion !== 1 || plan.repositoryRoot !== root
+  const domains = services ? SERVICE_CHECK_DOMAINS : checks ? SOURCE_CHECK_DOMAINS : IMPLEMENTED_DOMAINS;
+  const currentTools = () => services ? serviceCheckInputs(root, inputFacts(root)) : checks ? sourceCheckInputs(root, inputFacts(root)) : inputFacts(root);
+  if (![NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE, NATIVE_SERVICE_CHECKS_PROFILE].includes(plan.profile) || plan.schemaVersion !== 1 || plan.repositoryRoot !== root
     || plan.productionAuthorized !== false || plan.completeCoverage !== false) fail('PLAN_INVALID');
   same(plan.source, source);
   if (!checks) same(plan.partitions, partitions);
@@ -483,7 +583,7 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
     bootId: fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim() };
   if (actor.state !== 'present' || processGroup(process.pid) !== process.pid || groupMembers(process.pid).length !== 1) fail('EXCLUSIVE_SESSION_REQUIRED');
   stem = resolve(stem);
-  const commands = checks ? nativeSourceCheckCommands(root, plan.tools, stem, read(join(root, 'package.json')).body)
+  const commands = services ? nativeServiceCommands(root, partitions, plan.tools, stem) : checks ? nativeSourceCheckCommands(root, plan.tools, stem, read(join(root, 'package.json')).body)
     : nativeTestCommands(root, partitions, plan.tools, stem), reserved = new Map();
   // Reserve all owned artifacts before launching any child.
   for (const path of [`${stem}-summary.json`, ...commands.flatMap(command => [command.reportPath,
@@ -502,6 +602,8 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
     const streamFailure = new Promise(done => { rejectOutput = done; });
     const signals = [], cleanupAttempts = [], childStartedAt = new Date().toISOString();
     try {
+      // Recheck ignored ambient/config and tool inputs immediately before every child.
+      same(sourceSnapshot(root), source); same(currentTools(), plan.tools);
       child = cp.spawn(command.executable, command.args, { cwd: command.cwd, env: { ...environment(plan.tools), ...command.environment }, shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
       closed = new Promise(done => { child.once('error', error => done({ exitCode: null, signal: null, spawnError: error.code ?? 'SPAWN_ERROR' }));
         child.once('close', (exitCode, signal) => done({ exitCode, signal, spawnError: null })); });
@@ -538,7 +640,7 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
     const absence = child?.pid && birth?.state === 'present' ? (command.id === 'namespace-tests'
       ? ownedNamespaceProcess(owner, child.pid, birth.identity) : probeProductionAdminProcessIdentity(child.pid, birth.identity)) : null;
     const absent = absence?.state === 'absent';
-    let parsed = null, reportFailure = null;
+    let parsed = null, reportFailure = null, disposition = null;
     try {
       if (command.kind === 'terminal-check') {
         const terminalRecorded = Boolean(terminal && Number.isSafeInteger(terminal.exitCode) && terminal.exitCode >= 0
@@ -555,17 +657,22 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
           scope: 'Actual Gitleaks full HEAD-reachable source report; terminal status remains independently required.' };
       } else parsed = (command.kind === 'vitest-json' ? parseVitestReport : parseNodeEvents)
         (read(command.reportPath).body, { repositoryRoot: root, expectedFiles: command.files });
+      if (command.id === 'namespace-tests' && parsed?.complete && parsed.success === false) {
+        disposition = assessNativeNamespaceDispositions(parsed, { command, sourceFiles: source.files,
+          target: { platform: process.platform, arch: process.arch, uid: process.getuid(), gid: process.getgid() } });
+      }
     }
     catch (error) { reportFailure = String(error.message).slice(0, 160); }
     const result = { command, child: { pid: child?.pid ?? null, identity: birth?.identity ?? null,
       observationScope: birth?.scope ?? 'production-admin-process-probe', absence, absent: Boolean(absent) },
       startedAt: childStartedAt, finishedAt: new Date().toISOString(), terminal: terminal ?? null, timedOut, phaseError, cleanupError, outputFailure, unexpectedGroup, signals, cleanupAttempts,
-      report: retainedOutput(root, command.reportPath), stdout: retainedOutput(root, stdoutPath), stderr: retainedOutput(root, stderrPath), parsed, reportFailure,
+      report: retainedOutput(root, command.reportPath), stdout: retainedOutput(root, stdoutPath), stderr: retainedOutput(root, stderrPath), parsed, reportFailure, disposition,
       remainingGroup: groupMembers(owner.pgid) };
     result.completed = !phaseError && !cleanupError && !outputFailure && !unexpectedGroup && !timedOut && terminal?.signal === null && terminal.spawnError === null
-      && (checks ? Number.isSafeInteger(terminal.exitCode) && terminal.exitCode >= 0 : [0, 1].includes(terminal.exitCode))
+      && (command.kind === 'terminal-check' || checks ? Number.isSafeInteger(terminal.exitCode) && terminal.exitCode >= 0 : [0, 1].includes(terminal.exitCode))
       && absent && result.remainingGroup.length === 1 && parsed?.complete === true;
-    result.passed = result.completed && terminal.exitCode === 0 && parsed.success === true;
+    result.passed = result.completed && reportFailure === null && terminal.exitCode === 0
+      && (parsed.success === true || disposition?.profileSatisfied === true);
     result.stderrScope = 'Raw bytes retained; ordinary Verify does not require an empty console stream. Exit/report failures remain separate. No full-profile warning disposition exists yet.';
     results.push(result);
     writeReserved(root, `${stem}-${command.id}-terminal.json`, json(result), reserved.get(`${stem}-${command.id}-terminal.json`));
@@ -575,12 +682,15 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
   }
   const allRecorded = !preservationError && results.length === commands.length && results.every(result => result.completed);
   const allChecksPassed = allRecorded && results.every(result => result.passed);
+  const rawTestResults = results.filter(result => ['vitest-json', 'node-events'].includes(result.command.kind));
+  const allTestsPassed = allRecorded && rawTestResults.length > 0 && rawTestResults.every(result => result.completed
+    && result.terminal.exitCode === 0 && result.parsed?.success === true && result.reportFailure === null);
   const summary = { schemaVersion: 1, profile: plan.profile, status: allRecorded ? 'native-verification-recorded' : 'native-verification-failed',
     repositoryRoot: root, planRef, source, sourceAfter: preservationError ? null : source, owner, startedAt, finishedAt: new Date().toISOString(),
     results, preservationError, implementedDomains: domains, requiredDomains: REQUIRED_NATIVE_DOMAINS,
     missingDomains: REQUIRED_NATIVE_DOMAINS.filter(domain => !domains.includes(domain)),
-    completeCoverage: false, productionAuthorized: false, allRecorded, allChecksPassed, allTestsPassed: !checks && allChecksPassed,
-    pending: ['Source-owned skipped-case dispositions and complete installed dependency attestation.',
+    completeCoverage: false, productionAuthorized: false, allRecorded, allChecksPassed, allTestsPassed,
+    pending: ['Only the exact isolated-namespace unsupported-runtime negative control has a source-owned skip disposition; other skipped cases and complete installed dependency attestation remain uncovered.',
       'Fresh accepted-main/signature transport and independent post-outer whole-group absence.',
       'Local inode/index/ref preservation is not portable proof for a different Actions checkout; authenticated intrinsic commit/tree/blob/recipe transport remains unimplemented.',
       'Remaining fixed verification domains; genuine hosted dispatch/OIDC remains separate.',
@@ -593,16 +703,5 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
     completeCoverage: false, productionAuthorized: false };
 }
 
-/** Fixed artifact ingestion seam. No receipt from this incomplete producer can mint source authority. */
-export function requireCompleteNativeSourceVerificationEvidence(locator, commit) {
-  if (typeof locator !== 'string' || !HEX64.test(locator) || typeof commit !== 'string' || !HEX40.test(commit)) fail('EVIDENCE_LOCATOR_INVALID');
-  const root = resolve(process.cwd());
-  if (fs.realpathSync(root) !== root) fail('ROOT_INVALID');
-  const reference = artifact(root, join(root, 'artifacts', 'qa', `native-source-verification-${locator}.json`), locator);
-  const receipt = JSON.parse(read(reference.path).body);
-  if (receipt.schemaVersion !== 1 || ![NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE].includes(receipt.profile)
-    || receipt.repositoryRoot !== root || receipt.source?.sourceCommit !== commit) fail('EVIDENCE_SOURCE_INVALID');
-  // Do not accept echoed exit codes, coverage booleans or invented future domains.
-  // The full authenticated producer/persistence and accepted-main profile do not exist yet.
-  fail('INCOMPLETE');
-}
+// Preserve the producer API while privileged bundles import only the inert reader.
+export { requireCompleteNativeSourceVerificationEvidence } from './native-source-verification-evidence.mjs';

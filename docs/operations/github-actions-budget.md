@@ -131,9 +131,27 @@ Derive the family through the existing attested scanner; do not exempt a missing
 declaration or type generated hashes by hand. Neither result is compiler,
 accepted-main or deployment authority. These checks use no hosted runners.
 
-The lane is diagnostic and cannot authorize deployment. Complete dependency
-bytes, npm audit/signature provenance, services, connected module, full test
-dispositions and genuine preparation/identity transport remain separate. Its
+`--plan-services` derives separate ordinary and Workerd test inventories from
+the service sources, with independent type checks and generated declaration
+checking. Each child rechecks the held source, tools and ignored configuration;
+credential files and service-local Node shadows are refused without reading
+private values. Actual reports and command terminals remain separate evidence.
+The root dependency capture compares existing lock-SRI archives against all files
+of its fixed tool slice and explicitly records uncovered packages. It performs
+no install and does not claim full module/service graphs or audit/signature proof.
+Only the isolated namespace runner's exact source-declared unsupported-runtime
+negative control has an inapplicable-case disposition. Raw skips and strict raw
+test success remain unchanged; ordinary or service skips still fail their checks.
+
+Privileged workflow bundles import the minimal native receipt reader, which
+preserves the bounded CAS/source checks and refuses incomplete authority. They
+do not import local test execution, build-output validation or dependency capture.
+This separation repairs the operation bundle's absolute-path rejection while
+keeping its path and closed-graph guards intact.
+
+The lanes are diagnostic and cannot authorize deployment. Complete dependency
+bytes, npm audit/signature provenance, connected module, other test
+dispositions and genuine preparation/identity transport remain separate. Their
 receipts cannot become complete evidence by combining caller-written booleans
 or successful checks from a different source.
 

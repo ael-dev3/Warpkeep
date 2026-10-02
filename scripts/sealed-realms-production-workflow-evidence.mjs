@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { types } from 'node:util';
 import { attestSealedRealmsProductionRetainedFixtureRuntime } from './sealed-realms-production-linux-preflight.mjs';
 import { parseWorkflowEvidenceJson } from './sealed-realms-production-workflow-evidence-json.mjs';
-import { requireCompleteNativeSourceVerificationEvidence } from './native-source-verification.mjs';
+import { requireCompleteNativeSourceVerificationEvidence } from './native-source-verification-evidence.mjs';
 
 const COMMIT = /^[0-9a-f]{40}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;

@@ -25,12 +25,18 @@ export function captureNativeSourceCheckConfiguration(root: string): Readonly<{
   absentPaths: readonly string[]; workspace: Readonly<{ path: string; present: boolean;
     sha256?: string; identity?: Readonly<Record<string, string>>; bytes?: number }>;
 }>;
+/** Metadata-only service ambient-file refusals; no private values are read. */
+export function captureNativeServiceConfiguration(root: string): Readonly<{
+  absentPaths: readonly string[];
+  rootConfiguration: ReturnType<typeof captureNativeSourceCheckConfiguration>;
+}>;
 export type NativeNamespaceOwner = Readonly<{ uid: number; gid: number; pid: number; pgid: number; bootId: string; identity: string }>;
 export type NativeNamespaceMember = Readonly<{ pid: number; pgid: number; identity: string }>;
 export function nativeNamespaceCleanupCommand(root: string, owner: NativeNamespaceOwner, member: NativeNamespaceMember,
   signal: string): Readonly<{ executable: string; args: readonly string[] }>;
 export function createNativeVerificationPlan(planPath: string): Readonly<{ path: string; sha256: string }>;
 export function createNativeSourceChecksPlan(planPath: string): Readonly<{ path: string; sha256: string }>;
+export function createNativeServiceChecksPlan(planPath: string): Readonly<{ path: string; sha256: string }>;
 export function runNativeVerificationPlan(planPath: string, digest: string, stem: string): Promise<Readonly<{
   path: string; sha256: string; allRecorded: boolean; allTestsPassed: boolean; allChecksPassed: boolean; completeCoverage: false; productionAuthorized: false;
 }>>;

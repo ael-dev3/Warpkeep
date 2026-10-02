@@ -94,6 +94,16 @@ function evaluatedBootstrap(source: string, operation: string): string {
 }
 
 describe('sealed-realms production bundle engine', () => {
+  it.each(['activation', 'g001', 'g002', 'ptr'] as const)('keeps local verification execution dependencies out of the actual %s artifact', async lane => {
+    const artifact = await buildSealedRealmOperationBundle({ lane, sourceRoot: REPOSITORY_ROOT, build });
+    const paths = artifact.graphManifest.map(member => member.path);
+    expect(paths).toContain('scripts/native-source-verification-evidence.mjs');
+    for (const path of ['scripts/native-source-verification.mjs', 'scripts/native-source-verification-build-output.mjs',
+      'scripts/verify-production-dist-exclusions.mjs', 'scripts/native-source-verification-services.mjs',
+      'scripts/native-source-verification-dependencies.mjs']) expect(paths).not.toContain(path);
+    // The real engine's path, graph, import and determinism guards remain enabled.
+    expect(artifact.bytes.length).toBeGreaterThan(0);
+  }, FILESYSTEM_BUILD_TIMEOUT);
   it.each(['disconnected-input', 'missing-import-target', 'unauthorized-external', 'relative-external',
     'unknown-synthetic-input', 'missing-authority', 'bare-builtin-outside-pinned-yaml'])('rejects %s in a real compiler graph', async kind => {
     const compiler: typeof build = async options => {

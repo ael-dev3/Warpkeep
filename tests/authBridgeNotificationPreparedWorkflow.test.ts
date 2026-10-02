@@ -1250,7 +1250,7 @@ describe('notification-bridge-prepared protected workflow', () => {
         guardedRecoveryRequired: true,
         privateReceiptSinkRequired: true,
         installedToolchainByteAttestationRequired: true,
-        executableSecurityClosureMemberCount: 1272,
+        executableSecurityClosureMemberCount: 1266,
       });
   }, 180_000);
 
@@ -1268,7 +1268,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     });
     expect(paths).toEqual(manifest.members.map(member => member.path));
     expect(manifest.schemaVersion).toBe(2);
-    expect(paths).toHaveLength(1272);
+    expect(paths).toHaveLength(1266);
     expect(paths).toEqual(expect.arrayContaining([
       'scripts/auth-bridge-notification-prepared-deploy.mjs',
       'scripts/auth-bridge-notification-prepared-deploy-adapter.mjs',
@@ -1345,7 +1345,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       repositoryRoot: root,
     })).toMatchObject({
         profile: 'warpkeep-auth-bridge-notification-prepared-deploy-closure-v1',
-        memberCount: 1272,
+        memberCount: 1266,
         manifestSha256: expect.stringMatching(/^[a-f0-9]{64}$/u),
       });
   }, 180_000);
@@ -1615,6 +1615,17 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(() => verifyAuthBridgeNotificationPreparedDeployClosurePolicy({
       repositoryRoot: missing,
     })).toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_MEMBER_SET_INVALID');
+  }, 90_000);
+
+  it('requires the production-dist CLI declaration independently of the native producer graph', () => {
+    const root = createPolicyFixture();
+    const declaration = 'scripts/verify-production-dist-exclusions.d.mts';
+    const before = deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: root });
+    expect(before).toContain(declaration);
+    expect(before).not.toContain('scripts/native-source-verification.mjs');
+    unlinkSync(resolve(root, declaration));
+    expect(() => deriveAuthBridgeNotificationPreparedDeployClosurePaths({ repositoryRoot: root }))
+      .toThrow('AUTH_BRIDGE_PREPARED_DEPLOY_CLOSURE_ABI_MISSING');
   }, 90_000);
 
   it('rejects an extra manifest member', () => {
