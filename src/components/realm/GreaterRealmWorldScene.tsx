@@ -1026,6 +1026,7 @@ export function GreaterRealmWorldScene({
                     type="button"
                     aria-label={`${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`}
                     aria-pressed={selectedLocation?.locationId === location.locationId}
+                    data-resource={location.resourceKind}
                     onClick={(event) => {
                       if (
                         publicResourceSource === undefined
