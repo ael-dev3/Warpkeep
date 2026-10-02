@@ -8,6 +8,7 @@ import { KEEP04_TREE_IDS, loadKeep04Assets } from './loadKeep04Assets';
 import { KEEP04_VISUAL_PROFILE, type Quality04 } from './keep04VisualProfile';
 import { BUILDING_NAMES04 } from './Keep04BuildingPanel';
 import { verdantLocalHour } from '../../greater-realm/verdantDaylight';
+import { createWarpkeepKeepAmbiencePublisher } from '../audio/keepSoundscape';
 
 export type Keep04SceneHostProps = Readonly<{
   visual: VisualState04; quality: Quality04; reducedMotion: boolean;
@@ -53,6 +54,8 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
   useEffect(() => {
     const host = element.current!; const abort = new AbortController();
     let retired = false; let renderer: THREE.WebGLRenderer | undefined; let scene: Scene04 | undefined;
+    // The keep's soundscape follows this scene: on while it renders, off when hidden or retired.
+    const ambience = createWarpkeepKeepAmbiencePublisher();
     let bundle: InnerKeepRuntimeAssetBundle | undefined; let frame = 0; let last = -Infinity;
     let feedbackPending = false;
     // Decorative frames stop while the scene is scrolled away; feedback still renders.
@@ -108,6 +111,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         // The daylight mood owns exposure; night lifts it so the keep stays readable.
         renderer.toneMappingExposure = scene.exposure();
         renderer.render(scene.scene, scene.camera);
+        ambience.publish({ active: true, night: scene.daylight().night });
         const budget = KEEP04_VISUAL_PROFILE.budgets[props.quality];
         if (renderer.info.render.calls > budget.hardDraws || renderer.info.render.triangles > budget.hardTriangles) { failure(); return; }
         // Actual renderer submissions include shadow work; scene telemetry separately accounts unique buffers.
@@ -123,6 +127,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       abort.abort(); if (frame) cancelAnimationFrame(frame); frame = 0; feedbackPending = false; observer?.disconnect();
       visibilityObserver?.disconnect(); visibilityObserver = undefined;
       listeners.splice(0).forEach(remove => remove()); runtime.current = null;
+      ambience.dispose();
       scene?.dispose(); scene = undefined; bundle?.dispose(); bundle = undefined;
       lateBundles.forEach(loaded => loaded.dispose()); lateBundles.clear();
       renderer?.dispose();
@@ -299,7 +304,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         listen(canvas, 'lostpointercapture', event => releasePointer(event.pointerId));
         const wheel = (event: WheelEvent) => { if (!scene) return; event.preventDefault(); view.zoom = scene.camera.zoom = Math.max(.8, Math.min(2, scene.camera.zoom * Math.exp(-event.deltaY * .001))); scene.camera.updateProjectionMatrix(); request(); };
         canvas.addEventListener('wheel', wheel, { passive: false }); listeners.push(() => canvas.removeEventListener('wheel', wheel));
-        const visibility = () => { if (document.hidden) { if (frame) cancelAnimationFrame(frame); frame = 0; feedbackPending = false; cancelPointer(); }
+        const visibility = () => { if (document.hidden) { if (frame) cancelAnimationFrame(frame); frame = 0; feedbackPending = false; cancelPointer(); ambience.publish({ active: false, night: 0 }); }
           else { reconcile(); loadRelevantBuildings(true); } };
         document.addEventListener('visibilitychange', visibility); listeners.push(() => document.removeEventListener('visibilitychange', visibility));
         const online = () => loadRelevantBuildings(true);

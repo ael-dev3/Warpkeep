@@ -41,6 +41,15 @@ export {
   type WarpkeepSfxEvent
 } from './sfxEvents';
 export {
+  KeepSoundscape,
+  WARPKEEP_KEEP_AMBIENCE_OFF,
+  createWarpkeepKeepAmbiencePublisher,
+  normalizeWarpkeepKeepAmbience,
+  subscribeWarpkeepKeepAmbience,
+  type WarpkeepKeepAmbiencePublisher,
+  type WarpkeepKeepAmbienceState
+} from './keepSoundscape';
+export {
   WARPKEEP_WATER_AMBIENCE_OFF,
   createWarpkeepWaterAmbiencePublisher,
   normalizeWarpkeepWaterAmbience,

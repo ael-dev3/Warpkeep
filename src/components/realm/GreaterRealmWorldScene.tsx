@@ -37,6 +37,12 @@ import {
 } from './greaterRealmWorldSnapshotAuthority';
 import { resolveGreaterRealmWorldViewPolicy } from './greaterRealmWorldViewPolicy';
 import { useNarrowRealmPresentation } from './useNarrowRealmPresentation';
+import { emitWarpkeepSfx } from '../audio/sfxEvents';
+
+/** Each public resource site answers a choice with its own short material cue. */
+const RESOURCE_SELECTION_SFX: Readonly<Record<string, 'select-food' | 'select-wood' | 'select-stone' | 'select-gold'>> = Object.freeze({
+  food: 'select-food', wood: 'select-wood', stone: 'select-stone', gold: 'select-gold',
+});
 
 export { isCurrentGreaterRealmSceneSnapshot } from './greaterRealmWorldSnapshotAuthority';
 
@@ -1015,12 +1021,14 @@ export function GreaterRealmWorldScene({
                     type="button"
                     aria-label={`${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`}
                     aria-pressed={selectedLocation?.locationId === location.locationId}
-                    onClick={() => {
+                    onClick={(event) => {
                       if (
                         publicResourceSource === undefined
                         || resourceAtlasId === undefined
                         || resourceRevision === undefined
                       ) return;
+                      const cue = RESOURCE_SELECTION_SFX[location.resourceKind];
+                      if (cue && selectedLocation?.locationId !== location.locationId) emitWarpkeepSfx({ kind: cue, screenX: event.clientX });
                       setResourceSelection(Object.freeze({
                         locationId: location.locationId,
                         atlasId: resourceAtlasId,

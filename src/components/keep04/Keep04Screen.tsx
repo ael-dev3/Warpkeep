@@ -13,6 +13,8 @@ import { evaluatePlacement04 } from '../../../spacetimedb/gameplay04/placement';
 import { constructionProgress04 } from './constructionProgress04';
 import { estimatedTime04, Keep04WorkerPanel } from './Keep04WorkerPanel';
 import { keep04NextStep04 } from './keep04NextStep';
+import { emitWarpkeepSfx } from '../audio/sfxEvents';
+import { GAMEPLAY04_SFX_BUILDING } from '../../ptr/gameplay04/gameplay04Sfx';
 import './Keep04Screen.css';
 
 export type Keep04UiSelection = Readonly<{
@@ -194,9 +196,18 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       opener.current = (active instanceof HTMLElement || active instanceof SVGElement) && active !== document.body && root.current?.contains(active) ? active : buildingsButton.current;
     }
     const existing = view.buildings.find(building => building.kind === kind);
+    if (selection.selectedKind !== kind) emitWarpkeepSfx({ kind: 'keep-building-selected', building: GAMEPLAY04_SFX_BUILDING[kind] });
     if (selection.selectedKind !== kind || selection.panel !== 'buildings') selectionNavigation.current = kind;
     onSelectionChange({ panel: 'buildings', selectedKind: kind,
       draft: existing?.placement ?? (selection.draft?.kind === kind ? selection.draft : initialPlacement04(kind, view.buildings.map(building => building.placement))) });
+  }
+  function placeDraft(draft: Placement04) {
+    // A short tock on open ground, a muted thud where the site is blocked.
+    if (view && !samePlacement04(draft, selection.draft)) {
+      const valid = evaluatePlacement04(draft, view.buildings.filter(building => building.kind !== draft.kind).map(building => building.placement)).valid;
+      emitWarpkeepSfx({ kind: valid ? 'keep-placement-valid' : 'keep-placement-blocked' });
+    }
+    onSelectionChange({ ...selection, draft });
   }
   function alignAndFocus(element: HTMLElement | SVGSVGElement | null) {
     element?.scrollIntoView?.({ block: 'start', behavior: 'instant' }); element?.focus({ preventScroll: true });
@@ -272,12 +283,12 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
             ambientLife={quality !== 'reduced' && !reducedMotion}
             onObservation={onSceneObservation} {...(import.meta.env.DEV ? { qaFault, daylightHour } : {})}
             visual={sceneVisual}
-            onSelect={selectBuilding} onPlacement={draft => onSelectionChange({ ...selection, draft })} />}
+            onSelect={selectBuilding} onPlacement={placeDraft} />}
           {sceneMode === 'fallback' && <p role="status">3D graphics are unavailable. Your keep and commands remain available in the placement schematic.</p>}
           <details ref={schematic} open>
             <summary style={{ cursor: 'pointer', padding: '12px 0', minHeight: 44 }}>Placement schematic and keyboard controls</summary>
             <Keep04Schematic buildings={view.buildings} draft={selection.panel === 'buildings' ? selection.draft : null} selectedKind={selection.selectedKind}
-              onSelect={selectBuilding} onChange={draft => onSelectionChange({ ...selection, draft })}
+              onSelect={selectBuilding} onChange={placeDraft}
               onReview={selection.panel === 'buildings' ? focusReview : undefined} />
           </details>
         </div>

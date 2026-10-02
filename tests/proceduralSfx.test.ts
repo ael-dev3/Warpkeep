@@ -198,6 +198,10 @@ function eventForKind(kind: WarpkeepSfxEvent['kind']): WarpkeepSfxEvent {
     case 'select-stone':
     case 'river-focus-entered':
       return { kind, screenX: 400 };
+    case 'keep-building-selected':
+      return { kind, building: 'cathedral' };
+    case 'keep-resources-credited':
+      return { kind, resource: 'gold', count: 1 };
     default:
       return { kind };
   }
@@ -357,6 +361,7 @@ describe('ProceduralSfxEngine lifecycle', () => {
       contextCreated: false,
       contextState: 'unavailable',
       hidden: false,
+      keepAmbienceActive: false,
       muted: false,
       voiceCap: 3,
       waterAmbienceActive: false,
@@ -651,5 +656,93 @@ describe('OfflineAudioContext boundary', () => {
     await expect(
       renderWarpkeepSfxEventOffline({ kind: 'ui-open' }, 22_050)
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('0.4 keep cues and soundscape', () => {
+  const buildings = ['mill', 'lumber', 'stone', 'gold', 'barracks', 'cathedral'] as const;
+  const resources = ['food', 'wood', 'stone', 'gold'] as const;
+  const keepEvents: WarpkeepSfxEvent[] = [
+    ...buildings.map(building => ({ kind: 'keep-building-selected', building }) as const),
+    ...resources.map(resource => ({ kind: 'keep-resources-credited', resource, count: 1 }) as const),
+    { kind: 'keep-placement-valid' }, { kind: 'keep-placement-blocked' },
+    { kind: 'keep-construction-started' }, { kind: 'keep-construction-completed' },
+  ];
+
+  it('keeps every keep cue inside the shared short, restrained envelope, including strike bursts', () => {
+    for (const event of keepEvents) {
+      const recipe = getWarpkeepSfxRecipe(event);
+      expect(recipe.duration).toBeLessThanOrEqual(0.35);
+      expect(recipe.gain).toBeLessThanOrEqual(0.8);
+      for (const layer of [...recipe.tones, ...(recipe.noise ? [recipe.noise] : []), ...(recipe.bursts ?? [])]) {
+        expect((layer.offset ?? 0) + layer.duration).toBeLessThanOrEqual(recipe.duration + 1e-9);
+      }
+    }
+    // Building families and credited resources keep separate cooldown families.
+    expect(new Set(buildings.map(building => getWarpkeepSfxRecipe({ kind: 'keep-building-selected', building }).tones[0].startFrequency)).size).toBe(buildings.length);
+    expect(clusterWarpkeepSfxEvents([
+      { kind: 'keep-resources-credited', resource: 'wood', count: 1 },
+      { kind: 'keep-resources-credited', resource: 'wood', count: 2 },
+      { kind: 'keep-resources-credited', resource: 'gold', count: 1 },
+    ])).toEqual([
+      { kind: 'keep-resources-credited', resource: 'wood', count: 3 },
+      { kind: 'keep-resources-credited', resource: 'gold', count: 1 },
+    ]);
+  });
+
+  it('schedules each mallet strike as its own finite noise burst', async () => {
+    const context = new FakeAudioContext(); const { engine } = createEngine(context);
+    await engine.activateFromTrustedGesture(true);
+    const sourcesBefore = context.sources.length; const oscillatorsBefore = context.oscillators.length;
+    expect(engine.emit({ kind: 'keep-construction-started' })).toBe(true);
+    const bursts = context.sources.slice(sourcesBefore);
+    expect(bursts).toHaveLength(3); expect(context.oscillators.length - oscillatorsBefore).toBe(5);
+    expect(bursts.every(source => source.stops.length === 1)).toBe(true);
+    engine.dispose();
+  });
+
+  it('runs the keep soundscape only while active, audible and visible', async () => {
+    vi.useFakeTimers();
+    try {
+      const context = new FakeAudioContext(); const { engine } = createEngine(context);
+      await engine.activateFromTrustedGesture(true);
+      const before = context.sources.length;
+      engine.setKeepAmbience({ active: true, night: 0 });
+      const bed = context.sources.slice(before).find(source => source.loop);
+      expect(bed).toBeDefined(); expect(engine.snapshot().keepAmbienceActive).toBe(true);
+      const oscillators = context.oscillators.length;
+      vi.advanceTimersByTime(20_000);
+      expect(context.oscillators.length).toBeGreaterThan(oscillators); // birdsong phrases
+      engine.setMuted(true);
+      expect(bed!.stops.length).toBeGreaterThan(0); expect(engine.snapshot().keepAmbienceActive).toBe(false);
+      const muted = context.oscillators.length; vi.advanceTimersByTime(20_000);
+      expect(context.oscillators.length).toBe(muted);
+      engine.setMuted(false); expect(engine.snapshot().keepAmbienceActive).toBe(true);
+      engine.setHidden(true); expect(engine.snapshot().keepAmbienceActive).toBe(false);
+      engine.setHidden(false); await engine.activateFromTrustedGesture(true);
+      expect(engine.snapshot().keepAmbienceActive).toBe(true);
+      engine.setKeepAmbience({ active: false, night: 0 }); expect(engine.snapshot().keepAmbienceActive).toBe(false);
+      engine.dispose();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('switches to night voices and never lets the soundscape crowd out gameplay cues', async () => {
+    vi.useFakeTimers();
+    try {
+      const context = new FakeAudioContext(); const { engine } = createEngine(context, 4);
+      await engine.activateFromTrustedGesture(true);
+      engine.setKeepAmbience({ active: true, night: 1 });
+      const oscillators = context.oscillators.length;
+      vi.advanceTimersByTime(12_000);
+      const night = context.oscillators.slice(oscillators);
+      expect(night.length).toBeGreaterThan(0);
+      // Night phrases are crickets (high pulses) or a rare low owl, never daytime chirps.
+      expect(night.every(oscillator => oscillator.frequency.scheduled[0] >= 4_000 || oscillator.frequency.scheduled[0] <= 400)).toBe(true);
+      // At the cap a confirmation still plays.
+      for (let i = 0; i < 4; i++) engine.emit({ kind: 'keep-construction-completed' });
+      expect(engine.emit({ kind: 'command-failed' })).toBe(true);
+      expect(engine.snapshot().activeVoices).toBeLessThanOrEqual(engine.voiceCap + 1);
+      engine.dispose();
+    } finally { vi.useRealTimers(); }
   });
 });

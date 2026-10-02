@@ -5,13 +5,21 @@ import {
   warpkeepSfxEventCount,
   warpkeepSfxEventFamily,
   warpkeepSfxPan,
-  type WarpkeepSfxEvent
+  type WarpkeepKeepSfxBuilding,
+  type WarpkeepSfxEvent,
+  type WarpkeepSfxResource
 } from './sfxEvents';
 import {
   WARPKEEP_WATER_AMBIENCE_OFF,
   normalizeWarpkeepWaterAmbience,
   type WarpkeepWaterAmbienceState
 } from './waterAmbience';
+import {
+  KeepSoundscape,
+  WARPKEEP_KEEP_AMBIENCE_OFF,
+  normalizeWarpkeepKeepAmbience,
+  type WarpkeepKeepAmbienceState
+} from './keepSoundscape';
 
 type SfxBus = 'ui' | 'world';
 
@@ -40,6 +48,8 @@ export type WarpkeepSfxRecipe = Readonly<{
   duration: number;
   gain: number;
   noise?: NoiseLayer;
+  /** Further short noise layers, for cues made of separate strikes. */
+  bursts?: readonly NoiseLayer[];
   priority: number;
   tones: readonly ToneLayer[];
 }>;
@@ -77,6 +87,7 @@ type WaterAmbienceVoice = Readonly<{
 
 export type WarpkeepSfxEngineSnapshot = Readonly<{
   activeVoices: number;
+  keepAmbienceActive: boolean;
   waterAmbienceActive: boolean;
   waterAmbienceRegime: WarpkeepWaterAmbienceState['regime'];
   contextCreated: boolean;
@@ -126,7 +137,13 @@ const EVENT_COOLDOWN_MILLISECONDS: Readonly<Record<WarpkeepSfxEvent['kind'], num
     'inner-keep-project-completed': 750,
     'command-failed': 220,
     'river-focus-entered': 280,
-    'river-focus-left': 280
+    'river-focus-left': 280,
+    'keep-building-selected': 140,
+    'keep-placement-valid': 70,
+    'keep-placement-blocked': 160,
+    'keep-construction-started': 500,
+    'keep-construction-completed': 750,
+    'keep-resources-credited': 400
   });
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -423,6 +440,123 @@ export function getWarpkeepSfxRecipe(event: WarpkeepSfxEvent): WarpkeepSfxRecipe
           tone(332, 426, 0.2, 0.06, 'sine', 0.07)
         ])
       });
+    case 'keep-building-selected':
+      return keepBuildingRecipe(event.building);
+    case 'keep-placement-valid':
+      // A light, dry tock when a draft settles on open ground.
+      return Object.freeze({
+        bus: 'ui',
+        duration: 0.1,
+        gain: 0.42,
+        priority: 1,
+        tones: Object.freeze([
+          tone(392, 370, 0.07, 0.07, 'triangle'),
+          tone(784, 760, 0.05, 0.022, 'sine', 0.01)
+        ])
+      });
+    case 'keep-placement-blocked':
+      // A muted thud: the site is taken or outside the grounds.
+      return Object.freeze({
+        bus: 'ui',
+        duration: 0.16,
+        gain: 0.5,
+        noise: noise(0.06, 0.05, 'lowpass', 420, 0.8),
+        priority: 2,
+        tones: Object.freeze([tone(130, 104, 0.12, 0.11, 'triangle')])
+      });
+    case 'keep-construction-started':
+      // Three mallet knocks, then a short rising interval: work has begun.
+      return Object.freeze({
+        bus: 'world',
+        duration: 0.35,
+        gain: 0.58,
+        priority: 5,
+        bursts: Object.freeze([
+          noise(0.04, 0.1, 'bandpass', 1_250, 0.8),
+          noise(0.04, 0.09, 'bandpass', 1_310, 0.8, 0.1),
+          noise(0.04, 0.08, 'bandpass', 1_370, 0.8, 0.2)
+        ]),
+        tones: Object.freeze([
+          tone(172, 128, 0.06, 0.15, 'triangle'),
+          tone(176, 130, 0.06, 0.14, 'triangle', 0.1),
+          tone(180, 132, 0.06, 0.13, 'triangle', 0.2),
+          tone(392, 392, 0.1, 0.045, 'sine', 0.23),
+          tone(523, 523, 0.1, 0.04, 'sine', 0.25)
+        ])
+      });
+    case 'keep-construction-completed':
+      // A rising C-major bell over a warm low thrum: the keep has improved.
+      return Object.freeze({
+        bus: 'world',
+        duration: 0.35,
+        gain: 0.6,
+        noise: noise(0.18, 0.022, 'highpass', 5_000, 0.6, 0.08),
+        priority: 5,
+        tones: Object.freeze([
+          tone(131, 129, 0.3, 0.08, 'triangle'),
+          tone(523, 521, 0.24, 0.06, 'sine'),
+          tone(659, 657, 0.22, 0.055, 'sine', 0.055),
+          tone(784, 780, 0.22, 0.055, 'sine', 0.11),
+          tone(1_046, 1_040, 0.2, 0.025, 'sine', 0.14)
+        ])
+      });
+    case 'keep-resources-credited':
+      return keepCreditRecipe(event.resource, countGain);
+  }
+}
+
+/** One short material voice per keep building family. */
+function keepBuildingRecipe(building: WarpkeepKeepSfxBuilding): WarpkeepSfxRecipe {
+  switch (building) {
+    case 'mill':
+      // Timber creak and a soft rustle of grain.
+      return Object.freeze({ bus: 'world', duration: 0.24, gain: 0.5, priority: 2,
+        noise: noise(0.14, 0.08, 'bandpass', 2_300, 0.6, 0.02),
+        tones: Object.freeze([tone(208, 186, 0.16, 0.1, 'triangle'), tone(312, 296, 0.12, 0.035, 'sine', 0.05)]) });
+    case 'lumber':
+      // A hollow log knock.
+      return Object.freeze({ bus: 'world', duration: 0.2, gain: 0.56, priority: 2,
+        noise: noise(0.05, 0.09, 'bandpass', 900, 0.8),
+        tones: Object.freeze([tone(132, 104, 0.14, 0.16, 'triangle'), tone(264, 220, 0.06, 0.04, 'sine', 0.004)]) });
+    case 'stone':
+      // Dry stone on stone.
+      return Object.freeze({ bus: 'world', duration: 0.18, gain: 0.52, priority: 2,
+        noise: noise(0.045, 0.1, 'highpass', 1_500, 0.7),
+        tones: Object.freeze([tone(236, 196, 0.1, 0.1, 'triangle', 0.006)]) });
+    case 'gold':
+      // A small coin ring.
+      return Object.freeze({ bus: 'world', duration: 0.3, gain: 0.48, priority: 2,
+        tones: Object.freeze([tone(1_318, 1_296, 0.22, 0.06, 'sine'), tone(1_976, 1_940, 0.26, 0.03, 'sine', 0.015), tone(659, 652, 0.12, 0.03, 'triangle')]) });
+    case 'barracks':
+      // Buckle and blade.
+      return Object.freeze({ bus: 'world', duration: 0.22, gain: 0.46, priority: 2,
+        noise: noise(0.03, 0.05, 'highpass', 3_200, 0.7),
+        tones: Object.freeze([tone(784, 770, 0.16, 0.05, 'sine'), tone(1_187, 1_170, 0.14, 0.035, 'sine', 0.01)]) });
+    case 'cathedral':
+      // A soft, high bell.
+      return Object.freeze({ bus: 'world', duration: 0.34, gain: 0.5, priority: 2,
+        tones: Object.freeze([tone(523, 521, 0.32, 0.07, 'sine'), tone(1_046, 1_040, 0.26, 0.03, 'sine', 0.006), tone(1_570, 1_562, 0.2, 0.015, 'sine', 0.01)]) });
+  }
+}
+
+/** Confirmed returns land in the keep's stores; each resource has its own small sound. */
+function keepCreditRecipe(resource: WarpkeepSfxResource, countGain: number): WarpkeepSfxRecipe {
+  switch (resource) {
+    case 'food':
+      return Object.freeze({ bus: 'world', duration: 0.26, gain: 0.46 * countGain, priority: 3,
+        noise: noise(0.2, 0.07, 'bandpass', 2_600, 0.55),
+        tones: Object.freeze([tone(330, 392, 0.16, 0.05, 'sine', 0.04)]) });
+    case 'wood':
+      return Object.freeze({ bus: 'world', duration: 0.22, gain: 0.5 * countGain, priority: 3,
+        bursts: Object.freeze([noise(0.04, 0.08, 'bandpass', 850, 0.8), noise(0.04, 0.07, 'bandpass', 950, 0.8, 0.09)]),
+        tones: Object.freeze([tone(124, 100, 0.09, 0.13, 'triangle'), tone(146, 116, 0.09, 0.12, 'triangle', 0.09)]) });
+    case 'stone':
+      return Object.freeze({ bus: 'world', duration: 0.2, gain: 0.48 * countGain, priority: 3,
+        noise: noise(0.05, 0.09, 'highpass', 1_700, 0.7),
+        tones: Object.freeze([tone(248, 206, 0.1, 0.09, 'triangle'), tone(212, 180, 0.08, 0.07, 'triangle', 0.08)]) });
+    case 'gold':
+      return Object.freeze({ bus: 'world', duration: 0.3, gain: 0.44 * countGain, priority: 3,
+        tones: Object.freeze([tone(1_318, 1_300, 0.14, 0.045, 'sine'), tone(1_760, 1_740, 0.14, 0.04, 'sine', 0.05), tone(2_093, 2_070, 0.14, 0.03, 'sine', 0.1)]) });
   }
 }
 
@@ -554,8 +688,7 @@ function scheduleRecipe(
     nodes.push(oscillator, envelope);
   }
 
-  if (recipe.noise) {
-    const layer = recipe.noise;
+  for (const layer of [...(recipe.noise ? [recipe.noise] : []), ...(recipe.bursts ?? [])]) {
     const layerStart = start + (layer.offset ?? 0);
     const layerEnd = layerStart + layer.duration;
     const source = context.createBufferSource();
@@ -669,6 +802,8 @@ export class ProceduralSfxEngine {
   private resumePromise: Promise<void> | undefined;
   private serial = 0;
   private waterAmbience = WARPKEEP_WATER_AMBIENCE_OFF;
+  private keepAmbience = WARPKEEP_KEEP_AMBIENCE_OFF;
+  private soundscape: KeepSoundscape | undefined;
   private waterAmbienceVoice: WaterAmbienceVoice | undefined;
   private releasingWaterAmbienceVoice: WaterAmbienceVoice | undefined;
 
@@ -720,6 +855,7 @@ export class ProceduralSfxEngine {
         }
       }
       this.syncWaterAmbience();
+      this.syncKeepAmbience();
       return this.context.state === 'running';
     } catch {
       return false;
@@ -812,15 +948,17 @@ export class ProceduralSfxEngine {
       // A muted ambience bed must not remain as an untracked physical voice
       // during the short master-bus fade used by finite effects.
       this.releaseWaterAmbience(now, true);
+      this.soundscape?.stop();
       this.stopAllAt(now + 0.025, false);
     }
-    else this.syncWaterAmbience();
+    else { this.syncWaterAmbience(); this.syncKeepAmbience(); }
   }
 
   setHidden(hidden: boolean) {
     if (this.disposed || this.hidden === hidden) return;
     this.hidden = hidden;
     if (!hidden) return;
+    this.soundscape?.stop();
     this.stopAllAt(this.context?.currentTime ?? 0, true);
     const suspension = this.context?.suspend();
     if (suspension && typeof suspension.catch === 'function') {
@@ -834,10 +972,39 @@ export class ProceduralSfxEngine {
     this.syncWaterAmbience();
   }
 
+  /** The keep soundscape (presentation only): on while a keep scene is shown. */
+  setKeepAmbience(input: WarpkeepKeepAmbienceState) {
+    if (this.disposed) return;
+    this.keepAmbience = normalizeWarpkeepKeepAmbience(input);
+    this.syncKeepAmbience();
+  }
+
   stopAll() {
     const at = this.context?.currentTime ?? 0;
     this.waterAmbience = WARPKEEP_WATER_AMBIENCE_OFF;
+    this.keepAmbience = WARPKEEP_KEEP_AMBIENCE_OFF;
+    this.soundscape?.stop();
     this.stopAllAt(at, true);
+  }
+
+  private syncKeepAmbience() {
+    const context = this.context;
+    const graph = this.graph;
+    if (
+      this.disposed || this.muted || this.hidden || !context || !graph
+      || context.state !== 'running' || !this.keepAmbience.active
+    ) {
+      this.soundscape?.stop();
+      return;
+    }
+    this.soundscape ??= new KeepSoundscape(context, graph.worldBus, graph.noise, {
+      // Leave room for at least two gameplay cues at all times.
+      canStartPhrase: () => this.activeVoices.size
+        + Number(this.waterAmbienceVoice !== undefined)
+        + Number(this.releasingWaterAmbienceVoice !== undefined)
+        + 2 < this.voiceCap - 1
+    });
+    this.soundscape.setState(this.keepAmbience);
   }
 
   private stopAllAt(at: number, disconnectImmediately: boolean) {
@@ -854,7 +1021,9 @@ export class ProceduralSfxEngine {
     return Object.freeze({
       activeVoices: this.activeVoices.size
         + Number(this.waterAmbienceVoice !== undefined)
-        + Number(this.releasingWaterAmbienceVoice !== undefined),
+        + Number(this.releasingWaterAmbienceVoice !== undefined)
+        + (this.soundscape?.activeVoices() ?? 0),
+      keepAmbienceActive: this.keepAmbience.active && (this.soundscape?.activeVoices() ?? 0) > 0,
       waterAmbienceActive: this.waterAmbienceVoice !== undefined,
       waterAmbienceRegime: this.waterAmbienceVoice
         ? this.waterAmbience.regime
@@ -871,6 +1040,7 @@ export class ProceduralSfxEngine {
     if (this.disposed) return;
     this.disposed = true;
     this.stopAll();
+    this.soundscape?.dispose(); this.soundscape = undefined;
     if (this.graph) {
       this.graph.uiBus.disconnect();
       this.graph.worldBus.disconnect();
@@ -895,6 +1065,11 @@ export class ProceduralSfxEngine {
   }
 
   private makeRoom(priority: number, at: number) {
+    // The keep soundscape always yields first; it resumes on the next sync.
+    if ((this.soundscape?.activeVoices() ?? 0) > 0 && this.activeVoices.size
+      + Number(this.waterAmbienceVoice !== undefined)
+      + Number(this.releasingWaterAmbienceVoice !== undefined)
+      + (this.soundscape?.activeVoices() ?? 0) >= this.voiceCap) this.soundscape?.stop();
     if (
       this.activeVoices.size
         + Number(this.waterAmbienceVoice !== undefined)
@@ -930,6 +1105,7 @@ export class ProceduralSfxEngine {
       disconnectVoice(voice);
     }
     this.syncWaterAmbience();
+    this.syncKeepAmbience();
   }
 
   private syncWaterAmbience() {

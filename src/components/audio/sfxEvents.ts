@@ -1,4 +1,7 @@
 export type WarpkeepSfxEmphasis = 'quiet' | 'normal' | 'primary';
+/** Keep building families, named for their material voice rather than their gameplay kind. */
+export type WarpkeepKeepSfxBuilding = 'mill' | 'lumber' | 'stone' | 'gold' | 'barracks' | 'cathedral';
+export type WarpkeepSfxResource = 'food' | 'wood' | 'stone' | 'gold';
 
 type ScreenPosition = Readonly<{
   /** Browser client-space x coordinate. Omitted when no reliable projection exists. */
@@ -44,7 +47,12 @@ export type WarpkeepSfxEvent =
     }>
   | Readonly<{ kind: 'command-failed' }>
   | (ScreenPosition & Readonly<{ kind: 'river-focus-entered' }>)
-  | Readonly<{ kind: 'river-focus-left' }>;
+  | Readonly<{ kind: 'river-focus-left' }>
+  // 0.4 keep: presentation of choices and confirmed outcomes only.
+  | Readonly<{ kind: 'keep-building-selected'; building: WarpkeepKeepSfxBuilding }>
+  | Readonly<{ kind: 'keep-placement-valid' | 'keep-placement-blocked' }>
+  | Readonly<{ kind: 'keep-construction-started' | 'keep-construction-completed' }>
+  | Readonly<{ kind: 'keep-resources-credited'; resource: WarpkeepSfxResource; count: number }>;
 
 export const WARPKEEP_SFX_EVENT_KINDS = Object.freeze([
   'ui-press',
@@ -69,7 +77,13 @@ export const WARPKEEP_SFX_EVENT_KINDS = Object.freeze([
   'inner-keep-project-completed',
   'command-failed',
   'river-focus-entered',
-  'river-focus-left'
+  'river-focus-left',
+  'keep-building-selected',
+  'keep-placement-valid',
+  'keep-placement-blocked',
+  'keep-construction-started',
+  'keep-construction-completed',
+  'keep-resources-credited'
 ] as const satisfies readonly WarpkeepSfxEvent['kind'][]);
 
 export const WARPKEEP_SFX_VOICE_CAP = 16;
@@ -79,7 +93,8 @@ const countedKinds = new Set<WarpkeepSfxEvent['kind']>([
   'worker-dispatch-confirmed',
   'worker-recall-confirmed',
   'worker-arrived',
-  'worker-returned'
+  'worker-returned',
+  'keep-resources-credited'
 ]);
 
 function boundedCount(value: number) {
@@ -100,6 +115,8 @@ export function warpkeepSfxEventFamily(event: WarpkeepSfxEvent) {
   if (event.kind === 'select-water') {
     return `${event.kind}:${event.regime}`;
   }
+  if (event.kind === 'keep-building-selected') return `${event.kind}:${event.building}`;
+  if (event.kind === 'keep-resources-credited') return `${event.kind}:${event.resource}`;
   return event.kind;
 }
 
