@@ -131,7 +131,9 @@ export const NATIVE_SERVICE_PREREQUISITES = Object.freeze({
   serviceRoots: ROOTS,
   forbiddenConfigBasenames: Object.freeze(['.env', '.dev.vars', '.npmrc', '.pnpmfile.cjs', '.pnpmfile.mjs']),
   forbiddenConfigPrefixes: Object.freeze(['.env.', '.dev.vars.']),
-  allowedExamplePaths: Object.freeze(['services/auth-bridge/.dev.vars.example']),
+  // These example filenames are not loaded by the fixed service/Vite modes.
+  // Do not read their values or expand the exception to real ambient configs.
+  allowedExamplePaths: Object.freeze(['.env.example', 'services/auth-bridge/.dev.vars.example']),
   forbiddenConfigDirectories: Object.freeze(['.config/pnpm']),
   requiredSourceInputs: Object.freeze(Object.keys(NATIVE_SERVICE_SOURCE_INPUTS)),
   installedInputs: Object.freeze(ROOTS.flatMap(serviceRoot => [

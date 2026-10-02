@@ -37,6 +37,8 @@ export function nativeNamespaceCleanupCommand(root: string, owner: NativeNamespa
 export function createNativeVerificationPlan(planPath: string): Readonly<{ path: string; sha256: string }>;
 export function createNativeSourceChecksPlan(planPath: string): Readonly<{ path: string; sha256: string }>;
 export function createNativeServiceChecksPlan(planPath: string): Readonly<{ path: string; sha256: string }>;
+/** Source-derived recipe only; detached loopback containment remains unimplemented. */
+export function createNativeConnectedModulePlan(planPath: string): Readonly<{ path: string; sha256: string }>;
 export function runNativeVerificationPlan(planPath: string, digest: string, stem: string): Promise<Readonly<{
   path: string; sha256: string; allRecorded: boolean; allTestsPassed: boolean; allChecksPassed: boolean; completeCoverage: false; productionAuthorized: false;
 }>>;

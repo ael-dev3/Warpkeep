@@ -176,7 +176,7 @@ describe('native service commands and raw reports', () => {
     expect([...NATIVE_SERVICE_PREREQUISITES.requiredSourceInputs].sort()).toEqual(Object.keys(NATIVE_SERVICE_SOURCE_INPUTS).sort());
     expect(NATIVE_SERVICE_PREREQUISITES.forbiddenConfigBasenames).toContain('.dev.vars');
     expect(NATIVE_SERVICE_PREREQUISITES.forbiddenConfigPrefixes).toContain('.env.');
-    expect(NATIVE_SERVICE_PREREQUISITES.allowedExamplePaths).toEqual(['services/auth-bridge/.dev.vars.example']);
+    expect(NATIVE_SERVICE_PREREQUISITES.allowedExamplePaths).toEqual(['.env.example', 'services/auth-bridge/.dev.vars.example']);
     expect(NATIVE_SERVICE_PREREQUISITES.installedInputs).toHaveLength(8);
     expect(NATIVE_SERVICE_PREREQUISITES.installedInputs.every(value => value.packagePath.startsWith(value.serviceRoot + '/node_modules/')
       && value.entryPath.startsWith(value.serviceRoot + '/node_modules/'))).toBe(true);

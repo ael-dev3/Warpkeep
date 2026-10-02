@@ -14,6 +14,8 @@ import { NATIVE_SERVICE_CHECKS_PROFILE, NATIVE_SERVICE_SOURCE_INPUTS, NATIVE_SER
   deriveNativeServicePartitions, nativeServiceCommands } from './native-source-verification-services.mjs';
 import { NATIVE_ROOT_DEPENDENCY_PACKAGE_PATHS, captureNativeRootDependencyAttestation }
   from './native-source-verification-dependencies.mjs';
+import { NATIVE_CONNECTED_MODULE_PROFILE, NATIVE_CONNECTED_SOURCE_INPUTS,
+  NATIVE_CONNECTED_PREREQUISITES, deriveNativeConnectedModuleRecipe } from './native-source-verification-connected.mjs';
 
 export const NATIVE_VERIFICATION_PROFILE = 'warpkeep-native-source-test-partitions-v1';
 export const NATIVE_SOURCE_CHECKS_PROFILE = 'warpkeep-native-source-checks-v1';
@@ -389,6 +391,19 @@ export function createNativeServiceChecksPlan(planPath) {
   same(sourceSnapshot(root), source);
   return output(root, planPath, json(plan));
 }
+/** Keep the complete connected recipe visible without admitting uncontained execution. */
+export function createNativeConnectedModulePlan(planPath) {
+  const root = nativeRoot(), source = sourceSnapshot(root);
+  const recipe = deriveNativeConnectedModuleRecipe(source.files.map(file => file.path),
+    Object.fromEntries(Object.keys(NATIVE_CONNECTED_SOURCE_INPUTS).map(path => [path, read(join(root, path)).body])));
+  const plan = { schemaVersion: 1, profile: NATIVE_CONNECTED_MODULE_PROFILE, source, recipe,
+    prerequisites: NATIVE_CONNECTED_PREREQUISITES, repositoryRoot: root,
+    productionAuthorized: false, completeCoverage: false, executionImplemented: false,
+    requiredDomains: REQUIRED_NATIVE_DOMAINS,
+    scope: 'Source-derived connected-module recipe only. Installed inputs, actual execution and detached loopback actor/group closure remain required; this plan is not a passed domain.' };
+  same(sourceSnapshot(root), source);
+  return output(root, planPath, json(plan));
+}
 export function createNativeSourceChecksPlan(planPath) {
   const root = nativeRoot(), source = sourceSnapshot(root), tools = sourceCheckInputs(root, inputFacts(root));
   const plan = { schemaVersion: 1, profile: NATIVE_SOURCE_CHECKS_PROFILE, source, tools, repositoryRoot: root,
@@ -565,6 +580,10 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
   const root = nativeRoot();
   if (!HEX64.test(digest)) fail('PLAN_DIGEST_INVALID');
   const planRef = artifact(root, planPath, digest), plan = JSON.parse(read(planRef.path).body), source = sourceSnapshot(root);
+  // The G002 caller owns a detached server outside this producer's PGID.
+  // A closed launcher and empty producer group cannot prove that server stopped.
+  // Keep this explicit until the real server birth/group is bound and read back.
+  if (plan.profile === NATIVE_CONNECTED_MODULE_PROFILE) fail('CONNECTED_CONTAINMENT_NOT_IMPLEMENTED');
   const checks = plan.profile === NATIVE_SOURCE_CHECKS_PROFILE;
   const services = plan.profile === NATIVE_SERVICE_CHECKS_PROFILE;
   const partitions = services ? servicePartitions(root, source) : checks ? null : deriveNativeTestPartitions(source.files.map(file => file.path), read(join(root, 'vite.config.ts')).body,

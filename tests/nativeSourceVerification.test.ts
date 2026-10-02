@@ -101,9 +101,19 @@ describe.skipIf(process.platform !== 'linux' || process.getuid?.() !== 1000)('na
   it('refuses service credential files and a Node executable shadowing the attested runtime', () => {
     const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-service-config-')); folders.push(root);
     for (const service of ['auth-bridge', 'release-recovery']) mkdirSync(join(root, 'services', service, 'node_modules/.bin'), { recursive: true, mode: 0o700 });
+    // Native checkout keeps a tracked root example. Neither fixed service
+    // mode loads it; malformed unreadable bytes must not become execution input.
+    writeFileSync(join(root, '.env.example'), Buffer.from([0xff, 0x00]), { flag: 'wx', mode: 0o000 });
+    writeFileSync(join(root, 'services/auth-bridge/.dev.vars.example'), Buffer.from([0xff, 0x00]), { flag: 'wx', mode: 0o000 });
     const initial = captureNativeServiceConfiguration(root);
+    expect(initial.absentPaths).not.toContain(join(root, '.env.example'));
+    expect(initial.absentPaths).not.toContain(join(root, 'services/auth-bridge/.dev.vars.example'));
     expect(initial.absentPaths).toContain(join(root, 'services/auth-bridge/node_modules/.bin/node'));
     expect(captureNativeServiceConfiguration(root)).toEqual(initial);
+    const nearExample = join(root, '.env.example.local');
+    writeFileSync(nearExample, 'fixture only', { flag: 'wx', mode: 0o600 });
+    expect(() => captureNativeServiceConfiguration(root)).toThrow('AMBIENT_SERVICE_CONFIGURATION');
+    rmSync(nearExample);
     for (const service of ['auth-bridge', 'release-recovery']) {
       for (const name of ['.env.test', '.dev.vars', '.npmrc']) {
         const path = join(root, 'services', service, name);
