@@ -1288,8 +1288,62 @@ describe('disposable connected local QA cleanup lifecycle', () => {
     }
   });
 
+  it.each([0, 3])('retains normal CLI terminal metadata for actual exit %s', async code => {
+    await expect(runDisposableLocalFullstackCli(process.execPath, ['-e', `process.exit(${code})`], {
+      environment: { HOME: tmpdir(), PATH: process.env.PATH ?? '', TMPDIR: tmpdir() },
+      timeout: 5_000,
+    })).resolves.toEqual({ code, signal: null, spawnError: null, timedOut: false, overflow: false });
+  });
+
+  it('rejects a signal-killed CLI instead of reporting it as a normal nonzero denial', async () => {
+    const command = runDisposableLocalFullstackCli(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      environment: { HOME: tmpdir(), PATH: process.env.PATH ?? '', TMPDIR: tmpdir() },
+      timeout: 5_000,
+      onProcess(child) {
+        child?.once('spawn', () => { child.kill('SIGTERM'); });
+      },
+    });
+    await expect(command).rejects.toThrow('Local CLI process did not exit normally.');
+    await expect(command).rejects.toMatchObject({ terminal: {
+      code: null, signal: 'SIGTERM', spawnError: null, timedOut: false, overflow: false,
+    } });
+  });
+
+  it('retains the actual spawn failure without manufacturing a rejection exit code', async () => {
+    const runtimeDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-cli-terminal-test-'));
+    try {
+      const command = runDisposableLocalFullstackCli(join(runtimeDirectory, 'missing-cli'), [], {
+        environment: { HOME: runtimeDirectory, PATH: process.env.PATH ?? '', TMPDIR: runtimeDirectory },
+        timeout: 5_000,
+      });
+      await expect(command).rejects.toThrow('Local CLI process could not start.');
+      await expect(command).rejects.toMatchObject({ terminal: {
+        signal: null, spawnError: 'ENOENT', timedOut: false, overflow: false,
+      } });
+    } finally {
+      rmSync(runtimeDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it('retains deadline failure flags and the actual forced terminal', async () => {
+    let observedTerminal: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+    const command = runDisposableLocalFullstackCli(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      environment: { HOME: tmpdir(), PATH: process.env.PATH ?? '', TMPDIR: tmpdir() },
+      timeout: 20,
+      onProcess(_child, previous) {
+        if (previous) observedTerminal = { code: previous.exitCode, signal: previous.signalCode };
+      },
+    });
+    await expect(command).rejects.toThrow('Local CLI command exceeded its deadline.');
+    expect(observedTerminal).toBeDefined();
+    // Windows tree retirement can report a normal OS code; retain it alongside timedOut, never treat it as a denial.
+    await expect(command).rejects.toMatchObject({ terminal: {
+      ...observedTerminal, spawnError: null, timedOut: true, overflow: false,
+    } });
+  });
+
   it('turns bounded CLI output overflow into a contained promise rejection', async () => {
-    await expect(runDisposableLocalFullstackCli(
+    const command = runDisposableLocalFullstackCli(
       process.execPath,
       ['-e', 'process.stdout.write("x".repeat(600000));'],
       {
@@ -1300,7 +1354,9 @@ describe('disposable connected local QA cleanup lifecycle', () => {
         },
         timeout: 5_000,
       },
-    )).rejects.toThrow('Local CLI output exceeded its bound.');
+    );
+    await expect(command).rejects.toThrow('Local CLI output exceeded its bound.');
+    await expect(command).rejects.toMatchObject({ terminal: { overflow: true, timedOut: false } });
   });
 
   it('accepts only ESRCH as proof that a disposable process group stopped', async () => {

@@ -309,6 +309,8 @@ export async function runDisposableLocalFullstackCli(executable, arguments_, opt
   return new Promise((resolveRun, rejectRun) => {
     let settled = false;
     let timedOut = false;
+    let overflow = false;
+    let spawnError = null;
     let deadline;
     const child = spawn(executable, arguments_, {
       cwd: REPOSITORY_ROOT,
@@ -326,8 +328,14 @@ export async function runDisposableLocalFullstackCli(executable, arguments_, opt
         }
       }
     };
-    const stdout = collectBounded(child.stdout, terminate);
-    const stderr = collectBounded(child.stderr, terminate);
+    const outputOverflow = () => { overflow = true; terminate(); };
+    const stdout = collectBounded(child.stdout, outputOverflow);
+    const stderr = collectBounded(child.stderr, outputOverflow);
+    const terminal = (code, signal) => Object.freeze({ code, signal, spawnError, timedOut, overflow });
+    const rejectWithTerminal = (error, actual) => {
+      Object.defineProperty(error, 'terminal', { value: actual, enumerable: true });
+      rejectRun(error);
+    };
     const finish = (callback) => {
       if (settled) return;
       settled = true;
@@ -335,27 +343,33 @@ export async function runDisposableLocalFullstackCli(executable, arguments_, opt
       options.onProcess?.(undefined, child);
       callback();
     };
-    child.once('error', () => finish(() => rejectRun(
-      new LocalFullstackRuntimeError('Local CLI process could not start.')
-    )));
-    child.once('close', (code) => finish(() => {
+    child.once('error', (error) => {
+      spawnError = typeof error.code === 'string' ? error.code : 'SPAWN_ERROR';
+      finish(() => rejectWithTerminal(
+        new LocalFullstackRuntimeError('Local CLI process could not start.'),
+        terminal(child.exitCode, child.signalCode),
+      ));
+    });
+    child.once('close', (code, signal) => finish(() => {
+      const actual = terminal(code, signal);
       try {
-        if (timedOut) {
-          rejectRun(new LocalFullstackRuntimeError('Local CLI command exceeded its deadline.'));
-          return;
+        if (timedOut) throw new LocalFullstackRuntimeError('Local CLI command exceeded its deadline.');
+        if (overflow) throw new LocalFullstackRuntimeError('Local CLI output exceeded its bound.');
+        // A killed or failed transport is not a normal nonzero CLI denial.
+        if (!Number.isSafeInteger(code) || code < 0 || signal !== null || spawnError !== null) {
+          throw new LocalFullstackRuntimeError('Local CLI process did not exit normally.');
         }
         const output = `${stdout()}\n${stderr()}`;
         for (const secret of options.secrets ?? []) {
           if (typeof secret === 'string' && secret.length > 0 && output.includes(secret)) {
-            rejectRun(new LocalFullstackRuntimeError('Local CLI exposed disposable authority.'));
-            return;
+            throw new LocalFullstackRuntimeError('Local CLI exposed disposable authority.');
           }
         }
-        resolveRun(Object.freeze({ code: code ?? 1 }));
+        resolveRun(actual);
       } catch (error) {
-        rejectRun(error instanceof LocalFullstackRuntimeError
+        rejectWithTerminal(error instanceof LocalFullstackRuntimeError
           ? error
-          : new LocalFullstackRuntimeError('Local CLI output could not be contained.'));
+          : new LocalFullstackRuntimeError('Local CLI output could not be contained.'), actual);
       }
     }));
     deadline = setTimeout(() => {

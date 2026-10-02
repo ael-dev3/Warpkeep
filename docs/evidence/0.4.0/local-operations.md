@@ -2,7 +2,27 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current native service evidence — 2 October 2026
+## Current native verification evidence — 2 October 2026
+
+### CLI terminal correctness repair; focused native proof retained — 2 October
+
+The original helper, observed on Windows, returned `{ code: 1 }` when a real Node child was killed with SIGTERM. Baseline `october-release-fullstack-cli-terminal-before.report.json` (SHA `cde3c08bec0e687d2c9ec4a7f82b3432eb33901edbbe58503784a8e1f29613a9`) records six selected failures, with fifty assertions unselected; this is diagnostic evidence, not whole-file coverage.
+
+The repair binds helper `25265f5f90a7242247d445e68be0562c51d0cee7d90053cf3083fa3f091ad623`, declaration `27a528fccc8fed579302c60b3e3398394bf5a5ab6b818771bf97d7c57a2acd99` and test `a799abe074b919060b67233190a204740950c1f792dd0dd803eddeadfc7ccfca`. Normal 0/nonzero exits resolve with their actual code and null/false failure fields. Signals, failed spawn, deadline and overflow reject with frozen observed terminal metadata. Spawn-error metadata is the error-event child snapshot; it is not a cleanup acknowledgment. Existing detachment and onProcess behavior remain unchanged.
+
+The complete Windows file passed all 56 assertions with no failures or skips (`october-release-fullstack-cli-terminal-fixed.report.json`, SHA `ffb916a367dbf59febb0765bd383ea6a5b293864a05f87908ad43e213af25145`; actual terminal `e1ee06`, exit 0). Pinned Node 22.22.3 ran app/all-tests noEmit (`f5c602`, exit 0); syntax and diff checks also passed. Compact validation `5b227f1a38056971fe24a2d805c3ac0aa8a1521a108f9b856aea2da0d11737d3` retains the commands, raw reports and source hashes.
+
+Native exact three-source-file overlay and supported source-only derivation at `57599c69` are complete. Family `6e9c26976e979eeb70901df801138e4de325211cbbaad1693d8b2fcb0372363a` has 1,266 members and sixteen outputs; only the closure manifest and four workflow manifest fingerprints change. Independent post-outer `66c72ef367677703463183e93f0f4fbb123612a06d123d0365f21840f0f7feaa` proves ten captured actors and the full original group absent twice, with all 3,406 raw files/index/refs preserved. The existing compiler namespace rejects all three repair paths; no operation/recovery compiler input or compiled body changed.
+
+Native supported installation `4a7defd7` ran 18:53:44.473–18:54:03.299 UTC and freshly reproduced all sixteen family outputs with protected and static policy checks. Membership remains 1,266. Only five mechanical paths changed: the closure manifest and that manifest fingerprint in four workflows; compiled artifacts and workflow triggers, jobs, permissions, timeouts and downstream chains remain unchanged. Independent install post `ab7872bb`, reviewed in `5a9eb4`, proves the original leader, nine recorded children and whole group absent twice, with all raw source files, physical index and refs held.
+
+The native focus ran 19:04:14.009–19:10:45.035 UTC at `57599c69` plus the exact three-file repair and five generated paths. Summary `851e927f` and raw report `157d2911` record 250 passing assertions in six complete files and sixteen nested suites, with no failed, skipped, pending or todo assertions. Separate app/all-tests noEmit and namespace shell syntax terminals are 0/null. Independent raw reparse `457a19f7` and post `93ec1f9a` bind the original leader 878802, its three recorded children and the whole original group absent twice on the original boot; all 3,406 raw source files, physical index and refs held. PRIMARY retention `ebe77ec1` preserves all seventeen records byte-for-byte. Signing, synchronization and publication have no assigned successor identity. This scoped local proof does not establish full verification coverage or production authority.
+
+A separate Windows request for the whole workflow-evidence file ran 19:16:22.671–19:22:57.028 UTC and exited 1: 134 declared assertions, 129 passed, four native-reader mock failures and one unfinished case after the fork exited unexpectedly (`cad076aa`, raw report `e10297e2`). This is incomplete execution, not a source-declared Windows skip or complete-file acceptance. The source-reviewed mock in `tests/sealedRealmsProductionWorkflowEvidence.test.ts` still targets the execution producer while the consumer imports the inert evidence reader. Correct that test import and diagnose the unfinished CJS/WeakMap fixture before rerunning the whole file and attempting the next full profile. Both tasks are pending; preserve this failed request and its actual source/index/ref stability separately from the completed native focus.
+
+A public GET of `https://warpkeep.com/` at 19:31:13.202 UTC returned HTTP 200, title `Warpkeep`, and 5,351 HTML bytes (HTML SHA `18658055`, receipt `ad8c6a6e`). This is a public frontend observation only; it does not prove owner authentication, PTR 0.4 or deployment.
+
+Preserve all completed focus records and the separate incomplete Windows request; successor, mock-correction and unfinished-fixture fields remain pending until their real receipts arrive. This terminal repair does not implement complete detached-actor containment, connected execution, full native coverage, accepted-main transport, CI/OIDC, PTR deployment or owner/device/final-A acceptance. Actions remains disabled under runtime policy. The completed service results below remain evidence at `41e760fe`.
 
 ### Native service verification completed; connected execution remains closed — 2 October
 

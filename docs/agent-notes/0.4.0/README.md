@@ -32,6 +32,8 @@ The connected-module plan is retained in native `artifacts/qa` and remains
 planning-only; its actual execution request was refused before any connected check. Complete native tests, connected containment
 and authenticated source transport are next. Read the latest handoff for the
 original failed attempts, completed service proof and remaining acceptance.
+The CLI terminal repair rejects signal termination, failed spawn, timeout and output overflow instead of treating an abnormal end as a normal expected denial. Normal nonzero CLI exits retain their actual code. Windows complete-file security checks passed all 56 assertions with app/all-tests types. Native family installation reproduced all sixteen outputs; the six-file native focus passed all 250 assertions plus types/shell, with independent raw-report, actor and source readback retained. A separate Windows whole-file request remains incomplete after four stale-reader-mock failures and an unexpected fork exit left one fixture unfinished. Mock repair and CJS/WeakMap fixture diagnosis remain pending before full-profile execution. This diagnostic repair does not change live QR behavior or establish connected execution or release authority.
+
 Recheck that accepted main still names the exact verified source before each
 operation. Source changes to the release workflow require a fresh native
 prepare/check and generated-only promotion before live observations.

@@ -2,19 +2,25 @@ WARPKEEP 0.4 — NEXT WORK
 CURRENT RESUMPTION — 2 OCTOBER 2026, LOCAL RELEASE WORK
 
 CURRENT CHECKPOINT
-Signed code 41e760fe / tree 01c62e80, parent b9ca8ca7, is published and synchronized (3cabd70b). Resolve the actual next Git HEAD after this notes update; do not invent a future child identity. Alpha is live and owner PTR 0.4 remains unpublished.
+Latest published notes: signed 57599c69 / tree ba64261c. The three-file CLI terminal repair and five derived outputs are local with completed native focus and independent readback. Its signed successor, synchronization and publication remain pending. Alpha remains live; owner PTR 0.4 is unpublished.
 
-LOCAL VALIDATION COMPLETE
-The maintained service run 20139fbf completed 17:46:06.292–17:47:33.932 UTC: nine actual commands 0/null. Four strict partitions passed 484/18 auth-bridge assertions and 1,499/68 recovery assertions, total 2,069 across 76 files, no fail/skip/pending/todo. Four typechecks plus one generated Workerd declaration check are five separate terminal checks, not test counts. Independent proof 21ad303e recorded 18:01:27.208 UTC; the reader subsequently exited 0, reparsing the raw partitions and proving original producer/nine children/fullgroup absent twice; all 3,406 raw files/index/refs/signature/tools/config and the selected root dependency slice held. Summary/proof/four raw reports are retained in PRIMARY (17eb5f18). Full coverage and production authority remain false.
+TERMINAL REPAIR
+The original helper, observed on Windows, returned code 1 for a signal-killed CLI and could satisfy an expected G002 denial. Only normal integer exits now resolve; signal, spawn, timeout and overflow endings reject with bounded observed metadata. Normal nonzero exits retain their actual code. Callbacks and detached behavior remain unchanged. Windows baseline cde3c08b has six selected failures and fifty unselected assertions; fixed complete file ffb916a3 passed all 56, with app/all-tests noEmit 0 (f5c602).
 
-CONNECTED PLAN ONLY
-Actual plan 366e8cdd, retained in native artifacts/qa, preserves the fixed recipe but executionImplemented:false. Actual --run exited 1 with NATIVE_SOURCE_VERIFICATION_CONNECTED_CONTAINMENT_NOT_IMPLEMENTED; no connected check ran, and no separate refusal receipt exists. Retain the plan; implement detached G002 server/CLI birth/group closure and required runtime capture before execution.
+SOURCE FAMILY AND NATIVE FOCUS
+Native source-only derivation 6e9c2697 produced sixteen outputs with 1,266 members, changing only the closure manifest and four workflow manifest fingerprints. Independent 66c72ef3 closes all ten captured original actors and the group twice, with source/index/refs held. Installation 4a7defd7 ran 18:53:44.473–18:54:03.299 UTC and reproduced all sixteen outputs with protected/static checks; ab7872bb/review5a9eb4 proves cleanup and preservation. The subsequent native focus ran 19:04:14.009–19:10:45.035 UTC: 250/250 assertions in six complete files and sixteen nested suites, with separate types/shell 0/null (851e927f/raw157d2911). Independent 93ec1f9a and raw review457a19f7 bind source/index/refs and original leader/three children/whole group absent twice; retention ebe77ec1 preserves all seventeen records. Compiled artifacts are unchanged; no connected execution is inferred.
+
+SEPARATE INCOMPLETE WORKFLOW-EVIDENCE TEST REQUEST
+The Windows whole-file request exited 1 at 19:22:57.028 UTC: 134 declared assertions, 129 passed, four native-reader mock failures and one unfinished case after an unexpected fork exit (cad076aa/raw e10297e2). This is incomplete execution, not a source-declared Windows skip or complete-file acceptance. Correct the stale mock import, which targets the producer instead of the inert reader, and diagnose the unfinished CJS/WeakMap fixture before rerunning the whole file. Preserve the failed request.
+
+RETAIN COMPLETED SERVICE EVIDENCE
+The 41e760fe service slice remains 2,069 passing assertions across 76 files, nine commands 0/null and five separate type/declaration terminals, with independent 21ad303e. Do not repeat it solely for this repair or relabel b9ca8ca7 development preparation.
 
 NEXT
-Run the maintained --plan/--run ordinary, isolated namespace and module test profile from the next clean signed native source, preserving actual platform dispositions and raw skips. Complete connected containment, authenticated complete-source proof transport and the reviewed bounded hosted-operation policy. Keep live observations, owner play, physical-phone and final-A R06 requirements separate from component fixtures. Preserve source/index/refs during every owned actor; close real actors before sync. Do not repeat completed service tests or relabel b9ca development preparation as current-source release authority.
+Sign, scan, synchronize and publish the coherent checkpoint. Then repair the stale test mock and diagnose the unfinished CJS/WeakMap fixture, validate the whole workflow-evidence file, and collect the full ordinary/isolated-namespace/module profile from clean signed source with actual dispositions. Connected execution still requires detached G002 lifecycle containment and runtime capture. Authenticated source transport, admitted hosted operations, owner play, physical phone and final-A R06 remain open.
 
 POLICY
-Read config/github-actions-budget.json and docs/operations/github-actions-budget.md. All configured Actions repositories remain disabled; numeric limits belong only to runtime configuration. No workflow or provider was enabled by this service diagnostic. Older resumption steps below are historical and superseded.
+Read config/github-actions-budget.json and docs/operations/github-actions-budget.md. All configured Actions repositories remain disabled. Numeric limits belong only to runtime configuration. No provider or workflow operation is claimed.
 
 Historical checkpoint (superseded; do not repeat its resumption steps): Previous service-plan/preparation state follows unchanged.
 
