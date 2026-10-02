@@ -8,8 +8,10 @@ import { isDeepStrictEqual } from 'node:util';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { probeProductionAdminProcessIdentity } from './production-admin-token-budget.mjs';
 import { parseVitestReport, parseNodeEvents } from './native-source-verification-reports.mjs';
+import { captureNativeBuildOutput } from './native-source-verification-build-output.mjs';
 
 export const NATIVE_VERIFICATION_PROFILE = 'warpkeep-native-source-test-partitions-v1';
+export const NATIVE_SOURCE_CHECKS_PROFILE = 'warpkeep-native-source-checks-v1';
 export const NAMESPACE_FILES = Object.freeze([
   'tests/ptrProductionExistingUpdateContinuation.test.ts',
   'tests/sealedRealmsExistingUpdate.test.ts',
@@ -21,6 +23,16 @@ export const REQUIRED_NATIVE_DOMAINS = Object.freeze(['source-policy', 'ordinary
   'namespace-tests', 'module-pure-tests', 'root-types', 'production-builds',
   'auth-bridge', 'release-recovery', 'connected-module', 'genuine-preparation']);
 const IMPLEMENTED_DOMAINS = Object.freeze(['ordinary-tests', 'namespace-tests', 'module-pure-tests']);
+const SOURCE_CHECK_DOMAINS = Object.freeze(['root-types', 'production-builds']);
+const GITLEAKS_SHA256 = '88f91962aa2f93ac6ab281d553b9e125f5197bbbce38f9f2437f7299c32e5509';
+const SOURCE_CHECK_SCRIPTS = Object.freeze({
+  build: 'de5307c5c53b88ce0a0c6fb1e31632830045af1f10f17aadf30c3f20295cdc3b',
+  typecheck: 'fd976a80ae41f2c383ec0d06706d657812879206c8154f4492c2075e672aa0dd',
+  'verify:licenses': '1054c8f4b4baeb0341e2a6a78570f4daea1fc258c4c7039bbaa9a39770103b2b',
+  'verify:runtime-assets': 'ee722851acc0a079760928d54edd26641293d674df6e2b82629c9fdfad3a7d9a',
+  'verify:file-sizes': '7bf1378ff8c295bce544c9673fb8b8d2a3a029d0027f034a45eaf8f640fed5ce',
+  'verify:sealed-launch': '16b1b565fd4e57569e08b4abdf81bbb4dd665c7a02a6692a615c7719632b9328',
+});
 const GIT = '/usr/bin/git';
 const MAX_BYTES = 64 * 1024 * 1024;
 // Existing 2.6.1 native compiler binary authority, also retained by local-binding-runtime-core.
@@ -189,7 +201,7 @@ export function nativeTestCommands(root, partitions, tools, stem) {
     || !isDeepStrictEqual(partitions.namespaceVitestFiles, [...NAMESPACE_FILES])) fail('PARTITIONS_INVALID');
   return [{ id: 'ordinary-tests', kind: 'vitest-json', files: partitions.ordinaryVitestFiles, cwd: root,
     executable: tools.node.path, args: [tools.vitest.path, 'run', ...partitions.ordinaryVitestFiles,
-      '--maxWorkers=1', '--no-cache', '--reporter=json', `--outputFile=${stem}-ordinary-tests.report.json`],
+      '--maxWorkers=1', '--testTimeout=180000', '--no-cache', '--reporter=json', `--outputFile=${stem}-ordinary-tests.report.json`],
     reportPath: `${stem}-ordinary-tests.report.json`, deadlineMs: 3_600_000 },
   { id: 'namespace-tests', kind: 'vitest-json', files: partitions.namespaceVitestFiles, cwd: root,
     executable: '/usr/bin/sudo', args: ['-n', '/bin/bash', join(root, 'scripts/test-sealed-realms-existing-update-linux.sh'),
@@ -199,6 +211,76 @@ export function nativeTestCommands(root, partitions, tools, stem) {
     cwd: join(root, 'spacetimedb'), executable: tools.node.path,
     args: [tools.tsx.path, '--test', '--test-timeout=120000', `--test-reporter=${pathToFileURL(join(root, 'scripts/native-source-verification-node-reporter.mjs')).href}`, file.slice('spacetimedb/'.length)],
     reportPath: `${stem}-module-pure-${index + 1}.events.ndjson`, deadlineMs: 180_000 }))];
+}
+/** Fixed source recipe. pnpm runs the declared scripts; it is not evidence of npm execution. */
+export function nativeSourceCheckCommands(root, tools, stem, packageBytes) {
+  const metadata = JSON.parse(String(packageBytes));
+  if (metadata.packageManager !== 'npm@10.9.8' || typeof metadata.scripts !== 'object'
+    || !metadata.scripts || Array.isArray(metadata.scripts)) fail('SOURCE_CHECK_RECIPE_CHANGED');
+  for (const [name, expected] of Object.entries(SOURCE_CHECK_SCRIPTS)) {
+    if (typeof metadata.scripts[name] !== 'string' || sha(metadata.scripts[name]) !== expected
+      || Object.hasOwn(metadata.scripts, `pre${name}`) || Object.hasOwn(metadata.scripts, `post${name}`)) fail('SOURCE_CHECK_RECIPE_CHANGED');
+  }
+  const command = (id, executable, args, extra = {}) => ({ id, kind: 'terminal-check', files: [], cwd: root,
+    executable, args, reportPath: `${stem}-${id}.report.json`, deadlineMs: 900_000, environment: {}, ...extra });
+  const script = (id, name, extra = {}) => command(id, tools.pnpm.path,
+    ['--pm-on-fail=ignore', '--dir', root, 'run', name], { script: name, scriptSha256: SOURCE_CHECK_SCRIPTS[name], ...extra });
+  return [command('scanner-regression', tools.node.path,
+    ['--experimental-strip-types', join(root, 'scripts/verify-scanner-regression.ts'), tools.gitleaks.path]),
+  command('source-secrets', tools.gitleaks.path, ['git', '--config', join(root, '.gitleaks.toml'), '--redact', '--no-banner',
+    '--log-opts=HEAD', '--report-format=json', `--report-path=${stem}-source-secrets.report.json`, root], { kind: 'gitleaks-json' }),
+  script('source-licenses', 'verify:licenses'), script('source-runtime-assets', 'verify:runtime-assets'),
+  script('source-file-sizes', 'verify:file-sizes'), script('source-sealed-launch', 'verify:sealed-launch'),
+  script('root-types', 'typecheck'),
+  script('production-build-default', 'build', { buildVariant: 'default' }),
+  script('production-build-github-pages', 'build', { buildVariant: 'github-pages', environment: { GITHUB_PAGES: 'true' } }),
+  script('production-build-canonical-pages', 'build', { buildVariant: 'canonical-pages', environment: { GITHUB_PAGES: 'true', DEPLOY_BASE: '/' } })];
+}
+function sourceCheckInputs(root, inputs) {
+  const tools = {};
+  // Vite loads these ignored files independently of child process.env. Check names only;
+  // verification must not read secrets or silently include ambient production settings.
+  const absentPaths = ['.env', '.env.local', '.env.production', '.env.production.local', '.npmrc', '.pnpmfile.cjs',
+    'node_modules/.bin/node'].map(path => join(root, path));
+  for (let parent = dirname(root); ; parent = dirname(parent)) {
+    for (const name of ['.npmrc', '.pnpmfile.cjs']) absentPaths.push(join(parent, name));
+    if (parent === dirname(parent)) break;
+  }
+  absentPaths.push('/etc/npmrc', '/etc/pnpmrc', '/nonexistent/.npmrc');
+  for (const path of absentPaths) {
+    try { fs.lstatSync(path); fail('AMBIENT_BUILD_CONFIGURATION'); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+  const workspace = read(join(root, 'pnpm-workspace.yaml'));
+  tools.closedBuildConfiguration = { absentPaths,
+    workspace: { path: join(root, 'pnpm-workspace.yaml'), sha256: workspace.sha256, identity: workspace.identity, bytes: workspace.body.length } };
+  for (const [key, path, name] of [['typescript', 'node_modules/typescript/bin/tsc', 'typescript'],
+    ['vite', 'node_modules/vite/bin/vite.js', 'vite'], ['rootTsx', 'node_modules/tsx/dist/cli.mjs', 'tsx']]) {
+    const entry = installedTool(join(root, path)), metadata = installedTool(join(root, `node_modules/${name}/package.json`));
+    const declared = JSON.parse(read(join(root, 'package.json')).body).devDependencies[name];
+    const lock = JSON.parse(read(join(root, 'package-lock.json')).body).packages[`node_modules/${name}`];
+    if (JSON.parse(metadata.body).name !== name || JSON.parse(metadata.body).version !== declared || lock?.version !== declared) fail('INSTALLED_PACKAGE_MISMATCH');
+    tools[key] = entry.fact; tools[`${key}Package`] = metadata.fact;
+    // Script launchers resolve these exact existing bin links; never execute a different PATH tool.
+    const bin = name === 'typescript' ? 'tsc' : name === 'tsx' ? 'tsx' : 'vite';
+    if (fs.realpathSync(join(root, 'node_modules/.bin', bin)) !== entry.fact.path) fail('INSTALLED_BIN_MISMATCH');
+  }
+  tools.typescriptLoader = installedTool(join(root, 'node_modules/typescript/lib/tsc.js')).fact;
+  tools.typescriptNative = installedTool(join(root, 'node_modules/@typescript/typescript-linux-x64/lib/tsc')).fact;
+  // This preexisting system binary is independently hash-pinned, not chowned or installed by verification.
+  tools.gitleaks = installedTool('/usr/bin/gitleaks', 1, 501).fact;
+  if (tools.gitleaks.sha256 !== GITLEAKS_SHA256) fail('GITLEAKS_PREREQUISITE_INVALID');
+  nativeSourceCheckCommands(root, { ...inputs, ...tools }, join(root, 'artifacts/qa/recipe-check'), read(join(root, 'package.json')).body);
+  return { ...inputs, ...tools };
+}
+export function createNativeSourceChecksPlan(planPath) {
+  const root = nativeRoot(), source = sourceSnapshot(root), tools = sourceCheckInputs(root, inputFacts(root));
+  const plan = { schemaVersion: 1, profile: NATIVE_SOURCE_CHECKS_PROFILE, source, tools, repositoryRoot: root,
+    productionAuthorized: false, completeCoverage: false, implementedDomains: SOURCE_CHECK_DOMAINS,
+    requiredDomains: REQUIRED_NATIVE_DOMAINS,
+    scope: 'Fixed source-policy subset, build-mode root types and three production builds. pnpm script execution; no npm install/audit/signature provenance, full tests, services or release authority.' };
+  same(sourceSnapshot(root), source);
+  return output(root, planPath, json(plan));
 }
 export function createNativeVerificationPlan(planPath) {
   const root = nativeRoot(), source = sourceSnapshot(root);
@@ -360,25 +442,32 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
   const root = nativeRoot();
   if (!HEX64.test(digest)) fail('PLAN_DIGEST_INVALID');
   const planRef = artifact(root, planPath, digest), plan = JSON.parse(read(planRef.path).body), source = sourceSnapshot(root);
-  const partitions = deriveNativeTestPartitions(source.files.map(file => file.path), read(join(root, 'vite.config.ts')).body,
+  const checks = plan.profile === NATIVE_SOURCE_CHECKS_PROFILE;
+  const partitions = checks ? null : deriveNativeTestPartitions(source.files.map(file => file.path), read(join(root, 'vite.config.ts')).body,
     read(join(root, 'spacetimedb/package.json')).body);
-  if (plan.profile !== NATIVE_VERIFICATION_PROFILE || plan.schemaVersion !== 1 || plan.repositoryRoot !== root
+  const domains = checks ? SOURCE_CHECK_DOMAINS : IMPLEMENTED_DOMAINS;
+  const currentTools = () => checks ? sourceCheckInputs(root, inputFacts(root)) : inputFacts(root);
+  if (![NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE].includes(plan.profile) || plan.schemaVersion !== 1 || plan.repositoryRoot !== root
     || plan.productionAuthorized !== false || plan.completeCoverage !== false) fail('PLAN_INVALID');
-  same(plan.source, source); same(plan.partitions, partitions); same(plan.tools, inputFacts(root));
-  same(plan.implementedDomains, IMPLEMENTED_DOMAINS); same(plan.requiredDomains, REQUIRED_NATIVE_DOMAINS);
+  same(plan.source, source);
+  if (!checks) same(plan.partitions, partitions);
+  else if (Object.hasOwn(plan, 'partitions')) fail('PLAN_INVALID');
+  same(plan.tools, currentTools());
+  same(plan.implementedDomains, domains); same(plan.requiredDomains, REQUIRED_NATIVE_DOMAINS);
   const actor = probeProductionAdminProcessIdentity(process.pid), owner = { pid: process.pid, pgid: process.pid,
     uid: process.getuid(), gid: process.getgid(), identity: actor.identity,
     bootId: fs.readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').trim() };
   if (actor.state !== 'present' || processGroup(process.pid) !== process.pid || groupMembers(process.pid).length !== 1) fail('EXCLUSIVE_SESSION_REQUIRED');
   stem = resolve(stem);
-  const commands = nativeTestCommands(root, partitions, plan.tools, stem), reserved = new Map();
+  const commands = checks ? nativeSourceCheckCommands(root, plan.tools, stem, read(join(root, 'package.json')).body)
+    : nativeTestCommands(root, partitions, plan.tools, stem), reserved = new Map();
   // Reserve all owned artifacts before launching any child.
   for (const path of [`${stem}-summary.json`, ...commands.flatMap(command => [command.reportPath,
     `${stem}-${command.id}.stdout.log`, `${stem}-${command.id}.stderr.log`, `${stem}-${command.id}-started.json`, `${stem}-${command.id}-terminal.json`])]) {
     reserved.set(path, output(root, path, Buffer.alloc(0)));
   }
   const startedAt = new Date().toISOString(), results = [];
-  output(root, `${stem}-started.json`, json({ profile: NATIVE_VERIFICATION_PROFILE, planRef, owner, source, commands, startedAt }));
+  output(root, `${stem}-started.json`, json({ profile: plan.profile, planRef, owner, source, commands, startedAt }));
   let preservationError = null;
   for (const command of commands) {
     const stdoutPath = command.kind === 'node-events' ? command.reportPath : `${stem}-${command.id}.stdout.log`;
@@ -389,7 +478,7 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
     const streamFailure = new Promise(done => { rejectOutput = done; });
     const signals = [], cleanupAttempts = [], childStartedAt = new Date().toISOString();
     try {
-      child = cp.spawn(command.executable, command.args, { cwd: command.cwd, env: environment(plan.tools), shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = cp.spawn(command.executable, command.args, { cwd: command.cwd, env: { ...environment(plan.tools), ...command.environment }, shell: false, stdio: ['ignore', 'pipe', 'pipe'] });
       closed = new Promise(done => { child.once('error', error => done({ exitCode: null, signal: null, spawnError: error.code ?? 'SPAWN_ERROR' }));
         child.once('close', (exitCode, signal) => done({ exitCode, signal, spawnError: null })); });
       captureBounded(child.stdout, stdout, stdoutPath, rejectOutput);
@@ -422,43 +511,61 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
       if (!terminal || phaseError || cleanupError) { child?.stdout?.destroy(); child?.stderr?.destroy(); }
       fs.closeSync(stdout); fs.closeSync(stderr);
     }
-    let parsed = null, reportFailure = null;
-    try { parsed = (command.kind === 'vitest-json' ? parseVitestReport : parseNodeEvents)
-      (read(command.reportPath).body, { repositoryRoot: root, expectedFiles: command.files }); }
-    catch (error) { reportFailure = String(error.message).slice(0, 160); }
     const absence = child?.pid && birth?.state === 'present' ? (command.id === 'namespace-tests'
       ? ownedNamespaceProcess(owner, child.pid, birth.identity) : probeProductionAdminProcessIdentity(child.pid, birth.identity)) : null;
     const absent = absence?.state === 'absent';
+    let parsed = null, reportFailure = null;
+    try {
+      if (command.kind === 'terminal-check') {
+        const terminalRecorded = Boolean(terminal && Number.isSafeInteger(terminal.exitCode) && terminal.exitCode >= 0
+          && terminal.signal === null && terminal.spawnError === null && !timedOut && !phaseError && !cleanupError && !outputFailure && !unexpectedGroup);
+        const buildOutput = terminalRecorded && terminal.exitCode === 0 && absent
+          && groupMembers(owner.pgid).length === 1 && command.buildVariant ? captureNativeBuildOutput(root, command.buildVariant) : null;
+        parsed = { complete: terminalRecorded, success: terminalRecorded && terminal.exitCode === 0, terminal, buildOutput,
+          scope: 'Producer-owned actual terminal and bounded raw output; complete fixed command, not a test count or CI proof.' };
+        writeReserved(root, command.reportPath, json(parsed), reserved.get(command.reportPath));
+      } else if (command.kind === 'gitleaks-json') {
+        const findings = JSON.parse(read(command.reportPath).body);
+        if (!Array.isArray(findings)) fail('SCANNER_REPORT_INVALID');
+        parsed = { complete: true, success: findings.length === 0, findingsCount: findings.length,
+          scope: 'Actual Gitleaks full HEAD-reachable source report; terminal status remains independently required.' };
+      } else parsed = (command.kind === 'vitest-json' ? parseVitestReport : parseNodeEvents)
+        (read(command.reportPath).body, { repositoryRoot: root, expectedFiles: command.files });
+    }
+    catch (error) { reportFailure = String(error.message).slice(0, 160); }
     const result = { command, child: { pid: child?.pid ?? null, identity: birth?.identity ?? null,
       observationScope: birth?.scope ?? 'production-admin-process-probe', absence, absent: Boolean(absent) },
       startedAt: childStartedAt, finishedAt: new Date().toISOString(), terminal: terminal ?? null, timedOut, phaseError, cleanupError, outputFailure, unexpectedGroup, signals, cleanupAttempts,
       report: retainedOutput(root, command.reportPath), stdout: retainedOutput(root, stdoutPath), stderr: retainedOutput(root, stderrPath), parsed, reportFailure,
       remainingGroup: groupMembers(owner.pgid) };
     result.completed = !phaseError && !cleanupError && !outputFailure && !unexpectedGroup && !timedOut && terminal?.signal === null && terminal.spawnError === null
-      && [0, 1].includes(terminal.exitCode) && absent && result.remainingGroup.length === 1 && parsed?.complete === true;
+      && (checks ? Number.isSafeInteger(terminal.exitCode) && terminal.exitCode >= 0 : [0, 1].includes(terminal.exitCode))
+      && absent && result.remainingGroup.length === 1 && parsed?.complete === true;
     result.passed = result.completed && terminal.exitCode === 0 && parsed.success === true;
     result.stderrScope = 'Raw bytes retained; ordinary Verify does not require an empty console stream. Exit/report failures remain separate. No full-profile warning disposition exists yet.';
     results.push(result);
     writeReserved(root, `${stem}-${command.id}-terminal.json`, json(result), reserved.get(`${stem}-${command.id}-terminal.json`));
-    try { same(sourceSnapshot(root), source); same(inputFacts(root), plan.tools); }
+    try { same(sourceSnapshot(root), source); same(currentTools(), plan.tools); }
     catch (error) { preservationError = String(error.message).slice(0, 160); break; }
     if (!result.completed || groupMembers(owner.pgid).length !== 1) break;
   }
   const allRecorded = !preservationError && results.length === commands.length && results.every(result => result.completed);
-  const summary = { schemaVersion: 1, profile: NATIVE_VERIFICATION_PROFILE, status: allRecorded ? 'native-test-partitions-recorded' : 'native-test-partitions-failed',
+  const allChecksPassed = allRecorded && results.every(result => result.passed);
+  const summary = { schemaVersion: 1, profile: plan.profile, status: allRecorded ? 'native-verification-recorded' : 'native-verification-failed',
     repositoryRoot: root, planRef, source, sourceAfter: preservationError ? null : source, owner, startedAt, finishedAt: new Date().toISOString(),
-    results, preservationError, implementedDomains: IMPLEMENTED_DOMAINS, requiredDomains: REQUIRED_NATIVE_DOMAINS,
-    missingDomains: REQUIRED_NATIVE_DOMAINS.filter(domain => !IMPLEMENTED_DOMAINS.includes(domain)),
-    completeCoverage: false, productionAuthorized: false, allRecorded, allTestsPassed: allRecorded && results.every(result => result.passed),
+    results, preservationError, implementedDomains: domains, requiredDomains: REQUIRED_NATIVE_DOMAINS,
+    missingDomains: REQUIRED_NATIVE_DOMAINS.filter(domain => !domains.includes(domain)),
+    completeCoverage: false, productionAuthorized: false, allRecorded, allChecksPassed, allTestsPassed: !checks && allChecksPassed,
     pending: ['Source-owned skipped-case dispositions and complete installed dependency attestation.',
       'Fresh accepted-main/signature transport and independent post-outer whole-group absence.',
       'Local inode/index/ref preservation is not portable proof for a different Actions checkout; authenticated intrinsic commit/tree/blob/recipe transport remains unimplemented.',
-      'Remaining fixed verification domains; genuine hosted dispatch/OIDC remains separate.'],
+      'Remaining fixed verification domains; genuine hosted dispatch/OIDC remains separate.',
+      ...(checks ? ['Source-policy subset uses pnpm to execute exact existing scripts; npm install/audit/signature provenance and complete installed dependency bytes remain uncovered.'] : [])],
     outputPolicy: 'Owned stdout/stderr are hard-limited to64MiB each. Vitest external JSON output is monitored every100ms against64MiB; a single JSON write can cross that observation limit. Any breach triggers bounded owned-child cleanup and remains rejected evidence.' };
   const body = json(summary);
   writeReserved(root, `${stem}-summary.json`, body, reserved.get(`${stem}-summary.json`));
   const published = output(root, join(root, 'artifacts', 'qa', `native-source-verification-${sha(body)}.json`), body);
-  return { path: published.path, sha256: published.sha256, allRecorded, allTestsPassed: summary.allTestsPassed,
+  return { path: published.path, sha256: published.sha256, allRecorded, allChecksPassed, allTestsPassed: summary.allTestsPassed,
     completeCoverage: false, productionAuthorized: false };
 }
 
@@ -469,7 +576,7 @@ export function requireCompleteNativeSourceVerificationEvidence(locator, commit)
   if (fs.realpathSync(root) !== root) fail('ROOT_INVALID');
   const reference = artifact(root, join(root, 'artifacts', 'qa', `native-source-verification-${locator}.json`), locator);
   const receipt = JSON.parse(read(reference.path).body);
-  if (receipt.schemaVersion !== 1 || receipt.profile !== NATIVE_VERIFICATION_PROFILE
+  if (receipt.schemaVersion !== 1 || ![NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE].includes(receipt.profile)
     || receipt.repositoryRoot !== root || receipt.source?.sourceCommit !== commit) fail('EVIDENCE_SOURCE_INVALID');
   // Do not accept echoed exit codes, coverage booleans or invented future domains.
   // The full authenticated producer/persistence and accepted-main profile do not exist yet.

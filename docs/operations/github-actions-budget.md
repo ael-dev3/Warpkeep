@@ -108,6 +108,22 @@ Other verification domains, authenticated proof reopening and durable namespace
 access still need completion. Source/tool identity and real GitHub dispatch/OIDC
 remain separate requirements.
 
+`--plan-checks` creates a separate fixed local source-check plan. It preserves
+the declared build scripts, runs scanner regression/full-HEAD Gitleaks, licensing,
+asset/size and sealed-source checks, then build-mode types and the default, project
+Pages and canonical Pages builds. Execution uses the existing attested pnpm
+launcher to run the source's scripts; it does not claim npm execution or install
+dependencies. Ignored production environment files and uncontrolled package
+configuration are rejected. Each successful build retains a bounded, twice-read
+output inventory and validates actual application/owner script and stylesheet
+targets before the next build replaces `dist`.
+
+The lane is diagnostic and cannot authorize deployment. Complete dependency
+bytes, npm audit/signature provenance, services, connected module, full test
+dispositions and genuine preparation/identity transport remain separate. Its
+receipts cannot become complete evidence by combining caller-written booleans
+or successful checks from a different source.
+
 The [reviewed public workflow template](../../config/public-pages-ptr-workflow-v1.yml)
 has a manual main-only deployment job and no build/install or automatic branch
 trigger. The mirror planner accepts its exact source-bound control only with

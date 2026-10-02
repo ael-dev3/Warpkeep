@@ -5,6 +5,14 @@
 
 ## Current local release work — 2 October 2026
 
+### Fixed native source-check lane — 2 October
+
+The fixed native source-check lane is implemented alongside the existing test profile. It runs the exact source scripts through attested pnpm, without installation: scanner regression/full-HEAD secret scan, licensing/runtime assets/file sizes/sealed launch, build-mode root types and three serial production variants. Actual terminals, owned-process cleanup and source/tool/config preservation stay separate from test counters. Each successful build captures its complete bounded dist inventory twice, checks actual application/owner script and CSS references, and retains that manifest before the next build overwrites dist. Ignored Vite production env files and uncontrolled package configuration are refused; the existing ignored pnpm workspace bytes are explicitly bound. Full dependency bytes, npm audit/signature provenance, services, connected module, genuine preparation and authenticated source reopening remain incomplete. Both profiles retain completeCoverage:false and productionAuthorized:false.
+
+Focused native run 6a629a/session10305 closed in b9285c at exit0: all228 assertions in four files, app/tests noEmit and namespace shell syntax passed. Summary5b7577f0 binds the eight-path A7 overlay66f459e9 and unchanged raw source/index/status/refs. First run99915c/session90249 retained228 passing assertions but a TypeScript error in the new filesystem-owner mock (TS2345); the one-line value guard corrected it. Earlier summary17222529 remains failed. Independent observerddffc3/044c057d proved that first original leader/children/full group absent and reproduced its raw source before repair. The import-time dist-path resolution that would break the actual sealed CommonJS bundle was moved into its callable default; the bundled import regression passed. Ordinary tests now retain the existing workflow test timeout. No Actions, dependency install, provider operation or PTR publication occurred. Actual execution of the complete new source-check plan is the next action after its signed source checkpoint.
+
+Base is signed published A7/treeD361, parent39. Preserve the disabled Actions policy, main/PR boundaries, concurrent Assets review and in-place Desktop study/history. Resolve resulting HEAD and remote equality from actual publication receipts; this source change is not an accepted-main or full release candidate.
+
 The resulting implementation is published as signed 39afd152/tree ca9aea5d,
 sole parent d9bbab2d. Nonforced push 9fe30f closed at 11:38:16.494 UTC;
 post-readback 1d4ca5a7 closed at 11:39:46.857 UTC. Both local checkouts and the

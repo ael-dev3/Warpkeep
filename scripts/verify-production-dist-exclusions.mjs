@@ -2,8 +2,6 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const root = resolve(import.meta.dirname, '..');
-const dist = resolve(root, 'dist');
 const staleTransactionPrefix = '.warpkeep-family-install-';
 export const allowedProductionHiddenPaths = Object.freeze([
   '.well-known/farcaster.json',
@@ -229,7 +227,7 @@ function ownerCanaryJavaScriptGraph(outputRoot, document) {
   return [...visited];
 }
 
-export function verifyProductionDistExclusions(outputDirectory = dist) {
+export function verifyProductionDistExclusions(outputDirectory = resolve(import.meta.dirname, '..', 'dist')) {
   const outputRoot = resolve(outputDirectory);
   const outputFiles = filesUnder(outputRoot, outputRoot);
   const relativeOutputPaths = outputFiles

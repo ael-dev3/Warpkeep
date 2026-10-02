@@ -3,14 +3,15 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildSync } from 'esbuild';
 import {
   deriveNativeTestPartitions, nativeTestCommands, NAMESPACE_FILES, REQUIRED_NATIVE_DOMAINS,
-  NATIVE_VERIFICATION_PROFILE, requireCompleteNativeSourceVerificationEvidence, nativeNamespaceCleanupCommand,
+  NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE, nativeSourceCheckCommands,
+  requireCompleteNativeSourceVerificationEvidence, nativeNamespaceCleanupCommand,
 } from '../scripts/native-source-verification.mjs';
 import { parseVitestReport, parseNodeEvents } from '../scripts/native-source-verification-reports.mjs';
 import reporter from '../scripts/native-source-verification-node-reporter.mjs';
@@ -59,7 +60,7 @@ describe('native source test inventory and execution recipe', () => {
     expect(commands).toHaveLength(4);
     expect(commands[0].files).toEqual(partitions.ordinaryVitestFiles);
     expect(commands[0].args).toEqual(['/installed/vitest.mjs', 'run', ...partitions.ordinaryVitestFiles,
-      '--maxWorkers=1', '--no-cache', '--reporter=json', '--outputFile=/repo/artifacts/qa/proof-ordinary-tests.report.json']);
+      '--maxWorkers=1', '--testTimeout=180000', '--no-cache', '--reporter=json', '--outputFile=/repo/artifacts/qa/proof-ordinary-tests.report.json']);
     expect(commands[1].executable).toBe('/usr/bin/sudo');
     expect(commands[1].args.slice(0, 4)).toEqual(['-n', '/bin/bash', '/repo/scripts/test-sealed-realms-existing-update-linux.sh', '--as']);
     expect(commands[1].args.slice(-2)).toEqual(['--report-json', '/repo/artifacts/qa/proof-namespace-tests.report.json']);
@@ -70,6 +71,54 @@ describe('native source test inventory and execution recipe', () => {
     expect(commands[2].args.some(argument => argument.startsWith('--test-reporter=file:'))).toBe(true);
     expect(commands.every(command => command.deadlineMs > 0 && Number.isFinite(command.deadlineMs))).toBe(true);
     expect(() => nativeTestCommands('/repo', { ...partitions, ordinaryVitestFiles: [NAMESPACE_FILES[0]] }, tools, '/repo/artifacts/qa/proof')).toThrow('PARTITIONS_INVALID');
+  });
+});
+
+describe('fixed native source checks recipe', () => {
+  const packageSource = readFileSync(join(repository, 'package.json'), 'utf8');
+  const checkTools = { node: { path: '/native/node' }, pnpm: { path: '/native/pnpm' }, gitleaks: { path: '/usr/bin/gitleaks' } };
+  it('uses the existing complete script chain and exact three closed environments', () => {
+    const commands = nativeSourceCheckCommands('/repo', checkTools, '/repo/artifacts/qa/proof', packageSource);
+    expect(NATIVE_SOURCE_CHECKS_PROFILE).toBe('warpkeep-native-source-checks-v1');
+    expect(commands.map(command => command.id)).toEqual(['scanner-regression', 'source-secrets', 'source-licenses',
+      'source-runtime-assets', 'source-file-sizes', 'source-sealed-launch', 'root-types',
+      'production-build-default', 'production-build-github-pages', 'production-build-canonical-pages']);
+    expect(commands[0].args).toEqual(['--experimental-strip-types', '/repo/scripts/verify-scanner-regression.ts', '/usr/bin/gitleaks']);
+    expect(commands[1].kind).toBe('gitleaks-json');
+    expect(commands[1].args).toContain('--log-opts=HEAD');
+    expect(commands[1].args).toContain('--report-path=/repo/artifacts/qa/proof-source-secrets.report.json');
+    const builds = commands.filter(command => command.buildVariant);
+    expect(builds.map(command => command.environment)).toEqual([{}, { GITHUB_PAGES: 'true' }, { GITHUB_PAGES: 'true', DEPLOY_BASE: '/' }]);
+    expect(builds.map(command => command.buildVariant)).toEqual(['default', 'github-pages', 'canonical-pages']);
+    for (const command of commands.filter(value => value.script)) {
+      expect(command.executable).toBe('/native/pnpm');
+      expect(command.args).toEqual(['--pm-on-fail=ignore', '--dir', '/repo', 'run', command.script]);
+      expect(command.scriptSha256).toBe(digest(Buffer.from(JSON.parse(packageSource).scripts[command.script!])));
+      expect(command.kind).toBe('terminal-check');
+      expect(command.deadlineMs).toBeGreaterThan(0);
+      expect(command.reportPath).toBe(`/repo/artifacts/qa/proof-${command.id}.report.json`);
+    }
+    expect(commands.flatMap(command => command.args).some(value => /^(?:install|audit|--filter|--if-present)$/u.test(value))).toBe(false);
+  });
+  it.each(['build', 'typecheck', 'verify:licenses', 'verify:runtime-assets', 'verify:file-sizes', 'verify:sealed-launch'])
+  ('refuses changed %s scripts and newly inserted lifecycle hooks before launching anything', name => {
+    for (const mutate of [
+      (metadata: { scripts: Record<string, string> }) => { metadata.scripts[name] += ' && echo bypass'; },
+      (metadata: { scripts: Record<string, string> }) => { metadata.scripts[`pre${name}`] = 'echo side effect'; },
+      (metadata: { scripts: Record<string, string> }) => { metadata.scripts[`post${name}`] = 'echo side effect'; },
+    ]) {
+      const metadata = JSON.parse(packageSource); mutate(metadata);
+      expect(() => nativeSourceCheckCommands('/repo', checkTools, '/repo/artifacts/qa/proof', JSON.stringify(metadata)))
+        .toThrow('SOURCE_CHECK_RECIPE_CHANGED');
+    }
+    const metadata = JSON.parse(packageSource); delete metadata.scripts[name];
+    expect(() => nativeSourceCheckCommands('/repo', checkTools, '/repo/artifacts/qa/proof', JSON.stringify(metadata)))
+      .toThrow('SOURCE_CHECK_RECIPE_CHANGED');
+  });
+  it('preserves the source npm declaration and refuses a different declared package manager', () => {
+    const metadata = JSON.parse(packageSource); metadata.packageManager = 'pnpm@11.11.0';
+    expect(() => nativeSourceCheckCommands('/repo', checkTools, '/repo/artifacts/qa/proof', JSON.stringify(metadata)))
+      .toThrow('SOURCE_CHECK_RECIPE_CHANGED');
   });
 });
 

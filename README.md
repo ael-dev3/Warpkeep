@@ -94,7 +94,9 @@ GitHub Actions is disabled across the Warpkeep repositories under the current
 [operating policy](docs/operations/github-actions-budget.md). Development continues
 with local validation and signed, scanned, synchronized source checkpoints.
 The maintained native verifier now discovers the ordinary, isolated-namespace
-and module test inventories and retains structured results. Its release consumer
+and module test inventories and retains structured results. A separate fixed
+local lane runs source-policy checks, build-mode types and three production builds,
+with bounded output hashes and application/owner-page reference checks. Its release consumer
 explicitly refuses incomplete coverage. An opt-in public Pages workflow and
 matching publication/readback support are implemented; the public repository
 still uses its existing hosting route. Complete coverage, prepared reuse and
