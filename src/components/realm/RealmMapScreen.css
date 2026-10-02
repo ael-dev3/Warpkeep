@@ -1077,7 +1077,7 @@
   }
 }
 
-@media (width < 760px) {
+@media (width < 760px), (height < 700px) {
   .greater-realm-world__zone-legend {
     display: none;
   }

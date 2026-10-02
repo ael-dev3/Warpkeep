@@ -77,8 +77,8 @@ Release preparation also verifies the paired launch scripts and binds reviewed
 operator corrections while preserving the frozen G001 module and build recipe.
 The preparation adapter now recognizes the existing September QR recovery
 deployment, preserving its original authentication modes, bindings and byte authority.
-Affected local checks and reviewed-source CI pass; compiled release preparation
-and resulting-main CI retain their own source identities.
+Local checks and earlier successful CI retain their recorded source identities;
+they do not establish verification of the current development checkpoint.
 
 The connected local PTR lane exercises the real module and client with normal
 server timers and synthetic authority/atlas. Gathering, construction, improved
@@ -89,12 +89,15 @@ performance remain release requirements. Earlier fixture tests, full suites and
 rendered captures retain their original source scopes. The build's existing
 RealmMapScreen size warning remains under measurement.
 
-Alpha returned HTTP 200 on 1 October. Owner PTR publication remains pending.
-The October release sequence is active: accept the source-bound prepared family,
-preserve existing realms, deploy the isolated PTR and publish its frontend beside
-Alpha. Complete production performance and real owner/device acceptance before
-claiming the full release. Current [delivery status](docs/operations/0.4.0-live-delivery-status.md)
-and [the handoff](docs/agent-notes/0.4.0/execution-handoff.md) identify the next action.
+Alpha returned HTTP 200 on 2 October. Owner PTR publication remains pending.
+GitHub Actions is disabled across the Warpkeep repositories under the current
+[operating policy](docs/operations/github-actions-budget.md). Development continues
+with local validation and signed, scanned, synchronized source checkpoints.
+The existing hosted release route needs a supported local replacement before
+provider publication can proceed. Preserve existing realms and complete production
+performance and actual-owner acceptance before claiming the full release.
+Current [delivery status](docs/operations/0.4.0-live-delivery-status.md) and
+[the handoff](docs/agent-notes/0.4.0/execution-handoff.md) identify the next action.
 
 
 | Realm | Purpose |
@@ -120,11 +123,15 @@ asset.
 
 ## Build with us
 
-`main` contains an earlier integrated 0.4 development baseline; the active
-0.4 changes are on PR #374. The running game remains at a different
-release stage, and the 0.4 owner PTR is not live. Follow the
+`main` contains the integrated baseline from merged PRs #374 and #379. Pending
+[PR #380](https://github.com/ael-dev3/Warpkeep/pull/380) prepares delivery repairs;
+[PR #381](https://github.com/ael-dev3/Warpkeep/pull/381) adds the Living Realm
+presentation and is based on #380. Reviewed integration and subsequent repairs
+are backed up on `release/0.4-living-realm-quality`; resolve its actual current
+commit before working. The running game remains Alpha 0.3.43, and the 0.4 owner
+PTR is not live. Follow the
 [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) for the
-current candidate, local verification and remaining hosted release gates.
+current candidate, local verification and remaining release work.
 
 For a fresh independent checkout, use Git, Node 22 (22.13 or newer within that
 major) and npm 10.9.8:
