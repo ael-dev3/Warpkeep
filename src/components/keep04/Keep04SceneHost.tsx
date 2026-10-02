@@ -7,6 +7,7 @@ import { createKeep04Scene, type Scene04, type VisualState04 } from './createKee
 import { KEEP04_TREE_IDS, loadKeep04Assets } from './loadKeep04Assets';
 import { KEEP04_VISUAL_PROFILE, type Quality04 } from './keep04VisualProfile';
 import { BUILDING_NAMES04 } from './Keep04BuildingPanel';
+import { verdantLocalHour } from '../../greater-realm/verdantDaylight';
 
 export type Keep04SceneHostProps = Readonly<{
   visual: VisualState04; quality: Quality04; reducedMotion: boolean;
@@ -21,6 +22,8 @@ export type Keep04SceneHostProps = Readonly<{
    * and sleeps after KEEP04_AMBIENT_WINDOW_MS without input or state change.
    */
   ambientLife?: boolean;
+  /** Development QA only: pin the daylight mood to a local hour instead of the device clock. */
+  daylightHour?: number;
 }>;
 
 /** Numeric renderer observations only; owned bytes estimate CPU-side buffers, not GPU allocation. */
@@ -102,6 +105,8 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
       try {
         const workStarted = current.current.onObservation ? performance.now() : 0;
         const active = scene.update(now / 1000, props.ambientLife === true && now <= ambientUntil);
+        // The daylight mood owns exposure; night lifts it so the keep stays readable.
+        renderer.toneMappingExposure = scene.exposure();
         renderer.render(scene.scene, scene.camera);
         const budget = KEEP04_VISUAL_PROFILE.budgets[props.quality];
         if (renderer.info.render.calls > budget.hardDraws || renderer.info.render.triangles > budget.hardTriangles) { failure(); return; }
@@ -302,6 +307,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
         const sceneAssets = import.meta.env.DEV && qaFault === 'missing-model'
           ? { ...bundle, staticPrefabs: new Map([...bundle.staticPrefabs].filter(([id]) => id !== 'city-mill')) } : bundle;
         scene = createKeep04Scene({ quality: props.quality, reducedMotion: props.reducedMotion, assets: sceneAssets, ambient: props.ambientLife === true,
+          daylightHour: () => (import.meta.env.DEV ? current.current.daylightHour : undefined) ?? verdantLocalHour(Date.now()),
           ...(import.meta.env.DEV ? { qaVoxelFailure: qaFault === 'voxel-failure' } : {}) });
         if (props.ambientLife === true && typeof IntersectionObserver !== 'undefined') {
           visibilityObserver = new IntersectionObserver(entries => {
@@ -332,6 +338,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
     return () => { retired = true; release(); };
   }, [props.quality, props.reducedMotion, props.ambientLife, recovery, import.meta.env.DEV ? props.qaFault : undefined]);
   useEffect(() => { runtime.current?.reconcile(); }, [props.visual]);
+  useEffect(() => { if (import.meta.env.DEV) runtime.current?.request(); }, [props.daylightHour]);
   function zoom(factor: number) { const active = runtime.current; if (!active) return; cameraView.current.zoom = active.scene.camera.zoom = Math.max(.8, Math.min(2, active.scene.camera.zoom * factor)); active.scene.camera.updateProjectionMatrix(); active.request(); }
   const hasSite = props.visual.selectedKind !== null && (props.visual.buildings.some(building => building.kind === props.visual.selectedKind) || props.visual.draft?.kind === props.visual.selectedKind);
   return <section ref={wrapper} className="keep04-scene" aria-label="Verdant Citadel scene" tabIndex={-1} data-mode={mode}>

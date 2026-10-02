@@ -24,6 +24,8 @@ export type Keep04ScreenProps = Readonly<{
   quality: 'high' | 'balanced' | 'reduced'; reducedMotion: boolean;
   onFindResources: (resource: Resource04 | null, workerOrdinal?: number) => void; onReturnToWorld: () => void;
   onSceneObservation?: Keep04SceneHostProps['onObservation']; qaFault?: Keep04SceneHostProps['qaFault'];
+  /** Development QA only: a fixed local hour for the scene's daylight mood. */
+  daylightHour?: number;
 }>;
 
 function samePlacement04(first: Placement04 | null, second: Placement04 | null): boolean {
@@ -71,7 +73,7 @@ function sameSceneVisual04(first: VisualState04, second: VisualState04): boolean
   });
 }
 
-export function Keep04Screen({ snapshot, controller, selection, onSelectionChange, onBack, quality, reducedMotion, onFindResources, onReturnToWorld, onSceneObservation, qaFault }: Keep04ScreenProps) {
+export function Keep04Screen({ snapshot, controller, selection, onSelectionChange, onBack, quality, reducedMotion, onFindResources, onReturnToWorld, onSceneObservation, qaFault, daylightHour }: Keep04ScreenProps) {
   const { view, phase, problem } = snapshot;
   const panelId = useId();
   const [nowMs, setNowMs] = useState(Date.now);
@@ -268,7 +270,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
         <div className="keep04-scene-region">
           {visible && <Keep04SceneHost quality={quality} reducedMotion={reducedMotion} onMode={setSceneMode}
             ambientLife={quality !== 'reduced' && !reducedMotion}
-            onObservation={onSceneObservation} {...(import.meta.env.DEV ? { qaFault } : {})}
+            onObservation={onSceneObservation} {...(import.meta.env.DEV ? { qaFault, daylightHour } : {})}
             visual={sceneVisual}
             onSelect={selectBuilding} onPlacement={draft => onSelectionChange({ ...selection, draft })} />}
           {sceneMode === 'fallback' && <p role="status">3D graphics are unavailable. Your keep and commands remain available in the placement schematic.</p>}

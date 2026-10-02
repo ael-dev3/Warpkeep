@@ -206,6 +206,16 @@ export function bushGeometry() {
   });
 }
 
+/** A clump of shore reeds with two cattails: thin, upright and cheap. */
+export function reedClumpGeometry() {
+  return buildKeep04Model(kit => {
+    const blades: ReadonlyArray<readonly [number, number, number, number]> = [[0, 0, 1.9, 0], [.32, .12, 1.5, .5], [-.28, .2, 1.7, 1.3], [.1, -.3, 1.3, 2.2], [-.2, -.24, 1.6, 3.1]];
+    blades.forEach(([x, z, h, ry], index) => kit.add(new THREE.ConeGeometry(.09, h, 3, 1, true), index % 2 ? '#7f9a52' : '#6a8a49', [x, h / 2, z], [.08 * Math.sin(ry), ry, .08 * Math.cos(ry)]));
+    kit.add(new THREE.CylinderGeometry(.075, .075, .34, 4, 1, true), '#6b4a31', [0, 1.62, 0]);
+    kit.add(new THREE.CylinderGeometry(.065, .065, .3, 4, 1, true), '#6b4a31', [-.28, 1.45, .2]);
+  });
+}
+
 export function rockGeometry() {
   return buildKeep04Model(kit => {
     kit.add(new THREE.DodecahedronGeometry(1, 0), C.rock, [0, .35, 0], [.3, .7, .1], [1.3, .75, 1]);

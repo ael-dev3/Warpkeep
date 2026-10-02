@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { measureKeep04Object } from './createKeep04Buildings';
-import { createKeep04Kit, KEEP04_LIFE_PALETTE as C } from './keep04ModelKit';
+import {
+  createKeep04Kit, keep04ContactShadowGeometry, keep04ContactShadowMaterial, keep04GlowMaterial, KEEP04_LIFE_PALETTE as C, type Keep04GlowUniform,
+} from './keep04ModelKit';
 import {
   addBarn, addBridge, addCottage, addFence, addGateTower, addHaystack, addTower, addWall, addWindmillBody,
-  birchGeometry, broadleafGeometry, bushGeometry, coniferGeometry, cropRowGeometry, poplarGeometry, rockGeometry, windmillSailsGeometry,
+  birchGeometry, broadleafGeometry, bushGeometry, coniferGeometry, cropRowGeometry, poplarGeometry, reedClumpGeometry, rockGeometry, windmillSailsGeometry,
 } from './keep04Models';
 import { keep04Fbm, keep04Random, smoothstep } from './keep04Random';
 import {
@@ -31,11 +33,15 @@ export type Keep04Landscape = Readonly<{
   heightAt: (x: number, z: number) => number;
   update: (elapsedSeconds: number) => boolean;
   cost: () => Readonly<{ drawCalls: number; triangles: number; shadowDrawCalls: number; shadowTriangles: number }>;
+  /** 0 by day … 1 at night: lights the authored windows of cottages, mills and towers. */
+  setNightGlow: (value: number) => void;
   instanceCount: number;
   dispose: () => void;
 }>;
 
-const LANDSCAPE_DENSITY: Readonly<Record<Quality04, number>> = { high: 1, balanced: .58, reduced: .26 };
+// Reduced thins its woods slightly so the ground contact under every structure,
+// its only shadow, fits the same triangle target as before.
+const LANDSCAPE_DENSITY: Readonly<Record<Quality04, number>> = { high: 1, balanced: .58, reduced: .24 };
 
 export function createKeep04Landscape(options: Readonly<{
   quality: Quality04; reducedMotion: boolean;
@@ -48,6 +54,9 @@ export function createKeep04Landscape(options: Readonly<{
   const spinners: Array<{ object: THREE.Object3D; axis: 'x' | 'z'; speed: number }> = [];
   const chimneys: THREE.Vector3[] = []; const banners: Array<{ position: THREE.Vector3; yaw: number }> = [];
   const pastures: Array<{ x: number; z: number; radius: number }> = [];
+  // Soft ground contact under every standing structure: x, z, radius x, radius z, yaw.
+  const contacts: Array<readonly [number, number, number, number, number]> = [];
+  const glow: Keep04GlowUniform = { value: 0 };
   let instanceCount = 0; let disposed = false;
   const material = (parameters: THREE.MeshStandardMaterialParameters) => { const value = new THREE.MeshStandardMaterial(parameters); materials.add(value); return value; };
   const add = (geometry: THREE.BufferGeometry, mat: THREE.Material, name: string, castShadow = false) => {
@@ -63,17 +72,25 @@ export function createKeep04Landscape(options: Readonly<{
   try {
     const vertexColored = material({ vertexColors: true, roughness: .96, metalness: 0 });
     const flatColored = material({ vertexColors: true, roughness: .9, metalness: 0, flatShading: true });
+    // Same look by day; authored windows glow warm from dusk to dawn.
+    const glowColored = keep04GlowMaterial({ vertexColors: true, roughness: .9, metalness: 0, flatShading: true }, glow); materials.add(glowColored);
     // ---- Valley terrain ----
     add(createKeep04TerrainGeometry(quality), vertexColored, 'keep04-vale-terrain');
     // ---- Water: river ribbon and the farm pond share one calm material ----
     const waterTint = new THREE.Color();
     const river = createKeep04RibbonGeometry(KEEP04_RIVER, KEEP04_RIVER_HALF_WIDTH + 7, {
       y: () => KEEP04_RIVER_SURFACE_Y, lift: 0,
-      colorAt: (t, side, target) => target.set(C.water).lerp(waterTint.set('#3f7f84'), .35 + Math.abs(side) * .25 * keep04Fbm(t * 40, side, 2, 7)),
+      colorAt: (t, side, target) => side === 0
+        ? target.set('#3b787d').lerp(waterTint.set(C.water), .25 * keep04Fbm(t * 40, 1, 2, 7))
+        : target.set('#86b9b0').lerp(waterTint.set(C.water), .3 + .25 * keep04Fbm(t * 40, side, 2, 7)),
     });
     const pond = new THREE.CircleGeometry(12, 18); pond.rotateX(-Math.PI / 2); pond.translate(62, KEEP04_RIVER_SURFACE_Y, 116);
-    const pondColors = new Float32Array(pond.getAttribute('position').count * 3); const pondColor = new THREE.Color('#4f9396');
-    for (let i = 0; i < pondColors.length; i += 3) pondColors.set([pondColor.r, pondColor.g, pondColor.b], i);
+    const pondColors = new Float32Array(pond.getAttribute('position').count * 3); const pondDeep = new THREE.Color('#3f8086'); const pondShallow = new THREE.Color('#7fb4ac');
+    const pondPositions = pond.getAttribute('position'); const pondColor = new THREE.Color();
+    for (let i = 0; i < pondPositions.count; i++) {
+      pondColor.copy(pondDeep).lerp(pondShallow, Math.hypot(pondPositions.getX(i) - 62, pondPositions.getZ(i) - 116) / 12);
+      pondColors.set([pondColor.r, pondColor.g, pondColor.b], i * 3);
+    }
     pond.setAttribute('color', new THREE.BufferAttribute(pondColors, 3)); pond.deleteAttribute('uv');
     const waterParts = [river, pond.toNonIndexed()]; pond.dispose();
     const waterGeometry = new THREE.BufferGeometry();
@@ -125,7 +142,7 @@ export function createKeep04Landscape(options: Readonly<{
       group.add(crops); instanceCount += rows.length;
     }
     // ---- Hamlets, farms and mills (one merged static mesh) ----
-    const settlement = createKeep04Kit();
+    const settlement = createKeep04Kit({ glowMask: true });
     try {
       KEEP04_LOTS.forEach((authoredLot, index) => {
         let lot = authoredLot;
@@ -136,12 +153,12 @@ export function createKeep04Landscape(options: Readonly<{
           chimneys.push(new THREE.Vector3(...cottage.chimney).applyAxisAngle(new THREE.Vector3(0, 1, 0), lot.yaw).add(new THREE.Vector3(lot.x, y, lot.z)));
           // A small kitchen garden fence beside most cottages.
           if (index % 3 !== 0) addFence(settlement, [[cottage.width / 2 + .6, 0, -1.8], [cottage.width / 2 + 4.4, 0, -1.8], [cottage.width / 2 + 4.4, 0, 2.2], [cottage.width / 2 + .6, 0, 2.2]]);
-          settlement.pop();
+          settlement.pop(); contacts.push([lot.x, lot.z, cottage.width * .62 + 1, cottage.depth * .62 + 1, lot.yaw]);
         } else if (lot.kind === 'barn') {
-          settlement.push([lot.x, y, lot.z], lot.yaw); addBarn(settlement);
+          settlement.push([lot.x, y, lot.z], lot.yaw); addBarn(settlement); contacts.push([lot.x, lot.z, 6.4, 4.6, lot.yaw]);
           addHaystack(settlement, 6.2, 0, 1.5); addHaystack(settlement, 6.6, 0, -2.2, .85); settlement.pop();
         } else if (lot.kind === 'windmill') {
-          settlement.push([lot.x, y, lot.z], lot.yaw); const hub = addWindmillBody(settlement); settlement.pop();
+          settlement.push([lot.x, y, lot.z], lot.yaw); const hub = addWindmillBody(settlement); settlement.pop(); contacts.push([lot.x, lot.z, 4.4, 4.4, 0]);
           const sailsGeometry = windmillSailsGeometry(); geometries.add(sailsGeometry);
           const sails = new THREE.Mesh(sailsGeometry, flatColored); sails.name = `keep04-windmill-sails:${index}`; sails.raycast = () => {};
           const pivot = new THREE.Group(); pivot.position.set(lot.x, y, lot.z); pivot.rotation.y = lot.yaw; group.add(pivot);
@@ -153,7 +170,7 @@ export function createKeep04Landscape(options: Readonly<{
           const millY = Math.max(y, KEEP04_RIVER_SURFACE_Y + .5);
           settlement.push([lot.x, millY, lot.z], toward);
           addCottage(settlement, 9100, 'slate'); settlement.box(1.2, 3.2, 1.2, C.stone, 3.4, 1.6, 0);
-          settlement.pop();
+          settlement.pop(); contacts.push([lot.x, lot.z, 5.6, 4.2, toward]);
           lot = { ...lot, yaw: toward };
           const wheel = new THREE.Mesh((() => {
             const kit = createKeep04Kit();
@@ -179,21 +196,21 @@ export function createKeep04Landscape(options: Readonly<{
         addBridge(settlement, KEEP04_RIVER_HALF_WIDTH * 2 + 9, 5.4); settlement.pop();
       }
       const settlementGeometry = settlement.build();
-      if (settlementGeometry) add(settlementGeometry, flatColored, 'keep04-vale-settlement');
+      if (settlementGeometry) add(settlementGeometry, glowColored, 'keep04-vale-settlement');
     } catch (error) { settlement.dispose(); throw error; }
     // ---- Outer fortifications on the plinth: towers, gatehouse, low walls, causeway ----
-    const fort = createKeep04Kit();
+    const fort = createKeep04Kit({ glowMask: true });
     try {
       const ground = options.plinthGroundAt;
       // Rear towers may be tall; the two camera-side corners stay low so they never hide the deck.
       const towers: Array<[number, number, number, number]> = [[-49, -50, 10, 3], [49, -50, 10, 3], [-49, 37.5, 4.6, 2.3], [49, 37.5, 4.6, 2.3]];
       for (const [x, z, height, radius] of towers) {
-        const y = ground(x, z); fort.push([x, y, z]); const top = addTower(fort, height, radius); fort.pop();
+        const y = ground(x, z); fort.push([x, y, z]); const top = addTower(fort, height, radius); fort.pop(); contacts.push([x, z, radius * 1.55, radius * 1.55, 0]);
         banners.push({ position: new THREE.Vector3(x, y + top, z), yaw: Math.atan2(-x, -z) });
       }
       for (const side of [-1, 1]) {
         const x = side * 8.6; const z = 35.6; const y = ground(x, z);
-        fort.push([x, y, z]); const top = addGateTower(fort); fort.pop();
+        fort.push([x, y, z]); const top = addGateTower(fort); fort.pop(); contacts.push([x, z, 3.4, 3.4, 0]);
         banners.push({ position: new THREE.Vector3(x, y + top, z), yaw: side * .4 });
         const wallStart = 10.8; const wallEnd = 46.4; const wallZ = 36.8; const wallX = side * (wallStart + wallEnd) / 2;
         fort.push([wallX, ground(wallX, wallZ), wallZ]); addWall(fort, wallEnd - wallStart, 2.4); fort.pop();
@@ -208,11 +225,11 @@ export function createKeep04Landscape(options: Readonly<{
       for (const side of [-1, 1]) fort.add(new THREE.BoxGeometry(.5, 1.1, rampLength), C.masonryShade, [side * 3.2, -2.1, 50.5], [rampAngle, 0, 0]);
       for (let step = 1; step < 9; step++) fort.box(6.2, .06, .14, C.masonryShade, 0, .1 - (step / 9) * 5.25, 44 + step / 9 * 13);
       const fortGeometry = fort.build();
-      if (fortGeometry) add(fortGeometry, flatColored, 'keep04-fortifications', true);
+      if (fortGeometry) add(fortGeometry, glowColored, 'keep04-fortifications', true);
     } catch (error) { fort.dispose(); throw error; }
     // ---- Woods, avenues, hedgerows and stones (instanced) ----
-    type Species = 'conifer' | 'broadleaf' | 'birch' | 'poplar' | 'bush' | 'rock';
-    const placements: Record<Species, Array<{ x: number; z: number; scale: number; yaw: number; tint: number }>> = { conifer: [], broadleaf: [], birch: [], poplar: [], bush: [], rock: [] };
+    type Species = 'conifer' | 'broadleaf' | 'birch' | 'poplar' | 'bush' | 'rock' | 'reed';
+    const placements: Record<Species, Array<{ x: number; z: number; scale: number; yaw: number; tint: number }>> = { conifer: [], broadleaf: [], birch: [], poplar: [], bush: [], rock: [], reed: [] };
     const random = keep04Random(4049);
     const roadDistance = (x: number, z: number) => Math.min(...KEEP04_ROADS.map(road => distanceToPolyline(x, z, road).distance));
     const riverDistance = (x: number, z: number) => distanceToPolyline(x, z, KEEP04_RIVER).distance;
@@ -262,10 +279,34 @@ export function createKeep04Landscape(options: Readonly<{
       const rise = smoothstep(2, 14, keep04TerrainHeight(x, z)); const bank = riverDistance(x, z) < KEEP04_RIVER_HALF_WIDTH + 10 ? .5 : 0;
       if (random.next() < .12 + rise * .5 + bank) placements.rock.push({ x, z, scale: random.range(.6, 1.6), yaw: random.range(0, 6.28), tint: random.range(.85, 1.1) });
     }
+    // Reed clumps soften the shore: sampled along both banks of the river and around the pond,
+    // standing just above the waterline and clear of bridges and the mill race.
+    for (let i = 0; i < KEEP04_RIVER.length - 1; i++) {
+      const [ax, az] = KEEP04_RIVER[i]; const [bx, bz] = KEEP04_RIVER[i + 1]; const length = Math.hypot(bx - ax, bz - az) || 1;
+      const nx = -(bz - az) / length; const nz = (bx - ax) / length;
+      for (const side of [-1, 1]) for (let step = 0; step < 2; step++) {
+        if (random.next() < .35) continue;
+        const t = random.range(0, 1); const cx = ax + (bx - ax) * t; const cz = az + (bz - az) * t;
+        // Walk outward from the channel to the first ground just above the water.
+        for (let offset = KEEP04_RIVER_HALF_WIDTH; offset < KEEP04_RIVER_HALF_WIDTH + 12; offset += .5) {
+          const x = cx + nx * offset * side; const z = cz + nz * offset * side;
+          const above = keep04TerrainHeight(x, z) - KEEP04_RIVER_SURFACE_Y;
+          if (above < .05) continue;
+          if (above <= .6 && distanceToPlinth(x, z) >= 8 && !KEEP04_BRIDGES.some(bridge => Math.hypot(x - bridge.x, z - bridge.z) < 14)) {
+            placements.reed.push({ x, z, scale: random.range(.75, 1.25), yaw: random.range(0, 6.28), tint: random.range(.85, 1.08) });
+          }
+          break;
+        }
+      }
+    }
+    for (let i = 0; i < 16; i++) {
+      const angle = i / 16 * Math.PI * 2 + random.range(-.15, .15); const radius = random.range(11.4, 13.2);
+      placements.reed.push({ x: 62 + Math.cos(angle) * radius, z: 116 + Math.sin(angle) * radius, scale: random.range(.75, 1.2), yaw: random.range(0, 6.28), tint: random.range(.85, 1.08) });
+    }
     const speciesGeometry: Record<Species, () => THREE.BufferGeometry> = {
-      conifer: coniferGeometry, broadleaf: broadleafGeometry, birch: birchGeometry, poplar: poplarGeometry, bush: bushGeometry, rock: rockGeometry,
+      conifer: coniferGeometry, broadleaf: broadleafGeometry, birch: birchGeometry, poplar: poplarGeometry, bush: bushGeometry, rock: rockGeometry, reed: reedClumpGeometry,
     };
-    const caps: Record<Species, number> = { conifer: 360, broadleaf: 230, birch: 80, poplar: 70, bush: 260, rock: 90 };
+    const caps: Record<Species, number> = { conifer: 360, broadleaf: 230, birch: 80, poplar: 70, bush: 260, rock: 90, reed: quality === 'reduced' ? 0 : 150 };
     const matrix = new THREE.Matrix4(); const quaternion = new THREE.Quaternion(); const up = new THREE.Vector3(0, 1, 0); const tint = new THREE.Color();
     for (const species of Object.keys(placements) as Species[]) {
       // Stable ranking: lower tiers keep a deterministic prefix of the same population.
@@ -285,6 +326,20 @@ export function createKeep04Landscape(options: Readonly<{
       batch.instanceMatrix.needsUpdate = true; if (batch.instanceColor) batch.instanceColor.needsUpdate = true;
       batch.computeBoundingSphere(); group.add(batch); instanceCount += count;
     }
+    // ---- Ground contact: one soft instanced batch under every structure ----
+    if (contacts.length) {
+      const contactGeometry = keep04ContactShadowGeometry(quality === 'reduced' ? 8 : 18); geometries.add(contactGeometry);
+      const contactMaterial = keep04ContactShadowMaterial(); materials.add(contactMaterial);
+      const contactBatch = new THREE.InstancedMesh(contactGeometry, contactMaterial, contacts.length);
+      contactBatch.name = 'keep04-vale-contact-shadows'; contactBatch.raycast = () => {}; contactBatch.renderOrder = -1;
+      contacts.forEach(([x, z, radiusX, radiusZ, yaw], index) => {
+        matrix.compose(new THREE.Vector3(x, Math.max(keep04TerrainHeight(x, z), options.plinthGroundAt(x, z)) + .06, z),
+          quaternion.setFromAxisAngle(up, yaw), new THREE.Vector3(radiusX, 1, radiusZ));
+        contactBatch.setMatrixAt(index, matrix);
+      });
+      contactBatch.instanceMatrix.needsUpdate = true; contactBatch.computeBoundingSphere();
+      group.add(contactBatch); instanceCount += contacts.length;
+    }
     group.updateMatrixWorld(true);
     return Object.freeze({
       group,
@@ -301,6 +356,7 @@ export function createKeep04Landscape(options: Readonly<{
         group.traverse(object => { if (object instanceof THREE.Mesh && object.castShadow) { const part = measureKeep04Object(object); shadowDrawCalls += part.drawCalls; shadowTriangles += part.triangles; } });
         return { drawCalls: measured.drawCalls, triangles: measured.triangles, shadowDrawCalls, shadowTriangles };
       },
+      setNightGlow: value => { glow.value = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)) * 1.7; },
       instanceCount,
       dispose,
     });

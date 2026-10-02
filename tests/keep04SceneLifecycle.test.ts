@@ -15,7 +15,9 @@ it('emits one disposal event per scene-owned instanced mesh, without disposing b
   expect(events).toHaveLength(owned); expect(new Set(events.map(event => event.id)).size).toBe(owned);
   const names = events.map(event => event.name);
   expect(names).toEqual(expect.arrayContaining(['forest-band:0', 'forest-band:1', 'forest-bank:perimeter', 'moat-water-edge']));
-  expect(names.filter(name => !['forest-band:0', 'forest-band:1', 'forest-bank:perimeter', 'moat-water-edge'].includes(name))
+  // The building ground-contact and night-light batches belong to the scene itself.
+  expect(names).toEqual(expect.arrayContaining(['building-contact-shadows', 'building-night-light']));
+  expect(names.filter(name => !['forest-band:0', 'forest-band:1', 'forest-bank:perimeter', 'moat-water-edge', 'building-contact-shadows', 'building-night-light'].includes(name))
     .every(name => name.startsWith('keep04-vale-') || name.startsWith('keep04-life-'))).toBe(true);
   expect(names.some(name => name.startsWith('keep04-vale-'))).toBe(true); expect(names.some(name => name.startsWith('keep04-life-'))).toBe(true);
   expect(scene.scene.children).toHaveLength(0); expect(bundle.dispose).not.toHaveBeenCalled();
