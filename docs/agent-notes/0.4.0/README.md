@@ -20,13 +20,18 @@ The maintained verifier, explicitly closed native consumer and opt-in Pages
 workflow/publication/postflight are implemented. Complete verification coverage,
 durable namespace access, prepared reuse and cumulative admission remain open;
 none of those source additions has enabled or deployed a workflow.
-Separate local source-check and service-check plans retain real command/report
-results and uncovered dependency scope. The minimal workflow receipt reader is
-independent of local execution tools; incomplete receipts still cannot authorize
-release. Genuine development preparation now passes at its recorded signed source.
-The connected-module plan exposes the complete recipe while execution remains
-closed pending actual detached-process and runtime-input evidence. Read the latest
-handoff for failed attempts, verified repairs and precise remaining acceptance.
+Separate source-check and service-check plans retain actual command/report
+results and uncovered dependency scope. At signed code source `41e760fe`, the
+service slice passed nine commands: 2,069 assertions across 76 files plus five
+separate type/declaration checks, with independent raw-report and actor/source
+readback. This is local service evidence; full verification and production
+authority remain closed. Genuine development preparation retains its recorded
+`b9ca8ca7` scope. The minimal privileged receipt reader remains independent of
+local execution tools and refuses incomplete evidence.
+The connected-module plan is retained in native `artifacts/qa` and remains
+planning-only; its actual execution request was refused before any connected check. Complete native tests, connected containment
+and authenticated source transport are next. Read the latest handoff for the
+original failed attempts, completed service proof and remaining acceptance.
 Recheck that accepted main still names the exact verified source before each
 operation. Source changes to the release workflow require a fresh native
 prepare/check and generated-only promotion before live observations.

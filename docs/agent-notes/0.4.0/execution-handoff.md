@@ -5,6 +5,20 @@
 
 ## Current local release work — 2 October 2026
 
+### Native service verification completed; connected execution remains closed — 2 October
+
+Signed code checkpoint `41e760fe` (tree `01c62e80`, parent `b9ca8ca7`) is published and synchronized; publication `3cabd70b` preserves the disabled, idle Actions policy. The actual maintained service run `20139fbf` completed 17:46:06.292–17:47:33.932 UTC. All nine commands exited 0/null. Its four strict raw partitions passed 484 auth-bridge ordinary assertions in 18 files, 18 auth-bridge Workerd assertions in one file, 1,499 recovery ordinary assertions in 49 files and 68 recovery Workerd assertions in eight files: 2,069 assertions across 76 files, with no failures, skips, pending cases or todo cases. Four type checks and one generated Workerd declaration check are five separate successful terminal results; they have no test counts.
+
+Independent post-outer `21ad303e` reparsed those four reports and retained all nine command contracts, actual tools/configuration, local signature and the selected root dependency slice. At 18:01:27.208 UTC it proved the original producer and nine recorded children physically absent, with the entire original process group empty twice on its original boot. All 3,406 raw source files, physical index and refs held. Summary, proof and four raw reports are retained byte-for-byte in PRIMARY (retention `17eb5f18`). This establishes the local service slice only: `completeCoverage:false` and `productionAuthorized:false`; complete root/module/service dependency provenance, hosted CI/OIDC, accepted-main transport and release authority remain unproved.
+
+The actual connected plan `366e8cdd` is planning-only. Its attempted `--run` exited 1 with `NATIVE_SOURCE_VERIFICATION_CONNECTED_CONTAINMENT_NOT_IMPLEMENTED`; no connected check or server was launched. The plan is retained in native `artifacts/qa` as `october-release-native-connected-41e760fe-v1-plan-20261002.json`; the observed refusal has no separate disk receipt. Next run the maintained ordinary/isolated-namespace/module test profile from the next clean signed source with actual source-owned dispositions. Then implement and validate detached G002 server/CLI containment and required runtime input capture, complete authenticated proof transport, and review the bounded hosted-operation policy. Keep owner/mobile and final-A acceptance separate. Do not rerun the completed service slice merely to follow older notes.
+
+The failed template-plan attempt and development preparation below retain their original source and outcomes. The `b9ca8ca7` prepare/check is development-only evidence and is not relabeled as `41e760fe` or accepted main. Alpha remains live; owner PTR 0.4 is unpublished. Numeric Actions policy belongs only to its runtime configuration.
+
+## Historical local checkpoints (superseded)
+
+The retained sections below preserve their original evidence and follow-up text. Their old resumption directions are superseded by the current section above.
+
 ### Successful development preparation and service configuration repair — 2 October
 
 Signed development source `b9ca8ca7` is published and synchronized (publication `98592bd5`). Its genuine prepare/check ran 16:47:35.063–17:12:47.573 UTC. Both actual CLI children exited 0/null; their completions match all nineteen fields and all 102 private candidate/journal outputs. Receipt `49cfec4a`, matching results `9e2cbac6` and independent post-outer `8efc2eef` retain the exact source, physical index, HEAD and refs. The original wrapper and both recorded children, with their original births and entire process group, were absent in both readbacks. Compact review `7540600d` and bounded raw records are copied byte-for-byte to PRIMARY. This is a development rehearsal, with no candidate export, source integration, provider deployment or release authority.

@@ -2,6 +2,22 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Current native service evidence — 2 October 2026
+
+### Native service verification completed; connected execution remains closed — 2 October
+
+The signed, published code source is `41e760fe` / tree `01c62e80`, parent `b9ca8ca7` (publication `3cabd70b`). Actual service run `native-source-verification-20139fbf5cc23e963fdac93e4f7f15bd1f2678023acc96ea6e94c4ff145a15a8.json` ran 17:46:06.292–17:47:33.932 UTC. All nine actual command terminals are 0/null. Auth-bridge ordinary/Workerd reports passed 484 assertions in 18 files and 18 assertions in one file; recovery ordinary/Workerd reports passed 1,499 in 49 files and 68 in eight files. The strict total is 2,069 assertions across 76 files, with no failures, skips, pending or todo cases. Four type checks and one generated Workerd declaration check are five separate terminal checks, without test counts.
+
+Independent `october-release-native-services-41e760fe-v1-20261002-post-outer.json` (SHA `21ad303e5283be616853ea254100c04c82f7d10fbf1c9b861bc02c3cfe3231c7`) recorded its proof at 18:01:27.208 UTC; the independent reader subsequently exited 0. It independently reparsed all four raw partitions and bound all nine started/terminal/report/stdout/stderr records. Original producer 697556 and its nine recorded children were physically absent; the whole original group was empty twice on the original boot. All 3,406 raw source files, physical index, refs, local signature, actual tools/configuration and selected six-package root archive slice held. Retention `17eb5f18` copied the summary, proof and four raw reports byte-for-byte to PRIMARY.
+
+The connected plan `366e8cdd9391c329ad55efb90d30d4903ad3c58c08f7ba8e67b2bed7d3eb9ba1`, retained in native `artifacts/qa` as `october-release-native-connected-41e760fe-v1-plan-20261002.json`, has `executionImplemented:false`. The actual attempted `--run` exited 1 with `NATIVE_SOURCE_VERIFICATION_CONNECTED_CONTAINMENT_NOT_IMPLEMENTED`. No connected child check ran; that observed refusal has no separate disk receipt. Detached G002 server/CLI identities and cleanup plus root client SDK/tsx/esbuild runtime capture remain required before execution.
+
+These are local service and planning observations, with `completeCoverage:false` and `productionAuthorized:false`. They do not prove full dependency provenance, hosted CI/OIDC, accepted-main source transport, provider deployment, owner play, physical-phone performance or final-A R06. The unchanged source family needs no regeneration for the producer/planner changes. Next collect the full ordinary/isolated-namespace/module test profile from the next clean signed source, finish connected containment and authenticated proof transport, then review admitted hosted operations and remaining owner/mobile requirements. All configured Actions repositories remain disabled; numeric limits stay in runtime configuration. Earlier failed service-template and genuine `b9ca8ca7` development preparation evidence remains historical at its own source.
+
+## Historical local checkpoints (superseded)
+
+The retained sections below preserve their original evidence and follow-up text. Their old resumption directions are superseded by the current section above.
+
 ## Current Actions policy and completed mobile regression — 2 October 2026
 
 ### Successful development preparation and service configuration repair — 2 October

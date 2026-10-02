@@ -2,6 +2,23 @@ WARPKEEP 0.4 — NEXT WORK
 CURRENT RESUMPTION — 2 OCTOBER 2026, LOCAL RELEASE WORK
 
 CURRENT CHECKPOINT
+Signed code 41e760fe / tree 01c62e80, parent b9ca8ca7, is published and synchronized (3cabd70b). Resolve the actual next Git HEAD after this notes update; do not invent a future child identity. Alpha is live and owner PTR 0.4 remains unpublished.
+
+LOCAL VALIDATION COMPLETE
+The maintained service run 20139fbf completed 17:46:06.292–17:47:33.932 UTC: nine actual commands 0/null. Four strict partitions passed 484/18 auth-bridge assertions and 1,499/68 recovery assertions, total 2,069 across 76 files, no fail/skip/pending/todo. Four typechecks plus one generated Workerd declaration check are five separate terminal checks, not test counts. Independent proof 21ad303e recorded 18:01:27.208 UTC; the reader subsequently exited 0, reparsing the raw partitions and proving original producer/nine children/fullgroup absent twice; all 3,406 raw files/index/refs/signature/tools/config and the selected root dependency slice held. Summary/proof/four raw reports are retained in PRIMARY (17eb5f18). Full coverage and production authority remain false.
+
+CONNECTED PLAN ONLY
+Actual plan 366e8cdd, retained in native artifacts/qa, preserves the fixed recipe but executionImplemented:false. Actual --run exited 1 with NATIVE_SOURCE_VERIFICATION_CONNECTED_CONTAINMENT_NOT_IMPLEMENTED; no connected check ran, and no separate refusal receipt exists. Retain the plan; implement detached G002 server/CLI birth/group closure and required runtime capture before execution.
+
+NEXT
+Run the maintained --plan/--run ordinary, isolated namespace and module test profile from the next clean signed native source, preserving actual platform dispositions and raw skips. Complete connected containment, authenticated complete-source proof transport and the reviewed bounded hosted-operation policy. Keep live observations, owner play, physical-phone and final-A R06 requirements separate from component fixtures. Preserve source/index/refs during every owned actor; close real actors before sync. Do not repeat completed service tests or relabel b9ca development preparation as current-source release authority.
+
+POLICY
+Read config/github-actions-budget.json and docs/operations/github-actions-budget.md. All configured Actions repositories remain disabled; numeric limits belong only to runtime configuration. No workflow or provider was enabled by this service diagnostic. Older resumption steps below are historical and superseded.
+
+Historical checkpoint (superseded; do not repeat its resumption steps): Previous service-plan/preparation state follows unchanged.
+
+CURRENT CHECKPOINT
 Resolve actual Git HEAD, release/0.4-living-realm-quality on GitHub and the latest publication receipt. Previous signed implementation b9ca8ca7 is published/synchronized (98592bd5). Genuine development prepare/check passed16:47:35–17:12:47UTC: both actual CLI0/null, nineteen matching fields/all102outputs, independent8efc2eef and compact review7540600d. It is a private development rehearsal, not exported integration or PTR deployment.
 
 LOCAL VALIDATION
