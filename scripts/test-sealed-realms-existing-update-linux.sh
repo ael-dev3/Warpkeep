@@ -4,10 +4,55 @@ set -euo pipefail
 test "$(uname -s)" = Linux && test "$(uname -m)" = x86_64
 self=$(realpath -- "${BASH_SOURCE[0]}")
 
+# The installed launcher is immutable to the unprivileged test owner. Legacy
+# repository invocations keep their existing self-path contract.
+source_helper=$self
+if test "$self" = '/usr/local/libexec/warpkeep-native-source-verification/namespace.sh'; then
+  case "${1-}" in
+    --as|--inside) test "$#" = 7; declared_repo=$5; declared_node=$4 ;;
+    --cleanup) test "$#" = 10; declared_repo=$4; declared_node='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node' ;;
+    *) echo NATIVE_NAMESPACE_INSTALLED_ARGUMENTS_INVALID >&2; exit 1 ;;
+  esac
+  /usr/bin/python3 - "$self" "$declared_repo" "$declared_node" "$2" "$3" <<'PY'
+import hashlib, os, pathlib, signal, stat, sys
+signal.alarm(5)
+def require(ok):
+    if not ok: raise RuntimeError('NATIVE_NAMESPACE_INSTALLED_SOURCE_INVALID')
+def identity(s):
+    return tuple(getattr(s,k) for k in ('st_dev','st_ino','st_mode','st_uid','st_gid','st_nlink','st_size','st_mtime_ns','st_ctime_ns'))
+def read_file(p,uid,mode):
+    require(str(pathlib.Path(p).resolve(strict=True)) == p)
+    fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW)
+    try:
+        s=os.fstat(fd)
+        require(stat.S_ISREG(s.st_mode) and s.st_uid==uid and s.st_gid==uid and s.st_nlink==1
+            and stat.S_IMODE(s.st_mode)==mode and 0<s.st_size<=65536)
+        b=os.read(fd,65537)
+        require(len(b)==s.st_size and identity(s)==identity(os.fstat(fd))
+            and identity(s)==identity(os.lstat(p)) and str(pathlib.Path(p).resolve(strict=True))==p)
+        return b
+    finally: os.close(fd)
+try:
+    installed,repo,node,uid,gid=sys.argv[1:]
+    require(os.getuid()==0 and uid==gid=='1000' and os.environ.get('SUDO_UID')==uid
+        and os.environ.get('SUDO_GID')==gid and repo=='/home/warpkeep/Warpkeep-0.4'
+        and node=='/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node' and installed=='/usr/local/libexec/warpkeep-native-source-verification/namespace.sh')
+    for p in ('/usr','/usr/local','/usr/local/libexec','/usr/local/libexec/warpkeep-native-source-verification'):
+        s=os.lstat(p)
+        require(stat.S_ISDIR(s.st_mode) and not stat.S_ISLNK(s.st_mode) and s.st_uid==s.st_gid==0
+            and not stat.S_IMODE(s.st_mode)&0o022 and str(pathlib.Path(p).resolve(strict=True))==p)
+    require(hashlib.sha256(read_file(installed,0,0o755)).digest()
+        ==hashlib.sha256(read_file(repo+'/scripts/test-sealed-realms-existing-update-linux.sh',1000,0o755)).digest())
+except Exception as error:
+    print('NATIVE_NAMESPACE_INSTALLED_SOURCE_INVALID',file=sys.stderr);sys.exit(1)
+PY
+  source_helper="$declared_repo/scripts/test-sealed-realms-existing-update-linux.sh"
+fi
+
 if test "${1-}" = --cleanup; then
   # Only this noninteractive sudo caller may signal one birth-bound member of its own session.
   test "$#" = 10 && test "$(id -u)" = 0
-  exec /usr/bin/python3 - "$self" "${@:2}" <<'PY'
+  exec /usr/bin/python3 - "$source_helper" "${@:2}" <<'PY'
 import json, os, pathlib, re, signal, sys
 signal.alarm(3)
 def require(condition, code):
@@ -128,7 +173,7 @@ fi
 test "$(realpath -- "$repo")" = "$repo"
 test "$(stat -c %u -- "$repo")" = "$fixture_uid"
 test "$(stat -c %g -- "$repo")" = "$fixture_gid"
-test "$(realpath -- "$repo/scripts/test-sealed-realms-existing-update-linux.sh")" = "$self"
+test "$(realpath -- "$repo/scripts/test-sealed-realms-existing-update-linux.sh")" = "$source_helper"
 test "$(realpath -- "$node")" = "$node" && test -f "$node" && test -x "$node"
 
 if test "$phase" = --as; then

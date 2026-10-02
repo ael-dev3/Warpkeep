@@ -5,7 +5,7 @@ import { assessNativeNamespaceDispositions, NATIVE_NAMESPACE_DISPOSITION_SOURCES
 import { parseVitestReport } from '../scripts/native-source-verification-reports.mjs';
 import type { NativeParsedReport } from '../scripts/native-source-verification-reports.mjs';
 
-const root = '/repo', reportPath = `${root}/artifacts/qa/run-namespace-tests.report.json`;
+const root = '/home/warpkeep/Warpkeep-0.4', reportPath = `${root}/artifacts/qa/run-namespace-tests.report.json`;
 const files = ['tests/ptrProductionExistingUpdateContinuation.test.ts', 'tests/sealedRealmsExistingUpdate.test.ts',
   'tests/sealedRealmsProductionContinuation.test.ts', 'tests/sealedRealmsProductionDispatcher.test.ts'];
 const skippedTitle = 'existing-update native protocol refuses unsupported runtime before reading credentials or any response';
@@ -14,8 +14,8 @@ const context = (): NativeNamespaceDispositionContext => ({ target: { ...target 
   sourceFiles: NATIVE_NAMESPACE_DISPOSITION_SOURCES.map(source => ({ ...source })),
   command: { id: 'namespace-tests', kind: 'vitest-json', files: [...files], cwd: root,
     executable: '/usr/bin/sudo', deadlineMs: 900000, reportPath,
-    args: ['-n', '/bin/bash', `${root}/scripts/test-sealed-realms-existing-update-linux.sh`, '--as',
-      '1000', '1000', '/private/node', root, '--report-json', reportPath] } });
+    args: ['-n', '/usr/local/libexec/warpkeep-native-source-verification/namespace.sh', '--as',
+      '1000', '1000', '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node', root, '--report-json', reportPath] } });
 function fixture() {
   const assertion = (fullName: string, status: string) => ({ title: fullName, fullName, status,
     ancestorTitles: [], failureMessages: [] as string[] });
@@ -111,24 +111,33 @@ describe('fixed Linux namespace skip disposition', () => {
     }
   });
 
-  it.each([{ platform: 'darwin' }, { arch: 'arm64' }, { uid: 0 }, { gid: 0 }, { uid: -1 }])
+  it.each([{ platform: 'darwin' }, { arch: 'arm64' }, { uid: 0 }, { gid: 0 }, { uid: -1 }, { uid: 1001 }, { gid: 1001 }])
     ('refuses an unsupported execution target %j', mutation => {
       const value = context();
       expect(() => assessNativeNamespaceDispositions(parsed(), { ...value, target: { ...value.target, ...mutation } }))
         .toThrow('TARGET_UNSUPPORTED');
     });
-  it.each(['ambient command', 'interactive sudo', 'different helper', 'direct root', 'filter', 'nested report', 'different owner'])
+  it.each(['ambient command', 'interactive sudo', 'different helper', 'direct root', 'filter', 'nested report', 'different owner', 'different Node', 'different checkout'])
     ('refuses %s instead of inferring isolation from a skip', mutation => {
       const value = context(), command = { ...value.command, args: [...value.command.args] };
       if (mutation === 'ambient command') { command.executable = '/private/node'; command.args = ['vitest', 'run']; }
       else if (mutation === 'interactive sudo') command.args[0] = '--';
-      else if (mutation === 'different helper') command.args[2] = `${root}/scripts/another.sh`;
-      else if (mutation === 'direct root') command.args[3] = '--inside';
+      else if (mutation === 'different helper') command.args[1] = `${root}/scripts/another.sh`;
+      else if (mutation === 'direct root') command.args[2] = '--inside';
       else if (mutation === 'filter') command.args.push('--testNamePattern=negative');
-      else if (mutation === 'nested report') { command.reportPath = `${root}/artifacts/qa/nested/run.report.json`; command.args[9] = command.reportPath; }
-      else command.args[4] = '1001';
+      else if (mutation === 'nested report') { command.reportPath = `${root}/artifacts/qa/nested/run.report.json`; command.args[8] = command.reportPath; }
+      else if (mutation === 'different Node') command.args[5] = '/private/node';
+      else if (mutation === 'different checkout') command.cwd = '/another-checkout';
+      else command.args[3] = '1001';
       expect(() => assessNativeNamespaceDispositions(parsed(), { ...value, command })).toThrow('ISOLATION_REQUIRED');
     });
+  it('refuses the legacy mutable-checkout sudo path for maintained native dispositions', () => {
+    const value = context();
+    const command = { ...value.command, args: ['-n', '/bin/bash',
+      root + '/scripts/test-sealed-realms-existing-update-linux.sh', '--as', '1000', '1000',
+      '/private/node', root, '--report-json', reportPath] };
+    expect(() => assessNativeNamespaceDispositions(parsed(), { ...value, command })).toThrow('ISOLATION_REQUIRED');
+  });
   it.each(NATIVE_NAMESPACE_DISPOSITION_SOURCES)('rejects changed source bytes for $path', source => {
     const value = context();
     expect(() => assessNativeNamespaceDispositions(parsed(), { ...value,

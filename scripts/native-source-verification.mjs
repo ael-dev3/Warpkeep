@@ -18,6 +18,7 @@ import { NATIVE_CONNECTED_MODULE_PROFILE, NATIVE_CONNECTED_SOURCE_INPUTS,
   NATIVE_CONNECTED_PREREQUISITES, deriveNativeConnectedModuleRecipe } from './native-source-verification-connected.mjs';
 
 export const NATIVE_VERIFICATION_PROFILE = 'warpkeep-native-source-test-partitions-v1';
+export const NATIVE_NAMESPACE_LAUNCHER_PATH = '/usr/local/libexec/warpkeep-native-source-verification/namespace.sh';
 export const NATIVE_SOURCE_CHECKS_PROFILE = 'warpkeep-native-source-checks-v1';
 export const NAMESPACE_FILES = Object.freeze([
   'tests/ptrProductionExistingUpdateContinuation.test.ts',
@@ -231,7 +232,27 @@ function rootDependencyArchives(root, lock) {
     return [];
   });
 }
+function namespaceTestInputs(root, source, inputs) {
+  if (root !== '/home/warpkeep/Warpkeep-0.4' || process.getuid?.() !== 1000 || process.getgid?.() !== 1000
+    || inputs.node.path !== '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
+    || inputs.node.sha256 !== 'e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2') fail('NAMESPACE_LAUNCHER_TARGET_UNSUPPORTED');
+  const sourceHelper = source.files.find(file => file.path === 'scripts/test-sealed-realms-existing-update-linux.sh');
+  const launcher = installedTool(NATIVE_NAMESPACE_LAUNCHER_PATH, 1, 0);
+  const state = fs.lstatSync(NATIVE_NAMESPACE_LAUNCHER_PATH, { bigint: true });
+  if (!sourceHelper || sourceHelper.mode !== '100755' || launcher.fact.path !== NATIVE_NAMESPACE_LAUNCHER_PATH
+    || launcher.fact.sha256 !== sourceHelper.sha256 || state.gid !== 0n
+    || (state.mode & 0o7777n) !== 0o755n || launcher.body.length > 65536) fail('NAMESPACE_LAUNCHER_SOURCE_INVALID');
+  const ancestors = ['/usr', '/usr/local', '/usr/local/libexec', '/usr/local/libexec/warpkeep-native-source-verification'].map(path => {
+    const stat = fs.lstatSync(path, { bigint: true });
+    if (!stat.isDirectory() || stat.isSymbolicLink() || stat.uid !== 0n || stat.gid !== 0n
+      || stat.mode & 0o022n || fs.realpathSync(path) !== path) fail('NAMESPACE_LAUNCHER_DIRECTORY_INVALID');
+    return { path, identity: Object.fromEntries(['dev', 'ino', 'mode', 'uid', 'gid'].map(key => [key, String(stat[key])])) };
+  });
+  return { ...inputs, namespaceLauncher: { ...launcher.fact, sourceHelperPath: sourceHelper.path,
+    sourceHelperSha256: sourceHelper.sha256, ancestors } };
+}
 export function nativeTestCommands(root, partitions, tools, stem) {
+  if (tools.namespaceLauncher?.path !== NATIVE_NAMESPACE_LAUNCHER_PATH) fail('NAMESPACE_LAUNCHER_REQUIRED');
   if (partitions.ordinaryVitestFiles.some(path => NAMESPACE_FILES.includes(path))
     || !isDeepStrictEqual(partitions.namespaceVitestFiles, [...NAMESPACE_FILES])) fail('PARTITIONS_INVALID');
   return [{ id: 'ordinary-tests', kind: 'vitest-json', files: partitions.ordinaryVitestFiles, cwd: root,
@@ -239,7 +260,7 @@ export function nativeTestCommands(root, partitions, tools, stem) {
       '--maxWorkers=1', '--testTimeout=180000', '--no-cache', '--reporter=json', `--outputFile=${stem}-ordinary-tests.report.json`],
     reportPath: `${stem}-ordinary-tests.report.json`, deadlineMs: 3_600_000 },
   { id: 'namespace-tests', kind: 'vitest-json', files: partitions.namespaceVitestFiles, cwd: root,
-    executable: '/usr/bin/sudo', args: ['-n', '/bin/bash', join(root, 'scripts/test-sealed-realms-existing-update-linux.sh'),
+    executable: '/usr/bin/sudo', args: ['-n', NATIVE_NAMESPACE_LAUNCHER_PATH,
       '--as', String(process.getuid?.()), String(process.getgid?.()), tools.node.path, root,
       '--report-json', `${stem}-namespace-tests.report.json`], reportPath: `${stem}-namespace-tests.report.json`, deadlineMs: 900_000 },
   ...partitions.moduleFiles.map((file, index) => ({ id: `module-pure-${index + 1}`, kind: 'node-events', files: [file],
@@ -417,7 +438,7 @@ export function createNativeVerificationPlan(planPath) {
   const root = nativeRoot(), source = sourceSnapshot(root);
   const partitions = deriveNativeTestPartitions(source.files.map(file => file.path), read(join(root, 'vite.config.ts')).body,
     read(join(root, 'spacetimedb/package.json')).body);
-  const plan = { schemaVersion: 1, profile: NATIVE_VERIFICATION_PROFILE, source, partitions, tools: inputFacts(root),
+  const plan = { schemaVersion: 1, profile: NATIVE_VERIFICATION_PROFILE, source, partitions, tools: namespaceTestInputs(root, source, inputFacts(root)),
     repositoryRoot: root, productionAuthorized: false, completeCoverage: false,
     implementedDomains: IMPLEMENTED_DOMAINS, requiredDomains: REQUIRED_NATIVE_DOMAINS };
   same(sourceSnapshot(root), source);
@@ -519,7 +540,7 @@ export function nativeNamespaceCleanupCommand(root, owner, member, signal) {
     || member.pgid !== owner.pgid || !ownerBirth || !memberBirth
     || ownerBirth[1] !== owner.bootId || memberBirth[1] !== owner.bootId
     || !['SIGTERM', 'SIGKILL'].includes(signal)) fail('NAMESPACE_CLEANUP_IDENTITY_INVALID');
-  return { executable: '/usr/bin/sudo', args: ['-n', '/bin/bash', `${root}/scripts/test-sealed-realms-existing-update-linux.sh`,
+  return { executable: '/usr/bin/sudo', args: ['-n', NATIVE_NAMESPACE_LAUNCHER_PATH,
     '--cleanup', String(owner.uid), String(owner.gid), root, String(owner.pid), String(owner.pgid),
     owner.identity, String(member.pid), member.identity, signal] };
 }
@@ -589,7 +610,7 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
   const partitions = services ? servicePartitions(root, source) : checks ? null : deriveNativeTestPartitions(source.files.map(file => file.path), read(join(root, 'vite.config.ts')).body,
     read(join(root, 'spacetimedb/package.json')).body);
   const domains = services ? SERVICE_CHECK_DOMAINS : checks ? SOURCE_CHECK_DOMAINS : IMPLEMENTED_DOMAINS;
-  const currentTools = () => services ? serviceCheckInputs(root, inputFacts(root)) : checks ? sourceCheckInputs(root, inputFacts(root)) : inputFacts(root);
+  const currentTools = () => services ? serviceCheckInputs(root, inputFacts(root)) : checks ? sourceCheckInputs(root, inputFacts(root)) : namespaceTestInputs(root, source, inputFacts(root));
   if (![NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE, NATIVE_SERVICE_CHECKS_PROFILE].includes(plan.profile) || plan.schemaVersion !== 1 || plan.repositoryRoot !== root
     || plan.productionAuthorized !== false || plan.completeCoverage !== false) fail('PLAN_INVALID');
   same(plan.source, source);

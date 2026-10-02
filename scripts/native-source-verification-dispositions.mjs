@@ -5,7 +5,7 @@ export const NATIVE_NAMESPACE_DISPOSITION_SOURCES = Object.freeze([
   Object.freeze({ path: 'tests/sealedRealmsExistingUpdate.test.ts',
     sha256: '92b1588d9d1bce3e9ed6a0c1a070dfc1aa4faa17932f0e55ae9d8b799864a0d6' }),
   Object.freeze({ path: 'scripts/test-sealed-realms-existing-update-linux.sh',
-    sha256: 'a77d555f5b4731c8d3e6693ac411c42a731eb03782357bcac348f1731efd1c6a' }),
+    sha256: 'fc4732448c702c37826df6cdf9451ac8edd8a7127d50b03ac4da4599e788d1f2' }),
   Object.freeze({ path: 'scripts/sealed-realms-synthetic-network.mjs',
     sha256: 'df370fa9919e5c381ad4352f7dc2f4f9f9a85c4f0d4245e46c813405c85238e1' }),
 ]);
@@ -50,26 +50,25 @@ function sourceIdentities(sourceFiles) {
 function isolatedCommand(command, target) {
   record(command); record(target);
   if (target.platform !== 'linux' || target.arch !== 'x64'
-    || !Number.isSafeInteger(target.uid) || target.uid <= 0
-    || !Number.isSafeInteger(target.gid) || target.gid <= 0) fail('TARGET_UNSUPPORTED');
+    || target.uid !== 1000 || target.gid !== 1000) fail('TARGET_UNSUPPORTED');
   if (command.id !== 'namespace-tests' || command.kind !== 'vitest-json'
-    || command.executable !== '/usr/bin/sudo' || !canonicalPath(command.cwd)
+    || command.executable !== '/usr/bin/sudo' || command.cwd !== '/home/warpkeep/Warpkeep-0.4'
     || !equalFiles(command.files, FILES) || !Array.isArray(command.args)
-    || command.args.length !== 10 || !canonicalPath(command.args[6])
+    || command.args.length !== 9 || command.args[5] !== '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
     || !canonicalPath(command.reportPath)
     || !command.reportPath.startsWith(`${command.cwd}/artifacts/qa/`)
     || !/^[A-Za-z0-9._-]+\.report\.json$/u.test(command.reportPath.slice(`${command.cwd}/artifacts/qa/`.length))) {
     fail('ISOLATION_REQUIRED');
   }
-  const expected = ['-n', '/bin/bash', `${command.cwd}/scripts/test-sealed-realms-existing-update-linux.sh`,
-    '--as', String(target.uid), String(target.gid), command.args[6], command.cwd,
+  const expected = ['-n', '/usr/local/libexec/warpkeep-native-source-verification/namespace.sh',
+    '--as', String(target.uid), String(target.gid), command.args[5], command.cwd,
     '--report-json', command.reportPath];
   if (command.args.some((argument, index) => argument !== expected[index])) fail('ISOLATION_REQUIRED');
   // The pinned launcher requires Linux x64, distinct mount/net namespaces and
   // WARPKEEP_REQUIRE_SYNTHETIC_NETWORK=1, then drops capabilities and runs exactly FILES.
   // The pinned test throws at file setup if that required network identity is unavailable.
   return Object.freeze({ platform: target.platform, arch: target.arch, uid: target.uid, gid: target.gid,
-    launcherPath: expected[2], requiredSyntheticNetwork: '1' });
+    launcherPath: expected[1], requiredSyntheticNetwork: '1' });
 }
 
 /** Assess an already-authenticated parsed namespace report; this is never an evidence loader.

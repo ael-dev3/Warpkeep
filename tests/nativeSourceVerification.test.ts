@@ -13,7 +13,7 @@ import {
   NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE, nativeSourceCheckCommands,
   captureNativeSourceCheckConfiguration,
   captureNativeServiceConfiguration,
-  nativeVerificationEnvironment,
+  nativeVerificationEnvironment, NATIVE_NAMESPACE_LAUNCHER_PATH,
   retainNativeVerificationOutput,
   requireCompleteNativeSourceVerificationEvidence, nativeNamespaceCleanupCommand,
 } from '../scripts/native-source-verification.mjs';
@@ -28,7 +28,7 @@ const vite = "test: { include: ['tests/**/*.{test,spec}.{ts,tsx}'] }";
 const packageBytes = JSON.stringify({ scripts: { 'test:pure': 'tsx --test tests/*.test.ts' } });
 const source = ['tests/ordinary.test.ts', 'tests/nested/other.spec.tsx', 'src/untested.ts',
   'spacetimedb/tests/first.test.ts', 'spacetimedb/tests/second.test.ts', ...NAMESPACE_FILES];
-const tools = { node: { path: '/native/node' }, vitest: { path: '/installed/vitest.mjs' }, tsx: { path: '/installed/tsx.mjs' } };
+const tools = { node: { path: '/native/node' }, vitest: { path: '/installed/vitest.mjs' }, tsx: { path: '/installed/tsx.mjs' }, namespaceLauncher: { path: NATIVE_NAMESPACE_LAUNCHER_PATH } };
 const fixtureRoot = '/repo', fixtureFile = 'tests/fixture.test.mjs';
 const scope = { repositoryRoot: fixtureRoot, expectedFiles: [fixtureFile] };
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
@@ -170,6 +170,14 @@ describe('native source test inventory and execution recipe', () => {
     expect(() => deriveNativeTestPartitions(source, vite, JSON.stringify({ scripts: { 'test:pure': 'tsx --test --test-name-pattern=one tests/*.test.ts' } })))
       .toThrow('RUNNER_CONFIG_CHANGED');
   });
+  it('refuses missing or substituted namespace launcher before any command can launch', () => {
+    const partitions = deriveNativeTestPartitions(source, vite, packageBytes);
+    for (const namespaceLauncher of [undefined, { path: '/repo/scripts/test-sealed-realms-existing-update-linux.sh' },
+      { path: '/usr/local/libexec/another-helper.sh' }]) {
+      expect(() => nativeTestCommands('/repo', partitions, { ...tools, namespaceLauncher } as never, '/repo/artifacts/qa/proof'))
+        .toThrow('NAMESPACE_LAUNCHER_REQUIRED');
+    }
+  });
   it('uses exact isolated namespace runner and no test-name/shard filters', () => {
     const partitions = deriveNativeTestPartitions(source, vite, packageBytes);
     const commands = nativeTestCommands('/repo', partitions, tools, '/repo/artifacts/qa/proof');
@@ -178,7 +186,7 @@ describe('native source test inventory and execution recipe', () => {
     expect(commands[0].args).toEqual(['/installed/vitest.mjs', 'run', ...partitions.ordinaryVitestFiles,
       '--maxWorkers=1', '--testTimeout=180000', '--no-cache', '--reporter=json', '--outputFile=/repo/artifacts/qa/proof-ordinary-tests.report.json']);
     expect(commands[1].executable).toBe('/usr/bin/sudo');
-    expect(commands[1].args.slice(0, 4)).toEqual(['-n', '/bin/bash', '/repo/scripts/test-sealed-realms-existing-update-linux.sh', '--as']);
+    expect(commands[1].args.slice(0, 3)).toEqual(['-n', NATIVE_NAMESPACE_LAUNCHER_PATH, '--as']);
     expect(commands[1].args.slice(-2)).toEqual(['--report-json', '/repo/artifacts/qa/proof-namespace-tests.report.json']);
     expect(commands.flatMap(command => command.args).some(argument => /test-name|shard/u.test(argument))).toBe(false);
     expect(commands[2].files).toEqual(['spacetimedb/tests/first.test.ts']);
@@ -245,8 +253,7 @@ describe('owned namespace cleanup requests', () => {
   const member = { pid: 102, pgid: 101, identity: `linux-v1:${bootId}:701` };
   it('routes one exact birth-bound member through the existing privileged namespace helper', () => {
     const command = nativeNamespaceCleanupCommand('/repo', owner, member, 'SIGTERM');
-    expect(command).toEqual({ executable: '/usr/bin/sudo', args: ['-n', '/bin/bash',
-      '/repo/scripts/test-sealed-realms-existing-update-linux.sh', '--cleanup', '1000', '1000', '/repo',
+    expect(command).toEqual({ executable: '/usr/bin/sudo', args: ['-n', NATIVE_NAMESPACE_LAUNCHER_PATH, '--cleanup', '1000', '1000', '/repo',
       '101', '101', owner.identity, '102', member.identity, 'SIGTERM'] });
     expect(nativeNamespaceCleanupCommand('/repo', owner, member, 'SIGKILL').args.at(-1)).toBe('SIGKILL');
   });

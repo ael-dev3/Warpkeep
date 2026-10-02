@@ -1,4 +1,5 @@
 export const NATIVE_VERIFICATION_PROFILE: 'warpkeep-native-source-test-partitions-v1';
+export const NATIVE_NAMESPACE_LAUNCHER_PATH: '/usr/local/libexec/warpkeep-native-source-verification/namespace.sh';
 export const NATIVE_SOURCE_CHECKS_PROFILE: 'warpkeep-native-source-checks-v1';
 export const NAMESPACE_FILES: readonly string[];
 export const REQUIRED_NATIVE_DOMAINS: readonly string[];
@@ -12,7 +13,7 @@ export type NativeTestCommand = Readonly<{ id: string; kind: 'vitest-json' | 'no
   cwd: string; executable: string; args: readonly string[]; reportPath: string; deadlineMs: number }>;
 export function deriveNativeTestPartitions(paths: readonly string[], viteConfig: string | Uint8Array, modulePackage: string | Uint8Array): NativeTestPartitions;
 export function nativeTestCommands(root: string, partitions: NativeTestPartitions,
-  tools: Readonly<{ node: Readonly<{ path: string }>; vitest: Readonly<{ path: string }>; tsx: Readonly<{ path: string }> }>, stem: string): readonly NativeTestCommand[];
+  tools: Readonly<{ node: Readonly<{ path: string }>; vitest: Readonly<{ path: string }>; tsx: Readonly<{ path: string }>; namespaceLauncher: Readonly<{ path: string }> }>, stem: string): readonly NativeTestCommand[];
 export type NativeSourceCheckCommand = Readonly<{ id: string; kind: 'terminal-check' | 'gitleaks-json'; files: readonly string[];
   cwd: string; executable: string; args: readonly string[]; reportPath: string; deadlineMs: number;
   environment: Readonly<Record<string, string>>; script?: string; scriptSha256?: string;
