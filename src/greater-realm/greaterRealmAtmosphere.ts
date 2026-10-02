@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { GreaterRealmGraphicsProfile } from './greaterRealmRuntimePolicy';
+import { greaterRealmGeometryBytes } from './greaterRealmActorGeometry';
 
 // Daylight atmosphere for the 0.4 Greater Realm view. The streamed public
 // window ends where the player's knowledge ends; instead of a black void, the
@@ -20,6 +21,10 @@ export const GREATER_REALM_ATMOSPHERE_MAXIMUM_INSTANCES = 22 + 6 + 14;
 
 export type GreaterRealmAtmosphere = Readonly<{
   group: THREE.Group;
+  maximumUploadBytes: number;
+  prepareForUpload: (availableBytes: number) => number;
+  consumePendingUploadBytes: () => number;
+  invalidateUploads: () => void;
   setFrame: (centerX: number, centerZ: number, span: number) => void;
   configure: (profile: GreaterRealmGraphicsProfile, reducedMotion: boolean) => void;
   update: (elapsedSeconds: number) => boolean;
@@ -67,6 +72,49 @@ export function createGreaterRealmAtmosphere(options: Readonly<{ profile: Greate
   let centerX = 0; let centerZ = 0; let span = 48;
   const matrix = new THREE.Matrix4(); const quaternion = new THREE.Quaternion(); const euler = new THREE.Euler();
   const position = new THREE.Vector3(); const scale = new THREE.Vector3();
+  // These owned attributes acknowledge a transfer only when Three uploads it.
+  // A hidden/deferred group retains every dirty version for a later frame.
+  let uploadedVersions = new WeakMap<THREE.BufferAttribute, number>();
+  const observedAttributes = new WeakSet<THREE.BufferAttribute>();
+  let uploadedThisFrame = 0;
+  const attributes = () => {
+    const values: THREE.BufferAttribute[] = [];
+    group.traverse(object => {
+      if (!(object instanceof THREE.Mesh) || !object.visible) return;
+      if (object instanceof THREE.InstancedMesh && object.count === 0) return;
+      values.push(...Object.values(object.geometry.attributes) as THREE.BufferAttribute[]);
+      if (object.geometry.index) values.push(object.geometry.index);
+      if (object instanceof THREE.InstancedMesh) {
+        values.push(object.instanceMatrix);
+        if (object.instanceColor) values.push(object.instanceColor);
+      }
+    });
+    return values;
+  };
+  const pendingUploadBytes = () => attributes().reduce((bytes, attribute) =>
+    bytes + (uploadedVersions.get(attribute) === attribute.version ? 0 : attribute.array.byteLength), 0);
+  const prepareForUpload = (availableBytes: number) => {
+    const values = attributes();
+    const pending = pendingUploadBytes();
+    group.visible = Number.isFinite(availableBytes) && availableBytes >= pending;
+    for (const attribute of values) {
+      if (observedAttributes.has(attribute)) continue;
+      observedAttributes.add(attribute);
+      const previous = attribute.onUploadCallback;
+      attribute.onUpload(() => {
+        previous.call(attribute);
+        if (disposed) return;
+        uploadedVersions.set(attribute, attribute.version);
+        uploadedThisFrame += attribute.array.byteLength;
+      });
+    }
+    return group.visible ? pending : 0;
+  };
+  const consumePendingUploadBytes = () => {
+    const value = uploadedThisFrame; uploadedThisFrame = 0; return value;
+  };
+  const invalidateUploads = () => { uploadedVersions = new WeakMap(); uploadedThisFrame = 0; };
+
   const write = (time: number) => {
     const counts = LAYER_COUNTS[profile];
     // The cloud sea: a ring of low banks just beyond the returned land.
@@ -104,6 +152,9 @@ export function createGreaterRealmAtmosphere(options: Readonly<{ profile: Greate
   write(0);
   return Object.freeze({
     group,
+    maximumUploadBytes: greaterRealmGeometryBytes(cloudGeometry) + greaterRealmGeometryBytes(birdShape)
+      + clouds.instanceMatrix.array.byteLength + birds.instanceMatrix.array.byteLength,
+    prepareForUpload, consumePendingUploadBytes, invalidateUploads,
     setFrame: (x, z, nextSpan) => {
       if (disposed || ![x, z, nextSpan].every(Number.isFinite) || nextSpan <= 0) return;
       centerX = x; centerZ = z; span = nextSpan; write(0);
@@ -113,15 +164,15 @@ export function createGreaterRealmAtmosphere(options: Readonly<{ profile: Greate
       if (disposed || reducedMotion || !Number.isFinite(elapsed)) return false;
       write(Math.max(0, elapsed)); return true;
     },
-    drawCalls: () => disposed ? 0 : 1 + (LAYER_COUNTS[profile].birds > 0 ? 1 : 0),
+    drawCalls: () => disposed || !group.visible ? 0 : 1 + (LAYER_COUNTS[profile].birds > 0 ? 1 : 0),
     instanceCount: () => {
-      if (disposed) return 0; const counts = LAYER_COUNTS[profile];
+      if (disposed || !group.visible) return 0; const counts = LAYER_COUNTS[profile];
       return counts.lowClouds + counts.highClouds + counts.birds;
     },
     dispose: () => {
       if (disposed) return; disposed = true;
       clouds.dispose(); birds.dispose(); cloudGeometry.dispose(); birdShape.dispose(); cloudMaterial.dispose(); birdMaterial.dispose();
-      group.clear(); group.removeFromParent();
+      invalidateUploads(); group.clear(); group.removeFromParent();
     },
   });
 }

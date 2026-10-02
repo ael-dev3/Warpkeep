@@ -43,7 +43,9 @@ export function keep04WorkerVisuals(view: Snapshot04['view']): readonly Keep04Wo
       : phase === 'returning' ? assignment?.recalledAt ?? assignment?.gatheringStopsAt : undefined;
     const ends = phase === 'outbound' ? assignment?.arrivesAt : phase === 'gathering' ? assignment?.gatheringStopsAt
       : phase === 'returning' ? assignment?.returnsAt : undefined;
-    return Object.freeze({ ordinal: worker.ordinal, phase, resource: (assignment?.resource ?? null) as Keep04WorkerVisual['resource'],
+    // An outbound recall returns with an empty cart; only confirmed earnings can give it cargo.
+    const resource = phase === 'returning' && assignment?.earned === 0n ? null : assignment?.resource ?? null;
+    return Object.freeze({ ordinal: worker.ordinal, phase, resource: resource as Keep04WorkerVisual['resource'],
       phaseStartedAtMs: micros04(started), phaseEndsAtMs: micros04(ends) });
   });
 }

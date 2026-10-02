@@ -145,6 +145,7 @@ function createPublicCastleLayer(
   getPolicy: () => GreaterRealmWorldViewPolicy
 ) {
   const group = new THREE.Group();
+  const uploads = createHostUploadTracker(group);
   group.name = 'greater-realm-public-castles';
   let count = 0;
   let appliedSignature: string | undefined;
@@ -222,7 +223,9 @@ function createPublicCastleLayer(
   return Object.freeze({
     group,
     get count() { return count; },
-    get pendingUploadBytes() { return pendingUploadBytes; },
+    get pendingUploadBytes() { return uploads.pendingUploadBytes(); },
+    prepareForUpload: uploads.prepareForUpload,
+    invalidateUploads: uploads.invalidateUploads,
     get voxelTriangleCount() { return voxelTriangleCount; },
     get voxelQuadCount() { return voxelQuadCount; },
     get voxelUploadBytes() { return voxelUploadBytes; },
@@ -230,8 +233,8 @@ function createPublicCastleLayer(
     get targets() { return targets; },
     refreshGrounding,
     consumePendingUploadBytes: () => {
-      const value = pendingUploadBytes;
-      pendingUploadBytes = 0;
+      const value = uploads.consumePendingUploadBytes();
+      pendingUploadBytes = uploads.pendingUploadBytes();
       return value;
     },
     applySnapshot: (snapshot: GreaterRealmClientSnapshot) => {
@@ -378,8 +381,52 @@ function geometryUploadBytes(geometry: THREE.BufferGeometry) {
   );
 }
 
+function createHostUploadTracker(group: THREE.Group) {
+  let uploadedVersions = new WeakMap<THREE.BufferAttribute, number>();
+  const observedAttributes = new WeakSet<THREE.BufferAttribute>();
+  let uploadedThisFrame = 0;
+  const attributes = (frustum?: THREE.Frustum, layers?: THREE.Layers) => {
+    const values: THREE.BufferAttribute[] = [];
+    group.traverse(object => {
+      if (!(object instanceof THREE.Mesh) || !object.visible) return;
+      if (layers && !object.layers.test(layers)) return;
+      if (frustum && object.frustumCulled && !frustum.intersectsObject(object)) return;
+      values.push(...Object.values(object.geometry.attributes) as THREE.BufferAttribute[]);
+      if (object.geometry.index) values.push(object.geometry.index);
+      if (object instanceof THREE.InstancedMesh) {
+        values.push(object.instanceMatrix);
+        if (object.instanceColor) values.push(object.instanceColor);
+      }
+    });
+    return values;
+  };
+  const pending = (values = attributes()) => values.reduce((bytes, attribute) =>
+    bytes + (uploadedVersions.get(attribute) === attribute.version ? 0 : attribute.array.byteLength), 0);
+  return Object.freeze({
+    pendingUploadBytes: () => pending(),
+    // Use Three's same frustum/layer test without disabling existing culling.
+    // A skipped attribute remains dirty until its real onUpload callback fires.
+    prepareForUpload: (frustum: THREE.Frustum, layers: THREE.Layers) => {
+      const values = attributes(frustum, layers);
+      for (const attribute of values) {
+        if (observedAttributes.has(attribute)) continue;
+        observedAttributes.add(attribute);
+        const previous = attribute.onUploadCallback;
+        attribute.onUpload(() => {
+          previous.call(attribute); uploadedVersions.set(attribute, attribute.version);
+          uploadedThisFrame += attribute.array.byteLength;
+        });
+      }
+      return pending(values);
+    },
+    consumePendingUploadBytes: () => { const value = uploadedThisFrame; uploadedThisFrame = 0; return value; },
+    invalidateUploads: () => { uploadedVersions = new WeakMap(); uploadedThisFrame = 0; }
+  });
+}
+
 function createPublicResourceLayer() {
   const group = new THREE.Group();
+  const uploads = createHostUploadTracker(group);
   group.name = 'greater-realm-public-resource-markers';
   let appliedSignature: string | undefined;
   let count = 0;
@@ -403,11 +450,14 @@ function createPublicResourceLayer() {
   return Object.freeze({
     group,
     get count() { return count; },
+    get pendingUploadBytes() { return uploads.pendingUploadBytes(); },
+    prepareForUpload: uploads.prepareForUpload,
+    invalidateUploads: uploads.invalidateUploads,
     get drawCallCount() { return drawCallCount; },
     get targets() { return targets; },
     consumePendingUploadBytes: () => {
-      const value = pendingUploadBytes;
-      pendingUploadBytes = 0;
+      const value = uploads.consumePendingUploadBytes();
+      pendingUploadBytes = uploads.pendingUploadBytes();
       return value;
     },
     applySnapshot: (snapshot: GreaterRealmClientSnapshot) => {
@@ -492,6 +542,7 @@ function createPublicResourceLayer() {
 
 function createVisibleRegionLayer() {
   const group = new THREE.Group();
+  const uploads = createHostUploadTracker(group);
   group.name = 'greater-realm-visible-region-landmarks';
   let appliedSignature: string | undefined;
   let count = 0;
@@ -515,10 +566,13 @@ function createVisibleRegionLayer() {
   return Object.freeze({
     group,
     get count() { return count; },
+    get pendingUploadBytes() { return uploads.pendingUploadBytes(); },
+    prepareForUpload: uploads.prepareForUpload,
+    invalidateUploads: uploads.invalidateUploads,
     get targets() { return targets; },
     consumePendingUploadBytes: () => {
-      const value = pendingUploadBytes;
-      pendingUploadBytes = 0;
+      const value = uploads.consumePendingUploadBytes();
+      pendingUploadBytes = uploads.pendingUploadBytes();
       return value;
     },
     applySnapshot: (snapshot: GreaterRealmClientSnapshot) => {
@@ -685,6 +739,7 @@ export function createGreaterRealmWorldCanvasHost(
   const fog = new THREE.FogExp2(GREATER_REALM_SKY.fog, normalFogDensity);
   scene.fog = fog;
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 2_000);
+  const uploadFrustum = new THREE.Frustum(); const uploadProjection = new THREE.Matrix4();
   const center = axialToWorld({ q: options.atlasQ, r: options.atlasR }, 1);
   let span = Math.max(32, (currentPolicy.radius * 2 + 1) * 15 * 1.08);
   const cameraTarget = new THREE.Vector3(center.x, 0, center.z);
@@ -735,7 +790,8 @@ export function createGreaterRealmWorldCanvasHost(
   atmosphere = createGreaterRealmAtmosphere({ profile: currentPolicy.graphicsProfile, reducedMotion: currentPolicy.reducedMotion });
   atmosphere.setFrame(center.x, center.z, span);
   scene.add(atmosphere.group);
-  const journeyLayer = createGreaterRealmJourneyLayer({ reducedMotion: () => currentPolicy.reducedMotion });
+  const journeyLayer = createGreaterRealmJourneyLayer({ reducedMotion: () => currentPolicy.reducedMotion,
+    maximumUploadBytes: GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES - atmosphere.maximumUploadBytes });
   scene.add(journeyLayer.group);
   let journeys: readonly GreaterRealmJourney[] = Object.freeze([]);
   let selectionTargets: readonly GreaterRealmSelectionTarget[] = Object.freeze([]);
@@ -757,11 +813,15 @@ export function createGreaterRealmWorldCanvasHost(
     }
   };
 
+  // Observer reads retain the latest completed frame upload counters.
+  let lastHostUploadBytesThisFrame = 0; let lastCastleUploadBytesThisFrame = 0;
   const publishTelemetry = (
     sceneTelemetry = activeRuntime!.getTelemetry(),
-    hostUploadBytesThisFrame = 0,
-    castleUploadBytesThisFrame = 0
+    hostUploadBytesThisFrame = lastHostUploadBytesThisFrame,
+    castleUploadBytesThisFrame = lastCastleUploadBytesThisFrame
   ) => {
+    lastHostUploadBytesThisFrame = hostUploadBytesThisFrame;
+    lastCastleUploadBytesThisFrame = castleUploadBytesThisFrame;
     const castleDrawCalls = castleLayer.count > 0 ? 1 : 0;
     const regionDrawCalls = regionLayer.count > 0 ? 1 : 0;
     const hostDrawCalls = castleDrawCalls + regionDrawCalls + resourceLayer.drawCallCount
@@ -899,17 +959,32 @@ export function createGreaterRealmWorldCanvasHost(
       if (!telemetry.contextLost) {
         atmosphere?.update(performance.now() / 1000);
         journeyLayer.update(Date.now());
+        scene.updateMatrixWorld(); camera.updateMatrixWorld();
+        uploadFrustum.setFromProjectionMatrix(uploadProjection.copy(camera.projectionMatrix).multiply(camera.matrixWorldInverse), camera.coordinateSystem);
+        const mandatoryUploadBytes = castleLayer.prepareForUpload(uploadFrustum, camera.layers)
+          + resourceLayer.prepareForUpload(uploadFrustum, camera.layers)
+          + regionLayer.prepareForUpload(uploadFrustum, camera.layers);
+        if (mandatoryUploadBytes > GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES) {
+          throw new Error('GREATER_REALM_HOST_UPLOAD_BUDGET_EXCEEDED');
+        }
+        // Optional decoration waits when this frame's existing host uploads
+        // fill the reservation. Hidden groups cannot send their dirty arrays.
+        const skyUploadBytes = atmosphere?.prepareForUpload(GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES - mandatoryUploadBytes) ?? 0;
+        journeyLayer.prepareForUpload(GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES - mandatoryUploadBytes - skyUploadBytes);
         activeRenderer.render(scene, camera);
         castleUploadBytesThisFrame = castleLayer.consumePendingUploadBytes();
         hostUploadBytesThisFrame = castleUploadBytesThisFrame
           + resourceLayer.consumePendingUploadBytes()
-          + regionLayer.consumePendingUploadBytes();
+          + regionLayer.consumePendingUploadBytes()
+          + (atmosphere?.consumePendingUploadBytes() ?? 0)
+          + journeyLayer.consumePendingUploadBytes();
         if (hostUploadBytesThisFrame > GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES) {
           throw new Error('GREATER_REALM_HOST_UPLOAD_BUDGET_EXCEEDED');
         }
       }
       publishTelemetry(telemetry, hostUploadBytesThisFrame, castleUploadBytesThisFrame);
-      if (!telemetry.contextLost && telemetry.pendingUploadCount > 0) schedule();
+      if (!telemetry.contextLost && (telemetry.pendingUploadCount > 0
+        || atmosphere?.group.visible === false || !journeyLayer.group.visible)) schedule();
     } catch {
       failHost();
     }
@@ -1362,8 +1437,11 @@ export function createGreaterRealmWorldCanvasHost(
     }
   };
   const applyPendingPolicyAfterContextRestore = () => {
+    castleLayer.invalidateUploads(); resourceLayer.invalidateUploads(); regionLayer.invalidateUploads();
+    atmosphere?.invalidateUploads(); journeyLayer.invalidateUploads();
     const policy = pendingPolicy;
     if (policy !== undefined) updatePolicy(policy);
+    schedule();
   };
   const visibilityChange = () => {
     if (disposed || terminalFailure) return;

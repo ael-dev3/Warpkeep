@@ -1,105 +1,124 @@
 # Continue Warpkeep 0.4
 
-## Current release checkpoint — 1 October 2026, 23:08 UTC
+<!-- Preserve the incoming current-checkpoint link in live-delivery-status.md. -->
+<a id="current-release-checkpoint--1-october-2026"></a>
 
-This dated notes snapshot records measured source W and a newly demonstrated
-operator blocker before its repair checkpoint R. Resolve later exact Git/PR/CI
-receipts before acting; a planned R is not a source identity or accepted main.
-Main remains `cb282bab`. Signed W `028b1e4b`, tree `bd87f443`, is the direct
-child of H2 `a903e78e` published in [PR #380](https://github.com/ael-dev3/Warpkeep/pull/380).
-Its normal [Verify 36931509836](https://github.com/ael-dev3/Warpkeep/actions/runs/36931509836),
-attempt 1, completed successfully at 22:55:04 UTC: all 17 jobs passed, with no
-failed, skipped or active job. The owned watcher and finalizer returned exit 0.
-The terminal summary is
-`artifacts/qa/october-release-028b1e4b-verify-terminal-summary.json`, SHA-256
-`9ea105b273d67b0115bff7dec90c65a32c6877962067fe7c33ee6f012aa0dcd8`.
-Three complete job logs prove actual CI merge `29d1e896`, tree `bd87f443`,
-with parents `cb282bab`/W. Linux recorded 167 passes; native recorded 260 passes
-and one platform skip plus 158 passes; the module recorded 598 passes.
-This is exact W PR evidence, not an actual-main merge or S authority.
+## Current unpublished PTR fixture correction — 2 October 2026
 
-**Do not merge W with the known prepared-bridge runner defect.** The supported
-deployment API returns `{path, receiptDigest, result: 'installed' | 'unchanged'}`.
-The Linux workflow runner instead requires `outcome: 'published'`, incorrectly
-rejecting both genuine successes and accepting an outcome-only result. A narrow
-runner/caller-regression repair and four current canonical notes are being
-prepared as one child R of W. At this snapshot R is not signed, published or
-verified. Preserve W's normal CI and all original attempts; locally validate the
-coherent correction before a single final PR-head update.
+The signed local integration `1b20c8dd` is unpublished. Its first native release-closure run failed one assertion: the exact PTR browser inventory omitted the already protected `src/ptr/gameplay04/gameplay04Journeys.ts` path. The reviewed correction adds that single sorted literal to the fixture and updates these current notes; it does not change product behavior or authority.
 
-The actual caller baseline ran 23:02:57.722–23:03:31.765 UTC and exited 1:
-19 cases, 16 passes, three failures and no skips. Installed and unchanged were
-wrongly rejected, while an outcome-only result was wrongly accepted. The
-retained baseline receipt SHA-256 is
-`572bc79f5950bef24dbbec398435af4a0583c7e466a8d1c4be9f32866acd6a66`.
-The same 19 cases pass after the narrow local runner/caller repair: the actual
-fixed run completed 23:05:00.618–23:05:11.890 UTC with child/tool exit 0,
-19 passes, no failure and no skip. Its receipt is
-`artifacts/qa/october-release-prepared-linux-result-fixed.json`, SHA-256
-`8ebd3673894d64c34e54efb0dbb081eb20d6df4fdfb125acbc1e04e2a21985ec`.
-These tests exercise the actual runner in a bounded VM with fixed attestation
-and API fixtures; no provider or network operation occurred. R's native closure
-projection, signing, synchronization, scan, publication and hosted CI remain
-pending at this notes snapshot.
+The run lasted 02:30:02.245–02:36:16.017 UTC: **223 passed, 1 failed, 224 total** across eight actual files, outer exit 1. It stopped after the closure phase; the later app/types, Vite/types and policy phases did not run. Independent cleanup proved the wrapper/child births and full group absent, with raw bytes of all tracked files and the native index preserved. This failure remains evidence, not acceptance. The earlier source-only frontend overlay retains its actual **474 passes across 21 files and two successful scoped typechecks**; those checks have not been repeated.
 
-The runner is outside all four genuine cb compiler graphs and seven recovery
-inputs, but inside the prepared source closure. Use the existing supported
-16-file projection for that reviewed repair, retaining the genuine cb compiler
-manifests, all 212 distinct inputs (135 tracked) and five compiled bundle bodies.
-No repeated full compile, new prepare handle or new 102-output completion is
-justified for this scope. The 102-family completion remains actual cb evidence.
-R's operator repair does not relabel W's Keep/World measurement provenance.
+A normal signed amendment of the own unpublished integration is being prepared, retaining ordered PR381/R2 parents. No successor SHA is assigned yet. The existing 1,263-member closure, all 16 derived files and the authentic earlier `cb282bab` compiler manifests/five bodies must remain byte-identical; their authority is historical until actual accepted-main compilation. The new checkpoint, native checks, outgoing scan, primary sync and unopened backup remain pending.
 
-W's final synthetic World component summary contains twelve eligible samples.
-CPU-first-GL p95 is desktop/high 50.8/50.8/50.8ms against 50ms,
-portrait/balanced 67.3/67.4/67.3ms against 66.7ms, portrait/reduced
-84.5/84.4/84.5ms against 83.4ms, and landscape/balanced 67.2/67.3/67.3ms
-against 66.7ms. All twelve strict nominal results remain false. Retain the
-initial balanced 59998.7ms attempt as ungraded and the earlier H2 reduced
-100.2–100.5ms failure separately. The retained actual RAF/submission clocks
-establish no additional product defect from the small residual misses.
-The final summary is `artifacts/qa/october-release-r06-028b1e4b-world-four-profile-summary-final.json`,
-SHA-256 `fa09d70e7eecda29fc147b3d5bd71f4c13668476139f30258a4e90b06dd650f5`.
-These genuine production-optimized synthetic two-small-chunk measurements do
-not prove maximum-world load, GPU completion, final-A cold bootstrap or full R06.
+GitHub Actions billing remains blocked with the human handoff pending. Remote main remains `cb282bab`; PR380 remains `53edd619` and PR381 remains `8c22fddb`. No PR head, provider state, production release, owner/phone or R06 acceptance has changed. Resume from genuine signed/check/scan/sync receipts, then preserve the reviewed source on its unopened backup branch. Initial PTR/G002 updates and adoptions still precede later activation's supported import-authority establishment.
 
-The W portrait/balanced Keep placement diagnostic completed with all three
-eligible samples passing the unchanged 50ms ceiling: 34.4/32.2/31ms.
-Portrait/reduced completed exit 0 with 33.2/32.5/33.4ms against 75ms; its run
-SHA-256 is `262a841292bae3f35dedc9202c36d7e7e642880f79766ba8a80324ad02ebc690`.
-Landscape/balanced completed exit 0 with 34.9/33.3/33.8ms against 50ms; its run
-SHA-256 is `279f238f18ad1a235c53d723f42e0e6e6bcbb8258f8b82d2f5ccd7a6e310edbf`.
-All nine W mobile samples are eligible without failure. These diagnostics do
-not prove input-to-visible timing, touch acceptance or full R06.
-Preserve H's four camera runs, H2's four component
-lifecycle profiles and the H2 desktop placement 33.6ms versus 33.4ms miss with
-their original source and scope. See [performance](../../evidence/0.4.0/performance.md)
-and [local operations](../../evidence/0.4.0/local-operations.md) for receipts.
+## Historical unpublished integration record — 2 October 2026
 
-Next: finish local repair validation, verify/sign/synchronize/scan R, publish its
-non-forced backup and update existing PR #380 once after fresh Actions
-conservation review. Require normal exact-final-head Verify and signed
-resulting-main push Verify with separate Pages classification before freezing
-actual operating S. W/H2-bound merge/watch drafts are historical for R; use
-reviewed actual-source successors. Preserve all existing branch refs and use
-the user's current Actions policy rather than a dated permission in these notes.
+## Current Living Realm source checkpoint and Actions blocker — 2 October 2026
 
-At S, supported Linux preflight and G001 observation precede prepared-bridge
-deployment. Verify its real `installed`/`unchanged` return and immediate private
-`production-admin-v1/bridge-prepared-receipts-v1/auth-bridge-notification-prepared-<digest>.json`
-receipt plus completed sibling `bridge-prepared-deploy-journal-v3` journal,
-using the existing receipt/journal resolvers. Deployment alone does not create
-the sealed-realm `auth-bridge-import-authority` chain. Later live attestation
-and `createSealedRealmsProductionAuthBridgeState().establish()` establish that
-authority before adoption. Continue the existing S/F/A route below with the
-initial signer policy intact while generating activation, then full promotion
-before A. The fixed Windows private fixture profile launches the WSL
-materializer; the five actual fixture outputs belong on separate component F,
-not an integration that changes operating S before activation.
+R2 `d4f40cb5`, tree `7efff06b`, is the signed direct child of R `53edd619`.
+Its exact native public-caller run passed all 44 cases across four files, with
+zero failed/skipped/pending cases; both policy syntax checks and app/tests noEmit
+types passed. Source/tree/index and all tracked raw files stayed unchanged,
+and the independent post-terminal owner/group proof closed cleanup. The outgoing
+redacted scan found zero findings. These are R2 local checks, separate from
+R's earlier 212-case validation and cancelled hosted Verify.
 
-Alpha 0.3.43 remains public; owner 0.4 PTR publication, actual final-A shaped R06,
-owner journey and physical-device acceptance remain open. This notes checkpoint
-records no provider write, new key, synthetic owner token or new feature.
+The one backup-only push completed at 2026-10-02T01:19:42.914Z. GitHub confirms
+`release/0.4-public-payload-paths` at exact signed R2/tree/parent, with no open PR
+and no CI trigger. Receipt `06714f72` records PR380 unchanged at R, PR381 unchanged
+at `8c22fddb`, and main unchanged at `cb282bab`. Nothing here claims publication
+of 0.4 or acceptance of a new operating main.
+
+GitHub blocked PR381 Verify `36945781752` attempt 1 before tests: all seventeen
+jobs have no executed steps/runner. The retained terminal `d0e2775b` and signed-in
+billing readback `52e2a8e4` establish the account Actions billing boundary, not a
+product test failure. No retry, new PR-head update or provider operation was made.
+Resolve that actual account blocker, then fresh readback under the current user
+Actions policy; do not introduce recovery keys or infer an accepted CI result.
+
+This source checkpoint integrates the reviewed PR381 Living Realm presentation
+with R2's public-publication repairs and bounded fixes to existing Keep/World
+behavior. It preserves the original PR author ancestry. The Keep corrections
+restore ambient wake/reconcile behavior; World repairs preserve Worker journeys,
+sub-quantum progress and confirmed cargo, bound decorative trail geometry, and
+admit/count actual sky/journey uploads within the existing host budget. No new
+server rule, player authority, asset or performance allowance is introduced.
+
+The final source-only v4 overlay run used immutable `8c22fddb` while the real
+primary/native checkouts stayed at exact R2. All 474 cases across 21 affected
+suites passed, with zero failed/skipped/pending cases, at 02:16:17.997 UTC.
+Full app plus selected-test types and Vite-config noEmit checks passed by
+02:16:19.288 UTC. Actual outer exit0, run `149021c2`, independent results
+`dcb3706b` and idle proof `b1c20979` bind the final candidate bytes, absent
+owned group and unchanged source/index/caches. This is component/unit/type
+evidence, not whole-repository types, a product build, browser or R06 acceptance.
+
+Retain the earlier attempts separately: original-PR regressions were 20 cases
+with 13 passes/7 failures, then provisional 470 passes (`376b7e16`, older
+journey `0751e0da`). The later v3 baseline had 53 cases, 49 passes/4 failures;
+its composed suite had 473 passes/1 failure out of 474 and both type checks
+passed (`f935e864`, outer exit1). The remaining failure exposed the telemetry
+getter resetting the latest completed frame's upload counters. The v4 host
+retains those counters and its regression passed in the final 474-case run.
+These earlier failures are retained evidence, not relabeled successes.
+
+The thirteen new browser modules enter the protected import namespace through
+the supported sixteen-output source-family producer. Its policy, inventory,
+count consumers, source pins, manifest and four workflow pins belong to this
+source checkpoint; use the actual signed checkpoint receipt for the resulting
+source/tree, member count and closure SHA. The preserved cb compiler manifests
+and five bundle bodies remain authentic historical inputs. The changed
+compiler-input namespace does not make them current production authority.
+
+Next, finish the signed source checkpoint's independent native source-family,
+checked-in/policy/topology checks and outgoing scan, then back it up on the
+unopened `release/0.4-living-realm-quality` branch. No integrated source SHA,
+new hosted pass, operating S or production acceptance is invented in these notes.
+Once GitHub Actions billing is demonstrably restored, refresh actual
+repository-wide history/activity under the current user policy. Retarget existing
+PR381 to main first, then make one reviewed non-forced head update and require
+its exact-head normal source Verify. Keep PR380 until the accepted integration.
+
+Accepted signed main M1 and its own successful main Verify come first. Sync the
+idle native checkout to actual M1 and run existing private Node22
+`scripts/local-release-assembler.mjs prepare`, followed by
+`check <actual-handle>`. Authenticate/export/receive the genuine outputs;
+commit, verify and integrate generated-only M2. Only resulting accepted main S,
+its exact successful main Verify and separate preparation Pages classification
+can enter the provider route. Do not compile a candidate then squash away its
+compiler-source ancestry; production preflight checks the real commit/raw bytes.
+
+At accepted S: existing Linux preflight -> G001 observation -> preserving
+prepared bridge -> initial disabled preparation signer/gateway -> signed PTR
+observation -> PTR then G002 existing-update inspect/apply and signed adoptions.
+Immediately reopen the private prepared receipt and completed deployment journal
+under `production-admin-v1`. They are separate from the sealed bridge chain:
+initial updates/adoptions can precede that chain; later activation inspection or
+generation calls `createSealedRealmsProductionAuthBridgeState().establish()`
+internally with deployment evidence and fresh live attestations. No manual
+authority file or invented establish CLI is supported. Generate/check genuine F
+through the existing private ingress while S stays pinned; generate activation
+with the initial disabled-signer policy/epoch, then reviewed signer promotion.
+A remains the supported direct S child changing only binding/package/package-lock.
+Then build actual A /ptr/, sign/publish the public mirror and run postflight.
+
+Measured W `028b1e4b` remains separate: nine mobile Keep cadence samples meet
+unchanged 50/75/50ms ceilings; twelve synthetic World samples retain strict nominal
+misses. Keep H2's desktop 33.6ms versus 33.4ms miss and the ungraded 59998.7ms
+World attempt. PR381's new presentation has no production-component timing or
+visual acceptance yet. None of this proves full R06, GPU completion,
+input-to-visible/touch acceptance, final-A cold bootstrap or owner/physical-phone
+acceptance. Alpha 0.3.43 stays public; 0.4 owner PTR is not live. Preserve G001
+progress/admission freeze and sealed G002. Existing Desktop notes update only
+in place; ignored candidates stay under this repository.
+
+See [local operations](../../evidence/0.4.0/local-operations.md) for exact
+source-bound receipts and [performance](../../evidence/0.4.0/performance.md) for
+remaining workload and device requirements. These notes accompany the reviewed integrated source bytes; actual signing,
+source-family/local checks, hosted Verify and accepted-main compilation have
+separate receipts. No accepted S or production activation is claimed here.
 
 ## Historical release checkpoint — 1 October 2026, 21:26 UTC
 

@@ -15,6 +15,21 @@ import {
 } from '../scripts/verify-0.4.0-sealed-launch.mjs';
 
 const repository = resolve(import.meta.dirname, '..');
+const LIVING_REALM_BROWSER_CLOSURE_PATHS = [
+  'src/components/keep04/createKeep04Landscape.ts',
+  'src/components/keep04/createKeep04Life.ts',
+  'src/components/keep04/keep04InnerPaths.ts',
+  'src/components/keep04/keep04ModelKit.ts',
+  'src/components/keep04/keep04Models.ts',
+  'src/components/keep04/keep04NextStep.ts',
+  'src/components/keep04/keep04Random.ts',
+  'src/components/keep04/keep04Terrain.ts',
+  'src/components/keep04/keep04ValePalette.ts',
+  'src/greater-realm/greaterRealmActorGeometry.ts',
+  'src/greater-realm/greaterRealmAtmosphere.ts',
+  'src/greater-realm/greaterRealmJourneyLayer.ts',
+  'src/ptr/gameplay04/gameplay04Journeys.ts',
+] as const;
 const B0_CLOSURE_PATHS = [
   '.github/workflows/notification-bridge-b0.yml',
   'scripts/auth-bridge-notification-b0-cloudflare-runtime.d.mts',
@@ -55,7 +70,12 @@ describe('notification bridge B0 security closure topology', () => {
     expect(derived).toEqual(
       AUTH_BRIDGE_NOTIFICATION_PREPARED_DEPLOY_CLOSURE_MEMBER_PATHS,
     );
-    expect(derived).toHaveLength(1250);
+    expect(derived).toHaveLength(1263);
+    // New shipped browser modules must be reached by the real import graph,
+    // rather than admitted only by editing the builtins-only literal.
+    for (const path of LIVING_REALM_BROWSER_CLOSURE_PATHS) {
+      expect(derived).toContain(path);
+    }
   }, 120_000);
 
   it('includes every B0 effect, recovery, workflow, policy, and ABI path', () => {

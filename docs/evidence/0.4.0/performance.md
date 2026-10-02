@@ -1,79 +1,80 @@
 # 0.4 performance acceptance contract
 
 Established 2026-09-06 before final visual implementation/measurement.
-Status: **World phase correction and mobile Keep cadence verified in bounded captures; final production acceptance incomplete**.
+Status: **Bounded World/Keep evidence retained; final production acceptance incomplete**.
+
+## Current public publication repair checkpoint preparation — 2 October 2026
+
+The two-existing-asset publication-policy mismatch is repaired in reviewed local
+predicates. Original four-file baseline42 retained19pass/23fail. First repaired
+42 retained40pass/2fail (4fc33cc2), not acceptance. Postflight fixture corrected
+HTML-referenced root-route expectations and separated two added negative cases
+without raising the30s case budget. Only revised Postflight13 reran and passed
+without failures/skips/pending, child0 (ce7759e5). The unchanged Mirror10,
+Payload14 and Publication7 already passed31 in the earlier run: composed31+13
+evidence, not one Windows44 full run. Nativefourfile44 remains required.
+Source/index and exact candidates are retained; all tests use fixtures/mocks.
+Purefixed d15387db accepts all446 members in its actual predicate lanes and every
+generated path within800totalplanentries, keeps eight+two negatives, and advances
+the real parser only to deliberately absent source ENOENT/lstat. This is validator
+maintenance, not source/signature/preparation/publication acceptance.
+
+R53edd619/tree4cb5ce3d remains signed/published with native212 in six files and
+zero-finding outgoing scan. Superseded RVerify36942137986attempt1 is terminal
+cancelled00:06:57UTC2October:14success/2cancelled/aggregatefailure. Retain
+raw722cedcc/archiveaa7e33b6/summary207f6a12 and partial outputs without promoting
+them to acceptance or inferring product failure. Main remainscb282bab; the new
+signed repair child and operating S are not established by this snapshot.
+
+These publication tests cannot satisfy production R06. Compiler212/five bundles
+and protected1250 closure f34982a2 stay unchanged: affected scripts/tests/four
+notes are excluded; no compilation or16-output projection is needed. Require
+the child's own normal PR acceptance and actual resulting-main Verify/Pages
+before S freeze/provider preparation/exact F/activation/A/public PTR. Initial
+realm updates/adoptions precede later activation's internal bridge establishment.
+Preserve original performance budgets, all measured-source scopes and history.
 
 ## Completed World and mobile Keep diagnostics — 1 October 2026
 
-The measured source is W `028b1e4b`, tree `bd87f443`. Its normal PR
-Verify `36931509836`, attempt 1, passed all 17 jobs at 22:55:04 UTC.
-That source remains separate from the pending prepared-deployment runner repair.
-The earlier dated sections below retain their original source and evidence scopes.
+The measured production-component source remains W028b1e4b/treebd87f443.
+W's normal PR Verify36931509836 passed17 at22:55:04UTC; it does not attest R or
+the new public repair. Three eligible60-second samples in each World profile
+retain the original strict nominal results:
 
-The genuine optimized World component completed three eligible 60-second samples
-in all four profiles, using two small synthetic chunks and the real client/renderer.
-These are CPU-first-GL submission intervals:
-
-| Profile | Submission interval p95 | Unchanged nominal 60Hz ceiling | Strict result |
+| Profile | CPU-first-GL interval p95 | Unchanged nominal ceiling | Strict result |
 | --- | --- | --- | --- |
 | Desktop high | 50.8 / 50.8 / 50.8ms | 50ms | All three miss |
 | Portrait balanced | 67.3 / 67.4 / 67.3ms | 66.7ms | All three miss |
 | Portrait reduced | 84.5 / 84.4 / 84.5ms | 83.4ms | All three miss |
 | Landscape balanced | 67.2 / 67.3 / 67.3ms | 66.7ms | All three miss |
 
-The reduced-profile extra-six-reference-callback pattern is absent in W:
-0/0/0 gaps versus H2's 143/148/154. Actual render-RAF p95 is 83.7ms;
-CPU submission offsets and callback-clock variation remain separate. This is
-observed correction of the phase recurrence in this bounded workload, with no
-nominal budget pass. The application RAF reference has a median near 16.6ms and
-p95 near 17.1ms; it is not independently verified physical refresh or GPU timing.
-Keep every strict miss. A variable-clock expectation must be declared before
-grading as required by the [per-path ruling](#per-path-cadence-ruling--2026-10-01).
+W corrected the bounded reduced extra-six-reference-callback recurrence,
+0/0/0 gaps versus H2's143/148/154; actual render-RAF p95 remains83.7ms. Actual
+callback/CPU submission clocks are separate from physical refresh/GPU completion.
+No additional product defect is established by the residual strict misses.
+A variable-clock expectation must precede grading per the
+[existing per-path ruling](#per-path-cadence-ruling--2026-10-01); never relabel
+nominal misses or change caps/ceilings for this publication repair.
 
-The same W source has nine eligible sustained trusted-keyboard mill-placement
-samples from a separate genuine production-component build:
-
-| Mobile profile | Submission interval p95 | Unchanged Keep ceiling | Bounded result |
+| Mobile Keep profile | CPU-first-GL interval p95 | Unchanged ceiling | Bounded result |
 | --- | --- | --- | --- |
 | Portrait balanced | 34.4 / 32.2 / 31.0ms | 50ms | Meets this workload's cadence ceiling |
 | Portrait reduced | 33.2 / 32.5 / 33.4ms | 75ms | Meets this workload's cadence ceiling |
 | Landscape balanced | 34.9 / 33.3 / 33.8ms | 50ms | Meets this workload's cadence ceiling |
 
-All nine captures exceed 60 seconds on the browser clock, have exact current-
-generation SceneHost/native-GL/RAF correspondence and normal recorded cleanup.
-Trusted ArrowLeft/ArrowRight input changes the real SVG draft. First-sample
-viewport images establish visible presentation, not paired changed-pixel or
-input-to-visible latency proof. That acceptance, touch placement, basic controls,
-owner/physical-phone acceptance and full R06 remain false. SceneHost resource
-counters do not cover every Screen timer/listener or actual heap/GPU allocation.
+Nine W captures exceed60 seconds on browser clock and join actual current-
+generation SceneHost/GL/RAF. Trusted keyboard changes SVG drafts, but screenshots
+do not establish paired visible-pixel latency or touch/basic-control acceptance.
+Retain H2 desktop33.6/33.3/17.1 versus33.4ms and its first miss; no W desktop
+rerun. Retain original W balanced59998.7ms sample as ineligible/ungraded. The
+QA browser-clock wait repair did not change product budgets or>=60000ms gate.
+SceneHost resource counters do not cover whole-Screen timers/listeners, heap or
+GPU allocations. World fixtures use two small synthetic chunks. Final-A cold
+bootstrap/max-world/switching/owner/physical-phone and full R06 remain open.
 
-The H2 desktop placement result remains separate: 33.6 / 33.3 / 17.1ms against
-33.4ms, retaining its first-sample miss. No W desktop placement rerun is claimed.
-The original W balanced World attempt is also retained: its single 59998.7ms
-sample is ineligible and ungraded. The ignored samplers now wait for the minimum
-browser-clock duration; product caps, ceilings and the >=60000ms gate are unchanged.
-
-The prepared bridge Linux runner expected `outcome: 'published'`, while its
-actual deployment API returns `result: 'installed' | 'unchanged'`. The bounded
-actual-CLI VM caller baseline reproduced three failures: 16 pass / 3 fail / 0 skip,
-child exit 1, at 23:02:57.722–23:03:31.765 UTC. The narrow runner correction passes
-all 19 caller cases, zero failures/skips, child exit 0, at
-23:05:00.618–23:05:11.890 UTC. The baseline is W HEAD plus the caller-test draft;
-the fixed run is W HEAD plus the owned runner/test working diff. These local
-fixtures establish no provider calls, credentials, deployment or repaired native
-closure/build.
-
-- `artifacts/qa/october-release-prepared-linux-result-baseline.json`, SHA-256
-  `572bc79f5950bef24dbbec398435af4a0583c7e466a8d1c4be9f32866acd6a66`.
-- `artifacts/qa/october-release-prepared-linux-result-fixed.json`, SHA-256
-  `8ebd3673894d64c34e54efb0dbb081eb20d6df4fdfb125acbc1e04e2a21985ec`.
-
-See the [current local evidence](local-operations.md#completed-world-and-mobile-keep-diagnostics--1-october-2026)
-for exact scopes. Sign/derive/scan/publish the coherent reviewed runner/test/notes
-checkpoint and obtain its own normal Verify. W hosted success does not transfer
-to that repair. Retain the genuine cb compiler inputs and five bundles. Final-A
-maximum-world/cold-loading/control/switching measurements, PTR publication and
-real owner/device acceptance remain open.
+World final summary `fa09d70e` and Keep final summary `738e5ba8` retain exact
+source/run/sample/cleanup evidence. See [local operations](local-operations.md#completed-world-and-mobile-keep-diagnostics--1-october-2026).
+The earlier dated sections below are byte-identical historical snapshots.
 
 ## World phase repair and current acceptance limits — 1 October 2026, 21:26 UTC
 

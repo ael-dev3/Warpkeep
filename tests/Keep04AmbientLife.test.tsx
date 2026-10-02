@@ -8,6 +8,10 @@ import type { InnerKeepRuntimeAssetBundle } from '../src/components/inner-keep/l
 import * as assetsLoader from '../src/components/keep04/loadKeep04Assets';
 import { createKeep04QaScenario } from '../src/dev/keep04QaScenarios';
 import { keep04WorkerVisuals } from '../src/components/keep04/Keep04Screen';
+import { createKeep04Life } from '../src/components/keep04/createKeep04Life';
+import { decodeState04 } from '../src/ptr/gameplay04/gameplay04State';
+import { presentState04 } from '../src/ptr/gameplay04/gameplay04Presentation';
+import { observeJourney04, recallJourney04, type Journey04 } from '../spacetimedb/gameplay04/workerJourney';
 
 vi.mock('three', async importOriginal => {
   const original = await importOriginal<typeof import('three')>();
@@ -84,6 +88,25 @@ it('stops decoration while hidden or scrolled away and resumes on return', async
   host.mounted.unmount(); expect(host.visibility.disconnected).toBeGreaterThanOrEqual(1); expect(host.queued.size).toBe(0);
 });
 
+it('renews ambient life when returning after more than two minutes offscreen', async () => {
+  const host = await mountAmbientHost({ quality: 'high' });
+  host.frame(0);
+  host.setOnscreen(false); host.frame(40);
+  expect(host.queued.size).toBe(0);
+  const offscreenRenders = host.renderedAt.length;
+  const returnedAt = KEEP04_AMBIENT_WINDOW_MS + 1000;
+  host.frame(returnedAt);
+  expect(host.renderedAt).toHaveLength(offscreenRenders);
+  host.setOnscreen(true); expect(host.queued.size).toBe(1);
+  host.frame(returnedAt + 40);
+  expect(host.renderedAt).toHaveLength(offscreenRenders + 1);
+  expect(host.queued.size).toBe(1);
+  host.frame(returnedAt + 80);
+  expect(host.renderedAt).toHaveLength(offscreenRenders + 2);
+  expect(host.queued.size).toBe(1); // Return resumes decoration beyond its first feedback frame.
+  host.mounted.unmount(); expect(host.queued.size).toBe(0);
+});
+
 it('sleeps after the ambient window without input and wakes on the next gesture', async () => {
   const host = await mountAmbientHost({ quality: 'balanced' });
   host.frame(0);
@@ -122,4 +145,47 @@ it('derives only confirmed journey phases and times for the scene from the livin
   }
   expect(workers[0].phaseStartedAtMs).toBe(1_800_000_000_000 - 5_000);
   expect(keep04WorkerVisuals(null)).toEqual([]);
+});
+
+it('returns an outbound-recalled Worker with an empty cart while preserving confirmed cargo', () => {
+  const nowMs = 1_800_000_000_000;
+  const now = BigInt(nowMs) * 1000n;
+  const view = createKeep04QaScenario('living-keep', nowMs).snapshot.view!;
+  const workers = view.state.workers.map(worker => {
+    if (worker.ordinal >= 2) return { ...worker, assignment: undefined };
+    const assignment = worker.assignment!;
+    const journey = recallJourney04({
+      resource: assignment.resource as Journey04['resource'], dispatchedAt: assignment.dispatchedAt,
+      routeEdges: assignment.routeEdges, travelPerEdgeMicros: assignment.travelPerEdgeMicros,
+      gatheringDurationMicros: assignment.gatheringDurationMicros, yieldPerQuantum: assignment.yieldPerQuantum,
+      recalledAt: assignment.recalledAt ?? null,
+    }, now - (worker.ordinal === 0 ? 1_000_000n : 30_000_000n));
+    const observed = observeJourney04(journey, now);
+    expect(observed.phase).toBe('returning');
+    return { ...worker, assignment: { ...assignment, recalledAt: journey.recalledAt ?? undefined,
+      phase: observed.phase, arrivesAt: observed.arrivesAt, gatheringStopsAt: observed.gatheringStopsAt,
+      returnsAt: observed.returnsAt, earned: observed.earned } };
+  });
+  const state = decodeState04({ ...view.state, workers }, {
+    generation: 0, databaseIdentity: 'synthetic-local-qa-not-an-identity', anchorQ: 0, anchorR: 0,
+  });
+  expect(state.workers[0].assignment!.recalledAt!).toBeLessThan(state.workers[0].assignment!.arrivesAt);
+  expect(state.workers[0].assignment!.earned).toBe(0n);
+  expect(state.workers[1].assignment!.earned).toBeGreaterThan(0n);
+  const sceneWorkers = keep04WorkerVisuals(presentState04(state, null, nowMs)).slice(0, 2);
+  expect(sceneWorkers.map(worker => worker.phase)).toEqual(['returning', 'returning']);
+  expect(sceneWorkers.map(worker => worker.resource)).toEqual([null, 'food']);
+  const life = createKeep04Life({ quality: 'high', animate: false, landscape: null, now: () => nowMs });
+  try {
+    life.reconcile({ buildings: [], workers: sceneWorkers });
+    const carts = life.group.getObjectByName('keep04-life-worker-carts') as THREE.InstancedMesh;
+    const cargo = life.group.getObjectByName('keep04-life-worker-cargo') as THREE.InstancedMesh;
+    expect(carts.count).toBe(2); expect(cargo.count).toBe(2);
+    const matrix = new THREE.Matrix4();
+    for (let index = 0; index < carts.count; index++) {
+      carts.getMatrixAt(index, matrix); expect(matrix.getMaxScaleOnAxis()).toBeGreaterThan(.5);
+    }
+    cargo.getMatrixAt(0, matrix); expect(matrix.getMaxScaleOnAxis()).toBe(0);
+    cargo.getMatrixAt(1, matrix); expect(matrix.getMaxScaleOnAxis()).toBeGreaterThan(.5);
+  } finally { life.dispose(); }
 });

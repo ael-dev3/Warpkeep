@@ -307,7 +307,7 @@ export function Keep04SceneHost(props: Keep04SceneHostProps) {
           visibilityObserver = new IntersectionObserver(entries => {
             const visible = entries.some(entry => entry.isIntersecting);
             if (visible === !offscreen) return;
-            offscreen = !visible; if (visible) request(false);
+            offscreen = !visible; if (visible) request();
           });
           visibilityObserver.observe(host);
         }

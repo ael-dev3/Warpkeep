@@ -16,7 +16,9 @@ export function gameplay04Journeys(view: View04 | null): readonly GreaterRealmJo
     const phase = assignment.phase;
     if (phase !== 'outbound' && phase !== 'gathering' && phase !== 'returning') return [];
     return [Object.freeze({
-      ordinal: worker.ordinal, phase, resource: assignment.resource as GreaterRealmJourney['resource'],
+      ordinal: worker.ordinal, phase,
+      // Empty recalls keep the captured route/times but never acquire cargo.
+      resource: phase === 'returning' && assignment.earned === 0n ? null : assignment.resource as GreaterRealmJourney['resource'],
       route: assignment.route,
       dispatchedAtMs: milliseconds(assignment.dispatchedAt), arrivesAtMs: milliseconds(assignment.arrivesAt),
       gatheringStopsAtMs: milliseconds(assignment.gatheringStopsAt), returnsAtMs: milliseconds(assignment.returnsAt),
