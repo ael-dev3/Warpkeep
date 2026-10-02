@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type { Building04, Resource04 } from '../../../spacetimedb/gameplay04/policy';
 import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
 import type { Controller04, Snapshot04 } from '../../ptr/gameplay04/createGameplay04Controller';
@@ -36,6 +36,30 @@ function samePlacement04(first: Placement04 | null, second: Placement04 | null):
 }
 
 const micros04 = (value: bigint | undefined) => value === undefined ? null : Number(value / 1000n);
+
+// Small decorative glyphs drawn inline (no network bytes). Labels stay the accessible names.
+const RESOURCE_ICON04: Readonly<Record<Resource04, ReactElement>> = {
+  food: <g fill="currentColor"><path d="M10 18.5V6.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" /><ellipse cx="10" cy="4.2" rx="1.6" ry="2.7" /><ellipse cx="7.5" cy="8" rx="1.6" ry="2.8" transform="rotate(-30 7.5 8)" /><ellipse cx="12.5" cy="8" rx="1.6" ry="2.8" transform="rotate(30 12.5 8)" /><ellipse cx="7.6" cy="12.4" rx="1.5" ry="2.6" transform="rotate(-34 7.6 12.4)" /><ellipse cx="12.4" cy="12.4" rx="1.5" ry="2.6" transform="rotate(34 12.4 12.4)" /></g>,
+  wood: <g><rect x="2.5" y="7" width="12.5" height="7" rx="1.4" fill="currentColor" /><circle cx="15" cy="10.5" r="4" fill="currentColor" /><circle cx="15" cy="10.5" r="2.4" fill="none" stroke="#2a1d14" strokeOpacity=".55" /><circle cx="15" cy="10.5" r=".8" fill="#2a1d14" fillOpacity=".55" /></g>,
+  stone: <g><path d="M3.5 13.5 6 6.5l6-2.5 5 4 .5 6-5 3.5-6-.5z" fill="currentColor" /><path d="M6 6.5 9.5 11l7.5-2.5M9.5 11l2.5 6.5" fill="none" stroke="#1c2a26" strokeOpacity=".45" /></g>,
+  gold: <g><circle cx="10" cy="10" r="7" fill="currentColor" /><circle cx="10" cy="10" r="4.6" fill="none" stroke="#5a3d0c" strokeOpacity=".5" strokeWidth="1.1" /><path d="M10 6.8 11 9.2h2.5l-2 1.5.8 2.4L10 11.6l-2.3 1.5.8-2.4-2-1.5H9z" fill="#5a3d0c" fillOpacity=".55" /></g>,
+};
+
+function Keep04ResourceIcon({ resource }: Readonly<{ resource: Resource04 }>) {
+  return <svg className="keep04-resource-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">{RESOURCE_ICON04[resource]}</svg>;
+}
+
+/** The Verdant Citadel mark: pale towers, teal roofs and one restrained warp accent on a brass-edged shield. */
+function Keep04Crest() {
+  return <svg className="keep04-crest" viewBox="0 0 40 46" aria-hidden="true" focusable="false">
+    <path d="M20 2 37 8v14c0 11-7.5 18.5-17 22C10.5 40.5 3 33 3 22V8z" fill="#183a33" stroke="#c9ab64" strokeWidth="2" />
+    <path d="M9 34V17h6v17zm16 0V17h6v17zM15 34V22h10v12z" fill="#e6dec4" />
+    <path d="M16 34V19h8v15z" fill="#d6ceb3" />
+    <path d="M8.5 17 12 11.5l3.5 5.5zm16 0L28 11.5l3.5 5.5zm-9 2L20 13l4.5 6z" fill="#3f8380" />
+    <path d="M18 34v-4.5a2 2 0 0 1 4 0V34z" fill="#3e3128" />
+    <circle cx="20" cy="9.6" r="1.4" fill="#c7a6ff" />
+  </svg>;
+}
 
 /** Confirmed journey phases only: no yields, balances or route targets reach the scene. */
 export function keep04WorkerVisuals(view: Snapshot04['view']): readonly Keep04WorkerVisual[] {
@@ -223,6 +247,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   }}>
     <header className="keep04-header">
       <button ref={backButton} type="button" onClick={onBack}>Back</button>
+      <Keep04Crest />
       <div><p className="keep04-eyebrow">VERDANT CITADEL</p><h1>Your keep</h1></div>
     </header>
     <p className="keep04-reentry">Progress saved in the Realm. Resources become available when Workers return.</p>
@@ -242,8 +267,8 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
             const label = resource[0].toUpperCase() + resource.slice(1);
             const available = view.balances[resource].toString();
             const incoming = view.pending[resource].toString();
-            return <div key={resource} data-pending={pending ? 'true' : undefined}>
-              <span>{label}</span>
+            return <div key={resource} data-resource={resource} data-pending={pending ? 'true' : undefined}>
+              <span><Keep04ResourceIcon resource={resource} />{label}</span>
               <strong aria-label={`${label}: ${available} available`}>{available}</strong>
               {pending && <small className="keep04-resource-pending" aria-label={`${label}: ${incoming} pending and not spendable`}>Pending {incoming}</small>}
             </div>;
@@ -309,7 +334,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       </div>
       <Keep04LoopRail stage={activeKeep04LoopStage04(selection, view)} />
       <nav className="keep04-dock" aria-label="Keep commands">
-        {view.workers.map(worker => <button key={worker.ordinal} type="button" onClick={event => openPanel('workers', event.currentTarget)} aria-expanded={selection.panel === 'workers'}>Worker {worker.ordinal + 1} · {worker.phase}</button>)}
+        {view.workers.map(worker => <button key={worker.ordinal} type="button" data-phase={worker.phase} onClick={event => openPanel('workers', event.currentTarget)} aria-expanded={selection.panel === 'workers'}>Worker {worker.ordinal + 1} · {worker.phase}</button>)}
         <button ref={buildingsButton} type="button" onClick={event => openPanel('buildings', event.currentTarget)} aria-expanded={selection.panel === 'buildings'}>Buildings</button>
         <button type="button" onClick={() => onFindResources(null)}>Find resources</button>
         <button type="button" onClick={onReturnToWorld}>Return to world</button>

@@ -242,3 +242,90 @@
     border-radius: 0;
   }
 }
+
+/* ---- Verdant Citadel craft pass (3 October 2026) ----
+   Serif display headings from local system fonts (no web-font download),
+   per-resource accents, a warmer construction bar, phase markers on the
+   Worker dock and, on wide screens, the scene beside the decision column.
+   DOM order, focus order, touch targets and reduced-motion rules are unchanged. */
+.keep04 {
+  --keep04-display: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --keep04-brass: #d9bf82;
+  --keep04-food: #e4c879; --keep04-wood: #c8926a; --keep04-stone: #d2cebf; --keep04-gold: #f1c55d;
+  background: radial-gradient(120% 70% at 50% -12%, #25503f 0, #12291f 48%, #0c1b17 100%), #0d1d19;
+}
+.keep04 h1, .keep04 h2, .keep04 h3 { font-family: var(--keep04-display); letter-spacing: .005em; }
+.keep04 h1 { font-size: 28px; font-weight: 600; line-height: 1.1; }
+.keep04 .keep04-eyebrow { color: #d8caa1; }
+.keep04 .keep04-crest { width: 38px; height: 44px; flex: 0 0 auto; filter: drop-shadow(0 4px 10px rgba(0, 0, 0, .35)); }
+.keep04 .keep04-header { gap: 14px; }
+.keep04 .keep04-resources, .keep04 .keep04-next-step, .keep04 .keep04-first-journey, .keep04 .keep04-loop-rail, .keep04 .keep04-panel {
+  box-shadow: inset 0 1px 0 rgba(255, 248, 225, .06), 0 10px 26px rgba(4, 14, 12, .18);
+}
+.keep04 .keep04-resources > div {
+  --keep04-resource: #8fb2a4;
+  border-top: 3px solid var(--keep04-resource);
+  background: linear-gradient(180deg, rgba(255, 248, 225, .045), rgba(255, 248, 225, 0) 46%), var(--keep04-panel-soft);
+}
+.keep04 .keep04-resources > div[data-resource="food"] { --keep04-resource: var(--keep04-food); }
+.keep04 .keep04-resources > div[data-resource="wood"] { --keep04-resource: var(--keep04-wood); }
+.keep04 .keep04-resources > div[data-resource="stone"] { --keep04-resource: var(--keep04-stone); }
+.keep04 .keep04-resources > div[data-resource="gold"] { --keep04-resource: var(--keep04-gold); }
+.keep04 .keep04-resources > div[data-pending="true"] { border-top-color: var(--keep04-resource); }
+.keep04 .keep04-resources > div > span { display: inline-flex; align-items: center; gap: 6px; }
+.keep04 .keep04-resource-icon { width: 18px; height: 18px; flex: 0 0 auto; color: var(--keep04-resource); }
+.keep04 .keep04-primary-nav button { background: linear-gradient(180deg, #2d5b50, #22483f); border-color: #82a798; font-weight: 600; }
+.keep04 .keep04-first-journey button, .keep04 .keep04-next-step button, .keep04 .keep04-confirm:not(:disabled) {
+  background: linear-gradient(180deg, #ecdfbf, #d9c69b); box-shadow: 0 2px 0 rgba(84, 64, 26, .55), 0 6px 14px rgba(4, 14, 12, .22);
+}
+.keep04 .keep04-next-step .keep04-eyebrow::before {
+  content: ""; display: inline-block; width: 15px; height: 15px; margin-right: 7px; vertical-align: -2px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 2.5h8.5a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2z' fill='%23d9bf82'/%3E%3Cpath d='M5.5 5.5h5.5M5.5 8h5.5M5.5 10.5h3.5' stroke='%23243a33' stroke-width='1.1' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+.keep04 .keep04-construction { border-color: #c9a463; background: linear-gradient(135deg, rgba(74, 58, 30, .62), rgba(36, 58, 48, .94)); box-shadow: inset 0 1px 0 rgba(255, 236, 190, .08); }
+.keep04 .keep04-construction p strong { font-family: var(--keep04-display); font-size: 1.06em; color: #ffe6b8; }
+.keep04 .keep04-construction p strong::before {
+  content: ""; display: inline-block; width: 15px; height: 15px; margin-right: 6px; vertical-align: -2px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2.5 13.5 9 7' stroke='%23e9cf98' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M7.5 3.5 10 1l4.5 4.5L12 8z' fill='%23e9cf98'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+.keep04 .keep04-construction-progress-track { height: 12px; border-color: rgba(225, 196, 140, .58); background: #172520; }
+.keep04 .keep04-construction-progress-track > span { position: relative; overflow: hidden; background: linear-gradient(90deg, #b98e4b, #ffe1ad); }
+.keep04 .keep04-construction-progress-track > span::after {
+  content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(100deg, transparent 0 35%, rgba(255, 252, 240, .5) 50%, transparent 65% 100%);
+  animation: keep04-progress-sheen 2.8s ease-in-out infinite;
+}
+@keyframes keep04-progress-sheen { to { transform: translateX(100%); } }
+.keep04 .keep04-dock button[data-phase]::before {
+  content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 8px; border-radius: 50%; vertical-align: 1px;
+  background: var(--keep04-phase, #9bc9a5); box-shadow: 0 0 0 2px rgba(0, 0, 0, .28);
+}
+.keep04 .keep04-dock button[data-phase="outbound"] { --keep04-phase: #c7a6ff; }
+.keep04 .keep04-dock button[data-phase="gathering"] { --keep04-phase: var(--keep04-food); }
+.keep04 .keep04-dock button[data-phase="returning"] { --keep04-phase: #82cbc2; }
+@media (min-width: 1180px) and (min-height: 640px) {
+  /* Wide screens: the decision column on the left, the keep itself in view on the
+     right. Areas follow DOM order; margins (not row gaps) keep absent cards from
+     leaving holes. */
+  .keep04 .keep04-ready {
+    display: grid; grid-template-columns: minmax(320px, 392px) minmax(0, 1fr); column-gap: 20px; row-gap: 0; align-items: start;
+    grid-template-areas: "decision workspace" "first workspace" "construction workspace" "journey workspace" "problem workspace" "spare workspace" "rail rail" "dock dock";
+    grid-template-rows: auto auto auto auto auto 1fr auto auto;
+  }
+  .keep04 .keep04-ready[hidden] { display: none; }
+  .keep04 .keep04-ready > .keep04-decision-header { grid-area: decision; margin-bottom: 12px; }
+  .keep04 .keep04-ready > .keep04-first-journey { grid-area: first; margin: 0 0 12px; }
+  .keep04 .keep04-ready > .keep04-construction, .keep04 .keep04-ready > .keep04-construction-group { grid-area: construction; margin: 0 0 12px; }
+  .keep04 .keep04-ready > .keep04-next-step { grid-area: journey; margin: 0 0 12px; }
+  .keep04 .keep04-ready > .keep04-problem { grid-area: problem; margin: 0 0 12px; }
+  .keep04 .keep04-ready > .keep04-workspace { grid-area: workspace; min-width: 0; }
+  .keep04 .keep04-ready > .keep04-loop-rail { grid-area: rail; margin: 16px 0 0; }
+  .keep04 .keep04-ready > .keep04-dock { grid-area: dock; }
+  .keep04 .keep04-ready .keep04-resources { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 0; }
+  .keep04 .keep04-ready .keep04-primary-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-bottom: 0; }
+  .keep04 .keep04-ready .keep04-scene-canvas { height: clamp(420px, calc(100vh - 240px), 760px); }
+}
+@media (forced-colors: active) {
+  .keep04 .keep04-resources > div { border-top-color: CanvasText; }
+  .keep04 .keep04-dock button[data-phase]::before { background: CanvasText; box-shadow: none; }
+}
