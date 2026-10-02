@@ -112,9 +112,11 @@ remain separate requirements.
 the declared build scripts, runs scanner regression/full-HEAD Gitleaks, licensing,
 asset/size and sealed-source checks, then build-mode types and the default, project
 Pages and canonical Pages builds. Execution uses the existing attested pnpm
-launcher to run the source's scripts; it does not claim npm execution or install
-dependencies. Ignored production environment files and uncontrolled package
-configuration are rejected. Each successful build retains a bounded, twice-read
+launcher to run the source's scripts, with dependency auto-install explicitly
+disabled; it does not claim npm execution or install dependencies. Ignored
+production environment files and uncontrolled package configuration are rejected.
+Workspace config absence is retained as a valid state; present bytes and identity
+are bound without copying a Windows-only local config. Each successful build retains a bounded, twice-read
 output inventory and validates actual application/owner script and stylesheet
 targets before the next build replaces `dist`.
 

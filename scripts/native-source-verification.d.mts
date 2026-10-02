@@ -15,6 +15,11 @@ export type NativeSourceCheckCommand = Readonly<{ id: string; kind: 'terminal-ch
 export function nativeSourceCheckCommands(root: string, tools: Readonly<{
   node: Readonly<{ path: string }>; pnpm: Readonly<{ path: string }>; gitleaks: Readonly<{ path: string }>;
 }>, stem: string, packageBytes: string | Uint8Array): readonly NativeSourceCheckCommand[];
+/** Metadata-only ambient-file refusals; workspace absence or actual bounded bytes are retained. */
+export function captureNativeSourceCheckConfiguration(root: string): Readonly<{
+  absentPaths: readonly string[]; workspace: Readonly<{ path: string; present: boolean;
+    sha256?: string; identity?: Readonly<Record<string, string>>; bytes?: number }>;
+}>;
 export type NativeNamespaceOwner = Readonly<{ uid: number; gid: number; pid: number; pgid: number; bootId: string; identity: string }>;
 export type NativeNamespaceMember = Readonly<{ pid: number; pgid: number; identity: string }>;
 export function nativeNamespaceCleanupCommand(root: string, owner: NativeNamespaceOwner, member: NativeNamespaceMember,

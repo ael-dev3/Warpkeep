@@ -11,6 +11,7 @@ import { buildSync } from 'esbuild';
 import {
   deriveNativeTestPartitions, nativeTestCommands, NAMESPACE_FILES, REQUIRED_NATIVE_DOMAINS,
   NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE, nativeSourceCheckCommands,
+  captureNativeSourceCheckConfiguration,
   requireCompleteNativeSourceVerificationEvidence, nativeNamespaceCleanupCommand,
 } from '../scripts/native-source-verification.mjs';
 import { parseVitestReport, parseNodeEvents } from '../scripts/native-source-verification-reports.mjs';
@@ -30,6 +31,35 @@ const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest(
 afterEach(() => {
   process.chdir(repository);
   for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: false });
+});
+
+describe.skipIf(process.platform !== 'linux' || process.getuid?.() !== 1000)('native source-check configuration inventory', () => {
+  it('holds an absent workspace config without requiring or creating it', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-config-')); folders.push(root);
+    const result = captureNativeSourceCheckConfiguration(root);
+    expect(result.workspace).toEqual({ path: join(root, 'pnpm-workspace.yaml'), present: false });
+    expect(result.absentPaths).toContain(join(root, '.env.production.local'));
+    expect(captureNativeSourceCheckConfiguration(root)).toEqual(result);
+  });
+  it('binds actual ignored workspace bytes and rejects ambient Vite/package configuration', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-config-')); folders.push(root);
+    const workspace = join(root, 'pnpm-workspace.yaml'), body = Buffer.from('allowBuilds: {}\n');
+    writeFileSync(workspace, body, { flag: 'wx', mode: 0o600 });
+    const result = captureNativeSourceCheckConfiguration(root);
+    expect(result.workspace.present).toBe(true);
+    expect(result.workspace.sha256).toBe(digest(body));
+    expect(result.workspace.bytes).toBe(body.length);
+    expect(result.workspace.identity?.uid).toBe('1000');
+    writeFileSync(workspace, 'allowBuilds: { esbuild: false }\n');
+    expect(() => captureNativeSourceCheckConfiguration(root)).toThrow('WORKSPACE_CONFIGURATION_UNSUPPORTED');
+    writeFileSync(workspace, 'configDependencies: { unreviewed: "1.0.0" }\n');
+    expect(() => captureNativeSourceCheckConfiguration(root)).toThrow('WORKSPACE_CONFIGURATION_UNSUPPORTED');
+    for (const name of ['.env', '.env.local', '.env.production', '.env.production.local', '.npmrc', '.pnpmfile.cjs']) {
+      const path = join(root, name); writeFileSync(path, 'fixture-only ambient configuration', { flag: 'wx', mode: 0o600 });
+      expect(() => captureNativeSourceCheckConfiguration(root)).toThrow('AMBIENT_BUILD_CONFIGURATION');
+      rmSync(path);
+    }
+  });
 });
 
 describe('native source test inventory and execution recipe', () => {
@@ -92,7 +122,7 @@ describe('fixed native source checks recipe', () => {
     expect(builds.map(command => command.buildVariant)).toEqual(['default', 'github-pages', 'canonical-pages']);
     for (const command of commands.filter(value => value.script)) {
       expect(command.executable).toBe('/native/pnpm');
-      expect(command.args).toEqual(['--pm-on-fail=ignore', '--dir', '/repo', 'run', command.script]);
+      expect(command.args).toEqual(['--pm-on-fail=ignore', '--verify-deps-before-run=false', '--dir', '/repo', 'run', command.script]);
       expect(command.scriptSha256).toBe(digest(Buffer.from(JSON.parse(packageSource).scripts[command.script!])));
       expect(command.kind).toBe('terminal-check');
       expect(command.deadlineMs).toBeGreaterThan(0);

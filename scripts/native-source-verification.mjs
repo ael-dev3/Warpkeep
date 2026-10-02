@@ -224,7 +224,8 @@ export function nativeSourceCheckCommands(root, tools, stem, packageBytes) {
   const command = (id, executable, args, extra = {}) => ({ id, kind: 'terminal-check', files: [], cwd: root,
     executable, args, reportPath: `${stem}-${id}.report.json`, deadlineMs: 900_000, environment: {}, ...extra });
   const script = (id, name, extra = {}) => command(id, tools.pnpm.path,
-    ['--pm-on-fail=ignore', '--dir', root, 'run', name], { script: name, scriptSha256: SOURCE_CHECK_SCRIPTS[name], ...extra });
+    ['--pm-on-fail=ignore', '--verify-deps-before-run=false', '--dir', root, 'run', name],
+    { script: name, scriptSha256: SOURCE_CHECK_SCRIPTS[name], ...extra });
   return [command('scanner-regression', tools.node.path,
     ['--experimental-strip-types', join(root, 'scripts/verify-scanner-regression.ts'), tools.gitleaks.path]),
   command('source-secrets', tools.gitleaks.path, ['git', '--config', join(root, '.gitleaks.toml'), '--redact', '--no-banner',
@@ -236,24 +237,38 @@ export function nativeSourceCheckCommands(root, tools, stem, packageBytes) {
   script('production-build-github-pages', 'build', { buildVariant: 'github-pages', environment: { GITHUB_PAGES: 'true' } }),
   script('production-build-canonical-pages', 'build', { buildVariant: 'canonical-pages', environment: { GITHUB_PAGES: 'true', DEPLOY_BASE: '/' } })];
 }
-function sourceCheckInputs(root, inputs) {
-  const tools = {};
+export function captureNativeSourceCheckConfiguration(root) {
+  if (typeof root !== 'string' || resolve(root) !== root || fs.realpathSync(root) !== root) fail('ROOT_INVALID');
   // Vite loads these ignored files independently of child process.env. Check names only;
   // verification must not read secrets or silently include ambient production settings.
   const absentPaths = ['.env', '.env.local', '.env.production', '.env.production.local', '.npmrc', '.pnpmfile.cjs',
     'node_modules/.bin/node'].map(path => join(root, path));
   for (let parent = dirname(root); ; parent = dirname(parent)) {
-    for (const name of ['.npmrc', '.pnpmfile.cjs']) absentPaths.push(join(parent, name));
+    for (const name of ['.npmrc', '.pnpmfile.cjs', 'pnpm-workspace.yaml']) absentPaths.push(join(parent, name));
     if (parent === dirname(parent)) break;
   }
-  absentPaths.push('/etc/npmrc', '/etc/pnpmrc', '/nonexistent/.npmrc');
+  absentPaths.push('/etc/npmrc', '/etc/pnpmrc', '/nonexistent/.npmrc',
+    '/nonexistent/.config/pnpm/config.yaml', '/nonexistent/.config/pnpm/auth.ini');
   for (const path of absentPaths) {
     try { fs.lstatSync(path); fail('AMBIENT_BUILD_CONFIGURATION'); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
-  const workspace = read(join(root, 'pnpm-workspace.yaml'));
-  tools.closedBuildConfiguration = { absentPaths,
-    workspace: { path: join(root, 'pnpm-workspace.yaml'), sha256: workspace.sha256, identity: workspace.identity, bytes: workspace.body.length } };
+  const path = join(root, 'pnpm-workspace.yaml');
+  let exists = true;
+  try { fs.lstatSync(path); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; exists = false; }
+  if (!exists) return { absentPaths, workspace: { path, present: false } };
+  const workspace = read(path);
+  // Only these reviewed noninstalling configs are supported. Arbitrary YAML may
+  // introduce configDependencies/hooks before the run handler's no-install flag.
+  if (!['9a2fbc5c71133f43a167a90faa705b7c5e29c105f9b816f6b828cbe25a839498',
+    sha(Buffer.from('allowBuilds: {}\n'))].includes(workspace.sha256)) fail('WORKSPACE_CONFIGURATION_UNSUPPORTED');
+  return { absentPaths, workspace: { path, present: true, sha256: workspace.sha256, identity: workspace.identity, bytes: workspace.body.length } };
+}
+function sourceCheckInputs(root, inputs) {
+  const tools = { closedBuildConfiguration: captureNativeSourceCheckConfiguration(root) };
+  tools.pnpmBuiltinConfiguration = installedTool(join(dirname(inputs.pnpmInputs.runtime.path), 'pnpmrc')).fact;
+  if (tools.pnpmBuiltinConfiguration.sha256 !== '6985e6e532eed7e6fd69a7d560ac5a5753d74a9f9709627092d5be02afddd84e') fail('PNPM_CONFIGURATION_INVALID');
   for (const [key, path, name] of [['typescript', 'node_modules/typescript/bin/tsc', 'typescript'],
     ['vite', 'node_modules/vite/bin/vite.js', 'vite'], ['rootTsx', 'node_modules/tsx/dist/cli.mjs', 'tsx']]) {
     const entry = installedTool(join(root, path)), metadata = installedTool(join(root, `node_modules/${name}/package.json`));

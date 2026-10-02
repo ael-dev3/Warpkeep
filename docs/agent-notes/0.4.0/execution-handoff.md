@@ -5,6 +5,14 @@
 
 ## Current local release work — 2 October 2026
 
+### Native no-install launch correction — 2 October
+
+The signed75c69cd5/tree238e6c2f checkpoint was published by nonforced pushfd4b20,12:26:32.326–12:26:34.898 UTC. Prede952395 and post3dec244a each used116 GETs; the post closed12:28:16.174 UTC. Publication51a95a3a confirms the conserved all-four disabled/idle settings, unchanged main/PR/history/catalog boundaries and local source backup. Native/PRIMARY match75; completeCoverage and productionAuthorized remainfalse.
+
+Its first --plan-checks call4cfd61 stopped before any checks because the native optional pnpm workspace file is absent, while PRIMARY has a harmless ignored placeholder. Configuration capture now records absence explicitly, binds reviewed present bytes/identity, rejects uncontrolled Vite env, ancestor/user package configuration and hook/config-dependency sources, and pins the bundled pnpmrc. Review also found pnpm11.11 defaults verify-deps-before-run to install: every fixed script command now explicitly supplies --verify-deps-before-run=false alongside --pm-on-fail=ignore. No install, workspace copy or normalization was performed.
+
+Focused corrected run18945f/session3559 closed d39283,12:33:19.597–12:33:41.216 UTC: all230 assertions in four files, app/tests noEmit and shell syntax passed, each actual child0/null with cleanup and raw-source/index/status/refs preserved. Summary4fd13528 binds overlayee9f1545 at signed75. Tests cover absent workspace, exact present bytes and unsupported configDependencies/ambient files. Preserve the earlier failed plan and focused type-error records. Commit the reviewed correction, create the maintained plan from that resulting clean signed source and run its complete fixed lane. Until actual terminal/output/source receipts exist, do not claim complete build verification, CI, deployment or owner PTR acceptance.
+
 ### Fixed native source-check lane — 2 October
 
 The fixed native source-check lane is implemented alongside the existing test profile. It runs the exact source scripts through attested pnpm, without installation: scanner regression/full-HEAD secret scan, licensing/runtime assets/file sizes/sealed launch, build-mode root types and three serial production variants. Actual terminals, owned-process cleanup and source/tool/config preservation stay separate from test counters. Each successful build captures its complete bounded dist inventory twice, checks actual application/owner script and CSS references, and retains that manifest before the next build overwrites dist. Ignored Vite production env files and uncontrolled package configuration are refused; the existing ignored pnpm workspace bytes are explicitly bound. Full dependency bytes, npm audit/signature provenance, services, connected module, genuine preparation and authenticated source reopening remain incomplete. Both profiles retain completeCoverage:false and productionAuthorized:false.
