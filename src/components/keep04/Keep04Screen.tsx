@@ -49,6 +49,20 @@ function Keep04ResourceIcon({ resource }: Readonly<{ resource: Resource04 }>) {
   return <svg className="keep04-resource-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">{RESOURCE_ICON04[resource]}</svg>;
 }
 
+/** Small inline glyphs for the construction and steward cards (CSS may not reference url() assets). */
+function Keep04HammerIcon() {
+  return <svg className="keep04-card-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+    <path d="M2.5 13.5 9 7" stroke="#e9cf98" strokeWidth="2" strokeLinecap="round" /><path d="M7.5 3.5 10 1l4.5 4.5L12 8z" fill="#e9cf98" />
+  </svg>;
+}
+
+function Keep04ScrollIcon() {
+  return <svg className="keep04-card-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+    <path d="M3 2.5h8.5a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2z" fill="#d9bf82" />
+    <path d="M5.5 5.5h5.5M5.5 8h5.5M5.5 10.5h3.5" stroke="#243a33" strokeWidth="1.1" strokeLinecap="round" />
+  </svg>;
+}
+
 /** The Verdant Citadel mark: pale towers, teal roofs and one restrained warp accent on a brass-edged shield. */
 function Keep04Crest() {
   return <svg className="keep04-crest" viewBox="0 0 40 46" aria-hidden="true" focusable="false">
@@ -127,7 +141,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       ? constructionProgress04(building.startsAtMicros, building.completesAtMicros, nowMs)
       : null;
     return <section key={building.kind} className="keep04-construction" aria-label={`${BUILDING_NAMES04[building.kind]} construction`}>
-      <p><strong>{BUILDING_NAMES04[building.kind]}</strong> · Constructing level {building.targetLevel} · Estimated time remaining: <span>{construction?.remaining ?? estimatedTime04(building.completesAtMicros!, nowMs)}</span></p>
+      <p><Keep04HammerIcon /><strong>{BUILDING_NAMES04[building.kind]}</strong> · Constructing level {building.targetLevel} · Estimated time remaining: <span>{construction?.remaining ?? estimatedTime04(building.completesAtMicros!, nowMs)}</span></p>
       {construction && <div className="keep04-construction-progress">
         <div className="keep04-construction-progress-track" role="progressbar" aria-label={`${BUILDING_NAMES04[building.kind]} scene construction progress`}
           aria-valuemin={0} aria-valuemax={100} aria-valuenow={construction.percent} aria-valuetext={construction.label}>
@@ -294,7 +308,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
         </details> : null}
       {/* After construction progress, which stays in the first phone view. */}
       {nextStep && <section className="keep04-next-step" aria-label="Next step" data-next-step={nextStep.kind}>
-        <p className="keep04-eyebrow">STEWARD&apos;S ADVICE</p>
+        <p className="keep04-eyebrow"><Keep04ScrollIcon />STEWARD&apos;S ADVICE</p>
         <h2>{nextStep.title}</h2>
         <p>{nextStep.detail}</p>
         {nextStep.kind === 'build' && <button type="button" onClick={() => selectBuilding(nextStep.building)}>Review {BUILDING_NAMES04[nextStep.building]}</button>}
