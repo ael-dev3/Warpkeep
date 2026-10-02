@@ -2,82 +2,133 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Current public publication repair checkpoint preparation — 2 October 2026
+
+Signed/published R `53edd619`, tree `4cb5ce3d`, is the direct W child
+on [PR #380](https://github.com/ael-dev3/Warpkeep/pull/380) and its explicit
+prepared-deployment-result backup. Its Windows/native synchronization, six-file
+native validation (212 passes, no failures/skips), source/index preservation,
+owned-group absence and outgoing zero-finding scan remain retained actual evidence.
+Superseded [R Verify 36942137986](https://github.com/ael-dev3/Warpkeep/actions/runs/36942137986),
+attempt 1, is terminal cancelled at 00:06:57 UTC on 2 October: 14 jobs succeeded,
+two were cancelled and the aggregate failed. The accepted request was at
+00:05:37.186 UTC; raw terminal `722cedcc`, once-retained archive `aa7e33b6`
+and reviewed summary `207f6a12` preserve the actual result. Both cancelled job
+logs prove checkout `6170ef20` (parents cb/R, tree R). Partial 598 module passes
+and 3,190 shard passes/81 skips are retained output, not terminal acceptance.
+No aggregate log member was retained; its failure is actual API metadata.
+Cancellation establishes no product defect or accepted S. Main remains
+`cb282bab`; this repair child's signed source and operating main S are pending.
+
+R's published receipt is `october-release-prepared-deployment-result-pr380-53edd619-published.json`
+(SHA-256 `6d0cb5cb4af21d96d864d76c1435435f7d842014783f68d38a2477cf4ca31956`).
+Native validation finished 1 October at 23:39:17.837 UTC: six complete named
+files, 212 passes and zero failed/skipped/pending assertions, actual child exit0.
+Retain `october-release-53edd619-native-closure-linux-tests-20261001T233000Z-summary.json`
+(SHA-256 `8d0843ec235dc30341cd5e479f4497872ddb9844ff2af4042dccf85ad3f4a955`)
+and independent absence receipt `8e634551`. Source/tree/index/raw3355 remain
+unchanged in those receipts. The actual redacted outgoing scan finished
+23:26:17.878 UTC, exit0/findings0, receipt `b82803a7`. These are R local/source
+proofs, not the future public-repair child's test/scan/CI or provider evidence.
+
+R's payload policy accepted `audio/warpkeep-genesis-002-theme.m4a` and
+`models/greater-realm/biome-trees/v3/manifest.json`, while its mirror/postflight
+generated-path policies rejected them. Both were already genuine payload members.
+The reviewed local repair adds only those two exact paths to the two predicates;
+no asset, license grant, gameplay feature or broad extension allowance is added.
+The actual publication operator imports the postflight predicate, so this repairs
+its demonstrated `PUBLIC_PAGES_PUBLICATION_PLAN_INVALID` parser rejection.
+
+Actual pinned-Node four-file caller baseline ran 2026-10-02T00:08:36.214Z–2026-10-02T00:12:45.772Z:
+42 cases, 19 passed/23 failed/0 pending, child exit 1 (receipt `1ff7f011`).
+The first repaired four-file run 2026-10-02T00:17:40.021Z–2026-10-02T00:27:29.294Z retained 40 passes,
+two failures/0 pending and child exit 1 (`4fc33cc2`). Its failed postflight fixture
+expected unrelated preserved assets as live root routes, and combined four signed
+negative fixtures exceeded the unchanged 30-second case bound. That failed attempt
+is preserved. The correction follows actual HTML-referenced Alpha routes, verifies
+both preserved asset Git bytes and separately times the two added negative cases;
+no product predicate, negative check or timeout budget is weakened.
+
+Only corrected Postflight reran 2026-10-02T00:34:03.962Z–2026-10-02T00:36:34.961Z: all 13 cases passed,
+0 failed/skipped/pending, child exit 0 (`ce7759e5`, review `10943ecd`).
+The unchanged Mirror 10, Payload 14 and Publication 7 cases already passed in the
+first repaired run. These 31 plus revised Postflight 13 are composed evidence,
+not a single Windows 44-case full run. Require the scoped native four-file run
+before publication. Actual receipts retain source/index and exact candidate bytes.
+Fixture Git/signatures, fake push and mocked HTTP exercise real callers; no provider runs.
+
+The fixed pure diagnostic `d15387db` finished at 00:20:17.442 UTC: all 446
+retained payload members pass payload-root, mirror-root/PTR and postflight-relative
+predicates. Every generated path within the retained **800-total-entry plan**
+passes; eight negative paths and two nested-PTR cases remain rejected. The real
+canonical-plan parser advances to the deliberately absent source root with
+`ENOENT`/`lstat`. This proves the parser boundary only: no source/signature
+validation, completed preparation, signing or publication occurred. The original
+pure failing diagnosis `f141624b` and caller baseline are preserved separately.
+
+Retained payload `d8f7363f` genuinely belongs to 6e9f50bf/tree3fab7749, 446
+files; retained mirror plan `32c79c1e` belongs separately to e016f051/tree57451621,
+800 entries. The root diagnosis checks these separately and never relabels them
+as R or final A. Both assets' public bytes match their authenticated entries.
+
+The two policy scripts, their existing caller tests and these four notes are
+outside all four retained compiler graphs plus seven recovery inputs (212 distinct,
+135 tracked) and outside the 1,250-member prepared closure. Keep cb's genuine
+compiler manifests, all five bundles and closure `f34982a2` unchanged. This
+excluded-only repair needs no new compilation, prepare handle or 16-file
+projection. R's earlier runner repair already has its authentic closure family.
+
+These exact local caller and cancelled-CI receipts precede the new signed child.
+Keep actual attempts, source identities and test/scan/CI evidence separate. Next: freeze these four current prefixes plus the reviewed two predicates and
+three existing test files into one signed nine-path child of R; sync, scan and run
+the scoped native callers/types. Preserve superseded R's original partial results.
+After fresh repository-wide Actions conservation, publish this reviewed child
+once on the existing PR with its own normal exact-head Verify. Require its actual
+17-job success before one signed squash, then actual resulting-main Verify
+(17 jobs) and separate preparation Pages classification before synchronizing/
+freezing S. Rebind old R-pinned merge/watch/provider helpers to the actual accepted
+final source. No new source identity, CI pass or live authority follows from
+these ignored candidates; use the user's current Actions policy.
+
+At accepted S: existing Linux preflight -> G001 observation -> preserving
+prepared bridge -> initial disabled preparation signer/gateway -> signed PTR
+observation -> PTR then G002 existing-update inspect/apply and signed adoptions.
+Immediately reopen the private prepared receipt and completed deployment journal
+under `production-admin-v1`. They are separate from the sealed bridge chain:
+initial updates/adoptions can precede that chain; later activation inspection or
+generation calls `createSealedRealmsProductionAuthBridgeState().establish()`
+internally with deployment evidence and live attestations. Do not create a manual
+authority file or invent another establish operation.
+
+The existing Windows private fixture ingress launches the WSL materializer.
+Generate/check genuine five-output F separately from operating S. Generate
+activation while the exact initial preparation policy, disabled signer and authorization epoch remain,
+then perform reviewed full-signer/arming promotion. A must be the supported
+direct child of S with exactly binding/package/package-lock changes; no notes or
+F commit may intervene. Then genuine final-A /ptr/ build, signed public mirror
+and postflight. Revalidate existing managed authority; no additional recovery key.
+
 ## Completed World and mobile Keep diagnostics — 1 October 2026
 
-Current measurements and hosted evidence are source W `028b1e4b`, tree
-`bd87f443`. Exact [PR Verify 36931509836](https://github.com/ael-dev3/Warpkeep/actions/runs/36931509836),
-attempt 1, passed all 17 jobs at 22:55:04 UTC. The retained final summary is
-`artifacts/qa/october-release-028b1e4b-verify-terminal-summary.json`, SHA-256
-`9ea105b273d67b0115bff7dec90c65a32c6877962067fe7c33ee6f012aa0dcd8`.
-Its actual CI merge is `29d1e896`, tree `bd87f443`, parents cb and W.
-This is W PR evidence, not resulting-main Verify, activation, deployment or proof
-for the later runner repair. Earlier dated sections remain historical snapshots.
-
-All twelve W synthetic World samples are eligible and retain their strict nominal
-60Hz misses: desktop 50.8/50.8/50.8ms against 50ms; balanced
-67.3/67.4/67.3ms against 66.7ms; reduced 84.5/84.4/84.5ms against 83.4ms;
-landscape 67.2/67.3/67.3ms against 66.7ms. Exact draw/passive joins show that
-the reduced extra-six-reference-callback recurrence is absent, while actual
-clock/submission jitter remains. No caps or ceilings were raised. Retain
-`artifacts/qa/october-release-r06-028b1e4b-world-four-profile-summary-final.json`, SHA-256
-`fa09d70e7eecda29fc147b3d5bd71f4c13668476139f30258a4e90b06dd650f5`.
-The separately reproducible reduced comparison is
-`october-release-r06-world-reduced-raw-analysis-W028b1e4b-H2a903e78e.json`, SHA-256
-`bd6cd5525d8cf119906061edb7f8371a441663864b9e4fcdd830c601e4d87711`.
-
-The W Keep fixture is a genuine optimized production-component build, producer
-SHA-256 `fb36a642366c0d60b35bbf767e4a672b69e79cfaee186b33240e3e5b44c096f4`;
-its independent source/input/output/group proof is
-`october-release-r06-keep-028b1e4b-independent-build-proof.json`, SHA-256
-`524aa66383bc07e0f1d204c9d76a48c9f08551d9a2cd27e1e1bec14882899914`.
-It retains production defines, disabled local-QA compile gate, version 0.3.43 and
-six fixture outputs; reused static assets retain their older 6e build identity.
-Nine mobile mill-placement samples meet their unchanged Keep cadence ceilings:
-balanced 34.4/32.2/31ms, reduced 33.2/32.5/33.4ms and landscape
-34.9/33.3/33.8ms. Each exceeds 60 seconds on the browser clock and pairs
-current-generation SceneHost frames, native GL bursts and real RAF callbacks.
-Trusted keyboard input changes actual SVG geometry; ready screenshots do not
-establish per-input visible-pixel latency. Input-to-visible/touch/basic-control
-acceptance stays false. Numeric resource checks cover SceneHost only, preserving
-null disposed-resource fields and retired zero RAF/loader/listener counts.
-
-Retain `artifacts/qa/october-release-r06-028b1e4b-keep-mobile-summary-final.json`, SHA-256
-`738e5ba81c10bee55454a8b474231c79c63423eb7f7521754e0725a3e4047d2a`.
-That receipt preserves the separate original H2 desktop run, SHA-256
-`26155ee46d1187de1847e656403443afe3f494540d96eb8cf39a67afbf8f0649`:
-33.6/33.3/17.1ms against 33.4ms, with its first-sample miss. No W desktop
-placement rerun is claimed. It also leaves the earlier balanced-only review intact.
-The rejected first W balanced World run `0c236f46` contains one sample at
-59998.7ms, eligible false and nominal grade null. The QA-only browser-clock wait
-repair keeps >=60000ms and all product limits unchanged; the rejected receipt is
-not rewritten. All completed captures record clean source/index, normal Chrome
-cleanup and absent owned native groups; these are retained readbacks, not later
-live process observations.
-
-The prepared bridge Linux runner expected `outcome: 'published'`, while its
-actual deployment API returns `result: 'installed' | 'unchanged'`. The bounded
-actual-CLI VM caller baseline reproduced three failures: 16 pass / 3 fail / 0 skip,
-child exit 1, at 23:02:57.722–23:03:31.765 UTC. The narrow runner correction passes
-all 19 caller cases, zero failures/skips, child exit 0, at
-23:05:00.618–23:05:11.890 UTC. The baseline is W HEAD plus the caller-test draft;
-the fixed run is W HEAD plus the owned runner/test working diff. These local
-fixtures establish no provider calls, credentials, deployment or repaired native
-closure/build.
-
-- `artifacts/qa/october-release-prepared-linux-result-baseline.json`, SHA-256
-  `572bc79f5950bef24dbbec398435af4a0583c7e466a8d1c4be9f32866acd6a66`.
-- `artifacts/qa/october-release-prepared-linux-result-fixed.json`, SHA-256
-  `8ebd3673894d64c34e54efb0dbb081eb20d6df4fdfb125acbc1e04e2a21985ec`.
-
-W integration remains held until the reviewed runner/test/notes repair is signed,
-its protected closure derived, and its source scanned/published with its own
-normal Verify. Membership review places that runner outside the genuine cb
-compiler/recovery graphs and inside the protected closure; retain cb's compiler
-identities, all 135 tracked/212 total input entries and five bundles. W's hosted
-pass and component measurements keep their W source identity. No native closure,
-compiled build, provider deployment or future repair-head CI success is claimed.
-Final-A/PTR, full/max-window R06, owner and physical-device requirements remain.
-See [performance scope](performance.md#completed-world-and-mobile-keep-diagnostics--1-october-2026).
+W `028b1e4b` remains the measured production-component source. Nine mobile
+Keep samples meet unchanged 50/75/50ms cadence ceilings; twelve synthetic World
+samples retain their strict nominal misses. Preserve H2's desktop placement
+33.6ms versus 33.4ms miss, the original ungraded 59998.7ms World sample and all
+original source/clock/cleanup scopes. These do not prove GPU completion,
+input-to-visible/touch acceptance, maximum world, final-A cold bootstrap, full
+R06 or real owner/device acceptance. The validator-only repair changes no render
+loop, quality cap, resource budget or performance acceptance method.
+W's exact PR Verify36931509836 passed17 at22:55:04UTC (summary9ea105b2); it is
+not R/future-child/main acceptance. Twelve World CPU-first-GL p95 values remain
+desktop50.8/50.8/50.8 versus50; balanced67.3/67.4/67.3 versus66.7;
+reduced84.5/84.4/84.5 versus83.4; landscape67.2/67.3/67.3 versus66.7ms.
+Nine mobile Keep values remain balanced34.4/32.2/31 versus50;
+reduced33.2/32.5/33.4 versus75; landscape34.9/33.3/33.8 versus50ms.
+Retain World summary `fa09d70e`, Keep summary `738e5ba8`, genuine W Keep
+producer `fb36a642` and independent proof `524aa663`. Actual component
+clocks, synthetic workloads, scope and normal owned cleanup stay bound to W;
+resource counters cover SceneHost rather than whole-Screen heap/GPU ownership.
+See [performance](performance.md#completed-world-and-mobile-keep-diagnostics--1-october-2026).
 
 ## World scheduler repair and H2 lifecycle checks — 1 October 2026, 21:26 UTC
 

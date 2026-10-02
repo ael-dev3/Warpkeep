@@ -85,6 +85,9 @@ function candidate() {
   write(join(dist, 'warpkeep-boot.css'), 'body{background:black}');
   write(join(dist, 'warpkeep-noscript.css'), 'noscript{display:block}');
   write(join(dist, 'models/keep.glb'), Buffer.from([0x67, 0x6c, 0x54, 0x46]));
+  write(join(dist, 'audio/warpkeep-genesis-002-theme.m4a'), 'reviewed Genesis 002 soundtrack');
+  write(join(dist, 'models/greater-realm/biome-trees/v3/manifest.json'),
+    '{"schema":"warpkeep-greater-realm-biome-trees.runtime.v1"}');
   writePublicPagesPayloadManifest({ repositoryRoot: root, expectedSourceCommit, publicationPath: '/ptr/' });
   return { root, dist, expectedSourceCommit };
 }
@@ -100,6 +103,8 @@ function publicMirror(source: ReturnType<typeof candidate>) {
   write(join(root, 'index.html'), '<!doctype html><title>Old Alpha</title>');
   write(join(root, '404.html'), '<!doctype html><title>Old Alpha</title>');
   write(join(root, 'assets/application-old.js'), 'console.info("old Alpha");');
+  write(join(root, 'audio/warpkeep-genesis-002-theme.m4a'), 'preserved Genesis 002 soundtrack');
+  write(join(root, 'models/greater-realm/biome-trees/v3/manifest.json'), '{"preserved":true}');
   write(join(root, 'README.md'), 'Old Alpha public host\n');
   for (const path of SOURCE_PUBLIC_DOCUMENTS as readonly string[]) {
     write(join(root, path), `prior-reviewed ${path}\n`);
@@ -123,7 +128,7 @@ afterEach(() => {
 });
 
 describe('read-only public Pages mirror plan', () => {
-  it('recognizes the exact reviewed menu M4A without broadening the audio boundary', () => {
+  it('recognizes only the reviewed M4A tracks and exact tree metadata at root and PTR paths', () => {
     expect(generatedPath('ptr/assets/../application.js')).toBe(false);
     expect(generatedPath('ptr/ptr/assets/application.js')).toBe(false);
     expect(generatedPath('audio/warpkeep-verdant-menu-theme.m4a')).toBe(true);
@@ -131,6 +136,24 @@ describe('read-only public Pages mirror plan', () => {
     expect(generatedPath('audio/other.m4a')).toBe(false);
     expect(generatedPath('audio/nested/warpkeep-verdant-menu-theme.m4a')).toBe(false);
     expect(generatedPath('audio/warpkeep-verdant-menu-theme.M4A')).toBe(false);
+    for (const path of [
+      'audio/warpkeep-genesis-002-theme.m4a',
+      'models/greater-realm/biome-trees/v3/manifest.json',
+    ]) {
+      expect(generatedPath(path)).toBe(true);
+      expect(generatedPath(`ptr/${path}`)).toBe(true);
+      expect(generatedPath(`ptr/ptr/${path}`)).toBe(false);
+    }
+    for (const path of [
+      'audio/other.m4a', 'audio/nested/warpkeep-genesis-002-theme.m4a',
+      'audio/warpkeep-genesis-002-theme.M4A', 'audio/../warpkeep-genesis-002-theme.m4a',
+      'models/other/manifest.json', 'models/greater-realm/biome-trees/v2/manifest.json',
+      'models/greater-realm/biome-trees/v3/manifest.JSON',
+      'models/greater-realm/biome-trees/v3/../manifest.json',
+    ]) {
+      expect(generatedPath(path)).toBe(false);
+      expect(generatedPath(`ptr/${path}`)).toBe(false);
+    }
   });
 
   it('plans only verified dist, exact hosting files, and current-source legal records', () => {
@@ -146,6 +169,15 @@ describe('read-only public Pages mirror plan', () => {
       obsoleteGeneratedPaths: [],
     });
     expect(plan.targetFileCount).toBe(plan.targetEntries.length);
+    for (const path of [
+      'audio/warpkeep-genesis-002-theme.m4a',
+      'models/greater-realm/biome-trees/v3/manifest.json',
+    ]) {
+      expect(plan.targetEntries.find((entry: { path: string }) => entry.path === `ptr/${path}`))
+        .toMatchObject({ origin: 'generated', sha256: sha(readFileSync(join(source.dist, path))) });
+      expect(plan.targetEntries.find((entry: { path: string }) => entry.path === path))
+        .toMatchObject({ origin: 'preserved-existing', sha256: sha(readFileSync(join(mirror.root, path))) });
+    }
     expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'ptr/404.html').sha256)
       .toBe(sha(readFileSync(join(source.dist, 'index.html'))));
     expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'index.html'))

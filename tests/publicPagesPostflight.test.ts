@@ -51,6 +51,8 @@ function fixture(mutateGenerated?: (files: Map<string, Buffer>) => void) {
     ['CNAME', Buffer.from('warpkeep.com\n')],
     ['index.html', Buffer.from('<!doctype html><script type="module" src="/assets/alpha.js"></script><title>Old Alpha</title>')],
     ['assets/alpha.js', Buffer.from('console.info("Alpha remains live");')],
+    ['audio/warpkeep-genesis-002-theme.m4a', Buffer.from('preserved Genesis 002 soundtrack')],
+    ['models/greater-realm/biome-trees/v3/manifest.json', Buffer.from('{"preserved":true}')],
   ]);
   for (const [path, bytes] of preservedRoot) write(root, path, bytes);
   write(root, 'README.md', 'Old public host\n');
@@ -66,6 +68,9 @@ function fixture(mutateGenerated?: (files: Map<string, Buffer>) => void) {
     ['.well-known/farcaster.json', Buffer.from('{"name":"Warpkeep"}\n')],
     ['apple-touch-icon-180-fe27e8dc1c97cc36.png', Buffer.from('apple-icon')],
     ['assets/app.js', Buffer.from(`console.info("${sourceCommit}");\n`)],
+    ['audio/warpkeep-genesis-002-theme.m4a', Buffer.from('reviewed Genesis 002 soundtrack')],
+    ['models/greater-realm/biome-trees/v3/manifest.json',
+      Buffer.from('{"schema":"warpkeep-greater-realm-biome-trees.runtime.v1"}')],
     ['favicon-64-7b82ca973fe757f5.png', Buffer.from('favicon')],
     ['index.html', Buffer.from('<!doctype html><link rel="canonical" href="https://warpkeep.com/"><title>Warpkeep 0.4</title>')],
     ['legal/warpkeep-legal.css', Buffer.from('body{color:white}')],
@@ -162,7 +167,9 @@ function fixture(mutateGenerated?: (files: Map<string, Buffer>) => void) {
       routeBytes.set('/404.html', bytes);
       continue;
     }
-    if (!allowedGeneratedPath(path)) continue;
+    // The preserved Alpha fixture HTML references only this application asset.
+    // Audio/model files stay byte-verified preserved entries, not root HTTP routes.
+    if (path !== 'index.html' && path !== 'assets/alpha.js') continue;
     routeBytes.set(`/${path}`, bytes);
     if (path === 'index.html') routeBytes.set('/', bytes);
   }
@@ -222,6 +229,20 @@ describe('read-only public Pages postflight', () => {
     expect(f.fetchImpl.mock.calls.every(([, options]) => options.redirect === 'manual')).toBe(true);
     expect(f.fetchImpl.mock.calls.some(([url]) => url === 'https://warpkeep.com/404.html')).toBe(true);
     expect(f.fetchImpl.mock.calls.some(([url]) => url === 'https://warpkeep.com/ptr/404.html')).toBe(true);
+    expect(f.fetchImpl.mock.calls.map(([url]) => url)).toEqual(expect.arrayContaining([
+      'https://warpkeep.com/ptr/audio/warpkeep-genesis-002-theme.m4a',
+      'https://warpkeep.com/ptr/models/greater-realm/biome-trees/v3/manifest.json',
+    ]));
+    const fetchedUrls = f.fetchImpl.mock.calls.map(([url]) => url);
+    expect(fetchedUrls).not.toContain('https://warpkeep.com/audio/warpkeep-genesis-002-theme.m4a');
+    expect(fetchedUrls).not.toContain('https://warpkeep.com/models/greater-realm/biome-trees/v3/manifest.json');
+    for (const path of [
+      'audio/warpkeep-genesis-002-theme.m4a',
+      'models/greater-realm/biome-trees/v3/manifest.json',
+    ]) {
+      expect(git(f.root, ['show', f.options.expectedPublicCommit + ':' + path]))
+        .toBe(git(f.root, ['show', f.plan.publicParentCommit + ':' + path]));
+    }
     expect(f.readRemoteState).toHaveBeenCalledTimes(2);
     expect(f.readRemoteState.mock.calls.every(([commit]) => commit === before)).toBe(true);
     expect(git(f.root, ['rev-parse', 'HEAD'])).toBe(before);
@@ -245,6 +266,17 @@ describe('read-only public Pages postflight', () => {
     expect(allowedGeneratedPath('audio/other.m4a')).toBe(false);
     expect(allowedGeneratedPath('audio/nested/warpkeep-verdant-menu-theme.m4a')).toBe(false);
     expect(allowedGeneratedPath('audio/warpkeep-verdant-menu-theme.M4A')).toBe(false);
+    expect(allowedGeneratedPath('audio/warpkeep-genesis-002-theme.m4a')).toBe(true);
+    expect(allowedGeneratedPath('models/greater-realm/biome-trees/v3/manifest.json')).toBe(true);
+    for (const path of [
+      'audio/nested/warpkeep-genesis-002-theme.m4a', 'audio/warpkeep-genesis-002-theme.M4A',
+      'audio/../warpkeep-genesis-002-theme.m4a', 'models/other/manifest.json',
+      'models/greater-realm/biome-trees/v2/manifest.json',
+      'models/greater-realm/biome-trees/v3/manifest.JSON',
+      'models/greater-realm/biome-trees/v3/../manifest.json',
+      'ptr/audio/warpkeep-genesis-002-theme.m4a',
+      'ptr/ptr/models/greater-realm/biome-trees/v3/manifest.json',
+    ]) expect(allowedGeneratedPath(path)).toBe(false);
     const extra = fixture(files => files.set('video/index.html', Buffer.from('unexpected HTML')));
     await expect(verifyPublicPagesPostflight(extra.options))
       .rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
@@ -254,6 +286,16 @@ describe('read-only public Pages postflight', () => {
       .rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_MANIFEST_INVALID');
     expect(missing.readRemoteState).not.toHaveBeenCalled();
   }, 30_000);
+
+  it.each(['audio/other.m4a', 'models/other/manifest.json'])(
+    'rejects unreviewed generated %s before remote or live requests', async (path) => {
+      const unreviewed = fixture(files => files.set(path, Buffer.from('unreviewed')));
+      await expect(verifyPublicPagesPostflight(unreviewed.options))
+        .rejects.toThrow('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
+      expect(unreviewed.readRemoteState).not.toHaveBeenCalled();
+      expect(unreviewed.fetchImpl).not.toHaveBeenCalled();
+    }, 30_000,
+  );
 
   it('rejects a stale remote main, stale latest Pages build, or failed exact Pages run', async () => {
     const f = fixture();

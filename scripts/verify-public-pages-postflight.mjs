@@ -94,9 +94,11 @@ export function allowedGeneratedPath(path) {
   const name = parts.at(-1);
   if (parts[0] === 'assets') return /\.(?:css|js)$/u.test(name);
   if (parts[0] === 'audio') return /\.mp3$/u.test(name)
-    || path === 'audio/warpkeep-verdant-menu-theme.m4a';
+    || path === 'audio/warpkeep-verdant-menu-theme.m4a'
+    || path === 'audio/warpkeep-genesis-002-theme.m4a';
   if (parts[0] === 'images') return /\.(?:png|webp)$/u.test(name);
-  if (parts[0] === 'models') return /\.glb$/u.test(name);
+  if (parts[0] === 'models') return /\.glb$/u.test(name)
+    || path === 'models/greater-realm/biome-trees/v3/manifest.json';
   if (parts[0] === 'video') return /\.mp4$/u.test(name);
   return false;
 }

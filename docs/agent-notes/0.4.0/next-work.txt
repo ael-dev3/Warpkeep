@@ -1,95 +1,63 @@
 WARPKEEP 0.4 — NEXT WORK
-Refreshed 1 October 2026, 23:08 UTC / 2 October, 01:08 Europe/Budapest.
+Publication repair checkpoint preparation — 2 October 2026; signed child/main pending.
 
 CURRENT SHIPPING STATE
 
-At this notes snapshot main is cb282bab. Signed W028b1e4b/tree bd87f443 is the
-H2 child published in PR #380. Normal W Verify36931509836 attempt1 completed
-successfully22:55:04UTC, all17 jobs passed with no failed/skipped/active job.
-Owned watcher/finalizer exit0; terminal summary SHA
-9ea105b273d67b0115bff7dec90c65a32c6877962067fe7c33ee6f012aa0dcd8.
-Three complete logs prove actual CImerge29d1e896/treebd87 with parentscb/W.
-Linux167pass; native260pass+1platformskip and158pass; module598pass.
-Resolve later refs before acting; this PR evidence does not establish main S.
+R53edd619/tree4cb5ce3d remains signed/published on PR380 and its backup.
+Native212/sixfiles, source/index/raw3355, actorabsence and outgoingzero scan remain
+actual R evidence. Main remains cb282bab. Superseded RVerify36942137986attempt1
+was canceled terminal00:06:57UTC2October:14success2cancel/aggregatefailure.
+Retain raw722cedcc/archiveaa7e33b6/summary207f6a12, actual6170ef20CIcheckout
+parentscb/R/treeR. Partial598module and3190shard/81skip are not acceptance; no
+aggregate archive log or product failure is inferred. Signed new child/S pending.
 
-DO NOT MERGE W: the prepared-bridge Linux runner has a demonstrated return-
-contract defect. Actual deploy returns {path,receiptDigest,result:'installed'|
-'unchanged'}; the runner incorrectly requires outcome:'published'. Both genuine
-success results are rejected while an outcome-only result is accepted. A narrow
-runner/caller-test repair and four current canonical notes are being prepared
-as coherent child R of W. R is not yet signed, published or CI-accepted at this
-snapshot. Keep W's original Actions/evidence; do not remotely experiment.
+LOCAL REPAIR: two existing payload paths audio/warpkeep-genesis-002-theme.m4a
+and models/greater-realm/biome-trees/v3/manifest.json now pass the two reviewed
+mirror/postflight predicates. Four-file baseline42:19pass23fail0pending child1
+(1ff7f011); first repaired42:40pass2fail child1 (4fc33cc2) remains retained.
+Postflight fixture corrected actual Alpha root-route expectations and separated
+two negative cases without raising30s budget; actual revised13 pass/no skips
+child0 (ce7759e5,review10943ecd). Unchanged Mirror10/Payload14/Publication7
+passed31 in the earlier run. Compose31+13; no Windows44 full-run claim. Scoped
+nativefourfile44 remains required. Source/index/actual candidate bytes retained;
+fixture Git/signatures/fakepush/mockedHTTP only. Purefixed d15387db accepts all
+446members in its actual lanes and generated subset of800totalplanentries, keeps
+8negative+2nested rejects. Realparser advances only to absent source ENOENT/lstat;
+no source/signature/preparation/publication proof. Originalf141624b retained.
+Only these two exact existing paths; no new asset/feature/broad rule.
 
-Actual caller baseline23:02:57.722–23:03:31.765UTC exited1:19total,16pass,
-3fail,0skip. Installed/unchanged were wrongly rejected; outcome-only was
-wrongly accepted. ReceiptSHA572bc79f5950bef24dbbec398435af4a0583c7e466a8d1c4be9f32866acd6a66.
-The local repair passes the same19cases: fixedrun23:05:00.618–23:05:11.890UTC,
-actualchild/tool exit0,19passed/0failed/0skip. Receipt
-artifacts/qa/october-release-prepared-linux-result-fixed.json SHA
-8ebd3673894d64c34e54efb0dbb081eb20d6df4fdfb125acbc1e04e2a21985ec.
-The actual runner executes in a bounded VM with fixed attestation/API fixtures;
-no provider/network calls occurred. Native16projection, Rsign/sync/scan,
-publication and hostedRVerify remain pending at this notes snapshot.
+All affected public scripts/tests and four notes are outside retained compiler212
+and protected1250. Retain genuine cb compiler manifests/five bundles and closure
+f34982a2. No new full compile, prepare handle or16 projection is needed. R's
+earlier inside-closure runner repair retains its completed authentic family.
 
-Retain cb's genuine compiler manifests,212 distinct inputs (135 tracked) and
-five compiled bundles. The runner is outside all four compiler graphs/seven
-recovery inputs but inside the prepared closure: use the supported16-file
-projection after the reviewed repair. No new full compile, prepare handle or
-102-output completion is justified. Keep/World measurements remain source W;
-R only repairs the existing operator contract and updates scoped tests/notes.
+W028b1e4b remains measured:9 mobile Keep cadence samples pass50/75/50ms;
+12 synthetic World strict nominal misses remain. Retain earlier desktop33.6vs33.4
+and ungraded59998.7ms evidence. No fullR06/GPU/touch/input-to-visible/owner/device
+pass or performance budget change. See performance.md and local-operations.md.
 
-WORLD W: final summary fa09d70e7eecda29fc147b3d5bd71f4c13668476139f30258a4e90b06dd650f5
-contains12 eligible synthetic component samples, all strict nominal resultsfalse.
-CPU-first-GL p95: desktop/high50.8/50.8/50.8ms against50; portrait/balanced
-67.3/67.4/67.3 against66.7; reduced84.5/84.4/84.5 against83.4; landscape/balanced
-67.2/67.3/67.3 against66.7. Retain actual render-RAF/submission clocks and the
-initial balanced59998.7ms attempt as ungraded. No additional product defect is
-established by the residual misses. These genuine production-optimized two-
-small-chunk measurements are lower-bound component evidence, not maximum-world,
-GPU completion, final-A cold bootstrap, owner/device or fullR06 acceptance.
+NEXT: freeze four notes+two predicates+three existing tests as one signed
+nine-path childR; sync/scan/scopednativecallers+types, fresh full-coverage Actions
+conservation, one PR380headupdate/normalVerify. Exact final17-job PR success ->
+signed actualmain -> actualmainVerify17+separatepreparationPages -> idle S sync/
+freeze. Rebind oldRpinnedhelpers to actual accepted source. Preserve canceled
+partial/original R evidence; no duplicate run/inferred provider acceptance.
 
-KEEP W: portrait/balanced placement has three eligible passes34.4/32.2/31ms
-against unchanged50ms. Reduced completed exit0 with33.2/32.5/33.4ms against75;
-run SHA262a841292bae3f35dedc9202c36d7e7e642880f79766ba8a80324ad02ebc690.
-Landscape/balanced completed exit0 with34.9/33.3/33.8ms against50;
-run SHA279f238f18ad1a235c53d723f42e0e6e6bcbb8258f8b82d2f5ccd7a6e310edbf.
-All9 W mobile samples are eligible withoutfailure. This is not input-to-visible
-timing, touch acceptance or fullR06. Preserve H camera/H2 lifecycle passes and
-the earlier desktop placement33.6ms vs33.4ms miss without changing their scope
-or budgets. Resolve details from performance.md and local-operations.md.
+PROVIDER AT S: preflight -> G001observe -> prepared bridge -> initial disabled
+signer/gateway -> signed PTRobserve -> PTR then G002 inspect/apply/adoptions.
+Prepared deploy returns installed|unchanged; immediate private receipt/completed
+journal live under production-admin-v1. Initial updates/adoptions precede the
+separate sealed chain; later activation inspect/generate internally calls
+createSealedRealmsProductionAuthBridgeState().establish() with live attestations.
+No manual authority file or new establish CLI. Fixed Windows private fixture
+ingress launches WSL; exact5 F outputs stay separate from operating S. Generate
+activation with initial preparation policy/disabled signer/authorization epoch intact, promote/arm
+reviewed full signer, then exact3-path direct-child A -> genuine final-A /ptr/
+build -> signed public mirror/postflight. Never insert notes/F between S and A.
 
-NEXT: finish local repair validation; sign/sync/scan R and
-publish its explicit non-forced backup. After fresh repository-wide Actions
-conservation, update PR380 once, require normal exact-R-head Verify and merge
-only the accepted final head. Require actual signed resulting-main push Verify
-and separate Pages classification, synchronize idle checkouts, then freeze S.
-Old W/H2-pinned integration/watch drafts cannot authorize a future R source.
-Use the user's current Actions policy and reuse complete applicable evidence
-plus fresh bounded recent/fully paginated active/changed-attempt/ref/chain data;
-full historical pagination is needed when continuity is unproven.
-
-PROVIDER: supported Linux preflight, G001 observation, prepared bridge, initial
-disabled signer/gateway, real sealed PTR/G002 existing-state updates/adoptions.
-Immediately verify the prepared deploy's installed|unchanged result, private
-production-admin-v1/bridge-prepared-receipts-v1/auth-bridge-notification-prepared-
-<digest>.json receipt and completed sibling bridge-prepared-deploy-journal-v3
-journal with the supported existing-state resolvers. Deploy alone does not
-create sealed auth-bridge-import-authority; later live attestation and
-createSealedRealmsProductionAuthBridgeState().establish() establish it before
-adoption. No manually authored receipt or new key is needed.
-
-The fixed Windows private fixture profile launches the WSL materializer.
-Generate/check actual fixture outputs at S and publish their exact five-file
-signed/scanned component F separately from operating main. Generate activation
-while the initial signer's exact RECOVERY_PREPARATION_POLICY remains installed;
-promote/verify the full signer before A publication. Omitted TOML variables are
-not preserved automatically. A must be the supported direct child of S; then
-final-A build, signed public mirror/postflight and complete production R06.
-
-Alpha0.3.43 stays public; owner0.4 PTR, full shaped final-A R06, owner journey and
-physical-phone acceptance are open. Preserve G001 progress/timers/admission
-freeze and sealedG002. Keep receipts/candidates under the repo; update existing
-DesktopTXT only in place. No Desktop sibling, extra recovery key or new feature.
+Alpha0.3.43 is public;0.4 ownerPTR/fullshapedR06/owner/physicalphone remain open.
+Preserve G001 progress/admission freeze and sealed G002. Existing keys/profiles
+remain authority; no Desktop siblings/backups or new feature are requested.
 
 PREVIOUS SNAPSHOT — 21:26 UTC
 
