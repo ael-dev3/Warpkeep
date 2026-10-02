@@ -2,6 +2,11 @@ export const NATIVE_VERIFICATION_PROFILE: 'warpkeep-native-source-test-partition
 export const NATIVE_SOURCE_CHECKS_PROFILE: 'warpkeep-native-source-checks-v1';
 export const NAMESPACE_FILES: readonly string[];
 export const REQUIRED_NATIVE_DOMAINS: readonly string[];
+export function nativeVerificationEnvironment(tools?: Readonly<{
+  pnpm: Readonly<{ path: string }>; spacetime: Readonly<{ path: string }>;
+}>): Readonly<Record<string, string>>;
+/** Missing/rejected owned output stays failed metadata, never a verified report. */
+export function retainNativeVerificationOutput(root: string, path: string): Readonly<Record<string, unknown>>;
 export type NativeTestPartitions = Readonly<{ ordinaryVitestFiles: string[]; namespaceVitestFiles: string[]; moduleFiles: string[] }>;
 export type NativeTestCommand = Readonly<{ id: string; kind: 'vitest-json' | 'node-events'; files: readonly string[];
   cwd: string; executable: string; args: readonly string[]; reportPath: string; deadlineMs: number }>;

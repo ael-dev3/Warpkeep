@@ -12,6 +12,8 @@ import {
   deriveNativeTestPartitions, nativeTestCommands, NAMESPACE_FILES, REQUIRED_NATIVE_DOMAINS,
   NATIVE_VERIFICATION_PROFILE, NATIVE_SOURCE_CHECKS_PROFILE, nativeSourceCheckCommands,
   captureNativeSourceCheckConfiguration,
+  nativeVerificationEnvironment,
+  retainNativeVerificationOutput,
   requireCompleteNativeSourceVerificationEvidence, nativeNamespaceCleanupCommand,
 } from '../scripts/native-source-verification.mjs';
 import { parseVitestReport, parseNodeEvents } from '../scripts/native-source-verification-reports.mjs';
@@ -34,6 +36,34 @@ afterEach(() => {
 });
 
 describe.skipIf(process.platform !== 'linux' || process.getuid?.() !== 1000)('native source-check configuration inventory', () => {
+  it('retains a missing owned report as failure metadata instead of losing the run summary', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-missing-')); folders.push(root);
+    mkdirSync(join(root, 'artifacts/qa'), { recursive: true, mode: 0o700 });
+    const path = join(root, 'artifacts/qa/deleted-report.json');
+    expect(retainNativeVerificationOutput(root, path)).toEqual({ path, bytes: null, sha256: null,
+      identity: null, missing: true, readFailure: 'ENOENT' });
+    expect(() => retainNativeVerificationOutput(root, join(root, 'outside.json'))).toThrow('ARTIFACT_PATH_INVALID');
+  });
+  it('collects a genuine full-HEAD scanner stdout report under the closed Git environment', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-scanner-')); folders.push(root);
+    const env = nativeVerificationEnvironment({ pnpm: { path: '/unused/pnpm' }, spacetime: { path: '/unused/spacetime' } });
+    expect(env.GIT_GRAFT_FILE).toBe('/dev/null');
+    expect([env.GIT_CONFIG_KEY_0, env.GIT_CONFIG_VALUE_0]).toEqual(['advice.graftFileDeprecated', 'false']);
+    expect(env.HOME).toBe('/nonexistent');
+    expect(env.NODE_OPTIONS).toBeUndefined();
+    for (const args of [['init', '--initial-branch=main'], ['-c', 'user.name=Warpkeep scanner fixture',
+      '-c', 'user.email=scanner-fixture@local.invalid', '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'Empty scanner fixture']]) {
+      const result = spawnSync('/usr/bin/git', args, { cwd: root, env, shell: false, encoding: 'utf8', timeout: 15_000 });
+      expect(result.error).toBeUndefined(); expect(result.status).toBe(0); expect(result.signal).toBeNull();
+    }
+    writeFileSync(join(root, '.gitleaks.toml'), readFileSync(join(repository, '.gitleaks.toml')), { flag: 'wx', mode: 0o600 });
+    const command = nativeSourceCheckCommands(root, { node: { path: process.execPath }, pnpm: { path: '/unused/pnpm' },
+      gitleaks: { path: '/usr/bin/gitleaks' } }, join(root, 'report'), readFileSync(join(repository, 'package.json')))[1];
+    const result = spawnSync(command.executable, [...command.args], { cwd: root, env, shell: false, encoding: 'utf8', timeout: 15_000, maxBuffer: 1024 * 1024 });
+    expect(result.error).toBeUndefined(); expect(result.signal).toBeNull(); expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual([]);
+    expect(result.stderr).not.toContain('grafts is deprecated');
+  });
   it('holds an absent workspace config without requiring or creating it', () => {
     const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-config-')); folders.push(root);
     const result = captureNativeSourceCheckConfiguration(root);
@@ -116,7 +146,8 @@ describe('fixed native source checks recipe', () => {
     expect(commands[0].args).toEqual(['--experimental-strip-types', '/repo/scripts/verify-scanner-regression.ts', '/usr/bin/gitleaks']);
     expect(commands[1].kind).toBe('gitleaks-json');
     expect(commands[1].args).toContain('--log-opts=HEAD');
-    expect(commands[1].args).toContain('--report-path=/repo/artifacts/qa/proof-source-secrets.report.json');
+    expect(commands[1].args).toContain('--report-path=-');
+    expect(commands[1].reportPath).toBe('/repo/artifacts/qa/proof-source-secrets.report.json');
     const builds = commands.filter(command => command.buildVariant);
     expect(builds.map(command => command.environment)).toEqual([{}, { GITHUB_PAGES: 'true' }, { GITHUB_PAGES: 'true', DEPLOY_BASE: '/' }]);
     expect(builds.map(command => command.buildVariant)).toEqual(['default', 'github-pages', 'canonical-pages']);

@@ -46,14 +46,16 @@ const same = (a, b) => { if (!isDeepStrictEqual(a, b)) fail('CHANGED'); };
 const identity = stat => ['dev', 'ino', 'mode', 'uid', 'gid', 'nlink', 'size', 'mtimeNs', 'ctimeNs']
   .map(key => String(stat[key])).join(':');
 
-function environment(tools) {
+export function nativeVerificationEnvironment(tools) {
   return { HOME: '/nonexistent', PATH: [dirname(process.execPath),
     ...(tools ? [dirname(tools.pnpm.path), dirname(tools.spacetime.path)] : []), '/usr/bin', '/bin'].join(':'),
     LANG: 'C.UTF-8', LC_ALL: 'C.UTF-8', TZ: 'UTC', NO_COLOR: '1',
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_SYSTEM: '/dev/null', GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'advice.graftFileDeprecated', GIT_CONFIG_VALUE_0: 'false',
     GIT_NO_REPLACE_OBJECTS: '1', GIT_GRAFT_FILE: '/dev/null', GIT_TERMINAL_PROMPT: '0', GIT_OPTIONAL_LOCKS: '0',
     ...(tools ? { SPACETIME_BIN: tools.spacetime.path, pnpm_config_pm_on_fail: 'ignore' } : {}) };
 }
+const environment = nativeVerificationEnvironment;
 function git(root, args) {
   const result = cp.spawnSync(GIT, ['--no-replace-objects', '--no-optional-locks', '--literal-pathspecs',
     '-c', 'advice.graftFileDeprecated=false', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args],
@@ -229,7 +231,7 @@ export function nativeSourceCheckCommands(root, tools, stem, packageBytes) {
   return [command('scanner-regression', tools.node.path,
     ['--experimental-strip-types', join(root, 'scripts/verify-scanner-regression.ts'), tools.gitleaks.path]),
   command('source-secrets', tools.gitleaks.path, ['git', '--config', join(root, '.gitleaks.toml'), '--redact', '--no-banner',
-    '--log-opts=HEAD', '--report-format=json', `--report-path=${stem}-source-secrets.report.json`, root], { kind: 'gitleaks-json' }),
+    '--log-opts=HEAD', '--report-format=json', '--report-path=-', root], { kind: 'gitleaks-json' }),
   script('source-licenses', 'verify:licenses'), script('source-runtime-assets', 'verify:runtime-assets'),
   script('source-file-sizes', 'verify:file-sizes'), script('source-sealed-launch', 'verify:sealed-launch'),
   script('root-types', 'typecheck'),
@@ -376,14 +378,21 @@ function captureBounded(stream, descriptor, path, rejectOutput) {
   });
   stream.on('error', error => rejectOutput({ outputCaptureFailed: error.code ?? 'STREAM_FAILED', path }));
 }
-function retainedOutput(root, path) {
+export function retainNativeVerificationOutput(root, path) {
+  if (typeof path !== 'string' || dirname(resolve(path)) !== join(root, 'artifacts/qa')) fail('ARTIFACT_PATH_INVALID');
   try { return artifact(root, path); }
   catch (error) {
     // A rejected oversized/changed file stays retained. Never label its unverified bytes a report.
-    const stat = fs.lstatSync(path, { bigint: true });
+    let stat;
+    try { stat = fs.lstatSync(path, { bigint: true }); }
+    catch (observation) {
+      if (observation.code !== 'ENOENT') throw observation;
+      return { path, bytes: null, sha256: null, identity: null, missing: true, readFailure: 'ENOENT' };
+    }
     return { path, bytes: String(stat.size), sha256: null, identity: identity(stat), readFailure: String(error.code ?? error.message).slice(0, 160) };
   }
 }
+const retainedOutput = retainNativeVerificationOutput;
 /** Exact owned namespace cleanup request; the privileged helper revalidates every identity. */
 export function nativeNamespaceCleanupCommand(root, owner, member, signal) {
   const birth = /^linux-v1:([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}):(0|[1-9][0-9]{0,19})$/u;
@@ -485,7 +494,7 @@ export async function runNativeVerificationPlan(planPath, digest, stem) {
   output(root, `${stem}-started.json`, json({ profile: plan.profile, planRef, owner, source, commands, startedAt }));
   let preservationError = null;
   for (const command of commands) {
-    const stdoutPath = command.kind === 'node-events' ? command.reportPath : `${stem}-${command.id}.stdout.log`;
+    const stdoutPath = ['node-events', 'gitleaks-json'].includes(command.kind) ? command.reportPath : `${stem}-${command.id}.stdout.log`;
     const stderrPath = `${stem}-${command.id}.stderr.log`, stdout = fs.openSync(stdoutPath, fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW),
       stderr = fs.openSync(stderrPath, fs.constants.O_WRONLY | fs.constants.O_NOFOLLOW);
     let child, birth, closed, terminal, timedOut = false, phaseError = null, cleanupError = null, outputFailure = null, outputWatch, unexpectedGroup = null;

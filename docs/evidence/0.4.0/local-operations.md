@@ -4,6 +4,12 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Current Actions policy and completed mobile regression — 2 October 2026
 
+### Scanner output and failure retention — 2 October
+
+Correction sourceAF93/tree0683364d is signed locally, parent75. Its maintained plan60ce8446 was created successfully; run109c96 reached the actual scanner regression, which closed0/null, then failed in source-secrets. The isolated environment disabled graft input via /dev/null but did not suppress Git's deprecation advice for the scanner's own Git child. That warning aborted Gitleaks, removed its external report and exposed a retainer lstat error that prevented the final summary. Keep the partial started/terminal/raw logs; no remaining policy/type/build check was reached. Post-outer6c8544/4e8c1ed8 proves original leader and two children/full PGID absent twice, original source bytes/index bytes/refs preserved. It does not claim a complete run or physical-inode equality.
+
+The correction adds a source-owned Git advice=false config to the closed child environment while retaining GIT_GRAFT_FILE=/dev/null and replacement/global-config isolation. Gitleaks now emits JSON to stdout, captured directly in the producer's reserved600 report under its live byte bound. Missing reports become explicit null-digest failure metadata, preserving the run summary; they cannot pass. Focusede807db/session34622 closed339493,12:44:08.803–12:44:28.900 UTC: all232 assertions, app/tests types and shell syntax passed0/null. Summaryb5a3aa0f binds overlay086cfb09 atAF93; real empty-fixture Git/Gitleaks stdout regression, missing-report retention and actual CommonJS sealed import passed. No install or provider operation occurred. Recreate the fixed maintained plan from the resulting signed source before its next owned --run; previous plan/source identities remain historical and incomplete.
+
 ### Native no-install launch correction — 2 October
 
 The signed75c69cd5/tree238e6c2f checkpoint was published by nonforced pushfd4b20,12:26:32.326–12:26:34.898 UTC. Prede952395 and post3dec244a each used116 GETs; the post closed12:28:16.174 UTC. Publication51a95a3a confirms the conserved all-four disabled/idle settings, unchanged main/PR/history/catalog boundaries and local source backup. Native/PRIMARY match75; completeCoverage and productionAuthorized remainfalse.
