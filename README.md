@@ -93,8 +93,9 @@ Alpha returned HTTP 200 on 2 October. Owner PTR publication remains pending.
 GitHub Actions is disabled across the Warpkeep repositories under the current
 [operating policy](docs/operations/github-actions-budget.md). Development continues
 with local validation and signed, scanned, synchronized source checkpoints.
-The existing hosted release route needs a supported local replacement before
-provider publication can proceed. Preserve existing realms and complete production
+Complete local verification is being connected to the release callers, with
+genuine GitHub authentication retained for bounded deployment operations. That
+route is not yet ready for provider publication. Preserve existing realms and complete production
 performance and actual-owner acceptance before claiming the full release.
 Current [delivery status](docs/operations/0.4.0-live-delivery-status.md) and
 [the handoff](docs/agent-notes/0.4.0/execution-handoff.md) identify the next action.
