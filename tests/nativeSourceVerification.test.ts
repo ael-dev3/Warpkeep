@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -36,6 +36,30 @@ afterEach(() => {
 });
 
 describe.skipIf(process.platform !== 'linux' || process.getuid?.() !== 1000)('native source-check configuration inventory', () => {
+  it('executes the actual fixed type script with pnpm while missing dependencies remain uninstalled', () => {
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-pnpm-')); folders.push(root);
+    const packageSource = readFileSync(join(repository, 'package.json'));
+    writeFileSync(join(root, 'package.json'), packageSource, { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(root, 'proof.ts'), 'export const verified: boolean = true;\n', { flag: 'wx', mode: 0o600 });
+    writeFileSync(join(root, 'tsconfig.json'), JSON.stringify({ compilerOptions: { noEmit: true, types: [], skipLibCheck: true }, files: ['proof.ts'] }), { flag: 'wx', mode: 0o600 });
+    mkdirSync(join(root, 'node_modules/.bin'), { recursive: true, mode: 0o700 });
+    symlinkSync(join(repository, 'node_modules/typescript/bin/tsc'), join(root, 'node_modules/.bin/tsc'));
+    const manifest = JSON.parse(readFileSync(join(repository, 'scripts/auth-bridge-notification-prepared-pnpm-linux-x64-v1.json'), 'utf8'));
+    const tools = { node: { path: process.execPath }, pnpm: { path: manifest.pnpmExecutable },
+      gitleaks: { path: '/usr/bin/gitleaks' }, spacetime: { path: '/unused/spacetime' } };
+    const command = nativeSourceCheckCommands(root, tools, join(root, 'report'), packageSource).find(value => value.id === 'root-types')!;
+    const env = nativeVerificationEnvironment(tools);
+    expect(env.pnpm_config_verify_deps_before_run).toBeUndefined();
+    const result = spawnSync(command.executable, [...command.args], { cwd: root, env, shell: false, encoding: 'utf8', timeout: 15_000, maxBuffer: 1024 * 1024 });
+    expect(result.error).toBeUndefined(); expect(result.signal).toBeNull(); expect(result.status).toBe(0);
+    writeFileSync(join(root, 'proof.ts'), 'export const verified: boolean = "invalid";\n');
+    const invalid = spawnSync(command.executable, [...command.args], { cwd: root, env, shell: false, encoding: 'utf8', timeout: 15_000, maxBuffer: 1024 * 1024 });
+    expect(invalid.error).toBeUndefined(); expect(invalid.signal).toBeNull(); expect(invalid.status).toBe(1);
+    expect(invalid.stdout + invalid.stderr).toContain('TS2322');
+    expect(readdirSync(join(root, 'node_modules'))).toEqual(['.bin']);
+    expect(readFileSync(join(root, 'package.json'))).toEqual(packageSource);
+    for (const name of ['pnpm-workspace.yaml', 'pnpm-lock.yaml', 'package-lock.json']) expect(existsSync(join(root, name))).toBe(false);
+  });
   it('retains a missing owned report as failure metadata instead of losing the run summary', () => {
     const root = mkdtempSync(join(tmpdir(), 'warpkeep-native-missing-')); folders.push(root);
     mkdirSync(join(root, 'artifacts/qa'), { recursive: true, mode: 0o700 });
@@ -153,7 +177,7 @@ describe('fixed native source checks recipe', () => {
     expect(builds.map(command => command.buildVariant)).toEqual(['default', 'github-pages', 'canonical-pages']);
     for (const command of commands.filter(value => value.script)) {
       expect(command.executable).toBe('/native/pnpm');
-      expect(command.args).toEqual(['--pm-on-fail=ignore', '--verify-deps-before-run=false', '--dir', '/repo', 'run', command.script]);
+      expect(command.args).toEqual(['--pm-on-fail=ignore', '--config.verify-deps-before-run=false', '--dir', '/repo', 'run', command.script]);
       expect(command.scriptSha256).toBe(digest(Buffer.from(JSON.parse(packageSource).scripts[command.script!])));
       expect(command.kind).toBe('terminal-check');
       expect(command.deadlineMs).toBeGreaterThan(0);

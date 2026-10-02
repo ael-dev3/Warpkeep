@@ -226,7 +226,7 @@ export function nativeSourceCheckCommands(root, tools, stem, packageBytes) {
   const command = (id, executable, args, extra = {}) => ({ id, kind: 'terminal-check', files: [], cwd: root,
     executable, args, reportPath: `${stem}-${id}.report.json`, deadlineMs: 900_000, environment: {}, ...extra });
   const script = (id, name, extra = {}) => command(id, tools.pnpm.path,
-    ['--pm-on-fail=ignore', '--verify-deps-before-run=false', '--dir', root, 'run', name],
+    ['--pm-on-fail=ignore', '--config.verify-deps-before-run=false', '--dir', root, 'run', name],
     { script: name, scriptSha256: SOURCE_CHECK_SCRIPTS[name], ...extra });
   return [command('scanner-regression', tools.node.path,
     ['--experimental-strip-types', join(root, 'scripts/verify-scanner-regression.ts'), tools.gitleaks.path]),
