@@ -38,6 +38,7 @@ import {
   greaterRealmRegionPresentation
 } from '../../greater-realm/greaterRealmPresentationPlan';
 import { GREATER_REALM_GRAPHICS_BUDGETS } from '../../greater-realm/greaterRealmRuntimePolicy';
+import { verdantDaylightAt, verdantDaylightKey, verdantLocalHour, verdantSunDirection } from '../../greater-realm/verdantDaylight';
 import {
   greaterRealmWindowCastleTopologySignature
 } from './greaterRealmWorldSnapshotAuthority';
@@ -123,6 +124,8 @@ export type CreateGreaterRealmWorldCanvasHostOptions = Readonly<{
   sceneRuntimeFactory?: (
     options: CreateGreaterRealmSceneRuntimeOptions
   ) => GreaterRealmSceneRuntime;
+  /** Local hour for the daylight mood; defaults to the device clock. Presentation only. */
+  daylightHour?: () => number;
 }>;
 
 type GreaterRealmSelectionTarget = Readonly<{
@@ -778,10 +781,32 @@ export function createGreaterRealmWorldCanvasHost(
   };
   frameCamera(span);
 
-  scene.add(new THREE.HemisphereLight('#e2f0ff', '#46513a', 1.7));
+  const skylight = new THREE.HemisphereLight('#e2f0ff', '#46513a', 1.7);
+  scene.add(skylight);
   const sunlight = new THREE.DirectionalLight('#ffe4b0', 2.2);
   sunlight.position.set(center.x - 25, 48, center.z + 18);
   scene.add(sunlight, worldGroup);
+  // The player's local hour sets the same mood as the keep. By day the world
+  // keeps its own pale sky; toward night it shares the keep's haze and moon.
+  const daySky = new THREE.Color(GREATER_REALM_SKY.background); const dayFog = new THREE.Color(GREATER_REALM_SKY.fog);
+  const sunTarget = new THREE.Vector3(); let daylightApplied = -1;
+  const applyDaylight = () => {
+    const hour = options.daylightHour?.() ?? verdantLocalHour(Date.now());
+    const moodKey = verdantDaylightKey(hour); if (moodKey === daylightApplied) return;
+    daylightApplied = moodKey; const mood = verdantDaylightAt(hour);
+    // The world keeps a little of its pale day sky even at night: moonlit, never a void.
+    const shared = (1 - mood.day) * .8;
+    (scene.background as THREE.Color).copy(daySky).lerp(mood.hazeColor, shared);
+    fog.color.copy(dayFog).lerp(mood.hazeColor, shared);
+    skylight.color.copy(mood.skyColor); skylight.groundColor.copy(mood.groundColor);
+    skylight.intensity = mood.hemisphereIntensity * (1.7 / 1.82) * (1 + mood.night * .55);
+    sunlight.color.copy(mood.sunColor); sunlight.intensity = mood.sunIntensity * (2.2 / 3.05) * (1 + mood.night * .45);
+    // Swing the original sun bearing a little through the day at the mood's elevation.
+    const bearing = Math.atan2(-25, 18) + mood.sunSwing * .6; const reach = Math.hypot(25, 18, 48);
+    verdantSunDirection(mood, bearing, bearing, sunTarget);
+    sunlight.position.set(center.x + sunTarget.x * reach, sunTarget.y * reach, center.z + sunTarget.z * reach);
+    atmosphere?.setDaylight(mood);
+  };
   const castleLayer = createPublicCastleLayer(options, () => currentPolicy);
   const resourceLayer = createPublicResourceLayer();
   const regionLayer = createVisibleRegionLayer();
@@ -957,6 +982,7 @@ export function createGreaterRealmWorldCanvasHost(
       let castleUploadBytesThisFrame = 0;
       let hostUploadBytesThisFrame = 0;
       if (!telemetry.contextLost) {
+        applyDaylight();
         atmosphere?.update(performance.now() / 1000);
         journeyLayer.update(Date.now());
         scene.updateMatrixWorld(); camera.updateMatrixWorld();

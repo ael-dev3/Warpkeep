@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { createGreaterRealmAtmosphere, GREATER_REALM_ATMOSPHERE_MAXIMUM_DRAW_CALLS, GREATER_REALM_ATMOSPHERE_MAXIMUM_INSTANCES } from '../src/greater-realm/greaterRealmAtmosphere';
 import { createGreaterRealmJourneyLayer, type GreaterRealmJourney } from '../src/greater-realm/greaterRealmJourneyLayer';
@@ -249,4 +249,22 @@ it('bounds long decorative trails while preserving full-route worker progress an
     expect(layer.prepareForUpload(limit)).toBeGreaterThan(0); expect(layer.drawCalls()).toBe(3);
     layer.invalidateUploads(); expect(layer.prepareForUpload(limit)).toBeLessThanOrEqual(limit);
   } finally { layer.dispose(); }
+});
+
+describe('Greater Realm atmosphere daylight', () => {
+  it('tints the clouds with the hour and lets the birds roost after dusk', async () => {
+    const { verdantDaylightAt } = await import('../src/greater-realm/verdantDaylight');
+    const sky = createGreaterRealmAtmosphere({ profile: 'high', reducedMotion: false });
+    const birds = sky.group.getObjectByName('greater-realm-atmosphere-birds') as THREE.InstancedMesh;
+    const clouds = sky.group.getObjectByName('greater-realm-atmosphere-clouds') as THREE.InstancedMesh;
+    const material = clouds.material as THREE.MeshLambertMaterial;
+    sky.setDaylight(verdantDaylightAt(12)); const noon = material.color.getHexString();
+    expect(birds.visible).toBe(true); expect(birds.count).toBeGreaterThan(0);
+    sky.setDaylight(verdantDaylightAt(23));
+    expect(birds.visible).toBe(false); expect(birds.count).toBe(0);
+    expect(material.color.getHexString()).not.toBe(noon);
+    sky.setDaylight(verdantDaylightAt(9));
+    expect(birds.visible).toBe(true);
+    sky.dispose();
+  });
 });

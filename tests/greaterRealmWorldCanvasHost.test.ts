@@ -1702,3 +1702,50 @@ it('accounts actual new-layer transfers, defers them behind existing host upload
   } finally { host.dispose(); }
   expect(frames.size).toBe(0);
 });
+
+describe('Greater Realm world daylight', () => {
+  function daylightHost(hour: () => number) {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, x: 0, y: 0, toJSON: () => ({})
+    } as DOMRect);
+    const frames = new Map<number, FrameRequestCallback>(); let frameId = 0;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => { frames.set(++frameId, callback); return frameId; });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => frames.delete(id));
+    const renderer = { setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn() };
+    const runtime = {
+      group: new THREE.Group(), setView: vi.fn(), flushUploads: vi.fn(() => 0),
+      update: vi.fn(() => false), startAnimation: vi.fn(), stopAnimation: vi.fn(),
+      setReducedMotion: vi.fn(), setDocumentVisible: vi.fn(), bindCanvas: vi.fn(),
+      getCellAccess: vi.fn(), isCoordinatePassable: vi.fn(() => false),
+      ...vesselRuntimeMethods(), getTelemetry: vi.fn(() => EMPTY_TELEMETRY), dispose: vi.fn()
+    };
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas, atlasQ: -2, atlasR: 1, ownCastleId: 1, daylightHour: hour,
+      policy: resolveGreaterRealmWorldViewPolicy({
+        atlasQ: -2, atlasR: 1, viewportWidth: 800, coarsePointer: false,
+        farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: true
+      }),
+      rendererFactory: () => renderer, sceneRuntimeFactory: () => runtime
+    })!;
+    host.applySnapshot(readySnapshot());
+    const flush = () => { for (const [id, callback] of [...frames]) { frames.delete(id); callback(1); } };
+    flush();
+    const scene = () => renderer.render.mock.calls.at(-1)![0] as THREE.Scene;
+    return { host, flush, scene };
+  }
+
+  it('keeps its own pale sky by day and shares the moonlit haze at night', () => {
+    let hour = 12;
+    const { host, flush, scene } = daylightHost(() => hour);
+    const noonSky = (scene().background as THREE.Color).getHexString();
+    const sun = scene().children.find(child => child instanceof THREE.DirectionalLight) as THREE.DirectionalLight;
+    const noonSun = sun.color.getHexString();
+    hour = 23; host.schedule(); flush();
+    expect((scene().background as THREE.Color).getHexString()).not.toBe(noonSky);
+    expect(sun.color.getHexString()).not.toBe(noonSun);
+    expect((scene().fog as THREE.FogExp2).color.getHexString()).not.toBe(noonSky);
+    host.dispose();
+  });
+});

@@ -134,6 +134,8 @@ export type GreaterRealmWorldSceneProps = Readonly<{
   renderGameplay04WorldPanel?: (selection: WorldSelection04 | null, validateSelection: (selection: WorldSelection04) => boolean) => ReactNode;
   /** The owner's confirmed Worker journeys, drawn on the map; presentation only. */
   journeys04?: readonly GreaterRealmJourney[];
+  /** Development QA only: pin the world's daylight mood to a local hour. */
+  daylightHour?: number;
 }>;
 
 /**
@@ -155,7 +157,8 @@ export function GreaterRealmWorldScene({
   resourceFocus04,
   onLyricFilmOpenChange,
   renderGameplay04WorldPanel,
-  journeys04
+  journeys04,
+  daylightHour
 }: GreaterRealmWorldSceneProps) {
   const miniAppHost = useMiniAppHost();
   const reducedMotion = useReducedMotionPreference();
@@ -450,8 +453,10 @@ export function GreaterRealmWorldScene({
     setRenderer('loading');
     setWorldSelection(undefined);
     setLocalVesselState(INITIAL_LOCAL_VESSEL_STATE);
+    const fixedHour = import.meta.env.DEV ? daylightHour : undefined;
     const host = createGreaterRealmWorldCanvasHost({
       canvas,
+      ...(fixedHour === undefined ? {} : { daylightHour: () => fixedHour }),
       atlasQ: ownCastle.q,
       atlasR: ownCastle.r,
       ownCastleId: ownCastle.castleId,

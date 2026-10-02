@@ -22,6 +22,8 @@ type Keyframe = Readonly<{
   glow: number;
   /** 0 by day, 1 for night ambience (crickets instead of birdsong). */
   night: number;
+  /** 1 in full daylight, 0 at night: how much a view keeps its own daytime palette. */
+  day: number;
 }>;
 
 // Hours are local wall-clock hours. Neighbouring keyframes blend with a
@@ -29,23 +31,23 @@ type Keyframe = Readonly<{
 const NIGHT: Omit<Keyframe, 'hour'> = {
   phase: 'night', sun: '#a6baf0', sunIntensity: 1.12, elevation: .82, swing: -.35,
   sky: '#3c5384', ground: '#1f2730', hemisphere: 1.24,
-  fill: '#6f86c2', fillIntensity: .42, haze: '#2a3a52', exposure: 1.28, glow: 1, night: 1,
+  fill: '#6f86c2', fillIntensity: .42, haze: '#2a3a52', exposure: 1.28, glow: 1, night: 1, day: 0,
 };
 const KEYFRAMES: readonly Keyframe[] = Object.freeze([
   { hour: 0, ...NIGHT },
   { hour: 4.6, ...NIGHT },
   { hour: 5.7, phase: 'dawn', sun: '#ffb68e', sunIntensity: 1.95, elevation: .3, swing: -.95,
-    sky: '#c4b6d2', ground: '#4d4a3d', hemisphere: 1.5, fill: '#8ea1cf', fillIntensity: .36, haze: '#c7b8bb', exposure: 1.14, glow: .5, night: .3 },
+    sky: '#c4b6d2', ground: '#4d4a3d', hemisphere: 1.5, fill: '#8ea1cf', fillIntensity: .36, haze: '#c7b8bb', exposure: 1.14, glow: .5, night: .3, day: .45 },
   { hour: 7, phase: 'morning', sun: '#ffe3c1', sunIntensity: 2.75, elevation: .55, swing: -.7,
-    sky: '#d3e2ea', ground: '#59664a', hemisphere: 1.78, fill: '#9fb6d8', fillIntensity: .3, haze: '#c2cec3', exposure: 1.1, glow: 0, night: 0 },
+    sky: '#d3e2ea', ground: '#59664a', hemisphere: 1.78, fill: '#9fb6d8', fillIntensity: .3, haze: '#c2cec3', exposure: 1.1, glow: 0, night: 0, day: .9 },
   { hour: 11.5, phase: 'day', sun: '#fff1da', sunIntensity: 3.05, elevation: .95, swing: -.15,
-    sky: '#dbe9ef', ground: '#5c6a48', hemisphere: 1.82, fill: '#a9bfd6', fillIntensity: .26, haze: '#b6c5b4', exposure: 1.1, glow: 0, night: 0 },
+    sky: '#dbe9ef', ground: '#5c6a48', hemisphere: 1.82, fill: '#a9bfd6', fillIntensity: .26, haze: '#b6c5b4', exposure: 1.1, glow: 0, night: 0, day: 1 },
   { hour: 15.5, phase: 'day', sun: '#ffe9c6', sunIntensity: 3, elevation: .74, swing: .3,
-    sky: '#dfe6e6', ground: '#5d6846', hemisphere: 1.76, fill: '#a3b8d4', fillIntensity: .3, haze: '#bec6b1', exposure: 1.1, glow: 0, night: 0 },
+    sky: '#dfe6e6', ground: '#5d6846', hemisphere: 1.76, fill: '#a3b8d4', fillIntensity: .3, haze: '#bec6b1', exposure: 1.1, glow: 0, night: 0, day: 1 },
   { hour: 17.6, phase: 'golden', sun: '#ffcf95', sunIntensity: 2.85, elevation: .4, swing: .75,
-    sky: '#d9d8d2', ground: '#55573f', hemisphere: 1.52, fill: '#8ea6d6', fillIntensity: .5, haze: '#d2c4a6', exposure: 1.12, glow: .12, night: 0 },
+    sky: '#d9d8d2', ground: '#55573f', hemisphere: 1.52, fill: '#8ea6d6', fillIntensity: .5, haze: '#d2c4a6', exposure: 1.12, glow: .12, night: 0, day: .72 },
   { hour: 18.9, phase: 'dusk', sun: '#ff9a6a', sunIntensity: 1.9, elevation: .2, swing: 1,
-    sky: '#7f83b4', ground: '#3a3c42', hemisphere: 1.42, fill: '#7a8fd0', fillIntensity: .55, haze: '#8f8aa8', exposure: 1.18, glow: .78, night: .45 },
+    sky: '#7f83b4', ground: '#3a3c42', hemisphere: 1.42, fill: '#7a8fd0', fillIntensity: .55, haze: '#8f8aa8', exposure: 1.18, glow: .78, night: .45, day: .32 },
   { hour: 20.3, ...NIGHT },
   { hour: 24, ...NIGHT },
 ].map(frame => Object.freeze(frame as Keyframe)));
@@ -62,6 +64,8 @@ export type VerdantDaylight = Readonly<{
   fillColor: THREE.Color; fillIntensity: number;
   hazeColor: THREE.Color; exposure: number;
   windowGlow: number; night: number;
+  /** 1 in full daylight, 0 at night. */
+  day: number;
 }>;
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
@@ -95,7 +99,7 @@ export function verdantDaylightAt(hour: number): VerdantDaylight {
     skyColor: color(a.sky, b.sky), groundColor: color(a.ground, b.ground), hemisphereIntensity: mix(a.hemisphere, b.hemisphere, t),
     fillColor: color(a.fill, b.fill), fillIntensity: mix(a.fillIntensity, b.fillIntensity, t),
     hazeColor: color(a.haze, b.haze), exposure: mix(a.exposure, b.exposure, t),
-    windowGlow: mix(a.glow, b.glow, t), night: mix(a.night, b.night, t),
+    windowGlow: mix(a.glow, b.glow, t), night: mix(a.night, b.night, t), day: mix(a.day, b.day, t),
   });
 }
 
