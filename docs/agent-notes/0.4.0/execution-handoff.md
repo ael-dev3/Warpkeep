@@ -5,6 +5,14 @@
 
 ## Current local release work — 2 October 2026
 
+### Release fingerprint repair and actual builds — 2 October
+
+The maintained run at signed source `3a2dc781` ran from 13:09:29.418 to 13:12:49.164 UTC. Its immutable summary `c9fb96e6` records all fixed commands and nine passes: scanner regression, full-HEAD Gitleaks with no findings, licensing, runtime assets, file sizes, build-mode types and all three complete production builds. Each build retained its actual bounded output before the next replaced dist. The sealed-source check alone failed with `SEALED_LAUNCH_RELEASE_IDENTITY_INVALID`; keep that failure, rather than combining it into an aggregate pass. Independent post-outer `c06d6392` verifies the original leader, all recorded children and complete process group absent twice, with exact source, physical index and refs held.
+
+The package and lock remain canonical Alpha 0.3.43; the preparation binding remains closed. The version-neutral package fingerprint omitted the two reviewed operator scripts, `verify:actions-hold` and `verify:source-native`. Removing only those entries reproduces the historical fingerprint exactly. Supported `derivePreparedSourcePins` produced receipt `e961ec1d`; its only changed output is the sealed verifier's package fingerprint. Installation checks that exact one-line replacement and preserves every other pin and authority value. Three focused suites passed all 207 assertions, app/test types and shell syntax (`d8bf8d51`); independent `ffa0d86a` closes original processes and source/index/refs.
+
+Create a fresh maintained plan from the resulting clean signed source and retain the complete corrected run. Full closure-family derivation at the earlier source failed before installation; all mandatory compiled members exist, so do not diagnose them as missing. No compiler, dependency install, workflow execution or provider mutation was performed by the fingerprint derivation. Complete native coverage, authenticated source authority, genuinely rebuilt preparation and usable owner PTR remain open.
+
 ### Verified pnpm script execution — 2 October
 
 At signedD74/treeD2AA, plan547a3ddf and actualrunbe9542/session16136 reached all10 fixed checks. Summary45e0893b records full-HEAD Gitleaks and scanner regression passed0/null with zero findings. Eight pnpm scripts refused the unsupported bare verify-deps-before-run option before script execution; those eight original exit1 failures remain recorded, allChecksPassed:false. Independent8b29d1/9b4fe3a7 proves original leader, all10 recorded children and complete PGID absent twice, and exact raw source/physical index/refs preserved. No types or production build pass is inferred from that failed run.

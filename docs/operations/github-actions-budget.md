@@ -121,6 +121,12 @@ are bound without copying a Windows-only local config. Each successful build ret
 output inventory and validates actual application/owner script and stylesheet
 targets before the next build replaces `dist`.
 
+At the retained development checkpoint, build-mode types and all three complete
+production builds passed locally. A stale package fingerprint stopped the sealed
+source check; the supported pin derivation repairs only that reviewed package
+change. Preserve the failed run and validate the resulting signed source before
+claiming an aggregate pass. These checks consume no hosted runner execution.
+
 The lane is diagnostic and cannot authorize deployment. Complete dependency
 bytes, npm audit/signature provenance, services, connected module, full test
 dispositions and genuine preparation/identity transport remain separate. Its
