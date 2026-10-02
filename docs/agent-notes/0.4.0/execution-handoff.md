@@ -3,21 +3,23 @@
 <!-- Preserve the incoming current-checkpoint link in live-delivery-status.md. -->
 <a id="current-release-checkpoint--1-october-2026"></a>
 
-## Current verified Living Realm state — 2 October 2026
+## Current verified development checkpoint — 2 October 2026
 
-Runtime checkpoint 8b57f62a, tree 3f810073, is signed with ordered parents PR381 8c22fddb and R2 d4f40cb5. Native 224/224 assertions in eight files, app/Vite-config noEmit, sealed/policy checks, owned cleanup, zero-finding scan 817e2296, primary sync c4e9ecee and unopened remote backup 31dd3e64 are complete. Main cb282bab and PR380/381 are unchanged; the backup created no CI.
+At this notes snapshot, local source is signed, backed-up 14ac294e/tree 73ea369f, a three-note child of runtime 8b57f62a/tree 3f810073. Main cb282bab, PR380/381 and Alpha 0.3.43 remain unchanged; owner PTR 0.4 is unpublished. Resolve subsequent notes HEADs from actual Git and publication receipts rather than treating this dated snapshot as a permanent branch status.
 
-Keep the 1b20 failure a556248b and cleanup df00c504 as historical evidence: 223/224 passed; later phases did not run. The repaired 8b pass supersedes it. Earlier 474-pass/21-file frontend overlay dcb3706b remains separately scoped.
+Preserved runtime evidence is 224/224 native assertions in eight suites, app/Vite-config noEmit, sealed/policy checks and zero-finding scan 817e2296. The 474-case, 21-suite frontend overlay and selected-test types retain separate scope; the earlier 223/224 failure and cleanup remain historical evidence.
 
-Production-optimized synthetic Keep: all 12 eligible 60s+ camera samples pass unchanged CPU draw-submission p95 ceilings. Profile worst values are 17.2/18.0/33.8/17.7ms against 33.4/50/75/50ms (desktop/balanced/reduced/landscape).
+The genuine development rehearsal at 14ac ran prepare then independent rebuilding check from 05:27:48.472 to 05:53:02.388 UTC. Both children exited/closed 0 with signal null, and all 19 result fields match: 102 outputs, family eb011331, candidate release-workspace-849154f508873ce35d5b64bcb8dd1614. Receipt 177ecd87 and independent absence 8b94346e verify the original actors, whole group, source/index and candidate. finalReleasePrepared is false: no export/integration, future-M1, hosted or provider authority is claimed. The tracked historical 16-file family and seven compiler artifacts were not replaced.
 
-World v2: all 12 eligible 60s+ ambient samples miss unchanged nominal p95 ceilings. Profile worst values are 50.9/67.5/84.7/67.4ms against 50/66.7/83.4/66.7ms. Original mobile fixture failure 0ac4149d is retained; the reviewed QA selector repair passed eight decoder cases while preserving the real LOD contract. That fixture failure and residual clock variation do not establish a production bug.
+Optimized synthetic Keep camera measurements remain bound to 8b: all 12 eligible 60-second CPU-submission samples pass unchanged ceilings, with profile-worst p95 17.2/18.0/33.8/17.7 ms against 33.4/50/75/50 ms. Rederivation 8dd3f15d pairs 42,483 actual SceneHost/GL bursts; profile maxima 73/255,628, 54/108,028, 51/79,004 and 55/108,148 draws/nominal triangles meet unchanged caps. World v2 preserves 12 eligible nominal misses, worst 50.9/67.5/84.7/67.4 ms against 50/66.7/83.4/66.7 ms; no ceiling was raised.
 
-Each component's four runs retain normal owned Chrome/native cleanup and unchanged 8b source/index. These CPU/RAF/GL-call observations do not establish GPU/presented frames, touch latency, maximum World density, cold loads, heap/lifecycle, physical-phone, owner-journey or full R06 acceptance.
+All four balanced/reduced Keep lifecycle variants passed 20 remount cycles and three context restores each. Resources matched baseline and final SceneHost-owned RAF/loaders/listeners were zero. Whole-page post-GC heap growth was 1,315,324–1,376,564 bytes, slope 59,090.84–62,301.34 bytes/cycle, within existing diagnostics. Portrait/landscape v3 trusted Chromium touch runs each passed 13 interactions and preserved the placement draft through pinch, selective finger lift, continued pan and end. Root separately reviewed both emulator screenshots without visible horizontal clipping. Retained earlier touch failures were harness transport/driver limitations; no product defect was established.
 
-Billing still blocks hosted acceptance. Learn the notes-only follow-on HEAD from its actual signed receipt; runtime remains 8b with no code/family/compiler change. Resume with fresh billing readback, retarget existing PR381 base to main, then one fast-forward head update to the reviewed integrated notes HEAD. Obtain exact-source 17-job Verify, accepted M1/main Verify, genuine M1 prepare/check and generated-only M2, then actual S/main Verify before provider/PTR work. CB compiler bodies stay historical; initial PTR/G002 updates/adoptions precede later activation establishment.
+These are synthetic component results using unchanged 8b presentation code at operating source 14ac. They do not establish input-to-presented-frame latency, GPU completion, maximum-density/World–Keep–realm cycles, physical-phone/owner acceptance, final-A cold bootstrap or full R06. See local-operations.md for actual operation times, receipts and failure details.
 
-Evidence under artifacts/qa: october-release-r06-living-8b57f62a-keep-four-profile-summary.json; october-release-r06-living-8b57f62a-world-v2-four-profile-independent-summary.json; october-release-living-realm-native-checks-v2-20261002T030747534Z-summary.json.
+Signed-in readback 0dcdf53c records exhausted included Actions usage and the paid-usage stop; CLI authentication works, while the existing owner billing handoff remains pending. This is observed account state, not a permission grant. No financial change or trial CI was made. Retention review c312c7d7 leaves the prior 219G store and conditional 3.10 GiB cb-draft retirement unresolved; no private-run deletion/recovery occurred.
+
+After actual source idle, sign/scan/sync/back up only these three excluded notes. Hosted release still needs exact-source PR/main acceptance, actual M1/main Verify and its own prepare/check/generated M2, then accepted S/main Verify/Pages and the existing provider/PTR/final-A route. The development candidate and synthetic fixtures do not replace those gates.
 
 ## Historical unpublished integration record — 2 October 2026
 
