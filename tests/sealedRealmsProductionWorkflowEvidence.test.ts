@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 const policyNativeFixture = vi.hoisted(() => ({ prepare: vi.fn(), execute: vi.fn(), dispose: vi.fn(), handles: new WeakSet<object>() }));
 const nativeSourceFixture = vi.hoisted(() => ({ requireComplete: vi.fn() }));
-vi.mock('../scripts/native-source-verification.mjs', () => ({
+vi.mock('../scripts/native-source-verification-evidence.mjs', () => ({
   requireCompleteNativeSourceVerificationEvidence: nativeSourceFixture.requireComplete,
 }));
 vi.mock('../scripts/genesis001-linux-policy-native.mjs', () => ({
@@ -780,6 +780,7 @@ describe.sequential('Linux materialization before fresh workflow authority', () 
 
 it('shares the genuine evidence WeakMap with the compiled native credential boundary', async () => {
   const f = fixture(); vi.stubEnv('WARPKEEP_OPERATION', 'g001-policy-observe');
+  const fixtureHome = join(f.root, 'native-home');
   const adminSecret = 'synthetic-workflow-admin-credential-000000';
   const source = { sourceCommit: f.commit, sourceTree: 'b'.repeat(40), operatorBlob: 'c'.repeat(40), operatorSha256: 'd'.repeat(64) };
   const built = { bundleSha256: 'e'.repeat(64), bundleBytes: 1, sourceClosureSha256: 'f'.repeat(64), dependencyClosureSha256: '1'.repeat(64) };
@@ -803,7 +804,7 @@ it('shares the genuine evidence WeakMap with the compiled native credential boun
   // preparation state machine and workflow-evidence implementation are real and
   // compiled together; no scope/receipt-shaped object is accepted as authority.
   const boundary = `import f from 'node:warpkeep-identity-fixture';
-    export const G001_POLICY_HOME='/fixture-home', G001_POLICY_ROOT='/fixture-home/private', G001_POLICY_NODE='/fixture-home/node', G001_POLICY_NODE_SHA='${'3'.repeat(64)}',G001_POLICY_ENV={};
+    export const G001_POLICY_HOME=${JSON.stringify(fixtureHome)}, G001_POLICY_ROOT=${JSON.stringify(join(fixtureHome, 'private'))}, G001_POLICY_NODE=${JSON.stringify(join(fixtureHome, 'node'))}, G001_POLICY_NODE_SHA='${'3'.repeat(64)}',G001_POLICY_ENV={};
     export const attestPolicyHost=()=>({}),attestPolicySource=f.attest,cleanupPolicyRun=f.cleanup;
     export const policyDigest=()=>'',policyDirectory=()=>({}),policyOwnedRun=()=>{},policyPrivateAncestors=()=>{},policyGit=()=>Buffer.from('x'),policyFail=()=>{throw Error('G001_LINUX_POLICY_NATIVE_FAILED')};`;
   const mocks: Record<string, string> = {
