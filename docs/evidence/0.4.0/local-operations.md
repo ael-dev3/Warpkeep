@@ -4,6 +4,34 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Current Actions policy and completed mobile regression — 2 October 2026
 
+Implementation checkpoint 39afd152/tree ca9aea5d, sole parent d9bbab2d, is signed,
+scanned and synchronized across native, PRIMARY and the remote quality branch.
+Nonforced push 9fe30f ran 11:38:14.494–11:38:16.494 UTC, exit 0/null and zero
+stderr. Pre f269c737 and post 1d4ca5a7 each used 116 GETs; the latter ran
+11:38:41.433–11:39:46.857 UTC. Both reused complete pinned histories and checked
+latest identities, historical attempts, catalogs, queues, permissions and refs.
+All four repositories remained globally disabled/idle. Only the expected quality
+ref advanced; game-main and PR380/381 stayed unchanged. Publication 8b919cf6
+and PRIMARY tracking receipt 6bfb32d1 close exact remote signature/tree/parent
+and local equality. No new Actions run, provider change or 0.4 deployment occurred.
+
+The first pre-read 08915465 held on concurrent Assets main changes and remains
+retained. Reviewed sibling receipt 1697b028 binds the complete signed lineage to
+65fb1f26 and its unchanged reviewed workflow tree. The explicit sibling-only
+adapter passed 13 offline guards (615a4005); independent full-read review found
+no concrete issue at helper 9b04be9b. Fresh remote commit/tree/blob/trigger checks
+did not relax history, settings, game-main/quality or PR comparisons. Direct
+GETs f7eb23/70c0c9/81a74a confirm Assets #41/#40/#38 merged.
+
+Publication helper c9988d produced the verified source receipt but held before
+writing Desktop because its old expected digest no longer matched. Concurrent
+review e36032/5ccf4311 reproduced the previous 6152cf46 bytes exactly by removing
+only an independently added Stillwater section; its original historical suffix
+still matched. In-place refresh 9a04ee/8f878eda preserved both that section and
+history byte-for-byte, read back digest 356a27da and created no Desktop siblings.
+The earlier held refresh did not alter Desktop. These are operation receipts,
+not owner/device, complete native coverage, CI or PTR release acceptance.
+
 Signed checkpoint 2137d044/tree 05c93da6 is the ordinary child of 784e7942. Exact 15-path stage 96a04c, signed commit/signature 624536, redacted outgoing scan 8aede4 and PRIMARY local-object synchronization 4809a7 exited 0. The scan has no findings (37517e5f). Nonforced quality-branch push 9b4cf6 ran 08:09:26.929–08:09:28.883 UTC. Pre c9a104f4 and post 6b7c8750 confirm the sole quality-ref advance, valid remote signature/tree/parent, unchanged main/PRs and disabled settings/idle queues across all four repositories. Publication record 477ad703 and in-place Desktop refresh 440b7da7 preserve actual bindings. Earlier slash-normalization and post-reader filename failures made no remote changes and remain retained. No main/PR/provider acceptance was created.
 
 The next signed checkpoint 13b8fd01/tree ec00b35c is the ordinary child of 2137d044. Its exact seven paths contain the short-viewport legend repair and aligned records. Native install/stage e44149 completed those changes but its final name-list command failed from a terminal carriage return; separate feb711 exited0 and confirmed exactly seven names. Signed commit40fd6b, signatured3f177, outgoing scan16d105 and PRIMARY synchronizatione8a325 exited0; the scan has zero findings. Fresh pre2eaaefe3 ran 09:10:42.920–09:11:49.627 UTC and post3d8c7415 ran 09:12:17.957–09:13:22.108, 112 GETs each, confirming unchanged main/PRs/attempts/catalogs, disabled settings/idle queues and only the expected signed quality-ref advance. Nonforced pushc35364 exited0. Publication69a382d6 and Desktop refresh2e8b7bcf confirm native/PRIMARY parity and byte-identical historical Desktop suffix, without new sibling files.

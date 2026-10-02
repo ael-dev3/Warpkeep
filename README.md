@@ -118,10 +118,11 @@ evidence and exact gates. The [development brief](docs/agent-notes/0.4.0/next-wo
 keeps the next action concise; release status belongs to the linked handoff and
 checklist.
 
-The open [Warpkeep-Assets PR #41](https://github.com/ael-dev3/Warpkeep-Assets/pull/41)
+The merged [Warpkeep-Assets PR #41](https://github.com/ael-dev3/Warpkeep-Assets/pull/41)
 carries the source archive for the biome trees; [PR #40](https://github.com/ael-dev3/Warpkeep-Assets/pull/40)
-is a study reference with rights still unverified. Their open status does not
-block the app's hash-pinned local runtime models. The Genesis 002 soundtrack
+is a study reference with rights still unverified. These archives are now in
+the Assets repository; their publication does not change the app's hash-pinned
+local runtime models. The Genesis 002 soundtrack
 archive is tracked separately in [Warpkeep-Assets PR #38](https://github.com/ael-dev3/Warpkeep-Assets/pull/38).
 Review the linked provenance records before changing or republishing any source
 asset.

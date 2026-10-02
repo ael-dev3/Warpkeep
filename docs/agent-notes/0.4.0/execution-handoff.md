@@ -5,6 +5,25 @@
 
 ## Current local release work — 2 October 2026
 
+The resulting implementation is published as signed 39afd152/tree ca9aea5d,
+sole parent d9bbab2d. Nonforced push 9fe30f closed at 11:38:16.494 UTC;
+post-readback 1d4ca5a7 closed at 11:39:46.857 UTC. Both local checkouts and the
+quality branch match. All four repositories stayed globally disabled and idle;
+complete retained histories, latest identities, historical attempts and unchanged
+game-main/PR boundaries were checked. Publication 8b919cf6 records the precise
+local validation scopes below. This is a source backup, not a live 0.4 release.
+
+The concurrent Assets main advance to 65fb1f26 was separately reviewed and
+bound to its signed linear ancestry, workflow tree and fresh blob/trigger bytes
+(1697b028/f269c737/1d4ca5a7). Assets PRs #38, #40 and #41 are merged; their
+archive status is distinct from runtime integration and third-party rights.
+Desktop refresh initially held because a Stillwater study had been inserted
+independently. Review 5ccf4311 proved that was the sole new section; refresh
+8f878eda preserved it and the historical suffix byte-for-byte, in the same TXT.
+No Desktop siblings, new Actions runs, public workflow installation or provider
+operation occurred. Resume the incomplete native coverage and bounded release
+work described below; preserve all earlier failed probes and proof limitations.
+
 This checkpoint starts from verified signed development publication d9bbab2d/tree fa538249 on release/0.4-living-realm-quality, the ordinary child of 13b8fd01. Actual nonforced push 2be8b6 exited 0; post-readback 144fca88 and publication b326f978 confirm its signature, sole parent, exact tree and native/PRIMARY synchronization. This record's resulting source identity must come from actual Git and remote readback. Main cb282bab and PR380/381 remain unchanged; PR381 is based on PR380. Alpha is available; owner PTR 0.4 is unpublished.
 
 Resolve the current Actions policy from config/github-actions-budget.json and docs/operations/github-actions-budget.md. All four repositories remain globally disabled. D9 pre/post publication inventories 7c232d92/144fca88 reused complete run histories and refreshed activity, attempts, triggers, PRs, refs and permissions. No Actions execution was started or cancelled. Additional execution under the disabled policy is zero. Retained prior jobs establish a conservative 51-minute policy lower bound for 2 October; the aggregate daily total remains unknown. This is per-job policy accounting across midnight, not actual billing or wall time within the day. Older billing-recovery and full-hosted-Verify instructions below are historical. Do not re-enable, dispatch or infer an automatic daily reset.

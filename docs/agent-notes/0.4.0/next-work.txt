@@ -1,7 +1,7 @@
 WARPKEEP 0.4 — NEXT WORK
 CURRENT RESUMPTION — 2 OCTOBER 2026, LOCAL RELEASE WORK
 
-Source base for this checkpoint: verified signed d9bbab2d/tree fa538249 on release/0.4-living-realm-quality; publication b326f978 and remote readback 144fca88. Main cb282bab and PR380/381 remain unchanged. Resolve this record's resulting source checkpoint from actual Git and readback. Alpha root returned HTTP 200; owner PTR 0.4 is unpublished.
+Current implementation: verified signed 39afd152/tree ca9aea5d, sole parent d9bbab2d, published on release/0.4-living-realm-quality. Publication 8b919cf6 and post-readback 1d4ca5a7 bind both clean local checkouts and the remote; all four repositories remained disabled/idle with no new Actions run. Main cb282bab and PR380/381 remain unchanged. Separately reviewed Assets main 65fb1f26 includes merged archives #38/#40/#41; no new runtime integration is implied. Desktop refresh 8f878eda preserves its independent Stillwater study and historical suffix exactly. Resolve later notes commits from actual Git/readback. Alpha root returned HTTP 200; owner PTR 0.4 is unpublished.
 
 1. Read config/github-actions-budget.json and docs/operations/github-actions-budget.md. All four repositories remain globally disabled with empty active queues at the publication readback. Reuse complete history and refresh activity, attempts, refs, PRs, catalogs and settings before remote actions. Do not restore billing, re-enable, dispatch, rerun or assume a daily reset from older directions below. Continue local validation and coherent signed/scanned/nonforced checkpoints.
 
