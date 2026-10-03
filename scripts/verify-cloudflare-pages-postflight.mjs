@@ -75,21 +75,63 @@ export function canonicalRoute(path) {
   return `/${path}`;
 }
 
-async function fetchExact(fetchImpl, url, maximumBytes) {
-  let response;
+/**
+ * One bounded request: a per-request deadline covers headers and body, the body is
+ * read as a stream and cancelled as soon as it exceeds `maximumBytes`, and every
+ * transport, abort or read failure maps to a fixed code. A bad CDN response
+ * therefore ends the check predictably instead of buffering or waiting forever.
+ */
+async function fetchExact(fetchImpl, url, maximumBytes, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const failure = () => fail(controller.signal.aborted ? 'TIMEOUT' : 'TRANSPORT_FAILED');
   try {
-    response = await fetchImpl(url, { redirect: 'manual', cache: 'no-store', headers: { 'user-agent': 'warpkeep-cloudflare-postflight/1' } });
-  } catch { fail('TRANSPORT_FAILED'); }
-  const body = Buffer.from(await response.arrayBuffer());
-  if (body.length > maximumBytes) fail('BODY_TOO_LARGE');
-  return { status: response.status, body };
+    let response;
+    try {
+      response = await fetchImpl(url, {
+        redirect: 'manual', cache: 'no-store', signal: controller.signal,
+        headers: { 'user-agent': 'warpkeep-cloudflare-postflight/1' },
+      });
+    } catch { failure(); }
+    const chunks = []; let length = 0;
+    const reader = response.body?.getReader();
+    if (reader) {
+      // Some stream sources ignore abort; the deadline still settles every read.
+      const aborted = new Promise((_, reject) => {
+        if (controller.signal.aborted) reject(new Error('aborted'));
+        controller.signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+      });
+      aborted.catch(() => undefined);
+      try {
+        for (;;) {
+          const { done, value } = await Promise.race([reader.read(), aborted]);
+          if (done) break;
+          length += value.byteLength;
+          if (length > maximumBytes) {
+            reader.cancel().catch(() => undefined);
+            fail('BODY_TOO_LARGE');
+          }
+          chunks.push(Buffer.from(value.buffer, value.byteOffset, value.byteLength));
+        }
+      } catch (error) {
+        if (error instanceof CloudflarePagesPostflightError) throw error;
+        reader.cancel().catch(() => undefined);
+        failure();
+      }
+    }
+    return { status: response.status, body: Buffer.concat(chunks, length) };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function verifyCloudflarePagesPostflight({
   origin, reviewedPlanBytes, expectedReviewedPlanSha256, fetchImpl = globalThis.fetch, concurrency = 8,
+  timeoutMs = 30_000,
 }) {
   if (typeof origin !== 'string' || !ORIGIN.test(origin)) fail('ORIGIN_INVALID');
-  if (typeof fetchImpl !== 'function' || !Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 32) {
+  if (typeof fetchImpl !== 'function' || !Number.isSafeInteger(concurrency) || concurrency < 1 || concurrency > 32
+    || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 600_000) {
     fail('ARGUMENT_INVALID');
   }
   const { plan, entries } = parseReviewedPlan(reviewedPlanBytes, expectedReviewedPlanSha256);
@@ -97,7 +139,7 @@ export async function verifyCloudflarePagesPostflight({
   const mismatched = [];
   async function worker() {
     for (let entry = queue.pop(); entry !== undefined; entry = queue.pop()) {
-      const { status, body } = await fetchExact(fetchImpl, `${origin}${canonicalRoute(entry.path)}`, entry.byteLength + 1);
+      const { status, body } = await fetchExact(fetchImpl, `${origin}${canonicalRoute(entry.path)}`, entry.byteLength + 1, timeoutMs);
       if (status !== 200 || body.length !== entry.byteLength || sha256(body) !== entry.sha256) mismatched.push(entry.path);
     }
   }
@@ -110,7 +152,7 @@ export async function verifyCloudflarePagesPostflight({
   // Unknown paths must fall back to the nearest SPA 404 page with a 404 status.
   for (const [route, fallback] of [[`/${MISSING_PROBE}`, '404.html'], [`/ptr/${MISSING_PROBE}`, 'ptr/404.html']]) {
     const expected = entries.get(fallback);
-    const { status, body } = await fetchExact(fetchImpl, `${origin}${route}`, expected.byteLength + 1);
+    const { status, body } = await fetchExact(fetchImpl, `${origin}${route}`, expected.byteLength + 1, timeoutMs);
     if (status !== 404 || sha256(body) !== expected.sha256) fail('FALLBACK_INVALID');
   }
   return Object.freeze({

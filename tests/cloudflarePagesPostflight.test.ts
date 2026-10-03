@@ -105,6 +105,60 @@ describe('Cloudflare Pages postflight', () => {
     }
   });
 
+  it('stops reading an oversized body at its bound and cancels it', async () => {
+    const { bytes, digest } = planBytes();
+    const server = pagesServer();
+    let pulled = 0; let cancelled = false;
+    const fetchImpl = async (url: string, init: { redirect?: string }) => {
+      if (!url.endsWith('/ptr/assets/index-a1.js')) return server.fetchImpl(url, init);
+      // An endless body: it must be cut off at the planned size, never buffered whole.
+      return new Response(new ReadableStream<Uint8Array>({
+        pull(controller) { pulled++; controller.enqueue(new Uint8Array(64 * 1024)); },
+        cancel() { cancelled = true; },
+      }), { status: 200 });
+    };
+    await expect(verifyCloudflarePagesPostflight({
+      origin: ORIGIN, reviewedPlanBytes: bytes, expectedReviewedPlanSha256: digest, fetchImpl, concurrency: 1,
+    })).rejects.toMatchObject({ code: 'CLOUDFLARE_PAGES_POSTFLIGHT_BODY_TOO_LARGE' });
+    expect(cancelled).toBe(true);
+    expect(pulled).toBeLessThanOrEqual(3);
+  });
+
+  it('ends a stalled response or body at its deadline, even when the stream ignores abort', async () => {
+    const { bytes, digest } = planBytes();
+    const server = pagesServer();
+    const stalledHeaders = async (url: string, init: { redirect?: string; signal?: AbortSignal }) => (
+      url.endsWith('/ptr/') ? new Promise<Response>((_, reject) => init.signal?.addEventListener('abort', () => reject(new Error('aborted'))))
+        : server.fetchImpl(url, init)
+    );
+    const stalledBody = async (url: string, init: { redirect?: string; signal?: AbortSignal }) => (
+      url.endsWith('/ptr/') ? new Response(new ReadableStream<Uint8Array>({ start() { /* never enqueues, ignores abort */ } }), { status: 200 })
+        : server.fetchImpl(url, init)
+    );
+    for (const fetchImpl of [stalledHeaders, stalledBody]) {
+      const started = Date.now();
+      await expect(verifyCloudflarePagesPostflight({
+        origin: ORIGIN, reviewedPlanBytes: bytes, expectedReviewedPlanSha256: digest, fetchImpl, timeoutMs: 50,
+      })).rejects.toMatchObject({ code: 'CLOUDFLARE_PAGES_POSTFLIGHT_TIMEOUT' });
+      expect(Date.now() - started).toBeLessThan(5_000);
+    }
+  });
+
+  it('maps transport and body read failures to one fixed code', async () => {
+    const { bytes, digest } = planBytes();
+    const server = pagesServer();
+    const thrown = async () => { throw new TypeError('network down'); };
+    const brokenBody = async (url: string, init: { redirect?: string }) => (
+      url.endsWith('/ptr/') ? new Response(new ReadableStream<Uint8Array>({ pull(controller) { controller.error(new Error('reset')); } }), { status: 200 })
+        : server.fetchImpl(url, init)
+    );
+    for (const fetchImpl of [thrown, brokenBody]) {
+      await expect(verifyCloudflarePagesPostflight({
+        origin: ORIGIN, reviewedPlanBytes: bytes, expectedReviewedPlanSha256: digest, fetchImpl,
+      })).rejects.toMatchObject({ code: 'CLOUDFLARE_PAGES_POSTFLIGHT_TRANSPORT_FAILED' });
+    }
+  });
+
   it('rejects a plan whose digest, canonical form or required pages drift', async () => {
     const { fetchImpl } = pagesServer();
     const { bytes, digest } = planBytes();
