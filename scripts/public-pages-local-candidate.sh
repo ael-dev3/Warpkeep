@@ -39,6 +39,8 @@ p3_scrub_build_environment() {
 }
 
 p3_export_build_environment() {
+  # Git Bash would otherwise rewrite DEPLOY_BASE=/ptr/ into a Windows path for npm.
+  export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
   export DEPLOY_BASE=/ptr/ VITE_WARPKEEP_RELEASE_CHANNEL=alpha VITE_WARPKEEP_BUILD_SHA="$1" \
     VITE_WARPKEEP_REPOSITORY_URL=https://github.com/ael-dev3/Warpkeep \
     VITE_WARPKEEP_CANONICAL_ORIGIN=https://warpkeep.com \
