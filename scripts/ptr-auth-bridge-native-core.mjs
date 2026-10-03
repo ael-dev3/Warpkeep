@@ -198,10 +198,10 @@ export function assertNativeBridgeLatestUpload(result, resultInfo, versionId, ve
   if (!Array.isArray(items) || items.length !== 1 || !record(items[0]) || items[0].id !== versionId
     || items[0].number !== versionNumber || !UUID.test(versionId ?? '') || !Number.isSafeInteger(versionNumber) || versionNumber < 1
     || (resultInfo !== undefined && (!record(resultInfo)
-      || Object.keys(resultInfo).sort().join(',') !== 'count,page,per_page,total_count,total_pages'
+      || !['count,page,per_page,total_count', 'count,page,per_page,total_count,total_pages'].includes(Object.keys(resultInfo).sort().join(','))
       || resultInfo.count !== 1 || resultInfo.page !== 1 || resultInfo.per_page !== 1
       || !Number.isSafeInteger(resultInfo.total_count) || resultInfo.total_count < 1
-      || resultInfo.total_pages !== resultInfo.total_count))) fail('LATEST_UPLOAD_CHANGED');
+      || (Object.hasOwn(resultInfo, 'total_pages') && resultInfo.total_pages !== resultInfo.total_count)))) fail('LATEST_UPLOAD_CHANGED');
 }
 
 export function persistNativeBridgeInspection(plan, journal) {

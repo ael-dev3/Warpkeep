@@ -64,13 +64,19 @@ function openJournal(create: boolean) {
 export function parsePtrNativeBridgeResponseEnvelope(value: unknown, path: string, method = 'GET') {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) fail('RESPONSE_ENVELOPE');
   const envelope = value as Data;
-  const observedDomainNullLists = method === 'GET'
-    && path === `/accounts/${PTR_BRIDGE_ACCOUNT}/workers/domains?service=${PTR_BRIDGE_WORKER}`
+  const inventoryPrefix = `${BASE}/versions?deployable=true&page=`, inventorySuffix = '&per_page=100';
+  const inventoryPage = typeof path === 'string' && path.startsWith(inventoryPrefix) && path.endsWith(inventorySuffix)
+    ? Number(path.slice(inventoryPrefix.length, -inventorySuffix.length)) : 0;
+  const observedInventoryPath = Number.isInteger(inventoryPage) && inventoryPage >= 1 && inventoryPage <= 100
+    && path === `${inventoryPrefix}${inventoryPage}${inventorySuffix}`;
+  const observedReadNullLists = method === 'GET'
+    && (path === `/accounts/${PTR_BRIDGE_ACCOUNT}/workers/domains?service=${PTR_BRIDGE_WORKER}`
+      || path === PTR_BRIDGE_LATEST_UPLOAD_PATH || observedInventoryPath)
     && envelope.errors === null && envelope.messages === null;
   const emptyArrayLists = Array.isArray(envelope.errors) && envelope.errors.length === 0
     && Array.isArray(envelope.messages) && envelope.messages.length === 0;
   if (envelope.success !== true || !Object.hasOwn(envelope, 'result')
-    || (!emptyArrayLists && !observedDomainNullLists)) fail('RESPONSE_ENVELOPE');
+    || (!emptyArrayLists && !observedReadNullLists)) fail('RESPONSE_ENVELOPE');
   return { result: envelope.result, resultInfo: envelope.result_info };
 }
 function apiClient(token: string, assert: () => void) {

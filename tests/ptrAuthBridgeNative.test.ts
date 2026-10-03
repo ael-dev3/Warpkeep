@@ -337,3 +337,55 @@ describe('unobserved optional Worker cache field', () => {
       .toBe(bridgeDigest(project(stored, missingCacheMetadata(stored))));
   });
 });
+
+// Genuine fixed unfiltered latest-upload GET observed 2026-10-03: result_info
+// has four own keys and omits total_pages. Metadata-only receipt SHA256
+// 32a0694f5247a784b543a993523331c70b6c6480d99eb8f616a24541bc6bb715.
+describe('observed latest-upload pagination representations', () => {
+  const result = () => ({ items: [{ id: before.versionId, number: before.versionNumber }] });
+  const observed = () => ({ page: 1, per_page: 1, count: 1, total_count: 51 });
+  test('accepts the actual four-key metadata without adding or inferring total_pages', () => {
+    const inventory = result(), info = observed();
+    expect(() => assertNativeBridgeLatestUpload(inventory, info, before.versionId, before.versionNumber)).not.toThrow();
+    expect(Object.hasOwn(info, 'total_pages')).toBe(false);
+    expect(info).toEqual({ page: 1, per_page: 1, count: 1, total_count: 51 });
+  });
+  test('preserves the existing five-key metadata with exact total_pages equal to total_count', () => {
+    expect(() => assertNativeBridgeLatestUpload(result(), { ...observed(), total_pages: 51 }, before.versionId, before.versionNumber)).not.toThrow();
+  });
+  test.each(['page', 'per_page', 'count', 'total_count'])('rejects missing own pagination key %s', key => {
+    const info = Object.fromEntries(Object.entries(observed()).filter(([name]) => name !== key));
+    expect(() => assertNativeBridgeLatestUpload(result(), info, before.versionId, before.versionNumber))
+      .toThrow('PTR_NATIVE_BRIDGE_LATEST_UPLOAD_CHANGED');
+  });
+  test.each([
+    { page: 0 }, { page: 2 }, { page: '1' }, { per_page: 0 }, { per_page: 2 }, { per_page: 100 },
+    { count: 0 }, { count: 2 }, { count: '1' }, { total_count: 0 }, { total_count: -1 }, { total_count: 1.5 },
+    { total_count: Number.MAX_SAFE_INTEGER + 1 }, { total_count: '51' }, { total_count: undefined },
+    { total_pages: undefined }, { total_pages: null }, { total_pages: '51' }, { total_pages: 50 }, { total_pages: 52 },
+    { extra: true },
+  ])('rejects stale, malformed, noncanonical or extended pagination %#', change => {
+    expect(() => assertNativeBridgeLatestUpload(result(), { ...observed(), ...change }, before.versionId, before.versionNumber))
+      .toThrow('PTR_NATIVE_BRIDGE_LATEST_UPLOAD_CHANGED');
+  });
+  test.each([null, [], {}, { page: 1 }])('rejects an invalid provided pagination object %#', info => {
+    expect(() => assertNativeBridgeLatestUpload(result(), info, before.versionId, before.versionNumber))
+      .toThrow('PTR_NATIVE_BRIDGE_LATEST_UPLOAD_CHANGED');
+  });
+  test('retains exact version identity/number and the one-item inventory under the observed four-key shape', () => {
+    for (const inventory of [{ items: [] }, { items: [...result().items, ...result().items] },
+      { items: [{ id: candidateId, number: before.versionNumber }] },
+      { items: [{ id: before.versionId, number: before.versionNumber + 1 }] },
+      { items: result().items, extra: true }]) {
+      expect(() => assertNativeBridgeLatestUpload(inventory, observed(), before.versionId, before.versionNumber))
+        .toThrow('PTR_NATIVE_BRIDGE_LATEST_UPLOAD_CHANGED');
+    }
+  });
+  test('invalid four-key pagination rejects before any submission marker or provider callback', async () => {
+    const { input, records, events } = protocol();
+    await expect(runNativeBridgeProtocol({ ...input, preflight: async () => {
+      assertNativeBridgeLatestUpload(result(), { ...observed(), total_count: 0 }, before.versionId, before.versionNumber);
+    } })).rejects.toThrow('PTR_NATIVE_BRIDGE_LATEST_UPLOAD_CHANGED');
+    expect(records.size).toBe(0); expect(events).not.toContain('upload'); expect(events).not.toContain('release');
+  });
+});
