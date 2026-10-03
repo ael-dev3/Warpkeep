@@ -163,14 +163,20 @@ function assertVisibleAddTablePlan(text) {
   if (cursor !== lines.length - 1 || lines[cursor] !== '') fail();
 }
 
-export function parseExistingUpdatePlan(bytes, identity, predecessor, candidate) {
+/** Strict opaque provider token observation; this parser alone authenticates no provider response. */
+export function parseExistingOpaqueUpdatePlan(bytes) {
   const result = updateExact(parseExistingUpdateJson(bytes), ['AutoMigrate']);
   const plan = updateExact(result.AutoMigrate, ['break_clients', 'major_version_upgrade', 'migrate_plan', 'token']);
   if (plan.break_clients !== false || plan.major_version_upgrade !== false
     || typeof plan.migrate_plan !== 'string' || Buffer.byteLength(plan.migrate_plan) > 128 * 1024
-    || decodeExistingUpdateToken(plan.token) !== existingUpdateTokenDigest(identity, predecessor, candidate)) fail();
+    || typeof plan.token !== 'string' || !/^0x[a-f0-9]{1,64}$/u.test(plan.token)) fail();
   assertVisibleAddTablePlan(plan.migrate_plan);
   return Object.freeze({ token: plan.token, planDigest: updateDigest(result), observation: result });
+}
+export function parseExistingUpdatePlan(bytes, identity, predecessor, candidate) {
+  const parsed = parseExistingOpaqueUpdatePlan(bytes);
+  if (decodeExistingUpdateToken(parsed.token) !== existingUpdateTokenDigest(identity, predecessor, candidate)) fail();
+  return parsed;
 }
 
 export function parseExistingUpdateSql(bytes) {

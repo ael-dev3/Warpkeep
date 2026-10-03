@@ -145,15 +145,15 @@ export const GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS = Object.freeze([
   'scripts/greater-realm-downstream-release-policy.ts',
   'docs/operations/greater-realm-production-launch-envelope.sh.txt',
 ]);
-// The original four reviewed operator helpers retain their exact bytes. Three
-// additional operators now use kernel birth to preserve live recovery owners
-// across clock changes. The frozen module and build recipe stay unchanged.
+// The reviewed helpers retain kernel-birth recovery ownership. The provenance
+// helper now preserves reviewed executable modes during source materialization.
+// The frozen module and build recipe stay unchanged.
 // Keep the complete adoption projection above as the historical contract and
 // require all seven helpers to match this signed, reviewed refreeze checkpoint.
 // A later helper change requires another explicit source refreeze; it cannot
 // silently widen the exception or change the frozen G001 contract.
 const GENESIS_001_OPERATOR_REFREEZE_SOURCE_COMMIT =
-  '580cd588776315de334cd81adddded80f49d06c7';
+  'da3e057ff7fd6a8f5b1a1b2616dff8b3db50cffb';
 const GENESIS_001_OPERATOR_REFREEZE_PROJECTION_PATHS = Object.freeze([
   'scripts/greater-realm-production-provenance.ts',
   'scripts/greater-realm-production-transport.ts',

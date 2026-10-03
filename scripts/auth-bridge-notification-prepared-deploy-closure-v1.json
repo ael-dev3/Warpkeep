@@ -155,7 +155,7 @@
     {
       "path": "scripts/atlas/greater-realm-git.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9427c955774a5124dead1efc2f477f3e99ebd5b5ad97d5840477144518fe8217"
+      "sha256": "309ae402dca3c9abe66b4fbe28d2659313754e8f8a8550ae8af99047c3dd2e85"
     },
     {
       "path": "scripts/atlas/greater-realm-hydrology-authority.ts",
@@ -1865,12 +1865,12 @@
     {
       "path": "scripts/sealed-realms-existing-update-protocol.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "376492254520ee202f70fa85b506afb80e4406050bf0ec5d47502cbedaf44145"
+      "sha256": "8378d93b36e8e3fec39286cac7c3a8bd6da79b3864b4c27c8aaa809e29031f04"
     },
     {
       "path": "scripts/sealed-realms-existing-update-protocol.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5d16988e1e8228dd8cc8bdcf7e18a2b5348359fa82f057e8b012e768174c8b3f"
+      "sha256": "7bd10c6b1531b6faec7533279ef1eddd238b7cf363bc9a0a14696d4743f195b4"
     },
     {
       "path": "scripts/sealed-realms-production-activation-generation-receipt.d.mts",
@@ -2175,7 +2175,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "513c178a831f08435b2264a794f161d6c18f9767007de1f3a8d56675623f52b5"
+      "sha256": "2f462e260848e3ffc51e280948432359ba1583859cd5ec888641b54266e18007"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
@@ -2975,7 +2975,7 @@
     {
       "path": "spacetimedb/ptr/src/lifecycle.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f17701778acda1bb3cf84c57ceedfe1a8708babbca5d5becebbd398e9b597b13"
+      "sha256": "ade380e5df53ee2fb296ed557cfc45f1aad779dc1f3dd7f34c9dbce332f6df40"
     },
     {
       "path": "spacetimedb/ptr/src/ownerPolicy.ts",
@@ -5245,7 +5245,7 @@
     {
       "path": "src/ptr/PtrRealmProvider.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5071443c06539860885195781830031c802f2614d4178b0b01b111dbf530b563"
+      "sha256": "fb55e48424cc86db3bc1cfd01ba6d6f34c23168d2d281230350927e276d92761"
     },
     {
       "path": "src/ptr/PtrSessionContinuation.css",
@@ -5310,7 +5310,7 @@
     {
       "path": "src/ptr/ptrRealmAuthClient.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "75534b2e5f5d1000151d7ba7772d9f465343266c3eccb333476496a8fe04d769"
+      "sha256": "6b27d6d5a79a1727d4d37589745d714f974af9c0eae676f7bd8beaddf5e81d05"
     },
     {
       "path": "src/ptr/ptrRealmConfig.ts",

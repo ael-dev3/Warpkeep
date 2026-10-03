@@ -3,7 +3,72 @@
 <!-- Preserve incoming historical current-checkpoint links. -->
 <a id="current-release-checkpoint--1-october-2026"></a>
 
-## Current local release work — 3 October 2026
+## Current isolated owner-PTR continuation — 3 October 2026
+
+Signed quality source `da3e057ff7fd6a8f5b1a1b2616dff8b3db50cffb` /
+tree `02164ba0ed75c4690ccb126817ee6ecb8fd7e3f9` is the verified native
+base, not a guessed final integration hash. Genuine prepare/check completed
+there with matching results (`90eb8e1b`, receipt `604b840c`), a
+`prepared-source-candidate` handle and 102 outputs. Independent post
+`e06d20bb` confirmed the original process group absent and raw source,
+index and refs preserved. Resolve latest HEAD/tree, merge state and guarded
+native source from actual Git and receipts before acting.
+
+After that signed-base preparation, the guarded native integration
+contains a two-file maintenance overlay (`b644e7`, post `0ee039`), the
+authentic PR #383 merge, PTR compatibility/bootstrap, explicit G001 refreeze
+and these notes. Resolve its exact signed checkpoint/publication from actual
+Git and receipts. Maintenance focused tests passed 52/52 (`7aeeaf`, post
+`84b95c`); G001 refreeze passed 170 cases; PTR compatibility/bootstrap passed
+39 and relevant type checks. Its supported 16-output family metadata was
+reproduced with source/index/merge/refs preserved. This is metadata and
+focused-test evidence, not a fresh compiler result for the combined source.
+The earlier base workspace handle cannot be reused for changed
+source. Full combined-source prepare/check remains separate release evidence.
+
+The combined ordinary focused attempt (`9708d52f`) recorded 393 passes, zero
+failures and 29 skips. Its strict aggregate remained failed because the
+namespace cases were not run in that environment. The separate installed
+namespace four-file run completed with 260 passes, zero failures and one
+source-declared unsupported-runtime negative-control skip (`84a572de`).
+Independent post `edb305c3` rechecked the raw report, guarded source/Git and
+original whole-group absence. Its scoped disposition does not erase the raw
+skip or convert the earlier ordinary aggregate into a pass. Complete native
+verification and final release acceptance remain open.
+
+[PR #385](https://github.com/ael-dev3/Warpkeep/pull/385) is still draft and
+supersedes #380/#381; main `cb282bab` is unchanged. The native integration's signed/publication identity belongs to
+actual Git and receipts, not an anticipated hash in this note. [Issue #384](https://github.com/ael-dev3/Warpkeep/issues/384)
+coordinates exact heads and work: Codex owns the PTR provider update/readback
+and the direct owner caller bridge; Claude owns the frontend/mobile preview
+in a separate Windows checkout. The integrated #375–#378 branches are
+provenance rather than additional merges.
+
+Alpha 0.3.43 remains live; authenticated owner `/ptr/` is unpublished. The
+older-source Cloudflare preview is neither current integrated game, Alpha
+domain cutover nor owner acceptance. The next provider step is the maintained
+`ptr-compatibility-bootstrap-operator.ts` from clean committed source. It
+builds the real PTR artifact inline, validates its ABI and authenticated
+nonbreaking prepublish token, makes one durably marked guarded PUT, then reads
+the complete poststate twice. Prior private SQL 403 /
+`INVALID_PTR_OWNER_SESSION` prevents program and row before-state; both
+remain `null`, never guessed. Metadata `initial_program` is not current
+program proof. Do not generate a replacement key or replay an uncertain PUT.
+Then configure and validate the auth Worker's direct owner exchange with
+existing protected credentials; unrelated GitHub-bound settings do not
+replace that caller. Publish the approved `/ptr/` build while preserving the
+Alpha root, then complete a real authenticated owner journey and mobile
+acceptance. Preserve G001 players/progress/timers and new-admission freeze;
+keep G002 sealed. G002/notification deployments and global S/F/A stay
+separate absent a demonstrated PTR contract dependency.
+
+For CLI recovery, check SpacetimeDB `login show` before `list --yes`; a
+logged-out list can initialize an anonymous identity. Read the
+[access guide](../../operations/0.4.0-infra-access.md#spacetimedb-identities-and-schema-inspection)
+for existing profile paths. The current Actions policy and fresh inventory
+govern any remote workflow action; these notes grant no permission.
+
+## Previous local release work — 3 October 2026 (superseded)
 
 ### Verified source, build repair and PTR connection blocker
 

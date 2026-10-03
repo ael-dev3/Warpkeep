@@ -1,6 +1,51 @@
 WARPKEEP 0.4 — NEXT WORK
 CURRENT RESUMPTION — 3 OCTOBER 2026
 
+Read docs/agent-notes/0.4.0/execution-handoff.md before acting. The
+signed da3e057f base has a genuine prepare/check and independent closure. A
+later native integration contains authentic PR #383 changes, maintenance,
+PTR compatibility/bootstrap, explicit G001 refreeze, notes and reproduced
+16-output family metadata. Resolve its exact signed checkpoint/publication from Git and receipts;
+do not infer a future commit hash from these notes. The signed-base
+preparation does not cover the combined source. Main cb282bab is
+unchanged and PR #385 is still draft. Alpha is live; owner PTR is unpublished.
+
+LOCAL EVIDENCE
+Maintenance passed 52 complete cases; G001 refreeze passed 170; PTR
+compatibility/bootstrap passed 39 and relevant type checks. The ordinary
+focused aggregate retained 393 passes, zero failures and 29 raw skips, so its
+strict result failed. An isolated installed namespace run then passed 260,
+failed zero and retained one declared unsupported-runtime control skip, with
+independent source/Git/process closure. Neither result is complete native
+authority or a deployed owner PTR. Supported family regeneration is metadata,
+not a new compiler pass at the integrated source.
+
+NEXT
+1. Resolve the guarded integration's exact clean signed checkpoint and
+   Git synchronization. Preserve raw strict failures and the separately
+   accepted namespace disposition.
+2. Run the maintained PTR compatibility bootstrap from that clean committed
+   source: genuine inline artifact build/ABI, authenticated nonbreaking
+   prepublish token, one durably marked guarded update and two complete
+   poststate reads. Old private SQL 403 leaves programBefore/rowsBefore null;
+   do not invent private before-state or replay an uncertain submission.
+   Full combined-source prepare/check is separate release evidence, not a
+   prerequisite for this isolated repair.
+3. Configure and validate the auth Worker's direct owner PTR caller/exchange
+   with existing protected credentials. Unrelated GitHub-bound settings are a
+   separate concern. Preserve Alpha/G001/G002 and notification behavior.
+4. Claude's Cloudflare frontend/mobile preview is based on older source. Bring
+   the approved integrated build to an Alpha-preserving `/ptr/` route, then
+   perform a real authenticated owner journey and mobile acceptance. A preview
+   is not custom-domain cutover or owner acceptance.
+
+Coordinate exact heads and operation completion through issue #384. Apply the
+current Actions policy from config and fresh inventory; these notes grant no
+workflow permission. Keep all durable work in the repository, with no new
+Desktop files. G002 and global S/F/A remain sealed and separate.
+
+PREVIOUS RESUMPTION — EARLIER 3 OCTOBER 2026 (SUPERSEDED)
+
 CURRENT CHECKPOINT
 Published signed quality source a89173f9 / tree e3cf809b follows game integration a0f6a55f. Resolve the next reviewed repair from actual Git. Main cb282bab and PRs #380/#381 remain separate. Alpha 0.3.43 is live; authenticated owner PTR is not published. Actions remains held disabled; use current config/github-actions-budget.json and its operations guide for remote decisions.
 

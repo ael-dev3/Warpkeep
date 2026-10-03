@@ -7,6 +7,8 @@ export function updateExact(value: unknown, keys: readonly string[]): Record<str
 export function parseExistingUpdateJson(bytes: Uint8Array): any;
 export function decodeExistingUpdateToken(value: unknown): string;
 export function existingUpdateTokenDigest(identity: string, predecessor: string, candidate: string): string;
+/** Opaque token shape/plan only; authenticated transport and server token verification remain required. */
+export function parseExistingOpaqueUpdatePlan(bytes: Uint8Array): Readonly<{ token: string; planDigest: string; observation: any }>;
 export function parseExistingUpdatePlan(bytes: Uint8Array, identity: string, predecessor: string, candidate: string): Readonly<{ token: string; planDigest: string }>;
 export function parseExistingUpdateSql(bytes: Uint8Array): Readonly<{ schema: unknown; rows: any[]; rowsDigest: string; count: number }>;
 export function parseExistingUpdateProgram(bytes: Uint8Array): string;

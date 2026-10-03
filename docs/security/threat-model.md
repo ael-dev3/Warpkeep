@@ -122,6 +122,27 @@ operation. Anonymous visitors do not connect to the game database.
 - Resolver tokens are server-only, short-lived, restricted to admission lookup, and bound to one FID.
 - Protected module operations recheck token expiry even when a transport outlives the original token.
 
+### Owner-only Public Test Realm
+
+- PTR access is exchanged only from the Farcaster Mini App Quick Auth origin. The bridge verifies the
+  Quick Auth token, rechecks its claims when it signs and again before it responds, compares the FID
+  with the configured owner in constant time, requires that owner's live admission to be enabled, and
+  rate-limits the exchange.
+- PTR access tokens use ES256, a separate audience and owner role, and the PTR realm and database
+  identity, with a 120-second lease. The client keeps them in memory outside React state. On the
+  device clock it bounds the lease by the exchange's request and response times, so clock skew
+  neither shortens nor extends it by the skew, and it tolerates up to 60 seconds of device clock lag.
+  SpacetimeDB still checks expiry by its own clock on every protected call.
+- The PTR module admits a connection only with fresh PTR administrator claims, or with owner claims
+  that match its single enabled owner anchor and authorization epoch. Its player-population tables must
+  stay empty, and all of its tables are private. Owner state is served by procedures that recheck those
+  claims. The scheduled reconciliation reducer accepts only the database identity itself.
+- When a lease expires, or a connection drops during play, the client retires the old authority. It
+  reconnects only through a fresh exchange with the same FID, database and authorization epoch. After
+  a dropped connection it does this automatically at most once per 30 seconds; after that it waits for
+  the player. No command, draft or quote crosses sessions. An unconfirmed command is flagged for the
+  player to review, never replayed.
+
 ### Data authority and privacy
 
 - SpacetimeDB owns admission, player ownership, castles, world state, resource

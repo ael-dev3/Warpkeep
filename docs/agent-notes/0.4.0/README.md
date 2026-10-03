@@ -7,6 +7,50 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state — 3 October 2026
 
+Signed `da3e057f` / tree `02164ba0` is the verified base for this
+checkpoint; resolve the latest HEAD/tree and guarded native source from Git.
+Genuine prepare/check at the signed base completed with matching results
+(`90eb8e1b`, receipt `604b840c`), and independent post `e06d20bb` closed its
+original process group with source/index/refs preserved. The guarded native integration contains the authentic PR #383 merge,
+maintenance, PTR compatibility, G001 refreeze and notes. Resolve its exact
+signed checkpoint/publication from Git and receipts; the earlier base
+preparation does not cover the combined source. Main `cb282bab` is unchanged; [PR #385](https://github.com/ael-dev3/Warpkeep/pull/385)
+is draft and supersedes #380/#381.
+
+The maintenance overlay passed 52 complete cases and its type checks. The
+explicit G001 refreeze passed 170 cases; PTR compatibility/bootstrap passed
+39 focused cases and its type checks. Supported metadata derivation reproduced
+all 16 family outputs, without recompiling the integrated source. The ordinary
+focused aggregate reported 393 passed, zero failed and 29 skipped; its strict
+overall result remains failed because the namespace cases could not run there.
+The separate installed namespace run reported 260 passed, zero failed and one
+declared unsupported-runtime negative-control skip (`84a572de`, independent
+post `edb305c3`). Raw skipped is still skipped. These are scoped local checks,
+not complete native authority, backend update or release acceptance.
+
+Alpha 0.3.43 remains live and authenticated owner `/ptr/` unpublished. Codex owns the clean-source PTR compatibility bootstrap: genuine inline
+artifact/ABI validation, authenticated nonbreaking prepublish token, one
+durably marked guarded update and two complete poststate reads. Old private
+SQL 403 leaves programBefore/rowsBefore unknown (`null`); do not invent
+private before-state or require it before bootstrap. Codex then owns the
+existing auth Worker's direct owner caller path. Do not substitute unrelated GitHub-bound
+settings for that caller contract. Claude owns the frontend/mobile preview; its
+current Cloudflare preview is from an older source, not the Alpha domain
+cutover or actual owner acceptance. Preserve G001 state, timers and admission
+freeze, and keep G002 sealed. Unrelated G002/notification deployments and
+global S/F/A remain separate. The previous PTR SQL 403 and missing bridge PTR
+bindings stay open until supported reads prove otherwise.
+
+Use [issue #384](https://github.com/ael-dev3/Warpkeep/issues/384) for exact
+head and completion coordination. Claude works in a separate Windows checkout;
+Codex owns the guarded native operation. The already integrated #375–#378
+branches are provenance, not extra merges. Read the
+[handoff](execution-handoff.md) for full receipt scope and next actions. Check
+SpacetimeDB `login show` before `list --yes`; a logged-out list can initialize
+an anonymous identity.
+
+## Previous working state — earlier 3 October 2026 (superseded)
+
 Published signed quality source `a89173f9` / tree `e3cf809b` follows game baseline `a0f6a55f`. Resolve subsequent repair checkpoints from Git. Main `cb282bab` and PRs #380/#381 remain separate. Alpha 0.3.43 is live; authenticated owner PTR remains unpublished. Actions is held disabled; the current runtime policy governs remote actions.
 
 Initial-owner inspection/update passed 139 tests and types (`276442df`, independent post `3bd626b9`). The completed relocation run passed all 79 original cases within their maintained bounds (`fc0cb87e`, post `d43bbb94`); its preserved assertions and native structuredClone remain intact. Remaining module coverage and full release acceptance are open.
@@ -68,6 +112,7 @@ still open.
 | Apply the full inspiration library | [Visual foundation contract](visual-foundation-contract.md) | Reference-to-source decisions, mobile rules, review states, and evidence limits |
 | Continue the living vale and world | [Living realm](living-realm.md) | Keep vale, ambient life, world daylight, own journeys, steward advice, budgets and limits |
 | Continue daylight, sound and keep-screen craft | [Craft and atmosphere](craft-and-atmosphere.md) | Local-hour daylight for keep and world, night glow, ground contact, shore and verges, 0.4 sound cues and the keep soundscape, keep-screen design |
+| Check bug, security and reliability status | [Hardening audit](hardening-audit.md) | PTR device-clock lease and in-place reconnection fixes, deferred observations, reviewed-sound areas, dependency advisories |
 | Complete delivery | [Release and infrastructure](release-and-infrastructure.md) | Current services, CI, operating gaps, and verification routes |
 | Continue this checkout | [Execution handoff](execution-handoff.md), [source synchronization](../../operations/0.4.0-development-sync.md) | Current checkpoint, environment traps, reviewed publication, and next actions |
 | Follow the daily release sequence | [Next work](next-work.txt) | Compact, tracked action brief; the repository copy is canonical and no Desktop duplicate is created |

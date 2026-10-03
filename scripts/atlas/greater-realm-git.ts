@@ -10,7 +10,7 @@ import {
   readSync,
   realpathSync,
 } from 'node:fs';
-import { dirname, isAbsolute, parse, relative, resolve, sep } from 'node:path';
+import { isAbsolute, parse, relative, resolve, sep } from 'node:path';
 
 const SHA256_PATTERN = /^[0-9a-f]{64}$/u;
 const MAXIMUM_ATTESTED_BINARY_BYTES = 512 * 1024 * 1024;
