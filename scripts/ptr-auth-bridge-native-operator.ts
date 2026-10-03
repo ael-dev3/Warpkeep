@@ -79,31 +79,87 @@ export function parsePtrNativeBridgeResponseEnvelope(value: unknown, path: strin
     || (!emptyArrayLists && !observedReadNullLists)) fail('RESPONSE_ENVELOPE');
   return { result: envelope.result, resultInfo: envelope.result_info };
 }
-function apiClient(token: string, assert: () => void) {
+const PROVIDER_ERROR_BODY_BOUND = 64 * 1024;
+const providerHttpFailure = (status: number, method: string | undefined, detail: string) =>
+  `HTTP_${status}_${method ? 'MUTATION_OUTCOME_UNRESOLVED' : 'READ_FAILED'}_${detail}`;
+
+/** Only fixed hints and bounded numeric fields leave a rejected provider response. */
+function providerFailureDetail(body: Buffer, contentType: string, status: number, privateValues: readonly string[]) {
+  const hint = status === 400 ? 'REQUEST_REJECTED' : status === 401 || status === 403 ? 'AUTH_REJECTED'
+    : status === 409 ? 'CONFLICT' : status === 429 ? 'RATE_LIMITED' : status >= 500 ? 'PROVIDER_FAILURE' : 'NON200';
+  if (!body.length) return `${hint}_EMPTY_BODY`;
+  if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(contentType)) return `${hint}_NON_JSON`;
+  let value: unknown;
+  try { value = JSON.parse(body.toString('utf8')); } catch { return `${hint}_INVALID_JSON`; }
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return `${hint}_NO_SAFE_CODES`;
+  const errors = (value as Data).errors;
+  if (!Object.hasOwn(value, 'errors') || !Array.isArray(errors)) return `${hint}_NO_SAFE_CODES`;
+  if (errors.length > 16) return `${hint}_ERROR_CODES_BOUND`;
+  const protectedNumber = (number: number) => privateValues.some(secret => secret === String(number));
+  const codes = new Set<number>(); let classification: string = hint, position = '';
+  for (const error of errors) {
+    if (error === null || typeof error !== 'object' || Array.isArray(error) || !Object.hasOwn(error, 'code')
+      || !Number.isSafeInteger(error.code) || error.code < 1 || error.code > 999_999_999 || protectedNumber(error.code)) continue;
+    codes.add(error.code);
+    if (error.code !== 10021 || typeof error.message !== 'string') continue;
+    // These are diagnostic categories, never copied provider text or proof of a cause.
+    const message = error.message;
+    if (/\bIncorrect type for map entry\b/iu.test(message)) {
+      classification = 'EXPORT_INVALID'; position = '';
+    } else if (classification !== 'EXPORT_INVALID' && /\bUncaught\s+(?:[A-Za-z]+Error|Error)\b|\b(?:script|worker)\s+startup\b/iu.test(message)) {
+      classification = 'STARTUP';
+      const location = /\bat\s+(?:index|worker)\.js:([1-9][0-9]{0,6}):([1-9][0-9]{0,4})\b/u.exec(message);
+      if (location && !privateValues.includes(location[1]!) && !privateValues.includes(location[2]!)) {
+        position = `_L${location[1]}_K${location[2]}`;
+      }
+    } else if (classification !== 'STARTUP' && classification !== 'EXPORT_INVALID') {
+      if (/\binherit(?:ed|ance)?\s+binding\b|\bbinding\s+inheritance\b|\b(?:cannot|unable to|failed to)\s+inherit\b/iu.test(message)) classification = 'INHERIT_BINDING';
+      else if (/\bmigration(?:s|_tag)?\b/iu.test(message)) classification = 'MIGRATION';
+      else if (/\bmetadata\b|\bmain_module\b|\bcompatibility_(?:date|flags)\b/iu.test(message)) classification = 'METADATA';
+    }
+  }
+  if (codes.size > 4) return `${hint}_ERROR_CODES_BOUND`;
+  if (!codes.size) return `${hint}_NO_SAFE_CODES`;
+  return `${classification}${[...codes].sort((a, b) => a - b).map(code => `_C${code}`).join('')}${position}`;
+}
+
+export function createPtrNativeBridgeApiClient(token: string, assert: () => void, privateValues: readonly string[] = []) {
   if (!/^\S{20,4096}$/u.test(token)) fail('CREDENTIAL_INVALID');
+  const protectedValues = [token, ...privateValues.filter(value => value.length > 0)];
   const request = async (path: string, options: { method?: string; body?: Uint8Array | string; contentType?: string } = {}) => {
     if (!path.startsWith(`/accounts/${PTR_BRIDGE_ACCOUNT}/workers/`) || /\.\.|\\|[\r\n]/u.test(path)) fail('REQUEST_PATH_INVALID');
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 30_000);
-    const chunks: Buffer[] = []; let size = 0;
+    const chunks: Buffer[] = []; let size = 0, rejectedStatus: number | null = null, rejectedBody: Buffer | undefined;
     try {
       assert();
       const response = await fetch(`${API}${path}`, { method: options.method ?? 'GET', redirect: 'error', cache: 'no-store',
         referrerPolicy: 'no-referrer', signal: controller.signal, body: options.body as BodyInit | undefined,
         headers: { authorization: `Bearer ${token}`, accept: '*/*', ...(options.contentType ? { 'content-type': options.contentType } : {}) } });
-      if (response.url !== `${API}${path}` || response.redirected || !response.body) fail('RESPONSE_INVALID');
-      if (response.status !== 200) fail(`HTTP_${response.status}_${options.method ? 'MUTATION_OUTCOME_UNRESOLVED' : 'READ_FAILED'}`);
+      if (response.url !== `${API}${path}` || response.redirected || !response.body
+        || !Number.isInteger(response.status) || response.status < 100 || response.status > 599) fail('RESPONSE_INVALID');
+      if (response.status !== 200) rejectedStatus = response.status;
       const reader = response.body.getReader();
       try { for (;;) {
         const { done, value } = await reader.read(); if (done) break;
-        size += value.byteLength; if (size > 16 * 1024 * 1024) { controller.abort(); fail('RESPONSE_BOUND'); }
-        chunks.push(Buffer.from(value));
+        size += value.byteLength;
+        if (size > (rejectedStatus === null ? 16 * 1024 * 1024 : PROVIDER_ERROR_BODY_BOUND)) {
+          value.fill(0); controller.abort();
+          fail(rejectedStatus === null ? 'RESPONSE_BOUND' : providerHttpFailure(rejectedStatus, options.method, 'ERROR_BODY_BOUND'));
+        }
+        try { chunks.push(Buffer.from(value)); } finally { value.fill(0); }
       } } finally { try { await reader.cancel(); } catch { /* original bounded failure retained */ } reader.releaseLock(); }
+      if (rejectedStatus !== null) {
+        rejectedBody = Buffer.concat(chunks);
+        fail(providerHttpFailure(rejectedStatus, options.method,
+          providerFailureDetail(rejectedBody, response.headers.get('content-type') ?? '', rejectedStatus, protectedValues)));
+      }
       assert(); return { body: Buffer.concat(chunks), contentType: response.headers.get('content-type') ?? '',
         entrypoint: response.headers.get('cf-entrypoint') };
     } catch (error) {
       if (error instanceof PtrNativeBridgeError) throw error;
-      fail(options.method ? 'MUTATION_OUTCOME_UNRESOLVED' : 'READ_FAILED');
-    } finally { clearTimeout(timer); for (const chunk of chunks) chunk.fill(0); }
+      fail(rejectedStatus === null ? (options.method ? 'MUTATION_OUTCOME_UNRESOLVED' : 'READ_FAILED')
+        : providerHttpFailure(rejectedStatus, options.method, 'ERROR_BODY_READ_FAILED'));
+    } finally { clearTimeout(timer); rejectedBody?.fill(0); for (const chunk of chunks) chunk.fill(0); }
   };
   const json = async (path: string, options?: Parameters<typeof request>[1]) => {
     const response = await request(path, options);
@@ -113,7 +169,7 @@ function apiClient(token: string, assert: () => void) {
       return parsePtrNativeBridgeResponseEnvelope(value, path, options?.method ?? 'GET');
     } finally { response.body.fill(0); }
   };
-  return { request, json, dispose() { token = ''; } };
+  return { request, json, dispose() { token = ''; protectedValues.fill(''); } };
 }
 
 function moduleFacts(parts: readonly Data[]) {
@@ -167,7 +223,7 @@ export async function executePtrNativeBridge(input: { command: Command; source: 
     const current = verifyAuthBridgeNotificationPreparedInstalledToolchain({ repositoryRoot: ROOT, wranglerEntrypoint: wrangler });
     if (bridgeCanonical(current) !== bridgeCanonical(tools)) fail('TOOLCHAIN_CHANGED');
   };
-  const api = apiClient(token, assert); token = '';
+  const api = createPtrNativeBridgeApiClient(token, assert, [ownerFid, admin].filter((value): value is string => typeof value === 'string')); token = '';
   let plan: NativeBridgePlan | undefined, uploadBody: Buffer | undefined, contentType: string | undefined,
     result: Data | null = null, error: string | null = null, sourcePreserved = false, redactedMetadataDigest: string | null = null;
   const infrastructure = async () => {

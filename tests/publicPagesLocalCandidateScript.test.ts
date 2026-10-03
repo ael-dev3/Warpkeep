@@ -45,11 +45,12 @@ describe.skipIf(!existsSync(BASH) && process.platform === 'win32')('public Pages
   it('drops caller build variables before exporting only the reviewed production values', () => {
     const result = guard(
       `p3_scrub_build_environment; p3_export_build_environment ${SOURCE}; `
-        + 'echo "uri=${VITE_PTR_SPACETIMEDB_URI-unset} stray=${VITE_STRAY-unset} base=$DEPLOY_BASE sha=$VITE_WARPKEEP_BUILD_SHA ptr=$VITE_WARPKEEP_PTR_ENABLED"',
-      { VITE_PTR_SPACETIMEDB_URI: 'https://example.invalid', VITE_STRAY: 'x', DEPLOY_BASE: '/' },
+        + 'echo "uri=${VITE_PTR_SPACETIMEDB_URI-unset} stray=${VITE_STRAY-unset} base=$DEPLOY_BASE sha=$VITE_WARPKEEP_BUILD_SHA ptr=$VITE_WARPKEEP_PTR_ENABLED msys=${MSYS_NO_PATHCONV-unset} exclude=${MSYS2_ARG_CONV_EXCL-unset}"',
+      { VITE_PTR_SPACETIMEDB_URI: 'https://example.invalid', VITE_STRAY: 'x', DEPLOY_BASE: '/',
+        MSYS_NO_PATHCONV: 'stale', MSYS2_ARG_CONV_EXCL: '*' },
     );
     expect(result.status).toBe(0);
-    expect(result.stdout.trim()).toBe(`uri=unset stray=unset base=/ptr/ sha=${SOURCE} ptr=true`);
+    expect(result.stdout.trim()).toBe(`uri=unset stray=unset base=/ptr/ sha=${SOURCE} ptr=true msys=unset exclude=unset`);
   });
 
   it('refuses to replace any earlier plan, receipt or export for the same source', () => {

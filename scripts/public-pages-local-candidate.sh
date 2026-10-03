@@ -34,7 +34,7 @@ p3_validate_arguments() {
 p3_scrub_build_environment() {
   local name
   for name in $(compgen -e); do
-    case "$name" in VITE_*|DEPLOY_BASE|BASE_URL|NODE_ENV) unset "$name" ;; esac
+    case "$name" in VITE_*|DEPLOY_BASE|BASE_URL|NODE_ENV|MSYS_NO_PATHCONV|MSYS2_ARG_CONV_EXCL) unset "$name" ;; esac
   done
 }
 
@@ -108,7 +108,8 @@ p3_main() {
 
   p3_scrub_build_environment
   p3_export_build_environment "$source"
-  npm run build >/dev/null
+  # Scope Git Bash conversion flags to the build; later Node paths need conversion.
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' npm run build >/dev/null
   MSYS_NO_PATHCONV=1 node scripts/verify-public-pages-payload.mjs --write "$source" --publication-path /ptr/
   MSYS_NO_PATHCONV=1 node scripts/verify-public-pages-mirror-plan.mjs \
     --public-root "$WARPKEEP_PUBLIC_ROOT" "$source" "$P3_PUBLIC_PARENT" --write-plan

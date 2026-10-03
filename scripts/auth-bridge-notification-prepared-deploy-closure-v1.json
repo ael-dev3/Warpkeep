@@ -2375,7 +2375,7 @@
     {
       "path": "services/auth-bridge/src/index.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ffe99224226aa04ea5854a95dfa1323b2dc10e5bd456b3452c6060d24e93327b"
+      "sha256": "da02dba4a4b52027e1ab8765391fe318d26a2f082486d745bbc7f23f0a3a84fd"
     },
     {
       "path": "services/auth-bridge/src/jwt.ts",

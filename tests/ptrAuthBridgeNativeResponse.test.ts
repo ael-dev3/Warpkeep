@@ -1,6 +1,6 @@
 // @vitest-environment node
-import { describe, expect, test } from 'vitest';
-import { parsePtrNativeBridgeResponseEnvelope } from '../scripts/ptr-auth-bridge-native-operator';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+import { createPtrNativeBridgeApiClient, parsePtrNativeBridgeResponseEnvelope } from '../scripts/ptr-auth-bridge-native-operator';
 import { PTR_BRIDGE_ACCOUNT, PTR_BRIDGE_WORKER, PTR_BRIDGE_LATEST_UPLOAD_PATH, assertNativeBridgeLatestUpload } from '../scripts/ptr-auth-bridge-native-core.mjs';
 
 const domains = `/accounts/${PTR_BRIDGE_ACCOUNT}/workers/domains?service=${PTR_BRIDGE_WORKER}`;
@@ -120,5 +120,134 @@ describe('fixed Cloudflare observed GET response representations', () => {
     const inherited = Object.assign(Object.create({ result: [] }), missing);
     expect(() => parsePtrNativeBridgeResponseEnvelope(inherited, domains, 'GET')).toThrow();
     for (const value of [null, [], 'ok', 1]) expect(() => parsePtrNativeBridgeResponseEnvelope(value, domains, 'GET')).toThrow();
+  });
+});
+
+// Transport fixtures below never contact a provider or create a mutation journal.
+describe('bounded credential-free provider rejection diagnostics', () => {
+  const uploadPath = `${base}/versions?bindings_inherit=strict`;
+  const token = 'provider-token-for-error-regression-only';
+  const requestBody = 'REQUEST_BODY_MUST_NOT_APPEAR_IN_ERROR';
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  function response(body: BodyInit | null, status = 400, contentType = 'application/json', path = uploadPath) {
+    const value = new Response(body, { status, headers: { 'content-type': contentType } });
+    Object.defineProperty(value, 'url', { value: `https://api.cloudflare.com/client/v4${path}` });
+    return value;
+  }
+  async function rejection(value: Response, privateValues: readonly string[] = [], method: string | null = 'POST') {
+    const fetchMock = vi.fn(async (_url: RequestInfo | URL, _options?: RequestInit) => value);
+    vi.stubGlobal('fetch', fetchMock);
+    const client = createPtrNativeBridgeApiClient(token, () => {}, privateValues);
+    let failure: unknown;
+    try { await client.json(uploadPath, method === null ? undefined : { method, body: requestBody, contentType: 'application/json' }); }
+    catch (error) { failure = error; }
+    finally { client.dispose(); }
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    if (!(failure instanceof Error)) throw new Error('Expected a rejected provider response');
+    expect(failure.message).toMatch(/^[A-Z][A-Z0-9_]{0,158}$/u);
+    expect(failure.message).not.toContain(token); expect(failure.message).not.toContain(requestBody);
+    expect(failure).not.toHaveProperty('body'); expect(failure).not.toHaveProperty('response');
+    return failure;
+  }
+
+  test('reads actual HTTP400-shaped error envelopes and retains only safe startup code and source coordinates', async () => {
+    const rawMessage = 'Uncaught TypeError: PRIVATE_PROVIDER_TEXT at index.js:12530:6';
+    const failure = await rejection(response(JSON.stringify({ success: false,
+      errors: [{ code: 10021, message: rawMessage }], messages: [], result: null })));
+    expect(failure.message).toBe('PTR_NATIVE_BRIDGE_HTTP_400_MUTATION_OUTCOME_UNRESOLVED_STARTUP_C10021_L12530_K6');
+    expect(String(failure)).not.toContain(rawMessage); expect(JSON.stringify(failure)).not.toContain('PRIVATE_PROVIDER_TEXT');
+  });
+  test('classifies the genuine startup export-map rejection without copying the export name or provider message', async () => {
+    const rawMessage = 'Uncaught TypeError: Incorrect type for map entry PRIVATE_EXPORT_NAME: provided value not function or ExportedHandler.';
+    const failure = await rejection(response(JSON.stringify({ errors: [{ code: 10021, message: rawMessage }] })));
+    expect(failure.message).toBe('PTR_NATIVE_BRIDGE_HTTP_400_MUTATION_OUTCOME_UNRESOLVED_EXPORT_INVALID_C10021');
+    expect(String(failure)).not.toContain('PRIVATE_EXPORT_NAME');
+  });
+  test.each([
+    ['cannot inherit binding PRIVATE_BINDING', 'INHERIT_BINDING'],
+    ['Invalid migration tag PRIVATE_TAG', 'MIGRATION'],
+    ['Invalid metadata main_module PRIVATE_MODULE', 'METADATA'],
+    ['PRIVATE_UNCLASSIFIED_PROVIDER_TEXT', 'REQUEST_REJECTED'],
+  ])('uses only the predefined %s classifier', async (message, hint) => {
+    const failure = await rejection(response(JSON.stringify({ errors: [{ code: 10021, message }] })));
+    expect(failure.message).toBe(`PTR_NATIVE_BRIDGE_HTTP_400_MUTATION_OUTCOME_UNRESOLVED_${hint}_C10021`);
+    expect(failure.message).not.toContain(message);
+  });
+  test('does not infer code10021 startup hints from a different provider code', async () => {
+    const failure = await rejection(response(JSON.stringify({ errors: [{ code: 10000, message: 'Uncaught Error: PRIVATE' }] })));
+    expect(failure.message).toBe('PTR_NATIVE_BRIDGE_HTTP_400_MUTATION_OUTCOME_UNRESOLVED_REQUEST_REJECTED_C10000');
+  });
+  test('deduplicates and sorts bounded numeric codes without retaining arbitrary fields', async () => {
+    const failure = await rejection(response(JSON.stringify({ errors: [
+      { code: 10054, message: token, secret: requestBody }, { code: 10021 }, { code: 10054 }, { code: 10000 },
+    ], result: { token }, messages: [requestBody] })));
+    expect(failure.message).toBe('PTR_NATIVE_BRIDGE_HTTP_400_MUTATION_OUTCOME_UNRESOLVED_REQUEST_REJECTED_C10000_C10021_C10054');
+    expect(JSON.stringify(failure)).not.toContain(token); expect(JSON.stringify(failure)).not.toContain(requestBody);
+  });
+  test('suppresses known private numeric owner echoes and source coordinates as well as string credentials', async () => {
+    const owner = '900123', admin = 'a'.repeat(64);
+    const failure = await rejection(response(JSON.stringify({ errors: [
+      { code: Number(owner), message: owner }, { code: owner }, { code: token }, { code: admin },
+      { code: 10021, message: `Uncaught Error: ${token} ${admin} ${owner} at index.js:${owner}:4` },
+    ], privateRows: [{ owner, admin }] })), [owner, admin]);
+    expect(failure.message).toBe('PTR_NATIVE_BRIDGE_HTTP_400_MUTATION_OUTCOME_UNRESOLVED_STARTUP_C10021');
+    for (const secret of [token, owner, admin]) {
+      expect(String(failure)).not.toContain(secret); expect(JSON.stringify(failure)).not.toContain(secret);
+    }
+  });
+  test.each([
+    ['zero', 0], ['negative', -1], ['fraction', 1.5], ['oversized', 1_000_000_000],
+    ['unsafe', Number.MAX_SAFE_INTEGER + 1], ['string', '10021'], ['object', { code: 10021 }], ['null', null],
+  ])('refuses a %s value as a numeric provider code', async (_label, code) => {
+    const failure = await rejection(response(JSON.stringify({ errors: [{ code, message: token }] })));
+    expect(failure.message).toBe('PTR_NATIVE_BRIDGE_HTTP_400_MUTATION_OUTCOME_UNRESOLVED_REQUEST_REJECTED_NO_SAFE_CODES');
+  });
+  test.each([
+    ['distinct', [1, 2, 3, 4, 5].map(code => ({ code }))],
+    ['array length', Array.from({ length: 17 }, () => ({ code: 10021 }))],
+  ])('bounds the %s error-code inventory', async (_label, errors) => {
+    const failure = await rejection(response(JSON.stringify({ errors })));
+    expect(failure.message).toBe('PTR_NATIVE_BRIDGE_HTTP_400_MUTATION_OUTCOME_UNRESOLVED_REQUEST_REJECTED_ERROR_CODES_BOUND');
+  });
+  test.each([
+    ['empty', '', 'application/json', 'EMPTY_BODY'],
+    ['html', '<html>PRIVATE_SECRET</html>', 'text/html', 'NON_JSON'],
+    ['malformed', '{"message":"PRIVATE_SECRET"', 'application/json', 'INVALID_JSON'],
+    ['array', '["PRIVATE_SECRET"]', 'application/json', 'NO_SAFE_CODES'],
+    ['missing codes', '{"message":"PRIVATE_SECRET"}', 'application/json', 'NO_SAFE_CODES'],
+  ])('retains only a fixed %s body classifier', async (_label, body, contentType, detail) => {
+    const failure = await rejection(response(body, 400, contentType));
+    expect(failure.message).toBe(`PTR_NATIVE_BRIDGE_HTTP_400_MUTATION_OUTCOME_UNRESOLVED_REQUEST_REJECTED_${detail}`);
+    expect(String(failure)).not.toContain('PRIVATE_SECRET');
+  });
+  test('bounds a rejected body at 64KiB, cancels its stream and zeroes the received bytes without replay', async () => {
+    const chunk = new Uint8Array(64 * 1024 + 1).fill(83); let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(chunk); }, cancel() { cancelled = true; } });
+    const failure = await rejection(response(stream));
+    expect(failure.message).toBe('PTR_NATIVE_BRIDGE_HTTP_400_MUTATION_OUTCOME_UNRESOLVED_ERROR_BODY_BOUND');
+    expect(cancelled).toBe(true); expect(chunk.every(byte => byte === 0)).toBe(true);
+  });
+  test('does not retain a failing stream error and preserves the known400 unresolved classification', async () => {
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.error(new Error(token + requestBody)); } });
+    const failure = await rejection(response(stream));
+    expect(failure.message).toBe('PTR_NATIVE_BRIDGE_HTTP_400_MUTATION_OUTCOME_UNRESOLVED_ERROR_BODY_READ_FAILED');
+  });
+  test('zeroes received rejection bytes after classification', async () => {
+    const chunk = new TextEncoder().encode(JSON.stringify({ errors: [{ code: 10021, message: token }] }));
+    const stream = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(chunk); controller.close(); } });
+    expect((await rejection(response(stream))).message).toContain('_C10021');
+    expect(chunk.every(byte => byte === 0)).toBe(true);
+  });
+  test('retains READ_FAILED for a rejected GET without implying mutation or retry authority', async () => {
+    const failure = await rejection(response(JSON.stringify({ errors: [{ code: 10000 }] }), 403), [], null);
+    expect(failure.message).toBe('PTR_NATIVE_BRIDGE_HTTP_403_READ_FAILED_AUTH_REJECTED_C10000');
+  });
+  test('keeps the existing successful200 envelope and source checks unchanged', async () => {
+    const value = envelope(), fetchMock = vi.fn(async () => response(JSON.stringify(value), 200));
+    vi.stubGlobal('fetch', fetchMock); const assert = vi.fn(), client = createPtrNativeBridgeApiClient(token, assert);
+    try { expect(await client.json(uploadPath, { method: 'POST', body: requestBody })).toEqual({ result: value.result, resultInfo: value.result_info }); }
+    finally { client.dispose(); }
+    expect(fetchMock).toHaveBeenCalledTimes(1); expect(assert).toHaveBeenCalledTimes(2);
   });
 });

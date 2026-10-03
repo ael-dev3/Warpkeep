@@ -613,7 +613,7 @@ const TRACKED_PRIVATE_SOURCE_ALLOWANCES = new Map([
   ['scripts/atlas/greater-realm-cli.ts', Object.freeze([
     sourceAllowance(`kind: '${privateMarkerText(7)}',`),
     sourceAllowance(`row.kind !== '${privateMarkerText(7)}'`),
-    sourceAllowance(`kind: '${privateMarkerText(8)}',`),
+    sourceAllowance(`kind: '${privateMarkerText(8)}',`, 2),
     sourceAllowance(`row.kind !== '${privateMarkerText(8)}'`),
     sourceAllowance(`kind: '${privateMarkerText(9)}' as const,`),
   ])],
