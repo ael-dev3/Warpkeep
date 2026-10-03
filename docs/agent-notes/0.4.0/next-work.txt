@@ -2,6 +2,27 @@ WARPKEEP 0.4 — NEXT WORK
 CURRENT RESUMPTION — 3 OCTOBER 2026, LOCAL RELEASE WORK
 
 CURRENT CHECKPOINT
+This checkpoint descends from the signed, published 97f4041b development source. Resolve its actual HEAD/tree and synchronized branch state from Git and the publication receipt. Alpha 0.3.43 is live; owner PTR 0.4 remains unpublished. Main cb282bab and PR380/381 are unchanged. Actions remains disabled under the current operating policy.
+
+COMPLETED
+The G002 verifier now establishes cleanup before fallible setup, attempts every owned cleanup step and prevents cleanup errors from yielding a successful receipt. Two complete regression files passed 107 cases; five complete family regression files passed 194 cases: 301 whole-file regression assertions in separate source-bound runs. Ten selected fixture controls also passed. App/all-tests types and changed-module syntax passed separately. The complete 79-case relocation file still cancelled at its unchanged 120-second file/180-second parent bounds. Its original 69-case suffix is byte-exact; those 69 cases were omitted from the selected ten-control run.
+
+OPEN NATIVE COVERAGE
+The earlier full native attempt remains a partial record: 45 of 82 commands, with 701 ordinary files producing 12,997 passed assertions and 68 raw skips, and the isolated namespace producing 260 passes plus one accepted negative-control skip. The first 36 module files completed there; module37 remains blocked by whole-file cancellation. Ordinary skip dispositions, remaining module38–74 coverage and authenticated complete-proof consumption are still open. Skipped remains skipped; the native full consumer is deliberately closed.
+
+NEXT
+First diagnose blocked module37 at the unchanged maintained deadlines; further case tracing is only an unexecuted QA draft. Then resume module38–74 and unresolved native dispositions using exact command/tool/input equivalence. Retain the completed 701 ordinary files, module1–36, namespace and notification20 evidence only at their actual sources; rerun affected changed-input domains rather than the completed whole batch. Implement the contained genuine G002 leaf and fixed twenty connected outputs using the four finite namespace controls, complete dependency/proof transport and fresh accepted-main preparation, then review policy-admitted genuine dispatch/OIDC. Existing signed observations, G001 freeze, G002 sealing, S/F/A, owner play, physical devices and final-A R06 remain required.
+
+PERFORMANCE AND RELEASE
+The source-bound portrait-reduced causal World capture completed 60,013.9ms with eligible, complete joins. CPU first-GL p95 was 84.8ms against 83.4ms: a strict miss. Parent/render RAF p95 was 83.7ms. Redundant matrix updates and attribute enumeration are source-backed candidates for bounded measurement; their individual cost and benefit are unmeasured. No new nominal, GPU, physical-phone or full-R06 pass is claimed.
+Read config/github-actions-budget.json and docs/operations/github-actions-budget.md. Complete native source authority, hosted/OIDC operation admission, owner/device play and final-A R06 remain open. Detailed failed attempts remain in execution-handoff.md and local-operations.md.
+
+HISTORICAL CHECKPOINTS (SUPERSEDED)
+The original text below remains byte-for-byte evidence. Its old imperatives, including the notification rerun and publication, are superseded by the current instructions above.
+
+CURRENT RESUMPTION — 3 OCTOBER 2026, LOCAL RELEASE WORK
+
+CURRENT CHECKPOINT
 Signed 5cddb1a7 / tree f2b1e73e is the published, synchronized clean baseline (181c4950). This coherent repair checkpoint descends from that published baseline and integrates eleven reviewed repair candidates plus five mechanically derived metadata changes. Its actual signed identity must be read from the checkpoint receipt. Alpha remains live; owner PTR 0.4 is unpublished. Main and PR380/381 are separate.
 
 COMPLETED AND FAILED EVIDENCE

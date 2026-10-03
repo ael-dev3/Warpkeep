@@ -40,7 +40,10 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**Alpha 0.3.43 is live; owner PTR delivery for Warpkeep 0.4 is in progress.**
+**Alpha 0.3.43 is live; Warpkeep 0.4 owner PTR publication remains pending.**
+The current development checkpoint descends from reviewed source `97f4041b`;
+its exact identity and local verification are recorded in the [execution
+handoff](docs/agent-notes/0.4.0/execution-handoff.md).
 The 0.4 foundation and reviewed contributions have been integrated into main
 through [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) and
 [PR #379](https://github.com/ael-dev3/Warpkeep/pull/379). Existing PRs #375–#378
@@ -63,22 +66,11 @@ dedicated lazy-loaded gameplay host that preserves /ptr/ routing and checks its
 owner/session capabilities. No candidate change opens Genesis 002 admissions
 or widens the Genesis 001 admission freeze.
 
-The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) tracks the
-current source, verification and next delivery step. Recent repairs improve
-mobile gestures, reachable controls, short-landscape drawers, confirmation,
-world/keep focus and menu readability. Real client/server testing also found
-and fixed a new-keep initialization failure caused by the server's error format.
-Publication planning now preserves committed Alpha bytes across Windows line
-ending conversion, matching the existing signed publisher.
-Linux recovery now identifies owners by kernel birth, so clock changes cannot
-make an active owner look reused. Ambiguous legacy records remain preserved;
-private deployment tests clean only their newly allocated temporary homes.
-Release preparation also verifies the paired launch scripts and binds reviewed
-operator corrections while preserving the frozen G001 module and build recipe.
-The preparation adapter now recognizes the existing September QR recovery
-deployment, preserving its original authentication modes, bindings and byte authority.
-Local checks and earlier successful CI retain their recorded source identities;
-they do not establish verification of the current development checkpoint.
+The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) and
+[local operations](docs/evidence/0.4.0/local-operations.md) record completed
+local checks, preserved failures and the next delivery step. Each result
+retains its actual source scope. Complete release verification, actual-owner
+play and final production performance remain open.
 
 The connected local PTR lane exercises the real module and client with normal
 server timers and synthetic authority/atlas. Gathering, construction, improved

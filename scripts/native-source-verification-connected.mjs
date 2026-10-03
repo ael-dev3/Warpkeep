@@ -7,7 +7,7 @@ export const NATIVE_CONNECTED_MODULE_PROFILE = 'warpkeep-native-connected-module
 // Exact current recipe inputs, including all predecessor configs used by the additive rehearsal.
 export const NATIVE_CONNECTED_SOURCE_INPUTS = Object.freeze({
   "package.json": "8e95f6624282a20fce73efcd4c90c992908da402e24d018ef15359d9dc183715",
-  "scripts/genesis002-private-loopback-verifier.ts": "2e87ab6c51a5f385dec5fc97915696610d2da5749abae066083cdcdae045ee6a",
+  "scripts/genesis002-private-loopback-verifier.ts": "791f9e06628e3ece29274533a628c211cf0ce08a15cd79416110220fca394a5c",
   "scripts/spacetime-additive-migration-proof.mjs": "d19664bf1dbbfd58b2b97cb1deae89940312e70ea20ba01fc24dee628032ae41",
   "scripts/verify-access-request-additive-migration.mjs": "6aa570f4f532ee76fd975f8c5172cf80b19e2474fc9dee9555a39711d4f66c14",
   "scripts/verify-admission-request-cas-rehearsal.mjs": "087750da02e6a3e5128d1792366be46ae9de54141dfbe7f387514d65aca366bf",

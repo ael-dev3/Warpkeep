@@ -670,7 +670,7 @@
     {
       "path": "scripts/genesis002-private-loopback-verifier.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2e87ab6c51a5f385dec5fc97915696610d2da5749abae066083cdcdae045ee6a"
+      "sha256": "791f9e06628e3ece29274533a628c211cf0ce08a15cd79416110220fca394a5c"
     },
     {
       "path": "scripts/genesis002-production-import-core.ts",

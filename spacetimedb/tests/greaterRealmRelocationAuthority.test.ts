@@ -13,6 +13,7 @@ import {
   sep,
 } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { types as utilTypes } from 'node:util';
 import test from 'node:test';
 import { build, type Loader, type Plugin } from 'esbuild';
 
@@ -230,9 +231,9 @@ const {
   haltGreaterRealmActivationAuthorizedTransactionV1,
   planGreaterRealmRelocationAuthorizedTransactionV1,
   prepareGreaterRealmActivationAuthorizedTransactionV1,
-  relocateGreaterRealmCanaryAuthorizedTransactionV1,
+  relocateGreaterRealmCanaryAuthorizedTransactionV1: relocateGreaterRealmCanaryProductionV1,
   resumeGreaterRealmActiveAuthorizedTransactionV1,
-  rollbackGreaterRealmBeforeCommitAuthorizedTransactionV1,
+  rollbackGreaterRealmBeforeCommitAuthorizedTransactionV1: rollbackGreaterRealmBeforeCommitProductionV1,
 } = await loadExactProductionModule<typeof RelocationAuthority>(
   new URL('../src/greaterRealmRelocationAuthority.ts', import.meta.url),
 );
@@ -263,14 +264,14 @@ const {
   new URL('../src/castleWorkerAuthority.ts', import.meta.url),
 );
 const {
-  captureProductionPlayerCanaryBaseline,
-  inspectProductionPlayerCanaryRoutePlan,
+  captureProductionPlayerCanaryBaseline: captureProductionPlayerCanaryBaselineUnindexed,
+  inspectProductionPlayerCanaryRoutePlan: inspectProductionPlayerCanaryRoutePlanUnindexed,
 } = await loadExactProductionModule<typeof ProductionPlayerCanaryBaseline>(
   new URL('../src/productionPlayerCanaryBaseline.ts', import.meta.url),
 );
 const {
   productionPlayerCanaryOwnerApprovalCommitmentV1,
-  registerProductionPlayerCanaryApprovalV1,
+  registerProductionPlayerCanaryApprovalV1: registerProductionPlayerCanaryApprovalV1Unindexed,
 } = await loadExactProductionModule<typeof ProductionPlayerCanaryApproval>(
   new URL('../src/productionPlayerCanaryApproval.ts', import.meta.url),
 );
@@ -281,14 +282,14 @@ const {
 );
 const {
   assertProductionPlayerCanaryGenericWorkerWriteAvailableV2,
-  dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1,
-  inspectProductionPlayerCanaryRecoveryStatusV1,
-  recallProductionPlayerCanaryWorkerV1,
+  dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1: dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1Unindexed,
+  inspectProductionPlayerCanaryRecoveryStatusV1: inspectProductionPlayerCanaryRecoveryStatusV1Unindexed,
+  recallProductionPlayerCanaryWorkerV1: recallProductionPlayerCanaryWorkerV1Unindexed,
 } = await loadExactProductionModule<typeof ProductionPlayerCanaryRecovery>(
   new URL('../src/productionPlayerCanaryRecovery.ts', import.meta.url),
 );
 const {
-  inspectProductionPlayerCanaryAdminEvidence,
+  inspectProductionPlayerCanaryAdminEvidence: inspectProductionPlayerCanaryAdminEvidenceUnindexed,
 } = await loadExactProductionModule<typeof ProductionPlayerCanaryEvidence>(
   new URL('../src/productionPlayerCanaryEvidence.ts', import.meta.url),
 );
@@ -298,6 +299,37 @@ type Row = Record<string, any>;
 function clone<T>(value: T): T {
   return structuredClone(value);
 }
+
+type ResourcePrimaryUpdateLease = Readonly<{
+  rows: Row[];
+  keys: readonly string[];
+  firstIndex: ReadonlyMap<string, number>;
+  mutate: () => void;
+}>;
+
+// A lease never survives one fixed synchronous canary/rollback call. Direct
+// fixture edits remain observable because every call rebuilds from current rows.
+const resourcePrimaryUpdateLeases = new WeakMap<MemoryTable, ResourcePrimaryUpdateLease>();
+type ResourceReadIndexLease = Readonly<{
+  rows: Row[];
+  records: readonly Readonly<{
+    row: Row;
+    nodeId: string;
+    locationId: string;
+    componentKey: string;
+    resourceKind: string;
+  }>[];
+  locations: ReadonlyMap<string, readonly Row[]>;
+  components: ReadonlyMap<string, ReadonlyMap<string, readonly Row[]>>;
+  mutate: () => void;
+}>;
+const resourceReadIndexLeases = new WeakMap<MemoryTable, ResourceReadIndexLease>();
+const fixtureResourceMutationCallbacks = new WeakMap<MemoryTable, () => void>();
+const fixturesByContext = new WeakMap<object, Readonly<{
+  fixture: Fixture;
+  newUuidV7: () => { toString(): string };
+  mutations: ReadonlyMap<string, Readonly<{ table: MemoryTable; mutate: () => void }>>;
+}>>();
 
 class MemoryTable {
   rows: Row[];
@@ -336,13 +368,56 @@ class MemoryTable {
         : row[field as string] === value;
       this[accessor] = {
         find: (value: unknown) => this.rows.find(row => matches(row, value)) ?? null,
-        filter: (value: unknown) => this.rows.filter(row => matches(row, value)),
+        filter: (value: unknown) => {
+          const lease = resourceReadIndexLeases.get(this);
+          if (
+            lease !== undefined
+            && lease.rows === this.rows
+            && lease.records.length === this.rows.length
+            && lease.mutate === this.mutate
+          ) {
+            if (accessor === 'locationId' && field === 'locationId' && typeof value === 'string') {
+              return [...(lease.locations.get(value) ?? [])];
+            }
+            if (
+              accessor === 'byComponentAndResourceKind'
+              && Array.isArray(field) && field.length === 2
+              && field[0] === 'componentKey' && field[1] === 'resourceKind'
+              && !utilTypes.isProxy(value)
+              && Array.isArray(value) && value.length === 2
+              && Object.getPrototypeOf(value) === Array.prototype
+              && Reflect.ownKeys(value).length === 3
+            ) {
+              const component = Object.getOwnPropertyDescriptor(value, '0')?.value;
+              const kind = Object.getOwnPropertyDescriptor(value, '1')?.value;
+              if (typeof component === 'string' && typeof kind === 'string') {
+                return [...(lease.components.get(component)?.get(kind) ?? [])];
+              }
+            }
+          }
+          return this.rows.filter(row => matches(row, value));
+        },
         update: (next: Row) => {
           this.mutate();
           const key = Array.isArray(field)
             ? field.map(column => next[column])
             : next[field as string];
-          const index = this.rows.findIndex(row => matches(row, key));
+          const lease = resourcePrimaryUpdateLeases.get(this);
+          const indexed = accessor === this.primary
+            && field === this.primary
+            && typeof key === 'string'
+            && lease !== undefined
+            && lease.rows === this.rows
+            && lease.keys.length === this.rows.length
+            && lease.mutate === this.mutate;
+          const firstIndex = indexed ? lease.firstIndex.get(key) : undefined;
+          const index = indexed
+            ? firstIndex === undefined
+              ? -1
+              : this.rows[firstIndex]?.[this.primary] === key
+                ? firstIndex
+                : this.rows.findIndex(row => matches(row, key))
+            : this.rows.findIndex(row => matches(row, key));
           if (index < 0) throw new Error(`missing update ${accessor}`);
           this.rows[index] = clone(next);
           return this.rows[index];
@@ -588,9 +663,10 @@ class Fixture {
     this.ctx = {
       db: this.tables,
       timestamp: NOW,
-      newUuidV7: () => ({
-        toString: () => `00000000-0000-7000-8000-${String(++this.uuidSequence).padStart(12, '0')}`,
-      }),
+      newUuidV7: () => {
+        const value = `00000000-0000-7000-8000-${String(++this.uuidSequence).padStart(12, '0')}`;
+        return { toString: () => value };
+      },
     };
     for (const table of Object.values(this.tables)) {
       table.mutate = () => {
@@ -598,6 +674,17 @@ class Fixture {
         if (this.faultAt === this.mutationCount) throw new Error('INJECTED_TRANSACTION_FAULT');
       };
     }
+    fixtureResourceMutationCallbacks.set(
+      this.tables.greaterRealmResourceNodeV1,
+      this.tables.greaterRealmResourceNodeV1.mutate,
+    );
+    fixturesByContext.set(this.ctx, {
+      fixture: this,
+      newUuidV7: this.ctx.newUuidV7,
+      mutations: new Map(Object.entries(this.tables).map(([name, table]) => (
+        [name, { table, mutate: table.mutate }]
+      ))),
+    });
     this.seed();
     this.mutationCount = 0;
   }
@@ -933,6 +1020,252 @@ class Fixture {
       throw error;
     }
   }
+}
+
+// The only producer callers below are the exact fixed synchronous canary and
+// rollback functions. Their resource writes replace rows with the same nodeId
+// and change active only (greaterRealmRelocationAuthority.ts:307-320). A custom
+// mutator, accessor, proxy, non-string key or non-scalar row uses the original
+// linear path. No index is cached between operations or across rollback.
+function resourceIndexSnapshot(table: MemoryTable): Readonly<{
+  rows: Row[];
+  keys: readonly string[];
+  mutate: () => void;
+}> | undefined {
+  const mutate = fixtureResourceMutationCallbacks.get(table);
+  const rowsDescriptor = Object.getOwnPropertyDescriptor(table, 'rows');
+  const rows = rowsDescriptor?.value;
+  if (
+    utilTypes.isProxy(table)
+    || Object.getPrototypeOf(table) !== MemoryTable.prototype
+    || table.primary !== 'nodeId'
+    || mutate === undefined
+    || table.mutate !== mutate
+    || !Array.isArray(rows)
+    || utilTypes.isProxy(rows)
+    || Object.getPrototypeOf(rows) !== Array.prototype
+    || Reflect.ownKeys(rows).length !== rows.length + 1
+    || resourcePrimaryUpdateLeases.has(table)
+    || resourceReadIndexLeases.has(table)
+  ) return undefined;
+
+  const keys: string[] = [];
+  for (let index = 0; index < rows.length; index += 1) {
+    const rowDescriptor = Object.getOwnPropertyDescriptor(rows, String(index));
+    const row = rowDescriptor?.value;
+    if (
+      rowDescriptor === undefined
+      || !('value' in rowDescriptor)
+      || row === null
+      || typeof row !== 'object'
+      || utilTypes.isProxy(row)
+      || Object.getPrototypeOf(row) !== Object.prototype
+    ) return undefined;
+    const descriptors = Object.getOwnPropertyDescriptors(row);
+    if (Reflect.ownKeys(row).some(key => (
+      typeof key !== 'string'
+      || !('value' in descriptors[key]!)
+      || !descriptors[key]!.enumerable
+      || !descriptors[key]!.writable
+      || !descriptors[key]!.configurable
+      || typeof descriptors[key]!.value === 'object' && descriptors[key]!.value !== null
+      || typeof descriptors[key]!.value === 'function'
+      || typeof descriptors[key]!.value === 'symbol'
+    ))) return undefined;
+    const key = descriptors.nodeId?.value;
+    if (typeof key !== 'string') return undefined;
+    keys.push(key);
+  }
+
+  return { rows, keys, mutate };
+}
+
+function withResourcePrimaryUpdateIndex<T>(table: MemoryTable, work: () => T): T {
+  const snapshot = resourceIndexSnapshot(table);
+  if (snapshot === undefined) return work();
+  const { rows, keys, mutate } = snapshot;
+  const firstIndex = new Map<string, number>();
+  for (let index = 0; index < keys.length; index += 1) {
+    // Map.set on every row would incorrectly select the last duplicate.
+    if (!firstIndex.has(keys[index]!)) firstIndex.set(keys[index]!, index);
+  }
+
+  resourcePrimaryUpdateLeases.set(table, { rows, keys, firstIndex, mutate });
+  try {
+    return work();
+  } finally {
+    // Release before the surrounding Fixture.transaction can restore rows.
+    resourcePrimaryUpdateLeases.delete(table);
+    assert.equal(table.rows, rows, 'fixed resource transition replaced the row array');
+    assert.equal(table.rows.length, keys.length, 'fixed resource transition changed row count');
+    for (let index = 0; index < keys.length; index += 1) {
+      assert.equal(
+        Object.getOwnPropertyDescriptor(table.rows[index]!, 'nodeId')?.value,
+        keys[index],
+        'fixed resource transition changed resource keys/order',
+      );
+    }
+  }
+}
+
+function fixedResourceIndexTable(ctx: any): MemoryTable | undefined {
+  const binding = typeof ctx === 'object' && ctx !== null
+    ? fixturesByContext.get(ctx)
+    : undefined;
+  const fixture = binding?.fixture;
+  const db = typeof ctx === 'object' && ctx !== null
+    ? Object.getOwnPropertyDescriptor(ctx, 'db')?.value
+    : undefined;
+  const table = typeof db === 'object' && db !== null
+    ? Object.getOwnPropertyDescriptor(db, 'greaterRealmResourceNodeV1')?.value
+    : undefined;
+  const mutationCount = fixture === undefined
+    ? undefined
+    : Object.getOwnPropertyDescriptor(fixture, 'mutationCount');
+  const faultAt = fixture === undefined
+    ? undefined
+    : Object.getOwnPropertyDescriptor(fixture, 'faultAt');
+  const uuidSequence = fixture === undefined
+    ? undefined
+    : Object.getOwnPropertyDescriptor(fixture, 'uuidSequence');
+  if (
+    fixture === undefined
+    || db !== fixture.tables
+    || table !== fixture.tables.greaterRealmResourceNodeV1
+    || Object.getOwnPropertyDescriptor(ctx, 'newUuidV7')?.value !== binding!.newUuidV7
+    || uuidSequence?.writable !== true
+    || !Number.isSafeInteger(uuidSequence.value)
+    || uuidSequence.value < 0
+    || mutationCount?.writable !== true
+    || !Number.isSafeInteger(mutationCount.value)
+    || faultAt?.writable !== true
+    || faultAt.value !== undefined && !Number.isSafeInteger(faultAt.value)
+  ) return undefined;
+  // Table mutators and the UUID callback also run in these exact operations.
+  // Their original callbacks and ordinary backing state cannot edit resource
+  // keys/order; a replacement or accessor falls back to the linear fixture.
+  if (Reflect.ownKeys(db).length !== binding!.mutations.size) return undefined;
+  for (const [name, registered] of binding!.mutations) {
+    const member = Object.getOwnPropertyDescriptor(db, name);
+    if (
+      member?.value !== registered.table
+      || Object.getOwnPropertyDescriptor(registered.table, 'mutate')?.value !== registered.mutate
+    ) return undefined;
+  }
+  return table;
+}
+
+function withFixedResourceTransitionIndex<T>(ctx: any, work: () => T): T {
+  const table = fixedResourceIndexTable(ctx);
+  return table === undefined ? work() : withResourcePrimaryUpdateIndex(table, work);
+}
+
+// These seven exact synchronous production entry points only read resource
+// catalog rows. Their other writes run original Fixture callbacks. Rebuild before
+// each entry, never around an arbitrary transaction or beforeRegistration hook.
+// Groups keep every duplicate in row order and return new arrays of live rows.
+function withResourceReadIndex<T>(table: MemoryTable, work: () => T): T {
+  const snapshot = resourceIndexSnapshot(table);
+  if (snapshot === undefined) return work();
+  const { rows, mutate } = snapshot;
+  const records: ResourceReadIndexLease['records'][number][] = [];
+  const locations = new Map<string, Row[]>();
+  const components = new Map<string, Map<string, Row[]>>();
+  for (const row of rows) {
+    const { nodeId, locationId, componentKey, resourceKind } = row;
+    if (
+      typeof locationId !== 'string'
+      || typeof componentKey !== 'string'
+      || typeof resourceKind !== 'string'
+    ) return work();
+    records.push({ row, nodeId, locationId, componentKey, resourceKind });
+    const locationRows = locations.get(locationId) ?? [];
+    locationRows.push(row);
+    locations.set(locationId, locationRows);
+    const kinds = components.get(componentKey) ?? new Map<string, Row[]>();
+    const kindRows = kinds.get(resourceKind) ?? [];
+    kindRows.push(row);
+    kinds.set(resourceKind, kindRows);
+    components.set(componentKey, kinds);
+  }
+  resourceReadIndexLeases.set(table, { rows, records, locations, components, mutate });
+  try {
+    return work();
+  } finally {
+    resourceReadIndexLeases.delete(table);
+    assert.equal(table.rows, rows, 'fixed resource read replaced the row array');
+    assert.equal(table.rows.length, records.length, 'fixed resource read changed row count');
+    for (let index = 0; index < records.length; index += 1) {
+      const record = records[index]!;
+      assert.equal(table.rows[index], record.row, 'fixed resource read changed resource row order');
+      for (const column of ['nodeId', 'locationId', 'componentKey', 'resourceKind'] as const) {
+        assert.equal(
+          Object.getOwnPropertyDescriptor(record.row, column)?.value,
+          record[column],
+          'fixed resource read changed an indexed field',
+        );
+      }
+    }
+  }
+}
+
+function withFixedResourceReadIndex<T>(ctx: any, work: () => T): T {
+  const table = fixedResourceIndexTable(ctx);
+  return table === undefined ? work() : withResourceReadIndex(table, work);
+}
+
+function captureProductionPlayerCanaryBaseline(
+  ...args: Parameters<typeof captureProductionPlayerCanaryBaselineUnindexed>
+): ReturnType<typeof captureProductionPlayerCanaryBaselineUnindexed> {
+  return withFixedResourceReadIndex(args[0], () => captureProductionPlayerCanaryBaselineUnindexed(...args));
+}
+
+function inspectProductionPlayerCanaryRoutePlan(
+  ...args: Parameters<typeof inspectProductionPlayerCanaryRoutePlanUnindexed>
+): ReturnType<typeof inspectProductionPlayerCanaryRoutePlanUnindexed> {
+  return withFixedResourceReadIndex(args[0], () => inspectProductionPlayerCanaryRoutePlanUnindexed(...args));
+}
+
+function registerProductionPlayerCanaryApprovalV1(
+  ...args: Parameters<typeof registerProductionPlayerCanaryApprovalV1Unindexed>
+): ReturnType<typeof registerProductionPlayerCanaryApprovalV1Unindexed> {
+  return withFixedResourceReadIndex(args[0], () => registerProductionPlayerCanaryApprovalV1Unindexed(...args));
+}
+
+function dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1(
+  ...args: Parameters<typeof dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1Unindexed>
+): ReturnType<typeof dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1Unindexed> {
+  return withFixedResourceReadIndex(args[0], () => dispatchProductionPlayerCanaryAwareGreaterRealmWorkerV1Unindexed(...args));
+}
+
+function inspectProductionPlayerCanaryRecoveryStatusV1(
+  ...args: Parameters<typeof inspectProductionPlayerCanaryRecoveryStatusV1Unindexed>
+): ReturnType<typeof inspectProductionPlayerCanaryRecoveryStatusV1Unindexed> {
+  return withFixedResourceReadIndex(args[0], () => inspectProductionPlayerCanaryRecoveryStatusV1Unindexed(...args));
+}
+
+function recallProductionPlayerCanaryWorkerV1(
+  ...args: Parameters<typeof recallProductionPlayerCanaryWorkerV1Unindexed>
+): ReturnType<typeof recallProductionPlayerCanaryWorkerV1Unindexed> {
+  return withFixedResourceReadIndex(args[0], () => recallProductionPlayerCanaryWorkerV1Unindexed(...args));
+}
+
+function inspectProductionPlayerCanaryAdminEvidence(
+  ...args: Parameters<typeof inspectProductionPlayerCanaryAdminEvidenceUnindexed>
+): ReturnType<typeof inspectProductionPlayerCanaryAdminEvidenceUnindexed> {
+  return withFixedResourceReadIndex(args[0], () => inspectProductionPlayerCanaryAdminEvidenceUnindexed(...args));
+}
+
+function relocateGreaterRealmCanaryAuthorizedTransactionV1(
+  ctx: Parameters<typeof relocateGreaterRealmCanaryProductionV1>[0],
+): ReturnType<typeof relocateGreaterRealmCanaryProductionV1> {
+  return withFixedResourceTransitionIndex(ctx, () => relocateGreaterRealmCanaryProductionV1(ctx));
+}
+
+function rollbackGreaterRealmBeforeCommitAuthorizedTransactionV1(
+  ctx: Parameters<typeof rollbackGreaterRealmBeforeCommitProductionV1>[0],
+): ReturnType<typeof rollbackGreaterRealmBeforeCommitProductionV1> {
+  return withFixedResourceTransitionIndex(ctx, () => rollbackGreaterRealmBeforeCommitProductionV1(ctx));
 }
 
 function stateText(fixture: Fixture): string {
@@ -1585,6 +1918,390 @@ function fillProductionCanaryReceiptsWithPinnedRows(
     });
   }
 }
+
+test('resource fixture index preserves first-match updates after direct row edits between operations', () => {
+  const original = [
+    { nodeId: 'a', marker: 'first-a', active: false },
+    { nodeId: 'b', marker: 'b', active: false },
+    { nodeId: 'c', marker: 'c', active: false },
+  ];
+  const indexed = new MemoryTable('nodeId', {}, original);
+  const linear = new MemoryTable('nodeId', {}, original);
+  let indexedMutations = 0;
+  let linearMutations = 0;
+  indexed.mutate = () => { indexedMutations += 1; };
+  linear.mutate = () => { linearMutations += 1; };
+  fixtureResourceMutationCallbacks.set(indexed, indexed.mutate);
+  const updateAll = (table: MemoryTable) => {
+    for (const row of table.iter()) table.nodeId.update({ ...row, active: !row.active });
+  };
+  const changes: readonly ((table: MemoryTable) => void)[] = [
+    () => {},
+    table => { table.rows = [...clone(original)].reverse(); },
+    table => { table.rows.push({ nodeId: 'd', marker: 'push', active: false }); },
+    table => { table.rows.splice(1, 1, { nodeId: 'e', marker: 'splice', active: false }); },
+    table => { table.rows.unshift({ nodeId: 'c', marker: 'earlier-duplicate', active: false }); },
+    table => { table.rows.shift(); table.rows.reverse(); },
+    table => {
+      const retainedAlias = table.rows.at(-1)!;
+      retainedAlias.nodeId = table.rows[0]!.nodeId;
+      retainedAlias.marker = 'later-duplicate-via-alias';
+    },
+    table => {
+      const retainedAlias = table.rows[0]!;
+      retainedAlias.nodeId = 'changed-before-next-operation';
+      table.rows.splice(0, 0, { nodeId: retainedAlias.nodeId, marker: 'new-first', active: false });
+    },
+  ];
+  for (const change of changes) {
+    change(indexed);
+    change(linear);
+    withResourcePrimaryUpdateIndex(indexed, () => updateAll(indexed));
+    updateAll(linear);
+    assert.deepEqual(indexed.rows, linear.rows);
+    assert.equal(indexedMutations, linearMutations);
+    assert.equal(resourcePrimaryUpdateLeases.has(indexed), false);
+  }
+});
+
+test('resource fixture index falls back for a replaced mutator that inserts an earlier duplicate', () => {
+  const exercise = (registered: boolean) => {
+    const table = new MemoryTable('nodeId', {}, [
+      { nodeId: 'a', marker: 'original', active: false },
+    ]);
+    const pureMutate = table.mutate;
+    if (registered) fixtureResourceMutationCallbacks.set(table, pureMutate);
+    let mutations = 0;
+    table.mutate = () => {
+      mutations += 1;
+      table.rows.unshift({ nodeId: 'a', marker: 'callback-first', active: false });
+    };
+    withResourcePrimaryUpdateIndex(table, () => table.nodeId.update({
+      nodeId: 'a', marker: 'updated-first', active: true,
+    }));
+    return { rows: table.rows, mutations };
+  };
+  assert.deepEqual(exercise(true), exercise(false));
+  assert.deepEqual(exercise(true).rows.map(row => row.marker), ['updated-first', 'original']);
+});
+
+test('fixed resource transition falls back when another fixture table has a custom mutator', () => {
+  const fixture = new Fixture();
+  const resources = fixture.tables.greaterRealmResourceNodeV1;
+  const key = resources.rows[0]!.nodeId;
+  withFixedResourceTransitionIndex(fixture.ctx, () => {
+    assert.equal(resourcePrimaryUpdateLeases.has(resources), true);
+  });
+  withFixedResourceReadIndex(fixture.ctx, () => {
+    assert.equal(resourceReadIndexLeases.has(resources), true);
+  });
+  fixture.tables.castle.mutate = () => {
+    resources.rows.unshift({ ...resources.rows[0]!, marker: 'earlier-callback-row' });
+  };
+  withFixedResourceTransitionIndex(fixture.ctx, () => {
+    assert.equal(resourcePrimaryUpdateLeases.has(resources), false);
+    fixture.tables.castle.mutate();
+    resources.nodeId.update({ ...resources.rows[1]!, nodeId: key, marker: 'updated-first' });
+  });
+  assert.equal(resources.rows[0]!.marker, 'updated-first');
+  assert.equal(resources.rows[1]!.marker, undefined);
+  withFixedResourceReadIndex(fixture.ctx, () => {
+    assert.equal(resourceReadIndexLeases.has(resources), false);
+  });
+});
+
+test('resource fixture index releases on injected failure and rebuilds after row restoration', () => {
+  const exercise = (indexed: boolean) => {
+    const table = new MemoryTable('nodeId', {}, [
+      { nodeId: 'a', marker: 'first', active: false },
+      { nodeId: 'b', marker: 'second', active: false },
+    ]);
+    const before = clone(table.rows);
+    let mutations = 0;
+    let faultAt: number | undefined = 2;
+    table.mutate = () => {
+      mutations += 1;
+      if (mutations === faultAt) throw new Error('INJECTED_TRANSACTION_FAULT');
+    };
+    if (indexed) fixtureResourceMutationCallbacks.set(table, table.mutate);
+    const updateAll = () => {
+      for (const row of table.iter()) table.nodeId.update({ ...row, active: true });
+    };
+    assert.throws(() => withResourcePrimaryUpdateIndex(table, updateAll), {
+      message: 'INJECTED_TRANSACTION_FAULT',
+    });
+    assert.equal(resourcePrimaryUpdateLeases.has(table), false);
+    assert.deepEqual(table.rows.map(row => row.active), [true, false]);
+    table.rows = clone(before);
+    table.rows[0]!.nodeId = 'restored-new-key';
+    mutations = 0;
+    faultAt = undefined;
+    withResourcePrimaryUpdateIndex(table, updateAll);
+    assert.equal(resourcePrimaryUpdateLeases.has(table), false);
+    return { rows: table.rows, mutations };
+  };
+  assert.deepEqual(exercise(true), exercise(false));
+});
+
+test('resource fixture index preserves linear semantics for non-string keys and key accessors', () => {
+  const exercise = (indexed: boolean, kind: 'nan' | 'undefined' | 'accessor') => {
+    const table = new MemoryTable('nodeId', {}, [{ nodeId: 'a', marker: 'first' }]);
+    let getterReads = 0;
+    if (kind === 'accessor') {
+      Object.defineProperty(table.rows[0]!, 'nodeId', {
+        enumerable: true, configurable: true,
+        get: () => { getterReads += 1; return 'a'; },
+      });
+    } else table.rows[0]!.nodeId = kind === 'nan' ? Number.NaN : undefined;
+    if (indexed) fixtureResourceMutationCallbacks.set(table, table.mutate);
+    const message = errorCode(() => withResourcePrimaryUpdateIndex(table, () => (
+      table.nodeId.update({ nodeId: kind === 'nan' ? Number.NaN : kind === 'undefined' ? undefined : 'a', marker: 'updated' })
+    )));
+    return { message, rows: clone(table.rows), getterReads };
+  };
+  for (const kind of ['nan', 'undefined', 'accessor'] as const) {
+    assert.deepEqual(exercise(true, kind), exercise(false, kind));
+  }
+});
+
+test('resource fixture index rejects key/order changes inside its fixed-write lease and always releases', () => {
+  const table = new MemoryTable('nodeId', {}, [{ nodeId: 'a', active: false }]);
+  fixtureResourceMutationCallbacks.set(table, table.mutate);
+  assert.throws(() => withResourcePrimaryUpdateIndex(table, () => {
+    table.rows[0]!.nodeId = 'unsupported-mid-operation-edit';
+  }), /fixed resource transition changed resource keys\/order/);
+  assert.equal(resourcePrimaryUpdateLeases.has(table), false);
+  withResourcePrimaryUpdateIndex(table, () => table.nodeId.update({
+    nodeId: 'unsupported-mid-operation-edit', active: true,
+  }));
+  assert.equal(table.rows[0]!.active, true);
+});
+
+test('fixture UUIDs allocate on creation, stringify stably and preserve transaction sequence rollback', () => {
+  const fixture = new Fixture();
+  const first = fixture.ctx.newUuidV7();
+  const second = fixture.ctx.newUuidV7();
+  assert.equal(first.toString(), '00000000-0000-7000-8000-000000000001');
+  assert.equal(first.toString(), first.toString());
+  assert.equal(second.toString(), '00000000-0000-7000-8000-000000000002');
+  assert.equal(fixture.uuidSequence, 2);
+  let rolledBackUuid: { toString(): string } | undefined;
+  assert.throws(() => fixture.transaction(() => {
+    rolledBackUuid = fixture.ctx.newUuidV7();
+    throw new Error('UUID_TRANSACTION_ROLLBACK');
+  }), /UUID_TRANSACTION_ROLLBACK/);
+  assert.equal(fixture.uuidSequence, 2);
+  assert.equal(rolledBackUuid!.toString(), '00000000-0000-7000-8000-000000000003');
+  assert.equal(fixture.ctx.newUuidV7().toString(), rolledBackUuid!.toString());
+  assert.equal(first.toString(), '00000000-0000-7000-8000-000000000001');
+});
+
+test('resource fixture read index preserves ordered location and compound duplicates with live rows', () => {
+  const table = new MemoryTable('nodeId', {
+    locationId: 'locationId',
+    byComponentAndResourceKind: ['componentKey', 'resourceKind'],
+  }, [
+    { nodeId: 'a', locationId: 'l1', componentKey: 'c1', resourceKind: 'food', marker: 'first' },
+    { nodeId: 'b', locationId: 'l2', componentKey: 'c1', resourceKind: 'food', marker: 'second' },
+    { nodeId: 'a', locationId: 'l1', componentKey: 'c1', resourceKind: 'food', marker: 'duplicate' },
+    { nodeId: 'd', locationId: 'l1', componentKey: 'c1', resourceKind: 'wood', marker: 'wood' },
+  ]);
+  fixtureResourceMutationCallbacks.set(table, table.mutate);
+  withResourceReadIndex(table, () => {
+    assert.equal(resourceReadIndexLeases.has(table), true);
+    const byLocation = table.locationId.filter('l1') as Row[];
+    assert.deepEqual(byLocation.map(row => row.marker), ['first', 'duplicate', 'wood']);
+    assert.equal(byLocation[0], table.rows[0]);
+    assert.equal(byLocation[1], table.rows[2]);
+    assert.equal(byLocation[2], table.rows[3]);
+    assert.notEqual(byLocation, table.locationId.filter('l1'));
+    byLocation.pop();
+    assert.equal(table.locationId.filter('l1').length, 3);
+    const compound = table.byComponentAndResourceKind.filter(['c1', 'food']) as Row[];
+    assert.deepEqual(compound.map(row => row.marker), ['first', 'second', 'duplicate']);
+    assert.equal(compound[2], table.rows[2]);
+    compound[2]!.marker = 'changed-live-field';
+    assert.equal(table.locationId.filter('l1')[1], compound[2]);
+    assert.equal(table.locationId.filter('l1')[1].marker, 'changed-live-field');
+    assert.deepEqual(table.locationId.filter('absent'), []);
+    assert.deepEqual(table.byComponentAndResourceKind.filter(['c1']), []);
+    assert.deepEqual(table.byComponentAndResourceKind.filter(['c1', 1]), []);
+    let reads = 0;
+    const accessorQuery = ['c1', 'food'];
+    Object.defineProperty(accessorQuery, '0', { get: () => { reads += 1; return 'c1'; } });
+    assert.equal(table.byComponentAndResourceKind.filter(accessorQuery).length, 3);
+    assert.equal(reads, table.rows.length);
+  });
+  assert.equal(resourceReadIndexLeases.has(table), false);
+  const proxyQueryResult = (
+    registered: boolean,
+    empty: boolean,
+    variant: 'throwing' | 'stateful' | 'revoked',
+  ) => {
+    const rows = empty ? [] : table.rows;
+    const fixtureTable = new MemoryTable('nodeId', {
+      byComponentAndResourceKind: ['componentKey', 'resourceKind'],
+    }, rows);
+    if (registered) fixtureResourceMutationCallbacks.set(fixtureTable, fixtureTable.mutate);
+    const reads: string[] = [];
+    let lengths = 0;
+    const revocable = Proxy.revocable(['c1', 'food'], {
+      get: (target, property, receiver) => {
+        reads.push(String(property));
+        if (property === 'length') {
+          if (variant === 'throwing') throw new Error('QUERY_LENGTH_FAILURE');
+          if (variant === 'stateful') return lengths++ % 2 === 0 ? 2 : 1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    if (variant === 'revoked') revocable.revoke();
+    let markers: string[] | undefined;
+    let error: string | undefined;
+    try {
+      markers = withResourceReadIndex(fixtureTable, () => (
+        fixtureTable.byComponentAndResourceKind.filter(revocable.proxy)
+          .map((row: Row) => row.marker)
+      ));
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : String(caught);
+    }
+    assert.equal(resourceReadIndexLeases.has(fixtureTable), false);
+    return { markers, error, reads };
+  };
+  for (const empty of [true, false]) {
+    for (const variant of ['throwing', 'stateful', 'revoked'] as const) {
+      assert.deepEqual(proxyQueryResult(true, empty, variant), proxyQueryResult(false, empty, variant));
+      if (empty) assert.deepEqual(proxyQueryResult(true, empty, variant), {
+        markers: [], error: undefined, reads: [],
+      });
+    }
+  }
+});
+
+test('resource fixture read index rebuilds after direct edits and restoration and releases on throw', () => {
+  const original = [
+    { nodeId: 'a', locationId: 'l1', componentKey: 'c1', resourceKind: 'food', marker: 'first' },
+    { nodeId: 'b', locationId: 'l2', componentKey: 'c1', resourceKind: 'food', marker: 'second' },
+    { nodeId: 'a', locationId: 'l1', componentKey: 'c1', resourceKind: 'food', marker: 'duplicate' },
+    { nodeId: 'd', locationId: 'l1', componentKey: 'c2', resourceKind: 'wood', marker: 'wood' },
+  ];
+  const fields = {
+    locationId: 'locationId',
+    byComponentAndResourceKind: ['componentKey', 'resourceKind'],
+  };
+  const indexed = new MemoryTable('nodeId', fields, original);
+  const linear = new MemoryTable('nodeId', fields, original);
+  fixtureResourceMutationCallbacks.set(indexed, indexed.mutate);
+  const changes: readonly ((table: MemoryTable) => void)[] = [
+    () => {},
+    table => { table.rows = [...clone(original)].reverse(); },
+    table => { table.rows.push({ ...table.rows[0]!, marker: 'pushed-duplicate' }); },
+    table => { table.rows.splice(1, 1, { ...table.rows[0]!, marker: 'spliced-duplicate' }); },
+    table => { table.rows.unshift({ ...table.rows[0]!, marker: 'new-first' }); },
+    table => { table.rows.shift(); table.rows.reverse(); },
+    table => {
+      const retainedAlias = table.rows.at(-1)!;
+      Object.assign(retainedAlias, { locationId: 'l2', componentKey: 'c2', resourceKind: 'gold' });
+    },
+    table => { table.rows = clone(original); },
+  ];
+  const queries = (table: MemoryTable): Row[][] => [
+    table.locationId.filter('l1'),
+    table.locationId.filter('l2'),
+    table.byComponentAndResourceKind.filter(['c1', 'food']),
+    table.byComponentAndResourceKind.filter(['c2', 'gold']),
+  ];
+  for (const change of changes) {
+    change(indexed);
+    change(linear);
+    const actual = withResourceReadIndex(indexed, () => {
+      assert.equal(resourceReadIndexLeases.has(indexed), true);
+      return queries(indexed);
+    });
+    assert.deepEqual(actual, queries(linear));
+    for (const rows of actual) for (const row of rows) assert.ok(indexed.rows.includes(row));
+    assert.equal(resourceReadIndexLeases.has(indexed), false);
+  }
+  const failure = new Error('INJECTED_RESOURCE_READ_FAILURE');
+  assert.throws(() => withResourceReadIndex(indexed, () => { throw failure; }), error => error === failure);
+  assert.equal(resourceReadIndexLeases.has(indexed), false);
+  indexed.rows = clone(original);
+  const retainedAlias = indexed.rows[0]!;
+  retainedAlias.locationId = 'after-restoration';
+  withResourceReadIndex(indexed, () => {
+    assert.deepEqual(indexed.locationId.filter('after-restoration'), [retainedAlias]);
+    assert.deepEqual(indexed.locationId.filter('l1'), [indexed.rows[2], indexed.rows[3]]);
+  });
+  assert.throws(() => withResourceReadIndex(indexed, () => {
+    indexed.rows[0]!.componentKey = 'unsupported-mid-call-edit';
+  }), /fixed resource read changed an indexed field/);
+  assert.equal(resourceReadIndexLeases.has(indexed), false);
+  indexed.rows = clone(original);
+  assert.throws(() => withResourceReadIndex(indexed, () => { indexed.rows.reverse(); }),
+    /fixed resource read changed resource row order/);
+  assert.equal(resourceReadIndexLeases.has(indexed), false);
+});
+
+test('resource fixture read index preserves linear fallback for malformed fields and custom callbacks', () => {
+  const exercise = (registered: boolean, variant: 'field' | 'accessor' | 'mutator') => {
+    const table = new MemoryTable('nodeId', {
+      locationId: 'locationId',
+      byComponentAndResourceKind: ['componentKey', 'resourceKind'],
+    }, [{ nodeId: 'a', locationId: 'l1', componentKey: 'c1', resourceKind: 'food', marker: 'original' }]);
+    if (registered) fixtureResourceMutationCallbacks.set(table, table.mutate);
+    let reads = 0;
+    if (variant === 'field') table.rows[0]!.locationId = undefined;
+    if (variant === 'accessor') Object.defineProperty(table.rows[0]!, 'locationId', {
+      configurable: true, enumerable: true, get: () => { reads += 1; return 'l1'; },
+    });
+    if (variant === 'mutator') table.mutate = () => {
+      table.rows.unshift({ ...table.rows[0]!, marker: 'callback-first' });
+    };
+    const markers = withResourceReadIndex(table, () => {
+      assert.equal(resourceReadIndexLeases.has(table), false);
+      if (variant === 'mutator') table.mutate();
+      return table.locationId.filter(variant === 'field' ? undefined : 'l1')
+        .map((row: Row) => row.marker);
+    });
+    assert.equal(resourceReadIndexLeases.has(table), false);
+    return { markers, reads };
+  };
+  for (const variant of ['field', 'accessor', 'mutator'] as const) {
+    assert.deepEqual(exercise(true, variant), exercise(false, variant));
+  }
+  assert.deepEqual(exercise(true, 'mutator').markers, ['callback-first', 'original']);
+  const uuidFixture = new Fixture();
+  const resources = uuidFixture.tables.greaterRealmResourceNodeV1;
+  const originalUuid = uuidFixture.ctx.newUuidV7;
+  const retainedRow = resources.rows[0]!;
+  uuidFixture.ctx.newUuidV7 = () => {
+    Object.assign(retainedRow, { nodeId: 'uuid-node', locationId: 'uuid-location' });
+    resources.rows.reverse();
+    return originalUuid();
+  };
+  withFixedResourceReadIndex(uuidFixture.ctx, () => {
+    assert.equal(resourceReadIndexLeases.has(resources), false);
+    assert.equal(uuidFixture.ctx.newUuidV7().toString(), '00000000-0000-7000-8000-000000000001');
+    assert.deepEqual(resources.locationId.filter('uuid-location'), [retainedRow]);
+  });
+  uuidFixture.ctx.newUuidV7 = originalUuid;
+  withFixedResourceReadIndex(uuidFixture.ctx, () => {
+    assert.equal(resourceReadIndexLeases.has(resources), true);
+    assert.deepEqual(resources.locationId.filter('uuid-location'), [retainedRow]);
+  });
+  let sequence = uuidFixture.uuidSequence;
+  Object.defineProperty(uuidFixture, 'uuidSequence', {
+    configurable: true, enumerable: true,
+    get: () => { resources.rows.reverse(); return sequence; },
+    set: (value: number) => { sequence = value; },
+  });
+  withFixedResourceReadIndex(uuidFixture.ctx, () => {
+    assert.equal(resourceReadIndexLeases.has(resources), false);
+    assert.equal(uuidFixture.ctx.newUuidV7().toString(), '00000000-0000-7000-8000-000000000002');
+    assert.deepEqual(resources.locationId.filter('uuid-location'), [retainedRow]);
+  });
+});
 
 test('production canary fence-first serialization is atomic, terminal, and replay-only', () => {
   const prepared = prepareProductionPlayerCanaryFixture();
