@@ -144,6 +144,32 @@ describe('Cloudflare Pages postflight', () => {
     }
   });
 
+  it('retires every worker after the first request failure, without starting more requests', async () => {
+    // Forty filler assets plus the required pages; the failing path is popped first.
+    const many: Record<string, string> = { ...files };
+    for (let i = 0; i < 40; i++) many[`ptr/assets/filler-${i}.js`] = `filler ${i}`;
+    many['ptr/assets/zz-fails.js'] = 'fails';
+    const targetEntries = Object.entries(many).map(([path, body]) => ({ path, byteLength: Buffer.byteLength(body), sha256: sha(body), origin: 'generated' }));
+    targetEntries.sort((a, b) => (a.path === 'ptr/assets/zz-fails.js' ? 1 : b.path === 'ptr/assets/zz-fails.js' ? -1 : 0));
+    const { bytes, digest } = planBytes({ targetEntries, targetFileCount: targetEntries.length });
+    let started = 0; let settled = 0; let startedAfterFailure = 0; let failed = false;
+    const fetchImpl = (url: string, init: { signal?: AbortSignal }) => {
+      started++;
+      if (failed) startedAfterFailure++;
+      if (url.endsWith('/ptr/assets/zz-fails.js')) return new Promise<Response>((_, reject) => setTimeout(() => { failed = true; settled++; reject(new TypeError('connection reset')); }, 10));
+      // Every other request stalls until the run retires it.
+      return new Promise<Response>((_, reject) => init.signal?.addEventListener('abort', () => { settled++; reject(new Error('aborted')); }));
+    };
+    const outcome = await verifyCloudflarePagesPostflight({
+      origin: ORIGIN, reviewedPlanBytes: bytes, expectedReviewedPlanSha256: digest, fetchImpl, concurrency: 4, timeoutMs: 60_000,
+    }).then(() => 'resolved', (error: { code?: string }) => error.code);
+    expect(outcome).toBe('CLOUDFLARE_PAGES_POSTFLIGHT_TRANSPORT_FAILED');
+    // Only the first wave started; each stalled request was aborted and settled before the rejection.
+    expect(started).toBe(4);
+    expect(startedAfterFailure).toBe(0);
+    expect(settled).toBe(started);
+  });
+
   it('maps transport and body read failures to one fixed code', async () => {
     const { bytes, digest } = planBytes();
     const server = pagesServer();

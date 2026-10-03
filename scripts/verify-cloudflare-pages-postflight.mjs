@@ -81,9 +81,12 @@ export function canonicalRoute(path) {
  * transport, abort or read failure maps to a fixed code. A bad CDN response
  * therefore ends the check predictably instead of buffering or waiting forever.
  */
-async function fetchExact(fetchImpl, url, maximumBytes, timeoutMs) {
+async function fetchExact(fetchImpl, url, maximumBytes, timeoutMs, runSignal) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  // Retiring the whole run also aborts this request and its body read.
+  const retire = () => controller.abort();
+  if (runSignal?.aborted) controller.abort(); else runSignal?.addEventListener('abort', retire, { once: true });
   const failure = () => fail(controller.signal.aborted ? 'TIMEOUT' : 'TRANSPORT_FAILED');
   try {
     let response;
@@ -122,6 +125,7 @@ async function fetchExact(fetchImpl, url, maximumBytes, timeoutMs) {
     return { status: response.status, body: Buffer.concat(chunks, length) };
   } finally {
     clearTimeout(timer);
+    runSignal?.removeEventListener('abort', retire);
   }
 }
 
@@ -137,13 +141,23 @@ export async function verifyCloudflarePagesPostflight({
   const { plan, entries } = parseReviewedPlan(reviewedPlanBytes, expectedReviewedPlanSha256);
   const queue = [...entries.values()];
   const mismatched = [];
+  // The first request failure stops the shared queue and aborts in-flight
+  // requests; every worker settles before the failure is reported.
+  const run = new AbortController();
+  let firstFailure = null;
   async function worker() {
-    for (let entry = queue.pop(); entry !== undefined; entry = queue.pop()) {
-      const { status, body } = await fetchExact(fetchImpl, `${origin}${canonicalRoute(entry.path)}`, entry.byteLength + 1, timeoutMs);
-      if (status !== 200 || body.length !== entry.byteLength || sha256(body) !== entry.sha256) mismatched.push(entry.path);
+    for (let entry = queue.pop(); entry !== undefined && !run.signal.aborted; entry = queue.pop()) {
+      try {
+        const { status, body } = await fetchExact(fetchImpl, `${origin}${canonicalRoute(entry.path)}`, entry.byteLength + 1, timeoutMs, run.signal);
+        if (status !== 200 || body.length !== entry.byteLength || sha256(body) !== entry.sha256) mismatched.push(entry.path);
+      } catch (error) {
+        if (firstFailure === null) firstFailure = error;
+        run.abort();
+      }
     }
   }
-  await Promise.all(Array.from({ length: concurrency }, worker));
+  await Promise.allSettled(Array.from({ length: concurrency }, worker));
+  if (firstFailure !== null) throw firstFailure;
   if (mismatched.length > 0) {
     throw Object.assign(new CloudflarePagesPostflightError('CLOUDFLARE_PAGES_POSTFLIGHT_CONTENT_MISMATCH'), {
       paths: Object.freeze(mismatched.sort().slice(0, 20)),
