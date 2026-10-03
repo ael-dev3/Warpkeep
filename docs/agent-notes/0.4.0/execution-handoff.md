@@ -5,6 +5,16 @@
 
 ## Current local release work — 3 October 2026
 
+### PR #382 integration checkpoint — 3 October 2026
+
+The reviewed integration overlay combines signed, published parent `2947cf36` with incoming PR #382 source `7d5a167b`. No new integrated commit is recorded yet. Native focused verification ran 05:17:02.681–05:25:15.074 UTC: all 803 tests in 29 files passed without skips, and application/test types passed (`36ee9fe2`). The final 13-file repair set (`9f5ff07d`) addresses six findings, including the strict ten-key SFX snapshot ABI. The earlier 27-file attempt remains failed: three contact-oracle failures and two missing-selected-field type errors. Corrected preflight passed 50 tests (`723455f8`); it does not replace that history.
+
+Independent post-check `42684030` retained all 3,412 physical source identities/bytes, index and refs (`84ecd392`), and observed the original owner, both children and whole process group absent. The supported source family contains 16 outputs, 12 changed, and 1,269 members. This is focused source acceptance; compiled-input freshness, rendered browser checks, foreground Keep audio, remaining native coverage and authenticated PTR acceptance remain open.
+
+Module 37 is still unresolved. Canonical case 11 took 3,274.13581ms; the same body in the cell-index prototype took 2,069.590166ms. One instrumented pair does not establish a speed distribution or a complete-file pass. The cell prototype remains unadopted QA; both scalar-copy proposals are rejected. Retain native `structuredClone`, original assertions and maintained bounds.
+
+Next, complete the source/compiled-input checks and publish one reviewed integration checkpoint, then follow the existing route to the first usable authenticated owner-only PTR. That owner milestone is distinct from global final-A acceptance. Neither backend readiness nor live owner play is established by this local pass; required source/proof transport, realm preservation, browser/mobile and owner evidence still apply. Earlier dated paragraphs remain history, with their failures preserved.
+
 This checkpoint descends from the signed, published `97f4041b` development source. Resolve its actual HEAD/tree and synchronized branch state from Git and the publication receipt. Alpha 0.3.43 is live; owner PTR 0.4 remains unpublished. Main `cb282bab` and PR380/381 are unchanged. Actions remains disabled under the current operating policy.
 
 Completed source repairs and checks: G002 setup and cleanup are bound by `october-release-g002-cleanup-focused-97-v2-20261003T0246Z-summary.json` (`e6295e59`), 107/107 across two complete files, 02:39:59.317–02:40:16.263 UTC on 3 October. App/all-tests noEmit and connected-module syntax exited 0/null; independent native post `4926c46e` retained the original leader, three children and full PGID absence, with source/index/refs held. The earlier focused V1 106-pass/one-failure report remains failed evidence: the mock captured no allocated directories; capturing actual HOME at CLI attestation corrected that test without changing verifier `791f9e06` bytes. This did not execute a live G002 workload.

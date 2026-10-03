@@ -5,6 +5,8 @@ import { deflateSync } from 'node:zlib';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { runInNewContext } from 'node:vm';
+import { parseRenderedWebglSfxSnapshot }
+  from '../scripts/qa-observer/rendered-webgl-sfx-lifecycle.mjs';
 
 import {
   analyzeRenderedWebglPngScreenshot,
@@ -120,6 +122,9 @@ const EXPECTED_LOCAL_VITE_FS_DENY = Object.freeze([
 function renderedWebglSfxSession(options: Readonly<{
   failHiddenEmission?: boolean;
   failOfflineCorpus?: boolean;
+  keepAmbienceOn?: boolean;
+  failKeepAmbienceMute?: boolean;
+  failKeepAmbienceHidden?: boolean;
 }> = {}) {
   const snapshot = {
     acceptedLogicalVoiceCount: 0,
@@ -127,6 +132,7 @@ function renderedWebglSfxSession(options: Readonly<{
     contextCreated: false,
     contextState: 'unavailable',
     hidden: false,
+    keepAmbienceActive: false,
     muted: false,
     voiceCap: 16,
     waterAmbienceActive: false,
@@ -144,6 +150,7 @@ function renderedWebglSfxSession(options: Readonly<{
         snapshot.contextState = 'running';
         snapshot.acceptedLogicalVoiceCount += 1;
         snapshot.activeVoices = 1;
+        snapshot.keepAmbienceActive = options.keepAmbienceOn ?? false;
       }
       return {};
     }
@@ -192,9 +199,13 @@ function renderedWebglSfxSession(options: Readonly<{
         break;
       case 'toggleAudio':
         snapshot.muted = !snapshot.muted;
+        snapshot.keepAmbienceActive = snapshot.muted
+          ? options.failKeepAmbienceMute ?? false
+          : options.keepAmbienceOn ?? false;
         break;
       case 'hideVisibility':
         snapshot.hidden = true;
+        snapshot.keepAmbienceActive = options.failKeepAmbienceHidden ?? false;
         snapshot.activeVoices = 0;
         snapshot.contextState = 'suspended';
         break;
@@ -692,6 +703,45 @@ describe('rendered WebGL headless browser probe contract', () => {
       .toThrow(/port/i);
   });
 
+  it.each([false, true])('preserves the strict ten-field SFX snapshot with Keep ambience %s', (active) => {
+    const snapshot = {
+      ...renderedWebglSfxSession().snapshot,
+      keepAmbienceActive: active
+    };
+    const parsed = parseRenderedWebglSfxSnapshot(snapshot);
+    expect(parsed).toEqual(snapshot);
+    expect(parsed).not.toBe(snapshot);
+    expect(Object.keys(parsed)).toHaveLength(10);
+    expect(Object.isFrozen(parsed)).toBe(true);
+  });
+
+  it('rejects the legacy nine-field SFX ABI and keeps the existing field validation strict', () => {
+    const snapshot = renderedWebglSfxSession().snapshot;
+    const legacy: Record<string, unknown> = { ...snapshot };
+    delete legacy.keepAmbienceActive;
+    for (const invalid of [
+      legacy,
+      { ...snapshot, acceptedLogicalVoiceCount: -1 },
+      { ...snapshot, activeVoices: 17 },
+      { ...snapshot, contextState: 'idle' },
+      { ...snapshot, voiceCap: 15 },
+      { ...snapshot, waterAmbienceRegime: 'keep' },
+      { ...snapshot, eventKind: 'ui-open' }
+    ]) {
+      expect(() => parseRenderedWebglSfxSnapshot(invalid)).toThrow(/SFX snapshot/i);
+    }
+  });
+
+  it.each([undefined, null, 0, 1, 'false', {}])(
+    'rejects a non-boolean Keep ambience snapshot field (%s)',
+    (keepAmbienceActive) => {
+      expect(() => parseRenderedWebglSfxSnapshot({
+        ...renderedWebglSfxSession().snapshot,
+        keepAmbienceActive
+      })).toThrow(/SFX snapshot/i);
+    }
+  );
+
   it('requires a real trusted SFX lifecycle without exposing event payloads', () => {
     const evidence = {
       exactLogicalVoice: true,
@@ -838,6 +888,28 @@ describe('rendered WebGL headless browser probe contract', () => {
     expect(session.command.mock.calls.filter(([method]) => (
       method === 'Input.dispatchKeyEvent'
     ))).toHaveLength(0);
+  });
+
+  it('allows foreground Keep ambience while requiring the existing mute and hidden suppression gates', async () => {
+    const session = renderedWebglSfxSession({ keepAmbienceOn: true });
+    await expect(applyRenderedWebglSfxInteraction(session)).resolves.toMatchObject({
+      mutedSuppressed: true,
+      hiddenSuppressed: true,
+      hiddenSuspended: true,
+      restoredTrustedResume: true
+    });
+    expect(session.snapshot.keepAmbienceActive).toBe(true);
+    expect(session.actions.at(-1)).toBe('destroy');
+  });
+
+  it.each([
+    { failKeepAmbienceMute: true },
+    { failKeepAmbienceHidden: true }
+  ])('rejects continued Keep ambience during a suppressed lifecycle phase (%j)', async (failure) => {
+    const session = renderedWebglSfxSession({ keepAmbienceOn: true, ...failure });
+    await expect(applyRenderedWebglSfxInteraction(session)).rejects.toThrow(/SFX evidence/i);
+    expect(session.snapshot.hidden).toBe(false);
+    expect(session.actions.at(-1)).toBe('destroy');
   });
 
   it('restores the visibility override when a hidden-phase SFX command fails', async () => {

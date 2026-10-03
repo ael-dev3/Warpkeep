@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import { GAMEPLAY04_WORKER_COUNT, type Building04, type Resource04 } from '../../spacetimedb/gameplay04/policy';
 import type { Placement04 } from '../../spacetimedb/gameplay04/placement';
 import { Keep04Screen, type Keep04UiSelection } from '../components/keep04/Keep04Screen';
@@ -16,6 +16,8 @@ import type { PtrRealmAuthority } from './ptrRealmAuthClient';
 import { isCurrentPtrGameplay04Capability, type PtrGameplay04Capability } from './ptrRealmConnection';
 import { useGameplay04Controller } from './gameplay04/useGameplay04Controller';
 import { gameplay04Journeys } from './gameplay04/gameplay04Journeys';
+import { gameplay04SfxEvents } from './gameplay04/gameplay04Sfx';
+import { emitWarpkeepSfxBatch } from '../components/audio/sfxEvents';
 import type { Controller04, Snapshot04 } from './gameplay04/createGameplay04Controller';
 import type { WorkerView04 } from './gameplay04/gameplay04Presentation';
 import { PtrSessionRenewalNotice } from './PtrSessionContinuation';
@@ -75,6 +77,13 @@ function CurrentSurface(props: CurrentProps) {
   const reducedMotion = useReducedMotionPreference();
   const { controller, snapshot } = useGameplay04Controller(props.ptrGameplay04);
   const journeys04 = useMemo(() => gameplay04Journeys(snapshot.view), [snapshot.view]);
+  // Sound follows confirmed Realm views only; the first view after entry is silent.
+  const soundedView = useRef<Snapshot04['view']>(null);
+  useEffect(() => {
+    const next = snapshot.view; if (!next) return;
+    const events = gameplay04SfxEvents(soundedView.current, next); soundedView.current = next;
+    if (events.length) emitWarpkeepSfxBatch(events);
+  }, [snapshot.view]);
   const surface = useRealmSurfaceNavigation({ historyEnabled: !miniAppHost.isMiniApp, identityKey: props.identityKey });
   const [initialSurface] = useState(props.ptrInitialSurface ?? 'world');
   const [restoringSurface, setRestoringSurface] = useState(initialSurface === 'keep');
@@ -268,7 +277,7 @@ function WorldWorkerPanel({ snapshot, controller, selection, validateSelection, 
       </select></label>
       <div role="group" aria-label="Gathering duration">{DURATIONS.map(([label, micros]) => <button type="button" key={label} aria-pressed={duration === micros} onClick={() => setDuration(micros)}>{label}</button>)}</div>
       <p>Dispatch preview: gather for {formatKeep04Duration(duration)} after arrival; projected yield: {rate === null ? 'unknown' : (rate * (duration / 10_000_000n)).toString()}. Travel is route-dependent, so the Realm confirms the exact return deadline after dispatch. Resources become spendable after the Realm confirms the Worker has returned.</p>
-      <button type="button" disabled={!enabled} onClick={() => {
+      <button type="button" className="greater-realm-world__dispatch" disabled={!enabled} onClick={() => {
         if (!selection || !selection.target || !validateSelection(selection)) return;
         const current = controller.getSnapshot();
         if (current.phase !== 'ready' || current.view?.workers.find(worker => worker.ordinal === ordinal)?.phase !== 'idle') return;

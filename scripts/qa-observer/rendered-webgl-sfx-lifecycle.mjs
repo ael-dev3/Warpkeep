@@ -54,7 +54,7 @@ export function parseRenderedWebglSfxEvidence(value) {
   return Object.freeze(Object.fromEntries(keys.map((key) => [key, true])));
 }
 
-function parseRenderedWebglSfxSnapshot(value) {
+export function parseRenderedWebglSfxSnapshot(value) {
   const candidate = exactRecord(value, 'Invalid rendered WebGL SFX snapshot.');
   const keys = [
     'acceptedLogicalVoiceCount',
@@ -62,6 +62,7 @@ function parseRenderedWebglSfxSnapshot(value) {
     'contextCreated',
     'contextState',
     'hidden',
+    'keepAmbienceActive',
     'muted',
     'voiceCap',
     'waterAmbienceActive',
@@ -78,6 +79,7 @@ function parseRenderedWebglSfxSnapshot(value) {
     || !['unavailable', 'running', 'suspended', 'closed', 'interrupted']
       .includes(candidate.contextState)
     || typeof candidate.hidden !== 'boolean'
+    || typeof candidate.keepAmbienceActive !== 'boolean'
     || typeof candidate.muted !== 'boolean'
     || candidate.voiceCap !== 16
     || typeof candidate.waterAmbienceActive !== 'boolean'
@@ -383,10 +385,12 @@ export async function applyRenderedWebglSfxInteraction(session) {
       && pregesture.contextState === 'unavailable'
       && pregesture.acceptedLogicalVoiceCount === 0
       && pregesture.hidden === false
+      && pregesture.keepAmbienceActive === false
       && pregesture.muted === false
       && afterOfflineCorpus.contextCreated === false
       && afterOfflineCorpus.contextState === 'unavailable'
-      && afterOfflineCorpus.acceptedLogicalVoiceCount === 0;
+      && afterOfflineCorpus.acceptedLogicalVoiceCount === 0
+      && afterOfflineCorpus.keepAmbienceActive === false;
 
     await clickRenderedWebglSfxControl(session, '.realm-profile-trigger');
     const activated = await waitForRenderedWebglSfxSnapshot(
@@ -422,7 +426,9 @@ export async function applyRenderedWebglSfxInteraction(session) {
     );
     const mutedAfterEmission = await readRenderedWebglSfxSnapshot(session);
     const mutedSuppressed = mutedAfterEmission.acceptedLogicalVoiceCount
-      === muted.acceptedLogicalVoiceCount;
+      === muted.acceptedLogicalVoiceCount
+      && muted.keepAmbienceActive === false
+      && mutedAfterEmission.keepAmbienceActive === false;
     await requireRenderedWebglSfxAction(session, 'toggleAudio', 'unmute activation');
     await waitForRenderedWebglSfxSnapshot(
       session,
@@ -443,7 +449,9 @@ export async function applyRenderedWebglSfxInteraction(session) {
     );
     const hiddenAfterEmission = await readRenderedWebglSfxSnapshot(session);
     const hiddenSuppressed = hiddenAfterEmission.acceptedLogicalVoiceCount
-      === hidden.acceptedLogicalVoiceCount;
+      === hidden.acceptedLogicalVoiceCount
+      && hidden.keepAmbienceActive === false
+      && hiddenAfterEmission.keepAmbienceActive === false;
     const suspended = await waitForRenderedWebglSfxSnapshot(
       session,
       (snapshot) => (
@@ -501,7 +509,8 @@ export async function applyRenderedWebglSfxInteraction(session) {
     return parseRenderedWebglSfxEvidence({
       exactLogicalVoice,
       hiddenSuppressed,
-      hiddenSuspended: suspended.contextState === 'suspended',
+      hiddenSuspended: suspended.contextState === 'suspended'
+        && suspended.keepAmbienceActive === false,
       mutedSuppressed,
       offlineCorpusRendered,
       pregestureAbsent,

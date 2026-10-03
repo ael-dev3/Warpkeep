@@ -12,12 +12,14 @@ import { createKeep04Life } from '../src/components/keep04/createKeep04Life';
 import { decodeState04 } from '../src/ptr/gameplay04/gameplay04State';
 import { presentState04 } from '../src/ptr/gameplay04/gameplay04Presentation';
 import { observeJourney04, recallJourney04, type Journey04 } from '../spacetimedb/gameplay04/workerJourney';
+import { subscribeWarpkeepKeepAmbience } from '../src/components/audio/keepSoundscape';
 
 vi.mock('three', async importOriginal => {
   const original = await importOriginal<typeof import('three')>();
   return { ...original, WebGLRenderer: vi.fn() };
 });
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
+const ambienceSubscriptions: Array<() => void> = [];
+afterEach(() => { cleanup(); ambienceSubscriptions.splice(0).forEach(unsubscribe => unsubscribe()); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 const empty = (): InnerKeepRuntimeAssetBundle => ({ staticPrefabs: new Map(), populationPrefabs: new Map(), failures: [], dispose: vi.fn() });
 const visual: VisualState04 = { buildings: [], selectedKind: null, draft: null, draftValid: false, workers: [] };
@@ -47,6 +49,8 @@ async function mountAmbientHost(options: Readonly<{ quality: 'high' | 'balanced'
   vi.mocked(THREE.WebGLRenderer).mockImplementation(function () { return new RendererBoundary() as unknown as THREE.WebGLRenderer; });
   const props = { visual, quality: options.quality, reducedMotion: options.reducedMotion ?? false, ambientLife: options.ambientLife ?? true,
     onMode: vi.fn(), onSelect: vi.fn(), onPlacement: vi.fn() };
+  const ambienceStates: Array<{ active: boolean; night: number }> = [];
+  ambienceSubscriptions.push(subscribeWarpkeepKeepAmbience(state => ambienceStates.push(state)));
   const mounted = render(createElement(Keep04SceneHost, props));
   await act(async () => {});
   const canvas = mounted.container.querySelector('canvas')!;
@@ -56,7 +60,7 @@ async function mountAmbientHost(options: Readonly<{ quality: 'high' | 'balanced'
     act(() => { callbacks.forEach(callback => callback(now)); });
   }
   return {
-    frame, queued, renderedAt, canvas, mounted, visibility,
+    frame, queued, renderedAt, canvas, mounted, visibility, ambienceStates,
     setHidden: (value: boolean) => { hidden = value; fireEvent(document, new Event('visibilitychange')); },
     setOnscreen: (value: boolean) => act(() => visibility.callback!([{ isIntersecting: value } as IntersectionObserverEntry], {} as IntersectionObserver)),
   };
@@ -129,8 +133,34 @@ it.each([
   const host = await mountAmbientHost(options);
   host.frame(0); host.frame(50); host.frame(100);
   expect(host.queued.size).toBe(0);
-  if ('ambientLife' in options && options.ambientLife === false) expect(host.visibility.observed).toBe(0);
+  expect(host.visibility.observed).toBe(1); // Audio visibility remains observed without decorative frames.
   host.mounted.unmount();
+});
+
+it.each([
+  ['normal', { quality: 'balanced' as const }],
+  ['reduced', { quality: 'reduced' as const, ambientLife: false }],
+  ['reduced motion', { quality: 'balanced' as const, reducedMotion: true, ambientLife: false }],
+])('retires offscreen keep audio in %s mode without suppressing feedback or return', async (_label, options) => {
+  const host = await mountAmbientHost(options);
+  host.frame(0); expect(host.ambienceStates.at(-1)?.active).toBe(true);
+  expect(host.visibility.observed).toBe(1);
+  host.setOnscreen(false); expect(host.ambienceStates.at(-1)?.active).toBe(false);
+  const leftAt = host.ambienceStates.length;
+  // Input feedback may render offscreen, but must not restart its soundscape.
+  const beforeFeedback = host.renderedAt.length;
+  fireEvent.wheel(host.canvas, { deltaY: -10 }); host.frame(50);
+  expect(host.renderedAt).toHaveLength(beforeFeedback + 1);
+  expect(host.ambienceStates.slice(leftAt).some(state => state.active)).toBe(false);
+  host.setHidden(true); host.setOnscreen(true);
+  expect(host.ambienceStates.at(-1)?.active).toBe(false);
+  host.setHidden(false); host.frame(100);
+  expect(host.ambienceStates.at(-1)?.active).toBe(true);
+  host.setHidden(true); expect(host.ambienceStates.at(-1)?.active).toBe(false);
+  host.setHidden(false); host.frame(150);
+  expect(host.ambienceStates.at(-1)?.active).toBe(true);
+  host.mounted.unmount(); expect(host.ambienceStates.at(-1)?.active).toBe(false);
+  expect(host.visibility.disconnected).toBeGreaterThanOrEqual(1);
 });
 
 it('derives only confirmed journey phases and times for the scene from the living fixture', () => {

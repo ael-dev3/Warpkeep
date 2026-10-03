@@ -202,20 +202,31 @@ export function keep04ForestDensity(x: number, z: number) {
 }
 
 const color = (hex: string) => new THREE.Color(hex);
-const MEADOW_LIGHT = color('#93ad5f'); const MEADOW_DARK = color('#6f8b4a'); const MEADOW_GOLD = color('#b4b16a');
+const MEADOW_LIGHT = color('#8aa85e'); const MEADOW_DARK = color('#62824a'); const MEADOW_GOLD = color('#aaa968');
 const FOREST_FLOOR = color('#4f6a3d'); const BANK = color('#a89d78'); const RIVER_BED = color('#4b6f68');
 const ROCK = color('#8b897c'); const HIGH_MEADOW = color('#7e9a5c'); const SOIL = color('#7a6447');
+// Stillwater lesson: soft worn verges and a readable shore make the lanes,
+// banks and water read as one place instead of ribbons laid on a lawn.
+const VERGE = color('#a39a6e'); const SHORE_SAND = color('#bcb08a'); const SHORE_WET = color('#66705a');
 
 export function keep04TerrainColor(x: number, z: number, height: number, slope: number, target: THREE.Color) {
   const variation = keep04Fbm(x / 26, z / 26, 3, 61);
   target.copy(MEADOW_DARK).lerp(MEADOW_LIGHT, variation);
-  target.lerp(MEADOW_GOLD, smoothstep(.55, .8, keep04Fbm(x / 70 - 4, z / 70 + 8, 2, 67)) * .55);
+  target.lerp(MEADOW_GOLD, smoothstep(.55, .8, keep04Fbm(x / 70 - 4, z / 70 + 8, 2, 67)) * .42);
   target.lerp(HIGH_MEADOW, smoothstep(2, 16, height) * .5);
   target.lerp(FOREST_FLOOR, smoothstep(.25, .7, keep04ForestDensity(x, z)) * .75);
   target.lerp(ROCK, smoothstep(.55, .9, slope));
   if (insideField(x, z, .5)) target.lerp(SOIL, .8);
+  const road = roadDistance(x, z);
+  if (road < KEEP04_ROAD_HALF_WIDTH + 3.4) target.lerp(VERGE, (1 - smoothstep(KEEP04_ROAD_HALF_WIDTH - .3, KEEP04_ROAD_HALF_WIDTH + 3.4, road)) * .55);
   const river = riverDistance(x, z);
   if (river < KEEP04_RIVER_HALF_WIDTH + 6) target.lerp(height < KEEP04_RIVER_SURFACE_Y ? RIVER_BED : BANK, 1 - smoothstep(KEEP04_RIVER_HALF_WIDTH, KEEP04_RIVER_HALF_WIDTH + 6, river));
+  // A pale shore just above the waterline, darkening to a wet edge where it meets the water.
+  if (river < KEEP04_RIVER_HALF_WIDTH + 16 || Math.hypot(x - 62, z - 116) < 17) {
+    const above = height - KEEP04_RIVER_SURFACE_Y;
+    target.lerp(SHORE_SAND, (1 - smoothstep(.15, .95, above)) * .55);
+    target.lerp(SHORE_WET, (1 - smoothstep(-.15, .35, above)) * .7);
+  }
   return target;
 }
 

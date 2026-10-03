@@ -243,7 +243,8 @@ function start() {
           <GreaterRealmWorldScene bridge={fixture.bridge} identityFid={fixture.legacyFixture.identity.fid}
             identityKey="local-qa-journeys" ownCastle={{ castleId: Number(fixture.continuity.ownCastle.castleId), q: 0, r: 0 }}
             resolvedGraphicsQuality={graphicsQuality(window.location.search)} onPhaseChange={() => undefined}
-            journeys04={syntheticJourneys(Date.now())} />
+            journeys04={syntheticJourneys(Date.now())}
+            daylightHour={(() => { const raw = new URLSearchParams(window.location.search).get('hour'); const value = raw === null ? NaN : Number(raw); return Number.isFinite(value) ? value : undefined; })()} />
         </main>
       </React.StrictMode>
     );

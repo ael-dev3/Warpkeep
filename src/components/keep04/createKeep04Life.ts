@@ -4,7 +4,7 @@ import type { BuildingView04 } from '../../ptr/gameplay04/gameplay04Presentation
 import { KEEP04_FOOTPRINTS } from './createKeep04Buildings';
 import type { Keep04Landscape } from './createKeep04Landscape';
 import { planKeep04Walkways } from './keep04InnerPaths';
-import { createKeep04Kit, KEEP04_LIFE_PALETTE as C } from './keep04ModelKit';
+import { createKeep04Kit, keep04ContactShadowGeometry, keep04GlowMaterial, KEEP04_LIFE_PALETTE as C, type Keep04GlowUniform } from './keep04ModelKit';
 import {
   addBench, addLampPost, addObelisk, addPlanter, bannerGeometry, birdGeometry, boatGeometry, cargoGeometry, handcartGeometry,
   horseCartGeometry, sheepGeometry, smokePuffGeometry, villagerBodyGeometry, villagerHeadGeometry, warpCrystalGeometry,
@@ -32,6 +32,8 @@ export type Keep04Life = Readonly<{
   update: (elapsedSeconds: number) => boolean;
   actors: () => number;
   cost: () => Readonly<{ drawCalls: number; triangles: number }>;
+  /** 0 by day … 1 at night: lamps on the gate spine, their light pools and the warp crystal. */
+  setNightGlow: (value: number) => void;
   dispose: () => void;
 }>;
 
@@ -101,21 +103,37 @@ export function createKeep04Life(options: Readonly<{
     const horseCarts = landscape && limits.carts ? batch('keep04-life-road-carts', horseCartGeometry(), lit, limits.carts) : null;
     const boats = landscape && limits.boats ? batch('keep04-life-river-boats', boatGeometry(), lit, limits.boats) : null;
     // Civic dressing on the reserved commons and spine (never placement space).
-    const civic = createKeep04Kit();
-    let crystal: THREE.Mesh;
+    const civic = createKeep04Kit({ glowMask: true });
+    const lampGlow: Keep04GlowUniform = { value: 0 };
+    const civicLit = material(keep04GlowMaterial({ vertexColors: true, roughness: .85, flatShading: true }, lampGlow));
+    const lampPositions: Array<[number, number]> = [];
+    let crystal: THREE.Mesh; let crystalMaterial: THREE.MeshStandardMaterial;
+    let lampPools: THREE.InstancedMesh | null = null; let lampPoolMaterial: THREE.MeshBasicMaterial | null = null;
     try {
       civic.push([0, .04, 2]); const crystalBase = addObelisk(civic); civic.pop();
-      for (const z of [11, 17.5, 24, 30.5]) for (const x of [-2.65, 2.65]) addLampPost(civic, x, z);
+      for (const z of [11, 17.5, 24, 30.5]) for (const x of [-2.65, 2.65]) { addLampPost(civic, x, z); lampPositions.push([x, z]); }
       for (const side of [-1, 1]) {
         addBench(civic, side * 4.35, 2, side * Math.PI / 2 * -1);
         addPlanter(civic, side * 4.25, -2.25, 300 + side); addPlanter(civic, side * 4.25, 6.25, 310 + side);
       }
       const civicGeometry = civic.build()!; own(civicGeometry);
-      const civicMesh = new THREE.Mesh(civicGeometry, lit); civicMesh.name = 'keep04-civic-dressing'; civicMesh.raycast = () => {};
+      const civicMesh = new THREE.Mesh(civicGeometry, civicLit); civicMesh.name = 'keep04-civic-dressing'; civicMesh.raycast = () => {};
       civicMesh.castShadow = quality === 'high'; civicMesh.receiveShadow = true; group.add(civicMesh);
-      crystal = new THREE.Mesh(own(warpCrystalGeometry()), material(new THREE.MeshStandardMaterial({
-        vertexColors: true, emissive: C.warpViolet, emissiveIntensity: .85, roughness: .25, metalness: .1, flatShading: true })));
+      crystalMaterial = material(new THREE.MeshStandardMaterial({
+        vertexColors: true, emissive: C.warpViolet, emissiveIntensity: .85, roughness: .25, metalness: .1, flatShading: true }));
+      crystal = new THREE.Mesh(own(warpCrystalGeometry()), crystalMaterial);
       crystal.name = 'keep04-warp-crystal'; crystal.raycast = () => {}; crystal.position.set(0, .04 + crystalBase + .7, 2); group.add(crystal);
+      // Warm pools of lamplight on the spine paving, shown only after dusk (not on reduced).
+      if (quality !== 'reduced') {
+        const poolMaterial = material(new THREE.MeshBasicMaterial({ color: '#ffb35c', vertexColors: true, transparent: true, opacity: 0,
+          blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+        const pools = new THREE.InstancedMesh(own(keep04ContactShadowGeometry(14)), poolMaterial, lampPositions.length);
+        pools.name = 'keep04-life-lamp-light-pools'; pools.raycast = () => {}; pools.visible = false;
+        const poolMatrix = new THREE.Matrix4();
+        lampPositions.forEach(([x, z], index) => pools.setMatrixAt(index, poolMatrix.compose(new THREE.Vector3(x * .72, .07, z), new THREE.Quaternion(), new THREE.Vector3(3.2, 1, 3.2))));
+        pools.instanceMatrix.needsUpdate = true; pools.computeBoundingSphere(); group.add(pools);
+        lampPools = pools; lampPoolMaterial = poolMaterial;
+      }
     } catch (error) { civic.dispose(); throw error; }
     const walkwayMaterial = material(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
 
@@ -359,6 +377,12 @@ export function createKeep04Life(options: Readonly<{
         write(lifeTime); return true;
       },
       actors: () => disposed ? 0 : people.length,
+      setNightGlow: value => {
+        if (disposed) return;
+        const glow = Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+        lampGlow.value = glow * 2.1; crystalMaterial.emissiveIntensity = .85 + glow * 1.1;
+        if (lampPools && lampPoolMaterial) { lampPools.visible = glow > .03; lampPoolMaterial.opacity = glow * .5; }
+      },
       cost: () => {
         if (disposed) return { drawCalls: 0, triangles: 0 };
         // Count reserved capacity, not the momentary visible count.

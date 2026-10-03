@@ -2,6 +2,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { createKeep04Scene, type VisualState04 } from '../src/components/keep04/createKeep04Scene';
 import { createKeep04Landscape } from '../src/components/keep04/createKeep04Landscape';
+import { createKeep04Kit, type Keep04Kit } from '../src/components/keep04/keep04ModelKit';
+import { addBarn, addCottage, addGateTower, addTower, addWindmillBody } from '../src/components/keep04/keep04Models';
 import { createKeep04Life, type Keep04WorkerVisual } from '../src/components/keep04/createKeep04Life';
 import { KEEP04_CIVIC_COMMONS, KEEP04_CIVIC_SPINE, KEEP04_DECK, keep04DoorPoint, keep04FootprintRect, planKeep04Walkways } from '../src/components/keep04/keep04InnerPaths';
 import {
@@ -118,6 +120,105 @@ it.each(QUALITIES)('builds a deterministic, non-pickable %s vale whose lower tie
       }
     }
   } finally { high.dispose(); tier.dispose(); }
+});
+
+it.each(QUALITIES)('grounds %s contact shadows at the emitted valley and fortification bases', quality => {
+  // The scene's terrace lookup falls back to zero outside its rendered support.
+  // A lower plinth also proves that a fort's chosen base is not the valley height.
+  const plinthY = -7.5;
+  const plinthGroundAt = (x: number, z: number) => distanceToPlinth(x, z) === 0 ? plinthY : 0;
+  const vale = createKeep04Landscape({ quality, reducedMotion: true, plinthGroundAt });
+  try {
+    vale.group.updateMatrixWorld(true);
+    const contacts = vale.group.getObjectByName('keep04-vale-contact-shadows') as THREE.InstancedMesh;
+    const settlement = vale.group.getObjectByName('keep04-vale-settlement') as THREE.Mesh;
+    const fort = vale.group.getObjectByName('keep04-fortifications') as THREE.Mesh;
+    expect(contacts).toBeInstanceOf(THREE.InstancedMesh);
+    const contactAt = (x: number, z: number) => {
+      const positions: THREE.Vector3[] = [];
+      for (let index = 0; index < contacts.count; index++) {
+        const matrix = new THREE.Matrix4(); contacts.getMatrixAt(index, matrix);
+        const point = new THREE.Vector3().setFromMatrixPosition(matrix).applyMatrix4(contacts.matrixWorld);
+        if (Math.abs(point.x - x) < 1e-4 && Math.abs(point.z - z) < 1e-4) positions.push(point);
+      }
+      expect(positions, `contact at ${x},${z}`).toHaveLength(1);
+      return positions[0]!;
+    };
+    const emittedBaseAt = (mesh: THREE.Mesh, x: number, z: number, yaw: number, build: (kit: Keep04Kit) => void) => {
+      // The settlement batch includes nearby bridges. Match the actual model's
+      // foundation XZ corners, not the lowest unrelated vertex in a broad radius.
+      const kit = createKeep04Kit(); let model: THREE.BufferGeometry | null = null;
+      try {
+        build(kit); model = kit.build(); expect(model).not.toBeNull();
+        const local = model!.getAttribute('position'); let localBase = Infinity;
+        for (let index = 0; index < local.count; index++) localBase = Math.min(localBase, local.getY(index));
+        expect(localBase).toBeCloseTo(0, 5);
+        const transform = new THREE.Matrix4().makeRotationY(yaw).setPosition(x, 0, z);
+        const footprint = new Map<string, THREE.Vector3>(); const point = new THREE.Vector3();
+        for (let index = 0; index < local.count; index++) {
+          if (Math.abs(local.getY(index) - localBase) > 1e-5) continue;
+          point.fromBufferAttribute(local, index).applyMatrix4(transform).applyMatrix4(mesh.matrixWorld);
+          footprint.set(`${point.x}:${point.z}`, point.clone());
+        }
+        expect(footprint.size).toBeGreaterThanOrEqual(4);
+        const positions = mesh.geometry.getAttribute('position'); const bottoms: number[] = [];
+        for (const corner of footprint.values()) {
+          let bottom = Infinity, matched = 0;
+          for (let index = 0; index < positions.count; index++) {
+            point.fromBufferAttribute(positions, index).applyMatrix4(mesh.matrixWorld);
+            if (Math.abs(point.x - corner.x) < 1e-4 && Math.abs(point.z - corner.z) < 1e-4) {
+              bottom = Math.min(bottom, point.y); matched++;
+            }
+          }
+          expect(matched, `emitted foundation corner at ${corner.x},${corner.z}`).toBeGreaterThan(0);
+          bottoms.push(bottom);
+        }
+        const bottom = Math.min(...bottoms);
+        for (const cornerBottom of bottoms) expect(cornerBottom).toBeCloseTo(bottom, 5);
+        return bottom;
+      } finally { model?.dispose(); kit.dispose(); }
+    };
+    for (const [kind, x, z, radius] of [
+      ['cottage', -18, 82, 5], ['barn', 92, 66, 8],
+      ['windmill', -110, -2, 4], ['watermill', -146, -79, 7],
+    ] as const) {
+      const lot = KEEP04_LOTS.find(value => value.kind === kind && value.x === x && value.z === z)!;
+      expect(lot).toBeDefined();
+      const terrain = keep04TerrainHeight(x, z);
+      const chosenBase = kind === 'watermill' ? Math.max(terrain, KEEP04_RIVER_SURFACE_Y + .5) : terrain;
+      const lotIndex = KEEP04_LOTS.indexOf(lot);
+      const reach = KEEP04_RIVER.reduce((best, value) => Math.hypot(value[0] - x, value[1] - z) < Math.hypot(best[0] - x, best[1] - z) ? value : best);
+      const yaw = kind === 'watermill' ? Math.atan2(-(reach[1] - z), reach[0] - x) : lot.yaw;
+      const emittedBase = emittedBaseAt(settlement, x, z, yaw, kit => {
+        if (kind === 'cottage') addCottage(kit, 7000 + lotIndex * 31);
+        else if (kind === 'barn') addBarn(kit);
+        else if (kind === 'windmill') addWindmillBody(kit);
+        else addCottage(kit, 9100, 'slate');
+      });
+      expect(emittedBase).toBeCloseTo(chosenBase, 5);
+      if (kind === 'watermill') {
+        const positions = settlement.geometry.getAttribute('position'); const point = new THREE.Vector3();
+        let nearbyBottom = Infinity;
+        for (let index = 0; index < positions.count; index++) {
+          point.fromBufferAttribute(positions, index).applyMatrix4(settlement.matrixWorld);
+          if (Math.hypot(point.x - x, point.z - z) <= radius) nearbyBottom = Math.min(nearbyBottom, point.y);
+        }
+        // This lower pier is exactly why the old merged-batch radius oracle failed.
+        expect(nearbyBottom).toBeCloseTo(KEEP04_BRIDGE_DECK_Y - 2.5, 5);
+        expect(nearbyBottom).toBeLessThan(emittedBase);
+      }
+      expect(contactAt(x, z).y).toBeCloseTo(emittedBase + .06, 5);
+      if (kind === 'cottage') { expect(emittedBase).toBeLessThan(0); expect(contactAt(x, z).y).toBeLessThan(0); }
+    }
+    for (const [x, z, kind] of [[-49, -50, 'tower'], [-8.6, 35.6, 'gate']] as const) {
+      const emittedBase = emittedBaseAt(fort, x, z, 0, kit => {
+        if (kind === 'tower') addTower(kit, 10, 3);
+        else addGateTower(kit);
+      });
+      expect(emittedBase).toBeCloseTo(plinthY, 5);
+      expect(contactAt(x, z).y).toBeCloseTo(emittedBase + .06, 5);
+    }
+  } finally { vale.dispose(); }
 });
 
 it('turns the mills only when motion is allowed and disposes every vale resource once', () => {

@@ -55,7 +55,33 @@ export function gableGeometry(w: number, h: number, d: number) {
   return geometry;
 }
 
-export function createKeep04Kit(): Keep04Kit {
+/** Per-vertex 0/1 mask marking window parts that light up after dusk. */
+export const KEEP04_GLOW_ATTRIBUTE = 'keep04Glow';
+export type Keep04GlowUniform = { value: number };
+
+/**
+ * A standard vertex-coloured material whose window parts (marked by the kit's
+ * glow mask) add a warm emissive term scaled by one shared uniform. Daylight
+ * drives the uniform; geometry, draw calls and picking are unchanged.
+ */
+export function keep04GlowMaterial(parameters: THREE.MeshStandardMaterialParameters, glow: Keep04GlowUniform) {
+  const material = new THREE.MeshStandardMaterial(parameters);
+  const glowColor = { value: new THREE.Color('#ffc977') };
+  material.onBeforeCompile = shader => {
+    shader.uniforms.keep04NightGlow = glow; shader.uniforms.keep04GlowColor = glowColor;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', `#include <common>\nattribute float ${KEEP04_GLOW_ATTRIBUTE};\nvarying float vKeep04Glow;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>\nvKeep04Glow = ${KEEP04_GLOW_ATTRIBUTE};`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float keep04NightGlow;\nuniform vec3 keep04GlowColor;\nvarying float vKeep04Glow;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\ntotalEmissiveRadiance += keep04GlowColor * vKeep04Glow * keep04NightGlow;');
+  };
+  material.customProgramCacheKey = () => 'keep04-night-glow';
+  return material;
+}
+
+export function createKeep04Kit(options: Readonly<{ glowMask?: boolean }> = {}): Keep04Kit {
+  const glowMask = options.glowMask === true; const windowColor = new THREE.Color(KEEP04_LIFE_PALETTE.window);
   const parts: THREE.BufferGeometry[] = [];
   const stack: THREE.Matrix4[] = [new THREE.Matrix4()];
   const local = new THREE.Matrix4(); const quaternion = new THREE.Quaternion(); const euler = new THREE.Euler();
@@ -73,6 +99,7 @@ export function createKeep04Kit(): Keep04Kit {
     const count = flat.getAttribute('position').count; const colors = new Float32Array(count * 3);
     for (let i = 0; i < colors.length; i += 3) { colors[i] = scratchColor.r; colors[i + 1] = scratchColor.g; colors[i + 2] = scratchColor.b; }
     flat.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    if (glowMask) flat.setAttribute(KEEP04_GLOW_ATTRIBUTE, new THREE.BufferAttribute(new Uint8Array(count).fill(scratchColor.equals(windowColor) ? 255 : 0), 1, true));
     parts.push(flat);
   }
   const kit: Keep04Kit = {
@@ -100,6 +127,36 @@ export function createKeep04Kit(): Keep04Kit {
     dispose: () => { released = true; parts.forEach(part => part.dispose()); parts.length = 0; },
   };
   return kit;
+}
+
+/**
+ * A soft, dark disc with vertex alpha that grounds a model on the meadow:
+ * opaque-ish at the centre, fading to nothing at a unit radius. It replaces
+ * missing shadow maps on balanced/reduced and softens the base on high.
+ */
+export function keep04ContactShadowGeometry(segments = 18) {
+  const positions: number[] = [0, 0, 0]; const colors: number[] = [1, 1, 1, .5]; const indices: number[] = [];
+  const rings: ReadonlyArray<readonly [number, number]> = [[.55, .3], [1, 0]];
+  for (const [radius, alpha] of rings) for (let i = 0; i < segments; i++) {
+    const angle = i / segments * Math.PI * 2;
+    positions.push(Math.cos(angle) * radius, 0, Math.sin(angle) * radius); colors.push(1, 1, 1, alpha);
+  }
+  for (let i = 0; i < segments; i++) {
+    const next = (i + 1) % segments;
+    indices.push(0, 1 + next, 1 + i);
+    const a = 1 + i; const b = 1 + next; const c = 1 + segments + i; const d = 1 + segments + next;
+    indices.push(a, b, c, b, d, c);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 4));
+  geometry.setIndex(indices); geometry.computeBoundingSphere();
+  return geometry;
+}
+
+export function keep04ContactShadowMaterial() {
+  return new THREE.MeshBasicMaterial({ color: '#1b261d', vertexColors: true, transparent: true, depthWrite: false,
+    polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
 }
 
 /** Build one geometry from a kit recipe, releasing parts when the recipe throws. */

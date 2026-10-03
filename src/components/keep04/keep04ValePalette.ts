@@ -4,6 +4,6 @@
 export const KEEP04_VALE_PALETTE = Object.freeze({
   /** Airy valley haze for fog and background. */
   haze: '#b3c1ad',
-  courtyardLawn: '#8ea65d',
-  courtyardLawnDeep: '#6f8a4a',
+  courtyardLawn: '#88a45c',
+  courtyardLawnDeep: '#678647',
 });

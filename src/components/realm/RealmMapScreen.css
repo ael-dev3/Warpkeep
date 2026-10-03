@@ -926,6 +926,23 @@
   outline-offset: 1px;
 }
 
+/* Each resource site carries its material accent, matching the keep's stores. */
+.greater-realm-world__resource-list button[data-resource] {
+  border-left: 3px solid var(--greater-realm-resource, #9bbea3);
+}
+
+.greater-realm-world__resource-list button[data-resource="food"] { --greater-realm-resource: #e4c879; }
+.greater-realm-world__resource-list button[data-resource="wood"] { --greater-realm-resource: #c8926a; }
+.greater-realm-world__resource-list button[data-resource="stone"] { --greater-realm-resource: #d2cebf; }
+.greater-realm-world__resource-list button[data-resource="gold"] { --greater-realm-resource: #f1c55d; }
+
+/* Dispatch is the one primary action in the Worker panel. */
+.greater-realm-world__resources .greater-realm-world__dispatch:not(:disabled) {
+  border-color: #e1d4b5;
+  background: linear-gradient(180deg, #ecdfbf, #d9c69b);
+  color: #18251e;
+}
+
 .greater-realm-world__worker-command,
 .greater-realm-world__active-workers {
   display: grid;

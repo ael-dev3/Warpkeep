@@ -27,6 +27,8 @@ export type GreaterRealmAtmosphere = Readonly<{
   invalidateUploads: () => void;
   setFrame: (centerX: number, centerZ: number, span: number) => void;
   configure: (profile: GreaterRealmGraphicsProfile, reducedMotion: boolean) => void;
+  /** Daylight mood: clouds take the sky's colour and the birds roost after dusk. */
+  setDaylight: (mood: Readonly<{ hazeColor: THREE.Color; skyColor: THREE.Color; night: number }>) => void;
   update: (elapsedSeconds: number) => boolean;
   drawCalls: () => number;
   instanceCount: () => number;
@@ -68,7 +70,8 @@ export function createGreaterRealmAtmosphere(options: Readonly<{ profile: Greate
   const birds = new THREE.InstancedMesh(birdShape, birdMaterial, LAYER_COUNTS.high.birds);
   for (const mesh of [clouds, birds]) { mesh.raycast = () => {}; mesh.frustumCulled = false; mesh.castShadow = false; mesh.receiveShadow = false; mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); group.add(mesh); }
   clouds.name = 'greater-realm-atmosphere-clouds'; birds.name = 'greater-realm-atmosphere-birds';
-  let profile = options.profile; let reducedMotion = options.reducedMotion; let disposed = false;
+  let profile = options.profile; let reducedMotion = options.reducedMotion; let disposed = false; let roosting = false;
+  const cloudDayEmissive = new THREE.Color('#a9bcba');
   let centerX = 0; let centerZ = 0; let span = 48;
   const matrix = new THREE.Matrix4(); const quaternion = new THREE.Quaternion(); const euler = new THREE.Euler();
   const position = new THREE.Vector3(); const scale = new THREE.Vector3();
@@ -145,9 +148,9 @@ export function createGreaterRealmAtmosphere(options: Readonly<{ profile: Greate
       matrix.compose(position, quaternion.setFromEuler(euler.set(0, -angle, Math.sin(angle) * .3)), scale.set(.45, .45 * Math.cos(time * 10 + i * 1.3), .45));
       birds.setMatrixAt(i, matrix);
     }
-    birds.count = counts.birds;
+    birds.count = roosting ? 0 : counts.birds;
     clouds.instanceMatrix.needsUpdate = true; birds.instanceMatrix.needsUpdate = true;
-    birds.visible = counts.birds > 0;
+    birds.visible = birds.count > 0;
   };
   write(0);
   return Object.freeze({
@@ -160,6 +163,14 @@ export function createGreaterRealmAtmosphere(options: Readonly<{ profile: Greate
       centerX = x; centerZ = z; span = nextSpan; write(0);
     },
     configure: (nextProfile, nextReducedMotion) => { if (disposed) return; profile = nextProfile; reducedMotion = nextReducedMotion; write(0); },
+    setDaylight: mood => {
+      if (disposed) return;
+      const night = Math.max(0, Math.min(1, Number.isFinite(mood.night) ? mood.night : 0));
+      cloudMaterial.color.set('#ffffff').lerp(mood.hazeColor, .18 + night * .5);
+      cloudMaterial.emissive.copy(cloudDayEmissive).lerp(mood.skyColor, .35 + night * .4);
+      const nextRoosting = night > .5;
+      if (nextRoosting !== roosting) { roosting = nextRoosting; write(0); }
+    },
     update: elapsed => {
       if (disposed || reducedMotion || !Number.isFinite(elapsed)) return false;
       write(Math.max(0, elapsed)); return true;

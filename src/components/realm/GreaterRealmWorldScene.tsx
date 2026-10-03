@@ -37,6 +37,12 @@ import {
 } from './greaterRealmWorldSnapshotAuthority';
 import { resolveGreaterRealmWorldViewPolicy } from './greaterRealmWorldViewPolicy';
 import { useNarrowRealmPresentation } from './useNarrowRealmPresentation';
+import { emitWarpkeepSfx } from '../audio/sfxEvents';
+
+/** Each public resource site answers a choice with its own short material cue. */
+const RESOURCE_SELECTION_SFX: Readonly<Record<string, 'select-food' | 'select-wood' | 'select-stone' | 'select-gold'>> = Object.freeze({
+  food: 'select-food', wood: 'select-wood', stone: 'select-stone', gold: 'select-gold',
+});
 
 export { isCurrentGreaterRealmSceneSnapshot } from './greaterRealmWorldSnapshotAuthority';
 
@@ -128,6 +134,8 @@ export type GreaterRealmWorldSceneProps = Readonly<{
   renderGameplay04WorldPanel?: (selection: WorldSelection04 | null, validateSelection: (selection: WorldSelection04) => boolean) => ReactNode;
   /** The owner's confirmed Worker journeys, drawn on the map; presentation only. */
   journeys04?: readonly GreaterRealmJourney[];
+  /** Development QA only: pin the world's daylight mood to a local hour. */
+  daylightHour?: number;
 }>;
 
 /**
@@ -149,7 +157,8 @@ export function GreaterRealmWorldScene({
   resourceFocus04,
   onLyricFilmOpenChange,
   renderGameplay04WorldPanel,
-  journeys04
+  journeys04,
+  daylightHour
 }: GreaterRealmWorldSceneProps) {
   const miniAppHost = useMiniAppHost();
   const reducedMotion = useReducedMotionPreference();
@@ -444,8 +453,10 @@ export function GreaterRealmWorldScene({
     setRenderer('loading');
     setWorldSelection(undefined);
     setLocalVesselState(INITIAL_LOCAL_VESSEL_STATE);
+    const fixedHour = import.meta.env.DEV ? daylightHour : undefined;
     const host = createGreaterRealmWorldCanvasHost({
       canvas,
+      ...(fixedHour === undefined ? {} : { daylightHour: () => fixedHour }),
       atlasQ: ownCastle.q,
       atlasR: ownCastle.r,
       ownCastleId: ownCastle.castleId,
@@ -1015,12 +1026,15 @@ export function GreaterRealmWorldScene({
                     type="button"
                     aria-label={`${location.resourceKind} site at ${location.atlasQ}, ${location.atlasR}`}
                     aria-pressed={selectedLocation?.locationId === location.locationId}
-                    onClick={() => {
+                    data-resource={location.resourceKind}
+                    onClick={(event) => {
                       if (
                         publicResourceSource === undefined
                         || resourceAtlasId === undefined
                         || resourceRevision === undefined
                       ) return;
+                      const cue = RESOURCE_SELECTION_SFX[location.resourceKind];
+                      if (cue && selectedLocation?.locationId !== location.locationId) emitWarpkeepSfx({ kind: cue, screenX: event.clientX });
                       setResourceSelection(Object.freeze({
                         locationId: location.locationId,
                         atlasId: resourceAtlasId,

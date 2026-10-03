@@ -177,8 +177,10 @@ those claims.
 
 The narrow layout keeps one readable decision header, safe-area padding, a
 touch-sized action surface, a scene that uses the available panel width, and a
-single document scroll when a panel is open. The desktop and short-landscape
-layouts keep their existing hierarchy. Reduced motion, hidden-page suspension,
+single document scroll when a panel is open. The short-landscape layout keeps
+its two-column hierarchy. From 1180 px wide (and 640 px tall), the decision
+column sits beside the scene so the keep is in view on arrival; grid areas
+follow DOM order, so reading and focus order are unchanged. Reduced motion, hidden-page suspension,
 quality profiles, context recovery and the schematic fallback are part of the
 same foundation rather than separate modes of the game.
 
@@ -215,10 +217,17 @@ larger catalogue of references or an arbitrary score.
 | Keep vale, fortifications and models | `src/components/keep04/createKeep04Landscape.ts`, `src/components/keep04/keep04Terrain.ts`, `src/components/keep04/keep04Models.ts` |
 | Keep ambient life and walkways | `src/components/keep04/createKeep04Life.ts`, `src/components/keep04/keep04InnerPaths.ts`, `src/components/keep04/Keep04SceneHost.tsx` |
 | Greater Realm daylight, actors and own journeys | `src/greater-realm/greaterRealmAtmosphere.ts`, `src/greater-realm/greaterRealmActorGeometry.ts`, `src/greater-realm/greaterRealmJourneyLayer.ts` |
+| Local-hour daylight mood for keep and world | `src/greater-realm/verdantDaylight.ts`, `src/components/keep04/createKeep04Scene.ts`, `src/components/realm/createGreaterRealmWorldCanvasHost.ts` |
+| 0.4 sound cues and the keep soundscape | `src/components/audio/sfxEvents.ts`, `src/components/audio/proceduralSfxEngine.ts`, `src/components/audio/keepSoundscape.ts`, `src/ptr/gameplay04/gameplay04Sfx.ts` |
 | Rendered evidence and limits | `docs/evidence/0.4.0/visuals.md`, `docs/evidence/0.4.0/renderer.md`, `docs/evidence/0.4.0/performance.md`, `docs/operations/0.4.0-release-checklist.md` |
 
 If a proposed change cannot be tied to one of these owners and one player
 outcome, it is probably reference collecting rather than 0.4 work.
+
+The [craft and atmosphere note](craft-and-atmosphere.md) records the 3 October
+2026 local-hour daylight, night glow, ground contact, shore and verge work, the
+0.4 sound cues and keep soundscape, and the keep screen's Verdant Citadel pass,
+with their authority boundaries, measured synthetic evidence and limits.
 
 The [living realm note](living-realm.md) records the 2 October 2026 vale,
 ambient life, world daylight and own-journey work, its authority boundaries,

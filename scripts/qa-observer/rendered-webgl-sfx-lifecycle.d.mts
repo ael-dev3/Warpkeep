@@ -5,6 +5,23 @@ export type RenderedWebglSfxSession = Readonly<{
   ) => Promise<unknown>;
 }>;
 
+export type RenderedWebglSfxSnapshot = Readonly<{
+  acceptedLogicalVoiceCount: number;
+  activeVoices: number;
+  contextCreated: boolean;
+  contextState: 'unavailable' | 'running' | 'suspended' | 'closed' | 'interrupted';
+  hidden: boolean;
+  keepAmbienceActive: boolean;
+  muted: boolean;
+  voiceCap: 16;
+  waterAmbienceActive: boolean;
+  waterAmbienceRegime: 'none' | 'river' | 'ocean';
+}>;
+
+export function parseRenderedWebglSfxSnapshot(
+  value: unknown
+): RenderedWebglSfxSnapshot;
+
 export type RenderedWebglSfxEvidence = Readonly<{
   exactLogicalVoice: true;
   hiddenSuspended: true;

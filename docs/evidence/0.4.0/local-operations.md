@@ -4,6 +4,16 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Current native verification evidence — 3 October 2026
 
+### PR #382 focused native acceptance — 3 October 2026
+
+Read back native summary `36ee9fe2` for the integration overlay of published parent `2947cf36` and incoming `7d5a167b`: 05:17:02.681–05:25:15.074 UTC, 803 passing tests across 29 files, no skips, plus passing application/test types. Both child terminals report exit 0 with no signal. The corrected 50-test preflight (`723455f8`) preceded this run. Preserve the earlier 27-file run's three contact-oracle failures and two type errors; they were corrected, not relabeled as passes.
+
+Independent post record `42684030` (`031b59` actual command chunk) checked the 3,412-file physical source set, index and refs against source digest `84ecd392`. Its two observations at 05:29:04.144 and 05:29:04.244 UTC found the recorded owner, both original children and whole process group absent. These are retained receipt observations, not a new process probe by this note author. Final repairs are bound by manifest `9f5ff07d`; the supported 16-output family has 12 changed bodies and 1,269 protected members. A new integrated commit and compilation-freshness result are not yet recorded.
+
+Retain the established UID1000 staging, stable-file-identity, scoped upload-pack and post-write-tree index recovery paths below. The canonical/cell comparison remains a single measured pair (3,274.13581ms / 2,069.590166ms); its failed complete-file run stays failed and the prototype remains QA-only. Both scalar-copy proposals remain rejected.
+
+Next verify compiled inputs and rendered browser/Keep-audio behavior, finish the remaining native domains, and use the existing authenticated owner PTR route. Initial usable owner PTR and global final A are separate acceptance milestones. This local pass establishes neither backend readiness, a deployed owner journey nor global release acceptance. Preserve the historical records below unchanged.
+
 This checkpoint descends from the signed, published `97f4041b` development source. Resolve its actual HEAD/tree and synchronized branch state from Git and the publication receipt. Alpha 0.3.43 is live; owner PTR 0.4 remains unpublished. Main `cb282bab` and PR380/381 are unchanged. Actions remains disabled under the current operating policy.
 
 Completed source repairs and checks: G002 setup and cleanup are bound by `october-release-g002-cleanup-focused-97-v2-20261003T0246Z-summary.json` (`e6295e59`), 107/107 across two complete files, 02:39:59.317–02:40:16.263 UTC on 3 October. App/all-tests noEmit and connected-module syntax exited 0/null; independent native post `4926c46e` retained the original leader, three children and full PGID absence, with source/index/refs held. The earlier focused V1 106-pass/one-failure report remains failed evidence: the mock captured no allocated directories; capturing actual HOME at CLI attestation corrected that test without changing verifier `791f9e06` bytes. This did not execute a live G002 workload.

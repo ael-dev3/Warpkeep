@@ -360,7 +360,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "5ae21f2a384a8515336af5a036e18b7f2b1bd733b5ecdd92d2213992c0121a07"
+      "sha256": "a85e577e7f8918651b10f2a5d1ad43d654b18858f137d6b65bc96b8ee04ced1a"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -1350,7 +1350,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "062db4b35cd979e49688ba357c1f047ef897bb2f51fdd4140efd438816ce4cbf"
+      "sha256": "b60cea4093ce2dfde6623a87d03c926bc722cba1d2c324ab95d54175c7a3b02e"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -3595,7 +3595,7 @@
     {
       "path": "src/components/audio/WarpkeepSfxDirector.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "c99f507e7697956e40d450db88c9017973525c72a3a4a5e37b952aacaae0cc80"
+      "sha256": "be63f148a03f24f1c042ae2dcfb10d4e24d0960fea5d9eab209085694986b499"
     },
     {
       "path": "src/components/audio/audioDirector.ts",
@@ -3605,17 +3605,22 @@
     {
       "path": "src/components/audio/index.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9fa7ee501ccd6a6cf2e1de475171d4f98572b10b5c749ffba09a78b1f286510a"
+      "sha256": "f6d5dfef90f29774562a1d4feeebc5ab2408d5eaa3b1cf99f970d04fce48316c"
+    },
+    {
+      "path": "src/components/audio/keepSoundscape.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "4bb20d3ee4fa67e23301c08ea6aa603be34f1ccd995eb3edfc83bf7421fdb616"
     },
     {
       "path": "src/components/audio/proceduralSfxEngine.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "343e8f06b67054baf9d30a50834e4d35845993053b5af768a981160e2498a46e"
+      "sha256": "c95e2f6823d07080b44d932534ebec3c144eb5c9c04f2ba0f96aad43608a9308"
     },
     {
       "path": "src/components/audio/sfxEvents.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b7fba05a32f6c2146dbed3a4037a034d11ada6baefafe05e781e01a8615ad874"
+      "sha256": "ea869ad38db3787cec1392249d9c2101a3aaae21f3b6f353a3f2563195481aef"
     },
     {
       "path": "src/components/audio/waterAmbience.ts",
@@ -3850,7 +3855,7 @@
     {
       "path": "src/components/keep04/Keep04SceneHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "80228102c7fc88c16c2d347e94c2a9865c3284492312b31c5551b1702d02f5b4"
+      "sha256": "4b9c88faa16db2236a712af772cb970e423778a0326fb4dddd30e84a285a415c"
     },
     {
       "path": "src/components/keep04/Keep04Schematic.tsx",
@@ -3860,12 +3865,12 @@
     {
       "path": "src/components/keep04/Keep04Screen.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "9ed8a7604b34a016d9229bb7c14fe51065e2b010739984477d76a200e3f63322"
+      "sha256": "92716fcbbb875ec9bba6c35d3e1b1b0a86641833e608e4d3ca416bc1c4d2e7d5"
     },
     {
       "path": "src/components/keep04/Keep04Screen.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "358074c8477c3b66a45aca34189867a8b640d961746cbf8a73931010b1d2d662"
+      "sha256": "354f9e369ec04426df3a1fe638877fa043ca80baa5656b7b171825357fb4e81b"
     },
     {
       "path": "src/components/keep04/Keep04WorkerPanel.tsx",
@@ -3885,17 +3890,17 @@
     {
       "path": "src/components/keep04/createKeep04Landscape.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "77347bebd0bbb9db239cb2c07878bb7f59ad7648f478aae2c2c97293707b590c"
+      "sha256": "b22f4ee787bb1bfdb13e35b98ecd3bd4d627c1cfa22ca3824123b6ec462c01d0"
     },
     {
       "path": "src/components/keep04/createKeep04Life.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "fa212eb9e49ddcaf9ee81f7e51b64db054600971ead2f6b0cb5377a8de23d651"
+      "sha256": "3ab9ebecbb3ad04cf5812be924cf35a86c3a6191e92ea3e83b4daf4e9761c2a8"
     },
     {
       "path": "src/components/keep04/createKeep04Scene.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "16280a21f1071cf1d2194ee293979a3c0824b63294405bcde8c43f9093a42b62"
+      "sha256": "8cba8e1ef9c84be50af08230a414e526ac880dc2138e4a45d52f3fa47fd7eea2"
     },
     {
       "path": "src/components/keep04/formatKeep04Duration.ts",
@@ -3920,12 +3925,12 @@
     {
       "path": "src/components/keep04/keep04ModelKit.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4ecc8b4fd03f0b972ad15c8288b85afc2b1fde5bd8304ecb7ceb6367e85685ac"
+      "sha256": "ea1f091564ed548902bb10793836057fc339d602f35035f4f4f8af9fdbf5807e"
     },
     {
       "path": "src/components/keep04/keep04Models.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "774d9eff237343c82a155d993a672dbbda339527a627e5f0dffb5a2379f013d8"
+      "sha256": "0045b380e723cbddde3968da7caed4db5b4e09efc82461ce09d9f31294e3761f"
     },
     {
       "path": "src/components/keep04/keep04NextStep.ts",
@@ -3940,12 +3945,12 @@
     {
       "path": "src/components/keep04/keep04Terrain.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "026616faa6119d4c8e52d14956613b5b5febee8c932113a9171cdc0480303f6a"
+      "sha256": "0775051a8813803645161cc86f81f9e3ffb6b3542712ed8c0fd6be58e6e8a247"
     },
     {
       "path": "src/components/keep04/keep04ValePalette.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "8b1ec8bbc83e525252ff47f20f8986d8ee0c9cd54187872ee8dc02442fe323d1"
+      "sha256": "5aa26e0839a46184d5d88dc58e7f87f0ca0797a3db4ecccc658fc1139e0408c6"
     },
     {
       "path": "src/components/keep04/keep04VisualProfile.ts",
@@ -4120,7 +4125,7 @@
     {
       "path": "src/components/realm/GreaterRealmWorldScene.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "11c30d55745f8fe3777291f989d562d1d177d92b3114871feb6a5f19404ff8c2"
+      "sha256": "a9031938361037640b6b6c3ebd5e83eaacbce215b0584aa6a007b407b9e80bde"
     },
     {
       "path": "src/components/realm/LazyCastleLyricFilmAction.tsx",
@@ -4180,7 +4185,7 @@
     {
       "path": "src/components/realm/RealmMapScreen.css",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0b8b21ac75ad3d3699db634512d07655301433e2cfbe71e073a41004895d74ad"
+      "sha256": "05f466608577a2fa04dc334681bf8184f9340ec950e5c77725a4d0e9ad87783d"
     },
     {
       "path": "src/components/realm/RealmMapScreen.tsx",
@@ -4320,7 +4325,7 @@
     {
       "path": "src/components/realm/createGreaterRealmWorldCanvasHost.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "791d74726ceb1394231f055a3c5b4edcfee873ab1178e58d15e8d83c5007ebe8"
+      "sha256": "e3639799bda42ce629c0ced9df96d270a7b887427dda111c88c6862ff2e20d89"
     },
     {
       "path": "src/components/realm/createLowPolyGrassGeometry.ts",
@@ -5090,7 +5095,7 @@
     {
       "path": "src/greater-realm/greaterRealmAtmosphere.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "7e379f5fdfa354dbcd2ef2f074fe062f1636f52ef68a4a2526d03201e5f3db9d"
+      "sha256": "6b65e40e9d544ca5bc4337638019404e94f6d0add90122df74a9d1d9f0907d55"
     },
     {
       "path": "src/greater-realm/greaterRealmChunkStream.ts",
@@ -5141,6 +5146,11 @@
       "path": "src/greater-realm/loadGreaterRealmBiomeTreeAssets.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "28b3f245a5b25c052f570debd005c858bfd55ed72624d59d9671e8ca0c27a7ca"
+    },
+    {
+      "path": "src/greater-realm/verdantDaylight.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "a8c486a74a1e02186428f4e64a7ce8e2bdd28a5e48c2822ea787a1a758e49d73"
     },
     {
       "path": "src/legal/alphaTermsPolicy.ts",
@@ -5230,7 +5240,7 @@
     {
       "path": "src/ptr/PtrGameplay04SurfaceHost.tsx",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e22327e63dec29d3acb1033e42849ec0333a6fd7bb3d58a43706b69096e5039b"
+      "sha256": "54135f3dc50bf16f29fb61af48406ee1e66c073d580ad6ed6dd2c14da58ae111"
     },
     {
       "path": "src/ptr/PtrRealmProvider.tsx",
@@ -5266,6 +5276,11 @@
       "path": "src/ptr/gameplay04/gameplay04Presentation.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "1ce89bc4ef04106815d9d2ba2c9a422d64ac79fe24d859ec8ffe34ad334b51dc"
+    },
+    {
+      "path": "src/ptr/gameplay04/gameplay04Sfx.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "ffac3a947bae89e2e77c3d8ecc786f9cd61e56848cce81fb6fd9a5f1d1f49e04"
     },
     {
       "path": "src/ptr/gameplay04/gameplay04State.ts",
