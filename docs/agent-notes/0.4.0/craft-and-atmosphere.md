@@ -146,6 +146,11 @@ npm 10.9.8). No native SpacetimeDB CLI or WSL runner was used.
   - Farcaster Mini App integrity.
 
   The existing `RealmMapScreen` chunk-size warning is unchanged.
+- **Verifiers:** `verify:file-sizes`, `verify:licenses`,
+  `verify:atlas-public-boundary` and `verify:visual-foundation` pass.
+  `verify:sealed-launch` passes on the clean checkout and still reports Pages
+  approval false, package 0.3.43, every live identity unset and PTR
+  presentation disabled.
 - **Bundle size:** compared with a `/ptr/` build of the base, the branch adds
   8.2 kB of gzip JavaScript in total (the PTR surface chunk adds 3.8 kB) and
   1.1 kB of gzip CSS. No new network asset, texture, model or font is
