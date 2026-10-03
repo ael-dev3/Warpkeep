@@ -41,9 +41,14 @@ on a desktop. Reused assets retain their original credits and permissions.
 ## Where development stands
 
 **Alpha 0.3.43 is live; Warpkeep 0.4 owner PTR publication remains pending.**
-The current development checkpoint descends from reviewed source `97f4041b`;
-its exact identity and local verification are recorded in the [execution
-handoff](docs/agent-notes/0.4.0/execution-handoff.md).
+The reviewed game integration baseline is signed `a0f6a55f` on
+`release/0.4-living-realm-quality`. [PR #382](https://github.com/ael-dev3/Warpkeep/pull/382)
+is integrated there, bringing daylight, atmosphere and keep presentation repairs
+into the candidate. Its integration checks passed within their recorded scopes;
+a subsequent test-only coverage repair has unresolved type diagnostics and pending
+runtime checks. Complete release verification and actual-owner play remain open. Use the
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) for the exact source,
+evidence and next step.
 The 0.4 foundation and reviewed contributions have been integrated into main
 through [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) and
 [PR #379](https://github.com/ael-dev3/Warpkeep/pull/379). Existing PRs #375–#378
@@ -81,23 +86,17 @@ performance remain release requirements. Earlier fixture tests, full suites and
 rendered captures retain their original source scopes. The build's existing
 RealmMapScreen size warning remains under measurement.
 
-Alpha returned HTTP 200 on 2 October. Owner PTR publication remains pending.
-GitHub Actions is disabled across the Warpkeep repositories under the current
-[operating policy](docs/operations/github-actions-budget.md). Development continues
-with local validation and signed, scanned, synchronized source checkpoints.
-The maintained native verifier now discovers the ordinary, isolated-namespace
-and module test inventories and retains structured results. A separate fixed
-local lane runs source-policy checks, build-mode types and three production builds,
-with bounded output hashes and application/owner-page reference checks. Its release consumer
-explicitly refuses incomplete coverage. An opt-in public Pages workflow and
-matching publication/readback support are implemented; the public repository
-still uses its existing hosting route. Complete coverage, prepared reuse and
-cumulative execution admission remain unfinished. Genuine GitHub authentication
-is retained for bounded deployment operations. Preserve existing realms and complete production
-performance and actual-owner acceptance before claiming the full release.
-Current [delivery status](docs/operations/0.4.0-live-delivery-status.md) and
-[the handoff](docs/agent-notes/0.4.0/execution-handoff.md) identify the next action.
-
+The 3 October readback still finds Alpha live and the owner PTR unpublished.
+GitHub Actions remains disabled across the Warpkeep repositories under the
+[current operating policy](docs/operations/github-actions-budget.md). Development
+continues through local validation and signed, scanned, synchronized checkpoints.
+That integration baseline passed the maintained checks, all three production build
+variants and the production exclusion check for local QA pages. A real Chrome
+fixture also confirmed construction motion respects reduced quality and explicit
+reduced motion. These are bounded local results; foreground audio, complete native
+coverage, authenticated owner play and physical-device performance remain open.
+The [handoff](docs/agent-notes/0.4.0/execution-handoff.md) records those limits and
+the next delivery step.
 
 | Realm | Purpose |
 | --- | --- |
@@ -123,15 +122,13 @@ asset.
 
 ## Build with us
 
-`main` contains the integrated baseline from merged PRs #374 and #379. Pending
-[PR #380](https://github.com/ael-dev3/Warpkeep/pull/380) prepares delivery repairs;
-[PR #381](https://github.com/ael-dev3/Warpkeep/pull/381) adds the Living Realm
-presentation and is based on #380. Reviewed integration and subsequent repairs
-are backed up on `release/0.4-living-realm-quality`; resolve its actual current
-commit before working. The running game remains Alpha 0.3.43, and the 0.4 owner
-PTR is not live. Follow the
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) for the
-current candidate, local verification and remaining release work.
+`main` remains the integrated baseline from PRs #374 and #379. Existing
+[PR #380](https://github.com/ael-dev3/Warpkeep/pull/380) and
+[PR #381](https://github.com/ael-dev3/Warpkeep/pull/381) remain separate from the
+reviewed quality branch. [PR #382](https://github.com/ael-dev3/Warpkeep/pull/382)
+has merged into `release/0.4-living-realm-quality`; it is not a deployment or a
+merge into `main`. Start from the actual branch and current
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) before editing.
 
 For a fresh independent checkout, use Git, Node 22 (22.13 or newer within that
 major) and npm 10.9.8:

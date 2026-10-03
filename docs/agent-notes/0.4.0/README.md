@@ -7,11 +7,13 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state — 3 October 2026
 
-This checkpoint descends from the signed, published `97f4041b` development source. Resolve its actual HEAD/tree and synchronized branch state from Git and the publication receipt. Alpha 0.3.43 is live; owner PTR 0.4 remains unpublished. Main `cb282bab` and PR380/381 are unchanged. Actions remains disabled under the current operating policy.
+The signed game integration baseline `a0f6a55f` / tree `8b61202e` is published on `release/0.4-living-realm-quality`; PR #382 merged into that branch on 3 October. Main `cb282bab` and PRs #380/#381 remain separate. Alpha 0.3.43 is live; owner PTR 0.4 remains unpublished. Actions remains disabled under the current operating policy.
 
-The G002 verifier now establishes cleanup before fallible setup, attempts every owned cleanup step and prevents cleanup errors from yielding a successful receipt. Two complete regression files passed 107 cases; five complete family regression files passed 194 cases: 301 whole-file regression assertions in separate source-bound runs. Ten selected fixture controls also passed. App/all-tests types and changed-module syntax passed separately. The complete 79-case relocation file still cancelled at its unchanged 120-second file/180-second parent bounds. Its original 69-case suffix is byte-exact; those 69 cases were omitted from the selected ten-control run.
+The integration overlay passed 803 tests across 29 complete files without skips, plus application/test types. That integration baseline passed all ten maintained source checks, including three production builds, and the 21-case local-QA production-exclusion contract. A real Chrome fixture verified all three construction-motion states with normal OS motion: balanced sheen enabled, reduced quality disabled, and explicit reduced motion disabled. This is synthetic presentation evidence, not audio, physical-device or owner-play acceptance.
 
-Full native/release acceptance remains open. Use [execution-handoff.md](execution-handoff.md) and [local operations](../../evidence/0.4.0/local-operations.md) for exact failed records, source scopes and next module/connected/mobile work.
+Module 37 remains the next native coverage repair. The reviewed split is installed locally: all 79 test bodies are preserved exactly once across twelve complete files with shared support. Independent static/binding review passed, but the first actual strict module type check exited 1 with 29 diagnostics. Comparison with the original baseline and complete-file runtime checks remain pending; no inherited-error claim is made. Resolve the subsequent test-only checkpoint from actual Git. Keep the failed check and earlier cancellations, native `structuredClone`, original assertions and maintained bounds.
+
+Use [execution-handoff.md](execution-handoff.md) for the current continuation and [local operations](../../evidence/0.4.0/local-operations.md) for exact receipts and preserved failures. First usable authenticated owner PTR and global final-A acceptance remain separate milestones; neither is established by these local results.
 
 ## Historical working state (superseded)
 
