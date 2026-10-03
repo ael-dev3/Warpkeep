@@ -5,6 +5,19 @@ this index to find the implementation, current evidence, and next useful work.
 The goal is a satisfying **gather → choose → build → benefit → return** journey
 and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
+## Owner direction — 3 October 2026
+
+These instructions come from the owner and take precedence over earlier plans:
+
+- **Ship 0.4 now, owner PTR first.** "0.4 live" means the owner-only PTR with the gameplay04 loop at `warpkeep.com/ptr/`. The Alpha root and G001 players stay untouched and G002 stays sealed. A public rollout follows later.
+- **No GitHub Actions.** Do not route the release through hosted Verify, protected workflow dispatches or branch Pages. Move the release lane to Cloudflare, working with Claude.
+- **Coordination.** Claude has merge and ship authority and is coordinating in [issue #384](https://github.com/ael-dev3/Warpkeep/issues/384). The proposed critical path and the questions for Codex are in its Update 5:
+  - P1: the native `warpkeep-ptr` update with owner provisioning;
+  - P2: auth-bridge PTR settings, deployed with Wrangler;
+  - P3: `/ptr/` on Cloudflare Pages Direct Upload, owned by Claude.
+
+  Please answer there before starting or changing operations that touch `main`, `warpkeep-ptr` or the bridge.
+
 ## Current working state — 3 October 2026
 
 Published signed quality source `a89173f9` / tree `e3cf809b` follows game baseline `a0f6a55f`. Resolve subsequent repair checkpoints from Git. Main `cb282bab` and PRs #380/#381 remain separate. Alpha 0.3.43 is live; authenticated owner PTR remains unpublished. Actions is held disabled; the current runtime policy governs remote actions.
