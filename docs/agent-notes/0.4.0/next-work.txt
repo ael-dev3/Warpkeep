@@ -3,8 +3,13 @@ CURRENT RESUMPTION — 3 OCTOBER 2026
 
 Read execution-handoff.md for exact receipts before acting. This checkpoint
 integrates PR386/387/388 and the P1/P2 repairs on prior signed quality base
-f06bb380 / tree 9d71959b. Resolve current signed source and publication through
-Git and actual receipts.
+f06bb380 / tree 9d71959b. The last verified published source before this repair
+was b6504fcf / tree 30507654; PRIMARY/native were synchronized and all three
+incoming PRs merged at that observation. Resolve the next signed repair source
+from actual Git/publication receipts.
+The failed physical-index readback 8c1f08 preserved raw source bytes; protected
+recovery 605d29 and native origin synchronization 98a6cb resolved it. Use
+read-only Git with optional locks disabled so observation does not refresh index.
 Main cb282bab is unchanged; PR385 remains draft. Alpha is live; owner PTR is
 unpublished. Actions stays OFF under the current runtime policy.
 
@@ -23,13 +28,18 @@ Earlier native ordinary/raw-skip failures remain retained;
 complete native authority is still closed.
 
 NEXT
-1. Verify the integrated source's clean signed publication and synchronized
-   checkout from actual Git/receipts. Retain the separate 344-case and 31-case
-   scopes, metadata reproduction and failed attempts; do not repeat unrelated
-   completed batches or infer full native authority.
-2. Run the maintained PTR compatibility bootstrap from that clean source. The
-   first f06 attempt stopped before build/submission because of development Git
-   configuration. The adopted private independent clone preserves G001's guard.
+1. Retain the completed b650 publication/synchronization, separate 344-case and
+   31-case scopes, metadata reproduction and failed attempts. Do not repeat
+   unrelated completed batches or infer full native authority.
+2. Resolve the repair's clean signed source/publication from Git/receipts;
+   publish only if still unpublished, then retry the bootstrap. Both complete files passed 42 + 7 = 49 cases,
+   zero failures; app/all-root-test types, strict operator types and core syntax
+   each exited 0. The b650 retry passed
+   the inline build but refused metadata before any submission marker/write
+   (b58df59f; independent post 3771d970). A genuine metadata GET ca89af79
+   observed host_type { Js: [] }, while the parser expected a string enum.
+   The earlier f06 pre-build failure is retained;
+   the adopted private independent clone preserves G001's guard.
    Genuine inline build/ABI, authenticated nonbreaking prepublish token, durable
    one-write marker and two poststate reads remain required. Old private before-
    program/rows stay null; never replay an uncertain write. Full 102-output

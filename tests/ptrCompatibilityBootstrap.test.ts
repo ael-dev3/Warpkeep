@@ -25,7 +25,7 @@ function setup() {
   section(prior, 'Schedules').splice(0, section(prior, 'Schedules').length, ...section(prior, 'Schedules').filter((entry: any) => !entry.table_name.startsWith('gameplay04_')));
   const priorV9 = bytes(fixture('existing-update-definitions-2.6.1/ptr.a.schema.json'));
   const installedV9 = bytes(fixture('existing-update-definitions-2.6.1/ptr.b.schema.json'));
-  const metadata = { database_identity: { __identity__: `0x${target}` }, owner_identity: { __identity__: `0x${owner}` }, host_type: 'Js', initial_program: '9'.repeat(64) };
+  const metadata = { database_identity: { __identity__: `0x${target}` }, owner_identity: { __identity__: `0x${owner}` }, host_type: { Js: [] } as unknown, initial_program: '9'.repeat(64) };
   const plan = fixture('existing-update-plans-2.6.1.json').find((entry: any) => entry.name === 'ptr-add-gameplay').response;
   const binding = { sourceCommit: '1'.repeat(40), sourceTree: '2'.repeat(40), databaseIdentity: target,
     candidateProgram: updateDigest('candidate-program'), candidateSha256: updateDigest('candidate-bytes'),
@@ -62,13 +62,36 @@ describe('separate PTR compatibility bootstrap observations', () => {
     expect(f.record.preservation.addedTables).toHaveLength(7); expect(f.record.preRowEqualityObserved).toBe(false);
     expect(validatePtrBootstrapInspection(f.record)).toEqual(f.record);
   });
+  it('accepts the captured provider JavaScript host enum and normalizes its observation', () => {
+    // Actual public metadata HTTP200/319B on 2026-10-03, SHA256 ca89af799875af0c07a2b94888eea9dfb688c27ba10b6e907fe941a21c1ca900.
+    // This retained parser regression does not establish future provider permission or installation.
+    const capturedMetadata = Buffer.from('{"database_identity":{"__identity__":"0xc200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e"},"owner_identity":{"__identity__":"0xc200431f50cf410304546489e2600c8446408f1aa727c91d86bc00aef6724d15"},"host_type":{"Js":[]},"initial_program":"0x67fc0fd0ee5bbccbfb99e4b103d82f983a6de8b08e941b5d4a441945eee1cd6e"}');
+    expect(parsePtrBootstrapMetadata(capturedMetadata, owner)).toEqual({
+      databaseIdentity: target, providerOwnerIdentity: owner, hostType: 'Js',
+    });
+  });
+  it.each([
+    { name: 'bare JavaScript string', value: 'Js' },
+    { name: 'WebAssembly enum', value: { Wasm: [] } },
+    { name: 'unknown enum', value: { Unknown: [] } },
+    { name: 'extra variant', value: { Js: [], Wasm: [] } },
+    { name: 'nonempty JavaScript payload', value: { Js: [1] } },
+    { name: 'non-array JavaScript payload', value: { Js: null } },
+    { name: 'missing variant', value: {} },
+    { name: 'array enum', value: [] },
+    { name: 'null enum', value: null },
+  ])('rejects unsupported or malformed provider host type $name', ({ value }) => {
+    const f = setup(); f.metadata.host_type = value;
+    expect(() => parsePtrBootstrapMetadata(bytes(f.metadata), owner))
+      .toThrow('PTR_COMPATIBILITY_BOOTSTRAP_PROVIDER_METADATA_INVALID');
+  });
   it('does not interpret metadata initial_program as the current deployed program', () => {
     const f = setup(); f.metadata.initial_program = '7'.repeat(64); expect(createPtrBootstrapInspection(f.input()).programBefore).toBeNull();
   });
   it.each(['database', 'owner', 'claim', 'host'] as const)('rejects foreign metadata %s', change => {
     const f = setup(); if (change === 'database') f.metadata.database_identity.__identity__ = `0x${'4'.repeat(64)}`;
     if (change === 'owner') f.metadata.owner_identity.__identity__ = `0x${'4'.repeat(64)}`;
-    if (change === 'host') f.metadata.host_type = 'Wasm';
+    if (change === 'host') f.metadata.host_type = { Wasm: [] };
     expect(() => parsePtrBootstrapMetadata(bytes(f.metadata), change === 'claim' ? '4'.repeat(64) : owner)).toThrow();
   });
   it.each(['index', 'constraint', 'type', 'schedule', 'table'] as const)('rejects changed old %s', change => {

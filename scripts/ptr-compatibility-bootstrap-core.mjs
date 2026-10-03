@@ -49,7 +49,7 @@ export function parsePtrBootstrapMetadata(bytes, claimedProviderIdentity) {
   const identity = value => { const read = data(value, ['__identity__']); return read.__identity__; };
   if (identity(raw.database_identity) !== `0x${PTR_BOOTSTRAP_TARGET}`
     || identity(raw.owner_identity) !== `0x${PTR_BOOTSTRAP_PROVIDER_OWNER}`
-    || claimedProviderIdentity !== PTR_BOOTSTRAP_PROVIDER_OWNER || raw.host_type !== 'Js') fail('PROVIDER_METADATA_INVALID');
+    || claimedProviderIdentity !== PTR_BOOTSTRAP_PROVIDER_OWNER || !same(raw.host_type, { Js: [] })) fail('PROVIDER_METADATA_INVALID');
   // initial_program is deliberately not used as the currently deployed program.
   return Object.freeze({ databaseIdentity: PTR_BOOTSTRAP_TARGET, providerOwnerIdentity: PTR_BOOTSTRAP_PROVIDER_OWNER, hostType: 'Js' });
 }

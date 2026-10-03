@@ -88,6 +88,7 @@ authority. Generated bindings and release manifests come from their generators.
 Follow [the development workflow](docs/engineering/development-workflow.md) and
 [source synchronization](docs/operations/0.4.0-development-sync.md).
 
+- For read-only Git, set `GIT_OPTIONAL_LOCKS=0` and use `git --no-optional-locks -c core.fsmonitor=false` to avoid optional index/stat-cache writes during source holds.
 - Make a coherent improvement, test the affected behavior and inspect the diff.
   Complete the real caller and integration, not only an unused helper.
 - Inspect dependency paths before installing. Existing worktrees may share a

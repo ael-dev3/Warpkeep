@@ -46,8 +46,14 @@ retains success and holds all 3,449 files/index/HEAD/MERGE_HEAD/refs, with
 original actors/group absent twice. Supported privacy-family reproduction
 `5c37ef42` / post `b21a75dc` held all 16 outputs with zero further generated
 changes. Metadata reproduction is not new compiler or provider evidence.
-Resolve this checkpoint's clean signed HEAD/tree and publication from Git and
-actual receipts; no future source identity is asserted here.
+The preceding integration checkpoint was signed and published as
+`b6504fcf80b5dd0a2635260ebc5d3806ed190e3f` / tree
+`305076545f07798bc4130a03ddc9a2e93e6f7f39`; PRIMARY/native were synchronized
+at that observation and PRs #386, #387 and #388 were merged. A failed physical-index readback
+(`8c1f08`) did not change raw source bytes; protected recovery (`605d29`)
+and native origin synchronization (`98a6cb`) resolved the readback. Preserve
+that failed record. Read-only Git must suppress optional locks/stat-cache writes.
+Resolve the next signed repair source from actual Git/publication receipts.
 
 Two object-import attempts failed before merge with mounted-repository
 ownership refusals (`09c327`, `449988`). Independent failed posts `773e5000`
@@ -58,7 +64,7 @@ fixed upload-pack command `/usr/bin/git -c safe.directory=/mnt/c/Users/heyas/Doc
 for this local import. Trust was command-scoped to that exact source, with no
 global exception, new keys, ref export or persistent clone.
 
-### P1: repair the real pre-build refusal, then run owner PTR
+### P1: repair the metadata compatibility refusal, then run owner PTR
 
 The actual clean-f06 bootstrap ran 13:01:07.715–13:01:09.546 UTC and exited
 1/null (`defe3dcd`, operation `2bb5d572`). It failed before inspection,
@@ -74,7 +80,18 @@ The adopted source-owned repair creates a private independent clone of the
 actual committed source, checks raw tracked bytes/modes and minimal Git
 configuration, and retires it after use. It does not relax G001's builder
 allowlist, borrow mutable working-tree changes or require new login/keys.
-After actual affected checks and clean signed publication, rerun the maintained
+The signed-b650 retry ran 16:03:10.006–16:05:16.323 UTC (`b58df59f`). The
+real inline build passed; provider preflight then refused
+`PTR_COMPATIBILITY_BOOTSTRAP_PROVIDER_METADATA_INVALID` before any submission
+marker or provider write. The genuine public metadata GET at 16:09:38.964 UTC
+(`ca89af79`) returned `host_type: { Js: [] }`; the parser expected a string
+host enum. Independent post `3771d970` retains the failed result, confirms no
+submission marker and closes the original group with source/index/refs held.
+The minimal parser/test compatibility repair passed both complete files:
+42 + 7 = 49 cases, zero failures; app/all-root-test types, strict operator
+types and core syntax each exited 0. At this observation, signed publication
+and the genuine bootstrap retry were unobserved. Resolve exact source and
+publication from Git/receipts; publish only if still unpublished, then rerun the maintained
 `scripts/ptr-compatibility-bootstrap-operator.ts` against that exact source.
 It builds the real PTR artifact inline, checks every preserved old ABI item
 and known additions, binds the authenticated nonbreaking prepublish token,
@@ -129,8 +146,10 @@ allowlisted for the existing auth exchange. Domain cutover, bridge/realm
 exchange and the owner/mobile journey remain unaccepted.
 
 Retain the completed scoped checks, metadata reproduction and all failed
-attempts, then verify clean signed publication of this integrated source.
-Run P1 and its readbacks, then P2 with its fresh provider observations; finally
+attempts. Resolve the reviewed metadata-parser repair's signed publication;
+publish only if still unpublished, then run P1 and its readbacks from that
+exact clean signed source. Run P2 with
+its fresh provider observations; finally
 use the approved P3 source/export and real owner/mobile acceptance. Keep G001
 players/progress/timers and the new-admission freeze, Alpha/public bytes and
 G002 sealing. Unrelated G002/notification deployments and global S/F/A remain
