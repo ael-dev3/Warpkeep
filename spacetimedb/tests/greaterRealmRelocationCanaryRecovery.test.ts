@@ -32,7 +32,6 @@ test('production canary accepts generic-after-f00 returning phase lineage for di
     assert.equal(assignment.phase, 'returning');
     assert.equal(worker.revision, mode === 'direct' ? 2n : 3n);
     const status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
-      fid,
       ...baselineInput,
     });
     assert.equal(status.disposition, 'terminal-evidence-impossible');
@@ -119,7 +118,6 @@ test('production canary ordinal-zero preserves two later generic journeys includ
     ),
   }, sharedEconomy);
   const status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
-    fid,
     ...baselineInput,
   });
   assert.equal(status.disposition, 'terminal-evidence-impossible');
@@ -211,7 +209,7 @@ test('production canary rejects coherent generic metadata route and timeline tam
     assert.equal(fixture.uuidSequence, uuidBefore, label);
     assert.match(errorCode(() => inspectProductionPlayerCanaryRecoveryStatusV1(
       fixture.ctx,
-      { fid, ...baselineInput },
+      { ...baselineInput },
     )) ?? '', /RECEIPT_INVALID|ASSIGNMENT_INVALID|REPLAY_INVALID/u, label);
     assert.equal(stateText(fixture), before, label);
     assert.equal(fixture.uuidSequence, uuidBefore, label);
@@ -286,14 +284,12 @@ test('production canary normal pre-cutoff all-four recall materializes one quant
   const storedBaseline = fixture.tables.productionPlayerCanaryBaselineV1.fid.find(fid)!;
   assert.ok(resource.revision > storedBaseline.resourceRevision);
   const status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
-    fid,
     ...baselineInput,
   });
   assert.equal(status.terminalSafe, true);
   assert.equal(status.structuralEvidenceCandidate, true);
   assert.equal(status.disposition, 'terminal-evidence-candidate');
   const evidence = inspectProductionPlayerCanaryAdminEvidence(fixture.ctx, {
-    fid,
     ...baselineInput,
   });
   assert.equal(evidence.resourceQuantumCount, 4);
@@ -324,7 +320,7 @@ test('production canary admin evidence rejects future dispatch and recall receip
     const uuidBefore = fixture.uuidSequence;
     assert.equal(errorCode(() => inspectProductionPlayerCanaryAdminEvidence(
       fixture.ctx,
-      { fid, ...baselineInput },
+      { ...baselineInput },
     )), 'PRODUCTION_PLAYER_CANARY_JOURNEY_INVALID', label);
     assert.equal(stateText(fixture), before, label);
     assert.equal(fixture.uuidSequence, uuidBefore, label);
@@ -573,7 +569,6 @@ test('production canary ordinal-zero injected mid-sweep fault rolls back every r
   const uuidBefore = fixture.uuidSequence;
   assert.throws(() => fixture.transaction(() => (
     recallProductionPlayerCanaryWorkerV1(fixture.ctx, {
-      fid,
       castle,
       ...baselineInput,
       ordinal: 0,

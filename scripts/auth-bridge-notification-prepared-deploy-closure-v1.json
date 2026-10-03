@@ -1605,12 +1605,12 @@
     {
       "path": "scripts/ptr-update-provider-credentials.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "f7d79d08473d317f810d0d705d13fd7146dfcf26b77ef9fa06b791c75baa15c8"
+      "sha256": "0f9b8048364f7b85bcaab62a6ebe3dd92e1d1978aee21739472945a5c0b762d7"
     },
     {
       "path": "scripts/ptr-update-provider-credentials.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "862d1de9e665f275e951b887ff16a17a14f7b1bd30a1d087c4d0025e223d51d1"
+      "sha256": "adb7146e8bfbafe4322fd673488276deceae54be30a1a4e4db73cb5eb432bd94"
     },
     {
       "path": "scripts/publish-spacetime-dev.d.mts",

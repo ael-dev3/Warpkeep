@@ -50,6 +50,15 @@ function providerSuite<Capability extends object>(
       expect(f.fetch).toHaveBeenCalledWith(TARGET, expect.objectContaining({ method: 'GET', redirect: 'error', headers: { Authorization: `Bearer ${TOKEN}` } }));
       expect(f.source.mock.calls.length).toBeGreaterThanOrEqual(4); expect(f.config.mock.calls.length).toBeGreaterThanOrEqual(4);
     });
+    it('preserves the artifact receiver for source assertion methods across async requests', async () => {
+      const f = fixture();
+      f.artifact.assertSourceAndArtifact = vi.fn(function (this: providers.PtrUpdateProviderArtifact) {
+        expect(this.moduleSha256).toBe(f.artifact.moduleSha256);
+        expect(this.spacetimeCliConfigSha256).toBe(f.artifact.spacetimeCliConfigSha256);
+      });
+      const cap = f.create(); await requestProvider(cap, { operation: 'metadata' });
+      expect(f.artifact.assertSourceAndArtifact.mock.calls.length).toBeGreaterThanOrEqual(4);
+    });
     it('reads plan/apply bytes positionally from artifact and marks immediately before submission', async () => {
       const f = fixture(); const cap = f.create(); const bodies: Buffer[] = [];
       f.fetch.mockImplementation(async (url: string, options?: RequestInit) => { bodies.push(Buffer.from(options?.body as Uint8Array)); const response = new Response('{}'); Object.defineProperty(response, 'url', { value: url }); return response; });
@@ -166,6 +175,88 @@ function providerSuite<Capability extends object>(
       }
       expect(mocks.attest).not.toHaveBeenCalled(); expect(mocks.spawn).not.toHaveBeenCalled(); expect(f.fetch).not.toHaveBeenCalled();
     });
+    if (lane === 'g002') it('refuses using foreign G002 credentials through the PTR read facade', async () => {
+      const f = fixture(), cap = f.create();
+      await expect(providers.requestPtrInspectionProvider(cap as never, { operation: 'program' })).rejects.toThrow('PTR_UPDATE_PROVIDER_CREDENTIALS_INVALID');
+      expect(mocks.spawn).not.toHaveBeenCalled(); expect(f.fetch).not.toHaveBeenCalled();
+    });
+    if (lane === 'ptr') {
+      it('performs only fixed program/table SELECTs and version-9 schema reads using existing credentials', async () => {
+        const f = fixture(), cap = f.create(); const captures: { url: string; method: string; body?: string; contentType?: string }[] = [];
+        f.fetch.mockImplementation(async (url: string, options?: RequestInit) => {
+          captures.push({ url, method: options!.method!, ...(options!.body ? { body: Buffer.from(options!.body as Uint8Array).toString() } : {}),
+            contentType: (options!.headers as Record<string, string>)['Content-Type'] });
+          const response = new Response('{}'); Object.defineProperty(response, 'url', { value: url }); return response;
+        });
+        await providers.requestPtrInspectionProvider(cap as never, { operation: 'program' });
+        await providers.requestPtrInspectionProvider(cap as never, { operation: 'schema-v9' });
+        for (const table of providers.PTR_INSPECTION_TABLES)
+          await providers.requestPtrInspectionProvider(cap as never, { operation: `rows:${table}` });
+        expect(captures[0]).toEqual({ url: `${TARGET}/sql`, method: 'POST', body: 'SELECT program_hash FROM st_module', contentType: 'text/plain' });
+        expect(captures[1]).toEqual({ url: `${TARGET}/schema?version=9`, method: 'GET', contentType: undefined });
+        expect(captures.slice(2)).toEqual(providers.PTR_INSPECTION_TABLES.map(table => ({ url: `${TARGET}/sql`, method: 'POST', body: `SELECT * FROM ${table}`, contentType: 'text/plain' })));
+        expect(providers.PTR_INSPECTION_TABLES).toHaveLength(31); expect(new Set(providers.PTR_INSPECTION_TABLES).size).toBe(31);
+      });
+      it('reads the actual inner version-10 description through artifactless read-only credentials without exposing a write seam', async () => {
+        const f = fixture();
+        const cap = providers.createPtrInspectionProviderCredentials({ credentials: {
+          spacetimeExecutable: f.artifact.spacetimeExecutable, spacetimeExecutableSha256: f.artifact.spacetimeExecutableSha256,
+          spacetimeCliRootDirectory: f.artifact.spacetimeCliRootDirectory, spacetimeCliConfigPath: f.artifact.spacetimeCliConfigPath,
+          spacetimeCliConfigSha256: f.artifact.spacetimeCliConfigSha256, assertSource: f.artifact.assertSourceAndArtifact,
+          assertCliConfig: f.artifact.assertCliConfig,
+        } });
+        cleanups.push(() => providers.disposePtrUpdateProviderCredentials(cap));
+        await providers.requestPtrInspectionProvider(cap, { operation: 'schema-v10' });
+        expect(f.fetch).toHaveBeenCalledWith(`${TARGET}/schema?version=10`, expect.objectContaining({ method: 'GET' }));
+        const request = (f.fetch.mock.calls[0]! as unknown as [string, RequestInit])[1];
+        expect(request.body).toBeUndefined();
+        await expect(providers.requestPtrUpdateProvider(cap, { operation: 'apply', migrationToken: '0x1234', beforeSend: vi.fn() })).rejects.toThrow(ERROR);
+        await expect(providers.requestPtrInspectionProvider(cap, { operation: 'schema-v10', version: 9 } as never)).rejects.toThrow(ERROR);
+        await expect(providers.requestG002UpdateProvider(cap as never, { operation: 'schema' })).rejects.toThrow('G002_UPDATE_PROVIDER_CREDENTIALS_INVALID');
+        expect(f.fetch).toHaveBeenCalledOnce();
+      });
+      it('creates genuine read-only CLI credentials without an artifact and refuses every mutation path', async () => {
+        const f = fixture(); const profile = { spacetimeExecutable: f.artifact.spacetimeExecutable, spacetimeExecutableSha256: f.artifact.spacetimeExecutableSha256,
+          spacetimeCliRootDirectory: f.artifact.spacetimeCliRootDirectory, spacetimeCliConfigPath: f.artifact.spacetimeCliConfigPath,
+          spacetimeCliConfigSha256: f.artifact.spacetimeCliConfigSha256, assertCliConfig: f.artifact.assertCliConfig };
+        const assertSourceAndArtifact = f.artifact.assertSourceAndArtifact;
+        const cap = providers.createPtrInspectionProviderCredentials({ credentials: { ...profile, assertSource: assertSourceAndArtifact } });
+        cleanups.push(() => providers.disposePtrUpdateProviderCredentials(cap));
+        await expect(providers.requestPtrUpdateProvider(cap, { operation: 'plan' })).rejects.toThrow(ERROR);
+        await expect(providers.requestPtrUpdateProvider(cap, { operation: 'apply', migrationToken: '0x1234', beforeSend: vi.fn() })).rejects.toThrow(ERROR);
+        await expect(providers.requestPtrUpdateProvider(cap, { operation: 'metadata' })).rejects.toThrow(ERROR);
+        expect(f.fetch).not.toHaveBeenCalled(); expect(mocks.spawn).not.toHaveBeenCalled();
+        await providers.requestPtrInspectionProvider(cap, { operation: 'program' }); expect(f.fetch).toHaveBeenCalledOnce();
+      });
+      it('rejects SQL/destination/body injection, unknown tables and getters before credential extraction', async () => {
+        const f = fixture(), cap = f.create();
+        for (const input of [{ operation: 'apply' }, { operation: 'rows:castle;DELETE FROM castle' },
+          { operation: 'rows:unreviewed_table' }, { operation: 'program', sql: 'DELETE FROM castle' },
+          { operation: 'program', url: 'https://example.invalid' }, { operation: 'program', body: f.body },
+          { get operation() { throw Error(TOKEN); } }, new Proxy({ operation: 'program' }, {})]) {
+          await expect(providers.requestPtrInspectionProvider(cap as never, input as never)).rejects.toThrow(ERROR);
+        }
+        await expect(providers.requestPtrUpdateProvider(cap as never, { operation: 'program' } as never)).rejects.toThrow(ERROR);
+        expect(f.fetch).not.toHaveBeenCalled(); expect(mocks.spawn).not.toHaveBeenCalled();
+      });
+      it('erases fixed SQL bodies and rejects token-reflecting read responses', async () => {
+        const f = fixture(), cap = f.create(); let sqlBytes!: Buffer;
+        f.fetch.mockImplementation(async (url: string, options?: RequestInit) => {
+          sqlBytes = options!.body as Buffer; const response = new Response(TOKEN); Object.defineProperty(response, 'url', { value: url }); return response;
+        });
+        await expect(providers.requestPtrInspectionProvider(cap as never, { operation: 'program' })).rejects.toThrow(ERROR);
+        expect(sqlBytes.every(byte => byte === 0)).toBe(true);
+      });
+      it('retains source/config authentication on fixed reads and bounds a stalled SQL response', async () => {
+        vi.useFakeTimers(); const f = fixture(), cap = f.create(); let signal!: AbortSignal;
+        f.fetch.mockImplementation((_url: string, options?: RequestInit) => { signal = options!.signal!; return new Promise<Response>(() => {}); });
+        const pending = expect(providers.requestPtrInspectionProvider(cap as never, { operation: 'program' })).rejects.toThrow(ERROR);
+        await vi.advanceTimersByTimeAsync(30000); await pending; expect(signal.aborted).toBe(true);
+        f.source.mockImplementation(() => { throw Error(TOKEN); });
+        await expect(providers.requestPtrInspectionProvider(cap as never, { operation: 'program' })).rejects.toThrow(ERROR);
+        expect(f.fetch).toHaveBeenCalledOnce();
+      });
+    }
     it('cleans an acquired CLI when artifact and executable attestations disagree', () => {
       const f = fixture(); f.artifact.spacetimeExecutableSha256 = 'c'.repeat(64);
       expect(f.create).toThrow(ERROR);

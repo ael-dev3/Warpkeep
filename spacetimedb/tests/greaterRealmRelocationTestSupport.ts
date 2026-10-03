@@ -1764,7 +1764,7 @@ function recoverProductionCanaryOrdinal(
   const { fixture, fid, castle, baselineInput } = prepared;
   return fixture.transaction(() => recallProductionPlayerCanaryWorkerV1(
     fixture.ctx,
-    { fid, castle, ...baselineInput, ordinal },
+    { castle, ...baselineInput, ordinal },
   ));
 }
 

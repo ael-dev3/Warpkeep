@@ -39,7 +39,6 @@ test('production canary fence-first serialization is atomic, terminal, and repla
   assert.equal(stateText(fixture), replayBefore);
   assert.equal(
     inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
-      fid,
       ...baselineInput,
     }).disposition,
     'terminal-evidence-impossible',
@@ -69,7 +68,7 @@ test('production canary rejects future recovery rows and malformed f00 snapshots
     assert.equal(fixture.uuidSequence, uuidBefore, label);
     assert.match(errorCode(() => inspectProductionPlayerCanaryRecoveryStatusV1(
       fixture.ctx,
-      { fid, ...baselineInput },
+      { ...baselineInput },
     )) ?? '', /RECEIPT_INVALID|REPLAY_INVALID|ASSIGNMENT_INVALID/u, label);
     assert.equal(stateText(fixture), before, label);
     assert.equal(fixture.uuidSequence, uuidBefore, label);
@@ -154,7 +153,7 @@ test('production canary completed f00 never heals a missing position fence', () 
   assert.equal(fixture.uuidSequence, uuidBefore);
   assert.match(errorCode(() => inspectProductionPlayerCanaryRecoveryStatusV1(
     fixture.ctx,
-    { fid, ...baselineInput },
+    { ...baselineInput },
   )) ?? '', /REPLAY_INVALID|RECEIPT_INVALID/u);
   assert.equal(stateText(fixture), before);
   assert.equal(fixture.uuidSequence, uuidBefore);
@@ -250,7 +249,6 @@ test('production canary f00 accepts same-micro generic-after serialization throu
   assert.equal(generic.idempotent, false);
   assert.deepEqual(generic.assignment?.createdAt, markerAt);
   let status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
-    fid,
     ...baselineInput,
   });
   assert.equal(status.terminalSafe, false);
@@ -261,7 +259,6 @@ test('production canary f00 accepts same-micro generic-after serialization throu
 
   completeWorkerAssignmentNaturally(fixture, routePlan.routes[0]!.workerId);
   status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
-    fid,
     ...baselineInput,
   });
   assert.equal(status.terminalSafe, true);
@@ -311,7 +308,6 @@ test('production canary f00 tracks generic-before completion after direct and po
     runNextWorkerSchedule(fixture, workerId);
     assert.equal(fixture.tables.workerAssignmentV1.workerId.find(workerId), null);
     const status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
-      fid,
       ...baselineInput,
     });
     assert.equal(status.terminalSafe, true);
@@ -366,7 +362,6 @@ test('production canary terminal replay tracks a later journey after f00 capture
     }
     assert.equal(fixture.tables.workerAssignmentV1.workerId.find(workerId), null);
     const status = inspectProductionPlayerCanaryRecoveryStatusV1(fixture.ctx, {
-      fid,
       ...baselineInput,
     });
     assert.equal(status.terminalSafe, true);

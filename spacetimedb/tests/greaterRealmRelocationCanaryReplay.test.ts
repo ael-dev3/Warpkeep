@@ -232,7 +232,7 @@ test('production canary terminal pc2 and generic receipts must be chronologicall
     const uuidBefore = fixture.uuidSequence;
     assert.match(errorCode(() => inspectProductionPlayerCanaryRecoveryStatusV1(
       fixture.ctx,
-      { fid, ...baselineInput },
+      { ...baselineInput },
     )) ?? '', /ASSIGNMENT_INVALID|REPLAY_INVALID|RECEIPT_INVALID|ROSTER_INVALID/u);
     assert.equal(stateText(fixture), before);
     assert.equal(fixture.uuidSequence, uuidBefore);

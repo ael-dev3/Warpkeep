@@ -10,8 +10,8 @@ test('active v17 Worker dispatch accepts an exporter-shaped second lexical locat
   advanceToActive(fixture);
   const target = prepareGreaterRealmWorkerLocation(fixture, 'wood', 2, 1_001n, 1);
   const rows = fixture.tables.greaterRealmResourceNodeV1.locationId.filter(target.locationId)
-    .sort((left, right) => left.releaseOrdinal - right.releaseOrdinal);
-  assert.deepEqual(rows.map(row => row.nodeOrdinal), [1, 2]);
+    .sort((left: Row, right: Row) => left.releaseOrdinal - right.releaseOrdinal);
+  assert.deepEqual(rows.map((row: Row) => row.nodeOrdinal), [1, 2]);
   assert.equal(rows[1]!.releaseOrdinal, rows[0]!.releaseOrdinal + 1);
   const preceding = fixture.tables.greaterRealmResourceNodeV1.releaseOrdinal.find(
     rows[0]!.releaseOrdinal - 1,
@@ -388,7 +388,7 @@ test('fresh v17 Worker dispatch rejects wrong public authority and rolls back at
     ['fid', input => { input.fid = 1_002n; }],
   ];
   for (const [label, change] of invalidCases) {
-    const input = clone(rollbackInput);
+    const input: { -readonly [Key in keyof typeof rollbackInput]: (typeof rollbackInput)[Key] } = clone(rollbackInput);
     input.idempotencyKey = `greater-worker-invalid-${label}-0001`;
     change(input);
     const before = stateText(rollback);
