@@ -1,7 +1,9 @@
 // @vitest-environment node
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { createPtrNativeBridgeApiClient, parsePtrNativeBridgeResponseEnvelope } from '../scripts/ptr-auth-bridge-native-operator';
+import { createPtrNativeBridgeApiClient, parsePtrNativeBridgeResponseEnvelope, parsePtrNativeBridgeVersionModules } from '../scripts/ptr-auth-bridge-native-operator';
 import { PTR_BRIDGE_ACCOUNT, PTR_BRIDGE_WORKER, PTR_BRIDGE_LATEST_UPLOAD_PATH, assertNativeBridgeLatestUpload } from '../scripts/ptr-auth-bridge-native-core.mjs';
+
+import { authBridgeNotificationPreparedSourceDigest } from '../scripts/auth-bridge-notification-prepared-cloudflare-runtime.mjs';
 
 const domains = `/accounts/${PTR_BRIDGE_ACCOUNT}/workers/domains?service=${PTR_BRIDGE_WORKER}`;
 const base = `/accounts/${PTR_BRIDGE_ACCOUNT}/workers/scripts/${PTR_BRIDGE_WORKER}`;
@@ -249,5 +251,96 @@ describe('bounded credential-free provider rejection diagnostics', () => {
     try { expect(await client.json(uploadPath, { method: 'POST', body: requestBody })).toEqual({ result: value.result, resultInfo: value.result_info }); }
     finally { client.dispose(); }
     expect(fetchMock).toHaveBeenCalledTimes(1); expect(assert).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('immutable version module content', () => {
+  const versionId = '11111111-1111-4111-8111-111111111111';
+  const path = `/accounts/${PTR_BRIDGE_ACCOUNT}/workers/workers/${PTR_BRIDGE_WORKER}/versions/${versionId}?include=modules`;
+  const module = (name: string, body: string, content_type = 'application/javascript+module') =>
+    ({ name, content_type, content_base64: Buffer.from(body).toString('base64') });
+  const version = () => ({ id: versionId, number: 51, main_module: 'index.js', modules: [
+    module('index.js', 'export default {fetch() {return new Response("old");}}'),
+    module('index.js.map', '{"version":3,"sources":["index.ts"]}', 'application/source-map'),
+  ] });
+  const parse = (value: unknown) => parsePtrNativeBridgeVersionModules(value, versionId, 51);
+  const clear = (parsed: ReturnType<typeof parse>) => parsed.parts.forEach(part => part.bytes.fill(0));
+
+  test('preserves every module and the held original digest independently of a newer upload', () => {
+    // Actual root metadata-only beta read SHA256 369d3be7f21761ced8f010a192262cf4ed8ff6916d1889cc5a39f0b100adb7a2
+    // proved distinct immutable v51/v52 content; these are synthetic protocol fixtures, not provider proof.
+    const old = version(), newer = { ...version(), id: '22222222-2222-4222-8222-222222222222', number: 52,
+      modules: [module('index.js', 'export default {fetch() {return new Response("new");}}'), old.modules[1]!] };
+    const original = parse(old), candidate = parsePtrNativeBridgeVersionModules(newer, newer.id, 52);
+    try {
+      expect(original.entrypoint).toBe('index.js');
+      expect(original.parts.map(part => part.name)).toEqual(['index.js', 'index.js.map']);
+      const expected = old.modules.map(part => ({ field: part.name, name: part.name,
+        contentType: part.content_type, bytes: Buffer.from(part.content_base64, 'base64') }));
+      try { expect(original.sourceDigest).toBe(authBridgeNotificationPreparedSourceDigest(expected)); }
+      finally { expected.forEach(part => part.bytes.fill(0)); }
+      expect(candidate.sourceDigest).not.toBe(original.sourceDigest);
+      expect(original.parts[1]!.contentType).toBe('application/source-map');
+      expect(authBridgeNotificationPreparedSourceDigest(original.parts.slice(0, 1))).not.toBe(original.sourceDigest);
+    } finally { clear(original); clear(candidate); }
+  });
+  test('uses the exact full version include=modules GET through the existing bounded client', async () => {
+    const body = { success: true, errors: [], messages: [], result: version() };
+    const fetchMock = vi.fn(async (..._args: Parameters<typeof fetch>) => {
+      const response = new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+      Object.defineProperty(response, 'url', { value: `https://api.cloudflare.com/client/v4${path}` }); return response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const assert = vi.fn(), client = createPtrNativeBridgeApiClient('immutable-read-token-fixture-only', assert);
+    try {
+      const response = await client.json(path), parsed = parse(response.result);
+      try { expect(parsed.entrypoint).toBe('index.js'); } finally { clear(parsed); }
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(`https://api.cloudflare.com/client/v4${path}`);
+      expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ method: 'GET', redirect: 'error', cache: 'no-store' });
+      expect(assert).toHaveBeenCalledTimes(2); expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally { client.dispose(); vi.unstubAllGlobals(); }
+  });
+  test.each([
+    ['wrong ID', { id: '22222222-2222-4222-8222-222222222222' }], ['wrong number', { number: 52 }],
+    ['string number', { number: '51' }], ['missing entrypoint', { main_module: 'missing.js' }],
+    ['empty inventory', { modules: [] }], ['oversized inventory', { modules: Array.from({ length: 257 }, () => module('index.js', 'x')) }],
+  ])('rejects %s without substituting live content', (_label, delta) => {
+    expect(() => parse({ ...version(), ...delta })).toThrow('PTR_NATIVE_BRIDGE_VERSION_MODULES_INVALID');
+  });
+  test.each(['id', 'number', 'main_module', 'modules'])('requires own %s version metadata', field => {
+    const source = version(), value = { ...source } as Record<string, unknown>; delete value[field];
+    expect(() => parse(Object.assign(Object.create({ [field]: source[field as keyof typeof source] }), value)))
+      .toThrow('PTR_NATIVE_BRIDGE_VERSION_MODULES_INVALID');
+  });
+  test('rejects duplicate names even when their MIME types differ', () => {
+    expect(() => parse({ ...version(), modules: [module('index.js', 'x'), module('index.js', '{}', 'application/source-map')] }))
+      .toThrow('PTR_NATIVE_BRIDGE_VERSION_MODULES_INVALID');
+  });
+  test.each(['eA', 'eA=', 'eB==', 'eA===', 'e A==', 'eA==\n', 'eA--', 'eA__'])('rejects noncanonical base64 %j', content_base64 => {
+    expect(() => parse({ ...version(), modules: [{ ...module('index.js', 'x'), content_base64 }] }))
+      .toThrow('PTR_NATIVE_BRIDGE_VERSION_MODULES_INVALID');
+  });
+  test('bounds total decoded bytes across individually bounded modules', () => {
+    const content_base64 = Buffer.alloc(8 * 1024 * 1024 + 1, 120).toString('base64');
+    expect(() => parse({ ...version(), modules: [
+      { name: 'index.js', content_type: 'application/javascript+module', content_base64 },
+      { name: 'other.js', content_type: 'application/javascript+module', content_base64 },
+    ] })).toThrow('PTR_NATIVE_BRIDGE_VERSION_MODULES_INVALID');
+  });
+  test('keeps the established module MIME/name contract strict', () => {
+    for (const replacement of [module('index.js', 'x', 'text/html'), module('', 'x'), module('bad\0name', 'x')]) {
+      expect(() => parse({ ...version(), modules: [replacement], main_module: replacement.name })).toThrow();
+    }
+  });
+  test('clears already decoded bytes when a later module is invalid', () => {
+    const from = Buffer.from.bind(Buffer), decoded: Buffer[] = [];
+    const spy = vi.spyOn(Buffer, 'from').mockImplementation(((value: any, encoding?: any) => {
+      const buffer = from(value, encoding); if (encoding === 'base64') decoded.push(buffer); return buffer;
+    }) as typeof Buffer.from);
+    try {
+      expect(() => parse({ ...version(), modules: [module('index.js', 'x'), { name: 'bad.js', content_type: 'text/plain', content_base64: 'invalid' }] }))
+        .toThrow('PTR_NATIVE_BRIDGE_VERSION_MODULES_INVALID');
+      expect(decoded.length).toBe(1); expect(decoded.every(buffer => buffer.every(byte => byte === 0))).toBe(true);
+    } finally { spy.mockRestore(); }
   });
 });

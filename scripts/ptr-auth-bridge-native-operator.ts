@@ -12,8 +12,7 @@ import { assertProductionAdminTrustedAncestors, defaultProductionAdminStateDirec
   ensureCanonicalProductionAdminStateDirectory } from './production-admin-token-budget.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { verifyAuthBridgeNotificationPreparedInstalledToolchain } from './auth-bridge-notification-prepared-installed-toolchain.mjs';
-import { authBridgeNotificationPreparedSourceDigest, inspectAuthBridgeNotificationPreparedMultipart,
-  parseAuthBridgeNotificationPreparedMultipart } from './auth-bridge-notification-prepared-cloudflare-runtime.mjs';
+import { authBridgeNotificationPreparedSourceDigest, inspectAuthBridgeNotificationPreparedMultipart } from './auth-bridge-notification-prepared-cloudflare-runtime.mjs';
 import { verifyAuthBridgeRpcRoleAttestation } from './auth-bridge-config-attestation.mjs';
 import { takePtrProductionAdminSecret } from './ptr-production-admin-token';
 import { PTR_BRIDGE_ACCOUNT, PTR_BRIDGE_WORKER, PTR_BRIDGE_DATABASE, PTR_BRIDGE_PROFILE,
@@ -172,6 +171,39 @@ export function createPtrNativeBridgeApiClient(token: string, assert: () => void
   return { request, json, dispose() { token = ''; protectedValues.fill(''); } };
 }
 
+/** Decode all immutable version modules; the caller owns and clears the returned buffers. */
+export function parsePtrNativeBridgeVersionModules(value: unknown, versionId: string, versionNumber: number) {
+  const parts: { field: string; name: string; contentType: string; bytes: Buffer }[] = [];
+  try {
+    if (!UUID.test(versionId) || !Number.isSafeInteger(versionNumber) || versionNumber < 1
+      || value === null || typeof value !== 'object' || Array.isArray(value)) fail('VERSION_MODULES_INVALID');
+    const version = value as Data;
+    if (!['id', 'number', 'main_module', 'modules'].every(key => Object.hasOwn(version, key))
+      || version.id !== versionId || version.number !== versionNumber || typeof version.main_module !== 'string'
+      || !Array.isArray(version.modules) || version.modules.length < 1 || version.modules.length > 256) fail('VERSION_MODULES_INVALID');
+    const names = new Set<string>(); let total = 0;
+    for (const module of version.modules) {
+      if (module === null || typeof module !== 'object' || Array.isArray(module)
+        || !['name', 'content_type', 'content_base64'].every(key => Object.hasOwn(module, key))
+        || typeof module.name !== 'string' || names.has(module.name) || typeof module.content_type !== 'string'
+        || typeof module.content_base64 !== 'string' || module.content_base64.length > 4 * Math.ceil(16 * 1024 * 1024 / 3)
+        || module.content_base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(module.content_base64)) fail('VERSION_MODULES_INVALID');
+      names.add(module.name);
+      const bytes = Buffer.from(module.content_base64, 'base64');
+      parts.push({ field: module.name, name: module.name, contentType: module.content_type, bytes });
+      total += bytes.length;
+      if (bytes.toString('base64') !== module.content_base64 || total > 16 * 1024 * 1024) fail('VERSION_MODULES_INVALID');
+    }
+    if (!names.has(version.main_module)) fail('VERSION_MODULES_INVALID');
+    // Reuse the existing complete-module MIME/name/digest contract, including source maps.
+    return { parts, entrypoint: version.main_module as string, sourceDigest: authBridgeNotificationPreparedSourceDigest(parts) };
+  } catch (error) {
+    for (const part of parts) part.bytes.fill(0);
+    if (error instanceof PtrNativeBridgeError) throw error;
+    fail('VERSION_MODULES_INVALID');
+  }
+}
+
 function moduleFacts(parts: readonly Data[]) {
   return parts.map(part => ({ field: part.field, name: part.name, contentType: part.contentType,
     size: part.bytes.length, sha256: hash(part.bytes) })).sort((a, b) => a.name.localeCompare(b.name, 'en'));
@@ -241,26 +273,17 @@ export async function executePtrNativeBridge(input: { command: Command; source: 
   const readVersion = async (versionId: string, deployed: { deploymentId: string; versionId: string }) => {
     if (!UUID.test(versionId)) fail('VERSION_ID_INVALID');
     const [detail, infra, content] = await Promise.all([api.json(`${BASE}/versions/${versionId}`), infrastructure(),
-      api.request(`${BASE}/content/v2?version=${versionId}`)]);
+      api.json(`/accounts/${PTR_BRIDGE_ACCOUNT}/workers/workers/${PTR_BRIDGE_WORKER}/versions/${versionId}?include=modules`)]);
+    if (detail.result?.id !== versionId || !/^[a-f0-9]{64}$/u.test(detail.result?.resources?.script?.etag ?? '')) fail('VERSION_INVALID');
+    const parsed = parsePtrNativeBridgeVersionModules(content.result, versionId, detail.result.number);
     try {
-      if (detail.result?.id !== versionId || !/^[a-f0-9]{64}$/u.test(detail.result?.resources?.script?.etag ?? '')
-        || typeof content.entrypoint !== 'string') fail('VERSION_INVALID');
-      const parsed = parseAuthBridgeNotificationPreparedMultipart(content.body, content.contentType);
-      const metadata = parsed.filter(part => part.field === 'metadata');
-      if (metadata.length > 1 || metadata.some(part => part.name !== 'metadata' || part.contentType !== 'application/json')) fail('VERSION_METADATA_INVALID');
-      if (metadata.length) {
-        let value: unknown; try { value = JSON.parse(metadata[0]!.bytes.toString('utf8')); } catch { fail('VERSION_METADATA_INVALID'); }
-        if (value === null || typeof value !== 'object' || Array.isArray(value)
-          || (value as Data).main_module !== content.entrypoint) fail('VERSION_METADATA_INVALID');
-      }
-      const parts = parsed.filter(part => part.field !== 'metadata');
       const runtime = detail.result.resources.script_runtime;
       const snapshot = validateBridgeSnapshot({ accountId: PTR_BRIDGE_ACCOUNT, workerName: PTR_BRIDGE_WORKER, ...deployed,
-        versionId, versionNumber: detail.result.number, sourceDigest: authBridgeNotificationPreparedSourceDigest(parts),
+        versionId, versionNumber: detail.result.number, sourceDigest: parsed.sourceDigest,
         bindings: detail.result.resources.bindings, compatibilityDate: runtime.compatibility_date,
         compatibilityFlags: runtime.compatibility_flags, migrationTag: runtime.migration_tag, usageModel: runtime.usage_model, ...infra });
-      return { snapshot, modules: moduleFacts(parts), entrypoint: content.entrypoint, annotations: detail.result.annotations };
-    } finally { content.body.fill(0); }
+      return { snapshot, modules: moduleFacts(parsed.parts), entrypoint: parsed.entrypoint, annotations: detail.result.annotations };
+    } finally { for (const part of parsed.parts) part.bytes.fill(0); }
   };
   const observeBefore = async () => {
     const current = deployment((await api.json(`${BASE}/deployments`)).result);
