@@ -536,7 +536,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       || pairs.length % 2 !== 0) fail('PUBLIC_PAGES_PUBLICATION_ARGUMENT_INVALID');
     const args = new Map();
     for (let i = 0; i < pairs.length; i += 2) {
-      if (!/^--[a-z-]+$/u.test(pairs[i]) || args.has(pairs[i])) {
+      if (!/^--[a-z0-9-]+$/u.test(pairs[i]) || args.has(pairs[i])) {
         fail('PUBLIC_PAGES_PUBLICATION_ARGUMENT_INVALID');
       }
       args.set(pairs[i], pairs[i + 1]);

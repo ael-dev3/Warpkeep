@@ -373,4 +373,28 @@ describe('signed public Pages publication and rollback operator', () => {
       remoteHead: rollback.rollbackCommit });
     expect(git(f.publicRoot, ['status', '--porcelain=v1', '--untracked-files=all'])).toBe('');
   }, 90_000);
+
+  it('accepts its documented argument names on the command line in every mode', () => {
+    // The CLI once rejected `--plan-sha256` (a digit in the name), so no mode could run.
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-pages-operator-cli-'));
+    temporaryRoots.push(root);
+    const plan = join(root, 'plan.json');
+    write(plan, '{}\n');
+    const signer = ['--signer-fingerprint', `SHA256:${'A'.repeat(43)}`, '--signer-identity', 'fixture@example.invalid'];
+    const modes: Array<[string, string[]]> = [
+      ['prepare', ['--source-root', root, '--public-root', root]],
+      ['publish', ['--public-root', root, '--commit', 'a'.repeat(40)]],
+      ['prepare-rollback', ['--public-root', root, '--published-commit', 'a'.repeat(40)]],
+      ['publish-rollback', ['--public-root', root, '--published-commit', 'a'.repeat(40), '--commit', 'b'.repeat(40)]],
+    ];
+    for (const [mode, args] of modes) {
+      const result = spawnSync(process.execPath, [
+        resolve(process.cwd(), 'scripts/public-pages-publication-operator.mjs'), mode,
+        ...args, '--plan', plan, '--plan-sha256', '0'.repeat(64), ...signer,
+      ], { encoding: 'utf8', windowsHide: true, timeout: 30_000 });
+      // Argument parsing passes; the deliberately wrong plan digest is what fails.
+      expect(result.status).toBe(1);
+      expect(result.stderr.trim()).toBe('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
+    }
+  }, 60_000);
 });
