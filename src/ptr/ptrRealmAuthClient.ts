@@ -4,7 +4,11 @@ export const PTR_REALM_OWNER_ROLE = 'warpkeep-ptr-owner' as const;
 export const PTR_REALM_AUTH_ORIGIN = 'https://auth.warpkeep.com' as const;
 export const PTR_REALM_EXCHANGE_PATH = '/v2/farcaster/ptr/exchange' as const;
 export const PTR_REALM_TOKEN_TTL_MILLISECONDS = 120_000;
+/** Device clock lag behind the bridge tolerated for a fresh exchange (the main realm's tolerance). */
+export const PTR_REALM_CLOCK_SKEW_TOLERANCE_MILLISECONDS = 60_000;
 
+/** JWT NumericDate claims are whole seconds, so `iat` may precede issuance by up to one second. */
+const NUMERIC_DATE_PRECISION_MILLISECONDS = 1_000;
 const MAX_QUICK_AUTH_TOKEN_BYTES = 8 * 1_024;
 const MAX_RESPONSE_BYTES = 32 * 1_024;
 const DEFAULT_TIMEOUT_MILLISECONDS = 10_000;
@@ -17,6 +21,7 @@ export type PtrRealmAuthority = Readonly<{
   realmId: typeof PTR_REALM_ID;
   fid: number;
   databaseIdentity: string;
+  /** Device-clock instant (ms) from which this authority must no longer be used. */
   expiresAt: number;
 }>;
 
@@ -157,6 +162,7 @@ function parsePtrJwt(
   expectedDatabaseIdentity: string,
 ): Readonly<{
   fid: number;
+  issuedAt: number;
   expiresAt: number;
   authEpoch: number;
 }> | undefined {
@@ -224,10 +230,12 @@ function parsePtrJwt(
     || notBefore !== issuedAt
     || expiresAt <= issuedAt
     || expiresAt - issuedAt > PTR_REALM_TOKEN_TTL_MILLISECONDS
-    || now < notBefore
+    // The bridge stamps these claims with its own clock. A device clock that
+    // trails it a little is ordinary; one past the signed expiry is not.
+    || notBefore - now > PTR_REALM_CLOCK_SKEW_TOLERANCE_MILLISECONDS
     || now >= expiresAt
   ) return undefined;
-  return Object.freeze({ fid, expiresAt, authEpoch: payload.auth_epoch });
+  return Object.freeze({ fid, issuedAt, expiresAt, authEpoch: payload.auth_epoch });
 }
 
 async function readBoundedJson(response: Response, signal: AbortSignal): Promise<unknown> {
@@ -330,6 +338,9 @@ export function createPtrRealmAuthClient(
         controller.abort();
       }, timeoutMs);
       try {
+        // The token is issued after this device-clock instant, which bounds its lease below.
+        const requestedAt = (options.now ?? Date.now)();
+        if (!Number.isSafeInteger(requestedAt) || requestedAt < 0) throw failure('invalid-response');
         let response: Response;
         try {
           response = await fetchImpl(endpoint, {
@@ -389,15 +400,26 @@ export function createPtrRealmAuthClient(
           !claims
           || claims.expiresAt !== decoded.accessExpiresAt
         ) throw failure('invalid-response');
+        // The signed expiry is on the bridge's clock, which this device can
+        // trail or lead. The token was issued after the request left and
+        // before the response arrived (its whole-second `iat` up to a second
+        // earlier), so on this device's clock the lease ends within these
+        // bounds. A consistent clock keeps the signed expiry exactly; a skewed
+        // one takes the nearest bound rather than gaining or losing the skew.
+        const lease = claims.expiresAt - claims.issuedAt;
+        const earliestExpiry = Math.min(requestedAt, now) + lease - NUMERIC_DATE_PRECISION_MILLISECONDS;
+        const latestExpiry = now + lease;
+        const leaseExpiresAt = Math.min(Math.max(claims.expiresAt, earliestExpiry), latestExpiry);
+        if (leaseExpiresAt <= now) throw failure('invalid-response');
         const authority: PtrRealmAuthority = Object.freeze({
           realmId: PTR_REALM_ID,
           fid: claims.fid,
           databaseIdentity: expectedDatabaseIdentity,
-          expiresAt: claims.expiresAt,
+          expiresAt: leaseExpiresAt,
         });
         privateCredentials.set(authority, Object.freeze({
           jwt: decoded.accessToken as string,
-          expiresAt: claims.expiresAt,
+          expiresAt: leaseExpiresAt,
           authEpoch: claims.authEpoch,
         }));
         return authority;

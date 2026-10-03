@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   PTR_REALM_AUDIENCE,
+  PTR_REALM_CLOCK_SKEW_TOLERANCE_MILLISECONDS,
   PTR_REALM_ID,
   createPtrRealmAuthClient,
   isCurrentPtrRealmAuthority,
@@ -134,6 +135,69 @@ describe('PTR realm auth client', () => {
     expect(request.headers).toEqual({
       authorization: `Bearer ${TOKEN}`,
       'content-type': 'application/json',
+    });
+  });
+
+  describe('device clock skew', () => {
+    function clientAt(now: () => number, fetchImpl: typeof fetch = vi.fn(async () => jsonResponse(body())) as typeof fetch) {
+      return createPtrRealmAuthClient({ expectedDatabaseIdentity: DATABASE, fetch: fetchImpl, now });
+    }
+
+    it('keeps the signed expiry for a device clock consistent with the bridge', async () => {
+      // Issued at NOW, received after a slow seven-second response.
+      const clock = vi.fn().mockReturnValueOnce(NOW).mockReturnValue(NOW + 7_000);
+      const authority = await clientAt(clock).exchangeQuickAuth(TOKEN);
+      expect(authority.expiresAt).toBe(NOW + 120_000);
+    });
+
+    it('accepts a device clock trailing the bridge within tolerance and runs the lease on it', async () => {
+      // A phone a few seconds slow used to fail every exchange because the
+      // signed iat was still in its future; a lease on the bridge's clock
+      // would also have outlived the bridge's own by the whole skew.
+      for (const trailing of [NOW - 1, NOW - 2_500, NOW - PTR_REALM_CLOCK_SKEW_TOLERANCE_MILLISECONDS]) {
+        const authority = await clientAt(() => trailing).exchangeQuickAuth(TOKEN);
+        expect(authority.expiresAt).toBe(trailing + 120_000);
+        expect(isCurrentPtrRealmAuthority(authority, trailing + 119_999)).toBe(true);
+        expect(isCurrentPtrRealmAuthority(authority, trailing + 120_000)).toBe(false);
+      }
+    });
+
+    it('rejects a device clock trailing the bridge beyond tolerance', async () => {
+      await expect(clientAt(() => NOW - PTR_REALM_CLOCK_SKEW_TOLERANCE_MILLISECONDS - 1).exchangeQuickAuth(TOKEN))
+        .rejects.toSatisfy((error: unknown) => ptrRealmAuthFailureCode(error) === 'invalid-response');
+    });
+
+    it('keeps the whole lease for a device clock leading the bridge', async () => {
+      // The signed expiry would have left this phone 30 seconds. Issuance
+      // followed the request, less the whole-second iat precision.
+      const leading = NOW + 90_000;
+      const authority = await clientAt(() => leading).exchangeQuickAuth(TOKEN);
+      expect(authority.expiresAt).toBe(leading + 119_000);
+      expect(isCurrentPtrRealmAuthority(authority, NOW + 120_000)).toBe(true);
+    });
+
+    it('anchors a leading clock lease when the request left, not when a slow response arrived', async () => {
+      const clock = vi.fn().mockReturnValueOnce(NOW + 90_000).mockReturnValue(NOW + 97_000);
+      const authority = await clientAt(clock).exchangeQuickAuth(TOKEN);
+      expect(authority.expiresAt).toBe(NOW + 209_000);
+    });
+
+    it('rejects a token the device clock already places past its signed expiry', async () => {
+      await expect(clientAt(() => NOW + 120_000).exchangeQuickAuth(TOKEN))
+        .rejects.toSatisfy((error: unknown) => ptrRealmAuthFailureCode(error) === 'invalid-response');
+    });
+
+    it('bounds the lease by the receipt when the device clock steps back mid-request', async () => {
+      const clock = vi.fn().mockReturnValueOnce(NOW + 95_000).mockReturnValue(NOW + 90_000);
+      const authority = await clientAt(clock).exchangeQuickAuth(TOKEN);
+      expect(authority.expiresAt).toBe(NOW + 209_000);
+    });
+
+    it('never sends the credential without a usable device clock', async () => {
+      const fetchImpl = vi.fn();
+      await expect(clientAt(() => Number.NaN, fetchImpl as unknown as typeof fetch).exchangeQuickAuth(TOKEN))
+        .rejects.toSatisfy((error: unknown) => ptrRealmAuthFailureCode(error) === 'invalid-response');
+      expect(fetchImpl).not.toHaveBeenCalled();
     });
   });
 
