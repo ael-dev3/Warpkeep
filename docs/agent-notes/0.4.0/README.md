@@ -11,7 +11,7 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
   - The Alpha root, G001 state, timers and admission policy are preserved.
   - G002 stays sealed.
   - A wider rollout is separate later work.
-- **Why Cloudflare.** The private repository's included hosted Actions allowance is exhausted, and Actions stays disabled under the current policy. This route therefore doesn't use hosted Verify, protected workflow dispatches or branch Pages. It uses the already authorized Cloudflare fallback instead.
+- **Why Cloudflare.** The private repository's included hosted Actions allowance is exhausted, and Actions stays disabled under the current policy. This route therefore doesn't use hosted Verify, protected workflow dispatches or branch Pages. It uses the Cloudflare route that the owner chose instead. Each provider action follows the owner's current instructions; this note records the route and grants no permission.
 - **Steps:**
   - P1: native `warpkeep-ptr` update and owner provisioning (Codex);
   - P2: a native PTR-only bridge binding (Codex);
