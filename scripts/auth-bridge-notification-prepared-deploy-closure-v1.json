@@ -1635,12 +1635,12 @@
     {
       "path": "scripts/qa-observer/local-fullstack-spacetime.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "27a528fccc8fed579302c60b3e3398394bf5a5ab6b818771bf97d7c57a2acd99"
+      "sha256": "c1d6c1f0742bb2dacb3b303777c5ef6b0cd381e3c05e5e55288e8cb9b06d2274"
     },
     {
       "path": "scripts/qa-observer/local-fullstack-spacetime.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "25265f5f90a7242247d445e68be0562c51d0cee7d90053cf3083fa3f091ad623"
+      "sha256": "b1b4fc10066f839aec9dce84200861864a96e8c0e8ba042a15754a3a4a9b6e5c"
     },
     {
       "path": "scripts/qa-observer/local-vite-fs-deny.d.mts",

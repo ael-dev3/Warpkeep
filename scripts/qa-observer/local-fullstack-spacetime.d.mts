@@ -33,6 +33,7 @@ export type LocalFullstackCliResult = Readonly<{
 }>;
 export class LocalFullstackRuntimeError extends Error {
   readonly terminal?: LocalFullstackCliTerminal;
+  readonly lifecycle?: Readonly<{ callbackFailed: boolean; retirementFailed: boolean; closeObserved: boolean }>;
 }
 
 export function runDisposableLocalFullstackCli(
@@ -42,7 +43,7 @@ export function runDisposableLocalFullstackCli(
     environment: Readonly<Record<string, string>>;
     timeout?: number;
     secrets?: readonly string[];
-    onProcess?: (child: ChildProcess | undefined, previous?: ChildProcess) => void;
+    onProcess?: (child: ChildProcess | undefined, previous?: ChildProcess) => void | Promise<void>;
   }>,
 ): Promise<LocalFullstackCliResult>;
 

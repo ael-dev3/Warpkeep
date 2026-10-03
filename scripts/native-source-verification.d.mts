@@ -6,12 +6,19 @@ export const REQUIRED_NATIVE_DOMAINS: readonly string[];
 export function nativeVerificationEnvironment(tools?: Readonly<{
   pnpm: Readonly<{ path: string }>; spacetime: Readonly<{ path: string }>;
 }>): Readonly<Record<string, string>>;
+/** Closed ordinary fixture environment uses the actual account home and permits fixture replacements. */
+export function nativeOrdinaryTestEnvironment(tools?: Readonly<{
+  pnpm: Readonly<{ path: string }>; spacetime: Readonly<{ path: string }>;
+}>): Readonly<Record<string, string>>;
 /** Missing/rejected owned output stays failed metadata, never a verified report. */
 export function retainNativeVerificationOutput(root: string, path: string): Readonly<Record<string, unknown>>;
 export type NativeTestPartitions = Readonly<{ ordinaryVitestFiles: string[]; namespaceVitestFiles: string[]; moduleFiles: string[] }>;
 export type NativeTestCommand = Readonly<{ id: string; kind: 'vitest-json' | 'node-events'; files: readonly string[];
   cwd: string; executable: string; args: readonly string[]; reportPath: string; deadlineMs: number }>;
 export function deriveNativeTestPartitions(paths: readonly string[], viteConfig: string | Uint8Array, modulePackage: string | Uint8Array): NativeTestPartitions;
+/** Complete-file batches derived only from the source inventory; no custom selection. */
+export type NativeOrdinaryTestBatch = Readonly<{ id: string; files: readonly string[]; deadlineMs: number }>;
+export function deriveNativeOrdinaryTestBatches(files: readonly string[]): readonly NativeOrdinaryTestBatch[];
 export function nativeTestCommands(root: string, partitions: NativeTestPartitions,
   tools: Readonly<{ node: Readonly<{ path: string }>; vitest: Readonly<{ path: string }>; tsx: Readonly<{ path: string }>; namespaceLauncher: Readonly<{ path: string }> }>, stem: string): readonly NativeTestCommand[];
 export type NativeSourceCheckCommand = Readonly<{ id: string; kind: 'terminal-check' | 'gitleaks-json'; files: readonly string[];
