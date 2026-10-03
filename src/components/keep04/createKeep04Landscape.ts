@@ -9,7 +9,8 @@ import {
 } from './keep04Models';
 import { keep04Fbm, keep04Random, smoothstep } from './keep04Random';
 import {
-  createKeep04RibbonGeometry, createKeep04TerrainGeometry, distanceToPlinth, distanceToPolyline, insideField, keep04ForestDensity,
+  createKeep04RibbonGeometry, createKeep04TerrainGeometry, distanceToPlinth, insideField, keep04ForestDensity,
+  keep04RiverDistance, keep04RoadDistance,
   keep04RoadHeight, keep04TerrainHeight, KEEP04_BRIDGES, KEEP04_BRIDGE_DECK_Y, KEEP04_FIELDS, KEEP04_LOTS, KEEP04_RIVER, KEEP04_RIVER_HALF_WIDTH,
   KEEP04_RIVER_SURFACE_Y, KEEP04_ROADS, KEEP04_ROAD_HALF_WIDTH, nearLot, type Point2,
 } from './keep04Terrain';
@@ -231,8 +232,8 @@ export function createKeep04Landscape(options: Readonly<{
     type Species = 'conifer' | 'broadleaf' | 'birch' | 'poplar' | 'bush' | 'rock' | 'reed';
     const placements: Record<Species, Array<{ x: number; z: number; scale: number; yaw: number; tint: number }>> = { conifer: [], broadleaf: [], birch: [], poplar: [], bush: [], rock: [], reed: [] };
     const random = keep04Random(4049);
-    const roadDistance = (x: number, z: number) => Math.min(...KEEP04_ROADS.map(road => distanceToPolyline(x, z, road).distance));
-    const riverDistance = (x: number, z: number) => distanceToPolyline(x, z, KEEP04_RIVER).distance;
+    const roadDistance = keep04RoadDistance;
+    const riverDistance = keep04RiverDistance;
     const clearOfCivil = (x: number, z: number, margin: number) => distanceToPlinth(x, z) > 6 + margin && !insideField(x, z, 1.5 + margin * .3)
       && !nearLot(x, z, margin) && roadDistance(x, z) > KEEP04_ROAD_HALF_WIDTH + 1.6 + margin * .5 && riverDistance(x, z) > KEEP04_RIVER_HALF_WIDTH + 2.5 + margin * .5;
     // Woods: jittered grid sampled against the forest density field.
