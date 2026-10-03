@@ -40,14 +40,18 @@ on a desktop. Reused assets retain their original credits and permissions.
 
 ## Where development stands
 
-**Alpha 0.3.43 is live; Warpkeep 0.4 owner PTR publication remains pending.**
-Published signed quality checkpoint `6088c974` follows game integration `a0f6a55f`
-on `release/0.4-living-realm-quality`. Local initial-owner inspection/update
-checks passed 139 tests and type checks; they do not prove an installed backend
-or usable owner PTR. Relocation coverage, fresh compilation of the shared provider
-changes, complete release verification and actual-owner play remain open. Use the
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) for current evidence
-and the next step.
+**Alpha 0.3.43 is live; the authenticated 0.4 owner PTR remains unpublished.**
+The published quality source is `a89173f9`, following game integration
+`a0f6a55f` on `release/0.4-living-realm-quality`. Initial-owner update checks
+and all relocation cases pass locally. The release builder's handling of Git
+executable files has also been repaired and regression-tested. Full compilation
+and owner delivery still need verification.
+
+The current PTR module rejects the database publisher's connection before it can
+inspect private state. Resolving that compatibility issue and preserving existing
+data are the next backend tasks. Follow the
+[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) for actual results,
+known blockers and the next step.
 
 The 0.4 foundation and reviewed contributions have been integrated into main
 through [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) and

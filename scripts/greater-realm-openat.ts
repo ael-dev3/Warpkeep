@@ -13,7 +13,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HELPER_SOURCE = join(dirname(fileURLToPath(import.meta.url)), 'greater-realm-openat-helper.py');
-const HELPER_SOURCE_SHA256 = 'a39c531b97b32648bded65ef6262b95bfe016e4d6fae687376f69867df220b67';
+const HELPER_SOURCE_SHA256 = '461310769951ca0ac6d82d7bb5b1ee36fe4a6a29572c27ff54fff17d0ebe6277';
 const SYSTEM_PYTHON_ENTRY = '/usr/bin/python3';
 const LINUX_SYSTEM_PYTHON_PATH = /^\/usr\/bin\/python3\.[0-9]+$/u;
 const MAX_HELPER_SOURCE_BYTES = 64 * 1024;
@@ -155,7 +155,7 @@ function validateRelative(path: string): void {
 export type GreaterRealmOpenAtHelper = Readonly<{
   root: string;
   mkdir: (relativePath: string) => void;
-  writeFile: (relativePath: string, body: Buffer, mode: 0o600 | 0o644 | 0o700) => void;
+  writeFile: (relativePath: string, body: Buffer, mode: 0o600 | 0o644 | 0o700 | 0o755) => void;
   symlink: (relativePath: string, target: string, targetRootRelative: string) => void;
   finish: () => void;
 }>;
@@ -237,7 +237,7 @@ export function stageGreaterRealmOpenAtHelper(input: Readonly<{
       validateRelative(relativePath);
       invoke(['mkdir', relativePath]);
     },
-    writeFile: (relativePath: string, body: Buffer, mode: 0o600 | 0o644 | 0o700) => {
+    writeFile: (relativePath: string, body: Buffer, mode: 0o600 | 0o644 | 0o700 | 0o755) => {
       if (finished || body.byteLength > MAX_HELPER_INPUT_BYTES) fail();
       validateRelative(relativePath);
       invoke(['write', relativePath, mode.toString(8), String(body.byteLength)], body);
