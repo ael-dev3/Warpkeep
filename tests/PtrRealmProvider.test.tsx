@@ -19,6 +19,7 @@ import {
 import type { PtrRealmConnectionSession } from '../src/ptr/ptrRealmConnection';
 import type { AvailablePtrRealmConfig, PtrRealmConfig } from '../src/ptr/ptrRealmConfig';
 import {
+  PTR_TRANSPORT_RECOVERY_INTERVAL_MILLISECONDS,
   PtrRealmProvider,
   usePtrRealm,
   type PtrRealmContextValue,
@@ -402,6 +403,80 @@ describe('active PTR session continuation', () => {
     await act(async () => vi.advanceTimersByTimeAsync(120_000));
     expect(harness.getToken).toHaveBeenCalledTimes(3);
     expect(currentContext().phase).toBe('ready');
+  });
+
+  it('reconnects a socket dropped during play through fresh access, in place', async () => {
+    const harness = await activeRenewalHarness();
+    const previous = currentContext().gameplay04!;
+    act(() => harness.connections[0]!.onTransportFailure?.('transport-unavailable'));
+    // The dropped session's authority is revoked before anything reconnects.
+    expect(currentContext()).toMatchObject({
+      phase: 'renewing', authority: null, bridge: null, gameplay04: null,
+    });
+    expect(isCurrentPtrRealmAuthority(harness.authority, Date.now())).toBe(false);
+    expect(previous.isCurrent()).toBe(false);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(currentContext().phase).toBe('ready');
+    expect(harness.getToken).toHaveBeenCalledTimes(2);
+    expect(harness.getToken).toHaveBeenLastCalledWith({ force: true });
+    expect(harness.runtime.preflight).toHaveBeenCalledTimes(2);
+    expect(currentContext().authority).not.toBe(harness.authority);
+    expect(currentContext().gameplay04).not.toBe(previous);
+    expect(currentContext().gameplay04!.scope.generation).toBeGreaterThan(previous.scope.generation);
+    // Nothing in flight is replayed into the new session.
+    expect(previous.mutate).not.toHaveBeenCalled();
+    expect(currentContext().gameplay04!.mutate).not.toHaveBeenCalled();
+  });
+
+  it('waits for an explicit retry when the transport drops again within the recovery interval', async () => {
+    const harness = await activeRenewalHarness();
+    act(() => harness.connections[0]!.onTransportFailure?.('transport-unavailable'));
+    await act(async () => vi.advanceTimersByTimeAsync(PTR_TRANSPORT_RECOVERY_INTERVAL_MILLISECONDS - 1));
+    expect(currentContext().phase).toBe('ready');
+
+    act(() => harness.connections[1]!.onTransportFailure?.('transport-unavailable'));
+    expect(currentContext()).toMatchObject({
+      phase: 'renewal-error', failure: 'transport-unavailable', authority: null,
+      bridge: null, gameplay04: null,
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(PTR_TRANSPORT_RECOVERY_INTERVAL_MILLISECONDS));
+    expect(harness.getToken).toHaveBeenCalledTimes(2);
+    expect(currentContext().phase).toBe('renewal-error');
+
+    await act(async () => currentContext().renewSession());
+    expect(harness.getToken).toHaveBeenCalledTimes(3);
+    expect(currentContext().phase).toBe('ready');
+  });
+
+  it('reconnects automatically again once the recovery interval has passed', async () => {
+    const harness = await activeRenewalHarness();
+    act(() => harness.connections[0]!.onTransportFailure?.('transport-unavailable'));
+    await act(async () => vi.advanceTimersByTimeAsync(PTR_TRANSPORT_RECOVERY_INTERVAL_MILLISECONDS));
+    act(() => harness.connections[1]!.onTransportFailure?.('transport-unavailable'));
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(currentContext().phase).toBe('ready');
+    expect(harness.getToken).toHaveBeenCalledTimes(3);
+    expect(harness.connections).toHaveLength(3);
+  });
+
+  it('fails closed without reconnecting when a dropped session has no active continuation', async () => {
+    const harness = await activeRenewalHarness();
+    act(() => currentContext().setContinuationActive(false));
+    act(() => harness.connections[0]!.onTransportFailure?.('transport-unavailable'));
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(currentContext()).toMatchObject({
+      phase: 'error', failure: 'transport-unavailable', authority: null, gameplay04: null,
+    });
+    expect(harness.getToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('denies a reconnection whose fresh authority changes the continued scope', async () => {
+    const harness = await activeRenewalHarness();
+    harness.exchangeQuickAuth.mockImplementationOnce(async () => issuedAuthority(Date.now(), { authEpoch: 2 }));
+    act(() => harness.connections[0]!.onTransportFailure?.('transport-unavailable'));
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(currentContext()).toMatchObject({ phase: 'not-admitted', authority: null, gameplay04: null });
+    expect(harness.runtime.connect).toHaveBeenCalledTimes(1);
   });
 
   it('coalesces renewal and hides all authority until the new preflight completes', async () => {
