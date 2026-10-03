@@ -139,7 +139,7 @@ export function assertNativeBridgeVersion(plan, snapshot, modules, entrypoint, a
   return actual;
 }
 
-/** Validate genuine serializer metadata; replace type-wide secret retention with explicit version inheritance. */
+/** Validate genuine serializer metadata; inherit each established secret from the guarded latest version. */
 export function bridgeRedactedMetadataDigest(metadata) {
   const bindings = metadata.bindings.map(binding => binding.name === 'PLAYER_CANARY_OWNER_FID'
     ? { name: binding.name, type: binding.type } : binding);
@@ -186,7 +186,7 @@ export function projectNativeBridgeUploadMetadata(plan, metadata, ownerFid) {
     ...plan.bindings.filter(binding => CHANGED.has(binding.name)).map(binding => binding.name === 'PLAYER_CANARY_OWNER_FID'
       ? { name: binding.name, type: 'secret_text', text: ownerFid } : binding),
     ...plan.before.bindings.filter(binding => binding.type === 'secret_text' && binding.name !== 'PLAYER_CANARY_OWNER_FID')
-      .map(binding => ({ name: binding.name, type: 'inherit', version_id: plan.before.versionId }))]);
+      .map(binding => ({ name: binding.name, type: 'inherit' }))]);
   const { keep_bindings: _typeWideInheritance, ...heldMetadata } = metadata;
   return { ...heldMetadata, bindings,
     ...(Object.hasOwn(plan.before, 'cacheOptions') ? { cache_options: plan.before.cacheOptions } : {}),

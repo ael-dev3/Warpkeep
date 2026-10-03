@@ -183,14 +183,35 @@ describe('genuine multipart metadata and pre-effect recovery', () => {
     expect(projected).not.toHaveProperty('keep_bindings');
     expect(projected.cache_options).toEqual(before.cacheOptions);
   });
-  test('pins each existing secret inheritance to the exact observed predecessor version', () => {
+  test('uses per-binding provider latest inheritance without transporting existing secret values', () => {
     const plan = makePlan(), projected = project(plan, metadata(plan));
     const inherited = (projected.bindings as any[]).filter(binding => binding.type === 'inherit');
     expect(projected).not.toHaveProperty('keep_bindings');
     expect(inherited).toHaveLength(before.bindings.filter(binding => binding.type === 'secret_text').length);
-    for (const binding of inherited) expect(binding).toEqual({ name: binding.name, type: 'inherit', version_id: before.versionId });
+    for (const binding of inherited) expect(binding).toEqual({ name: binding.name, type: 'inherit' });
     expect((projected.bindings as any[]).find(binding => binding.name === 'PLAYER_CANARY_OWNER_FID'))
       .toEqual({ name: 'PLAYER_CANARY_OWNER_FID', type: 'secret_text', text: SYNTHETIC_OWNER_FID });
+  });
+  test('inherits the six observed secrets and replaces an existing owner only in private upload metadata', () => {
+    const established = ['ADMIN_TOKEN_SECRET', 'FARCASTER_RPC_URL', 'FARCASTER_RPC_URL_SECONDARY',
+      'NOTIFICATION_OPERATOR_SECRET', 'SESSION_COOKIE_KEY', 'SIGNING_KEY_JWK'];
+    const observed = { ...before, bindings: [...before.bindings.filter(binding => binding.name !== 'RELEASE_RECOVERY_RPC_SECRET'),
+      { name: 'PLAYER_CANARY_OWNER_FID', type: 'secret_text' }] };
+    const plan = createNativeBridgePlan({ ...makePlan(), before: observed }), built = metadata(plan);
+    const heldPlan = JSON.stringify(plan), heldBuilt = JSON.stringify(built), projected = project(plan, built);
+    const projectedBindings = projected.bindings as any[];
+    const inherited = projectedBindings.filter(binding => binding.type === 'inherit');
+    expect(inherited.map(binding => binding.name).sort()).toEqual([...established].sort());
+    for (const binding of inherited) expect(Object.keys(binding).sort()).toEqual(['name', 'type']);
+    expect(projectedBindings.filter((binding: any) => binding.name === 'PLAYER_CANARY_OWNER_FID'))
+      .toEqual([{ name: 'PLAYER_CANARY_OWNER_FID', type: 'secret_text', text: SYNTHETIC_OWNER_FID }]);
+    expect(projectedBindings.filter((binding: any) => binding.type === 'secret_text'))
+      .toEqual([{ name: 'PLAYER_CANARY_OWNER_FID', type: 'secret_text', text: SYNTHETIC_OWNER_FID }]);
+    expect(projectedBindings.filter((binding: any) => binding.type !== 'inherit' && binding.name !== 'PLAYER_CANARY_OWNER_FID'))
+      .toEqual(built.bindings);
+    expect(JSON.stringify(plan)).toBe(heldPlan); expect(JSON.stringify(built)).toBe(heldBuilt);
+    expect(heldPlan).not.toContain(SYNTHETIC_OWNER_FID); expect(heldBuilt).not.toContain(SYNTHETIC_OWNER_FID);
+    expect(bridgeRedactedMetadataDigest(projected)).toBe(bridgeRedactedMetadataDigest(project(plan, built, '67890')));
   });
   test('rejects the v1 missing keep_bindings subset and any newly introduced migration', () => {
     const plan = makePlan(), built = metadata(plan), { keep_bindings: _discarded, ...v1Subset } = built;
@@ -287,7 +308,7 @@ describe('unobserved optional Worker cache field', () => {
       .toEqual(built.bindings.filter(binding => binding.type === 'durable_object_namespace'));
     expect((projected.bindings as any[]).filter(binding => binding.type === 'inherit'))
       .toEqual(before.bindings.filter(binding => binding.type === 'secret_text')
-        .map(binding => ({ name: binding.name, type: 'inherit', version_id: before.versionId }))
+        .map(binding => ({ name: binding.name, type: 'inherit' }))
         .sort((a, b) => a.name.localeCompare(b.name, 'en')));
   });
   test('refuses any serializer cache property when the provider field was unobserved', () => {
