@@ -3,7 +3,13 @@
 <!-- Preserve incoming historical current-checkpoint links. -->
 <a id="current-release-checkpoint--1-october-2026"></a>
 
-## Current isolated owner-PTR continuation — 3 October 2026
+## Current isolated owner-PTR continuation - 3 October 2026
+
+The signed/published repair source `d6e069c4` / tree `873040fb` was used for the genuine P1 bootstrap (`ac364d4`, result `9b2f159c`, independent post `711ff1a8`). The gameplay program deployed; the observed PTR remains ownerless and its private atlas is absent. This is not owner delivery. The full maintained installed-toolchain verifier passed (`54344a`, proof `249c55c1`) after a clean patched-pnpm 11.11 frozen copy install with a fresh private store and `0077` mask; no tracked manifest or verifier requirement was relaxed.
+
+The second P2 attempt failed on genuine Cloudflare GET envelopes with `errors`/`messages: null`, before upload/release markers; independent post `2c539e5b` retains failure and closes its original group with source/Git held. Resolve the actual checks and signed publication for the narrow provider response-shape/cache-preservation repairs, atlas/owner CLI changes and PR #389; complete only what remains unverified. Then generate the genuine private atlas from that signed helper, enable/verify the existing PTR bridge and provision/verify the owner through actual G001 admission. The existing local admin-secret value is unavailable; use established private access rather than creating recovery apps or keys. The scripts-list response also omitted `cache_options`; disabled cache or preservation cannot be inferred. No P2 deployment or owner success is established. Resolve each later checkpoint and operation from actual Git/receipts.
+
+## Earlier continuation before the deployed bootstrap and toolchain recovery (superseded)
 
 The prior published signed quality base `f06bb380b3193b78f01d08c16894eab4e52baaea`
 / tree `9d71959b8bb66b3a142cf9c0f240c84b44df794b` includes the genuine

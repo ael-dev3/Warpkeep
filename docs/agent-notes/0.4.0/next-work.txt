@@ -1,5 +1,11 @@
 WARPKEEP 0.4 — NEXT WORK
-CURRENT RESUMPTION — 3 OCTOBER 2026
+CURRENT RESUMPTION - 3 OCTOBER 2026
+
+The genuine P1 bootstrap at signed/published `d6e069c4` deployed the gameplay program (`ac364d4` / `9b2f159c`, post `711ff1a8`); PTR is still ownerless and its private atlas is absent. The maintained toolchain passed (`54344a` / `249c55c1`) after a clean frozen patched-pnpm 11.11 copy install using a fresh private store and `0077` mask, without changing tracked manifests. P2's second attempt failed on actual Cloudflare GET `errors`/`messages: null` before its markers; post `2c539e5b` retains the failure and source/group closure.
+
+Next, resolve actual checks/publication for the atlas/owner CLI, narrow provider response-shape/cache-preservation repairs and PR #389; complete only missing checks or publication. Generate the genuine private atlas only after its helper is signed, then enable/verify the existing PTR bridge before owner provisioning and verify actual G001 admission. The existing local admin-secret value remains unavailable; discover established private access without new recovery apps or keys. No owner/P2 delivery is claimed. Keep the failed attempts, use actual checkpoint/operation receipts, and avoid repeating unrelated completed batches.
+
+PREVIOUS RESUMPTION - BEFORE THE DEPLOYED BOOTSTRAP AND TOOLCHAIN RECOVERY (SUPERSEDED)
 
 Read execution-handoff.md for exact receipts before acting. This checkpoint
 integrates PR386/387/388 and the P1/P2 repairs on prior signed quality base

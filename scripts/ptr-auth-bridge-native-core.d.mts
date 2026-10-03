@@ -12,6 +12,7 @@ export type NativeBridgeSnapshot = Readonly<{ accountId: string; workerName: str
   compatibilityFlags: readonly string[]; migrationTag: string; usageModel?: string;
   subdomain: Readonly<{ enabled: boolean; previews_enabled: boolean }>; routes: readonly unknown[];
   domains: readonly Readonly<Record<string, unknown>>[]; settings: Readonly<Record<string, unknown>>;
+  /** Absence is an unobserved provider field, never an inferred disabled setting. */
   cacheOptions?: Readonly<{ enabled: false; cross_version_cache?: boolean }> }>;
 export type NativeBridgePlan = Readonly<{ schemaVersion: 1; profile: typeof PTR_BRIDGE_PROFILE; source: NativeBridgeSource;
   before: NativeBridgeSnapshot; bindings: readonly NativeBridgeBinding[]; entrypoint: string; modules: readonly NativeBridgeModule[];

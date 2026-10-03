@@ -3082,6 +3082,79 @@ export const greaterRealmPublicEvidenceTestSeams = Object.freeze({
   },
 });
 
+/** Initial owner PTR selection/export from the genuine private generator workflow.
+ * The caller separately holds a clean signed source. This records an explicit
+ * selection, never a global release phase or an automatically invented approval.
+ */
+export async function preparePtrInitialOwnerRuntimeRelease(input: Readonly<{
+  command: 'select' | 'prepare';
+  workspaceRoot: string;
+  batchHandle: string;
+  candidateHandle?: string;
+  approvalReference?: string;
+  assertSource: () => void;
+}>) {
+  if (!['select', 'prepare'].includes(input.command)
+    || !isAbsolute(input.workspaceRoot) || !BATCH_HANDLE.test(input.batchHandle)
+    || (input.command === 'select'
+      ? !CANDIDATE_HANDLE.test(input.candidateHandle ?? '')
+        || !APPROVAL_REFERENCE.test(input.approvalReference ?? '')
+      : input.candidateHandle !== undefined || input.approvalReference !== undefined)) {
+    fail('GREATER_REALM_PTR_INITIAL_ARGUMENT_INVALID');
+  }
+  input.assertSource();
+  const workspace = openGreaterRealmPrivateWorkspace({ repositoryRoot: ROOT, workspaceRoot: input.workspaceRoot });
+  return workspace.withExclusiveLock('locks/generate-candidates.lock', () =>
+    workspace.withExclusiveLock(`locks/${input.batchHandle}.selection.lock`, async () => {
+      input.assertSource();
+      assertGreaterRealmAttemptSelectionReady({ workspace });
+      if (input.command === 'select') {
+        if (workspace.hasFile(selectionRelativePath(input.batchHandle))) fail('GREATER_REALM_SELECTION_INVALID');
+        const { review } = await verifyPrivateReviewBatch(workspace, input.batchHandle);
+        const selected = review.candidates.find(candidate => candidate.candidateHandle === input.candidateHandle && candidate.eligible);
+        if (!selected || review.selectionStatus !== 'pending') fail('GREATER_REALM_SELECTION_INVALID');
+        input.assertSource();
+        const selectedReview = createGreaterRealmSanitizedReview({ generatorVersion: review.generatorVersion,
+          sourceCommit: review.sourceCommit, reviewBatchHandle: review.reviewBatchHandle, selectionStatus: 'selected',
+          selectedCandidateHandle: selected.candidateHandle, candidates: review.candidates.map(candidateSource) });
+        writePrivateJson(workspace, selectionRelativePath(input.batchHandle), {
+          kind: 'warpkeep.greater-realm.private-owner-selection.v1', batchHandle: input.batchHandle,
+          candidateHandle: selected.candidateHandle, approvalReference: input.approvalReference,
+          generatorVersion: GREATER_REALM_GENERATOR_VERSION, sourceReviewDigest: review.reportDigest, selectedReview,
+        });
+        const reopened = readReview(workspace, input.batchHandle);
+        if (reopened.reportDigest !== selectedReview.reportDigest) fail('GREATER_REALM_SELECTION_RECEIPT_INVALID');
+        input.assertSource();
+        return Object.freeze({ command: input.command, selectionRecorded: true, candidateHandle: selected.candidateHandle,
+          sourceReviewDigest: review.reportDigest, selectionBasis: 'eligible-candidate-and-explicit-owner-reference',
+          retainedGlobalOwnerReportAdmission: false, runtimePrepared: false, productionUntouched: true, globalReleaseAuthority: false });
+      }
+      let artifacts: GreaterRealmRuntimeReleaseArtifacts | undefined;
+      const verified = await verifyPrivateReviewBatch(workspace, input.batchHandle, {
+        onVerifiedSelectedCandidate: (candidate, commit) => {
+          input.assertSource();
+          const seed = openOrCreatePtrGreaterRealmRuntimeReleaseSeed(workspace);
+          try { artifacts = createPtrGreaterRealmRuntimeRelease({ source: candidate, sourceCommit: commit, releaseSeed: seed }); }
+          finally { seed.fill(0); }
+        },
+      });
+      if (artifacts === undefined || verified.review.selectionStatus !== 'selected') fail('GREATER_REALM_RUNTIME_RELEASE_SELECTION_REQUIRED');
+      input.assertSource(); verifyPtrGreaterRealmRuntimeReleaseArtifacts(artifacts);
+      const state = await writePtrGreaterRealmRuntimeRelease({ workspace, artifacts });
+      const installed = readPtrGreaterRealmRuntimeRelease(workspace);
+      if (!installed.manifestBytes.equals(artifacts.manifestBytes) || !installed.statusBytes.equals(artifacts.statusBytes)
+        || installed.chunks.length !== artifacts.chunks.length || installed.chunks.some((chunk, index) =>
+          chunk.path !== artifacts!.chunks[index]!.path || !chunk.bytes.equals(artifacts!.chunks[index]!.bytes))) {
+        fail('GREATER_REALM_RUNTIME_RELEASE_REPLAY_MISMATCH');
+      }
+      input.assertSource();
+      return Object.freeze({ command: input.command, runtimePrepared: true, releaseState: state,
+        atlasSourceCommit: installed.manifest.sourceCommit, atlasId: installed.manifest.atlasId,
+        publicReleaseId: installed.manifest.publicReleaseId, releaseSha256: installed.manifest.releaseSha256,
+        productionUntouched: true, globalReleaseAuthority: false });
+    }));
+}
+
 async function main(): Promise<void> {
   const rawArguments = process.argv.slice(2);
   assertGreaterRealmPrivateInvocation(rawArguments, process.env);

@@ -130,7 +130,7 @@
     {
       "path": "scripts/atlas/greater-realm-cli.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0aa26b0cb4dd3ca8c797c83b9f547c1606f3d78d63b36ebad86b702f14305cd8"
+      "sha256": "d6f66e3b9d79e5165791e30fcffc58db4c3ffa68216bc8708bf9b2b4415dbe89"
     },
     {
       "path": "scripts/atlas/greater-realm-composition.ts",
@@ -1525,7 +1525,7 @@
     {
       "path": "scripts/ptr-owner-provision-operator.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "40144be3eba3fb4beb0c3b7eccdba4a2c2fd6c72a09ef158eae31413b52e9f78"
+      "sha256": "4cd187125f537b655afb634e26672fe1962a56530c5331c50fa961272d0b41db"
     },
     {
       "path": "scripts/ptr-production-admin-token.ts",
@@ -2175,7 +2175,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "4c236f1a97afbc0526edfc11f478a94f35df73f854cc6b884c1eed3a90a67875"
+      "sha256": "d3b5639cf6fbf544da86a5fc7eccdbdb32ae100961ca5edd21a078b2c0628002"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",

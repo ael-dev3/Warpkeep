@@ -245,3 +245,95 @@ describe('genuine multipart metadata and pre-effect recovery', () => {
     expect(() => persistNativeBridgeInspection(input.plan, input.journal)).toThrow();
   });
 });
+
+// The actual scripts-list observation omitted cache_options. It disclosed no cache setting.
+function missingCacheSnapshot() {
+  const { cacheOptions: _unobserved, ...held } = before;
+  return held;
+}
+const missingCachePlan = () => createNativeBridgePlan({ ...makePlan(), before: missingCacheSnapshot() });
+const missingCacheAfter = (plan: ReturnType<typeof makePlan>) => ({ ...missingCacheSnapshot(),
+  versionId: candidateId, versionNumber: 52, bindings: plan.bindings, sourceDigest: plan.sourceDigest });
+function missingCacheMetadata(plan: ReturnType<typeof makePlan>) {
+  const { cache_options: _notEmitted, ...held } = metadata(plan);
+  return held;
+}
+
+describe('unobserved optional Worker cache field', () => {
+  test('retains actual omission and the observed null telemetry shape without inferring cache settings', () => {
+    const observed = { ...missingCacheSnapshot(), settings: { ...before.settings, observability: null } };
+    const snapshot = validateBridgeSnapshot(observed);
+    const plan = createNativeBridgePlan({ ...makePlan(), before: snapshot });
+    expect(Object.hasOwn(snapshot, 'cacheOptions')).toBe(false);
+    expect(Object.hasOwn(plan.before, 'cacheOptions')).toBe(false);
+    expect(snapshot.settings).toEqual(observed.settings);
+    expect(snapshot.domains).toEqual(before.domains);
+    expect(snapshot.bindings).toEqual(makePlan().before.bindings);
+  });
+  test('rejects explicit undefined, null and unsupported observed values rather than treating them as omission', () => {
+    for (const cacheOptions of [undefined, null, [], {}, { enabled: true },
+      { enabled: false, cross_version_cache: null }, { enabled: false, other: false }]) {
+      expect(() => validateBridgeSnapshot({ ...missingCacheSnapshot(), cacheOptions })).toThrow('CACHE_SETTINGS_UNSUPPORTED');
+    }
+  });
+  test('preserves genuine serializer omission without adding a disabled object or false value', () => {
+    const plan = missingCachePlan(), built = missingCacheMetadata(plan), projected = project(plan, built);
+    expect(Object.hasOwn(built, 'cache_options')).toBe(false);
+    expect(Object.hasOwn(projected, 'cache_options')).toBe(false);
+    expect(projected.main_module).toBe(built.main_module);
+    expect(projected.compatibility_date).toBe(built.compatibility_date);
+    expect(projected.package_dependencies).toEqual(built.package_dependencies);
+    expect((projected.bindings as any[]).filter(binding => binding.type === 'durable_object_namespace'))
+      .toEqual(built.bindings.filter(binding => binding.type === 'durable_object_namespace'));
+    expect((projected.bindings as any[]).filter(binding => binding.type === 'inherit'))
+      .toEqual(before.bindings.filter(binding => binding.type === 'secret_text')
+        .map(binding => ({ name: binding.name, type: 'inherit', version_id: before.versionId }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'en')));
+  });
+  test('refuses any serializer cache property when the provider field was unobserved', () => {
+    const plan = missingCachePlan(), built = missingCacheMetadata(plan);
+    for (const cache_options of [undefined, null, false, {}, { enabled: false },
+      { enabled: false, cross_version_cache: false }, { enabled: true }]) {
+      expect(() => project(plan, { ...built, cache_options })).toThrow('MULTIPART_METADATA_CHANGED');
+    }
+  });
+  test('requires omission to remain omitted on actual candidate readback and rejects either presence transition', () => {
+    const plan = missingCachePlan(), annotations = { 'workers/tag': plan.versionTag, 'workers/message': plan.versionMessage };
+    const actual = assertNativeBridgeVersion(plan, missingCacheAfter(plan), modules, 'index.js', annotations);
+    expect(Object.hasOwn(actual, 'cacheOptions')).toBe(false);
+    expect(() => assertNativeBridgeVersion(plan, { ...missingCacheAfter(plan), cacheOptions: before.cacheOptions },
+      modules, 'index.js', annotations)).toThrow('CANDIDATE_READBACK_CHANGED');
+    const observed = makePlan();
+    expect(() => assertNativeBridgeVersion(observed, missingCacheAfter(observed), modules, 'index.js', annotations))
+      .toThrow('CANDIDATE_READBACK_CHANGED');
+  });
+  test('holds each genuinely observed supported disabled object exactly', () => {
+    for (const cacheOptions of [{ enabled: false as const }, { enabled: false as const, cross_version_cache: false },
+      { enabled: false as const, cross_version_cache: true }]) {
+      const plan = createNativeBridgePlan({ ...makePlan(), before: { ...before, cacheOptions } });
+      const built = missingCacheMetadata(plan);
+      expect(project(plan, built).cache_options).toEqual(cacheOptions);
+      expect(project(plan, { ...built, cache_options: cacheOptions }).cache_options).toEqual(cacheOptions);
+      expect(() => project(plan, { ...built, cache_options: undefined })).toThrow('MULTIPART_METADATA_CHANGED');
+    }
+  });
+  test('does not waive separate runtime, domain or notification preservation when cache is absent', () => {
+    const plan = missingCachePlan(), annotations = { 'workers/tag': plan.versionTag, 'workers/message': plan.versionMessage };
+    const actual = missingCacheAfter(plan);
+    expect(() => assertNativeBridgeVersion(plan, { ...actual, settings: { ...before.settings, tags: ['new'] } },
+      modules, 'index.js', annotations)).toThrow('SCRIPT_SETTINGS_UNSUPPORTED');
+    expect(() => assertNativeBridgeVersion(plan, { ...actual, domains: [{ ...before.domains[0], zone_id: '0'.repeat(32) }] },
+      modules, 'index.js', annotations)).toThrow('CANDIDATE_READBACK_CHANGED');
+    expect(() => assertNativeBridgeVersion(plan, { ...actual, bindings: actual.bindings.map(binding =>
+      binding.name === 'APPROVAL_NOTIFICATIONS_ENABLED' ? { ...binding, text: 'false' } : binding) },
+      modules, 'index.js', annotations)).toThrow('CANDIDATE_READBACK_CHANGED');
+  });
+  test('retains unobserved omission across a JSON journal roundtrip with the exact plan digest', () => {
+    const plan = missingCachePlan(), stored = JSON.parse(JSON.stringify(plan));
+    expect(validateNativeBridgePlan(stored)).toEqual(plan);
+    expect(stored.planDigest).toBe(plan.planDigest);
+    expect(Object.hasOwn(stored.before, 'cacheOptions')).toBe(false);
+    expect(bridgeDigest(project(plan, missingCacheMetadata(plan))))
+      .toBe(bridgeDigest(project(stored, missingCacheMetadata(stored))));
+  });
+});

@@ -60,6 +60,19 @@ function openJournal(create: boolean) {
   assert(); return { ...store, assert };
 }
 
+/** Parse actual fixed-endpoint envelopes; this does not authenticate result contents or authorize a mutation. */
+export function parsePtrNativeBridgeResponseEnvelope(value: unknown, path: string, method = 'GET') {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) fail('RESPONSE_ENVELOPE');
+  const envelope = value as Data;
+  const observedDomainNullLists = method === 'GET'
+    && path === `/accounts/${PTR_BRIDGE_ACCOUNT}/workers/domains?service=${PTR_BRIDGE_WORKER}`
+    && envelope.errors === null && envelope.messages === null;
+  const emptyArrayLists = Array.isArray(envelope.errors) && envelope.errors.length === 0
+    && Array.isArray(envelope.messages) && envelope.messages.length === 0;
+  if (envelope.success !== true || !Object.hasOwn(envelope, 'result')
+    || (!emptyArrayLists && !observedDomainNullLists)) fail('RESPONSE_ENVELOPE');
+  return { result: envelope.result, resultInfo: envelope.result_info };
+}
 function apiClient(token: string, assert: () => void) {
   if (!/^\S{20,4096}$/u.test(token)) fail('CREDENTIAL_INVALID');
   const request = async (path: string, options: { method?: string; body?: Uint8Array | string; contentType?: string } = {}) => {
@@ -91,9 +104,7 @@ function apiClient(token: string, assert: () => void) {
     try {
       if (!/^application\/json(?:;\s*charset=utf-8)?$/iu.test(response.contentType)) fail('RESPONSE_TYPE');
       const value = JSON.parse(response.body.toString('utf8'));
-      if (value.success !== true || !Array.isArray(value.errors) || value.errors.length || !Array.isArray(value.messages)
-        || value.messages.length || !Object.hasOwn(value, 'result')) fail('RESPONSE_ENVELOPE');
-      return { result: value.result, resultInfo: value.result_info };
+      return parsePtrNativeBridgeResponseEnvelope(value, path, options?.method ?? 'GET');
     } finally { response.body.fill(0); }
   };
   return { request, json, dispose() { token = ''; } };

@@ -69,9 +69,10 @@ export function validateBridgeSnapshot(snapshot) {
       || Object.keys(settings.observability).some(key => key !== 'enabled')))
     || ['tags', 'tail_consumers'].some(key => settings[key] != null && (!Array.isArray(settings[key]) || settings[key].length))) fail('SCRIPT_SETTINGS_UNSUPPORTED');
   const cache = snapshot.cacheOptions;
-  if (!record(cache) || cache.enabled !== false
+  // A missing provider field is unobserved; only an actually present disabled object is supported.
+  if (Object.hasOwn(snapshot, 'cacheOptions') && (!record(cache) || cache.enabled !== false
     || (cache.cross_version_cache !== undefined && typeof cache.cross_version_cache !== 'boolean')
-    || Object.keys(cache).some(key => !['enabled', 'cross_version_cache'].includes(key))) fail('CACHE_SETTINGS_UNSUPPORTED');
+    || Object.keys(cache).some(key => !['enabled', 'cross_version_cache'].includes(key)))) fail('CACHE_SETTINGS_UNSUPPORTED');
   const bindings = sorted(snapshot.bindings.map(normalizeBridgeBinding));
   if (new Set(bindings.map(b => b.name)).size !== bindings.length) fail('DUPLICATE_BINDING');
   const byName = new Map(bindings.map(b => [b.name, b]));
@@ -128,6 +129,7 @@ export function assertNativeBridgeVersion(plan, snapshot, modules, entrypoint, a
     || !same(actual.bindings, plan.bindings) || actual.sourceDigest !== plan.sourceDigest
     || !same(actual.domains, plan.before.domains) || !same(actual.routes, plan.before.routes)
     || !same(actual.settings, plan.before.settings)
+    || Object.hasOwn(actual, 'cacheOptions') !== Object.hasOwn(plan.before, 'cacheOptions')
     || !same(actual.cacheOptions, plan.before.cacheOptions)
     || !same(actual.subdomain, plan.before.subdomain) || !same(actual.compatibilityFlags, plan.before.compatibilityFlags)
     || actual.compatibilityDate !== plan.before.compatibilityDate || actual.migrationTag !== plan.before.migrationTag
@@ -168,7 +170,8 @@ export function projectNativeBridgeUploadMetadata(plan, metadata, ownerFid) {
     || !same(metadata.compatibility_flags, plan.before.compatibilityFlags)
     || !same(metadata.keep_bindings, ['secret_text', 'secret_key']) || metadata.migrations !== undefined
     || !same(metadata.annotations, { 'workers/tag': plan.versionTag, 'workers/message': plan.versionMessage })
-    || (metadata.cache_options !== undefined && !same(metadata.cache_options, plan.before.cacheOptions))) fail('MULTIPART_METADATA_CHANGED');
+    || (Object.hasOwn(metadata, 'cache_options') && (!Object.hasOwn(plan.before, 'cacheOptions')
+      || !same(metadata.cache_options, plan.before.cacheOptions)))) fail('MULTIPART_METADATA_CHANGED');
   if (metadata.package_dependencies !== undefined && (!Array.isArray(metadata.package_dependencies)
     || metadata.package_dependencies.length > 1024 || metadata.package_dependencies.some(item => !record(item)
       || Object.keys(item).sort().join(',') !== 'installedVersion,name,packageJsonVersion'
@@ -185,7 +188,8 @@ export function projectNativeBridgeUploadMetadata(plan, metadata, ownerFid) {
     ...plan.before.bindings.filter(binding => binding.type === 'secret_text' && binding.name !== 'PLAYER_CANARY_OWNER_FID')
       .map(binding => ({ name: binding.name, type: 'inherit', version_id: plan.before.versionId }))]);
   const { keep_bindings: _typeWideInheritance, ...heldMetadata } = metadata;
-  return { ...heldMetadata, bindings, cache_options: plan.before.cacheOptions,
+  return { ...heldMetadata, bindings,
+    ...(Object.hasOwn(plan.before, 'cacheOptions') ? { cache_options: plan.before.cacheOptions } : {}),
     annotations: { 'workers/tag': plan.versionTag, 'workers/message': plan.versionMessage } };
 }
 
