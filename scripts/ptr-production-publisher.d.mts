@@ -185,3 +185,11 @@ export function executePtrProductionPublish(input: Readonly<
     disallowedDatabaseIdentities?: readonly string[];
   }
 >): Promise<PtrProductionPublishResult>;
+
+/** Makes independent local objects, then removes them; does not attest release authority. */
+export function withPtrIndependentSourceRepository<T>(input: Readonly<{
+  repositoryRoot: string;
+  sourceCommit: string;
+  privateDirectory: string;
+  operation: (source: Readonly<{ repositoryRoot: string; sourceCommit: string; sourceTree: string }>) => T;
+}>): T;

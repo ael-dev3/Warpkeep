@@ -120,24 +120,31 @@ export function distanceToPlinth(x: number, z: number) {
   return Math.hypot(dx, dz);
 }
 
-function fieldLocal(field: Keep04Field, x: number, z: number) {
-  const cos = Math.cos(field.yaw); const sin = Math.sin(field.yaw); const dx = x - field.x; const dz = z - field.z;
-  return [dx * cos - dz * sin, dx * sin + dz * cos] as const;
-}
+// Terrain and scatter generation query these helpers per vertex and per candidate,
+// so their per-call constants are precomputed. Results are unchanged.
+const FIELD_ROTATIONS = KEEP04_FIELDS.map(field => [Math.cos(field.yaw), Math.sin(field.yaw)] as const);
 
 export function insideField(x: number, z: number, margin = 0) {
-  return KEEP04_FIELDS.find(field => {
-    const [u, v] = fieldLocal(field, x, z);
-    return Math.abs(u) <= field.w / 2 + margin && Math.abs(v) <= field.d / 2 + margin;
-  }) ?? null;
+  for (let i = 0; i < KEEP04_FIELDS.length; i++) {
+    const field = KEEP04_FIELDS[i]; const [cos, sin] = FIELD_ROTATIONS[i];
+    const dx = x - field.x; const dz = z - field.z;
+    const u = dx * cos - dz * sin; const v = dx * sin + dz * cos;
+    if (Math.abs(u) <= field.w / 2 + margin && Math.abs(v) <= field.d / 2 + margin) return field;
+  }
+  return null;
 }
 
 function lotRadius(kind: Keep04Lot['kind']) {
   return { cottage: 6, barn: 8, windmill: 7, watermill: 8, pasture: 14, pond: 11, grove: 6 }[kind];
 }
+const LOT_RADII = KEEP04_LOTS.map(lot => lotRadius(lot.kind));
 
 export function nearLot(x: number, z: number, margin = 0) {
-  return KEEP04_LOTS.some(lot => Math.hypot(x - lot.x, z - lot.z) < lotRadius(lot.kind) + margin);
+  for (let i = 0; i < KEEP04_LOTS.length; i++) {
+    const lot = KEEP04_LOTS[i];
+    if (Math.hypot(x - lot.x, z - lot.z) < LOT_RADII[i] + margin) return true;
+  }
+  return false;
 }
 
 /** Every place a road crosses the river; each receives a stone bridge. */
@@ -150,8 +157,75 @@ export const KEEP04_BRIDGES: readonly Readonly<{ x: number; z: number; yaw: numb
 }));
 export const KEEP04_BRIDGE_DECK_Y = KEEP04_RIVER_SURFACE_Y + 1.3;
 
-const riverDistance = (x: number, z: number) => distanceToPolyline(x, z, KEEP04_RIVER).distance;
-const roadDistance = (x: number, z: number) => Math.min(...KEEP04_ROADS.map(road => distanceToPolyline(x, z, road).distance));
+/**
+ * Nearest distance to a fixed polyline, equal to `distanceToPolyline(...).distance`
+ * bit for bit. Each segment uses the same arithmetic; a group of segments is skipped
+ * only when the distance to its bounding box proves none of them can be nearer.
+ */
+function createPolylineDistance(points: readonly Point2[], groupSize = 6) {
+  const segments = new Float64Array(Math.max(0, points.length - 1) * 5);
+  for (let i = 0; i < points.length - 1; i++) {
+    const [ax, az] = points[i]; const [bx, bz] = points[i + 1];
+    const dx = bx - ax; const dz = bz - az;
+    segments.set([ax, az, dx, dz, dx * dx + dz * dz], i * 5);
+  }
+  const groups: Array<Readonly<{ start: number; end: number; minX: number; maxX: number; minZ: number; maxZ: number }>> = [];
+  for (let start = 0; start < points.length - 1; start += groupSize) {
+    const end = Math.min(points.length - 1, start + groupSize);
+    let minX = Infinity; let maxX = -Infinity; let minZ = Infinity; let maxZ = -Infinity;
+    for (let i = start; i <= end; i++) {
+      const [x, z] = points[i];
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x); minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+    }
+    groups.push(Object.freeze({ start, end, minX, maxX, minZ, maxZ }));
+  }
+  const lowerBound = (group: (typeof groups)[number], x: number, z: number) => Math.hypot(
+    Math.max(group.minX - x, 0, x - group.maxX), Math.max(group.minZ - z, 0, z - group.maxZ));
+  const scan = (group: (typeof groups)[number], x: number, z: number, best: number) => {
+    for (let i = group.start; i < group.end; i++) {
+      const o = i * 5; const ax = segments[o]; const az = segments[o + 1]; const dx = segments[o + 2]; const dz = segments[o + 3];
+      const lengthSquared = segments[o + 4];
+      const t = lengthSquared === 0 ? 0 : clamp01(((x - ax) * dx + (z - az) * dz) / lengthSquared);
+      const distance = Math.hypot(x - (ax + dx * t), z - (az + dz * t));
+      if (distance < best) best = distance;
+    }
+    return best;
+  };
+  let lastX = NaN; let lastZ = NaN; let last = Infinity;
+  return (x: number, z: number) => {
+    // Height, forest and colour passes ask the same point repeatedly.
+    if (x === lastX && z === lastZ) return last;
+    let nearest = groups[0]; let nearestBound = Infinity;
+    for (const group of groups) {
+      const bound = lowerBound(group, x, z);
+      if (bound < nearestBound) { nearest = group; nearestBound = bound; }
+    }
+    let best = groups.length ? scan(nearest, x, z, Infinity) : Infinity;
+    for (const group of groups) {
+      // A small margin keeps the skip safe against rounding in the bound itself.
+      if (group === nearest || lowerBound(group, x, z) > best + 1e-9) continue;
+      best = scan(group, x, z, best);
+    }
+    lastX = x; lastZ = z; last = best;
+    return best;
+  };
+}
+
+const riverDistanceQuery = createPolylineDistance(KEEP04_RIVER);
+const roadDistanceQueries = KEEP04_ROADS.map(road => createPolylineDistance(road));
+
+/** Distance from the river centreline. */
+export function keep04RiverDistance(x: number, z: number) { return riverDistanceQuery(x, z); }
+
+/** Distance from the nearest road centreline. */
+export function keep04RoadDistance(x: number, z: number) {
+  let best = Infinity;
+  for (const query of roadDistanceQueries) best = Math.min(best, query(x, z));
+  return best;
+}
+
+const riverDistance = keep04RiverDistance;
+const roadDistance = keep04RoadDistance;
 
 /** Natural height of the vale before roads and river shape it. */
 function naturalHeight(x: number, z: number) {

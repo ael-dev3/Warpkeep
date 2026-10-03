@@ -5,6 +5,150 @@
 
 ## Current isolated owner-PTR continuation — 3 October 2026
 
+The prior published signed quality base `f06bb380b3193b78f01d08c16894eab4e52baaea`
+/ tree `9d71959b8bb66b3a142cf9c0f240c84b44df794b` includes the genuine
+PR #383 merge and reviewed maintenance/bootstrap/G001 work. Normal backup
+push and GitHub signature/tree/parent readback completed; GitHub marked
+#383 merged at 12:53:34 UTC. PRIMARY and native were clean and raw-byte
+synchronized at that source. Main `cb282bab` and draft PR #385 remain separate.
+Actions remains OFF across the configured repositories; no new run was used.
+
+This checkpoint integrates the real author heads for #386
+`ad4879ce496bce5d0f88629a022356ffed170702`, #387
+`00b5e5179e629b1f84be8f932c87e4ac9d05c826` and #388
+`1fa2ac2cfc4791ee80b127a25bad678036b45452`. Ordinary merge receipt
+`4a7914db` records the actual staged tree `e4c5d3a`, 3,444 receiving files
+and normal merge state. Independent post `0b7e8aa4` closes its original
+actors/group with source/index/refs held. The six P1 source-clone candidates
+and four P2 bridge files were then adopted (`f5879915`); post `5fe01941`
+independently holds all 3,449 receiving files, index and refs and closes the
+original group. The incoming merge index and unstaged overlay are distinct.
+Supported family regeneration reproduced all 16 outputs and changed six
+metadata files (`525d098a`); independent post `f9af320b` closes the original
+actors/group and holds source/index/merge/refs. No compiler ran. At the adopted v2 source, fifteen whole test files passed all 344 cases with
+zero failures/skips (14:26:54.874–14:34:04.783 UTC, `557dcbd8`). All seven
+command terminals were 0/null, including the type/syntax checks. Independent
+post `293784b8` reparsed the report and held all 3,449 files/index/MERGE_HEAD/
+refs, with original actors/group absent twice. This fifteen-file result belongs
+to its adopted v2 source; the entire batch was not repeated after the narrow
+privacy repair.
+
+The initial privacy check passed 31 cases, app/root-test types, PTR types and
+core syntax, but strict operator types failed with 21 inherited unused-symbol
+errors from the heavyweight owner-parser import (`64dcc3e6`). Failed post
+`3305f386` retained that failure and closed its original group with source/Git
+held. The repair uses the pure-core `takeNativeBridgeOwnerFid` helper to consume
+and delete the transient input; no global unused-symbol cleanup or type waiver
+was applied. The final complete P2 file passed 31 cases, zero failures/skips,
+all three type commands and core syntax, each terminal 0/null
+(15:30:35.710–15:30:58.401 UTC, `0329b864`). Independent post `2fc07214`
+retains success and holds all 3,449 files/index/HEAD/MERGE_HEAD/refs, with
+original actors/group absent twice. Supported privacy-family reproduction
+`5c37ef42` / post `b21a75dc` held all 16 outputs with zero further generated
+changes. Metadata reproduction is not new compiler or provider evidence.
+Resolve this checkpoint's clean signed HEAD/tree and publication from Git and
+actual receipts; no future source identity is asserted here.
+
+Two object-import attempts failed before merge with mounted-repository
+ownership refusals (`09c327`, `449988`). Independent failed posts `773e5000`
+and `28cb2021` retain failure and hold all 3,441 source files/index/refs/status
+with original groups absent. A parent Git `-c safe.directory` did not propagate
+to its upload-pack child. The successful third attempt explicitly used the
+fixed upload-pack command `/usr/bin/git -c safe.directory=/mnt/c/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep/.git -c core.hooksPath=/dev/null -c core.fsmonitor=false upload-pack`
+for this local import. Trust was command-scoped to that exact source, with no
+global exception, new keys, ref export or persistent clone.
+
+### P1: repair the real pre-build refusal, then run owner PTR
+
+The actual clean-f06 bootstrap ran 13:01:07.715–13:01:09.546 UTC and exited
+1/null (`defe3dcd`, operation `2bb5d572`). It failed before inspection,
+artifact completion or any provider submission. The 13:04:56.399 UTC local
+build diagnosis (`81ebc11f`) observed only a successful pinned CLI version
+check and then `GREATER_REALM_PRODUCTION_GIT_CONTEXT_INVALID`; no provider
+request occurred. The checkout's development Git configuration was outside
+the production builder allowlist. Independent post `1b3ff5b5` retains the
+failed result, observes the private inspection/submission journal empty and
+closes the original owner/child/group with source/index/refs held.
+
+The adopted source-owned repair creates a private independent clone of the
+actual committed source, checks raw tracked bytes/modes and minimal Git
+configuration, and retires it after use. It does not relax G001's builder
+allowlist, borrow mutable working-tree changes or require new login/keys.
+After actual affected checks and clean signed publication, rerun the maintained
+`scripts/ptr-compatibility-bootstrap-operator.ts` against that exact source.
+It builds the real PTR artifact inline, checks every preserved old ABI item
+and known additions, binds the authenticated nonbreaking prepublish token,
+then performs one durably marked guarded update. Old private SQL 403 /
+`INVALID_PTR_OWNER_SESSION` still leaves programBefore/rowsBefore `null`.
+Do not invent pre-rows or replay a possibly submitted write. Read the genuine
+complete poststate twice, then provision/verify the fixed owner. The full
+102-output release preparation is separate evidence, not a prerequisite for
+this isolated inline-build route.
+
+### P2: the existing Worker's scoped native owner exchange
+
+The four adopted `ptr-auth-bridge-native-*` files define a distinct direct
+native caller for the existing account/Worker, without forged GitHub permits.
+It has not built/uploaded/deployed a Worker or made provider requests. A
+completed follow-up removes the managed owner value from source and persists
+only value-free operation evidence; its affected checks passed as recorded
+above. Use the existing private owner anchor, never a source literal. Its
+six intended binding changes are PTR enablement, PTR database, PTR audience,
+the existing managed owner FID, the actual clean source-commit binding and provider version
+metadata. Fresh observations must hold Alpha, other modes/bindings, established
+secret names, five Durable Objects, notifications, routes/domain, migration
+and runtime. Managed values are inherited from the actually observed
+predecessor; their values are not exposed or claimed equal by readback.
+
+Use the existing selected Cloudflare production profile and privately supplied
+provider authentication. Worker metadata establishes existing secret names,
+not their values. Protected GitHub secret names also exist; that does not prove
+locally available values or authorize extraction. Discover the existing local
+admin-secret source privately if role attestation needs it; missing local value
+evidence is not a finding of no Cloudflare access. No additional key, login or
+blanket privilege is prescribed. Genuine source/tool/build metadata, unfiltered
+latest-upload checks, durable no-replay markers and read-only reconciliation
+remain required. Do not substitute the unrelated global hosted deployment lane.
+
+### P3 and immediate continuation
+
+Alpha remains at `https://warpkeep.com/`; authenticated owner `/ptr/` is not
+live. The latest preview is [a4e3a104.warpkeep.pages.dev](https://a4e3a104.warpkeep.pages.dev),
+from source `f06bb380`. Root independently observed exact Alpha root bytes
+and preview PTR HTTP 200; apex remains GitHub Alpha 200/PTR 404. Claude's
+compact postflight (`5e2de741`, `C:/dev/Warpkeep/artifacts/claude-qa/postflight-f06-preview-a4e3a104.json`)
+reports 800 files and two fallback routes against genuine plan `b114d976`
+(`C:/dev/wk-ship/artifacts/delivery/0.4.0/public-pages-ptr-mirror-plan-v1.json`).
+Its signed public candidate is `134fcc83` / tree `b4584ea8`, parent `b6afe92e`;
+Root/the independent cadence reviewer verified its signature against the
+trusted PRIMARY allowed-signers mapping. The reported full postflight remains
+attributed frontend evidence, not a
+Codex full refetch or actual owner auth. Production Pages remains at its
+previous deployment; no custom-domain cutover occurred. Preview CORS is not
+allowlisted for the existing auth exchange. Domain cutover, bridge/realm
+exchange and the owner/mobile journey remain unaccepted.
+
+Retain the completed scoped checks, metadata reproduction and all failed
+attempts, then verify clean signed publication of this integrated source.
+Run P1 and its readbacks, then P2 with its fresh provider observations; finally
+use the approved P3 source/export and real owner/mobile acceptance. Keep G001
+players/progress/timers and the new-admission freeze, Alpha/public bytes and
+G002 sealing. Unrelated G002/notification deployments and global S/F/A remain
+separate absent a demonstrated PTR dependency. Full native authority stays
+closed; local slices and metadata do not become hosted identity or release
+acceptance.
+
+Codex/root owns final integration and provider/publication decisions. Claude
+implements the frontend/mobile stream and reports exact heads/results/blockers
+through [issue #384](https://github.com/ael-dev3/Warpkeep/issues/384), following
+the user's current reply cadence. Use the runtime Actions configuration and
+fresh inventories; do not copy numeric policy into instructions. Keep durable
+work in the repository and do not create Desktop duplicates. For identity
+recovery, inspect `login show` before `list --yes`; do not create anonymous
+credentials as a diagnosis.
+
+## Previous isolated owner-PTR continuation — before f06 publication, 3 October 2026 (superseded)
+
 Signed quality source `da3e057ff7fd6a8f5b1a1b2616dff8b3db50cffb` /
 tree `02164ba0ed75c4690ccb126817ee6ecb8fd7e3f9` is the verified native
 base, not a guessed final integration hash. Genuine prepare/check completed
@@ -2357,7 +2501,7 @@ candidate integration only. PRs #375, #376 and #378 remain open as provenance
 until #374 lands; their older source closures should not be merged separately.
 
 PR #376 adds the owner-commissioned castle-film action for the verified FID
-539854 record and narrow-screen castle-selection focus handling. The action is
+existing managed owner record and narrow-screen castle-selection focus handling. The action is
 bound to the resolved castle identity, and stale selections cannot reveal it.
 Its module is lazy-loaded; the built JS is 3.02 kB (1.24 kB gzip), with 3.09 kB
 (1.03 kB gzip) of CSS. The 288,869,749-byte video stays in its versioned public

@@ -12,6 +12,7 @@ import {
   mkdtempSync,
   openSync,
   readFileSync,
+  readdirSync,
   readSync,
   realpathSync,
   rmSync,
@@ -26,6 +27,7 @@ import { withPtrLinuxLockedSourceBuild } from './ptr-binding-linux-locked-source
 import { assertProductionAdminTrustedAncestors } from './production-admin-token-budget.mjs';
 import { attestPinnedSpacetimeCli } from './spacetime-cli-attestation.mjs';
 import { describePtrArtifact } from './ptr-artifact-description.mjs';
+import { runGreaterRealmTrustedGit } from './atlas/greater-realm-git.ts';
 
 export const PTR_PRODUCTION_TARGET = Object.freeze({
   uri: 'https://maincloud.spacetimedb.com',
@@ -814,6 +816,158 @@ function stageCliConfig(sourcePath, directory) {
   });
 }
 
+const PRIVATE_SOURCE_MAXIMUM_ENTRIES = 200_000;
+const PRIVATE_SOURCE_MAXIMUM_BYTES = 2n * 1_024n * 1_024n * 1_024n;
+const PRIVATE_SOURCE_MAXIMUM_DEPTH = 16;
+const PRIVATE_SOURCE_CONFIG_KEYS = /^(?:core\.(?:repositoryformatversion|filemode|bare|logallrefupdates|ignorecase|precomposeunicode)|remote\.origin\.(?:url|fetch)|branch\.[^\r\n]+\.(?:remote|merge)|gc\.auto)$/u;
+
+function sourceGit(root, args, template) {
+  const result = runGreaterRealmTrustedGit([
+    '-c', 'credential.helper=',
+    '-c', 'protocol.allow=never', '-c', 'protocol.file.allow=always',
+    '-c', 'protocol.ext.allow=never', '-c', 'gc.auto=0',
+    ...(template === undefined ? [] : ['-c', `init.templateDir=${template}`]),
+    ...args,
+  ], root);
+  // Local clone can report normal progress/detached-HEAD advice on stderr.
+  // Status/signal/error are the actual terminal contract, not stderr emptiness.
+  if (result.error !== undefined || result.status !== 0 || result.signal !== null
+    || typeof result.stdout !== 'string' || typeof result.stderr !== 'string') {
+    fail('PTR_PRODUCTION_SOURCE_CLONE_GIT_FAILED');
+  }
+  return result.stdout;
+}
+
+function sourceRepositoryIdentity(root, sourceCommit) {
+  const head = sourceGit(root, ['rev-parse', '--verify', 'HEAD']).trim();
+  const kind = sourceGit(root, ['cat-file', '-t', sourceCommit]).trim();
+  const tree = sourceGit(root, ['rev-parse', '--verify', `${sourceCommit}^{tree}`]).trim();
+  if (head !== sourceCommit || kind !== 'commit' || !COMMIT.test(tree)) {
+    fail('PTR_PRODUCTION_SOURCE_CLONE_IDENTITY_INVALID');
+  }
+  return tree;
+}
+
+function sourceInventory(root, independent) {
+  const result = [];
+  let bytes = 0n;
+  const visit = (path, depth) => {
+    if (depth > PRIVATE_SOURCE_MAXIMUM_DEPTH || result.length >= PRIVATE_SOURCE_MAXIMUM_ENTRIES) {
+      fail('PTR_PRODUCTION_SOURCE_CLONE_INVENTORY_INVALID');
+    }
+    const status = lstatSync(path, { bigint: true });
+    if (status.isSymbolicLink() || realpathSync(path) !== path
+      || (!status.isDirectory() && !status.isFile())
+      || (status.mode & 0o022n) !== 0n
+      || (process.getuid !== undefined && status.uid !== BigInt(process.getuid()))
+      || (status.isFile() && (status.nlink < 1n || (independent && status.nlink !== 1n)))) {
+      fail('PTR_PRODUCTION_SOURCE_CLONE_INVENTORY_INVALID');
+    }
+    result.push([path, [status.dev, status.ino, status.mode, status.uid, status.gid,
+      status.nlink, status.size, status.mtimeNs, status.ctimeNs].map(String).join(':')]);
+    if (status.isFile()) {
+      bytes += status.size;
+      if (bytes > PRIVATE_SOURCE_MAXIMUM_BYTES) fail('PTR_PRODUCTION_SOURCE_CLONE_INVENTORY_INVALID');
+    } else {
+      for (const name of readdirSync(path).sort()) visit(join(path, name), depth + 1);
+    }
+  };
+  visit(root, 0);
+  return JSON.stringify(result);
+}
+
+function present(path) {
+  try { lstatSync(path); return true; } catch (error) {
+    if (error?.code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+/** Independent objects only; this helper creates no artifact or release authority. */
+export function withPtrIndependentSourceRepository(input) {
+  if (input === null || typeof input !== 'object'
+    || typeof input.repositoryRoot !== 'string' || !isAbsolute(input.repositoryRoot)
+    || resolve(input.repositoryRoot) !== input.repositoryRoot
+    || realpathSync(input.repositoryRoot) !== input.repositoryRoot
+    || !COMMIT.test(input.sourceCommit ?? '')
+    || typeof input.privateDirectory !== 'string' || !isAbsolute(input.privateDirectory)
+    || resolve(input.privateDirectory) !== input.privateDirectory
+    || typeof input.operation !== 'function') fail('PTR_PRODUCTION_SOURCE_CLONE_INPUT_INVALID');
+  // The artifact factory supplies its held canonical source and a fresh private capsule.
+  const capsule = hardenPrivateArtifactDirectory(input.privateDirectory);
+  const sourceObjects = join(input.repositoryRoot, '.git', 'objects');
+  if (present(join(sourceObjects, 'info', 'alternates'))
+    || present(join(sourceObjects, 'info', 'http-alternates'))) {
+    fail('PTR_PRODUCTION_SOURCE_CLONE_INVENTORY_INVALID');
+  }
+  const sourceBefore = sourceInventory(sourceObjects, false);
+  const expectedTree = sourceRepositoryIdentity(input.repositoryRoot, input.sourceCommit);
+  const container = join(capsule, 'independent-source');
+  mkdirSync(container, { mode: 0o700 });
+  hardenPrivateArtifactDirectory(container);
+  const anchor = lstatSync(container, { bigint: true });
+  const template = join(container, 'empty-template');
+  const clone = join(container, 'repository');
+  let value;
+  let failure;
+  let cloneBefore;
+  try {
+    mkdirSync(template, { mode: 0o700 });
+    hardenPrivateArtifactDirectory(template);
+    sourceGit(capsule, ['clone', '--local', '--no-hardlinks', '--no-checkout',
+      `--template=${template}`, '--', input.repositoryRoot, clone], template);
+    hardenPrivateArtifactDirectory(clone);
+    const gitDirectory = join(clone, '.git');
+    for (const path of ['config.worktree', 'commondir', 'shallow', 'info/grafts',
+      'info/attributes', 'objects/info/alternates', 'objects/info/http-alternates']) {
+      if (present(join(gitDirectory, path))) fail('PTR_PRODUCTION_SOURCE_CLONE_INVENTORY_INVALID');
+    }
+    if (present(join(gitDirectory, 'hooks')) && readdirSync(join(gitDirectory, 'hooks')).length !== 0) {
+      fail('PTR_PRODUCTION_SOURCE_CLONE_INVENTORY_INVALID');
+    }
+    for (const path of [join(gitDirectory, 'info'), join(gitDirectory, 'objects', 'info')]) {
+      if (!present(path)) mkdirSync(path, { mode: 0o700 });
+    }
+    sourceGit(clone, ['config', '--no-includes', '--local', '--replace-all',
+      'remote.origin.url', 'https://github.com/ael-dev3/Warpkeep.git']);
+    sourceGit(clone, ['config', '--no-includes', '--local', '--replace-all', 'gc.auto', '0']);
+    const keys = sourceGit(clone, ['config', '--no-includes', '--local', '--name-only', '--list'])
+      .trim().split('\n');
+    if (keys.some(key => !PRIVATE_SOURCE_CONFIG_KEYS.test(key))) {
+      fail('PTR_PRODUCTION_SOURCE_CLONE_CONFIG_INVALID');
+    }
+    if (sourceRepositoryIdentity(clone, input.sourceCommit) !== expectedTree
+      || sourceRepositoryIdentity(input.repositoryRoot, input.sourceCommit) !== expectedTree) {
+      fail('PTR_PRODUCTION_SOURCE_CLONE_IDENTITY_INVALID');
+    }
+    cloneBefore = sourceInventory(clone, true);
+    value = input.operation(Object.freeze({ repositoryRoot: clone, sourceCommit: input.sourceCommit,
+      sourceTree: expectedTree }));
+  } catch (error) { failure = error; }
+  try {
+    if (sourceInventory(sourceObjects, false) !== sourceBefore
+      || (cloneBefore !== undefined && sourceInventory(clone, true) !== cloneBefore)
+      || sourceRepositoryIdentity(input.repositoryRoot, input.sourceCommit) !== expectedTree) {
+      fail('PTR_PRODUCTION_SOURCE_CLONE_CHANGED');
+    }
+  } catch (error) {
+    failure = failure === undefined ? error : new AggregateError([failure, error],
+      'PTR_PRODUCTION_SOURCE_CLONE_AND_PRESERVATION_FAILED');
+  }
+  try {
+    const current = lstatSync(container, { bigint: true });
+    if (current.isSymbolicLink() || !current.isDirectory() || realpathSync(container) !== container
+      || current.dev !== anchor.dev || current.ino !== anchor.ino || current.uid !== anchor.uid
+      || (current.mode & 0o7777n) !== 0o700n) fail('PTR_PRODUCTION_SOURCE_CLONE_CLEANUP_INVALID');
+    rmSync(container, { recursive: true, force: false });
+  } catch (error) {
+    failure = failure === undefined ? error : new AggregateError([failure, error],
+      'PTR_PRODUCTION_SOURCE_CLONE_AND_CLEANUP_FAILED');
+  }
+  if (failure !== undefined) throw failure;
+  return value;
+}
+
 /** Builds only the committed PTR module and regenerates its exact public ABI. */
 const preparedArtifacts = new WeakSet();
 export function assertPtrSourceBuiltArtifact(value) {
@@ -868,8 +1022,12 @@ export function preparePtrSourceBuiltArtifact(input) {
         | (constants.O_NOFOLLOW ?? 0),
       0o600,
     );
-    const sourceBuild = buildSource({
+    const sourceBuild = withPtrIndependentSourceRepository({
       repositoryRoot: REPOSITORY_ROOT,
+      sourceCommit: input.sourceCommit,
+      privateDirectory: directory,
+      operation: ({ repositoryRoot }) => buildSource({
+      repositoryRoot,
       moduleSourceCommit: input.sourceCommit,
       dependencyCacheRoot: input.dependencyCacheRoot,
       materializationParent: input.materializationParent,
@@ -963,6 +1121,7 @@ export function preparePtrSourceBuiltArtifact(input) {
         moduleProgramHash = Buffer.from(programDigest.digest()).toString('hex');
         return digest.digest('hex');
       },
+      }),
     });
     if (input.reattestSource() !== input.sourceCommit) {
       fail('PTR_PRODUCTION_PROTECTED_MAIN_ADVANCED');

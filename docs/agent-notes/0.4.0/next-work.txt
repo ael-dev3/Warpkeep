@@ -1,6 +1,58 @@
 WARPKEEP 0.4 — NEXT WORK
 CURRENT RESUMPTION — 3 OCTOBER 2026
 
+Read execution-handoff.md for exact receipts before acting. This checkpoint
+integrates PR386/387/388 and the P1/P2 repairs on prior signed quality base
+f06bb380 / tree 9d71959b. Resolve current signed source and publication through
+Git and actual receipts.
+Main cb282bab is unchanged; PR385 remains draft. Alpha is live; owner PTR is
+unpublished. Actions stays OFF under the current runtime policy.
+
+CURRENT INTEGRATION
+Native holds the authentic ordinary merge of PR386 ad4879ce, PR387 00b5e517
+and PR388 1fa2ac2c, plus six private-source-clone repairs and four scoped native
+bridge files. Actual receiving inventory is 3449. Merge/adoption independent
+posts hold source/index/refs and close original actors. Supported family reproduced 16 outputs with six metadata changes and
+independent closure; no compiler ran. Fifteen complete files passed 344 cases, zero failed/skipped, with types/syntax
+and independent source/Git/process closure at its adopted v2 source. The final
+P2 privacy repair separately passed its whole 31-case file, three type checks
+and core syntax with independent closure. The earlier strict type-graph failure
+is retained; the pure-core input helper fixes that dependency without a waiver.
+The privacy family reproduced 16 outputs with no further generated changes.
+Earlier native ordinary/raw-skip failures remain retained;
+complete native authority is still closed.
+
+NEXT
+1. Verify the integrated source's clean signed publication and synchronized
+   checkout from actual Git/receipts. Retain the separate 344-case and 31-case
+   scopes, metadata reproduction and failed attempts; do not repeat unrelated
+   completed batches or infer full native authority.
+2. Run the maintained PTR compatibility bootstrap from that clean source. The
+   first f06 attempt stopped before build/submission because of development Git
+   configuration. The adopted private independent clone preserves G001's guard.
+   Genuine inline build/ABI, authenticated nonbreaking prepublish token, durable
+   one-write marker and two poststate reads remain required. Old private before-
+   program/rows stay null; never replay an uncertain write. Full 102-output
+   preparation is separate, not an isolated-PTR prerequisite.
+3. Provision/verify the existing managed owner, then execute the scoped native existing-Worker
+   route with fresh observations and existing privately supplied credentials.
+   Missing local admin-secret value evidence requires actual metadata/access
+   discovery; configured GitHub names are not local values. Preserve Alpha,
+   G001/G002, managed secret names, Durable Objects, routes and notifications.
+4. Bring the approved integrated frontend to the Alpha-preserving Cloudflare
+   Pages /ptr/ route. The latest https://a4e3a104.warpkeep.pages.dev preview preserves Alpha
+   root bytes; its reported 800+2 postflight is pinned frontend evidence, not
+   domain cutover
+   or authenticated owner/mobile acceptance. Complete that real journey before
+   calling owner PTR delivered.
+
+Codex/root has final integration and delivery authority; Claude contributes P3.
+Coordinate actual heads/results/blockers through issue #384 under the user's
+current request. Do not duplicate numerical Actions policy, grant new permission,
+create Desktop files or require unrelated global S/F/A/G002 deployments here.
+
+PREVIOUS INTEGRATED RESUMPTION — BEFORE F06 PUBLICATION, 3 OCTOBER 2026 (SUPERSEDED)
+
 Read docs/agent-notes/0.4.0/execution-handoff.md before acting. The
 signed da3e057f base has a genuine prepare/check and independent closure. A
 later native integration contains authentic PR #383 changes, maintenance,

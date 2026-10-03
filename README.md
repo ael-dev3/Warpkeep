@@ -41,32 +41,19 @@ on a desktop. Reused assets retain their original credits and permissions.
 ## Where development stands
 
 **Alpha 0.3.43 is live; authenticated 0.4 owner PTR is not yet published.**
-The signed `da3e057f` source is the verified base for a genuine native
-prepare/check, with independent source and process closure. Later reviewed
-PR #383, maintenance, PTR compatibility and G001 refreeze work is present in
-the guarded native integration. Resolve its signed checkpoint and publication
-from actual Git and receipts; the earlier base preparation does not cover the
-combined source. See the [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md).
-[PR #385](https://github.com/ael-dev3/Warpkeep/pull/385) remains a draft
-integration into `main`, superseding the #380/#381 stack; it is not a live
-deployment.
+This checkpoint integrates the reviewed PRs #386–#388 and native PTR delivery
+repairs on signed quality base `f06bb380`. [PR #385](https://github.com/ael-dev3/Warpkeep/pull/385)
+remains a draft integration into `main`. The [delivery status](docs/operations/0.4.0-live-delivery-status.md)
+and [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) track the latest
+verified source, publication and remaining work.
 
-Focused local checks cover the changed code, including the isolated namespace
-suite. One ordinary aggregate still records its raw skips and strict failure;
-metadata regeneration and focused tests are not a final-source build or owner
-acceptance. The existing PTR module still refuses the publisher's SQL session.
-After a clean source checkpoint, the maintained compatibility bootstrap
-builds the real PTR artifact inline, validates its ABI and authenticated
-nonbreaking prepublish token, performs one durably marked guarded update,
-then reads the complete poststate twice. Private program/row before-state
-remains unknown because old SQL refuses it. Full combined-source preparation
-is separate release evidence, not a prerequisite for this isolated repair.
-The bridge needs the direct owner caller's PTR exchange, and the frontend needs
-an Alpha-preserving `/ptr/` publication and real owner/mobile validation. The
-Cloudflare preview uses an older source and is neither a custom-domain cutover
-nor accepted owner PTR. G001 player state and the new-admission freeze must
-hold; G002 stays sealed. Codex and Claude coordinate their separate source
-lanes in [issue #384](https://github.com/ael-dev3/Warpkeep/issues/384).
+The delivery route is a compatible owner-PTR backend update, a scoped auth
+bridge configuration and an Alpha-preserving Cloudflare Pages `/ptr/` build,
+followed by a real owner journey and mobile validation. The [Cloudflare preview](https://a4e3a104.warpkeep.pages.dev)
+uses prior base `f06bb380` and preserves the Alpha root; it is not a domain
+cutover or authenticated owner acceptance. G001 state and the admission freeze
+must hold; G002 stays sealed. Backend and frontend work coordinate in
+[issue #384](https://github.com/ael-dev3/Warpkeep/issues/384).
 
 The 0.4 foundation and reviewed contributions have been integrated into main
 through [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374) and

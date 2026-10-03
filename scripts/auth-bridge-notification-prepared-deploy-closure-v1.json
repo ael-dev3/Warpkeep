@@ -1560,12 +1560,12 @@
     {
       "path": "scripts/ptr-production-publisher.d.mts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "6237b392935fd32871fba55932243e6e2881685cdbe2e0544fa8753c5618adf2"
+      "sha256": "9ab4d92e1d1849706d9d745c65caf003a573b53c82901935cc0ed721900b8073"
     },
     {
       "path": "scripts/ptr-production-publisher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "e8e456ed0933e2a47ea3c28904606974298b077cfb864211cd19e286ecfbb463"
+      "sha256": "648dfced9cb5b296e679cbb6d6946b6182ed2cb9a3d055df949ce56c792d6bb9"
     },
     {
       "path": "scripts/ptr-production-receipt-file.ts",
@@ -2175,7 +2175,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "2f462e260848e3ffc51e280948432359ba1583859cd5ec888641b54266e18007"
+      "sha256": "4c236f1a97afbc0526edfc11f478a94f35df73f854cc6b884c1eed3a90a67875"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
@@ -3890,7 +3890,7 @@
     {
       "path": "src/components/keep04/createKeep04Landscape.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b22f4ee787bb1bfdb13e35b98ecd3bd4d627c1cfa22ca3824123b6ec462c01d0"
+      "sha256": "1167bc3b01ed2e5c6f5eea11ba35b85e14e6f948d6371d2d5216821717e92f01"
     },
     {
       "path": "src/components/keep04/createKeep04Life.ts",
@@ -3945,7 +3945,7 @@
     {
       "path": "src/components/keep04/keep04Terrain.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "0775051a8813803645161cc86f81f9e3ffb6b3542712ed8c0fd6be58e6e8a247"
+      "sha256": "b2c7236e01d23c7e9ad3b52e4a3e8b0355ea1f7945cf91ccd66e02f644077b64"
     },
     {
       "path": "src/components/keep04/keep04ValePalette.ts",

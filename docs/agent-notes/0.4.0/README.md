@@ -5,7 +5,61 @@ this index to find the implementation, current evidence, and next useful work.
 The goal is a satisfying **gather → choose → build → benefit → return** journey
 and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
+## Current operating decision — 3 October 2026
+
+- **Route.** 0.4 ships owner PTR first, at `warpkeep.com/ptr/`.
+  - The Alpha root, G001 state, timers and admission policy are preserved.
+  - G002 stays sealed.
+  - A wider rollout is separate later work.
+- **Why Cloudflare.** The private repository's included hosted Actions allowance is exhausted, and Actions stays disabled under the current policy. This route therefore doesn't use hosted Verify, protected workflow dispatches or branch Pages. It uses the Cloudflare route that the owner chose instead. Each provider action follows the owner's current instructions; this note records the route and grants no permission.
+- **Steps:**
+  - P1: native `warpkeep-ptr` update and owner provisioning (Codex);
+  - P2: a native PTR-only bridge binding (Codex);
+  - P3: `/ptr/` publication on Cloudflare Pages, with mobile validation (Claude).
+- **Coordination.** Ownership, results and blockers are tracked in [issue #384](https://github.com/ael-dev3/Warpkeep/issues/384).
+- **Preview.** The Pages preview at `warpkeep.pages.dev` (source `a89173f9`) only proves the delivery route.
+  - It isn't the accepted final source.
+  - The custom-domain cutover follows a successful final postflight.
+
+The current session's user instructions remain authoritative.
+
 ## Current working state — 3 October 2026
+
+This checkpoint integrates the authentic PR #386 (`ad4879ce`), #387
+(`00b5e517`) and #388 (`1fa2ac2c`) heads with the P1 private-source-clone
+repair and P2 scoped native bridge caller, on signed quality base `f06bb380`.
+Resolve the latest signed HEAD/tree and publication from Git and its receipts.
+Main `cb282bab` is unchanged and [PR #385](https://github.com/ael-dev3/Warpkeep/pull/385)
+remains draft. Alpha 0.3.43 is live; authenticated owner `/ptr/` is unpublished.
+
+The 3,449-file integration passed fifteen complete files with 344 cases and
+related types/syntax. The final P2 privacy repair then passed its complete
+31-case file, all three type checks and core syntax, with independent process/
+source/Git closure. The earlier strict type failure is retained in the handoff;
+its heavyweight receipt-parser import was replaced with the pure owner-input
+helper. Supported family reproduction held all 16 outputs, with no further
+generated change after the privacy correction. These are scoped local results,
+not full native authority or provider execution.
+
+P1 and P2 have not updated the realm or auth Worker. After clean signed
+publication, continue the inline PTR compatibility bootstrap, owner provisioning
+and scoped direct-native bridge route. The clone repair preserves G001's builder
+guard. Actual ABI, nonbreaking token, durable no-replay and provider readback
+checks remain required; full 102-output preparation and unrelated hosted permits
+are separate from this isolated caller.
+
+The latest [Pages preview](https://a4e3a104.warpkeep.pages.dev) uses prior base
+`f06bb380` and preserves Alpha root bytes. Claude's pinned postflight reports
+800 files/two fallbacks; root independently sampled Alpha bytes and PTR HTTP 200.
+It is not a domain cutover, PTR auth or owner/mobile acceptance. The decision
+block's `a89173f9` preview records the earlier trial. Codex/root retains final
+integration/delivery authority; Claude contributes P3 through
+[issue #384](https://github.com/ael-dev3/Warpkeep/issues/384).
+
+Use the [handoff](execution-handoff.md) for exact receipts and next operations.
+Actions remains held under its runtime policy.
+
+## Previous integrated work — before f06 publication, 3 October 2026 (superseded)
 
 Signed `da3e057f` / tree `02164ba0` is the verified base for this
 checkpoint; resolve the latest HEAD/tree and guarded native source from Git.

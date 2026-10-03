@@ -34,6 +34,25 @@ vi.mock('../scripts/ptr-binding-linux-locked-source-build.ts', () => ({
     dependencyClosureDigest: 'd'.repeat(64),
   }),
 }));
+// Source identity/clone is isolated here; the new real-Git suite tests those semantics.
+vi.mock('../scripts/atlas/greater-realm-git.ts', async () => {
+  const fs = await vi.importActual<typeof import('node:fs')>('node:fs');
+  const path = await vi.importActual<typeof import('node:path')>('node:path');
+  return { runGreaterRealmTrustedGit: (args: readonly string[]) => {
+    const cloneIndex = args.indexOf('clone');
+    if (cloneIndex !== -1) {
+      const root = args.at(-1)!;
+      fs.mkdirSync(path.join(root, '.git', 'objects', 'info'), { recursive: true, mode: 0o700 });
+      fs.mkdirSync(path.join(root, '.git', 'info'), { mode: 0o700 });
+      fs.writeFileSync(path.join(root, '.git', 'config'), '[core]\nfilemode = true\n', { mode: 0o600 });
+    }
+    const stdout = args.includes('--name-only') ? 'core.filemode\n'
+      : args.includes('cat-file') ? 'commit\n'
+        : args.includes('rev-parse') ? `${args.at(-1) === 'HEAD' ? 'a'.repeat(40) : 'b'.repeat(40)}\n` : '';
+    return { status: 0, signal: null, stdout, stderr: '' };
+  } };
+});
+
 import { preparePtrSourceBuiltArtifact, assertPtrSourceBuiltArtifact } from '../scripts/ptr-production-publisher.mjs';
 import { updateProgramHash } from '../scripts/sealed-realms-existing-update-protocol.mjs';
 const schema = readFileSync(
