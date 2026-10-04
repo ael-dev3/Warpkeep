@@ -10,6 +10,8 @@ import {
   PUBLIC_PAGES_WORKFLOW_PATH,
   PUBLIC_PAGES_WORKFLOW_TEMPLATE_SHA256,
   PUBLIC_PAGES_WORKFLOW_TEMPLATE_BYTE_LENGTH,
+  PUBLIC_PAGES_LEGAL_HEADERS_PATH,
+  publicPagesLegalHeadersBytes,
   renderPublicPagesMirrorReadme,
   SOURCE_PUBLIC_DOCUMENTS,
 } from './verify-public-pages-mirror-plan.mjs';
@@ -22,7 +24,10 @@ const LIVE_ORIGIN = 'https://warpkeep.com';
 const PUBLIC_REPOSITORY = 'ael-dev3/Warpkeep-Live';
 const PAGES_WORKFLOW_PATH = 'dynamic/pages/pages-build-deployment';
 const PRESERVED_ROOT_HOST_PATHS = Object.freeze(['.nojekyll', '404.html', 'CNAME']);
-const HOSTING_PATHS = Object.freeze(['README.md', PUBLIC_PAGES_MIRROR_MANIFEST_PATH, 'ptr/404.html']);
+const HOSTING_PATHS = Object.freeze([
+  'README.md', PUBLIC_PAGES_MIRROR_MANIFEST_PATH, 'ptr/404.html',
+  PUBLIC_PAGES_LEGAL_HEADERS_PATH,
+]);
 const PRESERVED_ROOT_REQUIRED = Object.freeze(['.nojekyll', '404.html', 'CNAME', 'index.html']);
 const REQUIRED_GENERATED_FILES = Object.freeze([
   '.well-known/farcaster.json',
@@ -403,9 +408,12 @@ function validateManifest(bytes, plan, entries) {
     || entries.get(PUBLIC_PAGES_MIRROR_MANIFEST_PATH).sha256 !== sha256(bytes)
   ) fail('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
   const readme = renderPublicPagesMirrorReadme(manifest, sha256(bytes));
+  const legalHeaders = publicPagesLegalHeadersBytes();
   if (
     entries.get('README.md').byteLength !== readme.length
     || entries.get('README.md').sha256 !== sha256(readme)
+    || entries.get(PUBLIC_PAGES_LEGAL_HEADERS_PATH)?.byteLength !== legalHeaders.length
+    || entries.get(PUBLIC_PAGES_LEGAL_HEADERS_PATH)?.sha256 !== sha256(legalHeaders)
   ) fail('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
   for (const [path, entry] of entries) {
     if (!generated.has(path) && !HOSTING_PATHS.includes(path)

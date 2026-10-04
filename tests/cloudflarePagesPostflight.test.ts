@@ -7,6 +7,8 @@ import {
   verifyCloudflarePagesPostflight,
 // @ts-expect-error Standalone release utility exposes named test seams.
 } from '../scripts/verify-cloudflare-pages-postflight.mjs';
+// @ts-expect-error Standalone release utility exposes the generated Pages headers.
+import { PUBLIC_PAGES_LEGAL_HEADERS_PATH, publicPagesLegalHeadersBytes } from '../scripts/verify-public-pages-mirror-plan.mjs';
 
 const sha = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
 const ORIGIN = 'https://warpkeep.pages.dev';
@@ -71,6 +73,54 @@ describe('Cloudflare Pages postflight', () => {
     });
     expect(result).toMatchObject({ origin: ORIGIN, verifiedFileCount: 6, verifiedFallbackRoutes: 2, sourceCommit: 'a'.repeat(40) });
     expect(server.requested).toContain('/ptr/__warpkeep-postflight-missing__');
+  });
+
+  it('requires text/plain for /LICENSE and /NOTICE and does not fetch _headers', async () => {
+    const headers = publicPagesLegalHeadersBytes();
+    const legal = { LICENSE: 'Apache-2.0 license text\n', NOTICE: 'Warpkeep notice\n' };
+    const planned: Record<string, string> = {
+      ...files, ...legal, [PUBLIC_PAGES_LEGAL_HEADERS_PATH]: headers.toString('utf8'),
+    };
+    const targetEntries = Object.entries(planned).map(([path, body]) => ({
+      path, byteLength: Buffer.byteLength(body), sha256: sha(body), origin: 'generated',
+    }));
+    const { bytes, digest } = planBytes({ targetEntries, targetFileCount: targetEntries.length });
+    const server = pagesServer({ ...files, ...legal });
+    const requested: string[] = [];
+    const typed = (contentType: string) => async (url: string, init: { redirect?: string }) => {
+      const route = new URL(url).pathname;
+      requested.push(route);
+      if (route === '/LICENSE' || route === '/NOTICE') {
+        return new Response(legal[route.slice(1) as 'LICENSE' | 'NOTICE'], {
+          status: 200, headers: { 'content-type': contentType },
+        });
+      }
+      return server.fetchImpl(url, init);
+    };
+    const result = await verifyCloudflarePagesPostflight({
+      origin: ORIGIN, reviewedPlanBytes: bytes, expectedReviewedPlanSha256: digest,
+      fetchImpl: typed('text/plain; charset=utf-8'),
+    });
+    expect(result).toMatchObject({ verifiedLegalPlainTextRoutes: 2, verifiedFileCount: targetEntries.length });
+    expect(requested).not.toContain('/_headers');
+    requested.length = 0;
+    for (const contentType of ['application/octet-stream', 'text/plain']) {
+      await expect(verifyCloudflarePagesPostflight({
+        origin: ORIGIN, reviewedPlanBytes: bytes, expectedReviewedPlanSha256: digest,
+        fetchImpl: typed(contentType),
+      })).rejects.toMatchObject({
+        code: 'CLOUDFLARE_PAGES_POSTFLIGHT_CONTENT_TYPE_INVALID',
+        paths: ['LICENSE', 'NOTICE'],
+      });
+      expect(requested).not.toContain('/_headers');
+      requested.length = 0;
+    }
+    const withoutHeaders = targetEntries.filter(entry => entry.path !== PUBLIC_PAGES_LEGAL_HEADERS_PATH);
+    const missing = planBytes({ targetEntries: withoutHeaders, targetFileCount: withoutHeaders.length });
+    await expect(verifyCloudflarePagesPostflight({
+      origin: ORIGIN, reviewedPlanBytes: missing.bytes, expectedReviewedPlanSha256: missing.digest,
+      fetchImpl: typed('text/plain; charset=utf-8'),
+    })).rejects.toMatchObject({ code: 'CLOUDFLARE_PAGES_POSTFLIGHT_PLAN_INVALID' });
   });
 
   it('names the paths whose served bytes differ', async () => {

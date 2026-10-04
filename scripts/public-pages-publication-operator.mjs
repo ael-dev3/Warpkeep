@@ -13,6 +13,8 @@ import {
   PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH,
   PUBLIC_PAGES_WORKFLOW_TEMPLATE_SHA256,
   PUBLIC_PAGES_WORKFLOW_TEMPLATE_BYTE_LENGTH,
+  PUBLIC_PAGES_LEGAL_HEADERS_PATH,
+  publicPagesLegalHeadersBytes,
   renderPublicPagesMirrorReadme,
   SOURCE_PUBLIC_DOCUMENTS,
   verifyPublicPagesMirrorPlan,
@@ -30,7 +32,10 @@ const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_TREE_BYTES = 320 * 1024 * 1024;
 const MAX_FILES = 20_000;
 const PRESERVED_ROOT_HOST_FILES = new Set(['.nojekyll', '404.html', 'CNAME']);
-const HOSTING_FILES = new Set(['README.md', PUBLIC_PAGES_MIRROR_MANIFEST_PATH, 'ptr/404.html']);
+const HOSTING_FILES = new Set([
+  'README.md', PUBLIC_PAGES_MIRROR_MANIFEST_PATH, 'ptr/404.html',
+  PUBLIC_PAGES_LEGAL_HEADERS_PATH,
+]);
 const PRESERVED_ROOT_REQUIRED = ['.nojekyll', '404.html', 'CNAME', 'index.html'];
 const REQUIRED_GENERATED = [
   '.well-known/farcaster.json',
@@ -224,6 +229,7 @@ function readTargetFile(entry, sourceRoot, publicRoot, plan, manifestBytes, mani
   }
   if (path === 'README.md') return renderPublicPagesMirrorReadme(manifest, plan.payloadManifestSha256);
   if (path === PUBLIC_PAGES_MIRROR_MANIFEST_PATH) return Buffer.from(manifestBytes);
+  if (path === PUBLIC_PAGES_LEGAL_HEADERS_PATH) return publicPagesLegalHeadersBytes();
   const sourcePath = path === 'ptr/404.html' ? 'dist/index.html'
     : path === PUBLIC_PAGES_WORKFLOW_PATH && plan.deploymentMode === 'workflow'
       ? PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH

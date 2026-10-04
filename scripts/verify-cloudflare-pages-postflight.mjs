@@ -3,13 +3,20 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import {
+  PUBLIC_PAGES_LEGAL_HEADERS_PATH,
+  publicPagesLegalHeadersBytes,
+} from './verify-public-pages-mirror-plan.mjs';
+
 /**
  * Live postflight for the Cloudflare Pages delivery lane (owner direction,
- * 3 October 2026: no GitHub Actions). It fetches every file of a reviewed
+ * 3 October 2026: no GitHub Actions). It fetches every served file of a reviewed
  * `/ptr/` mirror plan from one HTTPS origin and requires byte-identical bodies,
- * plus the SPA fallback routes. It reads public URLs only: it needs no
- * credential and changes nothing. A pass describes the served bytes at the time
- * of the run; it is not owner sign-in, realm readiness or device acceptance.
+ * plus the SPA fallback routes. The root `_headers` file is Pages metadata and
+ * is not fetched; when the plan publishes `/LICENSE` or `/NOTICE`, those routes
+ * must answer `text/plain; charset=utf-8`. It reads public URLs only: it needs
+ * no credential and changes nothing. A pass describes the served bytes at the
+ * time of the run; it is not owner sign-in, realm readiness or device acceptance.
  */
 
 export const CLOUDFLARE_PAGES_PROJECT = 'warpkeep';
@@ -22,6 +29,8 @@ const MAX_PLAN_BYTES = 4 * 1024 * 1024;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_ENTRIES = 20_000;
 const MISSING_PROBE = '__warpkeep-postflight-missing__';
+const LEGAL_PLAIN_PATHS = Object.freeze(['LICENSE', 'NOTICE']);
+const LEGAL_PLAIN_TYPE = /^text\/plain;\s*charset=utf-8$/iu;
 
 export class CloudflarePagesPostflightError extends Error {
   constructor(code) {
@@ -122,7 +131,11 @@ async function fetchExact(fetchImpl, url, maximumBytes, timeoutMs, runSignal) {
         failure();
       }
     }
-    return { status: response.status, body: Buffer.concat(chunks, length) };
+    return {
+      status: response.status,
+      contentType: response.headers?.get?.('content-type') ?? null,
+      body: Buffer.concat(chunks, length),
+    };
   } finally {
     clearTimeout(timer);
     runSignal?.removeEventListener('abort', retire);
@@ -139,17 +152,28 @@ export async function verifyCloudflarePagesPostflight({
     fail('ARGUMENT_INVALID');
   }
   const { plan, entries } = parseReviewedPlan(reviewedPlanBytes, expectedReviewedPlanSha256);
+  const headersEntry = entries.get(PUBLIC_PAGES_LEGAL_HEADERS_PATH);
+  if (headersEntry || LEGAL_PLAIN_PATHS.some(path => entries.has(path))) {
+    const expectedHeaders = publicPagesLegalHeadersBytes();
+    if (!headersEntry || headersEntry.byteLength !== expectedHeaders.length
+      || headersEntry.sha256 !== sha256(expectedHeaders)) fail('PLAN_INVALID');
+  }
   const queue = [...entries.values()];
   const mismatched = [];
+  const mistyped = [];
   // The first request failure stops the shared queue and aborts in-flight
   // requests; every worker settles before the failure is reported.
   const run = new AbortController();
   let firstFailure = null;
   async function worker() {
     for (let entry = queue.pop(); entry !== undefined && !run.signal.aborted; entry = queue.pop()) {
+      if (entry.path === PUBLIC_PAGES_LEGAL_HEADERS_PATH) continue;
       try {
-        const { status, body } = await fetchExact(fetchImpl, `${origin}${canonicalRoute(entry.path)}`, entry.byteLength + 1, timeoutMs, run.signal);
+        const { status, body, contentType } = await fetchExact(fetchImpl, `${origin}${canonicalRoute(entry.path)}`, entry.byteLength + 1, timeoutMs, run.signal);
         if (status !== 200 || body.length !== entry.byteLength || sha256(body) !== entry.sha256) mismatched.push(entry.path);
+        else if (LEGAL_PLAIN_PATHS.includes(entry.path) && !LEGAL_PLAIN_TYPE.test(contentType ?? '')) {
+          mistyped.push(entry.path);
+        }
       } catch (error) {
         if (firstFailure === null) firstFailure = error;
         run.abort();
@@ -161,6 +185,11 @@ export async function verifyCloudflarePagesPostflight({
   if (mismatched.length > 0) {
     throw Object.assign(new CloudflarePagesPostflightError('CLOUDFLARE_PAGES_POSTFLIGHT_CONTENT_MISMATCH'), {
       paths: Object.freeze(mismatched.sort().slice(0, 20)),
+    });
+  }
+  if (mistyped.length > 0) {
+    throw Object.assign(new CloudflarePagesPostflightError('CLOUDFLARE_PAGES_POSTFLIGHT_CONTENT_TYPE_INVALID'), {
+      paths: Object.freeze(mistyped.sort()),
     });
   }
   // Unknown paths must fall back to the nearest SPA 404 page with a 404 status.
@@ -177,6 +206,7 @@ export async function verifyCloudflarePagesPostflight({
     publicParentCommit: plan.publicParentCommit,
     verifiedFileCount: entries.size,
     verifiedFallbackRoutes: 2,
+    verifiedLegalPlainTextRoutes: LEGAL_PLAIN_PATHS.filter(path => entries.has(path)).length,
   });
 }
 
