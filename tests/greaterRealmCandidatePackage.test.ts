@@ -353,6 +353,111 @@ afterAll(() => {
 });
 
 describe('Greater Realm owner-only candidate package', () => {
+  it('roundtrips repaired semantic regions without trusting claimed mappings', async () => {
+    const fixture = requireFixture();
+    const repairBatchHandle = 'GR-B-BBBBBBBBBBBBBBBB';
+    const repairCandidateHandle = 'GR-A-BBBBBBBBBBBBBBBB';
+    // Reuse the public repair fixture already covered by Tier-II capacity QA.
+    const rootSeed = Uint8Array.from(createHash('sha256')
+      .update('greater-realm-lowlands-repair-public-g', 'utf8')
+      .update(Uint8Array.of(92, 48))
+      .digest());
+    let repaired: GreaterRealmPrivateCandidate | undefined;
+    let batchSeedEnvelope: Buffer | undefined;
+    try {
+      repaired = generateGreaterRealmCandidate({ rootSeed, candidateOrdinal: 18 });
+      expect(repaired.aggregate.eligible).toBe(true);
+      expect(Object.values(repaired.aggregate.proofs).every(Boolean)).toBe(true);
+      expect(repaired.tierOneSemanticRegionByRole).toEqual([0, 5, 2, 1, 4, 3]);
+      expect(repaired.privateMetrics.topographicQa.regionalHydrogeomorphology.proof)
+        .toBe(true);
+
+      for (const claimedMapping of [
+        Object.freeze([0, 5, 2, 1, 4]),
+        Object.freeze([0, 5, 2, 1, 4, 4]),
+        Object.freeze([0, 5, 2, 4, 1, 3]),
+        Object.freeze([0, 1, 2, 3, 4, 5]),
+      ]) {
+        const invalid = Object.freeze({
+          ...repaired,
+          tierOneSemanticRegionByRole: claimedMapping,
+        }) as GreaterRealmPrivateCandidate;
+        expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+          'GREATER_REALM_PRIVATE_TOPOGRAPHIC_QA_INVALID',
+        );
+      }
+
+      const topographicQa = repaired.privateMetrics.topographicQa;
+      const regional = topographicQa.regionalHydrogeomorphology;
+      for (const driftedRegional of [
+        Object.freeze({
+          ...regional,
+          frostmere: Object.freeze({
+            ...regional.frostmere,
+            fjordCellCount: regional.frostmere.fjordCellCount + 1,
+          }),
+        }),
+        Object.freeze({ ...regional, proof: false }),
+      ]) {
+        const invalid = Object.freeze({
+          ...repaired,
+          privateMetrics: Object.freeze({
+            ...repaired.privateMetrics,
+            topographicQa: Object.freeze({
+              ...topographicQa,
+              regionalHydrogeomorphology: driftedRegional,
+            }),
+          }),
+        }) as GreaterRealmPrivateCandidate;
+        expect(() => serializeGreaterRealmPrivateAtlas(invalid)).toThrow(
+          'GREATER_REALM_PRIVATE_TOPOGRAPHIC_QA_INVALID',
+        );
+      }
+
+      const repairBatchSeedDigest = createHash('sha256').update(rootSeed).digest('hex');
+      batchSeedEnvelope = encodeGreaterRealmPrivateSeed(rootSeed, 'batch');
+      fixture.workspace.writeFileAtomic(
+        `batches/${repairBatchHandle}/batch-seed.bin`,
+        batchSeedEnvelope,
+        GREATER_REALM_PRIVATE_SEED_ENVELOPE_BYTES,
+      );
+      batchSeedEnvelope.fill(0);
+      const written = await writeGreaterRealmPrivateCandidate({
+        workspace: fixture.workspace,
+        batchHandle: repairBatchHandle,
+        candidateHandle: repairCandidateHandle,
+        sourceCommit: SOURCE_COMMIT,
+        candidate: repaired,
+        performance: PERFORMANCE,
+      });
+      let verifiedRuntimeSource = false;
+      await expect(verifyGreaterRealmPrivateCandidatePackage({
+        workspace: fixture.workspace,
+        batchHandle: repairBatchHandle,
+        candidateHandle: repairCandidateHandle,
+        expectedCandidateOrdinal: 18,
+        sourceCommit: SOURCE_COMMIT,
+        expectedBatchSeedDigest: repairBatchSeedDigest,
+        expectedActiveCellCount: repaired.grid.cellCount,
+        expectedAggregate: repaired.aggregate,
+        expectedPerformance: PERFORMANCE,
+        expectedAtlasDigest: written.atlasDigest,
+        expectedManifestDigest: written.manifestDigest,
+        onVerifiedPrivateCandidate: source => {
+          expect(source.grid.cellCount).toBe(repaired!.grid.cellCount);
+          expect(source.regionId).toEqual(repaired!.regionId);
+          expect(source.waterRegime).toEqual(repaired!.waterRegime);
+          verifiedRuntimeSource = true;
+        },
+      })).resolves.toEqual(written);
+      expect(verifiedRuntimeSource).toBe(true);
+    } finally {
+      rootSeed.fill(0);
+      batchSeedEnvelope?.fill(0);
+      if (repaired) clearGreaterRealmPrivateCandidateBuffers(repaired);
+    }
+  });
+
   it('serializes canonically and verifies every expected private package component', async () => {
     const fixture = requireFixture();
     const first = serializeGreaterRealmPrivateAtlas(fixture.candidate);
