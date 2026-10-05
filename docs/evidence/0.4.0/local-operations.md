@@ -64,9 +64,9 @@ regional hydrogeomorphology by area (Frostmere 21, Mirefen 14, QA 31, Stonewake
 tier-potential density (3), and topographic QA completion (25). These top
 solver counts are within one or two of the preceding independent cff run
 (96/52/36), confirming a systemic bounded-search issue rather than a seed-
-specific failure. The encrypted c7 checkpoint remains private pending this
-evidence sync and must be retired only through the maintained abort command;
-production was untouched.
+specific failure. After this evidence was synchronized, the maintained abort
+operation returned `checkpointAborted: true` and `productionUntouched: true` for
+the exhausted c7 checkpoint. No private checkpoint bytes or seed were exposed.
 
 The earlier exact-source `e1ac103` search separately exhausted 128 ordinals;
 its safe summary remains in the preceding Git history. The separate
@@ -86,6 +86,38 @@ Earlier Windows build/type/module/catalog/PTR/hydrology checks remain valid for
 their recorded scopes. The broad runtime-release suite retains its Windows
 private-temp ACL guard limitation. GitHub Actions is disabled; successful local
 checks and Git pushes do not establish hosted CI or deployment.
+
+### Bounded Tier-II bundle-frontier correction — 5 October 2026
+
+Review of the two duplicated bundle builders found that each kept the first 32
+valid pairs from lexicographic edge-pair enumeration after score-ranking up to
+64 edges. Because each first edge was compared with every later edge before the
+outer loop advanced, one early endpoint could occupy much of the bounded
+option list. This is a concrete frontier-selection defect; whether correcting
+it resolves the observed rejection profile remains to be measured on the next
+exact-source private batch.
+
+The correction uses one shared normal/Lowlands-repair builder. It retains the
+same 64 input-edge and 32 output-bundle caps, score ranking, distinct endpoint
+requirements, 4–48 axial separation, corridor-conflict exclusion and all later
+eligibility/content proofs. It gathers only compact viable-pair descriptors,
+selects a deterministic score-ranked frontier by gradually balancing use of
+each edge endpoint, and materializes private coordinate footprints only for the
+selected pairs. Lowlands repair still uses its existing restricted edge source;
+no policy, map-quality threshold, protocol, or player-facing feature changed.
+
+Validation on this source correction: `tests/greaterRealmGateApronSearch.test.ts`
+passed all 16 cases, including endpoint balance, deterministic ordering,
+constrained-graph fallback and malformed/duplicate descriptor rejection.
+`tests/greaterRealmCandidateGenerator.test.ts` passed all 21 deterministic
+generator regressions, including its pinned digest and expected rejection
+fixture. `npm run typecheck` passed (`tsc -b`); `git diff --check` passed. The
+correction has not yet been exercised by a fresh private source-bound batch, so
+candidate generation, package acceptance, shortlist, selection, atlas
+publication, provider changes and owner gameplay remain open. The next run must
+use the newly signed/published exact source and the maintained private
+generator; do not reuse the exhausted c7 or older `19b3422` seed state. Actions
+remains disabled, so a push is not hosted verification or deployment.
 
 Read-only live checks on 5 October: `https://warpkeep.com/` returned 200,
 `https://warpkeep.com/ptr/` returned 404, and `https://warpkeep.pages.dev/ptr/`

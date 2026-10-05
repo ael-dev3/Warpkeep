@@ -3,9 +3,11 @@ CURRENT RESUMPTION - 5 OCTOBER 2026
 
 Owner PTR remains the release target; preserve the existing Alpha root/G001,
 keep G002 sealed, and use the ordered release record in execution-handoff.md.
-GitHub Actions is disabled and idle in all four configured repositories. The
-owner explicitly approved only the hydrology correction in #384 comment
-5995094139; do not widen any other release gate.
+The owner delegated remaining release decisions on 5 October. Keep all
+maintained quality, source-binding, preservation, rollback and acceptance gates;
+this delegation does not turn a local check or push into deployment evidence.
+GitHub Actions remains disabled; preserve that hold and its downstream Pages
+chain.
 
 The latest private search ran against signed, pushed source
 `c7c494bbfe9888ebfac3aa910aa8cc3b42839b96`; PR #385 remains open and draft.
@@ -21,33 +23,33 @@ The exact-source `e1ac103` search exhausted 128 ordinals. Fresh 256-attempt
 searches on `cff3479` and documentation-only successor `c7c494b` both exhausted
 with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE` and no package, selection, atlas
 publication, or provider operation. Their safe rejection profiles are nearly
-identical, confirming a systemic bounded Tier-II apron/capacity solver blocker.
-The authenticated c7 summary is in `docs/evidence/0.4.0/local-operations.md`.
-The cff checkpoint was retired through the maintained abort path with
-production untouched; retire the encrypted c7 checkpoint the same way after
-this result is synchronized. The prior retained-seed checkpoint remains bound
-to `19b3422`; never relabel or inject it into another source.
+identical, confirming a systemic bounded Tier-II apron-frontier bias rather
+than a seed-specific failure. The authenticated c7 summary is in
+`docs/evidence/0.4.0/local-operations.md`. Both exhausted checkpoints were
+retired through the maintained abort path with production untouched. The prior
+retained-seed checkpoint remains bound to `19b3422`; never relabel or inject it
+into another source.
 
 NEXT
-1. Stop seed retries. Reproduce the top failure codes on a public deterministic
-   fixture and improve the bounded Tier-II assignment/apron search while
-   retaining every eligibility and content-quality proof.
-2. Run the focused generator/search suites and required local type/build checks;
-   publish a signed corrective source only after reviewing the exact diff.
-3. Before any remote write, inspect all Actions runs and preserve the current
-   Actions hold. Keep the native checkout on the exact signed source.
-4. Retire the exhausted encrypted `c7c494b` checkpoint only through the
-   maintained abort command. Preserve both failure records and the older `19b`
-   retained-seed evidence; never relabel or import these checkpoints.
-5. Verify a passing package and private shortlist. Continue only if one
-   eligible candidate passes every proof; selection is a separate owner
-   authorization recorded against that candidate.
-6. Publish the source-bound PTR atlas, then apply the isolated PTR update through
-   its maintained prepare/apply and
-   continuation consumer. After import starts, reconcile uncertain outcomes
-   read-only; never resubmit a possibly submitted import. Proceed through owner
-   provisioning, bridge/frontend readback, custom-domain cutover and genuine
-   authenticated owner PTR plus Alpha acceptance.
+1. The shared normal/Lowlands bundle correction retains the 64-edge and
+   32-bundle limits and all eligibility/content proofs. Focused apron tests pass
+   16/16, the deterministic generator regression passes 21/21, and `tsc -b`
+   passes. Review the final diff, sign the source checkpoint, then publish it
+   after fresh complete Actions inventory while keeping Actions disabled.
+2. Synchronize the supported native checkout to the exact commit and verify a
+   clean source identity. Do not reuse or relabel the older retained seed.
+3. Run one fresh exact-source search at the supported bound. If the systemic
+   rejection profile remains, preserve the safe summary and stop seed retries
+   until another demonstrated code defect is corrected.
+4. Verify any passing package and private shortlist. Continue only if one
+   eligible candidate passes every proof; record selection against that exact
+   candidate.
+5. Publish the source-bound PTR atlas, then apply the isolated PTR update through
+   its maintained prepare/apply and continuation consumer. After import starts,
+   reconcile uncertain outcomes read-only; never resubmit a possibly submitted
+   import. Proceed through owner provisioning, bridge/frontend readback,
+   custom-domain cutover and genuine authenticated owner PTR plus Alpha
+   acceptance.
 
 Keep changes in this checkout and the repository; do not create Desktop files,
 new recovery credentials or unrelated feature scope. Follow the current owner

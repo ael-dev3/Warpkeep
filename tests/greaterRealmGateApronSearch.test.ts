@@ -8,6 +8,7 @@ import {
   measureGreaterRealmStrategicShape,
   rankGreaterRealmLowlandsRepairBundleOptions,
   runGreaterRealmGateApronSearchLanes,
+  selectBalancedGreaterRealmGateApronPairs,
   sealGreaterRealmRepairBarrierPockets,
   searchGreaterRealmRankedSiblingAlternatives,
   type GreaterRealmRankedSiblingSearchOption,
@@ -42,6 +43,51 @@ const descriptor = (
 });
 
 describe('Greater Realm ranked gate-apron search', () => {
+  it('balances a bounded bundle frontier across edge endpoints deterministically', () => {
+    const completePairs = Object.freeze(Array.from({ length: 8 }, (_, firstIndex) => firstIndex)
+      .flatMap(firstIndex => Array.from(
+        { length: 7 - firstIndex },
+        (_, offset) => Object.freeze({
+          firstIndex,
+          secondIndex: firstIndex + offset + 1,
+          score: firstIndex * 8 + offset,
+        }),
+      )));
+    const selected = selectBalancedGreaterRealmGateApronPairs(completePairs, 4);
+    const repeated = selectBalancedGreaterRealmGateApronPairs(completePairs, 4);
+    const endpointUse = new Map<number, number>();
+    for (const pair of selected) {
+      endpointUse.set(pair.firstIndex, (endpointUse.get(pair.firstIndex) ?? 0) + 1);
+      endpointUse.set(pair.secondIndex, (endpointUse.get(pair.secondIndex) ?? 0) + 1);
+    }
+    expect(selected).toEqual(repeated);
+    expect(selected).toHaveLength(4);
+    expect(Math.max(...endpointUse.values())).toBe(1);
+    expect([...selected].map(pair => pair.score)).toEqual(
+      [...selected].map(pair => pair.score).sort((first, second) => first - second),
+    );
+  });
+
+  it('widens endpoint capacity only when the viable pair graph has no disjoint continuation', () => {
+    expect(selectBalancedGreaterRealmGateApronPairs(Object.freeze([
+      Object.freeze({ firstIndex: 0, secondIndex: 1, score: 2 }),
+      Object.freeze({ firstIndex: 0, secondIndex: 2, score: 1 }),
+    ]), 2)).toEqual([
+      { firstIndex: 0, secondIndex: 2, score: 1 },
+      { firstIndex: 0, secondIndex: 1, score: 2 },
+    ]);
+  });
+
+  it('rejects duplicate or malformed bundle-pair descriptors', () => {
+    expect(() => selectBalancedGreaterRealmGateApronPairs(Object.freeze([
+      Object.freeze({ firstIndex: 0, secondIndex: 1, score: 1 }),
+      Object.freeze({ firstIndex: 0, secondIndex: 1, score: 2 }),
+    ]))).toThrow('GREATER_REALM_GATE_APRON_PAIR_DUPLICATE');
+    expect(() => selectBalancedGreaterRealmGateApronPairs(Object.freeze([
+      Object.freeze({ firstIndex: 1, secondIndex: 1, score: 1 }),
+    ]))).toThrow('GREATER_REALM_GATE_APRON_PAIR_INVALID');
+  });
+
   it('separates immutable perimeter from passable semantic-interface compactness', () => {
     const coordinates = Array.from({ length: 91 }, (_, index) => {
       const radius = 5;

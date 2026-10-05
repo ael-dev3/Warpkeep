@@ -190,6 +190,79 @@ export type GreaterRealmRankedSiblingSearchResult<Alternative, Option> =
 
 export const GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS = 16 as const;
 export const GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT = 2 as const;
+export const GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES = 64 as const;
+export const GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS = 32 as const;
+
+export type GreaterRealmGateApronPairRank = Readonly<{
+  firstIndex: number;
+  secondIndex: number;
+  score: number;
+}>;
+
+/**
+ * Keep the bounded bundle frontier representative across its edge endpoints.
+ * A score-only prefix can otherwise spend the entire option budget on pairs
+ * that share one edge, hiding viable alternatives from the later search.
+ */
+export function selectBalancedGreaterRealmGateApronPairs(
+  pairs: readonly GreaterRealmGateApronPairRank[],
+  maximumPairs: number = GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS,
+): readonly GreaterRealmGateApronPairRank[] {
+  if (!Number.isSafeInteger(maximumPairs) || maximumPairs < 1) {
+    fail('GREATER_REALM_GATE_APRON_PAIR_LIMIT_INVALID');
+  }
+  const ranked = [...pairs].sort((first, second) => (
+    first.score - second.score
+    || first.firstIndex - second.firstIndex
+    || first.secondIndex - second.secondIndex
+  ));
+  const pairKeys = new Set<string>();
+  for (const pair of ranked) {
+    if (
+      !Number.isSafeInteger(pair.firstIndex)
+      || pair.firstIndex < 0
+      || !Number.isSafeInteger(pair.secondIndex)
+      || pair.secondIndex <= pair.firstIndex
+      || !Number.isSafeInteger(pair.score)
+      || pair.score < 0
+    ) fail('GREATER_REALM_GATE_APRON_PAIR_INVALID');
+    const key = `${pair.firstIndex}:${pair.secondIndex}`;
+    if (pairKeys.has(key)) fail('GREATER_REALM_GATE_APRON_PAIR_DUPLICATE');
+    pairKeys.add(key);
+  }
+
+  const desiredPairCount = Math.min(maximumPairs, ranked.length);
+  if (desiredPairCount === 0) return Object.freeze([]);
+  const selected: GreaterRealmGateApronPairRank[] = [];
+  const selectedPairKeys = new Set<string>();
+  const endpointUse = new Map<number, number>();
+  for (let maximumEndpointUse = 1;
+    maximumEndpointUse <= desiredPairCount && selected.length < desiredPairCount;
+    maximumEndpointUse += 1) {
+    for (const pair of ranked) {
+      if (selected.length >= desiredPairCount) break;
+      const pairKey = `${pair.firstIndex}:${pair.secondIndex}`;
+      if (selectedPairKeys.has(pairKey)) continue;
+      if (
+        (endpointUse.get(pair.firstIndex) ?? 0) >= maximumEndpointUse
+        || (endpointUse.get(pair.secondIndex) ?? 0) >= maximumEndpointUse
+      ) continue;
+      selected.push(pair);
+      selectedPairKeys.add(pairKey);
+      endpointUse.set(pair.firstIndex, (endpointUse.get(pair.firstIndex) ?? 0) + 1);
+      endpointUse.set(pair.secondIndex, (endpointUse.get(pair.secondIndex) ?? 0) + 1);
+    }
+  }
+  return Object.freeze(selected
+    .sort((first, second) => first.score - second.score
+      || first.firstIndex - second.firstIndex
+      || first.secondIndex - second.secondIndex)
+    .map(pair => Object.freeze({
+      firstIndex: pair.firstIndex,
+      secondIndex: pair.secondIndex,
+      score: pair.score,
+    })));
+}
 
 export type GreaterRealmLowlandsRepairGateEdgeEligibility = Readonly<{
   child: number;
@@ -3021,6 +3094,77 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       components,
       reject,
     } = input;
+    const buildGateApronBundles = (
+      rawEdges: readonly GreaterRealmTierTwoGateApronEdge[],
+    ): readonly GreaterRealmTierTwoGateApronBundle[] => {
+      const edges = [...rawEdges]
+        .sort((first, second) => first.score - second.score
+          || first.tierTwoEndpoint - second.tierTwoEndpoint)
+        .slice(0, GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES);
+      const viablePairs: GreaterRealmGateApronPairRank[] = [];
+      for (let first = 0; first < edges.length; first += 1) {
+        for (let second = first + 1; second < edges.length; second += 1) {
+          const left = edges[first]!;
+          const right = edges[second]!;
+          if (
+            left.tierOneEndpoint === right.tierOneEndpoint
+            || left.tierTwoEndpoint === right.tierTwoEndpoint
+          ) continue;
+          const separation = axialDistance(
+            grid.q[left.tierTwoEndpoint]!,
+            grid.r[left.tierTwoEndpoint]!,
+            grid.q[right.tierTwoEndpoint]!,
+            grid.r[right.tierTwoEndpoint]!,
+          );
+          if (separation < 4 || separation > 48) continue;
+          const corridorsConflict = (
+            left.tierOneCorridors.some(corridor => corridor.includes(right.tierOneEndpoint))
+            || right.tierOneCorridors.some(corridor => corridor.includes(left.tierOneEndpoint))
+            || left.tierTwoCorridors.some(corridor => corridor.includes(right.tierTwoEndpoint))
+            || right.tierTwoCorridors.some(corridor => corridor.includes(left.tierTwoEndpoint))
+          );
+          if (corridorsConflict) continue;
+          viablePairs.push(Object.freeze({
+            firstIndex: first,
+            secondIndex: second,
+            score: left.score + right.score,
+          }));
+        }
+      }
+      const selectedPairs = selectBalancedGreaterRealmGateApronPairs(viablePairs);
+      const bundles: GreaterRealmTierTwoGateApronBundle[] = [];
+      for (const pair of selectedPairs) {
+        const left = edges[pair.firstIndex]!;
+        const right = edges[pair.secondIndex]!;
+        const tierOneCells = [
+          left.tierOneEndpoint,
+          ...left.tierOneCorridors.flat(),
+          right.tierOneEndpoint,
+          ...right.tierOneCorridors.flat(),
+        ];
+        const tierTwoCells = [
+          left.tierTwoEndpoint,
+          ...left.tierTwoCorridors.flat(),
+          right.tierTwoEndpoint,
+          ...right.tierTwoCorridors.flat(),
+        ];
+        const uniqueTierOneCells = [...new Set(tierOneCells)];
+        const uniqueTierTwoCells = [...new Set(tierTwoCells)];
+        tierOneCells.fill(0);
+        tierTwoCells.fill(0);
+        privateIndexArrays.add(uniqueTierOneCells);
+        privateIndexArrays.add(uniqueTierTwoCells);
+        bundles.push(Object.freeze({
+          child: left.child,
+          componentId: left.componentId,
+          edges: Object.freeze([left, right] as const),
+          tierOneCells: uniqueTierOneCells,
+          tierTwoCells: uniqueTierTwoCells,
+          score: pair.score,
+        }));
+      }
+      return Object.freeze(bundles);
+    };
     const componentByCell = own(new Int32Array(grid.cellCount));
     componentByCell.fill(-1);
     for (const component of components) {
@@ -3209,68 +3353,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
     release(apronRobustTopology.articulation);
     release(apronRobustTopology.componentId);
     for (const [key, rawEdges] of gateApronEdgesByKey) {
-      const edges = [...rawEdges]
-        .sort((first, second) => first.score - second.score
-          || first.tierTwoEndpoint - second.tierTwoEndpoint)
-        .slice(0, 64);
-      const bundles: GreaterRealmTierTwoGateApronBundle[] = [];
-      for (let first = 0; first < edges.length; first += 1) {
-        for (let second = first + 1; second < edges.length; second += 1) {
-          const left = edges[first]!;
-          const right = edges[second]!;
-          if (
-            left.tierOneEndpoint === right.tierOneEndpoint
-            || left.tierTwoEndpoint === right.tierTwoEndpoint
-          ) continue;
-          const separation = axialDistance(
-            grid.q[left.tierTwoEndpoint]!,
-            grid.r[left.tierTwoEndpoint]!,
-            grid.q[right.tierTwoEndpoint]!,
-            grid.r[right.tierTwoEndpoint]!,
-          );
-          if (separation < 4 || separation > 48) continue;
-          const tierOneCells = [
-            left.tierOneEndpoint,
-            ...left.tierOneCorridors.flat(),
-            right.tierOneEndpoint,
-            ...right.tierOneCorridors.flat(),
-          ];
-          const tierTwoCells = [
-            left.tierTwoEndpoint,
-            ...left.tierTwoCorridors.flat(),
-            right.tierTwoEndpoint,
-            ...right.tierTwoCorridors.flat(),
-          ];
-          const corridorsConflict = (
-            left.tierOneCorridors.flat().includes(right.tierOneEndpoint)
-            || right.tierOneCorridors.flat().includes(left.tierOneEndpoint)
-            || left.tierTwoCorridors.flat().includes(right.tierTwoEndpoint)
-            || right.tierTwoCorridors.flat().includes(left.tierTwoEndpoint)
-          );
-          if (corridorsConflict) {
-            tierOneCells.fill(0);
-            tierTwoCells.fill(0);
-            continue;
-          }
-          const uniqueTierOneCells = [...new Set(tierOneCells)];
-          const uniqueTierTwoCells = [...new Set(tierTwoCells)];
-          tierOneCells.fill(0);
-          tierTwoCells.fill(0);
-          privateIndexArrays.add(uniqueTierOneCells);
-          privateIndexArrays.add(uniqueTierTwoCells);
-          bundles.push(Object.freeze({
-            child: left.child,
-            componentId: left.componentId,
-            edges: Object.freeze([left, right] as const),
-            tierOneCells: uniqueTierOneCells,
-            tierTwoCells: uniqueTierTwoCells,
-            score: left.score + right.score,
-          }));
-          if (bundles.length >= 32) break;
-        }
-        if (bundles.length >= 32) break;
-      }
-      gateApronBundlesByKey.set(key, Object.freeze(bundles));
+      gateApronBundlesByKey.set(key, buildGateApronBundles(rawEdges));
     }
 
     const parentByChild = own(new Int8Array(TIER_I_REGION_COUNT));
@@ -3507,68 +3590,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
           }
         }
         for (const [key, rawEdges] of lowlandsRepairGateApronEdgesByKey) {
-          const edges = [...rawEdges]
-            .sort((first, second) => first.score - second.score
-              || first.tierTwoEndpoint - second.tierTwoEndpoint)
-            .slice(0, 64);
-          const bundles: GreaterRealmTierTwoGateApronBundle[] = [];
-          for (let first = 0; first < edges.length; first += 1) {
-            for (let second = first + 1; second < edges.length; second += 1) {
-              const left = edges[first]!;
-              const right = edges[second]!;
-              if (
-                left.tierOneEndpoint === right.tierOneEndpoint
-                || left.tierTwoEndpoint === right.tierTwoEndpoint
-              ) continue;
-              const separation = axialDistance(
-                grid.q[left.tierTwoEndpoint]!,
-                grid.r[left.tierTwoEndpoint]!,
-                grid.q[right.tierTwoEndpoint]!,
-                grid.r[right.tierTwoEndpoint]!,
-              );
-              if (separation < 4 || separation > 48) continue;
-              const tierOneCells = [
-                left.tierOneEndpoint,
-                ...left.tierOneCorridors.flat(),
-                right.tierOneEndpoint,
-                ...right.tierOneCorridors.flat(),
-              ];
-              const tierTwoCells = [
-                left.tierTwoEndpoint,
-                ...left.tierTwoCorridors.flat(),
-                right.tierTwoEndpoint,
-                ...right.tierTwoCorridors.flat(),
-              ];
-              const corridorsConflict = (
-                left.tierOneCorridors.flat().includes(right.tierOneEndpoint)
-                || right.tierOneCorridors.flat().includes(left.tierOneEndpoint)
-                || left.tierTwoCorridors.flat().includes(right.tierTwoEndpoint)
-                || right.tierTwoCorridors.flat().includes(left.tierTwoEndpoint)
-              );
-              if (corridorsConflict) {
-                tierOneCells.fill(0);
-                tierTwoCells.fill(0);
-                continue;
-              }
-              const uniqueTierOneCells = [...new Set(tierOneCells)];
-              const uniqueTierTwoCells = [...new Set(tierTwoCells)];
-              tierOneCells.fill(0);
-              tierTwoCells.fill(0);
-              privateIndexArrays.add(uniqueTierOneCells);
-              privateIndexArrays.add(uniqueTierTwoCells);
-              bundles.push(Object.freeze({
-                child: left.child,
-                componentId: left.componentId,
-                edges: Object.freeze([left, right] as const),
-                tierOneCells: uniqueTierOneCells,
-                tierTwoCells: uniqueTierTwoCells,
-                score: left.score + right.score,
-              }));
-              if (bundles.length >= 32) break;
-            }
-            if (bundles.length >= 32) break;
-          }
-          lowlandsRepairGateApronBundlesByKey.set(key, Object.freeze(bundles));
+          lowlandsRepairGateApronBundlesByKey.set(key, buildGateApronBundles(rawEdges));
         }
       } catch (error) {
         clear();
