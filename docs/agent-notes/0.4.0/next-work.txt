@@ -7,33 +7,41 @@ GitHub Actions is disabled and idle in all four configured repositories. The
 owner explicitly approved only the hydrology correction in #384 comment
 5995094139; do not widen any other release gate.
 
-The failed private search ran against signed, pushed source
-`e1ac10381b082325f1e9d224f6976ce95c8a7213`; PR #385 remains open and draft.
+The current private search ran against signed, pushed source
+`cff3479b7351ff253e4066d359278603462fc2bf`; PR #385 remains open and draft.
 The hydrology correction and source-closure fixes are committed and pushed.
 Native targeted validation passes 455 cases across 13 affected files; the
-sealed-launch preparation check and 1,271-member closure check pass. The full
+sealed-launch preparation check and 1,271-member closure check pass at the
+preceding code checkpoint (`e1ac103`; `cff3479` is documentation-only). The full
 runtime-release suite still has its Windows private-temp ACL limitation; keep
 that guard unchanged. Actions is disabled, so no hosted CI or deployment is
 implied by the push.
 
-The exact-source `e1ac103` private search exhausted 128 ordinals with
-`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. It produced no eligible candidate;
-the private checkpoint is retained and its safe rejection summary is recorded
-in `docs/evidence/0.4.0/local-operations.md`. The previous retained-seed
-checkpoint remains bound to `19b3422`; do not relabel or inject it into the new
-source. No atlas/provider work was performed.
+The exact-source `e1ac103` search exhausted 128 ordinals. A fresh exact-source
+search on `cff3479` exhausted all 256 supported ordinals with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no eligible candidate, selection,
+atlas publication, or provider operation resulted. The authenticated summary
+points to the existing bounded Tier-II apron/capacity solver as the main
+bottleneck (96 no-match, 52 node-limit, 36 missing-assignment outcomes); full
+safe counts are in `docs/evidence/0.4.0/local-operations.md`. The current
+encrypted checkpoint is retained until the result is synchronized, then retire
+it only with the maintained abort command. The prior retained-seed checkpoint
+remains bound to `19b3422`; never relabel or inject it into another source.
 
 NEXT
-1. Confirm this status note is signed and published; before any further
-   remote write, inspect all Actions runs and preserve the Actions hold.
-2. Securely retire the exhausted 128-ordinal checkpoint with the maintained
-   abort command. Preserve its recorded failure summary and the older
-   19b-bound retained-seed evidence. Start a fresh source-bound search with the
-   supported 256-ordinal limit in the existing private workspace.
-3. Verify the resulting package and private shortlist. Continue only if one
+1. Improve and test the bounded Tier-II assignment/apron solver while retaining
+   every eligibility and content-quality proof. Do not spend another full
+   search against unchanged limits.
+2. Publish the signed corrective source and synchronize the supported Linux
+   checkout; before any remote write, inspect all Actions runs and preserve the
+   current Actions hold.
+3. Retire the exhausted `cff3479` checkpoint only through the maintained abort
+   command, preserve its result and older `19b` retained-seed evidence, then run
+   one new exact-source search in the existing private workspace.
+4. Verify the resulting package and private shortlist. Continue only if one
    eligible candidate passes every proof; selection is a separate owner
    authorization recorded against that candidate.
-4. Publish the source-bound PTR atlas, then apply the isolated PTR update through
+5. Publish the source-bound PTR atlas, then apply the isolated PTR update through
    its maintained prepare/apply and
    continuation consumer. After import starts, reconcile uncertain outcomes
    read-only; never resubmit a possibly submitted import. Proceed through owner

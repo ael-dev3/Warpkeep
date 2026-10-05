@@ -4,33 +4,53 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Current release checkpoint — 5 October 2026
 
-The private search ran against signed source
-`e1ac10381b082325f1e9d224f6976ce95c8a7213`, which matched the release branch
-and PR #385 before this evidence update. That source contains the
-owner-approved hydrology correction from [#384 comment
+The current private search ran against signed, pushed source
+`cff3479b7351ff253e4066d359278603462fc2bf` (tree
+`7f9dc2e8ddd2ac38bd58f6fc4fba9df148092911`), matching the release branch and
+PR #385 at run start. The source contains the owner-approved hydrology
+correction from [#384 comment
 5995094139](https://github.com/ael-dev3/Warpkeep/issues/384#issuecomment-5995094139),
 the generated frozen-water PTR catalog, Alpha source restoration, closure pins,
-and the test correction. The old `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate
-remains invalid for the corrected source.
+and the stale-SFX closure test correction. The old
+`GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid for this source.
 
-The supported private generator ran on exact source `e1ac103` with a 128-attempt
-bound. It exhausted all 128 ordinals and exited
-`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no eligible candidate was written,
-selected, or published. The authenticated checkpoint remains in the existing
-mode-0700 private workspace; its root seed was never printed or exported.
-Safe rejection categories: dry-gate apron search node limit (30), no matching
-apron (44), missing Tier-II assignment (15), active-grid count out of range
-(9), lowlands placement (5), forbidden throne-component repair (4), and
-undersized primary component (7); the remaining 14 attempts had multi-proof
-failure sets. This is bounded search exhaustion, not a reproduced hydrology
-verifier bug. No provider request or production mutation occurred.
+The supported private generator ran on exact source `cff3479` with the maximum
+supported 256-attempt bound. It completed all 256 ordinals and exited
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no eligible candidate or batch
+package was written, selected, or published. The encrypted checkpoint remains
+in the existing mode-0700 private workspace. Its safe rejection summary was
+obtained through the authenticated maintained checkpoint API, and the recovered
+root-seed buffer was zeroized after classification. No raw checkpoint bytes,
+seed, coordinate, preview, or private package was printed or exported.
 
-The separate retained-seed checkpoint remains bound to source `19b3422`; the
-maintained CLI has no seed-import or cross-source migration path. It remains
-unchanged and must not be relabeled. Before another search, publish this status
-note, then use the supported abort operation to securely retire the exhausted
-checkpoint and start a fresh source-bound run at the supported 256-attempt
-ceiling in the same private workspace.
+The following are exact code-occurrence counts, not mutually exclusive map
+totals: a proof-rejected map can report several failed proofs. The leading
+Tier-II solver outcomes were dry-gate apron no-match (96), dry-gate apron
+search-node limit (52), and missing capacity assignment (36). Other codes:
+active-grid count out of range (29); undersized primary component (9); legacy
+Lowlands placement (6); castle suitability (6); lakes outside accepted range
+(5); major rivers outside accepted range (3); throne/inner-gate redundancy
+(2); living-world dormant capacity (5); advanced geomorphology (1); biome
+diversity (3); castle capacity (6); gate approaches (8); gate graph (8);
+geological barriers (4); natural-land silhouette (1); landmass topology (1);
+region graph (8); region land coherence (16); passable-land region proof (2);
+regional hydrogeomorphology by area (Frostmere 21, Mirefen 11, QA 24,
+Stonewake 17, Sunscar 3, Throneheart 8, Tier II 8); smallest passable Tier III
+(17); topology QA completion (16); and Tier-I balance (1). These are
+reproducible generation/proof rejections, not evidence of a hydrology verifier
+defect. No shortlist, selection, atlas import, provider request, or production
+mutation occurred.
+
+The earlier exact-source `e1ac103` search separately exhausted 128 ordinals;
+its safe summary remains in the preceding Git history. The separate
+retained-seed checkpoint remains bound to source `19b3422`; the maintained CLI
+has no seed-import or cross-source migration path. It remains unchanged and
+must not be relabeled. The current exhausted checkpoint can be retired only
+through the maintained abort operation after this result is synchronized. Do
+not run another full search against unchanged solver limits: diagnose the
+bounded Tier-II assignment/apron search, preserve every eligibility and
+content-quality proof, test any improvement, and only then begin a new
+exact-source generation.
 
 Native targeted validation passes 455 cases across 13 affected files; the
 sealed-launch preparation check and 1,271-member source-closure check pass.

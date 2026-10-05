@@ -30,9 +30,9 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 ## Current working state — 5 October 2026
 
 The reviewed runtime source for the current private search is signed and pushed
-as `e1ac10381b082325f1e9d224f6976ce95c8a7213`. The hydrology correction,
-deterministic PTR frozen-water catalog, authority
-repairs, and closure/test fixes are committed and pushed. The old
+as `cff3479b7351ff253e4066d359278603462fc2bf`; it is the exact current release
+branch head. The hydrology correction, deterministic PTR frozen-water catalog,
+authority repairs, and closure/test fixes are committed and pushed. The old
 `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid and must not be
 relabeled or resumed.
 
@@ -55,20 +55,26 @@ also pass. The full runtime-release suite retains its Windows private-temp ACL
 limitation; its guard is unchanged. GitHub Actions remains disabled, so these
 are local checks, not hosted CI or deployment evidence.
 
-The exact-source private search on `e1ac103` exhausted its configured 128
-ordinals without an eligible candidate (`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`).
-The failure summary is recorded in [local operations](../../evidence/0.4.0/local-operations.md).
-No candidate was selected or published, and no atlas/provider operation ran.
-The older retained-seed checkpoint is bound to `19b3422`; the supported CLI has
-no seed-import path. Preserve that checkpoint and use the normal private
-generator for a new source-bound search rather than copying or relabeling it.
+The exact-source private search on `e1ac103` exhausted 128 ordinals. A fresh,
+normal generation on the reviewed exact-source checkpoint `cff3479` then
+exhausted all 256 supported ordinals with no eligible candidate and
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated, read-only
+checkpoint summary found the dominant causes in the existing bounded gate
+apron/capacity solver: 96 no-match results, 52 search-node limits, and 36
+missing capacity assignments. The rest are recorded with counts in [local
+operations](../../evidence/0.4.0/local-operations.md). No package, shortlist,
+selection, atlas publication or provider operation resulted. The active
+exhausted checkpoint is private and source-bound; retire it only through the
+maintained abort command after this evidence is synchronized. The older
+retained-seed checkpoint remains bound to `19b3422`; preserve it without
+relabeling or seed import.
 
-Next: commit and publish this status correction, synchronize the supported
-Linux checkout, securely retire the exhausted 128-ordinal checkpoint through
-the maintained abort operation, then run a fresh source-bound search with the
-supported 256-ordinal ceiling. Keep the prior retained-seed evidence intact.
-If a candidate passes, verify its private package and shortlist before the
-separate owner-selection step. Preserve the one-winner import rule, rollback
+Next: diagnose and improve the bounded generator search while preserving every
+eligibility proof and content-quality requirement. Add focused evidence for the
+solver change, publish a signed source checkpoint, then run a new source-bound
+private generation. Do not spend another full search on unchanged search
+limits. If a candidate passes, verify its private package and shortlist before
+separate owner selection. Preserve the one-winner import rule, rollback
 artifacts, Alpha and licensing. The [execution handoff](execution-handoff.md)
 is authoritative for the ordered release path. Earlier dated sections below
 are history.
