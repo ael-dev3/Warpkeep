@@ -23,22 +23,22 @@ search on `cff3479` exhausted all 256 supported ordinals with
 atlas publication, or provider operation resulted. The authenticated summary
 points to the existing bounded Tier-II apron/capacity solver as the main
 bottleneck (96 no-match, 52 node-limit, 36 missing-assignment outcomes); full
-safe counts are in `docs/evidence/0.4.0/local-operations.md`. The current
-encrypted checkpoint is retained until the result is synchronized, then retire
-it only with the maintained abort command. The prior retained-seed checkpoint
+safe counts are in `docs/evidence/0.4.0/local-operations.md`. After the result
+was synchronized, the maintained abort command retired the exhausted
+checkpoint and confirmed production remained untouched. The prior retained-seed checkpoint
 remains bound to `19b3422`; never relabel or inject it into another source.
 
 NEXT
-1. Improve and test the bounded Tier-II assignment/apron solver while retaining
-   every eligibility and content-quality proof. Do not spend another full
-   search against unchanged limits.
-2. Publish the signed corrective source and synchronize the supported Linux
-   checkout; before any remote write, inspect all Actions runs and preserve the
-   current Actions hold.
-3. Retire the exhausted `cff3479` checkpoint only through the maintained abort
-   command, preserve its result and older `19b` retained-seed evidence, then run
-   one new exact-source search in the existing private workspace.
-4. Verify the resulting package and private shortlist. Continue only if one
+1. Synchronize this evidence, then make one fresh-entropy 256-attempt search
+   against the signed exact source. If the same dominant apron/capacity failures
+   recur, stop seed retries and improve the bounded solver while retaining all
+   eligibility and content-quality proofs.
+2. Before any remote write, inspect all Actions runs and preserve the current
+   Actions hold. Keep the native checkout on the exact signed source.
+3. Preserve the exhausted `cff3479` result and older `19b` retained-seed
+   evidence; both checkpoints are source-bound and must not be relabeled or
+   imported.
+4. Verify a passing package and private shortlist. Continue only if one
    eligible candidate passes every proof; selection is a separate owner
    authorization recorded against that candidate.
 5. Publish the source-bound PTR atlas, then apply the isolated PTR update through

@@ -63,18 +63,18 @@ checkpoint summary found the dominant causes in the existing bounded gate
 apron/capacity solver: 96 no-match results, 52 search-node limits, and 36
 missing capacity assignments. The rest are recorded with counts in [local
 operations](../../evidence/0.4.0/local-operations.md). No package, shortlist,
-selection, atlas publication or provider operation resulted. The active
-exhausted checkpoint is private and source-bound; retire it only through the
-maintained abort command after this evidence is synchronized. The older
+selection, atlas publication or provider operation resulted. After this result
+was synchronized, the exhausted checkpoint was retired by the maintained
+abort command (`checkpointAborted: true`, `productionUntouched: true`). The older
 retained-seed checkpoint remains bound to `19b3422`; preserve it without
 relabeling or seed import.
 
-Next: diagnose and improve the bounded generator search while preserving every
-eligibility proof and content-quality requirement. Add focused evidence for the
-solver change, publish a signed source checkpoint, then run a new source-bound
-private generation. Do not spend another full search on unchanged search
-limits. If a candidate passes, verify its private package and shortlist before
-separate owner selection. Preserve the one-winner import rule, rollback
+Next: perform one more fresh-entropy, 256-attempt source-bound search to
+distinguish a seed-specific rejection profile from a systemic solver issue. If
+it exhausts with the same dominant outcomes, stop seed retries and improve the
+bounded generator search without weakening any eligibility proof or
+content-quality requirement. Verify any passing candidate's private package
+and shortlist before separate owner selection. Preserve the one-winner import rule, rollback
 artifacts, Alpha and licensing. The [execution handoff](execution-handoff.md)
 is authoritative for the ordered release path. Earlier dated sections below
 are history.

@@ -45,12 +45,13 @@ The earlier exact-source `e1ac103` search separately exhausted 128 ordinals;
 its safe summary remains in the preceding Git history. The separate
 retained-seed checkpoint remains bound to source `19b3422`; the maintained CLI
 has no seed-import or cross-source migration path. It remains unchanged and
-must not be relabeled. The current exhausted checkpoint can be retired only
-through the maintained abort operation after this result is synchronized. Do
-not run another full search against unchanged solver limits: diagnose the
-bounded Tier-II assignment/apron search, preserve every eligibility and
-content-quality proof, test any improvement, and only then begin a new
-exact-source generation.
+must not be relabeled. After this result was synchronized, the maintained
+abort operation retired the current exhausted checkpoint and reported
+`checkpointAborted: true`, `productionUntouched: true`. Permit one fresh-entropy
+run against the next signed exact-source checkpoint to determine whether this
+rejection profile is seed-specific. If the dominant apron/capacity outcomes
+recur, stop seed retries and correct/test the bounded solver while preserving
+every eligibility and content-quality proof before another search.
 
 Native targeted validation passes 455 cases across 13 affected files; the
 sealed-launch preparation check and 1,271-member source-closure check pass.
