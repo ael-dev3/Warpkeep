@@ -4,7 +4,7 @@ Dated local and authenticated inventory. **Not deployment evidence.**
 
 ## Current release checkpoint — 5 October 2026
 
-The current private search ran against signed, pushed source
+The first 256-attempt private search ran against signed, pushed source
 `cff3479b7351ff253e4066d359278603462fc2bf` (tree
 `7f9dc2e8ddd2ac38bd58f6fc4fba9df148092911`), matching the release branch and
 PR #385 at run start. The source contains the owner-approved hydrology
@@ -40,6 +40,33 @@ Stonewake 17, Sunscar 3, Throneheart 8, Tier II 8); smallest passable Tier III
 reproducible generation/proof rejections, not evidence of a hydrology verifier
 defect. No shortlist, selection, atlas import, provider request, or production
 mutation occurred.
+
+The second fresh-seed run was bound to signed, pushed source
+`c7c494bbfe9888ebfac3aa910aa8cc3b42839b96` (tree
+`bc614d509bfd5965658a9a65f78a865638612442`), a documentation-only successor
+of cff; `git diff cff3479..c7c494b -- scripts spacetimedb src public` was
+empty. It exhausted all 256 ordinals with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`, producing no eligible batch,
+shortlist, selection, atlas operation, or provider request. The authenticated
+checkpoint API reported 223 geography rejections and 33 proof rejections.
+The exact code-occurrence counts (multi-proof maps can contribute several
+codes) were: dry-gate apron no-match (95), search-node limit (51), missing
+Tier-II assignment (34), active-grid count out of range (26), undersized
+primary component (8), legacy Lowlands placement (7), castle suitability (9),
+throne-component repair forbidden (2), lakes outside range (6), major ocean/sea
+body count (1), major rivers outside range (6), inner-gate/throne redundancy
+(7), dormant capacity (17), advanced geomorphology (3), biome diversity (1),
+castle capacity (9), forest patch composition (2), gate approaches (16), gate
+graph (12), geological barriers (6), mountain-system composition (1), region
+graph (18), region land coherence (22), passable-land region proof (5),
+regional hydrogeomorphology by area (Frostmere 21, Mirefen 14, QA 31, Stonewake
+18, Sunscar 5, Throneheart 10, Tier II 4), smallest passable Tier III (16),
+tier-potential density (3), and topographic QA completion (25). These top
+solver counts are within one or two of the preceding independent cff run
+(96/52/36), confirming a systemic bounded-search issue rather than a seed-
+specific failure. The encrypted c7 checkpoint remains private pending this
+evidence sync and must be retired only through the maintained abort command;
+production was untouched.
 
 The earlier exact-source `e1ac103` search separately exhausted 128 ordinals;
 its safe summary remains in the preceding Git history. The separate

@@ -29,9 +29,9 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state — 5 October 2026
 
-The reviewed runtime source for the current private search is signed and pushed
-as `cff3479b7351ff253e4066d359278603462fc2bf`; it is the exact current release
-branch head. The hydrology correction, deterministic PTR frozen-water catalog,
+The reviewed runtime source used for the latest private search is signed and
+pushed as `c7c494bbfe9888ebfac3aa910aa8cc3b42839b96`; its runtime tree is
+identical to `cff3479`. The hydrology correction, deterministic PTR frozen-water catalog,
 authority repairs, and closure/test fixes are committed and pushed. The old
 `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid and must not be
 relabeled or resumed.
@@ -55,26 +55,27 @@ also pass. The full runtime-release suite retains its Windows private-temp ACL
 limitation; its guard is unchanged. GitHub Actions remains disabled, so these
 are local checks, not hosted CI or deployment evidence.
 
-The exact-source private search on `e1ac103` exhausted 128 ordinals. A fresh,
-normal generation on the reviewed exact-source checkpoint `cff3479` then
-exhausted all 256 supported ordinals with no eligible candidate and
-`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated, read-only
-checkpoint summary found the dominant causes in the existing bounded gate
-apron/capacity solver: 96 no-match results, 52 search-node limits, and 36
-missing capacity assignments. The rest are recorded with counts in [local
-operations](../../evidence/0.4.0/local-operations.md). No package, shortlist,
-selection, atlas publication or provider operation resulted. After this result
-was synchronized, the exhausted checkpoint was retired by the maintained
-abort command (`checkpointAborted: true`, `productionUntouched: true`). The older
-retained-seed checkpoint remains bound to `19b3422`; preserve it without
-relabeling or seed import.
+The exact-source private search on `e1ac103` exhausted 128 ordinals. Two fresh,
+source-bound searches on `cff3479` and documentation-only successor `c7c494b`
+then exhausted all 256 supported ordinals each with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Their safe profiles are nearly
+identical: respectively 96/95 dry-gate apron no-matches, 52/51 search-node
+limits, and 36/34 missing capacity assignments. The c7 run recorded 223
+geography rejections and 33 proof rejections. This confirms the bounded
+Tier-II apron/capacity solver is a systemic blocker, not a seed-specific event.
+Full safe counts are in [local operations](../../evidence/0.4.0/local-operations.md).
+No eligible package, shortlist, selection, atlas publication or provider
+operation resulted. The cff checkpoint was retired through the maintained
+abort command (`checkpointAborted: true`, `productionUntouched: true`); the c7
+checkpoint remains encrypted until this result is synchronized, then will be
+retired through the same command. The older retained-seed checkpoint remains
+bound to `19b3422`; preserve it without relabeling or seed import.
 
-Next: perform one more fresh-entropy, 256-attempt source-bound search to
-distinguish a seed-specific rejection profile from a systemic solver issue. If
-it exhausts with the same dominant outcomes, stop seed retries and improve the
-bounded generator search without weakening any eligibility proof or
-content-quality requirement. Verify any passing candidate's private package
-and shortlist before separate owner selection. Preserve the one-winner import rule, rollback
+Next: improve and test the bounded generator search while preserving every
+eligibility proof and content-quality requirement. Stop fresh-seed retries on
+unchanged solver code. Publish a signed corrective source checkpoint, then run
+one new source-bound generation. If a candidate passes, verify its private
+package and shortlist before separate owner selection. Preserve the one-winner import rule, rollback
 artifacts, Alpha and licensing. The [execution handoff](execution-handoff.md)
 is authoritative for the ordered release path. Earlier dated sections below
 are history.

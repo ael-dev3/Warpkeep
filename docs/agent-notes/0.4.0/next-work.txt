@@ -7,8 +7,8 @@ GitHub Actions is disabled and idle in all four configured repositories. The
 owner explicitly approved only the hydrology correction in #384 comment
 5995094139; do not widen any other release gate.
 
-The current private search ran against signed, pushed source
-`cff3479b7351ff253e4066d359278603462fc2bf`; PR #385 remains open and draft.
+The latest private search ran against signed, pushed source
+`c7c494bbfe9888ebfac3aa910aa8cc3b42839b96`; PR #385 remains open and draft.
 The hydrology correction and source-closure fixes are committed and pushed.
 Native targeted validation passes 455 cases across 13 affected files; the
 sealed-launch preparation check and 1,271-member closure check pass at the
@@ -17,31 +17,32 @@ runtime-release suite still has its Windows private-temp ACL limitation; keep
 that guard unchanged. Actions is disabled, so no hosted CI or deployment is
 implied by the push.
 
-The exact-source `e1ac103` search exhausted 128 ordinals. A fresh exact-source
-search on `cff3479` exhausted all 256 supported ordinals with
-`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no eligible candidate, selection,
-atlas publication, or provider operation resulted. The authenticated summary
-points to the existing bounded Tier-II apron/capacity solver as the main
-bottleneck (96 no-match, 52 node-limit, 36 missing-assignment outcomes); full
-safe counts are in `docs/evidence/0.4.0/local-operations.md`. After the result
-was synchronized, the maintained abort command retired the exhausted
-checkpoint and confirmed production remained untouched. The prior retained-seed checkpoint
-remains bound to `19b3422`; never relabel or inject it into another source.
+The exact-source `e1ac103` search exhausted 128 ordinals. Fresh 256-attempt
+searches on `cff3479` and documentation-only successor `c7c494b` both exhausted
+with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE` and no package, selection, atlas
+publication, or provider operation. Their safe rejection profiles are nearly
+identical, confirming a systemic bounded Tier-II apron/capacity solver blocker.
+The authenticated c7 summary is in `docs/evidence/0.4.0/local-operations.md`.
+The cff checkpoint was retired through the maintained abort path with
+production untouched; retire the encrypted c7 checkpoint the same way after
+this result is synchronized. The prior retained-seed checkpoint remains bound
+to `19b3422`; never relabel or inject it into another source.
 
 NEXT
-1. Synchronize this evidence, then make one fresh-entropy 256-attempt search
-   against the signed exact source. If the same dominant apron/capacity failures
-   recur, stop seed retries and improve the bounded solver while retaining all
-   eligibility and content-quality proofs.
-2. Before any remote write, inspect all Actions runs and preserve the current
+1. Stop seed retries. Reproduce the top failure codes on a public deterministic
+   fixture and improve the bounded Tier-II assignment/apron search while
+   retaining every eligibility and content-quality proof.
+2. Run the focused generator/search suites and required local type/build checks;
+   publish a signed corrective source only after reviewing the exact diff.
+3. Before any remote write, inspect all Actions runs and preserve the current
    Actions hold. Keep the native checkout on the exact signed source.
-3. Preserve the exhausted `cff3479` result and older `19b` retained-seed
-   evidence; both checkpoints are source-bound and must not be relabeled or
-   imported.
-4. Verify a passing package and private shortlist. Continue only if one
+4. Retire the exhausted encrypted `c7c494b` checkpoint only through the
+   maintained abort command. Preserve both failure records and the older `19b`
+   retained-seed evidence; never relabel or import these checkpoints.
+5. Verify a passing package and private shortlist. Continue only if one
    eligible candidate passes every proof; selection is a separate owner
    authorization recorded against that candidate.
-5. Publish the source-bound PTR atlas, then apply the isolated PTR update through
+6. Publish the source-bound PTR atlas, then apply the isolated PTR update through
    its maintained prepare/apply and
    continuation consumer. After import starts, reconcile uncertain outcomes
    read-only; never resubmit a possibly submitted import. Proceed through owner
