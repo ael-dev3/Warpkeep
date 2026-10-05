@@ -222,6 +222,26 @@ completed runs across all five event classes, no queued or running runs, and
 workflow, deployment or provider operation was started. The PR head remains a
 draft pending integration and the owner PTR journey is not yet live.
 
+### Tier-II assignment rejection classification — 5 October 2026
+
+Review of the 71 `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` outcomes found
+that one rejection code covered two distinct cases: no parent/component had a
+compatible sibling-apron pair, or component triples existed but every triple
+failed minimum-cell or boundary capacity checks. The signed source
+`40f5c708a92b765232e0d35c139eaf765ba8ab66` now keeps the existing
+`ASSIGNMENT_MISSING` code for the first case and emits
+`CAPACITY_ASSIGNMENT_INFEASIBLE` for the second when neither search lane has a
+valid assignment. This changes only safe rejection classification. It does
+not alter map rules, minimums, geometry, ownership, ordering or search caps.
+
+Validation passed: apron and rejection suites (25/25), deterministic generator
+regression (21/21, including pinned digest and expected rejection),
+`npm run typecheck`, and `git diff --check`. The new classification has not yet
+been measured in a private batch. Run one maximum-256 exact-source batch after
+this handoff is synced; use the new code counts to choose the next targeted
+repair, if one is demonstrated. Actions remains disabled, so local checks and
+Git publication are not hosted verification or deployment.
+
 ## Current native verification evidence — 3 October 2026
 
 Published signed source `a89173f9` / tree `e3cf809b` is synchronized locally and remotely (publication `3bf80e59`, complete Actions post inventory `0c4245c5`). Its parent is `6088c974`; game baseline is `a0f6a55f`. Main `cb282bab` and PRs #380/#381 remain separate. Resolve the next signed repair identity from Git; Actions remains held disabled under the current runtime policy.

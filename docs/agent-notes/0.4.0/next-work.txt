@@ -9,15 +9,19 @@ this delegation does not turn a local check or push into deployment evidence.
 GitHub Actions remains disabled; preserve that hold and its downstream Pages
 chain.
 
-The signed source `fee38320f81f54647e17ed8351b3f2a4b45199dc` is published to
-the release branch and draft PR #385. It fixes the Lowlands sibling-pair
-fallback: compatible own-terrain pairs remain preferred; only when none pass
-the existing overlap and minimum-separation checks may children borrow bundles
-from other non-Lowlands children. Lowlands and the requested child are excluded
-as donors. The 64-option and two-pair caps and all geometry, ownership,
-eligibility and content proofs remain unchanged. The focused suite passes
-18/18, pinned generator regression 21/21, typecheck passes, and pinned Linux
-toolchain preflight verifies 11 packages. Earlier native targeted validation
+The signed source `fee38320f81f54647e17ed8351b3f2a4b45199dc` fixes the Lowlands
+sibling-pair fallback: compatible own-terrain pairs remain preferred; only
+when none pass the existing overlap and minimum-separation checks may children
+borrow bundles from other non-Lowlands children. Lowlands and the requested
+child are excluded as donors. Its 64-option and two-pair caps and all geometry,
+ownership, eligibility and content proofs remain unchanged. The current signed
+successor `40f5c708a92b765232e0d35c139eaf765ba8ab66` splits the previously
+ambiguous assignment-missing outcome into missing sibling pairs versus
+capacity-infeasible component combinations. It changes rejection reporting
+only; map selection, thresholds and search caps are unchanged. Validation
+passes 25 focused search/rejection tests, 21 deterministic generator
+regressions, typecheck, and the earlier pinned Linux toolchain preflight
+(11 packages). Earlier native targeted validation
 passes 455 cases across 13 affected files; sealed-launch preparation and the
 1,271-member closure check pass at their recorded source. Preserve the full
 runtime-release suite's Windows private-temp ACL guard. Actions remains
@@ -42,16 +46,15 @@ retained-seed checkpoint remains bound to `19b3422`; never relabel or inject it
 into another source.
 
 NEXT
-1. The safe summary is published in signed commit `5c97383`; the maintained
-   abort API then returned `checkpointAborted: true` and
-   `productionUntouched: true` for the exhausted `fee3832` checkpoint.
-2. Inspect the assignment-missing outcomes (71 of 256 attempts) for a concrete
-   bounded-search defect without relaxing content or geometry requirements.
-   This fresh-seed sample is not a paired comparison with `2c5f0d3`; do not
-   attribute individual count changes to the correction. Do not replay either
-   exhausted seed. Validate any demonstrated fix with deterministic coverage,
-   publish a signed source, sync the pinned runner, and run one exact-source
-   bounded batch.
+1. The safe summary and retirement of the exhausted `fee3832` checkpoint are
+   recorded above; its abort returned `checkpointAborted: true` and
+   `productionUntouched: true`.
+2. Sync the handoff update, pin the clean Linux runner to exact signed source
+   `40f5c708a92b765232e0d35c139eaf765ba8ab66`, verify the toolchain, and run one
+   maximum-256 private batch with a fresh seed. Do not replay either exhausted
+   seed. Record the safe counts split between missing sibling pairs and
+   component-capacity infeasibility; do not print private seed or candidate
+   bytes. This classification change does not alter map rules or thresholds.
 3. If a batch yields an eligible candidate, verify its private package and
    shortlist; continue only if every proof passes, then record selection
    against that exact candidate.
