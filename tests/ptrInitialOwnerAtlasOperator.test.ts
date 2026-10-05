@@ -3,10 +3,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { assertPtrInitialAtlasBootstrapMarker, assertPtrInitialAtlasObservation,
-  coordinatePtrInitialAtlasImport, ptrInitialAtlasConfirmation } from '../scripts/ptr-initial-owner-atlas-operator';
+  assertPtrInitialAtlasUpdateContinuation, assertPtrInitialAtlasUpdateReconciliationPair, coordinatePtrInitialAtlasImport, ptrInitialAtlasConfirmation,
+  ptrInitialAtlasImportMarker } from '../scripts/ptr-initial-owner-atlas-operator';
 import { createPtrBootstrapInspection, PTR_BOOTSTRAP_TARGET as target, PTR_BOOTSTRAP_PROVIDER_OWNER as owner } from '../scripts/ptr-compatibility-bootstrap-core.mjs';
 import { parsePtrUpdateDefinition } from '../scripts/ptr-update-definition-policy.mjs';
-import { parseExistingUpdateSchema, updateDigest, updateCanonical } from '../scripts/sealed-realms-existing-update-protocol.mjs';
+import { createPtrInitialOwnerUpdateInspection } from '../scripts/ptr-initial-owner-update-core.mjs';
+import { existingUpdateTokenDigest, parseExistingUpdateSchema, updateDigest, updateCanonical } from '../scripts/sealed-realms-existing-update-protocol.mjs';
 import { ptrProductionImportReceiptDigest, type PtrProductionImportReceipt } from '../scripts/ptr-production-import-core';
 import { preparePtrInitialOwnerRuntimeRelease } from '../scripts/atlas/greater-realm-cli';
 
@@ -40,6 +42,33 @@ function setup() {
     owner: { state: 'ownerless', enabled: false, authEpoch: null as number | null }, atlas: { state: 'ready' } };
   return { record, binding, state, observation: { state, installedV9, installedV10: bytes(candidate) } };
 }
+function continuationSetup(overrides: { sourceCommit?: string } = {}) {
+  const f = setup(), updateProgram = updateDigest('post-bootstrap module'), config: any = {
+    profile: 'warpkeep-auth-v2', digest: updateDigest('bridge-current'),
+    farcasterRpcEndpointRoleFingerprints: { primary: updateDigest('rpc-primary'), secondary: updateDigest('rpc-secondary') },
+    notificationDeliveryEnabled: true, notificationTransportConfigured: true, notificationClientCount: 1,
+    publicAuthEnabled: true, accessExpectedFidRequired: false, ptrEnabled: true,
+    ptrSpacetimeDbDatabase: target, ptrAudience: 'warpkeep-ptr-spacetimedb',
+  };
+  const before: any = structuredClone(f.state); before.atlas = { state: 'absent' };
+  const bound: any = { ...f.binding, sourceCommit: overrides.sourceCommit ?? '8'.repeat(40), sourceTree: '9'.repeat(40), moduleTreeId: '9'.repeat(40),
+    candidateProgram: updateProgram, candidateSha256: updateDigest('post-bootstrap bytes') };
+  const plan = fixture('existing-update-plans-2.6.1.json').find((entry: any) => entry.name === 'ptr-no-op').response;
+  plan.AutoMigrate.token = `0x${Buffer.from(existingUpdateTokenDigest(target, before.program, updateProgram), 'hex').reverse().toString('hex')}`;
+  const update = createPtrInitialOwnerUpdateInspection({ binding: bound, before, configuration: config,
+    priorV10: f.observation.installedV10, candidateDefinition: JSON.parse(f.observation.installedV10.toString()), planBytes: bytes(plan) });
+  const submission = { inspectionDigest: update.inspectionDigest, binding: update.binding,
+    beforeProgram: update.before.program, submissionState: 'possibly-submitted' };
+  const acknowledgement = { inspectionDigest: update.inspectionDigest, responseSha256: updateDigest('provider response'),
+    response: 'fixed-target-update-success' };
+  const installed = structuredClone(before); installed.program = updateProgram;
+  const observation = { state: installed, configuration: config, installedV10: f.observation.installedV10 };
+  const resolve = (overrides: Partial<{ bootstrap: any; update: any; submissionMarker: unknown; acknowledgementPresent: boolean;
+    acknowledgementMarker: unknown; observation: any }> = {}) => assertPtrInitialAtlasUpdateContinuation({
+      bootstrap: f.record, update, requestedInspectionDigest: update.inspectionDigest, submissionMarker: submission,
+      acknowledgementPresent: true, acknowledgementMarker: acknowledgement, observation, ...overrides } as any);
+  return { ...f, installedV9: f.observation.installedV9, update, bound, before, config, submission, acknowledgement, installed, observation, resolve };
+}
 function receipt(): PtrProductionImportReceipt {
   const body = { schemaVersion: 1, profile: 'warpkeep.ptr.production-import.v1', outcome: 'ready', databaseIdentity: target,
     moduleIdentity: 'warpkeep-ptr-owner-view-v1', moduleSourceCommit: '1'.repeat(40), moduleSha256: '2'.repeat(64),
@@ -51,8 +80,8 @@ function receipt(): PtrProductionImportReceipt {
     importMutationsCompiled: true, activationMutationsCompiled: false } as const;
   return { ...body, importReceiptDigest: ptrProductionImportReceiptDigest(body) };
 }
-function controls() {
-  const events: string[] = [], slots = new Map<string, unknown>(), marker = { program: 'a'.repeat(64), release: 'b'.repeat(64) };
+function controls(marker: any = { program: 'a'.repeat(64), release: 'b'.repeat(64) }) {
+  const events: string[] = [], slots = new Map<string, unknown>();
   const journal = { assert: () => {}, present: (kind: string, key: string) => slots.has(`${kind}:${key}`),
     read: (kind: string, key: string) => ({ value: slots.get(`${kind}:${key}`) }),
     write: (kind: string, key: string, value: unknown) => { const k = `${kind}:${key}`; if (slots.has(k)) throw new Error('exclusive');
@@ -113,6 +142,103 @@ describe('initial-quality PTR atlas installed observations', () => {
     expect(() => ptrInitialAtlasConfirmation({ ...base, program: 'invented' })).toThrow();
   });
 });
+describe('retained post-bootstrap PTR update continuation', () => {
+  it('resolves the exact update inspection and proves preserved pre-import rows/configuration', () => {
+    const f = continuationSetup(), value = f.resolve();
+    expect(value).toMatchObject({ binding: f.update.binding, continuationDigest: expect.stringMatching(/^[a-f0-9]{64}$/u),
+      installedProgram: f.update.binding.candidateProgram, installedSourceCommit: f.update.binding.sourceCommit,
+      acknowledgementPresent: true, providerAckReceived: true, installationProvenByReadback: true,
+      configurationDigest: updateDigest(f.config), productionAuthorized: false });
+    expect(value).not.toHaveProperty('inspection');
+    expect(JSON.stringify(value)).not.toContain(f.update.plan.token);
+  });
+  it('accepts a lost update ACK only with the real submission marker and records ACK absence explicitly', () => {
+    const f = continuationSetup(), value = f.resolve({ acknowledgementPresent: false, acknowledgementMarker: undefined });
+    expect(value).toMatchObject({ acknowledgementPresent: false, providerAckReceived: false, installationProvenByReadback: true,
+      acknowledgementDigest: null });
+    expect(() => f.resolve({ submissionMarker: undefined, acknowledgementPresent: false, acknowledgementMarker: undefined }))
+      .toThrow('PTR_INITIAL_OWNER_ATLAS_UPDATE_CONTINUATION_SUBMISSION_INVALID');
+    expect(() => f.resolve({ submissionMarker: { ...f.submission, submissionState: 'applied' }, acknowledgementPresent: false,
+      acknowledgementMarker: undefined })).toThrow('PTR_INITIAL_OWNER_ATLAS_UPDATE_CONTINUATION_SUBMISSION_INVALID');
+  });
+  it('requires two exact read-only update reconciliations before recovering a missing ACK', () => {
+    const f = continuationSetup(), continuation = f.resolve({ acknowledgementPresent: false, acknowledgementMarker: undefined });
+    const makeReconcileReceipt = (overrides: Record<string, unknown> = {}) => ({
+      profile: 'warpkeep-ptr-initial-owner-update-operation-v1', command: 'reconcile',
+      inspectionDigest: f.update.inspectionDigest, commandSucceeded: true, operationComplete: true,
+      resolutionComplete: true, candidateInstallationObserved: true, sourcePreserved: true, cleanupCompleted: true,
+      privateConfigurationObserved: true, acknowledgementReceived: false,
+      result: { outcome: 'observed-preserved-candidate', candidateProgram: f.update.binding.candidateProgram,
+        installedStateDigest: continuation.preservedRowsDigest, currentConfigurationDigest: continuation.configurationDigest,
+        privateConfigurationPreservationObserved: true }, ...overrides });
+    const first = makeReconcileReceipt(), second = makeReconcileReceipt();
+    expect(assertPtrInitialAtlasUpdateReconciliationPair({ continuation, first, second })).toMatchObject({
+      inspectionDigest: f.update.inspectionDigest, candidateProgram: f.update.binding.candidateProgram,
+      installedStateDigest: continuation.preservedRowsDigest, currentConfigurationDigest: continuation.configurationDigest,
+      reconciliationCount: 2, acknowledgementPresent: false, providerAckReceived: false, installationProvenByReadback: true });
+    expect(() => assertPtrInitialAtlasUpdateReconciliationPair({ continuation, first,
+      second: makeReconcileReceipt({ acknowledgementReceived: true }) }))
+      .toThrow('PTR_INITIAL_OWNER_ATLAS_UPDATE_CONTINUATION_RECONCILIATION_INVALID');
+    expect(() => assertPtrInitialAtlasUpdateReconciliationPair({ continuation, first,
+      second: { ...second, result: { ...second.result, installedStateDigest: updateDigest('changed rows') } } }))
+      .toThrow('PTR_INITIAL_OWNER_ATLAS_UPDATE_CONTINUATION_RECONCILIATION_CHANGED');
+    expect(() => assertPtrInitialAtlasUpdateReconciliationPair({ continuation, first,
+      second: { ...second, result: { ...second.result, currentConfigurationDigest: updateDigest('changed config') } } }))
+      .toThrow('PTR_INITIAL_OWNER_ATLAS_UPDATE_CONTINUATION_RECONCILIATION_CHANGED');
+    expect(() => assertPtrInitialAtlasUpdateReconciliationPair({ continuation, first,
+      second: makeReconcileReceipt({ privateConfigurationObserved: false }) }))
+      .toThrow('PTR_INITIAL_OWNER_ATLAS_UPDATE_CONTINUATION_RECONCILIATION_INVALID');
+    expect(() => assertPtrInitialAtlasUpdateReconciliationPair({ continuation: f.resolve(), first, second }))
+      .toThrow('PTR_INITIAL_OWNER_ATLAS_UPDATE_CONTINUATION_RECONCILIATION_INVALID');
+  });
+  it('rejects forged or mismatched ACK records while preserving the missing-ACK state as distinct', () => {
+    const f = continuationSetup();
+    expect(() => f.resolve({ acknowledgementMarker: { ...f.acknowledgement, responseSha256: 'bad' } }))
+      .toThrow('PTR_INITIAL_OWNER_ATLAS_UPDATE_CONTINUATION_ACKNOWLEDGEMENT_INVALID');
+    expect(() => f.resolve({ acknowledgementMarker: { ...f.acknowledgement, inspectionDigest: '0'.repeat(64) } }))
+      .toThrow('PTR_INITIAL_OWNER_ATLAS_UPDATE_CONTINUATION_ACKNOWLEDGEMENT_INVALID');
+    expect(() => f.resolve({ acknowledgementPresent: false, acknowledgementMarker: f.acknowledgement }))
+      .toThrow('PTR_INITIAL_OWNER_ATLAS_UPDATE_CONTINUATION_ACKNOWLEDGEMENT_INVALID');
+  });
+  it.each(['program', 'schema', 'configuration', 'rows'] as const)('rejects update readback with a changed %s', change => {
+    const f = continuationSetup(), state = structuredClone(f.installed), configuration = structuredClone(f.config);
+    let installedV10 = f.observation.installedV10;
+    if (change === 'program') state.program = updateDigest('wrong installed program');
+    if (change === 'schema') installedV10 = bytes(fixture('ptr-artifact-description-2.6.1/first.json').V10.sections);
+    if (change === 'configuration') configuration.notificationDeliveryEnabled = false;
+    if (change === 'rows') state.tables[0]!.rowsDigest = updateDigest('changed pre-import row');
+    expect(() => f.resolve({ observation: { state, configuration, installedV10 } })).toThrow();
+  });
+  it('binds source lineage into continuation, confirmation and the immutable import marker', () => {
+    const f = continuationSetup(), otherSource = continuationSetup({ sourceCommit: 'a'.repeat(40) }), value = f.resolve(), other = otherSource.resolve();
+    expect(value.continuationDigest).not.toBe(other.continuationDigest);
+    const base = { bootstrapInspection: f.record.inspectionDigest, sourceCommit: 'b'.repeat(40),
+      installedSourceCommit: f.update.binding.sourceCommit, program: f.update.binding.candidateProgram,
+      releaseSha256: 'e'.repeat(64), atlasSourceCommit: 'f'.repeat(40) };
+    const confirmation = ptrInitialAtlasConfirmation({ ...base, continuationDigest: value.continuationDigest });
+    expect(ptrInitialAtlasConfirmation({ ...base, continuationDigest: other.continuationDigest })).not.toBe(confirmation);
+    const marker = ptrInitialAtlasImportMarker({ bootstrapInspection: f.record.inspectionDigest, binding: f.update.binding,
+      atlasSourceCommit: 'f'.repeat(40), releaseSha256: 'e'.repeat(64), continuation: value });
+    expect(marker).toMatchObject({ profile: 'warpkeep-ptr-initial-atlas-possibly-submitted-v2',
+      updateInspection: f.update.inspectionDigest, continuationDigest: value.continuationDigest,
+      program: f.update.binding.candidateProgram, installedModuleSourceCommit: f.update.binding.sourceCommit,
+      providerAckReceived: true });
+    expect(() => ptrInitialAtlasImportMarker({ bootstrapInspection: f.record.inspectionDigest,
+      binding: { ...f.update.binding, sourceCommit: '0'.repeat(40) }, atlasSourceCommit: 'f'.repeat(40),
+      releaseSha256: 'e'.repeat(64), continuation: value })).toThrow('PTR_INITIAL_OWNER_ATLAS_IMPORT_MARKER_CONTINUATION_INVALID');
+  });
+  it('uses resolved module/schema/owner/atlas checks after import, allowing legitimate table mutations', () => {
+    const f = continuationSetup(), postImport = structuredClone(f.installed);
+    postImport.atlas = { state: 'ready' };
+    postImport.tables[1]!.count++;
+    postImport.tables[1]!.rowsDigest = updateDigest('legitimate atlas-imported rows');
+    const observed = assertPtrInitialAtlasObservation(f.record,
+      { state: postImport, installedV9: f.installedV9, installedV10: f.observation.installedV10 }, f.update.binding);
+    expect(observed).toMatchObject({ candidateProgram: f.update.binding.candidateProgram, atlas: { state: 'ready' },
+      preBootstrapRowEqualityObserved: false, productionAuthorized: false });
+    expect(() => f.resolve({ observation: { ...f.observation, state: postImport } })).toThrow();
+  });
+});
 describe('explicit private runtime selection boundary', () => {
   it.each([
     { command: 'select', workspaceRoot: '/private', batchHandle: 'bad', candidateHandle: `GR-A-${'A'.repeat(16)}`, approvalReference: 'OWNER-EXPLICIT1' },
@@ -126,6 +252,16 @@ describe('explicit private runtime selection boundary', () => {
   });
 });
 describe('durable initial atlas import coordinator used by the real CLI', () => {
+  it('reconciles continuation-bound imports without resubmitting after a retained marker exists', async () => {
+    const f = continuationSetup(), resolved = f.resolve(), marker = ptrInitialAtlasImportMarker({
+      bootstrapInspection: f.record.inspectionDigest, binding: f.update.binding, atlasSourceCommit: 'f'.repeat(40),
+      releaseSha256: 'e'.repeat(64), continuation: resolved }), o = controls(marker);
+    expect(await coordinatePtrInitialAtlasImport(o.input)).toEqual(receipt());
+    expect(o.journal.read('submission', updateDigest(marker)).value).toEqual(marker);
+    await expect(coordinatePtrInitialAtlasImport(o.input)).rejects.toThrow('IMPORT_SUBMISSION_ALREADY_MARKED_RECONCILE_ONLY');
+    expect(await coordinatePtrInitialAtlasImport({ ...o.input, command: 'reconcile-import' })).toEqual(receipt());
+    expect(o.execute).toHaveBeenCalledTimes(1);
+  });
   it('fsyncs the exclusive marker before the reducer and retains the actual ordered receipt before publication', async () => {
     const o = controls(); expect(await coordinatePtrInitialAtlasImport(o.input)).toEqual(receipt());
     expect(o.events).toEqual(['submission:fsynced', 'reducer', 'acknowledgement:fsynced']);

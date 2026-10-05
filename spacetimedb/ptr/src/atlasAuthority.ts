@@ -47,6 +47,7 @@ import {
 } from './atlasPolicy';
 import type { PtrContext } from './context';
 import { Sha256, sha256Hex, updateLengthFramedSha256 } from './sha256';
+import { requireGreaterRealmPtrHydrologyLinkV1 } from './greaterRealmHydrologyAuthority';
 
 /**
  * PTR-local authority for the declassified v17 atlas package. It preserves
@@ -1640,6 +1641,24 @@ export function beginGreaterRealmVerificationV1(
     || legacyOrigin.localQ !== 0
     || legacyOrigin.localR !== 0
   ) fail('GREATER_REALM_LEGACY_ORIGIN_MISSING');
+  const legacyAnchor = ctx.db.greaterRealmCellV1.cellKey.find('T1_LOWLANDS:1:0');
+  if (
+    legacyAnchor === null
+    || legacyAnchor.regionId !== 'T1_LOWLANDS'
+    || legacyAnchor.localQ !== 1
+    || legacyAnchor.localR !== 0
+  ) fail('GREATER_REALM_LEGACY_ORIGIN_MISSING');
+  const legacyTransformRotation = deriveLegacyRotationV1(
+    legacyAnchor.localQ,
+    legacyAnchor.localR,
+    legacyAnchor.atlasQ,
+    legacyAnchor.atlasR,
+    legacyOrigin.atlasQ,
+    legacyOrigin.atlasR,
+  );
+  if (legacyTransformRotation === undefined) {
+    fail('GREATER_REALM_LEGACY_TRANSFORM_MISMATCH');
+  }
   const releaseHash = Sha256.deserialize(release.verificationDigest);
   updateLengthFramedSha256(releaseHash, canonicalJsonBytes(runtimeComponentManifest(release)));
   updateLengthFramedSha256(releaseHash, canonicalJsonBytes(runtimeRegionManifest(release)));
@@ -1653,6 +1672,7 @@ export function beginGreaterRealmVerificationV1(
     verificationPhase: 'components',
     verificationCursor: 0n,
     verificationDigest: initializeVerificationDigest(),
+    legacyTransformRotation,
     legacyTransformOffsetQ: legacyOrigin.atlasQ,
     legacyTransformOffsetR: legacyOrigin.atlasR,
   });
@@ -1666,6 +1686,29 @@ const AXIAL_DIRECTIONS = Object.freeze([
   Object.freeze([-1, 1]),
   Object.freeze([0, 1]),
 ] as const);
+
+function deriveLegacyRotationV1(
+  localQ: number,
+  localR: number,
+  atlasQ: number,
+  atlasR: number,
+  offsetQ: number,
+  offsetR: number,
+): number | undefined {
+  const matches: number[] = [];
+  for (let rotation = 0; rotation < 6; rotation += 1) {
+    let q = localQ;
+    let r = localR;
+    for (let step = 0; step < rotation; step += 1) {
+      const nextQ = -r;
+      r = q + r;
+      q = nextQ;
+    }
+    if (q + offsetQ === atlasQ && r + offsetR === atlasR) matches.push(rotation);
+  }
+  if (matches.length !== 1) return undefined;
+  return matches[0];
+}
 
 function verifyComponent(ctx: GreaterRealmContext, ordinal: number) {
   const row = ctx.db.greaterRealmNavigationComponentV1.componentOrdinal.find(ordinal);
@@ -2025,78 +2068,6 @@ function greaterRealmHydrologyRequiresDownstream(regime: number): boolean {
     || regime === GREATER_REALM_HYDRO_REGIME.STREAM;
 }
 
-const HYDROLOGY_TRANSITIONS: Readonly<Record<number, readonly number[]>> = Object.freeze({
-  [GREATER_REALM_HYDRO_REGIME.OCEAN]: Object.freeze([
-    GREATER_REALM_HYDRO_REGIME.OCEAN,
-  ]),
-  [GREATER_REALM_HYDRO_REGIME.LAKE]: Object.freeze([
-    GREATER_REALM_HYDRO_REGIME.DRY,
-    GREATER_REALM_HYDRO_REGIME.LAKE,
-    GREATER_REALM_HYDRO_REGIME.RIVER,
-    GREATER_REALM_HYDRO_REGIME.STREAM,
-    GREATER_REALM_HYDRO_REGIME.OCEAN,
-    GREATER_REALM_HYDRO_REGIME.SEA,
-  ]),
-  [GREATER_REALM_HYDRO_REGIME.RIVER]: Object.freeze([
-    GREATER_REALM_HYDRO_REGIME.RIVER,
-    GREATER_REALM_HYDRO_REGIME.MARSH,
-    GREATER_REALM_HYDRO_REGIME.LAKE,
-    GREATER_REALM_HYDRO_REGIME.OCEAN,
-    GREATER_REALM_HYDRO_REGIME.SEA,
-  ]),
-  [GREATER_REALM_HYDRO_REGIME.STREAM]: Object.freeze([
-    GREATER_REALM_HYDRO_REGIME.STREAM,
-    GREATER_REALM_HYDRO_REGIME.RIVER,
-    GREATER_REALM_HYDRO_REGIME.MARSH,
-    GREATER_REALM_HYDRO_REGIME.LAKE,
-    GREATER_REALM_HYDRO_REGIME.OCEAN,
-    GREATER_REALM_HYDRO_REGIME.SEA,
-  ]),
-  [GREATER_REALM_HYDRO_REGIME.SEA]: Object.freeze([
-    GREATER_REALM_HYDRO_REGIME.SEA,
-    GREATER_REALM_HYDRO_REGIME.OCEAN,
-  ]),
-  [GREATER_REALM_HYDRO_REGIME.MARSH]: Object.freeze([
-    GREATER_REALM_HYDRO_REGIME.DRY,
-    GREATER_REALM_HYDRO_REGIME.MARSH,
-    GREATER_REALM_HYDRO_REGIME.RIVER,
-    GREATER_REALM_HYDRO_REGIME.LAKE,
-    GREATER_REALM_HYDRO_REGIME.OCEAN,
-    GREATER_REALM_HYDRO_REGIME.SEA,
-  ]),
-});
-
-function requireGreaterRealmHydrologyLinkV1(
-  source: GreaterRealmCellImportV1,
-  downstream: GreaterRealmCellImportV1,
-): void {
-  const downstreamIsDry = downstream.hydroRegime === GREATER_REALM_HYDRO_REGIME.DRY;
-  if (
-    downstreamIsDry
-    && source.hydroRegime !== GREATER_REALM_HYDRO_REGIME.LAKE
-    && source.hydroRegime !== GREATER_REALM_HYDRO_REGIME.MARSH
-  ) fail('GREATER_REALM_HYDROLOGY_DRY_TARGET_INVALID');
-  if (downstream.hydroSurfaceMilli > source.hydroSurfaceMilli) {
-    fail('GREATER_REALM_HYDROLOGY_UPHILL_INVALID');
-  }
-  if (downstream.flowAccumulation <= source.flowAccumulation) {
-    fail('GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID');
-  }
-  if (!(HYDROLOGY_TRANSITIONS[source.hydroRegime] ?? []).includes(downstream.hydroRegime)) {
-    fail('GREATER_REALM_HYDROLOGY_TRANSITION_INVALID');
-  }
-  if (downstreamIsDry) {
-    if (source.hydroBodyId === undefined || downstream.hydroBodyId !== undefined) {
-      fail('GREATER_REALM_HYDROLOGY_BODY_TRANSITION_INVALID');
-    }
-  } else if (
-    source.hydroBodyId === undefined
-    || downstream.hydroBodyId === undefined
-    || ((source.hydroRegime === downstream.hydroRegime)
-      !== (source.hydroBodyId === downstream.hydroBodyId))
-  ) fail('GREATER_REALM_HYDROLOGY_BODY_TRANSITION_INVALID');
-}
-
 function requireGreaterRealmHydrologyOutlet(
   ctx: GreaterRealmContext,
   row: GreaterRealmCellImportV1,
@@ -2189,7 +2160,18 @@ function verifyCell(ctx: GreaterRealmContext, ordinal: number) {
     if (downstream === null || downstream.tier !== GREATER_REALM_VISIBLE_TIER_MAX) {
       fail('GREATER_REALM_HYDROLOGY_PUBLIC_CLOSURE_INVALID');
     }
-    requireGreaterRealmHydrologyLinkV1(row, downstream);
+    const release = ctx.db.greaterRealmReleaseV1.atlasId.find(row.atlasId);
+    const legacyTransform = release === null
+      || release.legacyTransformRotation === undefined
+      || release.legacyTransformOffsetQ === undefined
+      || release.legacyTransformOffsetR === undefined
+      ? undefined
+      : {
+        rotation: release.legacyTransformRotation,
+        offsetQ: release.legacyTransformOffsetQ,
+        offsetR: release.legacyTransformOffsetR,
+      };
+    requireGreaterRealmPtrHydrologyLinkV1(row, downstream, legacyTransform);
   } else if (
     greaterRealmHydrologyRequiresDownstream(row.hydroRegime)
   ) {

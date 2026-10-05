@@ -5,6 +5,62 @@ this index to find the implementation, current evidence, and next useful work.
 The goal is a satisfying **gather → choose → build → benefit → return** journey
 and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
+## Current operating decision — 5 October 2026
+
+- **Release route.** Ship the owner PTR first at `warpkeep.com/ptr/`, preserve
+  the live Alpha root and G001 state/admission policy, and keep G002 sealed.
+- **Actions.** The current hold check reports GitHub Actions disabled with no
+  active runs in Warpkeep, Warpkeep-Live, Warpkeep-Assets or
+  Warpkeep-Water-Engine. Continue local validation and ordinary Git sync; do
+  not treat a push as CI or deployment evidence. `Verify` listens to main and
+  pull requests; Pages deployment listens to successful `Verify` pushes on
+  main. Workflow dispatch and provider work remain separate operations.
+- **Hydrology correction.** The owner-approved narrow policy is recorded in
+  [issue #384 comment 5995094139](https://github.com/ael-dev3/Warpkeep/issues/384#issuecomment-5995094139):
+  allow equal accumulation only when generated water goes strictly downhill;
+  allow lower accumulation only when generated River/Stream flow terminates
+  into a verified frozen Alpha Ocean endpoint. Keep every other check and all
+  Alpha rows unchanged.
+- **Sequence.** Validate and publish the reviewed source checkpoint, then
+  replay a fresh candidate from the retained seed against that exact source;
+  complete its proof/selection, atlas publication, isolated PTR update, owner
+  provisioning, bridge/frontend verification, cutover, and authenticated owner
+  PTR plus Alpha acceptance in order.
+
+## Current working state — 5 October 2026
+
+The active local release branch starts at `19b342254ebce47d751b3ba562c4bbb3da99c6c4`.
+The hydrology repair and its focused tests are implemented locally but are not
+yet committed or published. The old `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate
+is invalid for the repaired source and must not be relabeled or resumed.
+
+The diagnosis is read-only and source-bound: verifier receipt
+`9561974f29bfb5236fd5c321069b3ceb9837d72210ff8215a26fc8ff5b5bbfa0` and
+independent postcheck claim `4b9ac9ff5591fedc912852ec1c337311ea154d57d484e1ea05501f491e486fcd` found 15 generated-to-generated equal-flow
+joins whose surface strictly falls and seven generated River/Stream joins
+that discharge into verified frozen Alpha Ocean terminals. All other
+hydrology, terrain, direction, body and Alpha-row checks remain mandatory.
+The implementation mirrors this exact policy in the offline candidate
+verifier, shared live authority and isolated PTR verifier, backed by a
+deterministic frozen-water catalog.
+
+Local evidence on this source: root TypeScript build checks pass;
+`spacetimedb` verification passes all 611 pure tests and its actual module
+build; the focused candidate correction test passes; PTR backend/catalog/
+owner-atlas continuation tests pass 56/56, including an actual isolated PTR
+module build; shared/PTR hydrology tests pass 10/10; PTR module typecheck and
+frozen catalog `--check` pass. The full runtime-release suite has an existing
+Windows private-temp ACL limitation; its guard remains intact. These are local
+source checks, not a signed publication, fresh private atlas, provider
+deployment, domain cutover or owner acceptance.
+
+Next: finish the coherent diff/docs review, commit and fast-forward-push this
+checkpoint with Actions held disabled, verify the remote SHA, then run the
+maintained source-bound fresh candidate workflow. Preserve the retained seed,
+one-winner import rule, existing rollback artifacts, Alpha and licensing.
+The [execution handoff](execution-handoff.md) is authoritative for the exact
+current status and next operation. Earlier dated sections below are history.
+
 ## Current operating decision — 3 October 2026
 
 - **Route.** 0.4 ships owner PTR first, at `warpkeep.com/ptr/`.

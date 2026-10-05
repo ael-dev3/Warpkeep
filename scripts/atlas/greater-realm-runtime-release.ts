@@ -2521,7 +2521,38 @@ function assertRuntimeReleaseManifestBounds(manifest: Record<string, unknown>): 
   ) fail('GREATER_REALM_RUNTIME_RELEASE_READ_BOUNDS_INVALID');
 }
 
-function assertReleasedLowlandsLock(cells: readonly GreaterRealmRuntimeCell[]): void {
+type ReleasedLowlandsLock = Readonly<{
+  frozenWaterAtlasCoordKeys: ReadonlySet<string>;
+  frozenOceanTerminalAtlasCoordKeys: ReadonlySet<string>;
+}>;
+
+function isHydrologyAccumulationValid(
+  source: GreaterRealmRuntimeCell,
+  target: GreaterRealmRuntimeCell,
+  lowlandsLock: ReleasedLowlandsLock,
+): boolean {
+  const sourceFlow = BigInt(source.flowAccumulation);
+  const targetFlow = BigInt(target.flowAccumulation);
+  const sourceIsFrozenAlphaWater = lowlandsLock.frozenWaterAtlasCoordKeys
+    .has(source.atlasCoordKey);
+  const targetIsFrozenAlphaOceanTerminal =
+    lowlandsLock.frozenOceanTerminalAtlasCoordKeys.has(target.atlasCoordKey)
+    && target.hydroRegime === GREATER_REALM_WATER_REGIME_ID.OCEAN
+    && target.hydroFlowDirection === undefined;
+  return targetFlow > sourceFlow
+    || (targetFlow === sourceFlow
+      && target.hydroSurfaceMilli < source.hydroSurfaceMilli
+      && !sourceIsFrozenAlphaWater)
+    || (targetFlow < sourceFlow
+      && (source.hydroRegime === GREATER_REALM_WATER_REGIME_ID.RIVER
+        || source.hydroRegime === GREATER_REALM_WATER_REGIME_ID.STREAM)
+      && !sourceIsFrozenAlphaWater
+      && targetIsFrozenAlphaOceanTerminal);
+}
+
+function assertReleasedLowlandsLock(
+  cells: readonly GreaterRealmRuntimeCell[],
+): ReleasedLowlandsLock {
   const lowlands = cells.filter(cell => cell.regionId === 'T1_LOWLANDS');
   if (lowlands.length < GREATER_REALM_LEGACY_LOWLANDS_LOCK_PINS_V1.worldCellCount) {
     fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_GEOMETRY_INVALID');
@@ -2588,6 +2619,8 @@ function assertReleasedLowlandsLock(cells: readonly GreaterRealmRuntimeCell[]): 
   }
   const publicBodyByLegacyBody = new Map<string, string>();
   const legacyBodyByPublicBody = new Map<string, string>();
+  const frozenWaterAtlasCoordKeys = new Set<string>();
+  const frozenOceanTerminalAtlasCoordKeys = new Set<string>();
   for (const water of GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells) {
     const cell = lowlandsByLocalKey.get(water.cellKey);
     const projection = legacyLowlandsWaterProjection(water.q, water.r);
@@ -2607,6 +2640,10 @@ function assertReleasedLowlandsLock(cells: readonly GreaterRealmRuntimeCell[]): 
       || cell.yieldClass !== 0
       || cell.movementCost !== 1_000_000
     ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+    frozenWaterAtlasCoordKeys.add(cell.atlasCoordKey);
+    if (water.regime === 'ocean' && water.downstreamWaterCellKey === undefined) {
+      frozenOceanTerminalAtlasCoordKeys.add(cell.atlasCoordKey);
+    }
     const existingPublicBody = publicBodyByLegacyBody.get(water.bodyId);
     const existingLegacyBody = legacyBodyByPublicBody.get(cell.hydroBodyId);
     if (
@@ -2650,6 +2687,10 @@ function assertReleasedLowlandsLock(cells: readonly GreaterRealmRuntimeCell[]): 
       !== GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledBodies.length
     || legacyBodyByPublicBody.size !== publicBodyByLegacyBody.size
   ) fail('GREATER_REALM_RUNTIME_RELEASE_LOWLANDS_WATER_INVALID');
+  return Object.freeze({
+    frozenWaterAtlasCoordKeys,
+    frozenOceanTerminalAtlasCoordKeys,
+  });
 }
 
 /**
@@ -3202,7 +3243,7 @@ function verifyGreaterRealmRuntimeReleaseArtifactsForAtlas(
     cellByKey.set(cell.cellKey, cell);
     cellByAtlasCoord.set(cell.atlasCoordKey, cell);
   }
-  assertReleasedLowlandsLock(cells);
+  const releasedLowlandsLock = assertReleasedLowlandsLock(cells);
   for (const cell of cells) {
     const flowing = cell.hydroRegime === GREATER_REALM_WATER_REGIME_ID.RIVER
       || cell.hydroRegime === GREATER_REALM_WATER_REGIME_ID.STREAM;
@@ -3224,7 +3265,7 @@ function verifyGreaterRealmRuntimeReleaseArtifactsForAtlas(
       || !publicHydrologyTransitionAllowed(cell.hydroRegime, target.hydroRegime)
       || target.hydroRegime === GREATER_REALM_WATER_REGIME_ID.DRY
       || target.hydroSurfaceMilli > cell.hydroSurfaceMilli
-      || BigInt(target.flowAccumulation) <= BigInt(cell.flowAccumulation)
+      || !isHydrologyAccumulationValid(cell, target, releasedLowlandsLock)
       || ((target.hydroRegime === cell.hydroRegime)
         !== (target.hydroBodyId === cell.hydroBodyId))
     ) fail('GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID');
@@ -3844,6 +3885,7 @@ export const greaterRealmRuntimeReleaseTestSeams = Object.freeze({
   digestComponent,
   framedSha256,
   importBatchDescriptors,
+  isHydrologyAccumulationValid,
   maximumRuntimeChunkBytes: MAXIMUM_RUNTIME_CHUNK_BYTES,
   maximumRuntimeChunks: MAXIMUM_RUNTIME_CHUNKS,
   maximumRuntimeManifestBytes: MAXIMUM_RUNTIME_MANIFEST_BYTES,

@@ -406,6 +406,112 @@ test('hydrology edges reject dry, uphill, non-increasing, and invalid transition
   });
 });
 
+test('generated hydrology edges allow only downhill equality or verified frozen-ocean discharge exceptions', () => {
+  const generatedRow = (
+    regionId: string,
+    regime: number,
+    bodyId: string,
+    surface: number,
+    accumulation: bigint,
+    atlasQ: number,
+    atlasR: number,
+  ): GreaterRealmLegacyCellProjectionV1 => ({
+    regionId,
+    localQ: 0,
+    localR: 0,
+    atlasQ,
+    atlasR,
+    passable: false,
+    movementCost: 1_000_000,
+    geologicalBarrierBand: 0,
+    biomeClass: 22,
+    landformClass: 2,
+    yieldClass: 0,
+    hydroRegime: regime,
+    hydroBodyId: bodyId,
+    hydroDepthClass: 2,
+    hydroSurfaceMilli: surface,
+    flowAccumulation: accumulation,
+    hydrologyRevision: 1,
+    travelClass: GREATER_REALM_TRAVEL_CLASS.NONE,
+  });
+  const source = generatedRow(
+    'T1_FROSTMERE',
+    GREATER_REALM_HYDRO_REGIME.RIVER,
+    'GRW-GENERATED-RIVER',
+    1_000,
+    10n,
+    900,
+    100,
+  );
+  const equalDownhill = generatedRow(
+    'T1_FROSTMERE',
+    GREATER_REALM_HYDRO_REGIME.RIVER,
+    'GRW-GENERATED-RIVER',
+    999,
+    10n,
+    901,
+    100,
+  );
+  const proof = {
+    sourceRow: source,
+    downstreamRow: equalDownhill,
+    rotation: ROTATION,
+    offsetQ: OFFSET_Q,
+    offsetR: OFFSET_R,
+  } as const;
+  requireGreaterRealmHydrologyLinkV1(source, equalDownhill, proof);
+  const equalLevel = {
+    ...equalDownhill,
+    hydroSurfaceMilli: source.hydroSurfaceMilli,
+  };
+  assert.equal(code(() => requireGreaterRealmHydrologyLinkV1(
+    source,
+    equalLevel,
+    {
+      ...proof,
+      downstreamRow: equalLevel,
+    },
+  )), 'GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID');
+
+  const ocean = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(row => row.regime === 'ocean')!;
+  const frozenOcean = projectionFor(ocean.q, ocean.r);
+  const riverIntoOcean = generatedRow(
+    'T1_FROSTMERE',
+    GREATER_REALM_HYDRO_REGIME.RIVER,
+    'GRW-GENERATED-RIVER',
+    frozenOcean.hydroSurfaceMilli + 1,
+    frozenOcean.flowAccumulation + 10n,
+    frozenOcean.atlasQ - 1,
+    frozenOcean.atlasR,
+  );
+  requireGreaterRealmHydrologyLinkV1(riverIntoOcean, frozenOcean, {
+    sourceRow: riverIntoOcean,
+    downstreamRow: frozenOcean,
+    rotation: ROTATION,
+    offsetQ: OFFSET_Q,
+    offsetR: OFFSET_R,
+  });
+
+  const frozenRiver = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
+    row => row.regime === 'river'
+      && row.downstreamWaterCellKey !== undefined
+      && row.surfaceLevelMilli > frozenOcean.hydroSurfaceMilli,
+  )!;
+  const lockedAlphaSource = projectionFor(frozenRiver.q, frozenRiver.r);
+  assert.equal(code(() => requireGreaterRealmHydrologyLinkV1(
+    lockedAlphaSource,
+    frozenOcean,
+    {
+      sourceRow: lockedAlphaSource,
+      downstreamRow: frozenOcean,
+      rotation: ROTATION,
+      offsetQ: OFFSET_Q,
+      offsetR: OFFSET_R,
+    },
+  )), 'GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID');
+});
+
 test('a frozen directionless river mouth is valid only beside its released standing-water outlet', () => {
   const terminal = GENESIS_WATER_REVISION_ENABLED_CELLS_V1.find(
     row => row.regime === 'river' && row.downstreamWaterCellKey === undefined,

@@ -1521,6 +1521,87 @@ describe('Greater Realm declassified runtime release', () => {
       .toThrow('GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID');
   });
 
+  it('allows only the approved generated-flow accumulation corrections', () => {
+    const template = artifacts.chunks[0]!.payload.cells[0]!;
+    const source: GreaterRealmRuntimeCell = {
+      ...template,
+      regionId: 'T1_FROSTMERE',
+      atlasCoordKey: 'A:699:-311',
+      hydroRegime: GREATER_REALM_WATER_REGIME_ID.RIVER,
+      hydroBodyId: `GRW-${'A'.repeat(26)}`,
+      hydroSurfaceMilli: 1_000,
+      hydroFlowDirection: 0,
+      flowAccumulation: '10',
+    };
+    const equalFlowDownhill: GreaterRealmRuntimeCell = {
+      ...template,
+      regionId: 'T1_FROSTMERE',
+      atlasCoordKey: 'A:700:-311',
+      hydroRegime: GREATER_REALM_WATER_REGIME_ID.RIVER,
+      hydroBodyId: source.hydroBodyId,
+      hydroSurfaceMilli: 999,
+      hydroFlowDirection: 0,
+      flowAccumulation: '10',
+    };
+    const lowlandsLock = {
+      frozenWaterAtlasCoordKeys: new Set<string>(),
+      frozenOceanTerminalAtlasCoordKeys: new Set<string>(),
+    };
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      source,
+      equalFlowDownhill,
+      lowlandsLock,
+    )).toBe(true);
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      source,
+      { ...equalFlowDownhill, hydroSurfaceMilli: source.hydroSurfaceMilli },
+      lowlandsLock,
+    )).toBe(false);
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      source,
+      equalFlowDownhill,
+      {
+        ...lowlandsLock,
+        frozenWaterAtlasCoordKeys: new Set([source.atlasCoordKey]),
+      },
+    )).toBe(false);
+
+    const frozenOcean: GreaterRealmRuntimeCell = {
+      ...template,
+      regionId: 'T1_LOWLANDS',
+      atlasCoordKey: 'A:700:-311',
+      hydroRegime: GREATER_REALM_WATER_REGIME_ID.OCEAN,
+      hydroBodyId: `GRW-${'B'.repeat(26)}`,
+      hydroSurfaceMilli: 975,
+      hydroFlowDirection: undefined,
+      flowAccumulation: '0',
+    };
+    const lockWithOceanTerminal = {
+      ...lowlandsLock,
+      frozenOceanTerminalAtlasCoordKeys: new Set([frozenOcean.atlasCoordKey]),
+    };
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      source,
+      frozenOcean,
+      lockWithOceanTerminal,
+    )).toBe(true);
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      source,
+      frozenOcean,
+      lowlandsLock,
+    )).toBe(false);
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      { ...source, hydroRegime: GREATER_REALM_WATER_REGIME_ID.MARSH },
+      frozenOcean,
+      lockWithOceanTerminal,
+    )).toBe(false);
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      source,
+      { ...frozenOcean, hydroFlowDirection: 0 },
+      lockWithOceanTerminal,
+    )).toBe(false);
+  });
+
   it('rejects fully rehashed slot relocation, per-region skew, and omission', () => {
     const legacyRelocated = fullyRehashArtifacts(artifacts, draft => {
       const slots = draft.chunks.flatMap(chunk => (

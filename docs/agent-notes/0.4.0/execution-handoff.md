@@ -1,5 +1,15 @@
 # Continue Warpkeep 0.4
 
+## Current release checkpoint — 5 October 2026
+
+The release route and owner-approved correction are fixed in [issue #384](https://github.com/ael-dev3/Warpkeep/issues/384#issuecomment-5995094139). Preserve the Alpha root, G001 state and admission freeze; keep G002 sealed. Actions is currently disabled with no active runs across the four configured repositories. Continue local verification and Git synchronization; never represent a branch push as CI or deployment. The `Verify` workflow is triggered for pull requests and pushes to `main`; Pages deployment listens to successful `Verify` runs for `main` pushes.
+
+Current local base is `19b342254ebce47d751b3ba562c4bbb3da99c6c4` on `release/0.4-living-realm-quality`. The exact hydrology repair is implemented and locally tested but not yet committed/published. The previous `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate failed its actual verifier and cannot be resumed under changed source. Read-only receipt `9561974f29bfb5236fd5c321069b3ceb9837d72210ff8215a26fc8ff5b5bbfa0`; independent postcheck claim `4b9ac9ff5591fedc912852ec1c337311ea154d57d484e1ea05501f491e486fcd`. It isolated only the owner-approved cases: 15 generated-to-generated joins with equal accumulation and strictly descending surface; seven generated River/Stream joins into verified frozen Alpha Ocean terminals. All other flow, surface, regime-transition, direction, body and frozen Alpha checks remain unchanged.
+
+The correction is applied consistently in the runtime artifact verifier, shared server authority and isolated PTR authority. The frozen-water catalog is generated deterministically from the locked Alpha water source. Current local checks: root TypeScript build; `pnpm --dir spacetimedb run verify` completed 611 pure tests and the actual shared-module build; focused candidate policy regression; PTR backend/catalog/owner-atlas continuation 56/56, including the actual isolated PTR build; shared/PTR hydrology 10/10; PTR module typecheck; and deterministic generator `--check`. The broader Windows runtime-release suite still has five private-temp ACL guard failures; do not weaken that guard. These results do not establish source publication, a fresh candidate, atlas acceptance, provider state, cutover or authenticated owner acceptance.
+
+Next executable sequence: review this complete diff and the added notes, commit and fast-forward-push the exact checkpoint while Actions remains disabled, verify the GitHub SHA, then replay the maintained six-phase candidate workflow using its retained seed/entropy against the new exact source. Require complete proof before selection/signing/publication; then follow the single-winner atlas/import, isolated PTR reconciliation, existing owner provisioning, bridge/frontend readback, cutover and authenticated owner PTR/Alpha acceptance. Preserve the no-resubmit-on-uncertain-import rule and every rollback artifact. No new feature or licensing change is included.
+
 <!-- Preserve incoming historical current-checkpoint links. -->
 <a id="current-release-checkpoint--1-october-2026"></a>
 

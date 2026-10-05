@@ -2,6 +2,31 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Current hydrology correction checkpoint — 5 October 2026
+
+The active local base is `19b342254ebce47d751b3ba562c4bbb3da99c6c4` on
+`release/0.4-living-realm-quality`. The exact source repair is local and not
+yet committed or published. Owner approval is scoped to [#384 comment
+5995094139](https://github.com/ael-dev3/Warpkeep/issues/384#issuecomment-5995094139).
+The failed H19/T03 candidate remains invalid for a changed source. Retained
+diagnostic receipt `9561974f29bfb5236fd5c321069b3ceb9837d72210ff8215a26fc8ff5b5bbfa0`
+and independent postcheck claim
+`4b9ac9ff5591fedc912852ec1c337311ea154d57d484e1ea05501f491e486fcd` reproduce
+the exact 15 downhill equal-flow and seven frozen-ocean terminal cases.
+
+Local validation currently passes root TypeScript build mode; shared
+`spacetimedb` verification (611 pure tests and actual module build); PTR module
+typecheck; the candidate-policy regression; owner-atlas update continuation,
+PTR backend and catalog tests (56/56, including the actual isolated PTR build);
+shared/PTR hydrology authorities (10/10); and deterministic generator
+`--check`.
+The broad runtime-release suite has an existing Windows private-temp ACL guard
+limitation; it has not been relaxed. Fresh `verify:actions-hold` at
+`2026-10-05T14:13:43.088Z` confirmed Actions disabled and zero active runs in
+Warpkeep, Warpkeep-Live, Warpkeep-Assets and Warpkeep-Water-Engine. Local
+checks and this hold receipt do not prove a signed checkpoint, candidate
+acceptance, deployment, cutover or owner PTR acceptance.
+
 ## Current native verification evidence — 3 October 2026
 
 Published signed source `a89173f9` / tree `e3cf809b` is synchronized locally and remotely (publication `3bf80e59`, complete Actions post inventory `0c4245c5`). Its parent is `6088c974`; game baseline is `a0f6a55f`. Main `cb282bab` and PRs #380/#381 remain separate. Resolve the next signed repair identity from Git; Actions remains held disabled under the current runtime policy.

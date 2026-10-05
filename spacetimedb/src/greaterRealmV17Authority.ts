@@ -1655,6 +1655,24 @@ export function beginGreaterRealmVerificationV1(
     || legacyOrigin.localQ !== 0
     || legacyOrigin.localR !== 0
   ) fail('GREATER_REALM_LEGACY_ORIGIN_MISSING');
+  const legacyAnchor = ctx.db.greaterRealmCellV1.cellKey.find('T1_LOWLANDS:1:0');
+  if (
+    legacyAnchor === null
+    || legacyAnchor.regionId !== 'T1_LOWLANDS'
+    || legacyAnchor.localQ !== 1
+    || legacyAnchor.localR !== 0
+  ) fail('GREATER_REALM_LEGACY_ORIGIN_MISSING');
+  const legacyTransformRotation = deriveGreaterRealmLegacyRotation(
+    legacyAnchor.localQ,
+    legacyAnchor.localR,
+    legacyAnchor.atlasQ,
+    legacyAnchor.atlasR,
+    legacyOrigin.atlasQ,
+    legacyOrigin.atlasR,
+  );
+  if (legacyTransformRotation === undefined) {
+    fail('GREATER_REALM_LEGACY_TRANSFORM_MISMATCH');
+  }
   const releaseHash = Sha256.deserialize(release.verificationDigest);
   updateLengthFramedSha256(releaseHash, canonicalJsonBytes(runtimeComponentManifest(release)));
   updateLengthFramedSha256(releaseHash, canonicalJsonBytes(runtimeRegionManifest(release)));
@@ -1668,6 +1686,7 @@ export function beginGreaterRealmVerificationV1(
     verificationPhase: 'components',
     verificationCursor: 0n,
     verificationDigest: initializeVerificationDigest(),
+    legacyTransformRotation,
     legacyTransformOffsetQ: legacyOrigin.atlasQ,
     legacyTransformOffsetR: legacyOrigin.atlasR,
   });
@@ -2185,7 +2204,21 @@ function verifyCell(ctx: GreaterRealmContext, ordinal: number) {
     if (downstream === null || downstream.tier !== GREATER_REALM_VISIBLE_TIER_MAX) {
       fail('GREATER_REALM_HYDROLOGY_PUBLIC_CLOSURE_INVALID');
     }
-    requireGreaterRealmHydrologyLinkV1(row, downstream);
+    const release = ctx.db.greaterRealmReleaseV1.atlasId.find(row.atlasId);
+    if (
+      release === null
+      || release.state !== 'verifying'
+      || release.legacyTransformRotation === undefined
+      || release.legacyTransformOffsetQ === undefined
+      || release.legacyTransformOffsetR === undefined
+    ) fail('GREATER_REALM_LEGACY_VERIFICATION_STATE_INVALID');
+    requireGreaterRealmHydrologyLinkV1(row, downstream, {
+      sourceRow: row,
+      downstreamRow: downstream,
+      rotation: release.legacyTransformRotation,
+      offsetQ: release.legacyTransformOffsetQ,
+      offsetR: release.legacyTransformOffsetR,
+    });
   } else if (
     greaterRealmHydrologyRequiresDownstream(row.hydroRegime)
   ) {

@@ -1,5 +1,43 @@
 WARPKEEP 0.4 — NEXT WORK
-CURRENT RESUMPTION - 3 OCTOBER 2026
+CURRENT RESUMPTION - 5 OCTOBER 2026
+
+Owner PTR remains the release target; preserve the existing Alpha root/G001,
+keep G002 sealed, and use the ordered release record in execution-handoff.md.
+GitHub Actions is disabled and idle in all four configured repositories. The
+owner explicitly approved only the hydrology correction in #384 comment
+5995094139; do not widen any other release gate.
+
+Current quality branch is `release/0.4-living-realm-quality` at
+`19b342254ebce47d751b3ba562c4bbb3da99c6c4`. The old
+`GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate failed verification and cannot be
+reused under changed source. The approved fix and matching tests are local but
+not yet committed. `spacetimedb` verification passes 611 tests and its actual
+module build. Root/PTR typechecks, candidate-policy regression, shared/PTR
+hydrology coverage, PTR backend/catalog and owner-atlas continuation tests pass.
+The broad Windows runtime-release suite still encounters its
+existing private-temp ACL guard; keep that guard unchanged.
+
+NEXT
+1. Review and commit the coherent hydrology correction, deterministic frozen
+   water catalog, PTR update-continuation recovery and dated handoff notes.
+2. Recheck Actions remain disabled/idle, scan the outgoing diff, fast-forward
+   push the signed checkpoint to the quality branch and confirm the remote
+   commit/tree/signature match.
+3. Use the maintained private runner to replay the retained aux-v2 entropy at
+   ordinal 0 against the exact new source and every unchanged gate. Do not
+   relabel the failed H19/T03 candidate. Select/sign/publish only after complete
+   six-phase evidence, then prepare the source-bound atlas artifact.
+4. Apply the isolated PTR update through its maintained prepare/apply and
+   continuation consumer. After import starts, reconcile uncertain outcomes
+   read-only; never resubmit a possibly submitted import. Proceed through owner
+   provisioning, bridge/frontend readback, custom-domain cutover and genuine
+   authenticated owner PTR plus Alpha acceptance.
+
+Keep changes in this checkout and the repository; do not create Desktop files,
+new recovery credentials or unrelated feature scope. Follow the current owner
+instructions and #384; ask only if an unavoidable provider gate needs a human.
+
+PREVIOUS RESUMPTION - 3 OCTOBER 2026 (SUPERSEDED)
 
 The genuine P1 bootstrap at signed/published `d6e069c4` deployed the gameplay program (`ac364d4` / `9b2f159c`, post `711ff1a8`); PTR is still ownerless and its private atlas is absent. The maintained toolchain passed (`54344a` / `249c55c1`) after a clean frozen patched-pnpm 11.11 copy install using a fresh private store and `0077` mask, without changing tracked manifests. P2's second attempt failed on actual Cloudflare GET `errors`/`messages: null` before its markers; post `2c539e5b` retains the failure and source/group closure.
 
