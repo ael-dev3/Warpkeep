@@ -42,17 +42,20 @@ retained-seed checkpoint remains bound to `19b3422`; never relabel or inject it
 into another source.
 
 NEXT
-1. Publish this evidence/handoff update, then pin the clean Linux runner to the
-   exact signed source `fee38320f81f54647e17ed8351b3f2a4b45199dc`, verify its
-   toolchain, and run one maximum-256 private search. Do not reuse the `2c5f0d3`
-   seed or retry unchanged source. Record only the authenticated safe summary;
-   keep private seeds and candidate bytes in the existing private root.
-2. If the bounded batch completes with no candidate, inspect its measured
-   rejection profile for one concrete correctable defect. If it yields an
-   eligible candidate, verify its package and private shortlist. Continue only if one
-   eligible candidate passes every proof; record selection against that exact
-   candidate.
-3. Publish the source-bound PTR atlas, then apply the isolated PTR update through
+1. Publish this safe summary and handoff update. Then abort the exhausted
+   `fee3832` checkpoint through the maintained API and verify
+   `checkpointAborted: true` and `productionUntouched: true`.
+2. Inspect the assignment-missing outcomes (71 of 256 attempts) for a concrete
+   bounded-search defect without relaxing content or geometry requirements.
+   This fresh-seed sample is not a paired comparison with `2c5f0d3`; do not
+   attribute individual count changes to the correction. Do not replay either
+   exhausted seed. Validate any demonstrated fix with deterministic coverage,
+   publish a signed source, sync the pinned runner, and run one exact-source
+   bounded batch.
+3. If a batch yields an eligible candidate, verify its private package and
+   shortlist; continue only if every proof passes, then record selection
+   against that exact candidate.
+4. Publish the source-bound PTR atlas, then apply the isolated PTR update through
    its maintained prepare/apply and continuation consumer. After import starts,
    reconcile uncertain outcomes read-only; never resubmit a possibly submitted
    import. Proceed through owner provisioning, bridge/frontend readback,

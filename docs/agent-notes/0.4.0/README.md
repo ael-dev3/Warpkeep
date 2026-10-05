@@ -29,14 +29,15 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state — 5 October 2026
 
-The most recent exact-source private search was run on signed `2c5f0d3`, whose
-256 attempts produced no eligible package, shortlist, selection or provider
-operation. Its safe summary was synchronized, and the maintained abort API
-returned `checkpointAborted: true` with `productionUntouched: true`. The current
-signed source correction is `fee38320f81f54647e17ed8351b3f2a4b45199dc`, pushed
-to the release branch and open draft PR #385. It considers non-Lowlands fallback
-bundles when both Lowlands-repair siblings have own bundles but no compatible
-own pair, without relaxing the existing caps or geometry and ownership proofs.
+The latest exact-source private search ran on signed `fee3832`. Its 256 attempts
+produced no eligible package, shortlist, selection or provider operation. The
+safe aggregate summary is recorded in [local operations](../../evidence/0.4.0/local-operations.md);
+the exhausted checkpoint still needs retirement through the maintained abort
+path after that evidence is synchronized. The signed source correction
+`fee38320f81f54647e17ed8351b3f2a4b45199dc` is pushed to the release branch and
+open draft PR #385. It considers non-Lowlands fallback bundles when both
+Lowlands-repair siblings have own bundles but no compatible own pair, without
+relaxing the existing caps or geometry and ownership proofs.
 The hydrology correction, deterministic PTR frozen-water catalog, authority
 repairs, and closure/test fixes remain committed and pushed. The old
 `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid and must not be
@@ -77,12 +78,14 @@ synchronized (`checkpointAborted: true`, `productionUntouched: true`). The older
 retained-seed checkpoint remains bound to `19b3422`; preserve it without
 relabeling or seed import.
 
-Next: run one maximum-256 generation on the exact signed `fee3832` source using
-the synced pinned Linux runner, and keep its private output private. If a
-candidate passes, verify its package and shortlist before separate owner
-selection. Preserve the one-winner import rule, rollback artifacts, Alpha and
-licensing. The [execution handoff](execution-handoff.md) is authoritative for
-the ordered release path. Earlier dated sections below are history.
+Next: sync the safe summary, retire the exhausted `fee3832` checkpoint, and
+inspect the assignment-missing profile for a concrete, policy-preserving
+correction before another bounded batch. Do not claim causal improvement from
+different fresh-seed samples. Keep private output private. If a candidate
+passes, verify its package and shortlist before separate owner selection.
+Preserve the one-winner import rule, rollback artifacts, Alpha and licensing.
+The [execution handoff](execution-handoff.md) is authoritative for the ordered
+release path. Earlier dated sections below are history.
 
 ## Current operating decision — 3 October 2026
 

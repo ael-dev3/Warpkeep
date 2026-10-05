@@ -162,14 +162,60 @@ The successor passed `tests/greaterRealmGateApronSearch.test.ts` (18/18),
 `tests/greaterRealmCandidateGenerator.test.ts` (21/21, including pinned digest
 and expected rejection), `npm run typecheck`, and the pinned Linux toolchain
 preflight (11/11 packages). It is pushed to the release branch and draft PR
-#385. The next exact-source private batch has not run yet. No second seed batch
-was attempted on `2c5f0d3`. Actions remains disabled, so a push is neither
-hosted verification nor deployment.
+#385. One exact-source private batch ran on `fee3832`; its safe aggregate result
+is recorded below. No second seed batch was attempted on `2c5f0d3`. Actions
+remains disabled, so a push is neither hosted verification nor deployment.
 
 Read-only live checks on 5 October: `https://warpkeep.com/` returned 200,
 `https://warpkeep.com/ptr/` returned 404, and `https://warpkeep.pages.dev/ptr/`
 returned 200. The PTR custom-domain cutover and authenticated owner acceptance
 remain open.
+
+### Lowlands sibling-pair fallback batch — 5 October 2026
+
+The maintained generator ran once on exact source
+`fee38320f81f54647e17ed8351b3f2a4b45199dc`, with the maximum 256 attempts. It
+exhausted all ordinals after about 36 minutes and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated checkpoint read
+confirmed sequence 256, phase `searching`, and `nextOrdinal` 256. The
+aggregate-only reader zeroized the recovered root-seed buffer in `finally`;
+the seed, candidate handle, coordinates and private candidate bytes were not
+printed or copied. No candidate package, shortlist, selection, atlas
+publication, provider request or production mutation resulted.
+
+The safe profile contains 227 geography-exhaustion and 29 proof-rejection
+attempts. Geography rejection codes are mutually exclusive per attempt:
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 71 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 26 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 17 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH` | 53 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 9 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 9 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 37 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 5 |
+
+The 29 proof-rejection attempts can each report multiple failed proofs, so
+these code occurrences are not mutually exclusive: regional hydrogeomorphology
+QA (27), Stonewake (23), region graph (22), Frostmere (21), topographic QA
+completion (21), gate approaches (17), Tier III passable-land minimum (17),
+gate graph (16), region land coherence (16), Mirefen (15), geological barriers
+(12), dormant capacity (12), region passable land (10), lakes 48–96 (8), Tier
+II QA (7), castle capacity (7), castle suitability (7), Throneheart (6),
+Sunscar (6), inner-gate/throne redundancy (4), biome diversity (4), advanced
+geomorphology (2), major rivers 48–72 (2), tier-potential density (2), mountain
+system composition (1), ocean/sea-body count (1), and natural landmass topology
+(1).
+
+This is one fresh-seed sample, not a paired comparison with the `2c5f0d3`
+batch; do not attribute any individual code-count shift to the source change.
+Do not replay or relabel the exhausted seed. Synchronize this summary, then
+retire its checkpoint through the maintained abort path and verify
+`checkpointAborted: true` and `productionUntouched: true` before another
+source-bound batch. Actions remains disabled; the pushed source and local
+checks do not establish hosted verification or deployment.
 
 ## Current native verification evidence — 3 October 2026
 
