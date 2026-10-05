@@ -8,17 +8,26 @@ authenticated safe checkpoint read confirmed sequence/next ordinal 256 and
 showed 215 geography rejections, 41 proof attempts, and 71
 `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` results. No
 candidate, package, shortlist, selection, atlas, or provider operation
-resulted. Full privacy-safe counts are recorded in local operations. Sync that
-summary, then abort the exact checkpoint through the maintained API and verify
-production untouched. The 71 failures identify a Crownwood frontier for further
-source inspection, not a proven cause; do not relax geometry or quality bars.
+resulted. Full privacy-safe counts are recorded in local operations and were
+synchronized in signed commit `85e46002`. At `2026-10-05 23:33:33 UTC`, the
+maintained abort confirmed `checkpointAborted: true` and
+`productionUntouched: true` on the exact source. The checkpoint is retired.
+Source inspection found a concrete bug in the Lowlands repair fallback: the
+borrowed-only selector was applied to child zero as well as its non-Lowlands
+sibling, removing Lowlands' own required bundle from fallback pairing. The
+local correction retains child zero's own reserve bundles and keeps borrowing
+restricted to other non-Lowlands children. Geometry, proofs, and option/plan
+caps stay unchanged. This proves a broken fallback path, not that it was the
+only cause of all 71 sample failures; a fresh run on the corrected source is
+required to measure the impact.
 
-The signed `a18930b4` source introduced this diagnostic-only refinement:
+The signed `a18930b4` source introduced the parent-specific diagnostic:
 exactly one missing parent maps to Crownwood, Ironveil, or Glasswater; multiple
 missing parents retain the generic code, and lane-split/capacity outcomes stay
-distinct. Local focused tests, generator regression, typecheck, and diff checks
-pass. The batch result above supersedes its prior next step. Do not replay the
-retired `8bd8de9`/`40f5c70` checkpoints.
+distinct. The follow-on correction passes 27 focused tests, all 21 generator
+regressions, typecheck, and diff checks locally. Next, publish that source,
+synchronize the pinned runner, verify its toolchain, and run one fresh-seed
+maximum-256 batch against the exact commit. Do not replay retired checkpoints.
 
 The release route and hydrology correction are recorded in [issue #384](https://github.com/ael-dev3/Warpkeep/issues/384#issuecomment-5995094139). On 5 October the owner delegated remaining release decisions to the release lead. Preserve the Alpha root, G001 state and admission freeze; keep G002 sealed. Actions is disabled; preserve that hold and its downstream Pages chain. Continue local verification and Git synchronization; never represent a branch push as CI or deployment. The `Verify` workflow is triggered for pull requests and pushes to `main`; Pages deployment listens to successful `Verify` runs for `main` pushes.
 

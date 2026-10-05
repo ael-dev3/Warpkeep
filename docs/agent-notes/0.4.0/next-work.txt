@@ -38,9 +38,10 @@ comparison with `fee3832`.
 The latest exact-source batch on `a18930b4` exhausted all 256 attempts without
 a candidate: 215 geography rejections and 41 proof-rejection attempts. Its
 parent-specific diagnostic reported Crownwood missing in 71 attempts; full
-safe aggregates are in `docs/evidence/0.4.0/local-operations.md`. Sync this
-summary, then retire the exact checkpoint through the maintained abort API and
-verify production untouched. This is an independent fresh seed, not a paired
+safe aggregates are in `docs/evidence/0.4.0/local-operations.md`. Signed commit
+`85e46002` synchronized the summary; the maintained abort returned
+`checkpointAborted: true` and `productionUntouched: true` at
+`2026-10-05 23:33:33 UTC`. This independent fresh seed is not a paired
 comparison with earlier batches. The older `8bd8de9` summary and successful
 retirement remain in local operations.
 
@@ -64,22 +65,25 @@ into another source.
 
 NEXT
 1. The `a18930b4` batch exhausted 256 attempts; all 71 parent-slot failures
-   identify Crownwood. Publish this safe summary, then use the maintained abort
-   API on the exact source and verify `productionUntouched: true` before any
-   further generation.
-2. Trace the Crownwood sibling-pair frontier from the current generator. Make a
-   source correction only for a demonstrated implementation defect; preserve
-   geometry, quality thresholds, ownership proofs and search caps.
-3. The parent-specific classifier is diagnostic-only; multiple missing parents
-   retain the generic code, and lane-split/capacity outcomes retain precedence.
-   Focused tests pass 26/26, generator regression 21/21 and typecheck passes.
-4. After the diagnosis/correction is reviewed and signed, sync the pinned runner
-   and run one fresh-seed maximum-256 batch on that exact source. Record safe
-   per-parent aggregates; never replay exhausted seeds or relax quality rules.
-5. If a batch yields an eligible candidate, verify its private package and
+   identify Crownwood. Its safe evidence is published and the exact-source
+   checkpoint was retired with `productionUntouched: true`.
+2. Source inspection found a concrete Lowlands repair bug: the borrowed-only
+   selector was also used for child zero, so it removed Lowlands' own required
+   bundle from the fallback pair. The correction keeps child zero on its own
+   reserve bundles while non-Lowlands siblings borrow only from other
+   non-Lowlands children. Geometry, quality thresholds, ownership proofs and
+   all option/plan caps are unchanged.
+3. The parent-specific classifier remains diagnostic-only; multiple missing
+   parents keep the generic code and lane-split/capacity outcomes keep
+   precedence. Focused tests pass 27/27, generator regression 21/21, typecheck
+   and diff checks pass. Publish the reviewed source and updated evidence, sync
+   the pinned runner, then run one fresh-seed maximum-256 batch on that exact
+   source to measure the correction. Record safe per-parent aggregates only.
+4. If a batch yields an eligible candidate, verify its private package and
    shortlist; continue only if every proof passes, then record selection
-   against that exact candidate.
-6. Publish the source-bound PTR atlas, then apply the isolated PTR update through
+   against that exact candidate. Never replay exhausted seeds or relax quality
+   rules.
+5. Publish the source-bound PTR atlas, then apply the isolated PTR update through
    its maintained prepare/apply and continuation consumer. After import starts,
    reconcile uncertain outcomes read-only; never resubmit a possibly submitted
    import. Proceed through owner provisioning, bridge/frontend readback,

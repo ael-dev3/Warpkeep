@@ -9,6 +9,7 @@ import {
   measureGreaterRealmStrategicShape,
   rankGreaterRealmLowlandsRepairBorrowedBundleOptions,
   rankGreaterRealmLowlandsRepairBundleOptions,
+  selectGreaterRealmLowlandsRepairBundleOptions,
   runGreaterRealmGateApronSearchLanes,
   selectBalancedGreaterRealmGateApronPairs,
   sealGreaterRealmRepairBarrierPockets,
@@ -580,6 +581,27 @@ describe('Greater Realm ranked gate-apron search', () => {
       'borrow-b',
     ]);
     expect(rank(bundles, 0)).toEqual([]);
+  });
+
+  it('retains Lowlands own bundles on the fixed side of a borrowed fallback pair', () => {
+    const bundles = Object.freeze([
+      Object.freeze({ id: 'borrow-b', child: 4, score: 1, endpoint: 8 }),
+      Object.freeze({ id: 'own', child: 2, score: 0, endpoint: 1 }),
+      Object.freeze({ id: 'borrow-a', child: 1, score: 1, endpoint: 3 }),
+      Object.freeze({ id: 'lowlands', child: 0, score: 0, endpoint: 0 }),
+    ]);
+    const select = (child: number) => (
+      selectGreaterRealmLowlandsRepairBundleOptions(
+        bundles,
+        child,
+        value => value.child,
+        value => value.score,
+        value => value.endpoint,
+        true,
+      ).map(value => value.id)
+    );
+    expect(select(0)).toEqual(['lowlands']);
+    expect(select(2)).toEqual(['borrow-a', 'borrow-b']);
   });
 
   it('tries fallback repair pairs only when no compatible own sibling pair exists', () => {

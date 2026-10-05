@@ -33,12 +33,14 @@ The latest exact-source private search ran on signed `a18930b4` with a fresh
 seed. It exhausted all 256 attempts without an eligible candidate or provider
 operation: 215 geography rejections and 41 proof-rejection attempts. The new
 parent-specific diagnostic identified Crownwood in 71 attempts. Full safe
-aggregates are in [local operations](../../evidence/0.4.0/local-operations.md);
-the exact-source checkpoint remains to be retired after this result is
-synchronized. This independent seed is not a paired comparison with the
-previous `8bd8de9` batch. The preceding `8bd8de9` result is also recorded there;
-signed commit `a2c3589e` synchronized it and its maintained abort verified
-`checkpointAborted: true` and `productionUntouched: true`. The
+aggregates are in [local operations](../../evidence/0.4.0/local-operations.md).
+Signed commit `85e46002` synchronized them; at `2026-10-05 23:33:33 UTC`, the
+maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true` on exact source `a18930b4`. That checkpoint is
+retired. This independent seed is not a paired comparison with the previous
+`8bd8de9` batch. The preceding `8bd8de9` result is also recorded there; signed
+commit `a2c3589e` synchronized it and its maintained abort verified the same
+untouched-production result. The
 preceding `40f5c70` summary was synchronized
 in `d9ff3157` before its checkpoint was retired with the same confirmation.
 The signed source correction
@@ -57,10 +59,14 @@ The follow-up Tier-II diagnostic now names the sole missing parent
 sibling-pair components in both lanes. Multiple missing parents retain generic
 `GATE_PARENT_SLOT_MISSING`; cross-lane coverage and immutable-capacity failures
 retain their own codes. This changes rejection reporting only: map selection,
-geometry, thresholds, ownership, and search caps are unchanged. The next action
-is to synchronize the `a18930b4` safe summary, retire its exhausted checkpoint
-with the maintained abort API, then trace the Crownwood sibling-pair frontier.
-Do not replay retired `8bd8de9` or `40f5c70` checkpoints.
+geometry, thresholds, ownership, and search caps are unchanged. Source review
+found a concrete fallback defect: child zero's own Lowlands bundle was removed
+when the repair path requested borrowed options. The fix keeps Lowlands on its
+own reserve terrain while non-Lowlands children borrow only from other
+non-Lowlands children. Focused tests now pass 27/27, generator regression 21/21
+and typecheck. A fresh bounded search on the corrected source is still required
+to measure whether it resolves the observed Crownwood failures. Do not replay
+retired checkpoints.
 The hydrology correction, deterministic PTR frozen-water catalog, authority
 repairs, and closure/test fixes remain committed and pushed. The old
 `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid and must not be

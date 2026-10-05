@@ -353,11 +353,34 @@ outer boundary (1), inner-gate/throne redundancy (5), tier-potential density
 All 71 formerly generic parent-slot failures identify Crownwood as the sole
 parent with no eligible sibling-pair component in either lane. This is a
 diagnostic observation from one fresh seed, not proof of a deterministic
-root-cause or a paired comparison with the `8bd8de9` run. The next action is to
-synchronize this safe summary, retire the exact `a18930b4` checkpoint through
-the maintained abort API, and verify production untouched. Then trace the
-Crownwood sibling frontier without changing geometry, quality thresholds or
-search caps absent a concrete source-level defect.
+root-cause or a paired comparison with the `8bd8de9` run. Signed commit
+`85e46002` synchronized these safe aggregates. At `2026-10-05 23:33:33 UTC`,
+the pinned runner invoked the maintained `generate-candidates --abort-checkpoint`
+operation on exact source `a18930b4d2e442558bd0b01f465149b745d641a6`; it
+returned `checkpointAborted: true` and `productionUntouched: true`. This
+checkpoint is retired. Trace the Crownwood sibling frontier without changing
+geometry, quality thresholds or search caps absent a concrete source-level
+defect.
+
+## Crownwood Lowlands repair correction — 6 October 2026
+
+Source inspection found a concrete fallback defect in
+`lowlandsRepairSiblingPairsFor`. The fallback correctly excludes Lowlands as a
+donor, but it requested borrowed-only bundles for both children. Because the
+Crownwood pair is Lowlands child 0 plus Frostmere child 1, child 0 consequently
+received an empty option list even though its own reserved Lowlands bundles
+must remain the fixed side of that pair. When no compatible own-terrain pair
+existed, fallback pairing was therefore impossible for Crownwood.
+
+The correction routes child 0 through its own-bundle ranking even in fallback
+mode; only the non-Lowlands sibling receives donor-only bundles, still excluding
+both Lowlands and itself. Existing own-pair preference, the 64-option cap,
+two-pair cap, geometry, ownership, and all quality proofs remain unchanged.
+The new regression covers both the fixed Lowlands side and donor exclusion.
+Focused apron/rejection tests pass 27/27, generator regression 21/21,
+`npm run typecheck`, and `git diff --check` pass. This source correction has
+not yet had a fresh private generation run; publish it, sync the pinned runner,
+and run one new bounded batch before claiming the Crownwood gap is cleared.
 
 ### Pre-push Actions inventory — 5 October 2026, 21:37 UTC
 

@@ -352,6 +352,36 @@ export function rankGreaterRealmLowlandsRepairBorrowedBundleOptions<Option>(
 }
 
 /**
+ * Keep Lowlands' own bundle on its immutable side of a borrowed sibling pair.
+ * Only a non-Lowlands child switches to donor-only options in the fallback.
+ */
+export function selectGreaterRealmLowlandsRepairBundleOptions<Option>(
+  options: readonly Option[],
+  requestedChild: number,
+  childFor: (option: Option) => number,
+  scoreFor: (option: Option) => number,
+  endpointFor: (option: Option) => number,
+  includeBorrowed = false,
+): readonly Option[] {
+  const ranked = includeBorrowed && requestedChild !== 0
+    ? rankGreaterRealmLowlandsRepairBorrowedBundleOptions(
+        options,
+        requestedChild,
+        childFor,
+        scoreFor,
+        endpointFor,
+      )
+    : rankGreaterRealmLowlandsRepairBundleOptions(
+        options,
+        requestedChild,
+        childFor,
+        scoreFor,
+        endpointFor,
+      );
+  return Object.freeze([...ranked].slice(0, 64));
+}
+
+/**
  * Prefer repair pairs using both children's own terrain, but only when those
  * bundles actually form a compatible sibling pair. A non-Lowlands fallback is
  * considered when the own-terrain pair set is empty.
@@ -3745,21 +3775,14 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
               Number.parseInt(bundleKey.split(':')[0]!, 10) === componentId
             ))
             .flatMap(([, bundles]) => bundles);
-      const options = includeBorrowed
-        ? rankGreaterRealmLowlandsRepairBorrowedBundleOptions(
-            available,
-            child,
-            bundle => bundle.child,
-            bundle => bundle.score,
-            bundle => bundle.edges[0].tierTwoEndpoint,
-          ).slice(0, 64)
-        : rankGreaterRealmLowlandsRepairBundleOptions(
-            available,
-            child,
-            bundle => bundle.child,
-            bundle => bundle.score,
-            bundle => bundle.edges[0].tierTwoEndpoint,
-          ).slice(0, 64);
+      const options = selectGreaterRealmLowlandsRepairBundleOptions(
+        available,
+        child,
+        bundle => bundle.child,
+        bundle => bundle.score,
+        bundle => bundle.edges[0].tierTwoEndpoint,
+        includeBorrowed,
+      );
       const frozen = Object.freeze(options);
       lowlandsRepairBundleOptionsCache.set(key, frozen);
       return frozen;
