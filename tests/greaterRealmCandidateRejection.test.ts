@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
+  classifyGreaterRealmTierTwoAssignmentFailure,
   GREATER_REALM_CANDIDATE_REJECTION_CODES,
   GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON,
   GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS,
@@ -19,6 +20,52 @@ import {
 } from '../scripts/atlas/greater-realm-strategic-audits';
 
 describe('Greater Realm expected candidate rejection boundary', () => {
+  it('separates missing parent slots, split lane coverage, and capacity failure', () => {
+    expect(classifyGreaterRealmTierTwoAssignmentFailure(
+      {
+        eligibleComponentCountsByParent: [2, 1, 0],
+        infeasibleComponentCombinations: 0,
+      },
+      {
+        eligibleComponentCountsByParent: [1, 0, 0],
+        infeasibleComponentCombinations: 0,
+      },
+    )).toBe('GATE_PARENT_SLOT_MISSING');
+
+    expect(classifyGreaterRealmTierTwoAssignmentFailure(
+      {
+        eligibleComponentCountsByParent: [1, 1, 0],
+        infeasibleComponentCombinations: 0,
+      },
+      {
+        eligibleComponentCountsByParent: [0, 0, 1],
+        infeasibleComponentCombinations: 0,
+      },
+    )).toBe('ASSIGNMENT_MISSING');
+
+    expect(classifyGreaterRealmTierTwoAssignmentFailure(
+      {
+        eligibleComponentCountsByParent: [1, 1, 1],
+        infeasibleComponentCombinations: 1,
+      },
+      {
+        eligibleComponentCountsByParent: [1, 1, 1],
+        infeasibleComponentCombinations: 0,
+      },
+    )).toBe('CAPACITY_ASSIGNMENT_INFEASIBLE');
+
+    expect(() => classifyGreaterRealmTierTwoAssignmentFailure(
+      {
+        eligibleComponentCountsByParent: [1, 1, 1],
+        infeasibleComponentCombinations: 0,
+      },
+      {
+        eligibleComponentCountsByParent: [1, 1],
+        infeasibleComponentCombinations: 0,
+      },
+    )).toThrow('GREATER_REALM_TIER_TWO_ASSIGNMENT_DIAGNOSTICS_INVALID');
+  });
+
   it('keeps one exact frozen allowlist of geography-search exhaustion codes', () => {
     expect(GREATER_REALM_CANDIDATE_REJECTION_CODES).toEqual([
       'GREATER_REALM_TECTONIC_DOMAIN_PLACEMENT_FAILED',
@@ -72,6 +119,10 @@ describe('Greater Realm expected candidate rejection boundary', () => {
       '../scripts/atlas/greater-realm-candidate-generator.ts',
       import.meta.url,
     ), 'utf8');
+    const rejectionSource = readFileSync(new URL(
+      '../scripts/atlas/greater-realm-candidate-rejection.ts',
+      import.meta.url,
+    ), 'utf8');
     expect(generatorSource).toContain(
       "'greater-realm-v2-natural-continent-pr-a.19'",
     );
@@ -82,7 +133,7 @@ describe('Greater Realm expected candidate rejection boundary', () => {
       "'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT'",
     );
     for (const reason of GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS) {
-      expect(generatorSource).toContain(`'${reason}'`);
+      expect(`${generatorSource}\n${rejectionSource}`).toContain(`'${reason}'`);
     }
   });
 

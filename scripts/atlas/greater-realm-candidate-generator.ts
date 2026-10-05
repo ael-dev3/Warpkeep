@@ -8,6 +8,7 @@ import {
   type GreaterRealmSanitizedCandidateSource,
 } from './greater-realm-contracts';
 import {
+  classifyGreaterRealmTierTwoAssignmentFailure,
   rejectGreaterRealmCandidate,
   rejectGreaterRealmTierTwoCapacity,
   type GreaterRealmTierTwoCapacityRejectionReason,
@@ -4024,6 +4025,7 @@ function allocateTierTwoPassableCapacity(
   }>;
   type RankedCapacityAssignments = Readonly<{
     assignments: readonly CapacityAssignment[];
+    eligibleComponentCountsByParent: readonly number[];
     infeasibleComponentCombinations: number;
   }>;
   const buildRankedCapacityAssignments = (
@@ -4100,6 +4102,11 @@ function allocateTierTwoPassableCapacity(
     });
     return Object.freeze({
       assignments: Object.freeze(capacityAssignments.slice(0, maximumAssignments)),
+      eligibleComponentCountsByParent: Object.freeze(
+        eligibleComponentsByParent.map(
+          componentsForParent => componentsForParent.length,
+        ),
+      ),
       infeasibleComponentCombinations,
     });
   };
@@ -4578,10 +4585,10 @@ function allocateTierTwoPassableCapacity(
     && lowlandsRepairCapacityAssignmentResult.assignments.length === 0
   ) {
     reject(
-      rankedCapacityAssignmentResult.infeasibleComponentCombinations > 0
-        || lowlandsRepairCapacityAssignmentResult.infeasibleComponentCombinations > 0
-        ? 'CAPACITY_ASSIGNMENT_INFEASIBLE'
-        : 'ASSIGNMENT_MISSING',
+      classifyGreaterRealmTierTwoAssignmentFailure(
+        rankedCapacityAssignmentResult,
+        lowlandsRepairCapacityAssignmentResult,
+      ),
     );
   }
   const gateApronLaneSearch = runGreaterRealmGateApronSearchLanes(

@@ -117,6 +117,57 @@ export const GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS = Object.freeze([
 export type GreaterRealmTierTwoCapacityRejectionReason =
   typeof GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS[number];
 
+export type GreaterRealmTierTwoAssignmentLaneDiagnostics = Readonly<{
+  eligibleComponentCountsByParent: readonly number[];
+  infeasibleComponentCombinations: number;
+}>;
+
+export type GreaterRealmTierTwoAssignmentFailureReason =
+  | 'GATE_PARENT_SLOT_MISSING'
+  | 'ASSIGNMENT_MISSING'
+  | 'CAPACITY_ASSIGNMENT_INFEASIBLE';
+
+/**
+ * Distinguish a globally absent gate-parent slot from lane-split coverage.
+ * Capacity infeasibility keeps precedence because it proves a complete
+ * component assignment was attempted and rejected by immutable capacity.
+ */
+export function classifyGreaterRealmTierTwoAssignmentFailure(
+  ordinary: GreaterRealmTierTwoAssignmentLaneDiagnostics,
+  lowlandsRepair: GreaterRealmTierTwoAssignmentLaneDiagnostics,
+): GreaterRealmTierTwoAssignmentFailureReason {
+  const parentCount = ordinary.eligibleComponentCountsByParent.length;
+  if (
+    parentCount === 0
+    || lowlandsRepair.eligibleComponentCountsByParent.length !== parentCount
+    || !Number.isSafeInteger(ordinary.infeasibleComponentCombinations)
+    || ordinary.infeasibleComponentCombinations < 0
+    || !Number.isSafeInteger(lowlandsRepair.infeasibleComponentCombinations)
+    || lowlandsRepair.infeasibleComponentCombinations < 0
+    || ordinary.eligibleComponentCountsByParent.some(
+      count => !Number.isSafeInteger(count) || count < 0,
+    )
+    || lowlandsRepair.eligibleComponentCountsByParent.some(
+      count => !Number.isSafeInteger(count) || count < 0,
+    )
+  ) {
+    throw new Error('GREATER_REALM_TIER_TWO_ASSIGNMENT_DIAGNOSTICS_INVALID');
+  }
+  if (
+    ordinary.infeasibleComponentCombinations > 0
+    || lowlandsRepair.infeasibleComponentCombinations > 0
+  ) {
+    return 'CAPACITY_ASSIGNMENT_INFEASIBLE';
+  }
+  if (ordinary.eligibleComponentCountsByParent.some(
+    (count, parent) => count === 0
+      && lowlandsRepair.eligibleComponentCountsByParent[parent] === 0,
+  )) {
+    return 'GATE_PARENT_SLOT_MISSING';
+  }
+  return 'ASSIGNMENT_MISSING';
+}
+
 export const GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON =
   Object.freeze({
     PASSABLE_COMPONENTS_EMPTY: 'GREATER_REALM_TIER_TWO_PASSABLE_COMPONENTS_EMPTY',

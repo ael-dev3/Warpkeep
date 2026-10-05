@@ -30,8 +30,9 @@ disabled; this push is not hosted CI or deployment evidence.
 One exact-source batch on `40f5c70` exhausted all 256 attempts with no eligible
 candidate. The new capacity-infeasible code appeared once; 65 attempts still
 reported `ASSIGNMENT_MISSING`. Its safe aggregate record is in
-`docs/evidence/0.4.0/local-operations.md`; synchronize it before aborting the
-exhausted checkpoint. The fresh-seed profile is descriptive, not a paired
+`docs/evidence/0.4.0/local-operations.md`; signed commit `d9ff3157` synchronized
+it, and the maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. The fresh-seed profile is descriptive, not a paired
 comparison with `fee3832`.
 
 The exact-source `e1ac103` search exhausted 128 ordinals. Fresh 256-attempt
@@ -54,17 +55,19 @@ into another source.
 
 NEXT
 1. The `40f5c70` exact-source batch exhausted all 256 attempts without an
-   eligible candidate. Its safe summary is recorded below; publish it, then
-   abort that checkpoint through the maintained API and verify
-   `checkpointAborted: true` and `productionUntouched: true`.
-2. The new safe code appeared once, while `ASSIGNMENT_MISSING` remained at 65.
-   Split that remaining result between a parent with no compatible sibling pair
-   in either lane and parent coverage split across the two lanes. The existing
-   `GATE_PARENT_SLOT_MISSING` code may express the first case. Keep map rules,
-   geometry, and content thresholds unchanged. Add deterministic regression
-   coverage; do not replay either exhausted seed.
-3. Publish a signed source, sync the pinned runner, and run one fresh-seed
-   maximum-256 batch on that exact source. Record only safe aggregates.
+   eligible candidate. Its safe summary is recorded below and its checkpoint
+   has been retired through the maintained API with production untouched.
+2. The follow-up correction now emits existing `GATE_PARENT_SLOT_MISSING` when
+   any parent has no eligible sibling-pair component in either lane;
+   `ASSIGNMENT_MISSING` is reserved for parent coverage split across lanes, and
+   `CAPACITY_ASSIGNMENT_INFEASIBLE` keeps precedence when full combinations
+   fail immutable capacity. Deterministic tests cover all three outcomes. The
+   correction changes rejection diagnostics only, not generation rules.
+3. Focused rejection/apron tests pass 26/26, generator regression passes 21/21,
+   and typecheck passes. Sign and publish this source and its notes, sync the
+   pinned runner, verify the toolchain, then run one fresh-seed maximum-256 batch
+   against that exact published commit. Record safe aggregates only; never
+   replay either exhausted seed.
 4. If a batch yields an eligible candidate, verify its private package and
    shortlist; continue only if every proof passes, then record selection
    against that exact candidate.

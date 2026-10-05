@@ -31,9 +31,10 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 The latest exact-source private search ran on signed `40f5c70`. Its 256 attempts
 produced no eligible package, shortlist, selection or provider operation. The
-safe aggregate summary is recorded in [local operations](../../evidence/0.4.0/local-operations.md);
-retire its exhausted checkpoint through the maintained abort path only after
-this result is synchronized.
+safe aggregate summary is recorded in [local operations](../../evidence/0.4.0/local-operations.md).
+After signed commit `d9ff3157` synchronized that result, the maintained abort
+path returned `checkpointAborted: true` and `productionUntouched: true` for the
+exhausted checkpoint.
 The signed source correction
 `fee38320f81f54647e17ed8351b3f2a4b45199dc` is pushed to the release branch and
 open draft PR #385. It considers non-Lowlands fallback bundles when both
@@ -45,6 +46,13 @@ rejection codes. Its first private batch produced no eligible candidate:
 `ASSIGNMENT_MISSING` remained the largest
 unclassified geography result (65/256), while the new capacity-infeasible code
 appeared once. The 37 proof-rejection maps are summarized in local operations.
+The current follow-up diagnostic now reports `GATE_PARENT_SLOT_MISSING` when a
+parent has no eligible sibling-pair component in either lane, retains
+`ASSIGNMENT_MISSING` for parent coverage split across lanes, and preserves
+capacity-infeasibility precedence. It changes only rejection classification:
+map rules, geometry, thresholds and search caps are unchanged. Local validation
+passes 26 focused rejection/apron tests, all 21 generator regression tests, and
+typecheck.
 The hydrology correction, deterministic PTR frozen-water catalog, authority
 repairs, and closure/test fixes remain committed and pushed. The old
 `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid and must not be
@@ -85,13 +93,12 @@ synchronized (`checkpointAborted: true`, `productionUntouched: true`). The older
 retained-seed checkpoint remains bound to `19b3422`; preserve it without
 relabeling or seed import.
 
-Next: sync the `40f5c70` summary and retire its checkpoint. Then split the
-remaining assignment outcome between a parent with no sibling pair in either
-lane and parent coverage split across lanes. Preserve the current map rules and
-thresholds; use the safe counts to guide the next exact-source batch. Do not
-claim causal improvement from different fresh-seed samples. Keep private output
-private. If a candidate passes, verify its package and shortlist before
-separate owner selection.
+Next: sign and publish the diagnostic correction, synchronize the pinned Linux
+runner, verify its toolchain, and run one fresh-seed maximum-256 batch against
+the exact published commit. The `40f5c70` checkpoint is retired. Do not replay
+or relabel exhausted seeds, or claim causal improvement from independent
+fresh-seed samples. Keep private output private. If a candidate passes, verify
+its package and shortlist before separate owner selection.
 Preserve the one-winner import rule, rollback artifacts, Alpha and licensing.
 The [execution handoff](execution-handoff.md) is authoritative for the ordered
 release path. Earlier dated sections below are history.

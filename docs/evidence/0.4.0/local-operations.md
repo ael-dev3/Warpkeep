@@ -283,11 +283,49 @@ minor streams 120–240 (1), and inner-gate/throne redundancy (1).
 cross-lane coverage split where each parent has a pair in only one lane. This
 is a fresh-seed sample, not a paired comparison with `fee3832`; do not attribute
 individual count shifts to the classification change. Do not replay or relabel
-the exhausted seed. Synchronize this safe summary before retiring its
-checkpoint through the maintained abort path; verify
-`checkpointAborted: true` and `productionUntouched: true` before another batch.
+the exhausted seed. The safe summary was synchronized in signed commit
+`d9ff3157`. At `2026-10-05 21:25:13 UTC`, the pinned Node 22.22.3 runner invoked
+the maintained `generate-candidates --abort-checkpoint` operation on exact
+source `40f5c708a92b765232e0d35c139eaf765ba8ab66`; it returned
+`checkpointAborted: true` and `productionUntouched: true`. The checkpoint is
+retired; run another batch only after the next diagnostic correction is
+reviewed, tested, signed, and synchronized.
+
+
+## Follow-on assignment classification correction — 5 October 2026
+
+The next diagnostic correction uses the per-parent count of components that
+have at least one eligible sibling pair in each search lane. If both lanes have
+no complete assignment and any parent has zero eligible components in both,
+the generator emits the existing `GATE_PARENT_SLOT_MISSING` rejection. If every
+parent is represented in at least one lane but neither lane covers all parents,
+it retains `ASSIGNMENT_MISSING`. If a complete component combination was
+attempted and failed immutable capacity, `CAPACITY_ASSIGNMENT_INFEASIBLE` keeps
+precedence. Invalid diagnostic inputs remain fatal errors. This separates the
+remaining outcomes without changing map selection, geometry, ownership,
+thresholds, or search caps.
+
+Deterministic classification cases cover missing parent slots, cross-lane
+coverage split, and capacity infeasibility. The focused rejection/apron suites
+passed 26/26, the exact generator regression passed 21/21, `npm run typecheck`
+passed, and `git diff --check` passed. Actions remains disabled, so this is
+local validation only, not hosted CI or deployment evidence.
+
+### Pre-push Actions inventory — 5 October 2026, 21:37 UTC
+
+The complete paginated repository inventory returned 3,807 workflow runs across
+all branches and event classes: 10 dynamic, 2,703 pull-request, 699 push, 156
+workflow-dispatch, and 239 workflow-run records. There were no queued or active
+runs and 28 listed runs had `run_attempt` greater than one. All listed runs
+were complete: 2,491 successful, 496 failed, 801 cancelled, and 19 skipped.
+Repository Actions permission readback returned `enabled: false`. The Verify
+workflow listens to pull requests and pushes; Pages deployment is downstream
+of successful Verify runs on pushes to `main`. Other inspected workflows are
+manual dispatches. This branch push cannot start hosted Actions while the
+repository setting remains disabled; it cannot deploy Pages.
 
 ## Current native verification evidence — 3 October 2026
+
 
 Published signed source `a89173f9` / tree `e3cf809b` is synchronized locally and remotely (publication `3bf80e59`, complete Actions post inventory `0c4245c5`). Its parent is `6088c974`; game baseline is `a0f6a55f`. Main `cb282bab` and PRs #380/#381 remain separate. Resolve the next signed repair identity from Git; Actions remains held disabled under the current runtime policy.
 
