@@ -4022,13 +4022,17 @@ function allocateTierTwoPassableCapacity(
     retainedPassableCells: number;
     originalOwnershipAffinity: number;
   }>;
+  type RankedCapacityAssignments = Readonly<{
+    assignments: readonly CapacityAssignment[];
+    infeasibleComponentCombinations: number;
+  }>;
   const buildRankedCapacityAssignments = (
     pairsFor: (
       componentId: number,
       parent: number,
     ) => readonly GreaterRealmTierTwoGateApronSiblingPair[],
     maximumAssignments: number,
-  ): readonly CapacityAssignment[] => {
+  ): RankedCapacityAssignments => {
     const eligibleComponentsByParent = Array.from(
       { length: TIER_II_REGION_COUNT },
       (_, parent) => eligibleComponents.filter(
@@ -4036,6 +4040,7 @@ function allocateTierTwoPassableCapacity(
       ),
     );
     const capacityAssignments: CapacityAssignment[] = [];
+    let infeasibleComponentCombinations = 0;
     for (const first of eligibleComponentsByParent[0]!) {
       for (const second of eligibleComponentsByParent[1]!) {
         for (const third of eligibleComponentsByParent[2]!) {
@@ -4066,7 +4071,10 @@ function allocateTierTwoPassableCapacity(
               originalOwnershipAffinity += component.originalParentCounts[parent]!;
             }
           }
-          if (!valid) continue;
+          if (!valid) {
+            infeasibleComponentCombinations += 1;
+            continue;
+          }
           const candidate = Object.freeze({
             componentByParent: Object.freeze([...componentByParent]),
             retainedPassableCells,
@@ -4090,11 +4098,17 @@ function allocateTierTwoPassableCapacity(
       }
       return 0;
     });
-    return Object.freeze(capacityAssignments.slice(0, maximumAssignments));
+    return Object.freeze({
+      assignments: Object.freeze(capacityAssignments.slice(0, maximumAssignments)),
+      infeasibleComponentCombinations,
+    });
   };
   // Retain a bounded ranked frontier rather than committing to the first
   // capacity optimum before apron compatibility has been proved.
-  const rankedCapacityAssignments = buildRankedCapacityAssignments(siblingPairsFor, 64);
+  const rankedCapacityAssignmentResult = buildRankedCapacityAssignments(
+    siblingPairsFor,
+    64,
+  );
 
   type GateApronPlan = Readonly<{
     parentByChild: readonly number[];
@@ -4555,23 +4569,30 @@ function allocateTierTwoPassableCapacity(
       pair => pair.bundles,
     );
   };
-  const lowlandsRepairRankedCapacityAssignments = buildRankedCapacityAssignments(
+  const lowlandsRepairCapacityAssignmentResult = buildRankedCapacityAssignments(
     lowlandsRepairSiblingPairsFor,
     GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS,
   );
   if (
-    rankedCapacityAssignments.length === 0
-    && lowlandsRepairRankedCapacityAssignments.length === 0
-  ) reject('ASSIGNMENT_MISSING');
+    rankedCapacityAssignmentResult.assignments.length === 0
+    && lowlandsRepairCapacityAssignmentResult.assignments.length === 0
+  ) {
+    reject(
+      rankedCapacityAssignmentResult.infeasibleComponentCombinations > 0
+        || lowlandsRepairCapacityAssignmentResult.infeasibleComponentCombinations > 0
+        ? 'CAPACITY_ASSIGNMENT_INFEASIBLE'
+        : 'ASSIGNMENT_MISSING',
+    );
+  }
   const gateApronLaneSearch = runGreaterRealmGateApronSearchLanes(
     () => searchGateApronLane(
       'ordinary',
-      rankedCapacityAssignments,
+      rankedCapacityAssignmentResult.assignments,
       siblingPairsFor,
     ),
     () => searchGateApronLane(
       'lowlands-repair',
-      lowlandsRepairRankedCapacityAssignments,
+      lowlandsRepairCapacityAssignmentResult.assignments,
       lowlandsRepairSiblingPairsFor,
     ),
   );
