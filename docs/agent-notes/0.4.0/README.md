@@ -29,11 +29,11 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state — 5 October 2026
 
-The latest exact-source private search ran on signed `fee3832`. Its 256 attempts
+The latest exact-source private search ran on signed `40f5c70`. Its 256 attempts
 produced no eligible package, shortlist, selection or provider operation. The
-safe aggregate summary is recorded in [local operations](../../evidence/0.4.0/local-operations.md).
-After the evidence commit was pushed, the maintained abort path returned
-`checkpointAborted: true` and `productionUntouched: true`.
+safe aggregate summary is recorded in [local operations](../../evidence/0.4.0/local-operations.md);
+retire its exhausted checkpoint through the maintained abort path only after
+this result is synchronized.
 The signed source correction
 `fee38320f81f54647e17ed8351b3f2a4b45199dc` is pushed to the release branch and
 open draft PR #385. It considers non-Lowlands fallback bundles when both
@@ -41,7 +41,10 @@ Lowlands-repair siblings have own bundles but no compatible own pair, without
 relaxing the existing caps or geometry and ownership proofs. The current
 signed successor `40f5c708a92b765232e0d35c139eaf765ba8ab66` separates missing
 sibling-pair assignments from component-capacity infeasibility in the safe
-rejection codes; no private batch has run on it yet.
+rejection codes. Its first private batch produced no eligible candidate:
+`ASSIGNMENT_MISSING` remained the largest
+unclassified geography result (65/256), while the new capacity-infeasible code
+appeared once. The 37 proof-rejection maps are summarized in local operations.
 The hydrology correction, deterministic PTR frozen-water catalog, authority
 repairs, and closure/test fixes remain committed and pushed. The old
 `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid and must not be
@@ -82,9 +85,11 @@ synchronized (`checkpointAborted: true`, `productionUntouched: true`). The older
 retained-seed checkpoint remains bound to `19b3422`; preserve it without
 relabeling or seed import.
 
-Next: run one maximum-256 exact-source batch on `40f5c70` with a fresh seed and
-use the new rejection split to guide any further correction. Do not claim
-causal improvement from different fresh-seed samples. Keep private output
+Next: sync the `40f5c70` summary and retire its checkpoint. Then split the
+remaining assignment outcome between a parent with no sibling pair in either
+lane and parent coverage split across lanes. Preserve the current map rules and
+thresholds; use the safe counts to guide the next exact-source batch. Do not
+claim causal improvement from different fresh-seed samples. Keep private output
 private. If a candidate passes, verify its package and shortlist before
 separate owner selection.
 Preserve the one-winner import rule, rollback artifacts, Alpha and licensing.

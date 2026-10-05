@@ -236,11 +236,56 @@ not alter map rules, minimums, geometry, ownership, ordering or search caps.
 
 Validation passed: apron and rejection suites (25/25), deterministic generator
 regression (21/21, including pinned digest and expected rejection),
-`npm run typecheck`, and `git diff --check`. The new classification has not yet
-been measured in a private batch. Run one maximum-256 exact-source batch after
-this handoff is synced; use the new code counts to choose the next targeted
-repair, if one is demonstrated. Actions remains disabled, so local checks and
-Git publication are not hosted verification or deployment.
+`npm run typecheck`, and `git diff --check`. The new classification was
+measured in the exact-source batch below. Actions remains disabled, so local
+checks and Git publication are not hosted verification or deployment.
+
+### Exact-source assignment-diagnostic batch — 5 October 2026
+
+The maintained generator ran once on exact source
+`40f5c708a92b765232e0d35c139eaf765ba8ab66`, with maximum attempts set to 256.
+After about 33 minutes, it exhausted all ordinals and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated checkpoint read
+confirmed sequence 256, phase `searching`, and `nextOrdinal` 256. Its
+aggregate-only reader zeroized the recovered root-seed buffer in `finally`;
+the private seed, candidate handle, coordinates and candidate bytes were not
+printed or copied. No candidate package, shortlist, selection, atlas
+publication, provider request or production mutation resulted.
+
+The safe summary contains 219 geography-exhaustion and 37 proof-rejection
+attempts. Geography codes are mutually exclusive per attempt:
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 29 |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 65 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 10 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH` | 58 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 6 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 35 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 9 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 1 |
+
+Proof occurrences are not mutually exclusive across a proof-rejected attempt:
+regional hydrogeomorphology QA (36), Frostmere (33), region land coherence
+(28), topographic QA completion (28), Stonewake (28), Tier III passable-land
+minimum (28), region graph (19), Mirefen (18), dormant capacity (15), gate
+approaches (13), gate graph (12), castle capacity (12), castle suitability
+(12), region passable land (11), Sunscar (10), Throneheart (7), Tier II QA (5),
+geological barriers (5), major rivers 48–72 (6), tier-potential density (4),
+natural landmass topology (3), lakes 48–96 (3), advanced geomorphology (3),
+biome diversity (2), natural land silhouette (1), Tier-I region balance (1),
+minor streams 120–240 (1), and inner-gate/throne redundancy (1).
+
+`CAPACITY_ASSIGNMENT_INFEASIBLE` appeared once; `ASSIGNMENT_MISSING` remained
+65. The latter still merges a parent with no sibling pair in either lane and a
+cross-lane coverage split where each parent has a pair in only one lane. This
+is a fresh-seed sample, not a paired comparison with `fee3832`; do not attribute
+individual count shifts to the classification change. Do not replay or relabel
+the exhausted seed. Synchronize this safe summary before retiring its
+checkpoint through the maintained abort path; verify
+`checkpointAborted: true` and `productionUntouched: true` before another batch.
 
 ## Current native verification evidence — 3 October 2026
 

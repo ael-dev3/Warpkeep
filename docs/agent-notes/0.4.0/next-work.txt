@@ -27,6 +27,13 @@ passes 455 cases across 13 affected files; sealed-launch preparation and the
 runtime-release suite's Windows private-temp ACL guard. Actions remains
 disabled; this push is not hosted CI or deployment evidence.
 
+One exact-source batch on `40f5c70` exhausted all 256 attempts with no eligible
+candidate. The new capacity-infeasible code appeared once; 65 attempts still
+reported `ASSIGNMENT_MISSING`. Its safe aggregate record is in
+`docs/evidence/0.4.0/local-operations.md`; synchronize it before aborting the
+exhausted checkpoint. The fresh-seed profile is descriptive, not a paired
+comparison with `fee3832`.
+
 The exact-source `e1ac103` search exhausted 128 ordinals. Fresh 256-attempt
 searches on `cff3479` and documentation-only successor `c7c494b` both exhausted
 with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE` and no package, selection, atlas
@@ -46,19 +53,22 @@ retained-seed checkpoint remains bound to `19b3422`; never relabel or inject it
 into another source.
 
 NEXT
-1. The safe summary and retirement of the exhausted `fee3832` checkpoint are
-   recorded above; its abort returned `checkpointAborted: true` and
-   `productionUntouched: true`.
-2. Sync the handoff update, pin the clean Linux runner to exact signed source
-   `40f5c708a92b765232e0d35c139eaf765ba8ab66`, verify the toolchain, and run one
-   maximum-256 private batch with a fresh seed. Do not replay either exhausted
-   seed. Record the safe counts split between missing sibling pairs and
-   component-capacity infeasibility; do not print private seed or candidate
-   bytes. This classification change does not alter map rules or thresholds.
-3. If a batch yields an eligible candidate, verify its private package and
+1. The `40f5c70` exact-source batch exhausted all 256 attempts without an
+   eligible candidate. Its safe summary is recorded below; publish it, then
+   abort that checkpoint through the maintained API and verify
+   `checkpointAborted: true` and `productionUntouched: true`.
+2. The new safe code appeared once, while `ASSIGNMENT_MISSING` remained at 65.
+   Split that remaining result between a parent with no compatible sibling pair
+   in either lane and parent coverage split across the two lanes. The existing
+   `GATE_PARENT_SLOT_MISSING` code may express the first case. Keep map rules,
+   geometry, and content thresholds unchanged. Add deterministic regression
+   coverage; do not replay either exhausted seed.
+3. Publish a signed source, sync the pinned runner, and run one fresh-seed
+   maximum-256 batch on that exact source. Record only safe aggregates.
+4. If a batch yields an eligible candidate, verify its private package and
    shortlist; continue only if every proof passes, then record selection
    against that exact candidate.
-4. Publish the source-bound PTR atlas, then apply the isolated PTR update through
+5. Publish the source-bound PTR atlas, then apply the isolated PTR update through
    its maintained prepare/apply and continuation consumer. After import starts,
    reconcile uncertain outcomes read-only; never resubmit a possibly submitted
    import. Proceed through owner provisioning, bridge/frontend readback,
