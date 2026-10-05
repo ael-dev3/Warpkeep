@@ -17,11 +17,12 @@ and the stale-SFX closure test correction. The old
 The supported private generator ran on exact source `cff3479` with the maximum
 supported 256-attempt bound. It completed all 256 ordinals and exited
 `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no eligible candidate or batch
-package was written, selected, or published. The encrypted checkpoint remains
-in the existing mode-0700 private workspace. Its safe rejection summary was
-obtained through the authenticated maintained checkpoint API, and the recovered
-root-seed buffer was zeroized after classification. No raw checkpoint bytes,
-seed, coordinate, preview, or private package was printed or exported.
+package was written, selected, or published. The encrypted checkpoint remained
+in the existing mode-0700 private workspace until its safe rejection summary
+was synchronized; it was then retired through the maintained abort API with
+production untouched. The authenticated summary path zeroized the recovered
+root-seed buffer after classification. No raw checkpoint bytes, seed,
+coordinate, preview, or private package was printed or exported.
 
 The following are exact code-occurrence counts, not mutually exclusive map
 totals: a proof-rejected map can report several failed proofs. The leading
@@ -72,13 +73,11 @@ The earlier exact-source `e1ac103` search separately exhausted 128 ordinals;
 its safe summary remains in the preceding Git history. The separate
 retained-seed checkpoint remains bound to source `19b3422`; the maintained CLI
 has no seed-import or cross-source migration path. It remains unchanged and
-must not be relabeled. After this result was synchronized, the maintained
-abort operation retired the current exhausted checkpoint and reported
-`checkpointAborted: true`, `productionUntouched: true`. Permit one fresh-entropy
-run against the next signed exact-source checkpoint to determine whether this
-rejection profile is seed-specific. If the dominant apron/capacity outcomes
-recur, stop seed retries and correct/test the bounded solver while preserving
-every eligibility and content-quality proof before another search.
+must not be relabeled. The subsequent c7 run confirmed that cff's rejection
+profile was systemic. The c7 checkpoint was retired after its evidence sync;
+the corrective c5 run and next action are recorded below. Do not spend more
+seeds on an unchanged source; preserve every eligibility and content-quality
+proof when correcting the solver.
 
 Native targeted validation passes 455 cases across 13 affected files; the
 sealed-launch preparation check and 1,271-member source-closure check pass.
@@ -106,18 +105,51 @@ each edge endpoint, and materializes private coordinate footprints only for the
 selected pairs. Lowlands repair still uses its existing restricted edge source;
 no policy, map-quality threshold, protocol, or player-facing feature changed.
 
-Validation on this source correction: `tests/greaterRealmGateApronSearch.test.ts`
-passed all 16 cases, including endpoint balance, deterministic ordering,
-constrained-graph fallback and malformed/duplicate descriptor rejection.
-`tests/greaterRealmCandidateGenerator.test.ts` passed all 21 deterministic
-generator regressions, including its pinned digest and expected rejection
-fixture. `npm run typecheck` passed (`tsc -b`); `git diff --check` passed. The
-correction has not yet been exercised by a fresh private source-bound batch, so
-candidate generation, package acceptance, shortlist, selection, atlas
-publication, provider changes and owner gameplay remain open. The next run must
-use the newly signed/published exact source and the maintained private
-generator; do not reuse the exhausted c7 or older `19b3422` seed state. Actions
-remains disabled, so a push is not hosted verification or deployment.
+The correction was signed and published as `2c5f0d3ab07af4fcfcf11f46ed9dff630c9e235c`
+on the release branch and PR #385. Its native pinned-toolchain preflight passed.
+`tests/greaterRealmGateApronSearch.test.ts` passed all 16 cases, including
+endpoint balance, deterministic ordering, constrained-graph fallback and
+malformed/duplicate descriptor rejection. `tests/greaterRealmCandidateGenerator.test.ts`
+passed all 21 deterministic generator regressions, including its pinned digest
+and expected rejection fixture. `npm run typecheck` passed (`tsc -b`).
+
+The maintained private generator then ran once on exact source `2c5f0d3`, with
+maximum attempts set to 256. It consumed all 256 ordinals and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE` after about 39 minutes. An authenticated
+read through the maintained checkpoint API reported phase `searching`, ordinal
+256, and 206 geography-exhaustion / 50 proof-rejection attempts. The safe read
+returned only source identity and aggregate codes; its recovered root-seed
+buffer was zeroized immediately. No eligible batch, package, shortlist,
+selection, atlas publication, provider request or production mutation resulted.
+
+The apron frontier correction measurably changed the outcome profile. Dry-gate
+apron no-match fell to 84 from 95 on c7 (96 on cff), and search-node-limit fell
+to 29 from 51 (52 on cff). Missing capacity assignment remained 34, effectively
+unchanged from c7's 34 (36 on cff). Six candidates now report complete-plan
+limits. More candidates reached later proofs: proof rejections rose to 50 from
+33 on c7. The code-occurrence counts are not mutually exclusive across
+multi-proof maps: active-grid count (31); apron no-match (84); missing Tier-II
+assignment (34); apron search-node limit (29); apron complete-plan limit (6);
+smallest passable Tier III (36); topographic QA completion (34); regional
+hydrogeomorphology QA (50), Frostmere (46), Mirefen (27), Stonewake (40), Tier
+II (6), Throneheart (11), Sunscar (8); Lowlands throne-component repair
+forbidden (5); advanced geomorphology (4); region land coherence (33), passable
+land (15), region graph (31); gate approaches (22), gate graph (19); dormant
+capacity (18); Tier-I balance (2); tier-potential density (5); biome diversity
+(4); castle capacity (23), castle suitability (23); geological barriers (7);
+legacy Lowlands placement (5); minor-stream range (1); mountain composition
+(3); primary component undersized (12); inner-gate/throne redundancy (3); lakes
+(5); major rivers (8); natural strategic regions (1); region-boundary
+alignment (1); outer-boundary proof (1); and landmass topology (1).
+
+This verifies a partial solver improvement, not release readiness. Do not spend
+another seed batch on `2c5f0d3`. First synchronize these results, retire its
+exhausted checkpoint through the maintained abort API and verify
+`productionUntouched: true`; then inspect the still-high no-match and unchanged
+capacity-assignment outcomes for a concrete second defect. Any next correction
+must preserve all eligibility/content proofs and undergo deterministic
+regression plus a new signed-source batch. Actions remains disabled, so a push
+is not hosted verification or deployment.
 
 Read-only live checks on 5 October: `https://warpkeep.com/` returned 200,
 `https://warpkeep.com/ptr/` returned 404, and `https://warpkeep.pages.dev/ptr/`
