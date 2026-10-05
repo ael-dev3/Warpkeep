@@ -4,8 +4,10 @@ import {
   GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS,
   GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT,
   assertGreaterRealmRepairOwnershipUnchanged,
+  chooseGreaterRealmLowlandsRepairSiblingPairs,
   greaterRealmLowlandsRepairGateEdgeEligible,
   measureGreaterRealmStrategicShape,
+  rankGreaterRealmLowlandsRepairBorrowedBundleOptions,
   rankGreaterRealmLowlandsRepairBundleOptions,
   runGreaterRealmGateApronSearchLanes,
   selectBalancedGreaterRealmGateApronPairs,
@@ -554,6 +556,52 @@ describe('Greater Realm ranked gate-apron search', () => {
       value => value.score,
       value => value.endpoint,
     ).map(value => value.id)).toEqual(['borrow-a', 'borrow-b', 'own-a', 'own-b']);
+  });
+
+  it('ranks borrowed fallback bundles without reusing the requested child or Lowlands', () => {
+    const bundles = Object.freeze([
+      Object.freeze({ id: 'borrow-b', child: 4, score: 1, endpoint: 8 }),
+      Object.freeze({ id: 'own', child: 2, score: 0, endpoint: 1 }),
+      Object.freeze({ id: 'borrow-a', child: 1, score: 1, endpoint: 3 }),
+      Object.freeze({ id: 'lowlands', child: 0, score: 0, endpoint: 0 }),
+    ]);
+    const rank = (options: typeof bundles, child: number) => (
+      rankGreaterRealmLowlandsRepairBorrowedBundleOptions(
+        options,
+        child,
+        value => value.child,
+        value => value.score,
+        value => value.endpoint,
+      ).map(value => value.id)
+    );
+    expect(rank(bundles, 2)).toEqual(['borrow-a', 'borrow-b']);
+    expect(rank(Object.freeze([...bundles].reverse()), 2)).toEqual([
+      'borrow-a',
+      'borrow-b',
+    ]);
+    expect(rank(bundles, 0)).toEqual([]);
+  });
+
+  it('tries fallback repair pairs only when no compatible own sibling pair exists', () => {
+    type Pair = Readonly<{ id: string }>;
+    const ownPair: Pair = Object.freeze({ id: 'own-compatible-pair' });
+    const borrowedPairs: readonly Pair[] = Object.freeze([
+      Object.freeze({ id: 'borrowed-first' }),
+      Object.freeze({ id: 'borrowed-second' }),
+      Object.freeze({ id: 'borrowed-overflow' }),
+    ]);
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      Object.freeze([ownPair]),
+      borrowedPairs,
+    )).toEqual([ownPair]);
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      Object.freeze([]),
+      borrowedPairs,
+    )).toEqual(borrowedPairs.slice(0, 2));
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      Object.freeze([]),
+      Object.freeze([]),
+    )).toEqual([]);
   });
 
   it('caps the repair frontier at the unchanged complete-plan budget', () => {

@@ -326,6 +326,48 @@ export function rankGreaterRealmLowlandsRepairBundleOptions<Option>(
   )));
 }
 
+/** Rank fallback bundles borrowed from a different non-Lowlands child. */
+export function rankGreaterRealmLowlandsRepairBorrowedBundleOptions<Option>(
+  options: readonly Option[],
+  requestedChild: number,
+  childFor: (option: Option) => number,
+  scoreFor: (option: Option) => number,
+  endpointFor: (option: Option) => number,
+): readonly Option[] {
+  if (!Number.isSafeInteger(requestedChild) || requestedChild < 0) {
+    fail('GREATER_REALM_LOWLANDS_REPAIR_CHILD_INVALID');
+  }
+  if (requestedChild === 0) return Object.freeze([]);
+  return Object.freeze(options
+    .filter(option => (
+      childFor(option) !== 0
+      && childFor(option) !== requestedChild
+    ))
+    .sort((first, second) => (
+      scoreFor(first) - scoreFor(second)
+      || childFor(first) - childFor(second)
+      || endpointFor(first) - endpointFor(second)
+    )));
+}
+
+/**
+ * Prefer repair pairs using both children's own terrain, but only when those
+ * bundles actually form a compatible sibling pair. A non-Lowlands fallback is
+ * considered when the own-terrain pair set is empty.
+ */
+export function chooseGreaterRealmLowlandsRepairSiblingPairs<Option>(
+  compatibleOwnPairs: readonly Option[],
+  compatibleFallbackPairs: readonly Option[],
+): readonly Option[] {
+  const preferred = compatibleOwnPairs.length > 0
+    ? compatibleOwnPairs
+    : compatibleFallbackPairs;
+  return Object.freeze(preferred.slice(
+    0,
+    GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT,
+  ));
+}
+
 export type GreaterRealmGateApronSearchLaneResult<Alternative, Option> = Readonly<{
   lane: GreaterRealmGateApronSearchLane;
   result: GreaterRealmRankedSiblingSearchResult<Alternative, Option>;
@@ -3690,8 +3732,9 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
     const lowlandsRepairBundleOptionsFor = (
       componentId: number,
       child: number,
+      includeBorrowed = false,
     ): readonly GreaterRealmTierTwoGateApronBundle[] => {
-      const key = `${componentId}:${child}`;
+      const key = `${componentId}:${child}:${includeBorrowed ? 'all' : 'preferred'}`;
       const cached = lowlandsRepairBundleOptionsCache.get(key);
       if (cached) return cached;
       const available = child === 0
@@ -3701,13 +3744,21 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
               Number.parseInt(bundleKey.split(':')[0]!, 10) === componentId
             ))
             .flatMap(([, bundles]) => bundles);
-      const options = rankGreaterRealmLowlandsRepairBundleOptions(
-        available,
-        child,
-        bundle => bundle.child,
-        bundle => bundle.score,
-        bundle => bundle.edges[0].tierTwoEndpoint,
-      ).slice(0, 64);
+      const options = includeBorrowed
+        ? rankGreaterRealmLowlandsRepairBorrowedBundleOptions(
+            available,
+            child,
+            bundle => bundle.child,
+            bundle => bundle.score,
+            bundle => bundle.edges[0].tierTwoEndpoint,
+          ).slice(0, 64)
+        : rankGreaterRealmLowlandsRepairBundleOptions(
+            available,
+            child,
+            bundle => bundle.child,
+            bundle => bundle.score,
+            bundle => bundle.edges[0].tierTwoEndpoint,
+          ).slice(0, 64);
       const frozen = Object.freeze(options);
       lowlandsRepairBundleOptionsCache.set(key, frozen);
       return frozen;
@@ -3730,45 +3781,64 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       const cached = lowlandsRepairSiblingPairCache.get(cacheKey);
       if (cached) return cached;
       const [firstChild, secondChild] = childrenByParent[parent]!;
-      const pairs: GreaterRealmTierTwoGateApronSiblingPair[] = [];
-      for (const first of lowlandsRepairBundleOptionsFor(componentId, firstChild!)) {
-        for (const second of lowlandsRepairBundleOptionsFor(componentId, secondChild!)) {
-          if (
-            first === second
-            || bundlesOverlap(first.tierOneCells, second.tierOneCells)
-            || bundlesOverlap(first.tierTwoCells, second.tierTwoCells)
-          ) continue;
-          const separation = Math.min(...first.edges.flatMap(edge => (
-            second.edges.map(siblingEdge => axialDistance(
-              grid.q[edge.tierTwoEndpoint]!,
-              grid.r[edge.tierTwoEndpoint]!,
-              grid.q[siblingEdge.tierTwoEndpoint]!,
-              grid.r[siblingEdge.tierTwoEndpoint]!,
-            ))
-          )));
-          if (separation < 8) continue;
-          pairs.push(Object.freeze({
-            children: Object.freeze([firstChild!, secondChild!] as const),
-            bundles: Object.freeze([first, second] as const),
-            score: first.score + second.score,
-          }));
+      const buildCompatiblePairs = (
+        firstBundles: readonly GreaterRealmTierTwoGateApronBundle[],
+        secondBundles: readonly GreaterRealmTierTwoGateApronBundle[],
+      ): GreaterRealmTierTwoGateApronSiblingPair[] => {
+        const pairs: GreaterRealmTierTwoGateApronSiblingPair[] = [];
+        for (const first of firstBundles) {
+          for (const second of secondBundles) {
+            if (
+              first === second
+              || bundlesOverlap(first.tierOneCells, second.tierOneCells)
+              || bundlesOverlap(first.tierTwoCells, second.tierTwoCells)
+            ) continue;
+            const separation = Math.min(...first.edges.flatMap(edge => (
+              second.edges.map(siblingEdge => axialDistance(
+                grid.q[edge.tierTwoEndpoint]!,
+                grid.r[edge.tierTwoEndpoint]!,
+                grid.q[siblingEdge.tierTwoEndpoint]!,
+                grid.r[siblingEdge.tierTwoEndpoint]!,
+              ))
+            )));
+            if (separation < 8) continue;
+            pairs.push(Object.freeze({
+              children: Object.freeze([firstChild!, secondChild!] as const),
+              bundles: Object.freeze([first, second] as const),
+              score: first.score + second.score,
+            }));
+          }
         }
-      }
-      pairs.sort((first, second) => (
-        Number(first.bundles[0].child !== first.children[0])
-        + Number(first.bundles[1].child !== first.children[1])
-        - Number(second.bundles[0].child !== second.children[0])
-        - Number(second.bundles[1].child !== second.children[1])
-        || first.score - second.score
-        || first.bundles[0].child - second.bundles[0].child
-        || first.bundles[1].child - second.bundles[1].child
-        || first.bundles[0].edges[0].tierTwoEndpoint
-          - second.bundles[0].edges[0].tierTwoEndpoint
-        || first.bundles[1].edges[0].tierTwoEndpoint
-          - second.bundles[1].edges[0].tierTwoEndpoint
-      ));
-      const frozen = Object.freeze(
-        pairs.slice(0, GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT),
+        pairs.sort((first, second) => (
+          Number(first.bundles[0].child !== first.children[0])
+          + Number(first.bundles[1].child !== first.children[1])
+          - Number(second.bundles[0].child !== second.children[0])
+          - Number(second.bundles[1].child !== second.children[1])
+          || first.score - second.score
+          || first.bundles[0].child - second.bundles[0].child
+          || first.bundles[1].child - second.bundles[1].child
+          || first.bundles[0].edges[0].tierTwoEndpoint
+            - second.bundles[0].edges[0].tierTwoEndpoint
+          || first.bundles[1].edges[0].tierTwoEndpoint
+            - second.bundles[1].edges[0].tierTwoEndpoint
+        ));
+        return pairs;
+      };
+      const firstPreferred = lowlandsRepairBundleOptionsFor(componentId, firstChild!);
+      const secondPreferred = lowlandsRepairBundleOptionsFor(componentId, secondChild!);
+      const compatibleOwnPairs = buildCompatiblePairs(
+        firstPreferred.filter(bundle => bundle.child === firstChild),
+        secondPreferred.filter(bundle => bundle.child === secondChild),
+      );
+      const compatibleFallbackPairs = compatibleOwnPairs.length > 0
+        ? []
+        : buildCompatiblePairs(
+            lowlandsRepairBundleOptionsFor(componentId, firstChild!, true),
+            lowlandsRepairBundleOptionsFor(componentId, secondChild!, true),
+          );
+      const frozen = chooseGreaterRealmLowlandsRepairSiblingPairs(
+        compatibleOwnPairs,
+        compatibleFallbackPairs,
       );
       lowlandsRepairSiblingPairCache.set(cacheKey, frozen);
       return frozen;
