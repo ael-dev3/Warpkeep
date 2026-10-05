@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 import {
   PUBLIC_PAGES_LEGAL_HEADERS_PATH,
+  PUBLIC_PAGES_LEGAL_PLAIN_PATHS,
   publicPagesLegalHeadersBytes,
 } from './verify-public-pages-mirror-plan.mjs';
 
@@ -13,10 +14,11 @@ import {
  * 3 October 2026: no GitHub Actions). It fetches every served file of a reviewed
  * `/ptr/` mirror plan from one HTTPS origin and requires byte-identical bodies,
  * plus the SPA fallback routes. The root `_headers` file is Pages metadata and
- * is not fetched; when the plan publishes `/LICENSE` or `/NOTICE`, those routes
- * must answer `text/plain; charset=utf-8`. It reads public URLs only: it needs
- * no credential and changes nothing. A pass describes the served bytes at the
- * time of the run; it is not owner sign-in, realm readiness or device acceptance.
+ * is not fetched; when the plan publishes an extensionless reviewed legal
+ * file, that route must answer `text/plain; charset=utf-8`. It reads public
+ * URLs only: it needs no credential and changes nothing. A pass describes the
+ * served bytes at the time of the run; it is not owner sign-in, realm
+ * readiness or device acceptance.
  */
 
 export const CLOUDFLARE_PAGES_PROJECT = 'warpkeep';
@@ -29,7 +31,6 @@ const MAX_PLAN_BYTES = 4 * 1024 * 1024;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_ENTRIES = 20_000;
 const MISSING_PROBE = '__warpkeep-postflight-missing__';
-const LEGAL_PLAIN_PATHS = Object.freeze(['LICENSE', 'NOTICE']);
 const LEGAL_PLAIN_TYPE = /^text\/plain;\s*charset=utf-8$/iu;
 
 export class CloudflarePagesPostflightError extends Error {
@@ -153,7 +154,7 @@ export async function verifyCloudflarePagesPostflight({
   }
   const { plan, entries } = parseReviewedPlan(reviewedPlanBytes, expectedReviewedPlanSha256);
   const headersEntry = entries.get(PUBLIC_PAGES_LEGAL_HEADERS_PATH);
-  if (headersEntry || LEGAL_PLAIN_PATHS.some(path => entries.has(path))) {
+  if (headersEntry || PUBLIC_PAGES_LEGAL_PLAIN_PATHS.some(path => entries.has(path))) {
     const expectedHeaders = publicPagesLegalHeadersBytes();
     if (!headersEntry || headersEntry.byteLength !== expectedHeaders.length
       || headersEntry.sha256 !== sha256(expectedHeaders)) fail('PLAN_INVALID');
@@ -171,7 +172,7 @@ export async function verifyCloudflarePagesPostflight({
       try {
         const { status, body, contentType } = await fetchExact(fetchImpl, `${origin}${canonicalRoute(entry.path)}`, entry.byteLength + 1, timeoutMs, run.signal);
         if (status !== 200 || body.length !== entry.byteLength || sha256(body) !== entry.sha256) mismatched.push(entry.path);
-        else if (LEGAL_PLAIN_PATHS.includes(entry.path) && !LEGAL_PLAIN_TYPE.test(contentType ?? '')) {
+        else if (PUBLIC_PAGES_LEGAL_PLAIN_PATHS.includes(entry.path) && !LEGAL_PLAIN_TYPE.test(contentType ?? '')) {
           mistyped.push(entry.path);
         }
       } catch (error) {
@@ -206,7 +207,7 @@ export async function verifyCloudflarePagesPostflight({
     publicParentCommit: plan.publicParentCommit,
     verifiedFileCount: entries.size,
     verifiedFallbackRoutes: 2,
-    verifiedLegalPlainTextRoutes: LEGAL_PLAIN_PATHS.filter(path => entries.has(path)).length,
+    verifiedLegalPlainTextRoutes: PUBLIC_PAGES_LEGAL_PLAIN_PATHS.filter(path => entries.has(path)).length,
   });
 }
 

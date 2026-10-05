@@ -65,13 +65,24 @@ const PUBLIC_DOCUMENT_SET = new Set([...SOURCE_PUBLIC_DOCUMENTS, 'README.md']);
  * LICENSE or NOTICE bytes.
  */
 export const PUBLIC_PAGES_LEGAL_HEADERS_PATH = '_headers';
+/**
+ * Reviewed legal texts whose names have no text media-type suffix.
+ * Cloudflare Pages otherwise serves each of them as application/octet-stream.
+ * Markdown and .txt records already receive a text type and are not listed.
+ */
+export const PUBLIC_PAGES_LEGAL_PLAIN_PATHS = Object.freeze([
+  'LICENSE',
+  'LICENSE-CC-BY-4.0',
+  'NOTICE',
+  'licenses/legacy/LICENSE-0BSD-v0.2.0',
+  'licenses/legacy/LICENSE-CC0-1.0-v0.2.0',
+]);
+const PUBLIC_PAGES_LEGAL_PLAIN_TYPE = 'text/plain; charset=utf-8';
 const PUBLIC_PAGES_LEGAL_HEADERS_TEXT = ''
   + '# Cloudflare Pages metadata. This file is not a public route.\n'
-  + '/LICENSE\n'
-  + '  Content-Type: text/plain; charset=utf-8\n'
-  + '\n'
-  + '/NOTICE\n'
-  + '  Content-Type: text/plain; charset=utf-8\n';
+  + PUBLIC_PAGES_LEGAL_PLAIN_PATHS.map(path => (
+    `/${path}\n  Content-Type: ${PUBLIC_PAGES_LEGAL_PLAIN_TYPE}\n`
+  )).join('\n');
 
 export function publicPagesLegalHeadersBytes() {
   return Buffer.from(PUBLIC_PAGES_LEGAL_HEADERS_TEXT, 'utf8');
