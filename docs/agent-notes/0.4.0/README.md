@@ -50,13 +50,15 @@ rejection codes. Its first private batch produced no eligible candidate:
 `ASSIGNMENT_MISSING` remained the largest
 unclassified geography result (65/256), while the new capacity-infeasible code
 appeared once. The 37 proof-rejection maps are summarized in local operations.
-The current follow-up diagnostic now reports `GATE_PARENT_SLOT_MISSING` when a
-parent has no eligible sibling-pair component in either lane, retains
-`ASSIGNMENT_MISSING` for parent coverage split across lanes, and preserves
-capacity-infeasibility precedence. It changes only rejection classification:
-map rules, geometry, thresholds and search caps are unchanged. Local validation
-passes 26 focused rejection/apron tests, all 21 generator regression tests, and
-typecheck.
+The follow-up Tier-II diagnostic now names the sole missing parent
+(`CROWNWOOD`, `IRONVEIL`, or `GLASSWATER`) when exactly one lacks eligible
+sibling-pair components in both lanes. Multiple missing parents retain generic
+`GATE_PARENT_SLOT_MISSING`; cross-lane coverage and immutable-capacity failures
+retain their own codes. This changes rejection reporting only: map selection,
+geometry, thresholds, ownership, and search caps are unchanged. The next action
+is to publish the reviewed source and notes, sync the pinned Linux runner, and
+run one fresh-seed 256-attempt batch on that exact source. Do not replay retired
+`8bd8de9` or `40f5c70` checkpoints.
 The hydrology correction, deterministic PTR frozen-water catalog, authority
 repairs, and closure/test fixes remain committed and pushed. The old
 `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid and must not be

@@ -292,24 +292,26 @@ retired; run another batch only after the next diagnostic correction is
 reviewed, tested, signed, and synchronized.
 
 
-## Follow-on assignment classification correction — 5 October 2026
+## Follow-on assignment classification correction — 6 October 2026
 
-The next diagnostic correction uses the per-parent count of components that
-have at least one eligible sibling pair in each search lane. If both lanes have
-no complete assignment and any parent has zero eligible components in both,
-the generator emits the existing `GATE_PARENT_SLOT_MISSING` rejection. If every
-parent is represented in at least one lane but neither lane covers all parents,
-it retains `ASSIGNMENT_MISSING`. If a complete component combination was
-attempted and failed immutable capacity, `CAPACITY_ASSIGNMENT_INFEASIBLE` keeps
-precedence. Invalid diagnostic inputs remain fatal errors. This separates the
+This diagnostic uses the per-parent count of components with at least one
+eligible sibling pair in each search lane. If exactly one parent has zero
+eligible components in both lanes, the generator emits its parent-specific
+Crownwood, Ironveil, or Glasswater reason. Multiple missing parents retain
+generic `GATE_PARENT_SLOT_MISSING`. If every parent is represented in at least
+one lane but neither lane covers all parents, it retains
+`ASSIGNMENT_MISSING`. If a complete component combination was attempted and
+failed immutable capacity, `CAPACITY_ASSIGNMENT_INFEASIBLE` keeps precedence.
+Invalid diagnostic inputs remain fatal errors. This distinguishes the
 remaining outcomes without changing map selection, geometry, ownership,
 thresholds, or search caps.
 
-Deterministic classification cases cover missing parent slots, cross-lane
-coverage split, and capacity infeasibility. The focused rejection/apron suites
-passed 26/26, the exact generator regression passed 21/21, `npm run typecheck`
-passed, and `git diff --check` passed. Actions remains disabled, so this is
-local validation only, not hosted CI or deployment evidence.
+Deterministic classification cases cover each single-parent code, multiple
+missing parents, cross-lane coverage split, capacity infeasibility, and invalid
+diagnostics. The focused rejection/apron suites passed 26/26, the exact
+generator regression passed 21/21, and `npm run typecheck` passed. Actions
+remains disabled, so these are local checks, not hosted CI or deployment
+evidence.
 
 ### Pre-push Actions inventory — 5 October 2026, 21:37 UTC
 

@@ -35,14 +35,13 @@ it, and the maintained abort returned `checkpointAborted: true` and
 `productionUntouched: true`. The fresh-seed profile is descriptive, not a paired
 comparison with `fee3832`.
 
-The exact-source batch on `8bd8de9` also exhausted all 256 attempts without a
+The exact-source batch on `8bd8de9` exhausted all 256 attempts without a
 candidate. Its authenticated safe read recorded 223 geography rejections and
-33 proof rejections; the new `GATE_PARENT_SLOT_MISSING` code appeared 81 times,
-`CAPACITY_ASSIGNMENT_INFEASIBLE` twice, and `ASSIGNMENT_MISSING` zero times.
-Full aggregates are in `docs/evidence/0.4.0/local-operations.md`. Signed commit
-`a2c3589e` synchronized the summary; the maintained abort returned
-`checkpointAborted: true` and `productionUntouched: true`. This is another fresh
-seed, not a paired comparison with `40f5c70`.
+33 proof rejections; generic `GATE_PARENT_SLOT_MISSING` appeared 81 times,
+capacity infeasibility twice, and `ASSIGNMENT_MISSING` zero times. Signed
+commit `a2c3589e` synchronized the summary, and the maintained abort confirmed
+`checkpointAborted: true` and `productionUntouched: true`. This fresh seed is
+not a paired comparison with `40f5c70`.
 
 The exact-source `e1ac103` search exhausted 128 ordinals. Fresh 256-attempt
 searches on `cff3479` and documentation-only successor `c7c494b` both exhausted
@@ -66,23 +65,19 @@ NEXT
 1. The `8bd8de9` exact-source batch exhausted all 256 attempts without an
    eligible candidate. Its safe evidence is published and its checkpoint was
    retired through the maintained API with production untouched.
-2. The follow-up correction emits existing `GATE_PARENT_SLOT_MISSING` when
-   any parent has no eligible sibling-pair component in either lane;
-   `ASSIGNMENT_MISSING` is reserved for parent coverage split across lanes, and
-   `CAPACITY_ASSIGNMENT_INFEASIBLE` keeps precedence when full combinations
-   fail immutable capacity. Deterministic tests cover all three outcomes. The
-   correction changes rejection diagnostics only, not generation rules.
+2. The classifier reports a parent-specific missing-slot code when exactly one
+   parent lacks eligible sibling-pair components in both lanes; multiple
+   missing parents retain the generic code. Lane-split coverage and
+   capacity-infeasibility precedence are unchanged. This is diagnostics only.
 3. Focused rejection/apron tests pass 26/26, generator regression passes 21/21,
-   and typecheck passes. Trace which parent or frontier loses all eligible
-   sibling pairs in both lanes. Make a narrow correction only if the source
-   exposes a concrete gap; keep selection, geometry and thresholds fixed.
-4. Publish the next signed correction and notes, sync the pinned runner, verify
-   the toolchain, and run one fresh-seed maximum-256 batch against that exact
-   published commit. Record safe aggregates only; never replay exhausted seeds.
-5. If a batch yields an eligible candidate, verify its private package and
+   and typecheck passes. Publish the signed diagnostic checkpoint with these
+   updated rails, sync the pinned runner, and run one fresh-seed maximum-256
+   batch on that exact source. Record safe per-parent aggregates; never replay
+   exhausted seeds or relax quality constraints.
+4. If a batch yields an eligible candidate, verify its private package and
    shortlist; continue only if every proof passes, then record selection
    against that exact candidate.
-6. Publish the source-bound PTR atlas, then apply the isolated PTR update through
+5. Publish the source-bound PTR atlas, then apply the isolated PTR update through
    its maintained prepare/apply and continuation consumer. After import starts,
    reconcile uncertain outcomes read-only; never resubmit a possibly submitted
    import. Proceed through owner provisioning, bridge/frontend readback,

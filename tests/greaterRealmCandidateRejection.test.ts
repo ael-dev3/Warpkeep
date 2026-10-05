@@ -30,6 +30,38 @@ describe('Greater Realm expected candidate rejection boundary', () => {
         eligibleComponentCountsByParent: [1, 0, 0],
         infeasibleComponentCombinations: 0,
       },
+    )).toBe('GATE_PARENT_GLASSWATER_SLOT_MISSING');
+
+    for (const [parentIndex, reason] of [
+      [0, 'GATE_PARENT_CROWNWOOD_SLOT_MISSING'],
+      [1, 'GATE_PARENT_IRONVEIL_SLOT_MISSING'],
+      [2, 'GATE_PARENT_GLASSWATER_SLOT_MISSING'],
+    ] as const) {
+      const ordinaryCounts = [1, 1, 1];
+      const repairCounts = [1, 1, 1];
+      ordinaryCounts[parentIndex] = 0;
+      repairCounts[parentIndex] = 0;
+      expect(classifyGreaterRealmTierTwoAssignmentFailure(
+        {
+          eligibleComponentCountsByParent: ordinaryCounts,
+          infeasibleComponentCombinations: 0,
+        },
+        {
+          eligibleComponentCountsByParent: repairCounts,
+          infeasibleComponentCombinations: 0,
+        },
+      )).toBe(reason);
+    }
+
+    expect(classifyGreaterRealmTierTwoAssignmentFailure(
+      {
+        eligibleComponentCountsByParent: [0, 0, 1],
+        infeasibleComponentCombinations: 0,
+      },
+      {
+        eligibleComponentCountsByParent: [0, 0, 1],
+        infeasibleComponentCombinations: 0,
+      },
     )).toBe('GATE_PARENT_SLOT_MISSING');
 
     expect(classifyGreaterRealmTierTwoAssignmentFailure(
@@ -61,6 +93,17 @@ describe('Greater Realm expected candidate rejection boundary', () => {
       },
       {
         eligibleComponentCountsByParent: [1, 1],
+        infeasibleComponentCombinations: 0,
+      },
+    )).toThrow('GREATER_REALM_TIER_TWO_ASSIGNMENT_DIAGNOSTICS_INVALID');
+
+    expect(() => classifyGreaterRealmTierTwoAssignmentFailure(
+      {
+        eligibleComponentCountsByParent: [1, 1, 1, 1],
+        infeasibleComponentCombinations: 0,
+      },
+      {
+        eligibleComponentCountsByParent: [1, 1, 1, 1],
         infeasibleComponentCombinations: 0,
       },
     )).toThrow('GREATER_REALM_TIER_TWO_ASSIGNMENT_DIAGNOSTICS_INVALID');

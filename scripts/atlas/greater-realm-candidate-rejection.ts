@@ -26,6 +26,9 @@ export const GREATER_REALM_CANDIDATE_REJECTION_CODES = Object.freeze([
   'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
   'GREATER_REALM_TIER_TWO_PASSABLE_COMPONENTS_EMPTY',
   'GREATER_REALM_TIER_TWO_STRATEGIC_COMPONENTS_EMPTY',
+  'GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING',
+  'GREATER_REALM_TIER_TWO_GATE_PARENT_IRONVEIL_SLOT_MISSING',
+  'GREATER_REALM_TIER_TWO_GATE_PARENT_GLASSWATER_SLOT_MISSING',
   'GREATER_REALM_TIER_TWO_GATE_PARENT_SLOT_MISSING',
   'GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING',
   'GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE',
@@ -74,6 +77,9 @@ export type GreaterRealmCandidateRejectionCode =
 export const GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS = Object.freeze([
   'PASSABLE_COMPONENTS_EMPTY',
   'STRATEGIC_COMPONENTS_EMPTY',
+  'GATE_PARENT_CROWNWOOD_SLOT_MISSING',
+  'GATE_PARENT_IRONVEIL_SLOT_MISSING',
+  'GATE_PARENT_GLASSWATER_SLOT_MISSING',
   'GATE_PARENT_SLOT_MISSING',
   'ASSIGNMENT_MISSING',
   'CAPACITY_ASSIGNMENT_INFEASIBLE',
@@ -123,9 +129,18 @@ export type GreaterRealmTierTwoAssignmentLaneDiagnostics = Readonly<{
 }>;
 
 export type GreaterRealmTierTwoAssignmentFailureReason =
+  | 'GATE_PARENT_CROWNWOOD_SLOT_MISSING'
+  | 'GATE_PARENT_IRONVEIL_SLOT_MISSING'
+  | 'GATE_PARENT_GLASSWATER_SLOT_MISSING'
   | 'GATE_PARENT_SLOT_MISSING'
   | 'ASSIGNMENT_MISSING'
   | 'CAPACITY_ASSIGNMENT_INFEASIBLE';
+
+const GREATER_REALM_TIER_TWO_PARENT_SLOT_FAILURES = Object.freeze([
+  'GATE_PARENT_CROWNWOOD_SLOT_MISSING',
+  'GATE_PARENT_IRONVEIL_SLOT_MISSING',
+  'GATE_PARENT_GLASSWATER_SLOT_MISSING',
+] as const satisfies readonly GreaterRealmTierTwoAssignmentFailureReason[]);
 
 /**
  * Distinguish a globally absent gate-parent slot from lane-split coverage.
@@ -138,7 +153,7 @@ export function classifyGreaterRealmTierTwoAssignmentFailure(
 ): GreaterRealmTierTwoAssignmentFailureReason {
   const parentCount = ordinary.eligibleComponentCountsByParent.length;
   if (
-    parentCount === 0
+    parentCount !== GREATER_REALM_TIER_TWO_PARENT_SLOT_FAILURES.length
     || lowlandsRepair.eligibleComponentCountsByParent.length !== parentCount
     || !Number.isSafeInteger(ordinary.infeasibleComponentCombinations)
     || ordinary.infeasibleComponentCombinations < 0
@@ -159,10 +174,20 @@ export function classifyGreaterRealmTierTwoAssignmentFailure(
   ) {
     return 'CAPACITY_ASSIGNMENT_INFEASIBLE';
   }
-  if (ordinary.eligibleComponentCountsByParent.some(
+  const missingParents = ordinary.eligibleComponentCountsByParent.flatMap(
     (count, parent) => count === 0
-      && lowlandsRepair.eligibleComponentCountsByParent[parent] === 0,
-  )) {
+      && lowlandsRepair.eligibleComponentCountsByParent[parent] === 0
+      ? [parent]
+      : [],
+  );
+  if (missingParents.length === 1) {
+    const reason = GREATER_REALM_TIER_TWO_PARENT_SLOT_FAILURES[missingParents[0]!];
+    if (reason === undefined) {
+      throw new Error('GREATER_REALM_TIER_TWO_ASSIGNMENT_DIAGNOSTICS_INVALID');
+    }
+    return reason;
+  }
+  if (missingParents.length > 1) {
     return 'GATE_PARENT_SLOT_MISSING';
   }
   return 'ASSIGNMENT_MISSING';
@@ -172,6 +197,12 @@ export const GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON =
   Object.freeze({
     PASSABLE_COMPONENTS_EMPTY: 'GREATER_REALM_TIER_TWO_PASSABLE_COMPONENTS_EMPTY',
     STRATEGIC_COMPONENTS_EMPTY: 'GREATER_REALM_TIER_TWO_STRATEGIC_COMPONENTS_EMPTY',
+    GATE_PARENT_CROWNWOOD_SLOT_MISSING:
+      'GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING',
+    GATE_PARENT_IRONVEIL_SLOT_MISSING:
+      'GREATER_REALM_TIER_TWO_GATE_PARENT_IRONVEIL_SLOT_MISSING',
+    GATE_PARENT_GLASSWATER_SLOT_MISSING:
+      'GREATER_REALM_TIER_TWO_GATE_PARENT_GLASSWATER_SLOT_MISSING',
     GATE_PARENT_SLOT_MISSING: 'GREATER_REALM_TIER_TWO_GATE_PARENT_SLOT_MISSING',
     ASSIGNMENT_MISSING: 'GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING',
     CAPACITY_ASSIGNMENT_INFEASIBLE:
