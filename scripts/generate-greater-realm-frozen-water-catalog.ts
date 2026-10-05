@@ -12,7 +12,7 @@ type OceanDepthRun = readonly [q: number, firstR: number, lastR: number, depth: 
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(scriptDirectory, '..');
-const outputPath = resolve(repositoryRoot, 'spacetimedb/src/greaterRealmFrozenWaterCatalog.ts');
+const outputPath = resolve(repositoryRoot, 'spacetimedb/ptr/src/greaterRealmFrozenWaterCatalog.ts');
 
 function assertAxialRow(row: AxialRow): void {
   if (

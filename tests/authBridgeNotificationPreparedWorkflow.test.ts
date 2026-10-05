@@ -1324,7 +1324,7 @@ describe('notification-bridge-prepared protected workflow', () => {
       'scripts/worker-return-repair-operator.ts',
       'scripts/worker-rollout-operator.ts',
       'spacetimedb/ptr/src/greaterRealmHydrologyAuthority.ts',
-      'spacetimedb/src/greaterRealmFrozenWaterCatalog.ts',
+      'spacetimedb/ptr/src/greaterRealmFrozenWaterCatalog.ts',
       'src/greater-realm/greaterRealmTransport.ts',
       'src/spacetime/greaterRealmProviderBridge.ts',
     ]));

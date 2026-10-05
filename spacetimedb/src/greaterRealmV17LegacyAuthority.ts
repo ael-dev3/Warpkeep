@@ -448,14 +448,6 @@ export type GreaterRealmHydrologyLinkCellV1 = Readonly<{
   flowAccumulation: bigint;
 }>;
 
-export type GreaterRealmHydrologyLegacyProofV1 = Readonly<{
-  sourceRow: GreaterRealmLegacyCellProjectionV1;
-  downstreamRow: GreaterRealmLegacyCellProjectionV1;
-  rotation: number;
-  offsetQ: number;
-  offsetR: number;
-}>;
-
 export function greaterRealmHydrologyRequiresDownstream(regime: number): boolean {
   return regime === GREATER_REALM_HYDRO_REGIME.RIVER
     || regime === GREATER_REALM_HYDRO_REGIME.STREAM;
@@ -548,7 +540,6 @@ const HYDROLOGY_TRANSITIONS: Readonly<Record<number, readonly number[]>> = Objec
 export function requireGreaterRealmHydrologyLinkV1(
   source: GreaterRealmHydrologyLinkCellV1,
   downstream: GreaterRealmHydrologyLinkCellV1,
-  legacyProof?: GreaterRealmHydrologyLegacyProofV1,
 ): void {
   const downstreamIsDry = downstream.hydroRegime === GREATER_REALM_HYDRO_REGIME.DRY;
   if (
@@ -562,47 +553,7 @@ export function requireGreaterRealmHydrologyLinkV1(
     fail('GREATER_REALM_HYDROLOGY_UPHILL_INVALID');
   }
   if (downstream.flowAccumulation <= source.flowAccumulation) {
-    if (
-      legacyProof === undefined
-      || source !== legacyProof.sourceRow
-      || downstream !== legacyProof.downstreamRow
-      || !Number.isSafeInteger(legacyProof.rotation)
-      || legacyProof.rotation < 0
-      || legacyProof.rotation > 5
-      || !Number.isSafeInteger(legacyProof.offsetQ)
-      || !Number.isSafeInteger(legacyProof.offsetR)
-    ) fail('GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID');
-    const sourceLegacy = requireGreaterRealmLegacyCellAuthorityV1(
-      legacyProof.sourceRow,
-      legacyProof.rotation,
-      legacyProof.offsetQ,
-      legacyProof.offsetR,
-    );
-    const downstreamLegacy = requireGreaterRealmLegacyCellAuthorityV1(
-      legacyProof.downstreamRow,
-      legacyProof.rotation,
-      legacyProof.offsetQ,
-      legacyProof.offsetR,
-    );
-    if (source.flowAccumulation === downstream.flowAccumulation) {
-      if (
-        downstream.hydroSurfaceMilli >= source.hydroSurfaceMilli
-        || sourceLegacy.legacyWater
-      ) fail('GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID');
-    } else {
-      const frozenWater = LEGACY_WATER_BY_KEY.get(
-        localKey(legacyProof.downstreamRow.localQ, legacyProof.downstreamRow.localR),
-      );
-      if (
-        (source.hydroRegime !== GREATER_REALM_HYDRO_REGIME.RIVER
-          && source.hydroRegime !== GREATER_REALM_HYDRO_REGIME.STREAM)
-        || sourceLegacy.legacyWater
-        || !downstreamLegacy.legacyWater
-        || frozenWater?.regime !== 'ocean'
-        || frozenWater.downstreamWaterCellKey !== undefined
-        || legacyProof.downstreamRow.hydroFlowDirection !== undefined
-      ) fail('GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID');
-    }
+    fail('GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID');
   }
   if (!(HYDROLOGY_TRANSITIONS[source.hydroRegime] ?? []).includes(downstream.hydroRegime)) {
     fail('GREATER_REALM_HYDROLOGY_TRANSITION_INVALID');

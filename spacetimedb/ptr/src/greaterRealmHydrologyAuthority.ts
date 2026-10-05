@@ -1,7 +1,7 @@
 import {
   canonicalOceanDepthAt,
   isCanonicalWaterCoordinate,
-} from '../../src/greaterRealmFrozenWaterCatalog';
+} from './greaterRealmFrozenWaterCatalog';
 
 // These stable protocol IDs mirror GREATER_REALM_HYDRO_REGIME in atlasPolicy.
 const HYDRO_REGIME = Object.freeze({

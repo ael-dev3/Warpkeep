@@ -7,11 +7,11 @@ import { GENESIS_WATER_REVISION_ENABLED_CELLS_V1 } from '../spacetimedb/src/wate
 import {
   canonicalOceanDepthAt,
   isCanonicalWaterCoordinate,
-} from '../spacetimedb/src/greaterRealmFrozenWaterCatalog';
+} from '../spacetimedb/ptr/src/greaterRealmFrozenWaterCatalog';
 
 const CATALOG_SOURCE = resolve(
   process.cwd(),
-  'spacetimedb/src/greaterRealmFrozenWaterCatalog.ts',
+  'spacetimedb/ptr/src/greaterRealmFrozenWaterCatalog.ts',
 );
 
 describe('standalone frozen water catalog', () => {

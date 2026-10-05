@@ -4,7 +4,7 @@ import test from 'node:test';
 import {
   canonicalOceanDepthAt,
   isCanonicalWaterCoordinate,
-} from '../src/greaterRealmFrozenWaterCatalog';
+} from '../ptr/src/greaterRealmFrozenWaterCatalog';
 import { requireGreaterRealmPtrHydrologyLinkV1 } from '../ptr/src/greaterRealmHydrologyAuthority';
 import { GENESIS_WATER_REVISION_ENABLED_CELLS_V1 } from '../src/waterRevision';
 
