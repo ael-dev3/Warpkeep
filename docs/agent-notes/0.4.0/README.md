@@ -27,14 +27,18 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
   provisioning, bridge/frontend verification, cutover, and authenticated owner
   PTR plus Alpha acceptance in order. Never relabel an older seed or candidate.
 
-## Current working state — 5 October 2026
+## Current working state — 6 October 2026
 
-The latest exact-source private search ran on signed `40f5c70`. Its 256 attempts
-produced no eligible package, shortlist, selection or provider operation. The
-safe aggregate summary is recorded in [local operations](../../evidence/0.4.0/local-operations.md).
-After signed commit `d9ff3157` synchronized that result, the maintained abort
-path returned `checkpointAborted: true` and `productionUntouched: true` for the
-exhausted checkpoint.
+The latest exact-source private search ran on signed `8bd8de9` with a fresh
+seed. It exhausted all 256 attempts without an eligible candidate, package,
+shortlist, selection or provider operation: 223 geography rejections and 33
+proof rejections. `GATE_PARENT_SLOT_MISSING` appeared 81 times,
+`CAPACITY_ASSIGNMENT_INFEASIBLE` twice, and `ASSIGNMENT_MISSING` zero times.
+The safe aggregate is recorded in [local operations](../../evidence/0.4.0/local-operations.md).
+Publish this summary, then retire the exhausted checkpoint through the
+maintained abort path and verify `checkpointAborted: true` and
+`productionUntouched: true`. The preceding `40f5c70` summary was synchronized
+in `d9ff3157` before its checkpoint was retired with the same confirmation.
 The signed source correction
 `fee38320f81f54647e17ed8351b3f2a4b45199dc` is pushed to the release branch and
 open draft PR #385. It considers non-Lowlands fallback bundles when both
@@ -93,12 +97,13 @@ synchronized (`checkpointAborted: true`, `productionUntouched: true`). The older
 retained-seed checkpoint remains bound to `19b3422`; preserve it without
 relabeling or seed import.
 
-Next: sign and publish the diagnostic correction, synchronize the pinned Linux
-runner, verify its toolchain, and run one fresh-seed maximum-256 batch against
-the exact published commit. The `40f5c70` checkpoint is retired. Do not replay
-or relabel exhausted seeds, or claim causal improvement from independent
-fresh-seed samples. Keep private output private. If a candidate passes, verify
-its package and shortlist before separate owner selection.
+Next: publish the `8bd8de9` safe summary, retire its exhausted checkpoint, and
+use the 81 parent-slot failures to identify the narrowest generation-stage
+cause. Preserve map rules and thresholds while correcting only a demonstrated
+frontier gap. Then validate, sign and publish the next source before one fresh
+maximum-256 batch. Do not replay or relabel exhausted seeds or infer causality
+from independent samples. If a candidate passes, verify its package and
+shortlist before separate owner selection.
 Preserve the one-winner import rule, rollback artifacts, Alpha and licensing.
 The [execution handoff](execution-handoff.md) is authoritative for the ordered
 release path. Earlier dated sections below are history.

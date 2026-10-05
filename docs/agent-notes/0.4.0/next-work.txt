@@ -1,5 +1,5 @@
 WARPKEEP 0.4 — NEXT WORK
-CURRENT RESUMPTION - 5 OCTOBER 2026
+CURRENT RESUMPTION - 6 OCTOBER 2026
 
 Owner PTR remains the release target; preserve the existing Alpha root/G001,
 keep G002 sealed, and use the ordered release record in execution-handoff.md.
@@ -35,6 +35,14 @@ it, and the maintained abort returned `checkpointAborted: true` and
 `productionUntouched: true`. The fresh-seed profile is descriptive, not a paired
 comparison with `fee3832`.
 
+The exact-source batch on `8bd8de9` also exhausted all 256 attempts without a
+candidate. Its authenticated safe read recorded 223 geography rejections and
+33 proof rejections; the new `GATE_PARENT_SLOT_MISSING` code appeared 81 times,
+`CAPACITY_ASSIGNMENT_INFEASIBLE` twice, and `ASSIGNMENT_MISSING` zero times.
+Full aggregates are in `docs/evidence/0.4.0/local-operations.md`. Publish that
+summary before aborting the exhausted checkpoint. This is another fresh seed,
+not a paired comparison with `40f5c70`.
+
 The exact-source `e1ac103` search exhausted 128 ordinals. Fresh 256-attempt
 searches on `cff3479` and documentation-only successor `c7c494b` both exhausted
 with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE` and no package, selection, atlas
@@ -54,24 +62,27 @@ retained-seed checkpoint remains bound to `19b3422`; never relabel or inject it
 into another source.
 
 NEXT
-1. The `40f5c70` exact-source batch exhausted all 256 attempts without an
-   eligible candidate. Its safe summary is recorded below and its checkpoint
-   has been retired through the maintained API with production untouched.
-2. The follow-up correction now emits existing `GATE_PARENT_SLOT_MISSING` when
+1. The `8bd8de9` exact-source batch exhausted all 256 attempts without an
+   eligible candidate. Publish its safe summary, then abort the exhausted
+   checkpoint through the maintained API and verify production untouched.
+2. The follow-up correction emits existing `GATE_PARENT_SLOT_MISSING` when
    any parent has no eligible sibling-pair component in either lane;
    `ASSIGNMENT_MISSING` is reserved for parent coverage split across lanes, and
    `CAPACITY_ASSIGNMENT_INFEASIBLE` keeps precedence when full combinations
    fail immutable capacity. Deterministic tests cover all three outcomes. The
    correction changes rejection diagnostics only, not generation rules.
 3. Focused rejection/apron tests pass 26/26, generator regression passes 21/21,
-   and typecheck passes. Sign and publish this source and its notes, sync the
-   pinned runner, verify the toolchain, then run one fresh-seed maximum-256 batch
-   against that exact published commit. Record safe aggregates only; never
-   replay either exhausted seed.
-4. If a batch yields an eligible candidate, verify its private package and
+   and typecheck passes. Use the 81 parent-slot outcomes to trace which parent
+   or frontier loses all eligible sibling pairs in both lanes. Make a narrow
+   correction only if the source exposes a concrete gap; keep selection,
+   geometry and thresholds fixed.
+4. Publish the next signed correction and notes, sync the pinned runner, verify
+   the toolchain, and run one fresh-seed maximum-256 batch against that exact
+   published commit. Record safe aggregates only; never replay exhausted seeds.
+5. If a batch yields an eligible candidate, verify its private package and
    shortlist; continue only if every proof passes, then record selection
    against that exact candidate.
-5. Publish the source-bound PTR atlas, then apply the isolated PTR update through
+6. Publish the source-bound PTR atlas, then apply the isolated PTR update through
    its maintained prepare/apply and continuation consumer. After import starts,
    reconcile uncertain outcomes read-only; never resubmit a possibly submitted
    import. Proceed through owner provisioning, bridge/frontend readback,

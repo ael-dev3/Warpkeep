@@ -324,6 +324,51 @@ of successful Verify runs on pushes to `main`. Other inspected workflows are
 manual dispatches. This branch push cannot start hosted Actions while the
 repository setting remains disabled; it cannot deploy Pages.
 
+## Exact-source follow-on batch — 5 October UTC / 6 October Budapest
+
+The maintained generator ran once on signed source
+`8bd8de9d5673fe63dff73bc9196fb9c953b61f3a` with a fresh seed and a maximum of
+256 attempts. It exhausted the batch with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no eligible candidate, package,
+shortlist, selection, atlas publication, provider request or production
+mutation resulted.
+
+The authenticated checkpoint API verified source binding, phase `searching`,
+sequence 256, `nextOrdinal` 256 and 256 recorded attempts. It returned only
+aggregate rejection data; the recovered root-seed buffer was zeroized in
+`finally`, and no private seed, candidate handle, coordinates or candidate
+bytes were emitted. The safe rejection totals are:
+
+| Geography rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 30 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 7 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 2 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 6 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH` | 53 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 36 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_SLOT_MISSING` | 81 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 4 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+
+There were 33 proof-rejection attempts. Their nonexclusive proof occurrences
+were: castle suitability (13), lakes 48–96 (4), major rivers 48–72 (6),
+inner-gate/throne redundancy (2), dormant capacity (14), advanced geomorphology
+(2), biome diversity (9), castle capacity (13), forest patch composition (1),
+gate approaches (12), gate graph (12), geological highland barriers (5),
+natural land silhouette (2), natural landmass topology (2), region graph (19),
+region land coherence (23), region passable land (10), Frostmere (23), Mirefen
+(18), regional hydrogeomorphology QA (31), Stonewake (26), Sunscar (4),
+Throneheart (6), Tier II QA (5), Tier III smallest passable land (22),
+tier-potential density (2), and topographic QA completion (24).
+
+This fresh-seed profile has 81 `GATE_PARENT_SLOT_MISSING`, zero
+`ASSIGNMENT_MISSING`, and two capacity-infeasible geography outcomes. It is not
+a paired comparison with the 40f5 sample, so do not attribute its count shifts
+to the diagnostic change alone. Synchronize this evidence before retiring the
+exhausted checkpoint through the maintained abort API; require
+`checkpointAborted: true` and `productionUntouched: true` before another batch.
+
 ## Current native verification evidence — 3 October 2026
 
 
