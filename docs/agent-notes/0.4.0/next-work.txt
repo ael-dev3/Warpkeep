@@ -9,51 +9,50 @@ this delegation does not turn a local check or push into deployment evidence.
 GitHub Actions remains disabled; preserve that hold and its downstream Pages
 chain.
 
-The signed corrective source is `2c5f0d3ab07af4fcfcf11f46ed9dff630c9e235c`,
-published to the release branch and open draft PR #385. Its shared gate-apron
-bundle selector preserves the 64-edge and 32-bundle limits while balancing
-selected pairs across candidate edges. Focused tests pass 16/16, the pinned
-generator regression passes 21/21, typecheck and pinned native toolchain
-preflight pass. Earlier native targeted validation passes 455 cases across 13
-affected files; sealed-launch preparation and 1,271-member closure checks pass
-at their recorded source. The full runtime-release suite still has its Windows
-private-temp ACL limitation; keep that guard unchanged. Actions remains
-disabled, so no hosted CI or deployment is implied by the push.
+The signed source `fee38320f81f54647e17ed8351b3f2a4b45199dc` is published to
+the release branch and draft PR #385. It fixes the Lowlands sibling-pair
+fallback: compatible own-terrain pairs remain preferred; only when none pass
+the existing overlap and minimum-separation checks may children borrow bundles
+from other non-Lowlands children. Lowlands and the requested child are excluded
+as donors. The 64-option and two-pair caps and all geometry, ownership,
+eligibility and content proofs remain unchanged. The focused suite passes
+18/18, pinned generator regression 21/21, typecheck passes, and pinned Linux
+toolchain preflight verifies 11 packages. Earlier native targeted validation
+passes 455 cases across 13 affected files; sealed-launch preparation and the
+1,271-member closure check pass at their recorded source. Preserve the full
+runtime-release suite's Windows private-temp ACL guard. Actions remains
+disabled; this push is not hosted CI or deployment evidence.
 
 The exact-source `e1ac103` search exhausted 128 ordinals. Fresh 256-attempt
 searches on `cff3479` and documentation-only successor `c7c494b` both exhausted
 with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE` and no package, selection, atlas
 publication, or provider operation. Their safe rejection profiles are nearly
 identical, confirming a systemic bounded Tier-II apron-frontier bias rather
-than a seed-specific failure. The cff/c7 checkpoints were retired through the
-maintained abort path with production untouched. The new exact-source `2c5f0d3`
-run also exhausted all 256 ordinals with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`.
-Its authenticated safe summary is recorded in
+than a seed-specific failure. The cff, c7 and `2c5f0d3` checkpoints were all
+retired through the maintained abort path with production untouched. The
+exact-source `2c5f0d3` run exhausted all 256 ordinals with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Its authenticated safe summary is recorded in
 `docs/evidence/0.4.0/local-operations.md`: geography exhaustion fell to 206
 from c7's 223; proof rejections rose to 50 from 33; apron no-match fell to 84
 from 95; node limits fell to 29 from 51; missing assignments remained 34.
-This is measurable improvement but yielded no eligible candidate. The c5
-checkpoint must be retired after this evidence is synchronized; the prior
-retained-seed checkpoint remains bound to `19b3422` and must never be relabeled
-or injected into another source.
+This was measurable improvement but yielded no eligible candidate. The
+maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true` after the summary was synchronized. The separate
+retained-seed checkpoint remains bound to `19b3422`; never relabel or inject it
+into another source.
 
 NEXT
-1. Sync this safe result, then abort the exhausted `2c5f0d3` checkpoint through
-   the maintained API and verify `checkpointAborted: true` and
-   `productionUntouched: true`.
-2. Do not retry seeds on `2c5f0d3`. Inspect the remaining apron no-match (84),
-   missing capacity assignments (34), search-node limits (29), and newly
-   surfaced later proof rejections for a concrete correctable defect. Preserve
-   map eligibility/content requirements and the search's terminal limit
-   semantics; add targeted deterministic regression coverage.
-3. When a demonstrated fix is validated, publish a signed successor after a
-   fresh full Actions inventory, keep Actions disabled, synchronize the native
-   runner, and run one exact-source bounded search. Preserve its safe summary
-   and do not repeat seeds on an unchanged rejection profile.
-4. Verify a passing package and private shortlist. Continue only if one
+1. Publish this evidence/handoff update, then pin the clean Linux runner to the
+   exact signed source `fee38320f81f54647e17ed8351b3f2a4b45199dc`, verify its
+   toolchain, and run one maximum-256 private search. Do not reuse the `2c5f0d3`
+   seed or retry unchanged source. Record only the authenticated safe summary;
+   keep private seeds and candidate bytes in the existing private root.
+2. If the bounded batch completes with no candidate, inspect its measured
+   rejection profile for one concrete correctable defect. If it yields an
+   eligible candidate, verify its package and private shortlist. Continue only if one
    eligible candidate passes every proof; record selection against that exact
    candidate.
-5. Publish the source-bound PTR atlas, then apply the isolated PTR update through
+3. Publish the source-bound PTR atlas, then apply the isolated PTR update through
    its maintained prepare/apply and continuation consumer. After import starts,
    reconcile uncertain outcomes read-only; never resubmit a possibly submitted
    import. Proceed through owner provisioning, bridge/frontend readback,

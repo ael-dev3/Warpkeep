@@ -142,14 +142,29 @@ legacy Lowlands placement (5); minor-stream range (1); mountain composition
 (5); major rivers (8); natural strategic regions (1); region-boundary
 alignment (1); outer-boundary proof (1); and landmass topology (1).
 
-This verifies a partial solver improvement, not release readiness. Do not spend
-another seed batch on `2c5f0d3`. First synchronize these results, retire its
-exhausted checkpoint through the maintained abort API and verify
-`productionUntouched: true`; then inspect the still-high no-match and unchanged
-capacity-assignment outcomes for a concrete second defect. Any next correction
-must preserve all eligibility/content proofs and undergo deterministic
-regression plus a new signed-source batch. Actions remains disabled, so a push
-is not hosted verification or deployment.
+This verifies a partial solver improvement, not release readiness. After these
+results were synchronized, the maintained abort API retired the exhausted
+`2c5f0d3` checkpoint and returned `checkpointAborted: true` and
+`productionUntouched: true`. No private checkpoint bytes or seed were exposed.
+
+The follow-up review found a second concrete frontier defect in Lowlands repair:
+when both sibling children had their own apron bundles, the repair considered
+only those bundles. If every own-terrain pair failed the existing footprint or
+minimum-separation compatibility checks, it never considered the already
+permitted non-Lowlands borrowing fallback. The signed successor
+`fee38320f81f54647e17ed8351b3f2a4b45199dc` now prefers compatible own pairs and
+uses borrowed pairs only when that compatible set is empty. Borrowing excludes
+both Lowlands and the requested child, and keeps the 64-bundle option cap, two
+sibling-pair cap, overlap and separation checks, ownership proofs, and all map
+eligibility/content gates unchanged.
+
+The successor passed `tests/greaterRealmGateApronSearch.test.ts` (18/18),
+`tests/greaterRealmCandidateGenerator.test.ts` (21/21, including pinned digest
+and expected rejection), `npm run typecheck`, and the pinned Linux toolchain
+preflight (11/11 packages). It is pushed to the release branch and draft PR
+#385. The next exact-source private batch has not run yet. No second seed batch
+was attempted on `2c5f0d3`. Actions remains disabled, so a push is neither
+hosted verification nor deployment.
 
 Read-only live checks on 5 October: `https://warpkeep.com/` returned 200,
 `https://warpkeep.com/ptr/` returned 404, and `https://warpkeep.pages.dev/ptr/`
