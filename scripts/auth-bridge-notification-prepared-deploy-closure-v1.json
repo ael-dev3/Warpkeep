@@ -180,7 +180,7 @@
     {
       "path": "scripts/atlas/greater-realm-private-authority-validation.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b7a45a9934e9abaedb3e33631b9de195bd27505c4ff5685f0b481b2477ca95c7"
+      "sha256": "cc4a10cb3d8063054e68daa9ea5dfe9ee9f8e7d824cdd43deda4fd2a2ae8997c"
     },
     {
       "path": "scripts/atlas/greater-realm-private-markers.d.mts",
@@ -215,7 +215,7 @@
     {
       "path": "scripts/atlas/greater-realm-runtime-release.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "ea75ac3c328e160eb162fab98ea2743fd11613342a16693e09897f6d7d744f8e"
+      "sha256": "e225efef9dff67044ef5c64fa2a2b45836bfda05a3e8c880206256a648d84cdc"
     },
     {
       "path": "scripts/atlas/greater-realm-sanitized-review.ts",
@@ -360,7 +360,7 @@
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-closure.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "a85e577e7f8918651b10f2a5d1ad43d654b18858f137d6b65bc96b8ee04ced1a"
+      "sha256": "e2170115ebedf7a9cc3e33107283b2fe74b02b7d7c87a835558f1dc04b2e8db0"
     },
     {
       "path": "scripts/auth-bridge-notification-prepared-deploy-journal.d.mts",
@@ -1350,7 +1350,7 @@
     {
       "path": "scripts/production-player-canary-activation-launcher.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "b60cea4093ce2dfde6623a87d03c926bc722cba1d2c324ab95d54175c7a3b02e"
+      "sha256": "ce4bd98194bfc7c545f9f08c45d4a3236cfa706547c355350c810d019a4bbbce"
     },
     {
       "path": "scripts/production-player-canary-admin-transport.ts",
@@ -2175,7 +2175,7 @@
     {
       "path": "scripts/verify-0.4.0-sealed-launch.mjs",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "d3b5639cf6fbf544da86a5fc7eccdbdb32ae100961ca5edd21a078b2c0628002"
+      "sha256": "14a30b92a78628c631662b764aaa950eb25459ea181d3ff757c521e4a39ab973"
     },
     {
       "path": "scripts/verify-admission-request-suspension.d.mts",
@@ -2900,7 +2900,7 @@
     {
       "path": "spacetimedb/ptr/src/atlasAuthority.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "767424ef8e935e6bad56e9cf7072ba281a6e5be602f468342abb703bf48bd79b"
+      "sha256": "d6c73f2a8199b889c0b15109cf2452d9d1fed83578b4f2db435ee9068df3f346"
     },
     {
       "path": "spacetimedb/ptr/src/atlasImportReducers.ts",
@@ -2966,6 +2966,11 @@
       "path": "spacetimedb/ptr/src/gameplayWorkers.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "3a31460cdcd18e6bd2bc0e964faf81063b813d332dcff141bdfbedac39ff11bb"
+    },
+    {
+      "path": "spacetimedb/ptr/src/greaterRealmHydrologyAuthority.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "05c680f5053e4f839282b5cdeeb1182347a569a6ac0000589521508a38b4cb12"
     },
     {
       "path": "spacetimedb/ptr/src/index.ts",
@@ -3188,6 +3193,11 @@
       "sha256": "a103fe4166728c0c4413c5807bd477cdfcbe37df66f9cc45f9c2702b48810a8f"
     },
     {
+      "path": "spacetimedb/src/greaterRealmFrozenWaterCatalog.ts",
+      "digestProfile": "raw-file-sha256-v1",
+      "sha256": "f93fb743af11c9acc6a3512b37b92d1ba9c579f55f7741c42a988f35b3da0e11"
+    },
+    {
       "path": "spacetimedb/src/greaterRealmPublicReadAuthority.ts",
       "digestProfile": "raw-file-sha256-v1",
       "sha256": "1fe6691c7cb6ca942d41fa84c6516469c90f7906d30e0a2ac1d79b22e96d4c77"
@@ -3215,12 +3225,12 @@
     {
       "path": "spacetimedb/src/greaterRealmV17Authority.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "467ea5254367a5261ec43721c4c65bf283f27bf58481c627c830aacceb78cd8c"
+      "sha256": "8606cb70a1f071070ed01ddd56f820fee546f94eb8691e3921b65b0a744675af"
     },
     {
       "path": "spacetimedb/src/greaterRealmV17LegacyAuthority.ts",
       "digestProfile": "raw-file-sha256-v1",
-      "sha256": "12cf1394cb013bfee5964d4e5756e014e3cdb9aea74ab86c4736af9d2a0a87b0"
+      "sha256": "141a18b7f6f1f95a190c9d1591b681179c5eac02734efc535641a1f53f174034"
     },
     {
       "path": "spacetimedb/src/greaterRealmV17Policy.ts",

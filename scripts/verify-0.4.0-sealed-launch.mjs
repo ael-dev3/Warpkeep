@@ -2436,8 +2436,11 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
   const orderedTokens = [
     'const firstEvidence = readImportReceipt({',
     'await inspectStatus()',
-    'const resolved = await resolveOwnerAuthority(ownerFid);',
+    'const resolveOwnerAuthority = dependencies.resolveOwnerAuthority;',
+    'const resolvedFromSource = resolveOwnerAuthority === undefined',
     'ownerToken = await requestOwnerToken(adminSecret);',
+    'const tokenAuthority = validateOwnerToken(ownerToken, ownerFid, nowSeconds);',
+    'const resolved = resolvedFromSource ?? tokenAuthority;',
     'const secondEvidence = readImportReceipt({',
     'const ownerOpaqueProofDigest = deriveOwnerProof({',
     'transport = createOwnerTransport({',
@@ -2599,6 +2602,7 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
   );
   requireOnce(sealedLiveReceiptKeys, "'ownerProvisionReceiptDigest',", code);
   for (const token of [
+    'tokenAuthority.ownerFid !== resolved.ownerFid',
     'tokenAuthority.ownerAuthEpoch !== resolved.ownerAuthEpoch',
     'ownerAuthEpoch: resolved.ownerAuthEpoch,\n      databaseIdentity',
     'ownerAuthEpoch: resolved.ownerAuthEpoch,\n      ownerOpaqueProofDigest',
