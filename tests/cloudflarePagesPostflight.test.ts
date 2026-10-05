@@ -127,6 +127,16 @@ describe('Cloudflare Pages postflight', () => {
       origin: ORIGIN, reviewedPlanBytes: missing.bytes, expectedReviewedPlanSha256: missing.digest,
       fetchImpl: typed('text/plain; charset=utf-8'),
     })).rejects.toMatchObject({ code: 'CLOUDFLARE_PAGES_POSTFLIGHT_PLAN_INVALID' });
+    const omitted = targetEntries.filter(entry => entry.path !== 'LICENSE-CC-BY-4.0');
+    const partial = planBytes({ targetEntries: omitted, targetFileCount: omitted.length });
+    await expect(verifyCloudflarePagesPostflight({
+      origin: ORIGIN, reviewedPlanBytes: partial.bytes, expectedReviewedPlanSha256: partial.digest,
+      fetchImpl: typed('text/plain; charset=utf-8'),
+    })).rejects.toMatchObject({ code: 'CLOUDFLARE_PAGES_POSTFLIGHT_PLAN_INVALID' });
+    await expect(verifyCloudflarePagesPostflight({
+      origin: ORIGIN, reviewedPlanBytes: bytes, expectedReviewedPlanSha256: digest,
+      fetchImpl: typed('  text/plain; charset=utf-8  '),
+    })).resolves.toMatchObject({ verifiedLegalPlainTextRoutes: PUBLIC_PAGES_LEGAL_PLAIN_PATHS.length });
   });
 
   it('names the paths whose served bytes differ', async () => {

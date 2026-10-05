@@ -154,10 +154,17 @@ export async function verifyCloudflarePagesPostflight({
   }
   const { plan, entries } = parseReviewedPlan(reviewedPlanBytes, expectedReviewedPlanSha256);
   const headersEntry = entries.get(PUBLIC_PAGES_LEGAL_HEADERS_PATH);
-  if (headersEntry || PUBLIC_PAGES_LEGAL_PLAIN_PATHS.some(path => entries.has(path))) {
+  const publishesLegalPlainText = headersEntry
+    || PUBLIC_PAGES_LEGAL_PLAIN_PATHS.some(path => entries.has(path));
+  if (publishesLegalPlainText) {
     const expectedHeaders = publicPagesLegalHeadersBytes();
+    // A plan that names the rules, or any one extensionless legal file, must
+    // carry the exact rules and every file those rules apply to.
     if (!headersEntry || headersEntry.byteLength !== expectedHeaders.length
-      || headersEntry.sha256 !== sha256(expectedHeaders)) fail('PLAN_INVALID');
+      || headersEntry.sha256 !== sha256(expectedHeaders)
+      || PUBLIC_PAGES_LEGAL_PLAIN_PATHS.some(path => !entries.has(path))) {
+      fail('PLAN_INVALID');
+    }
   }
   const queue = [...entries.values()];
   const mismatched = [];
@@ -172,7 +179,8 @@ export async function verifyCloudflarePagesPostflight({
       try {
         const { status, body, contentType } = await fetchExact(fetchImpl, `${origin}${canonicalRoute(entry.path)}`, entry.byteLength + 1, timeoutMs, run.signal);
         if (status !== 200 || body.length !== entry.byteLength || sha256(body) !== entry.sha256) mismatched.push(entry.path);
-        else if (PUBLIC_PAGES_LEGAL_PLAIN_PATHS.includes(entry.path) && !LEGAL_PLAIN_TYPE.test(contentType ?? '')) {
+        else if (PUBLIC_PAGES_LEGAL_PLAIN_PATHS.includes(entry.path)
+          && !LEGAL_PLAIN_TYPE.test((contentType ?? '').trim())) {
           mistyped.push(entry.path);
         }
       } catch (error) {
