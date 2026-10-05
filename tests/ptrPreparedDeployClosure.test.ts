@@ -52,6 +52,7 @@ const PTR_BROWSER_MEMBERS = Object.freeze([
   'src/ptr/gameplay04/gameplay04Journeys.ts',
   'src/ptr/gameplay04/gameplay04Placement.ts',
   'src/ptr/gameplay04/gameplay04Presentation.ts',
+  'src/ptr/gameplay04/gameplay04Sfx.ts',
   'src/ptr/gameplay04/gameplay04State.ts',
   'src/ptr/gameplay04/ptrGameplay04Errors.ts',
   'src/ptr/gameplay04/ptrGameplay04Types.ts',
