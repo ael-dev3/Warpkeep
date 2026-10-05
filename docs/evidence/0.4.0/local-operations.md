@@ -2,30 +2,47 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current hydrology correction checkpoint — 5 October 2026
+## Current release checkpoint — 5 October 2026
 
-The active local base is `19b342254ebce47d751b3ba562c4bbb3da99c6c4` on
-`release/0.4-living-realm-quality`. The exact source repair is local and not
-yet committed or published. Owner approval is scoped to [#384 comment
-5995094139](https://github.com/ael-dev3/Warpkeep/issues/384#issuecomment-5995094139).
-The failed H19/T03 candidate remains invalid for a changed source. Retained
-diagnostic receipt `9561974f29bfb5236fd5c321069b3ceb9837d72210ff8215a26fc8ff5b5bbfa0`
-and independent postcheck claim
-`4b9ac9ff5591fedc912852ec1c337311ea154d57d484e1ea05501f491e486fcd` reproduce
-the exact 15 downhill equal-flow and seven frozen-ocean terminal cases.
+The private search ran against signed source
+`e1ac10381b082325f1e9d224f6976ce95c8a7213`, which matched the release branch
+and PR #385 before this evidence update. That source contains the
+owner-approved hydrology correction from [#384 comment
+5995094139](https://github.com/ael-dev3/Warpkeep/issues/384#issuecomment-5995094139),
+the generated frozen-water PTR catalog, Alpha source restoration, closure pins,
+and the test correction. The old `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate
+remains invalid for the corrected source.
 
-Local validation currently passes root TypeScript build mode; shared
-`spacetimedb` verification (611 pure tests and actual module build); PTR module
-typecheck; the candidate-policy regression; owner-atlas update continuation,
-PTR backend and catalog tests (56/56, including the actual isolated PTR build);
-shared/PTR hydrology authorities (10/10); and deterministic generator
-`--check`.
-The broad runtime-release suite has an existing Windows private-temp ACL guard
-limitation; it has not been relaxed. Fresh `verify:actions-hold` at
-`2026-10-05T14:13:43.088Z` confirmed Actions disabled and zero active runs in
-Warpkeep, Warpkeep-Live, Warpkeep-Assets and Warpkeep-Water-Engine. Local
-checks and this hold receipt do not prove a signed checkpoint, candidate
-acceptance, deployment, cutover or owner PTR acceptance.
+The supported private generator ran on exact source `e1ac103` with a 128-attempt
+bound. It exhausted all 128 ordinals and exited
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no eligible candidate was written,
+selected, or published. The authenticated checkpoint remains in the existing
+mode-0700 private workspace; its root seed was never printed or exported.
+Safe rejection categories: dry-gate apron search node limit (30), no matching
+apron (44), missing Tier-II assignment (15), active-grid count out of range
+(9), lowlands placement (5), forbidden throne-component repair (4), and
+undersized primary component (7); the remaining 14 attempts had multi-proof
+failure sets. This is bounded search exhaustion, not a reproduced hydrology
+verifier bug. No provider request or production mutation occurred.
+
+The separate retained-seed checkpoint remains bound to source `19b3422`; the
+maintained CLI has no seed-import or cross-source migration path. It remains
+unchanged and must not be relabeled. Before another search, publish this status
+note, then use the supported abort operation to securely retire the exhausted
+checkpoint and start a fresh source-bound run at the supported 256-attempt
+ceiling in the same private workspace.
+
+Native targeted validation passes 455 cases across 13 affected files; the
+sealed-launch preparation check and 1,271-member source-closure check pass.
+Earlier Windows build/type/module/catalog/PTR/hydrology checks remain valid for
+their recorded scopes. The broad runtime-release suite retains its Windows
+private-temp ACL guard limitation. GitHub Actions is disabled; successful local
+checks and Git pushes do not establish hosted CI or deployment.
+
+Read-only live checks on 5 October: `https://warpkeep.com/` returned 200,
+`https://warpkeep.com/ptr/` returned 404, and `https://warpkeep.pages.dev/ptr/`
+returned 200. The PTR custom-domain cutover and authenticated owner acceptance
+remain open.
 
 ## Current native verification evidence — 3 October 2026
 
