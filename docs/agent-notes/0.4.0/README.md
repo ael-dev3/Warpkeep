@@ -35,9 +35,9 @@ shortlist, selection or provider operation: 223 geography rejections and 33
 proof rejections. `GATE_PARENT_SLOT_MISSING` appeared 81 times,
 `CAPACITY_ASSIGNMENT_INFEASIBLE` twice, and `ASSIGNMENT_MISSING` zero times.
 The safe aggregate is recorded in [local operations](../../evidence/0.4.0/local-operations.md).
-Publish this summary, then retire the exhausted checkpoint through the
-maintained abort path and verify `checkpointAborted: true` and
-`productionUntouched: true`. The preceding `40f5c70` summary was synchronized
+Signed commit `a2c3589e` synchronized this result; the maintained abort path
+then returned `checkpointAborted: true` and `productionUntouched: true`. The
+preceding `40f5c70` summary was synchronized
 in `d9ff3157` before its checkpoint was retired with the same confirmation.
 The signed source correction
 `fee38320f81f54647e17ed8351b3f2a4b45199dc` is pushed to the release branch and
@@ -97,13 +97,13 @@ synchronized (`checkpointAborted: true`, `productionUntouched: true`). The older
 retained-seed checkpoint remains bound to `19b3422`; preserve it without
 relabeling or seed import.
 
-Next: publish the `8bd8de9` safe summary, retire its exhausted checkpoint, and
-use the 81 parent-slot failures to identify the narrowest generation-stage
-cause. Preserve map rules and thresholds while correcting only a demonstrated
-frontier gap. Then validate, sign and publish the next source before one fresh
-maximum-256 batch. Do not replay or relabel exhausted seeds or infer causality
-from independent samples. If a candidate passes, verify its package and
-shortlist before separate owner selection.
+Next: trace why parents lose every eligible sibling-pair component in both
+lanes, using the 81 recorded parent-slot failures to locate a concrete
+generation-stage cause. Preserve map rules and thresholds; correct only a
+demonstrated frontier gap. Then validate, sign and publish the next source
+before one fresh maximum-256 batch. Do not replay or relabel exhausted seeds or
+infer causality from independent samples. If a candidate passes, verify its
+package and shortlist before separate owner selection.
 Preserve the one-winner import rule, rollback artifacts, Alpha and licensing.
 The [execution handoff](execution-handoff.md) is authoritative for the ordered
 release path. Earlier dated sections below are history.

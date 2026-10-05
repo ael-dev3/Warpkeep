@@ -365,9 +365,12 @@ tier-potential density (2), and topographic QA completion (24).
 This fresh-seed profile has 81 `GATE_PARENT_SLOT_MISSING`, zero
 `ASSIGNMENT_MISSING`, and two capacity-infeasible geography outcomes. It is not
 a paired comparison with the 40f5 sample, so do not attribute its count shifts
-to the diagnostic change alone. Synchronize this evidence before retiring the
-exhausted checkpoint through the maintained abort API; require
-`checkpointAborted: true` and `productionUntouched: true` before another batch.
+to the diagnostic change alone. This evidence was synchronized in signed commit
+`a2c3589e`. At `2026-10-05 22:28:22 UTC`, the pinned Node 22.22.3 runner
+invoked the maintained `generate-candidates --abort-checkpoint` operation on
+exact source `8bd8de9d5673fe63dff73bc9196fb9c953b61f3a`; it returned
+`checkpointAborted: true` and `productionUntouched: true`. The checkpoint is
+retired before further candidate searches.
 
 ## Current native verification evidence — 3 October 2026
 
