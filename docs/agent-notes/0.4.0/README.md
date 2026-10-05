@@ -29,14 +29,16 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state — 6 October 2026
 
-The latest exact-source private search ran on signed `8bd8de9` with a fresh
-seed. It exhausted all 256 attempts without an eligible candidate, package,
-shortlist, selection or provider operation: 223 geography rejections and 33
-proof rejections. `GATE_PARENT_SLOT_MISSING` appeared 81 times,
-`CAPACITY_ASSIGNMENT_INFEASIBLE` twice, and `ASSIGNMENT_MISSING` zero times.
-The safe aggregate is recorded in [local operations](../../evidence/0.4.0/local-operations.md).
-Signed commit `a2c3589e` synchronized this result; the maintained abort path
-then returned `checkpointAborted: true` and `productionUntouched: true`. The
+The latest exact-source private search ran on signed `a18930b4` with a fresh
+seed. It exhausted all 256 attempts without an eligible candidate or provider
+operation: 215 geography rejections and 41 proof-rejection attempts. The new
+parent-specific diagnostic identified Crownwood in 71 attempts. Full safe
+aggregates are in [local operations](../../evidence/0.4.0/local-operations.md);
+the exact-source checkpoint remains to be retired after this result is
+synchronized. This independent seed is not a paired comparison with the
+previous `8bd8de9` batch. The preceding `8bd8de9` result is also recorded there;
+signed commit `a2c3589e` synchronized it and its maintained abort verified
+`checkpointAborted: true` and `productionUntouched: true`. The
 preceding `40f5c70` summary was synchronized
 in `d9ff3157` before its checkpoint was retired with the same confirmation.
 The signed source correction
@@ -56,9 +58,9 @@ sibling-pair components in both lanes. Multiple missing parents retain generic
 `GATE_PARENT_SLOT_MISSING`; cross-lane coverage and immutable-capacity failures
 retain their own codes. This changes rejection reporting only: map selection,
 geometry, thresholds, ownership, and search caps are unchanged. The next action
-is to publish the reviewed source and notes, sync the pinned Linux runner, and
-run one fresh-seed 256-attempt batch on that exact source. Do not replay retired
-`8bd8de9` or `40f5c70` checkpoints.
+is to synchronize the `a18930b4` safe summary, retire its exhausted checkpoint
+with the maintained abort API, then trace the Crownwood sibling-pair frontier.
+Do not replay retired `8bd8de9` or `40f5c70` checkpoints.
 The hydrology correction, deterministic PTR frozen-water catalog, authority
 repairs, and closure/test fixes remain committed and pushed. The old
 `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid and must not be

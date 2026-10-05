@@ -313,6 +313,52 @@ generator regression passed 21/21, and `npm run typecheck` passed. Actions
 remains disabled, so these are local checks, not hosted CI or deployment
 evidence.
 
+## Exact-source parent diagnostic batch — 6 October 2026
+
+The pinned Linux runner executed one fresh-seed batch on signed source
+`a18930b4d2e442558bd0b01f465149b745d641a6`, with maximum 256 attempts. It
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The maintained checkpoint
+reader authenticated the exact source binding and reported phase `searching`,
+sequence/next ordinal 256, and 256 recorded attempts. No eligible candidate,
+package, shortlist, selection, atlas publication, provider request, or
+production mutation resulted. The reader zeroized its recovered root-seed
+buffer in `finally`; the persistent private checkpoint must be retired after
+this summary is synchronized.
+
+The 215 geography rejections were:
+
+| Geography rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 28 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 8 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 2 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 5 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH` | 65 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 27 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 71 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 7 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 2 |
+
+There were 41 proof-rejection attempts. The following proof occurrences are
+nonexclusive: Tier III smallest passable land (30), lakes 48–96 (4), regional
+hydrogeomorphology QA (40), Frostmere (35), Stonewake (28), Throneheart (12),
+dormant capacity (14), castle capacity (18), gate approaches (11), gate graph
+(11), region land coherence (20), region graph (18), castle suitability (18),
+Mirefen (22), region passable land (9), major rivers 48–72 (10), Sunscar (9),
+topographic QA completion (27), Tier II regional QA (12), biome diversity (5),
+geological highland barriers (5), mountain system composition (2), natural
+outer boundary (1), inner-gate/throne redundancy (5), tier-potential density
+(3), and advanced geomorphology (3).
+
+All 71 formerly generic parent-slot failures identify Crownwood as the sole
+parent with no eligible sibling-pair component in either lane. This is a
+diagnostic observation from one fresh seed, not proof of a deterministic
+root-cause or a paired comparison with the `8bd8de9` run. The next action is to
+synchronize this safe summary, retire the exact `a18930b4` checkpoint through
+the maintained abort API, and verify production untouched. Then trace the
+Crownwood sibling frontier without changing geometry, quality thresholds or
+search caps absent a concrete source-level defect.
+
 ### Pre-push Actions inventory — 5 October 2026, 21:37 UTC
 
 The complete paginated repository inventory returned 3,807 workflow runs across

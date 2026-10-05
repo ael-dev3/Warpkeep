@@ -2,15 +2,23 @@
 
 ## Current release checkpoint — 6 October 2026
 
-The latest source work is a diagnostic-only refinement of the 8bd8de9 search
-result: when exactly one Tier-II parent lacks an eligible sibling-pair
-component in both lanes, classify it as the Crownwood, Ironveil, or Glasswater
-slot. Keep the generic reason for multiple missing parents and preserve the
-existing cross-lane and immutable-capacity outcomes. Local focused tests,
-generator regression, typecheck, and diff checks pass. The next operation is to
-publish this reviewed source and evidence, sync the pinned Linux runner, then
-run one fresh-seed batch bound to the published commit. Do not replay the
-retired 8bd8de9/40f5c70 checkpoints.
+On exact signed source `a18930b4d2e442558bd0b01f465149b745d641a6`, one fresh
+256-attempt batch returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The
+authenticated safe checkpoint read confirmed sequence/next ordinal 256 and
+showed 215 geography rejections, 41 proof attempts, and 71
+`GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` results. No
+candidate, package, shortlist, selection, atlas, or provider operation
+resulted. Full privacy-safe counts are recorded in local operations. Sync that
+summary, then abort the exact checkpoint through the maintained API and verify
+production untouched. The 71 failures identify a Crownwood frontier for further
+source inspection, not a proven cause; do not relax geometry or quality bars.
+
+The signed `a18930b4` source introduced this diagnostic-only refinement:
+exactly one missing parent maps to Crownwood, Ironveil, or Glasswater; multiple
+missing parents retain the generic code, and lane-split/capacity outcomes stay
+distinct. Local focused tests, generator regression, typecheck, and diff checks
+pass. The batch result above supersedes its prior next step. Do not replay the
+retired `8bd8de9`/`40f5c70` checkpoints.
 
 The release route and hydrology correction are recorded in [issue #384](https://github.com/ael-dev3/Warpkeep/issues/384#issuecomment-5995094139). On 5 October the owner delegated remaining release decisions to the release lead. Preserve the Alpha root, G001 state and admission freeze; keep G002 sealed. Actions is disabled; preserve that hold and its downstream Pages chain. Continue local verification and Git synchronization; never represent a branch push as CI or deployment. The `Verify` workflow is triggered for pull requests and pushes to `main`; Pages deployment listens to successful `Verify` runs for `main` pushes.
 
