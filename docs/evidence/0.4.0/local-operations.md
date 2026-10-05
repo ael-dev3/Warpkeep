@@ -211,11 +211,16 @@ system composition (1), ocean/sea-body count (1), and natural landmass topology
 
 This is one fresh-seed sample, not a paired comparison with the `2c5f0d3`
 batch; do not attribute any individual code-count shift to the source change.
-Do not replay or relabel the exhausted seed. Synchronize this summary, then
-retire its checkpoint through the maintained abort path and verify
-`checkpointAborted: true` and `productionUntouched: true` before another
-source-bound batch. Actions remains disabled; the pushed source and local
-checks do not establish hosted verification or deployment.
+Do not replay or relabel the exhausted seed. This summary was synchronized in
+signed commit `5c97383e530ce3b67e4595159e3d0533bed4f7b3`. After publication, the
+maintained abort command returned `checkpointAborted: true` and
+`productionUntouched: true`. No private checkpoint bytes or seed were exposed.
+
+Before that publication, the full paginated Actions inventory showed 3,807
+completed runs across all five event classes, no queued or running runs, and
+28 rerun attempts. Repository Actions setting remained `enabled: false`; no
+workflow, deployment or provider operation was started. The PR head remains a
+draft pending integration and the owner PTR journey is not yet live.
 
 ## Current native verification evidence — 3 October 2026
 

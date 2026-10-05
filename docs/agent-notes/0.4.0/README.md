@@ -31,9 +31,10 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 The latest exact-source private search ran on signed `fee3832`. Its 256 attempts
 produced no eligible package, shortlist, selection or provider operation. The
-safe aggregate summary is recorded in [local operations](../../evidence/0.4.0/local-operations.md);
-the exhausted checkpoint still needs retirement through the maintained abort
-path after that evidence is synchronized. The signed source correction
+safe aggregate summary is recorded in [local operations](../../evidence/0.4.0/local-operations.md).
+After the evidence commit was pushed, the maintained abort path returned
+`checkpointAborted: true` and `productionUntouched: true`.
+The signed source correction
 `fee38320f81f54647e17ed8351b3f2a4b45199dc` is pushed to the release branch and
 open draft PR #385. It considers non-Lowlands fallback bundles when both
 Lowlands-repair siblings have own bundles but no compatible own pair, without
@@ -78,9 +79,9 @@ synchronized (`checkpointAborted: true`, `productionUntouched: true`). The older
 retained-seed checkpoint remains bound to `19b3422`; preserve it without
 relabeling or seed import.
 
-Next: sync the safe summary, retire the exhausted `fee3832` checkpoint, and
-inspect the assignment-missing profile for a concrete, policy-preserving
-correction before another bounded batch. Do not claim causal improvement from
+Next: inspect the assignment-missing profile for a concrete, policy-preserving
+correction before another bounded batch.
+Do not claim causal improvement from
 different fresh-seed samples. Keep private output private. If a candidate
 passes, verify its package and shortlist before separate owner selection.
 Preserve the one-winner import rule, rollback artifacts, Alpha and licensing.

@@ -42,9 +42,9 @@ retained-seed checkpoint remains bound to `19b3422`; never relabel or inject it
 into another source.
 
 NEXT
-1. Publish this safe summary and handoff update. Then abort the exhausted
-   `fee3832` checkpoint through the maintained API and verify
-   `checkpointAborted: true` and `productionUntouched: true`.
+1. The safe summary is published in signed commit `5c97383`; the maintained
+   abort API then returned `checkpointAborted: true` and
+   `productionUntouched: true` for the exhausted `fee3832` checkpoint.
 2. Inspect the assignment-missing outcomes (71 of 256 attempts) for a concrete
    bounded-search defect without relaxing content or geometry requirements.
    This fresh-seed sample is not a paired comparison with `2c5f0d3`; do not
