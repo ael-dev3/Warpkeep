@@ -16,7 +16,7 @@ import { parse } from 'yaml';
 // @ts-expect-error Standalone release utility has named test seams.
 import { writePublicPagesPayloadManifest } from '../scripts/verify-public-pages-payload.mjs';
 // @ts-expect-error Standalone release utility has named test seams.
-import { SOURCE_PUBLIC_DOCUMENTS, PUBLIC_PAGES_WORKFLOW_PATH, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH, generatedPath, inspectPublicMirror, renderPublicPagesMirrorReadme, verifyPublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
+import { PUBLIC_PAGES_LEGAL_HEADERS_PATH, PUBLIC_PAGES_LEGAL_PLAIN_PATHS, SOURCE_PUBLIC_DOCUMENTS, PUBLIC_PAGES_WORKFLOW_PATH, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH, generatedPath, inspectPublicMirror, publicPagesLegalHeadersBytes, renderPublicPagesMirrorReadme, verifyPublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
 import { allowedProductionHtmlPaths, expectedProductionCspByPath } from '../scripts/verify-production-dist-exclusions.mjs';
 
 const workflowTemplateBytes = readFileSync(resolve(process.cwd(), PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH));
@@ -266,6 +266,18 @@ describe('read-only public Pages mirror plan', () => {
           sourceTree: plan.sourceTree,
         }, plan.payloadManifestSha256)),
       });
+    const legalHeaders = publicPagesLegalHeadersBytes();
+    expect(plan.targetEntries.find((entry: { path: string }) => entry.path === PUBLIC_PAGES_LEGAL_HEADERS_PATH))
+      .toMatchObject({ origin: 'hosting', byteLength: legalHeaders.length, sha256: sha(legalHeaders) });
+    const headerText = legalHeaders.toString('utf8');
+    expect(headerText).toContain('Content-Type: text/plain; charset=utf-8');
+    for (const path of PUBLIC_PAGES_LEGAL_PLAIN_PATHS as readonly string[]) {
+      expect(headerText).toContain(`/${path}\n  Content-Type: text/plain; charset=utf-8\n`);
+    }
+    for (const path of PUBLIC_PAGES_LEGAL_PLAIN_PATHS as readonly string[]) {
+      expect(plan.targetEntries.find((entry: { path: string }) => entry.path === path))
+        .toMatchObject({ origin: 'reviewed-source', sha256: sha(`source-reviewed ${path}\n`) });
+    }
     expect(plan.targetEntries.find((entry: { path: string }) => (
       entry.path === 'docs/releases/0.4.0/public-pages-ptr-payload-v1.json'
     ))).toMatchObject({ origin: 'hosting', sha256: plan.payloadManifestSha256 });
@@ -294,6 +306,38 @@ describe('read-only public Pages mirror plan', () => {
       expectedPublicHead: newest,
     })).toThrow('PUBLIC_PAGES_MIRROR_FILE_BOUNDARY_INVALID');
   });
+
+  it('serves extensionless legal files as text through hosting metadata without preserving or rewriting them', () => {
+    const source = candidate();
+    const mirror = publicMirror(source);
+    const before = mirror.plan();
+    write(join(mirror.root, '_redirects'), '/ /ptr/ 302\n');
+    const redirected = commit(mirror.root, 'Add an unapproved headers sibling');
+    expect(() => verifyPublicPagesMirrorPlan({
+      sourceRoot: source.root,
+      expectedSourceCommit: source.expectedSourceCommit,
+      publicRoot: mirror.root,
+      expectedPublicHead: redirected,
+    })).toThrow('PUBLIC_PAGES_MIRROR_FILE_BOUNDARY_INVALID');
+    rmSync(join(mirror.root, '_redirects'));
+    write(join(mirror.root, PUBLIC_PAGES_LEGAL_HEADERS_PATH), 'not the reviewed rule\n');
+    const replaced = commit(mirror.root, 'Replace generated legal headers');
+    const plan = verifyPublicPagesMirrorPlan({
+      sourceRoot: source.root,
+      expectedSourceCommit: source.expectedSourceCommit,
+      publicRoot: mirror.root,
+      expectedPublicHead: replaced,
+    });
+    const legalHeaders = publicPagesLegalHeadersBytes();
+    expect(plan.preservedRootEntryCount).toBe(before.preservedRootEntryCount);
+    expect(plan.preservedRootManifestSha256).toBe(before.preservedRootManifestSha256);
+    expect(plan.targetEntries.find((entry: { path: string }) => entry.path === PUBLIC_PAGES_LEGAL_HEADERS_PATH))
+      .toMatchObject({ origin: 'hosting', sha256: sha(legalHeaders) });
+    for (const path of PUBLIC_PAGES_LEGAL_PLAIN_PATHS as readonly string[]) {
+      expect(plan.targetEntries.find((entry: { path: string }) => entry.path === path))
+        .toMatchObject({ origin: 'reviewed-source', sha256: sha(readFileSync(join(source.root, path))) });
+    }
+  }, 30_000);
 
   it('refuses hosting drift and a changed saved candidate manifest', () => {
     const source = candidate();

@@ -7,6 +7,8 @@ import {
   verifyCloudflarePagesPostflight,
 // @ts-expect-error Standalone release utility exposes named test seams.
 } from '../scripts/verify-cloudflare-pages-postflight.mjs';
+// @ts-expect-error Standalone release utility exposes the generated Pages headers.
+import { PUBLIC_PAGES_LEGAL_HEADERS_PATH, PUBLIC_PAGES_LEGAL_PLAIN_PATHS, publicPagesLegalHeadersBytes } from '../scripts/verify-public-pages-mirror-plan.mjs';
 
 const sha = (bytes: Uint8Array | string) => createHash('sha256').update(bytes).digest('hex');
 const ORIGIN = 'https://warpkeep.pages.dev';
@@ -71,6 +73,70 @@ describe('Cloudflare Pages postflight', () => {
     });
     expect(result).toMatchObject({ origin: ORIGIN, verifiedFileCount: 6, verifiedFallbackRoutes: 2, sourceCommit: 'a'.repeat(40) });
     expect(server.requested).toContain('/ptr/__warpkeep-postflight-missing__');
+  });
+
+  it('requires text/plain for extensionless legal files and does not fetch _headers', async () => {
+    const headers = publicPagesLegalHeadersBytes();
+    const legal = Object.fromEntries(
+      (PUBLIC_PAGES_LEGAL_PLAIN_PATHS as readonly string[]).map(path => [path, `reviewed ${path}\n`]),
+    );
+    const planned: Record<string, string> = {
+      ...files, ...legal, [PUBLIC_PAGES_LEGAL_HEADERS_PATH]: headers.toString('utf8'),
+    };
+    const targetEntries = Object.entries(planned).map(([path, body]) => ({
+      path, byteLength: Buffer.byteLength(body), sha256: sha(body), origin: 'generated',
+    }));
+    const { bytes, digest } = planBytes({ targetEntries, targetFileCount: targetEntries.length });
+    const server = pagesServer({ ...files, ...legal });
+    const requested: string[] = [];
+    const typed = (contentType: string) => async (url: string, init: { redirect?: string }) => {
+      const route = new URL(url).pathname;
+      requested.push(route);
+      const legalPath = route.slice(1);
+      if (Object.hasOwn(legal, legalPath)) {
+        return new Response(legal[legalPath], {
+          status: 200, headers: { 'content-type': contentType },
+        });
+      }
+      return server.fetchImpl(url, init);
+    };
+    const result = await verifyCloudflarePagesPostflight({
+      origin: ORIGIN, reviewedPlanBytes: bytes, expectedReviewedPlanSha256: digest,
+      fetchImpl: typed('text/plain; charset=utf-8'),
+    });
+    expect(result).toMatchObject({
+      verifiedLegalPlainTextRoutes: PUBLIC_PAGES_LEGAL_PLAIN_PATHS.length,
+      verifiedFileCount: targetEntries.length,
+    });
+    expect(requested).not.toContain('/_headers');
+    requested.length = 0;
+    for (const contentType of ['application/octet-stream', 'text/plain']) {
+      await expect(verifyCloudflarePagesPostflight({
+        origin: ORIGIN, reviewedPlanBytes: bytes, expectedReviewedPlanSha256: digest,
+        fetchImpl: typed(contentType),
+      })).rejects.toMatchObject({
+        code: 'CLOUDFLARE_PAGES_POSTFLIGHT_CONTENT_TYPE_INVALID',
+        paths: [...PUBLIC_PAGES_LEGAL_PLAIN_PATHS].sort(),
+      });
+      expect(requested).not.toContain('/_headers');
+      requested.length = 0;
+    }
+    const withoutHeaders = targetEntries.filter(entry => entry.path !== PUBLIC_PAGES_LEGAL_HEADERS_PATH);
+    const missing = planBytes({ targetEntries: withoutHeaders, targetFileCount: withoutHeaders.length });
+    await expect(verifyCloudflarePagesPostflight({
+      origin: ORIGIN, reviewedPlanBytes: missing.bytes, expectedReviewedPlanSha256: missing.digest,
+      fetchImpl: typed('text/plain; charset=utf-8'),
+    })).rejects.toMatchObject({ code: 'CLOUDFLARE_PAGES_POSTFLIGHT_PLAN_INVALID' });
+    const omitted = targetEntries.filter(entry => entry.path !== 'LICENSE-CC-BY-4.0');
+    const partial = planBytes({ targetEntries: omitted, targetFileCount: omitted.length });
+    await expect(verifyCloudflarePagesPostflight({
+      origin: ORIGIN, reviewedPlanBytes: partial.bytes, expectedReviewedPlanSha256: partial.digest,
+      fetchImpl: typed('text/plain; charset=utf-8'),
+    })).rejects.toMatchObject({ code: 'CLOUDFLARE_PAGES_POSTFLIGHT_PLAN_INVALID' });
+    await expect(verifyCloudflarePagesPostflight({
+      origin: ORIGIN, reviewedPlanBytes: bytes, expectedReviewedPlanSha256: digest,
+      fetchImpl: typed('  text/plain; charset=utf-8  '),
+    })).resolves.toMatchObject({ verifiedLegalPlainTextRoutes: PUBLIC_PAGES_LEGAL_PLAIN_PATHS.length });
   });
 
   it('names the paths whose served bytes differ', async () => {

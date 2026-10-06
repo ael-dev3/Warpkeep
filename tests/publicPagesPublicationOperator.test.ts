@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 // @ts-expect-error Standalone release utility exposes named test seams.
 import { writePublicPagesPayloadManifest } from '../scripts/verify-public-pages-payload.mjs';
 // @ts-expect-error Standalone release utility exposes named test seams.
-import { inspectPublicMirror, SOURCE_PUBLIC_DOCUMENTS, PUBLIC_PAGES_WORKFLOW_PATH, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH, writePublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
+import { inspectPublicMirror, PUBLIC_PAGES_LEGAL_HEADERS_PATH, PUBLIC_PAGES_LEGAL_PLAIN_PATHS, publicPagesLegalHeadersBytes, SOURCE_PUBLIC_DOCUMENTS, PUBLIC_PAGES_WORKFLOW_PATH, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH, writePublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
 import {
   preparePublicPagesPublication,
   preparePublicPagesRollback,
@@ -150,6 +150,11 @@ describe('signed public Pages publication and rollback operator', () => {
       'audio/warpkeep-genesis-002-theme.m4a', 'models/greater-realm/biome-trees/v3/manifest.json']) {
       expect(git(f.publicRoot, ['rev-parse', `${prepared.publicCommit}:${path}`]))
         .toBe(git(f.publicRoot, ['rev-parse', `${f.parent}:${path}`]));
+    }
+    expect(readFileSync(join(f.publicRoot, PUBLIC_PAGES_LEGAL_HEADERS_PATH)))
+      .toEqual(publicPagesLegalHeadersBytes());
+    for (const path of PUBLIC_PAGES_LEGAL_PLAIN_PATHS as readonly string[]) {
+      expect(readFileSync(join(f.publicRoot, path))).toEqual(Buffer.from(`source-reviewed ${path}\n`));
     }
     expect(readFileSync(join(f.publicRoot, 'ptr/index.html'), 'utf8')).toContain('/ptr/assets/');
     expect(JSON.parse(readFileSync(join(f.publicRoot,

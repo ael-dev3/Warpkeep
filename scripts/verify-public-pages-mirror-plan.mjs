@@ -58,6 +58,35 @@ export const SOURCE_PUBLIC_DOCUMENTS = Object.freeze([
   'licenses/legacy/LICENSE-CC0-1.0-v0.2.0',
 ]);
 const PUBLIC_DOCUMENT_SET = new Set([...SOURCE_PUBLIC_DOCUMENTS, 'README.md']);
+/**
+ * Cloudflare Pages serves extensionless files as application/octet-stream.
+ * This file is hosting metadata only: Pages parses it and does not serve it.
+ * It is not one of the preserved Alpha root files, and it does not alter
+ * LICENSE or NOTICE bytes.
+ */
+export const PUBLIC_PAGES_LEGAL_HEADERS_PATH = '_headers';
+/**
+ * Reviewed legal texts whose names have no text media-type suffix.
+ * Cloudflare Pages otherwise serves each of them as application/octet-stream.
+ * Markdown and .txt records already receive a text type and are not listed.
+ */
+export const PUBLIC_PAGES_LEGAL_PLAIN_PATHS = Object.freeze([
+  'LICENSE',
+  'LICENSE-CC-BY-4.0',
+  'NOTICE',
+  'licenses/legacy/LICENSE-0BSD-v0.2.0',
+  'licenses/legacy/LICENSE-CC0-1.0-v0.2.0',
+]);
+const PUBLIC_PAGES_LEGAL_PLAIN_TYPE = 'text/plain; charset=utf-8';
+const PUBLIC_PAGES_LEGAL_HEADERS_TEXT = ''
+  + '# Cloudflare Pages metadata. This file is not a public route.\n'
+  + PUBLIC_PAGES_LEGAL_PLAIN_PATHS.map(path => (
+    `/${path}\n  Content-Type: ${PUBLIC_PAGES_LEGAL_PLAIN_TYPE}\n`
+  )).join('\n');
+
+export function publicPagesLegalHeadersBytes() {
+  return Buffer.from(PUBLIC_PAGES_LEGAL_HEADERS_TEXT, 'utf8');
+}
 
 export class PublicPagesMirrorPlanError extends Error {
   constructor(code) {
@@ -145,6 +174,7 @@ function approvedPublicPath(path) {
     || PUBLIC_DOCUMENT_SET.has(path)
     || path === PUBLIC_PAGES_MIRROR_MANIFEST_PATH
     || path === PUBLIC_PAGES_WORKFLOW_PATH
+    || path === PUBLIC_PAGES_LEGAL_HEADERS_PATH
   );
 }
 
@@ -282,6 +312,7 @@ export function verifyPublicPagesMirrorPlan({
   const entries = new Map();
   for (const path of mirror.tracked) {
     if (path.startsWith(PTR_PREFIX) || path === 'README.md'
+      || path === PUBLIC_PAGES_LEGAL_HEADERS_PATH
       || SOURCE_PUBLIC_DOCUMENTS.includes(path) || path === PUBLIC_PAGES_MIRROR_MANIFEST_PATH) continue;
     if (!generatedPath(path) && !HOST_FILES.has(path)) continue;
     // Publication preserves parent Git blobs, not checkout-smudged bytes.
@@ -313,6 +344,7 @@ export function verifyPublicPagesMirrorPlan({
     ['ptr/404.html', readFileSync(join(resolve(sourceRoot), 'dist/index.html'))],
     [PUBLIC_PAGES_MIRROR_MANIFEST_PATH, manifestBytes],
     ['README.md', publicReadme],
+    [PUBLIC_PAGES_LEGAL_HEADERS_PATH, publicPagesLegalHeadersBytes()],
   ]) {
     if (entries.has(path)) fail('PUBLIC_PAGES_MIRROR_TARGET_COLLISION');
     entries.set(path, Object.freeze({

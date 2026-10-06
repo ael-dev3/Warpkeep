@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // @ts-expect-error Standalone release utilities expose named test seams.
 import { allowedGeneratedPath, verifyPublicPagesPostflight } from '../scripts/verify-public-pages-postflight.mjs';
 // @ts-expect-error Standalone release utility exposes reviewed document and README policy.
-import { PUBLIC_PAGES_MIRROR_MANIFEST_PATH, PUBLIC_PAGES_WORKFLOW_PATH, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH, renderPublicPagesMirrorReadme, SOURCE_PUBLIC_DOCUMENTS } from '../scripts/verify-public-pages-mirror-plan.mjs';
+import { PUBLIC_PAGES_LEGAL_HEADERS_PATH, PUBLIC_PAGES_MIRROR_MANIFEST_PATH, PUBLIC_PAGES_WORKFLOW_PATH, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH, publicPagesLegalHeadersBytes, renderPublicPagesMirrorReadme, SOURCE_PUBLIC_DOCUMENTS } from '../scripts/verify-public-pages-mirror-plan.mjs';
 
 const temporaryRoots: string[] = [];
 const sourceCommit = 'a'.repeat(40);
@@ -105,6 +105,7 @@ function fixture(mutateGenerated?: (files: Map<string, Buffer>) => void) {
     ['ptr/404.html', generated.get('index.html')!],
     ['README.md', renderPublicPagesMirrorReadme(manifest, sha(manifestBytes))],
     [PUBLIC_PAGES_MIRROR_MANIFEST_PATH, manifestBytes],
+    [PUBLIC_PAGES_LEGAL_HEADERS_PATH, publicPagesLegalHeadersBytes()],
   ]);
   const documents = new Map((SOURCE_PUBLIC_DOCUMENTS as readonly string[]).map(path => [
     path, Buffer.from(`current reviewed ${path}\n`),
