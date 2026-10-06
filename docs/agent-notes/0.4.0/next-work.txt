@@ -20,8 +20,10 @@ binding, sequence/next ordinal 256, all attempts, and zeroized the recovered
 root-seed buffer. Full safe aggregates are in
 `docs/evidence/0.4.0/local-operations.md`. No candidate, package, shortlist,
 selection, atlas, provider operation, or production mutation resulted. The
-checkpoint remains active until its synchronized summary is retired using the
-maintained abort API; do not replay it.
+summary was synchronized in signed commit `77716367`; at
+`2026-10-06 00:33:02 UTC`, the maintained abort returned
+`checkpointAborted: true` and `productionUntouched: true` on the exact source.
+The checkpoint is retired; do not replay it.
 
 The signed source `fee38320f81f54647e17ed8351b3f2a4b45199dc` fixes the Lowlands
 sibling-pair fallback: compatible own-terrain pairs remain preferred; only

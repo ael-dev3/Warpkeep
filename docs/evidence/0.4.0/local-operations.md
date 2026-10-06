@@ -390,9 +390,10 @@ returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated
 checkpoint reader verified source binding, phase `searching`, sequence/next
 ordinal 256, and all 256 attempts. No candidate, private package, shortlist,
 selection, atlas publication, provider request, or production mutation
-resulted. The recovered root-seed buffer was zeroized in `finally`; the
-persistent private checkpoint must be retired after this result is
-synchronized.
+resulted. The recovered root-seed buffer was zeroized in `finally`. Signed docs
+commit `77716367` synchronized this safe result; at `2026-10-06 00:33:02 UTC`,
+the maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true` on the exact source. The checkpoint is retired.
 
 The 216 geography rejections were:
 
@@ -427,10 +428,8 @@ Crownwood failures and zero lane-split outcomes. The corrected code fixes the
 proven impossible Lowlands fallback path, but these are separate fresh seeds,
 so the count change is descriptive and not a causal or paired result. The
 largest observed geography class is now dry gate apron no-match (107). The next
-step is to synchronize this safe result, retire the exact checkpoint through
-the maintained abort API, and verify production untouched. Then inspect the
-global apron no-match path for a concrete defect without relaxing geometry,
-thresholds, or search limits.
+step is to inspect the global apron no-match path for a concrete defect without
+relaxing geometry, thresholds, or search limits.
 
 ### Pre-push Actions inventory — 5 October 2026, 21:37 UTC
 

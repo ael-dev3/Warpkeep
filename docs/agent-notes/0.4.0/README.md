@@ -36,10 +36,11 @@ apron no-match was the largest geography class (107); Crownwood parent-slot
 missing appeared 22 times and lane-split assignment missing four times. Full
 safe aggregates are in [local operations](../../evidence/0.4.0/local-operations.md).
 The authenticated reader confirmed source binding and ordinal 256, then
-zeroized the recovered root-seed buffer. The safe result is being synchronized
-before the maintained abort retires this checkpoint; until that abort is
-verified, treat the checkpoint as active. No candidate, package, shortlist,
-selection, atlas, provider request, or production mutation resulted.
+zeroized the recovered root-seed buffer. Signed docs commit `77716367`
+synchronized the safe result; at `2026-10-06 00:33:02 UTC`, the maintained
+abort returned `checkpointAborted: true` and `productionUntouched: true` on
+this exact source. The checkpoint is retired. No candidate, package,
+shortlist, selection, atlas, provider request, or production mutation resulted.
 
 Signed source `de1a5f63` fixes the demonstrated Lowlands fallback defect:
 child zero retains its own Lowlands reserve bundles, while non-Lowlands

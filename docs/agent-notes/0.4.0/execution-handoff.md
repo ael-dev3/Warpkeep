@@ -11,9 +11,10 @@ missing appeared 22 times and lane-split assignment missing four times. No
 candidate, package, shortlist, selection, atlas, provider request, or
 production mutation resulted. Full privacy-safe counts are recorded in local
 operations. The recovered root-seed buffer was zeroized in `finally`; the
-persistent checkpoint remains active until the safe result is synchronized
-and the maintained abort confirms `checkpointAborted: true` and
-`productionUntouched: true` on this exact source.
+safe result was synchronized in signed docs commit `77716367`. At
+`2026-10-06 00:33:02 UTC`, the maintained abort confirmed
+`checkpointAborted: true` and `productionUntouched: true` on this exact source.
+The checkpoint is retired.
 
 The signed `a18930b4` source introduced the parent-specific diagnostic:
 exactly one missing parent maps to Crownwood, Ironveil, or Glasswater; multiple
