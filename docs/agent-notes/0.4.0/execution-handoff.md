@@ -22,19 +22,22 @@ pass at 320,000. The behavior-changing search revision is recorded as generator
 `.20`; the terrain-seed namespace remains `.3`. Edge candidates remain 1,024,
 complete plans 256, Lowlands assignments 32, and sibling pairs per parent 2;
 topology, ownership and all proofs are unchanged. The focused 51-test set and
-typechecking pass, but this successor has not yet had a fresh candidate batch.
-The candidate-package suite cannot initialize on Windows: its POSIX ancestor
-mode check rejects Windows `stat` mode `0666` before any of its 82 assertions
-run. Validate that suite on the pinned Linux runner; confirm PR #385 points at
-the signed successor before a fresh candidate batch.
+typechecking pass. The exact signed `.20` source also passes all 133 tests in
+the four focused suites on pinned Linux Node `22.22.3`; the candidate-package
+tests are supported there. The Windows package-suite setup rejects Windows
+`stat` mode `0666` at its POSIX ancestor check, so use Linux for that suite.
+This successor has not yet had a fresh candidate batch. Confirm PR #385 points
+at the signed successor before running one.
 
 The `64 → 128` pair-cap correction passed 51/51 focused gate-apron, rejection,
-and generator tests on Windows Node `24.19.0`, plus TypeScript checking. Its
-Linux Node `22.22.3` toolchain preflight verifies, but that checkout has no
-Vitest binary, so no Linux focused-suite result is claimed. The earlier signed
-frontier correction passed 51/51 under pinned Linux Node 22. The current
-512/1,024/320,000 search correction passes 51/51 and TypeScript checking on
-Windows Node 24.19.0; generation remains pinned to Linux Node 22.
+and generator tests on Windows Node `24.19.0`, plus TypeScript checking. The
+pinned Linux Node `22.22.3` toolchain preflight verifies. Its installed Vitest
+entrypoint runs directly with `node node_modules/vitest/vitest.mjs` even though
+the `.bin` shim is absent. The earlier signed frontier correction passed
+51/51 under pinned Linux Node 22. The current 512/1,024/320,000 search
+correction passes 133/133 focused tests on Linux Node 22 and 51/51 focused
+tests plus typechecking on Windows Node 24.19.0; generation remains pinned to
+Linux Node 22.
 Windows `npm run typecheck` and the full production build pass; the build
 retains the known 677.52 kB `RealmMapScreen` chunk warning. The five changed
 Pages suites also passed 63/63 on the prior exact source. The attempted Linux

@@ -73,15 +73,17 @@ and 640,000 nodes. The correction keeps the same rank diagonal and node budget,
 but reselects the next sibling group from its currently compatible choices,
 pruning groups made impossible by already chosen footprints. Group-index ties
 remain deterministic; footprints, ownership rules, and proofs are unchanged.
-With generator revision `.20`, bundle pairs at 512, edge candidates at 1,024, nodes at 320,000, complete
-plans at 256, Lowlands assignments at 32, and sibling pairs per parent at 2,
+With generator revision `.20`, bundle pairs at 512, edge candidates at 1,024,
+nodes at 320,000, complete plans at 256, Lowlands assignments at 32, and
+sibling pairs per parent at 2,
 the deterministic generator fixture and all 51 focused tests pass; TypeScript
-checking also passes on Windows Node `24.19.0`. The candidate-package test
-suite cannot initialize on Windows because its POSIX ancestor-mode guard sees
-Windows `stat` mode `0666`; its 82 assertions did not run. No fresh candidate
-batch has yet been run on this successor. Generation remains pinned to Linux
-Node `22.22.3`; validate the package suite and run the next batch only on the
-exact signed successor.
+checking also passes on Windows Node `24.19.0`. The exact signed source
+`2b72a6850c30ee59e55d4c6614b1bd554be88c3d` passed all 133 tests in the four
+focused suites on pinned Linux Node `22.22.3`, including the owner-only package
+suite. The equivalent Windows package-suite setup rejects Windows `stat` mode
+`0666` at its POSIX ancestor check; use Linux for that suite. No fresh
+candidate batch has yet been run on this successor. Generation remains pinned
+to Linux Node `22.22.3`; run the next batch only on the exact signed successor.
 
 ## Pair-frontier candidate search — 6 October 2026 — source `57013881`
 
