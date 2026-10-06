@@ -8,21 +8,27 @@ remotely; their canonical P3 plan-path and Cloudflare legal-text
 header/postflight fixes are in #385. The #397 allowance was already present,
 and stale PRs were closed as incorporated or superseded.
 
-A fresh exact-source run on `f5ee3cda` exhausted all 256 attempts without an
+A fresh exact-source run on `57013881` exhausted all 256 attempts without an
 eligible candidate. Its sanitized rejection aggregate and maintained abort
 and readiness checks are in [local operations](../../evidence/0.4.0/local-operations.md).
-There were 214 geography rejections and 42 proof-rejection attempts; the pair
-frontier was truncated in 125 geography attempts, while edge-candidate
-truncation did not occur. The measured follow-on correction raises only the
-pair cap from 64 to 128. Keep edge candidates at 512, search nodes at 40,000,
-complete plans at 256, Lowlands assignments at 32, sibling pairs per parent
-at 2, and topology, ownership and all proofs unchanged. Confirm that PR #385
-points at the signed successor containing this correction before another
-candidate run.
+There were 225 geography rejections and 31 proof-rejection attempts; the pair
+frontier was truncated in 143 geography attempts and the edge frontier twice.
+The measured follow-on correction raises bundle pairs `128 → 256`, edge
+candidates `512 → 1,024`, and search nodes `40,000 → 320,000`. The existing
+deterministic candidate fixture reached the typed node-limit result at 40,000,
+80,000, and 160,000 nodes with the larger frontiers; all 51 focused suites pass
+at 320,000. Keep complete plans at 256, Lowlands assignments at 32, sibling
+pairs per parent at 2, and topology, ownership and all proofs unchanged.
+Confirm that PR #385 points at the signed successor containing this correction
+before another candidate run.
 
-The previous frontier correction passes 51/51 focused gate-apron, rejection,
-and generator tests on the pinned Node `22.22.3` Linux toolchain (60.65 seconds
-of test time).
+The `64 → 128` pair-cap correction passes 51/51 focused gate-apron, rejection,
+and generator tests on Windows Node `24.19.0`, plus TypeScript checking. Its
+Linux Node `22.22.3` toolchain preflight verifies, but that checkout has no
+Vitest binary, so no Linux focused-suite result is claimed. The earlier signed
+frontier correction passed 51/51 under pinned Linux Node 22. The current
+256/1,024/320,000 correction also passes 51/51 and TypeScript checking on
+Windows Node 24.19.0; generation remains pinned to Linux Node 22.
 Windows `npm run typecheck` and the full production build pass; the build
 retains the known 677.52 kB `RealmMapScreen` chunk warning. The five changed
 Pages suites also passed 63/63 on the prior exact source. The attempted Linux
@@ -36,8 +42,8 @@ PTR cutover, and no authenticated 0.4 owner acceptance. GitHub Actions are
 disabled; local validation and branch publication do not count as hosted
 Verify or deployment.
 
-Next: validate and publish the pair-cap correction, confirm #385's exact signed
-head, then run a fresh source-bound candidate search. If eligible, verify the
+Next: validate and publish the pair/edge/node correction, confirm #385's exact
+signed head, then run a fresh source-bound candidate search. If eligible, verify the
 private package and sanitized review before selection under the existing
 `OWNER-EXPLICIT-0.4-SHIP` reference, then complete owner/atlas, bridge, frontend,
 and cutover in dependency order. Keep Alpha and rollback evidence intact. Do
