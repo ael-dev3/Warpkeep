@@ -26,8 +26,12 @@ commit `435586b766fb55514b9197f8438561dde448ba4f` passed all 133 focused tests
 on pinned Linux Node `22.22.3` and 51 focused Windows tests plus typechecking.
 The failed batch was bound to documentation-only successor
 `3ad208d02c10971ddb49fc80f43d42310fe350d1`, whose generator and test bytes
-were unchanged. Run the same Linux suite on `.22` before another candidate
-batch. Confirm PR #385's exact signed head before source-bound work.
+were unchanged. Exact signed `.22` implementation
+`5c04108565086c8a413ca11abaa2ad0bf10b6e44` passed all 133 tests across the
+four focused Linux suites in 525.89 seconds, with all 11 locked packages
+verified; Windows also passed 51 focused tests and typechecking. A fresh `.22`
+candidate batch is next. Confirm PR #385's exact signed head before
+source-bound work.
 
 The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
 rejection, and generator tests on Windows Node `24.19.0`, plus TypeScript
@@ -36,10 +40,10 @@ installed Vitest entrypoint runs directly with
 `node node_modules/vitest/vitest.mjs` even though the `.bin` shim is absent.
 The exact signed `.20` source passed 133/133 across the four focused suites on
 Linux Node 22. The `.21` implementation at signed commit `435586b7` passed
-133/133 across the four suites on Linux Node 22, and 51/51 focused tests plus
-typechecking on Windows Node 24.19.0. The current `.22` cap correction
-requires the same focused validation. Generation stays pinned to Linux Node
-22.
+133/133 across the four suites on Linux Node 22. The `.22` implementation at
+signed commit `5c041085` also passed 133/133 on Linux and 51/51 focused tests
+plus typechecking on Windows Node 24.19.0. Generation stays pinned to Linux
+Node 22.
 Windows `npm run typecheck` and the full production build pass; the build
 retains the known 677.52 kB `RealmMapScreen` chunk warning. The five changed
 Pages suites also passed 63/63 on the prior exact source. The attempted Linux

@@ -83,8 +83,11 @@ compatible-footprint traversal, proofs, ownership rules, and seed namespace
 133/133, on pinned Linux Node `22.22.3`. The failed batch was bound to the
 documentation-only signed successor
 `3ad208d02c10971ddb49fc80f43d42310fe350d1`, with generator and test bytes
-unchanged. Revision `.22` must pass the same run before another candidate
-batch.
+unchanged. Exact signed `.22` implementation
+`5c04108565086c8a413ca11abaa2ad0bf10b6e44` passed all four focused suites,
+133/133, on pinned Linux Node `22.22.3` in 525.89 seconds with all 11 locked
+packages verified; the Windows 51-test subset and typechecking passed too.
+A fresh `.22` candidate batch is next.
 
 ## Expanded-search candidate run — 6 October 2026 — source `9d3cf8b6`
 
