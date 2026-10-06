@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES,
+  GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS,
   GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS,
   GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT,
   assertGreaterRealmRepairOwnershipUnchanged,
@@ -624,6 +626,11 @@ describe('Greater Realm ranked gate-apron search', () => {
       Object.freeze([]),
       Object.freeze([]),
     )).toEqual([]);
+  });
+
+  it('expands only the raw edge frontier while keeping bundle pairs bounded', () => {
+    expect(GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES).toBe(96);
+    expect(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS).toBe(32);
   });
 
   it('caps the repair frontier at the unchanged complete-plan budget', () => {

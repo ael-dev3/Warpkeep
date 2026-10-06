@@ -195,7 +195,10 @@ export type GreaterRealmRankedSiblingSearchResult<Alternative, Option> =
 
 export const GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS = 16 as const;
 export const GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT = 2 as const;
-export const GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES = 64 as const;
+// The 6 October source-bound sample found raw edge truncation in 83 of 256
+// attempts. Expand only this upstream input frontier; the balanced pair,
+// capacity-assignment, complete-plan, and node limits remain unchanged.
+export const GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES = 96 as const;
 export const GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS = 32 as const;
 
 export type GreaterRealmGateApronPairRank = Readonly<{
