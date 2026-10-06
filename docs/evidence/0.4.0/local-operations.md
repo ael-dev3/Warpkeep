@@ -158,6 +158,47 @@ this WSL checkout; it may mutate the npm-managed dependency tree. The Windows
 `npm run build` on the same code source already passed, and the Linux source
 suite above completed before this tooling incident.
 
+### Delivery-path PR integration — 6 October 2026
+
+Signed merge `1e664cf72af2ce96bb3afc21239ffcda9da52912` integrates PR #394's
+canonical absolute Pages plan path. The release branch had passed a relative
+path into `readLocalBindingBoundedFile`, whose contract requires canonical
+`realpath`; the correction resolves the copied plan with Node before invoking
+the operator. All six `publicPagesLocalCandidateScript` tests passed,
+including the new canonical-path contract case.
+
+Signed merge `fce8ea0842a8956b7b1bdd7fab5c122c4a16d727` integrates PR #399's
+Cloudflare Pages legal-text media types. The public mirror plan now includes
+generated `_headers` hosting metadata for the five extensionless legal texts,
+without changing their reviewed bytes or the 341 preserved Alpha root files.
+The Cloudflare postflight requires all five texts and exact header bytes, then
+checks `text/plain; charset=utf-8` on each route. The Cloudflare Content-Type
+tests and the new legal-plan test passed. The exact signed publication-operator
+case that checks the metadata and preserved files passed when isolated with a
+120-second timeout.
+
+On merge checkpoint `fce8ea0`, `npm run build` passed, including TypeScript,
+the production build, Greater Realm public-boundary verification (3,459
+tracked paths; 1,930 scanned entries), production exclusions and Mini App
+integrity. `npm run verify:licenses` passed. The broad five-file Windows test
+run hit per-test timeouts in Git-heavy synthetic-repository fixtures; it showed
+no assertion failure before those timeouts. Run the complete changed-path suite
+under the pinned Linux checkout after the active generation attempt finishes.
+No Cloudflare upload, DNS change or `/ptr/` cutover was performed.
+
+The live repository-variable readback also matches the checked-in deployment
+contract: shared Alpha is `true`, bridge and issuer are both
+`https://auth.warpkeep.com`, OIDC audience is `warpkeep-spacetimedb`, and the
+Alpha and PTR database identities remain separate at their reviewed values.
+With those exact values and `/ptr/`, local `npm run validate:pages-config`
+passed; admission notifications remain explicitly disabled.
+
+The topographic QA allowance change proposed by PR #397 is already present in
+the release branch and its public-boundary verifier passes, so that duplicate
+patch is not needed. The menu, soundtrack and biome-tree changes from PRs
+#375–#378 entered `main` through merged PR #374 and are already in this release
+lineage. PR #385 remains the single release integration target.
+
 ## Exact-source private generation — 6 October 2026 — source `54889099`
 
 Signed source `54889099e464862e936459b30da2e681257aadbf` (tree
