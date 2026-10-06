@@ -140,9 +140,23 @@ push created no CI or deployment.
 The idle pinned Linux checkout now holds exact code source
 `9bfdf181bada7785ed03fb1d70a48c940a5cce3d` (clean detached worktree). Node
 `22.22.3`, `linux-x64`, all 11 trusted toolchain packages, and Linux
-SpacetimeDB CLI v2.6.1 are verified. The full pinned Linux suite for this new
-edge-frontier source is now running; no further candidate generation begins
-until its complete result is recorded.
+SpacetimeDB CLI v2.6.1 are verified. The full pinned Linux suite on this exact
+edge-frontier source passed: 1,466/1,466 suites, 13,720 tests, 97 pending,
+zero failed/todo. The report range is `2026-10-06 11:50:49.263–12:10:16.279
+UTC` (19:27.017). The detached checkout remained clean and a post-suite
+`git fsck --full` reported no corrupt or missing objects.
+
+During follow-up, `pnpm run build` unexpectedly auto-started `pnpm install` in
+this npm-managed WSL checkout because Linux npm is unavailable. The install
+moved 19 existing package directories under `node_modules/.ignored`, then
+stopped on package lifecycle-build approval. Recovery verified the exact 19
+preserved entries, restored them to their original top-level locations, and
+removed only the newly created pnpm store, metadata, recovery copies, and
+links. The pinned bootstrap `--verify-only` then passed again under the
+`warpkeep` account, and the checkout stayed clean. Do not use `pnpm run` in
+this WSL checkout; it may mutate the npm-managed dependency tree. The Windows
+`npm run build` on the same code source already passed, and the Linux source
+suite above completed before this tooling incident.
 
 ## Exact-source private generation — 6 October 2026 — source `54889099`
 

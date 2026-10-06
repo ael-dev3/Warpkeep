@@ -3,13 +3,15 @@
 ## Active release checkpoint — 6 October 2026
 
 The current release PR is open/draft #385 against `main`; its exact verified
-GitHub head is `ef383f55fc93e78ee02e06a3693860a5d7985671`. Its signed code
-source is parent `9bfdf181bada7785ed03fb1d70a48c940a5cce3d`; the PR head adds
-only the publication/handoff record. The code source raises only the raw edge
+GitHub head is `50bf3a266dbcc17db7b874808af2618b582b3a74`; the two successors
+after code source `9bfdf181bada7785ed03fb1d70a48c940a5cce3d` contain only
+release evidence and handoff notes. The code source raises only the raw edge
 frontier from 192 to 256 after the previous exact-source run hit that edge cap
 in 85 of 256 attempts. Five relevant focused files pass 59/59;
-`npm run typecheck` and `npm run build` pass. The 32 pair cap, 64 option cap,
-other search budgets, map-quality thresholds and proofs stay fixed.
+`npm run typecheck` and `npm run build` pass. The full pinned Linux suite on
+the exact code source also passed: 1,466 suites, 13,720 tests, 97 pending,
+zero failures or todos. The 32 pair cap, 64 option cap, other search budgets,
+map-quality thresholds and proofs stay fixed.
 
 The prior `1c24e3da` private run exhausted 256 attempts without an eligible
 candidate (219 geography and 37 proof-rejection attempts). Its safe summary is
@@ -19,19 +21,26 @@ that publication, the maintained abort returned
 postcheck found no generation or completion checkpoint. No candidate, atlas
 operation, provider request or production mutation resulted.
 
-The exact code source `9bfdf181bada7785ed03fb1d70a48c940a5cce3d` is now pinned
-in the clean Linux checkout with Node `22.22.3`, `linux-x64`, and all 11
-toolchain packages verified. Its complete Linux suite is running; only after
-that exact-source suite passes will a fresh bounded candidate generation run.
-The live custom domain serves the existing Alpha at `/` (HTTP 200) and returns
-404 for `/ptr/`; no PTR cutover or owner acceptance has occurred. Preserve
-Alpha and its licensing terms. Actions remain disabled; local validation and
-source publication are not hosted Verify, merge, deployment or PTR acceptance.
+The exact code source `9bfdf181bada7785ed03fb1d70a48c940a5cce3d` is pinned in
+the clean Linux checkout with Node `22.22.3`, `linux-x64`, and all 11 toolchain
+packages verified. One fresh-seed, maximum-256 candidate search is now running
+in a private workspace against that exact source; its raw output remains
+outside the repository. The live custom domain serves the existing Alpha at
+`/` (HTTP 200) and returns 404 for `/ptr/`; no PTR cutover or owner acceptance
+has occurred. Preserve Alpha and its licensing terms. Actions remain disabled;
+local validation and source publication are not hosted Verify, merge,
+deployment or PTR acceptance.
 
-Next: complete the pinned Linux suite on `9bfdf181bada7785ed03fb1d70a48c940a5cce3d`.
-If it passes, run one fresh-seed batch on that exact code. Do not raise other
-caps, relax proofs, invoke Actions, or begin atlas/provider operations before
-an eligible verified package and owner selection.
+Next: collect the safe maintained aggregate for the active exact-source search.
+If it exhausts without a candidate, retain only the sanitized rejection summary
+and retire its checkpoint through the maintained abort. If it yields an
+eligible candidate, validate its package and proofs before owner/atlas or
+provider operations. Do not raise other caps, relax proofs, or invoke Actions.
+The attempted Linux `pnpm run build` auto-triggered installation into the
+npm-managed WSL dependency tree; the original packages were restored and the
+verified pnpm artifacts were removed. The pinned bootstrap verifies again.
+Avoid `pnpm run` in that WSL checkout; the same source already passed the
+Windows build and exact Linux suite.
 
 ## Previous cap-192 checkpoint — historical
 
