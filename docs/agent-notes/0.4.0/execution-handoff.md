@@ -2,18 +2,40 @@
 
 ## Current release checkpoint — 6 October 2026
 
-On exact signed source `85a2a7cf2826c3526cfacac150827746d6cfa62a`, one fresh
-private 256-attempt batch ran for about 30 minutes and returned
-`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated safe read
-confirmed source binding, phase `searching`, sequence/next ordinal 256, 224
-geography rejections, and 32 proof-rejection attempts. The pinned Linux x64
-Node 22.22.3 preflight verified 11 packages. The recovered root-seed buffer
-was zeroized in `finally`. No candidate, package, shortlist, selection,
-atlas, provider request, or production mutation resulted. Full safe
-geography-code counts are recorded in local operations. After the summary was
-captured, the maintained abort returned `checkpointAborted: true` and
-`productionUntouched: true`; the checkpoint is retired and must not be
-replayed.
+Signed source `d3d83068726df885e513f20eeb3f6efb389c49a8` (tree
+`557bfe56a02c2fc03f945dfd0aa955e113ede153`) is published and verified at the
+head of open draft PR #385. On that exact source, one fresh-seed maximum-256
+private batch ran for about 30 minutes and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Safe readback confirmed all 256
+attempts, 222 geography rejections, and 34 proof-rejection attempts. The new
+frontier diagnostic classified 76 attempts as
+`DRY_GATE_APRON_FRONTIER_TRUNCATED`: the ranked search had discarded viable
+upstream options before an otherwise no-match result. This establishes an
+incomplete retained-prefix search, not that an omitted option would pass final
+geometry or ownership checks. There were also eight complete-plan limits and
+37 search-node limits. Full safe counts are in [local operations](../../evidence/0.4.0/local-operations.md).
+
+The authenticated read matched the source, `greater-realm-v2-natural-continent-pr-a.19`,
+Node `22.22.3`, and the verified `linux-x64` toolchain (11 packages). The
+recovered root-seed buffer was zeroized in `finally`. The maintained abort
+returned `checkpointAborted: true` and `productionUntouched: true`; the
+checkpoint is retired and must not be replayed. No candidate, package,
+shortlist, selection, atlas, provider request, or production mutation resulted.
+
+The post-push paginated GitHub inventory still reports 3,807 completed runs,
+3,836 attempts, 28 records with reruns, and no active or queued run; Actions
+permission remains disabled. PR #385 remains open and draft at this exact
+source. Do not claim hosted verification or deployment.
+
+Next: use deterministic public fixtures and a bounded diagnostic to identify
+which apron frontier cap was exceeded (normal bundles, Lowlands-repair options
+or sibling pairs, or capacity assignments). Preserve all proofs, ownership,
+geometry, and resource bounds. Another private seed is justified only after
+the exact truncation source is understood and a source-reviewed correction or
+diagnostic is published. The authenticated owner PTR and Alpha acceptance,
+source integration, release verification, and public cutover remain open.
+
+## Previous generation diagnosis — historical
 
 The signed `a18930b4` source introduced the parent-specific diagnostic:
 exactly one missing parent maps to Crownwood, Ironveil, or Glasswater; multiple

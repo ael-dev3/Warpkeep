@@ -2,7 +2,102 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Exact-source private generation — 6 October 2026
+## Exact-source private generation — 6 October 2026 — source `d3d83068`
+
+The pinned Linux runner executed one fresh-seed, 256-attempt batch on exact
+signed source `d3d83068726df885e513f20eeb3f6efb389c49a8`, tree
+`557bfe56a02c2fc03f945dfd0aa955e113ede153`, using Node `22.22.3` and the
+verified `linux-x64` toolchain (11 packages). It ran for about 30 minutes and
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`.
+
+The authenticated checkpoint read matched the source, generator
+`greater-realm-v2-natural-continent-pr-a.19`, toolchain profile, and Node
+version. It confirmed phase `searching`, sequence/next ordinal 256, and 256
+recorded rejected attempts: 222 geography-exhaustion attempts and 34
+proof-rejection attempts. The recovered root-seed buffer was zeroized in a
+`finally` block. The read emitted no seed, handle, coordinates, candidate
+bytes, or raw checkpoint data.
+
+Exact geography rejection occurrences (one code per geography-exhaustion
+attempt):
+
+| Rejection code | Occurrences |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 37 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 3 |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 1 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 4 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 8 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED` | 76 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 37 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 42 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 11 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 3 |
+| **Total geography rejections** | **222** |
+
+The 34 proof-rejection attempts had these nonexclusive failed-proof
+occurrences:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 12 |
+| `HYDROLOGY_LAKES_48_96` | 7 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 6 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 4 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 14 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 2 |
+| `PROOF_BIOME_DIVERSITY` | 1 |
+| `PROOF_CASTLE_CAPACITY` | 12 |
+| `PROOF_GATE_APPROACHES` | 14 |
+| `PROOF_GATE_GRAPH` | 14 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 8 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 3 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 2 |
+| `PROOF_REGION_GRAPH` | 17 |
+| `PROOF_REGION_LAND_COHERENCE` | 19 |
+| `PROOF_REGION_PASSABLE_LAND` | 5 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 30 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 17 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 34 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 28 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 5 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 9 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 23 |
+| `TIER_POTENTIAL_DENSITY` | 3 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 25 |
+
+The correction made the prior generic apron no-match class more honest:
+76 attempts reached a no-match after at least one viable upstream frontier had
+been truncated. That proves the retained-prefix search was incomplete; it does
+not prove a discarded option would satisfy all geometry and ownership checks.
+Eight attempts hit the complete-plan limit and 37 hit the search-node limit,
+which remain bounded outcomes. Do not loosen proofs, geometry, or search caps
+without a reproducible threshold-preserving diagnosis of the specific frontier.
+
+No candidate, package, shortlist, selection, atlas, provider request, or
+production mutation resulted. After the safe aggregate was captured, the
+maintained `generate-candidates --abort-checkpoint` command returned
+`checkpointAborted: true` and `productionUntouched: true`; this exhausted
+checkpoint is retired and must not be replayed.
+
+The next diagnosis must identify which retained frontier was truncated (bundle
+options, Lowlands-repair bundles/pairs, or capacity assignments) and whether
+the cap is hiding a valid alternative. Use deterministic public fixtures and a
+safe, source-reviewed diagnostic before another private batch. Any cap change
+must retain all candidate proofs and be justified by measured runtime and
+memory bounds.
+
+The post-push GitHub inventory still returned all 3,807 runs complete across
+all branches and event classes, with 3,836 recorded run attempts, 28 records
+having more than one attempt, and no active, queued, or newly triggered run.
+Repository Actions permission remained `enabled: false`; PR #385 remains open
+and draft at this exact signed source. This branch push is source backup only,
+not hosted verification, merge, or deployment.
+
+## Previous exact-source private generation — 6 October 2026 — source `85a2a7cf`
 
 The pinned Linux runner executed the maintained private generator against exact
 signed source `85a2a7cf2826c3526cfacac150827746d6cfa62a` on profile `linux-x64`
