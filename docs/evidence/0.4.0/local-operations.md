@@ -2,7 +2,58 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
-## Current release checkpoint — 5 October 2026
+## Exact-source private generation — 6 October 2026
+
+The pinned Linux runner executed the maintained private generator against exact
+signed source `85a2a7cf2826c3526cfacac150827746d6cfa62a` on profile `linux-x64`
+with Node `22.22.3`; preflight verified 11 locked packages. One fresh-seed run
+used the supported 256-attempt maximum and ran for about 30 minutes before
+returning `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`.
+
+The authenticated safe checkpoint read matched the exact source, generator
+`greater-realm-v2-natural-continent-pr-a.19`, pinned toolchain profile/version,
+phase `searching`, sequence 256, next ordinal 256, and 256 recorded rejected
+attempts. The aggregate was 224 geography-exhaustion attempts and 32
+proof-rejection attempts. The recovered root-seed buffer was zeroized in a
+`finally` block. The read emitted no seed, candidate handle, coordinates,
+private package, or raw checkpoint bytes.
+
+Exact geography rejection-code occurrences (one code per geography-exhaustion
+attempt):
+
+| Rejection code | Occurrences |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 30 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 8 |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 1 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 5 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 8 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH` | 96 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_LOWLANDS_REPAIR_CHECK` | 1 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 30 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 32 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 9 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+| **Total geography rejections** | **224** |
+
+These are safe rejection occurrences from one fresh sample, not a paired
+comparison or causal proof. In particular, the 96 generic apron no-matches do
+not prove the complete plan reached either final apron lane. One attempt was
+classified after the Lowlands repair check; eight reached the bounded
+complete-plan limit. No candidate or eligible batch was accepted or written;
+there was no shortlist, selection, atlas, provider operation, or production
+mutation. After the summary was captured, the maintained
+`generate-candidates --abort-checkpoint` command returned
+`checkpointAborted: true` and `productionUntouched: true`. This private
+checkpoint is retired and must not be replayed.
+
+The result moves diagnosis to the generic no-match plan-return path and the
+Crownwood sibling-pair frontier. Trace these separately with bounded local
+fixtures. Do not launch another private generation batch until a concrete
+threshold-preserving correction is reproduced, covered by regression tests,
+and published as a signed source checkpoint.
+
+## Earlier release checkpoint — 5 October 2026
 
 The first 256-attempt private search ran against signed, pushed source
 `cff3479b7351ff253e4066d359278603462fc2bf` (tree

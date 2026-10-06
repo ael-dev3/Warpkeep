@@ -2,19 +2,18 @@
 
 ## Current release checkpoint — 6 October 2026
 
-On exact signed source `de1a5f63b4933539bac916f3a0a2d7ddd8089c69`, one fresh
-256-attempt batch returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The
-authenticated safe read confirmed source binding, sequence/next ordinal 256,
-216 geography rejections, and 40 proof-rejection attempts. The largest
-geography class was dry-gate apron no-match (107); Crownwood parent-slot
-missing appeared 22 times and lane-split assignment missing four times. No
-candidate, package, shortlist, selection, atlas, provider request, or
-production mutation resulted. Full privacy-safe counts are recorded in local
-operations. The recovered root-seed buffer was zeroized in `finally`; the
-safe result was synchronized in signed docs commit `77716367`. At
-`2026-10-06 00:33:02 UTC`, the maintained abort confirmed
-`checkpointAborted: true` and `productionUntouched: true` on this exact source.
-The checkpoint is retired.
+On exact signed source `85a2a7cf2826c3526cfacac150827746d6cfa62a`, one fresh
+private 256-attempt batch ran for about 30 minutes and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated safe read
+confirmed source binding, phase `searching`, sequence/next ordinal 256, 224
+geography rejections, and 32 proof-rejection attempts. The pinned Linux x64
+Node 22.22.3 preflight verified 11 packages. The recovered root-seed buffer
+was zeroized in `finally`. No candidate, package, shortlist, selection,
+atlas, provider request, or production mutation resulted. Full safe
+geography-code counts are recorded in local operations. After the summary was
+captured, the maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; the checkpoint is retired and must not be
+replayed.
 
 The signed `a18930b4` source introduced the parent-specific diagnostic:
 exactly one missing parent maps to Crownwood, Ironveil, or Glasswater; multiple
@@ -23,10 +22,13 @@ distinct. The signed `de1a5f63` follow-on correction is published and passes 27
 focused apron/rejection tests, all 21 generator regressions, typecheck, and diff
 checks. It preserves child zero's own Lowlands reserve bundles while limiting
 donor bundles to other non-Lowlands children; it does not relax geometry,
-proofs, or caps. The corrected-source sample is descriptive rather than paired
-with earlier samples. After synchronizing and retiring its safe aggregate,
-inspect the dry-gate apron no-match path for a concrete defect without changing
-geometry, thresholds, or search limits. Do not replay retired checkpoints.
+proofs, or caps. The latest independent sample has 96 generic apron
+no-matches, 1 no-match after the Lowlands repair check, 8 complete-plan limits,
+30 search-node limits, and 32 Crownwood parent-slot misses. Generic no-match
+does not demonstrate that those plans reached the final apron solver. Inspect
+the generic no-match path and Crownwood sibling-pair frontier separately;
+another private seed is unwarranted until a concrete threshold-preserving
+defect is reproduced and fixed. Do not replay retired checkpoints.
 
 Signed source `0109aaf0e3a5c8b0d9614180b9e027fb1d5be59c` adds safe apron
 no-match stage classification only. It reports the furthest rejection stage
@@ -36,9 +38,9 @@ ownership, thresholds, caps, or search limits and exposes no seed or
 coordinates. Typecheck and 48 focused rejection/apron/generator tests pass. A
 separate public ordinal-18 full-candidate fixture reaches both apron lanes but
 then fails closed at `PRIMARY_COMPONENT_UNDERSIZED`; that post-search capacity
-failure remains visible and must not be called a passing candidate. The next
-action is a fresh bounded private batch on this exact source after it is
-synchronized to the pinned runner.
+failure remains visible and must not be called a passing candidate. The fresh
+bounded private batch on this exact source is complete and retired; its
+classification is summarized above. Do not rerun the same source or seed.
 
 The release route and hydrology correction are recorded in [issue #384](https://github.com/ael-dev3/Warpkeep/issues/384#issuecomment-5995094139). On 5 October the owner delegated remaining release decisions to the release lead. Preserve the Alpha root, G001 state and admission freeze; keep G002 sealed. Actions is disabled; preserve that hold and its downstream Pages chain. Continue local verification and Git synchronization; never represent a branch push as CI or deployment. The `Verify` workflow is triggered for pull requests and pushes to `main`; Pages deployment listens to successful `Verify` runs for `main` pushes.
 

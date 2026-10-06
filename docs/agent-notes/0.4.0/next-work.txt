@@ -9,35 +9,36 @@ this delegation does not turn a local check or push into deployment evidence.
 GitHub Actions remains disabled; preserve that hold and its downstream Pages
 chain.
 
-CURRENT EXACT-SOURCE BATCH — `de1a5f63b4933539bac916f3a0a2d7ddd8089c69`
+CURRENT EXACT-SOURCE BATCH — `85a2a7cf2826c3526cfacac150827746d6cfa62a`
 
-One fresh-seed run exhausted all 256 attempts with
-`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`: 216 geography rejections and 40
-proof-rejection attempts. Dry-gate apron no-match was the largest class at 107;
-Crownwood parent-slot missing appeared 22 times and lane-split assignment
-missing four times. The authenticated safe reader verified exact-source
-binding, sequence/next ordinal 256, all attempts, and zeroized the recovered
-root-seed buffer. Full safe aggregates are in
-`docs/evidence/0.4.0/local-operations.md`. No candidate, package, shortlist,
-selection, atlas, provider operation, or production mutation resulted. The
-summary was synchronized in signed commit `77716367`; at
-`2026-10-06 00:33:02 UTC`, the maintained abort returned
-`checkpointAborted: true` and `productionUntouched: true` on the exact source.
-The checkpoint is retired; do not replay it.
+One fresh private search on the signed source and pinned Linux x64 Node
+22.22.3 toolchain ran for about 30 minutes, exhausted the supported 256
+attempts, and returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The
+authenticated safe reader confirmed exact source binding, phase `searching`,
+sequence/next ordinal 256, 224 geography rejections, and 32 proof-rejection
+attempts. The recovered root-seed buffer was zeroized in `finally`. No
+candidate, package, shortlist, selection, atlas, provider operation, or
+production mutation resulted. Full safe geography-code counts are in
+`docs/evidence/0.4.0/local-operations.md`. After recording the summary, the
+maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. The checkpoint is retired; never replay it.
 
-CURRENT DIAGNOSTIC SOURCE — `0109aaf0e3a5c8b0d9614180b9e027fb1d5be59c`
+The stage-classified counts are: 96 generic dry-gate apron no-matches, 1 after
+the Lowlands repair check, 8 complete-plan limits, 30 search-node limits, and
+32 Crownwood parent-slot misses. The other 57 geography rejections were active
+grid out of range (30), legacy Lowlands placement (8), primary component
+undersized (9), capacity assignment infeasible (5), throne-component repair
+forbidden (4), and Tier-II assignment missing (1). This is one fresh sample,
+not a causal comparison. Generic no-match means the diagnostic did not prove
+that the completed plan reached either apron lane; do not attribute those 96
+rejections to an apron-geometry defect.
 
-This signed successor classifies an exhausted apron no-match by the furthest
-final-plan rejection stage observed across completed plans: Lowlands repair
-ownership, Tier-II ownership forest, Tier-I repartition, or post-repartition
-ownership. A plan that never reaches an acceptance callback retains the legacy
-generic no-match code. This is safe rejection metadata only; it exposes no
-seed/coordinates and changes no acceptance, geometry, thresholds, or caps.
-Typecheck and 48 focused rejection/apron/generator tests pass. One separate
-public ordinal-18 capacity-authority fixture reaches both apron lanes, then
-fails closed at `PRIMARY_COMPONENT_UNDERSIZED`; do not claim that seed is an
-eligible candidate. The diagnostic source has not yet had a private generation
-batch.
+The signed `0109aaf0e3a5c8b0d9614180b9e027fb1d5be59c` source adds only safe
+no-match stage classification. It exposes no seed or coordinates and changes
+no acceptance, geometry, ownership, thresholds, caps, or search limits.
+Typecheck and 48 focused rejection/apron/generator tests passed before the
+private batch. The separate public ordinal-18 capacity-authority fixture
+still fails closed at `PRIMARY_COMPONENT_UNDERSIZED`; it is not a candidate.
 
 The signed source `fee38320f81f54647e17ed8351b3f2a4b45199dc` fixes the Lowlands
 sibling-pair fallback: compatible own-terrain pairs remain preferred; only
@@ -94,13 +95,15 @@ retained-seed checkpoint remains bound to `19b3422`; never relabel or inject it
 into another source.
 
 NEXT
-1. Refresh repository-wide Actions history and permission state, publish the
-   signed `0109aaf0` source plus this handoff update, sync the pinned Linux
-   runner, verify the frozen toolchain, and run one fresh-seed maximum-256
-   batch. Keep Actions disabled and record safe stage-level rejection counts.
-2. Use the furthest-stage evidence to locate a concrete defect. Preserve the
-   existing geometry, ownership, thresholds and search limits; add a focused
-   regression and rerun the appropriate local checks before another batch.
+1. Publish this exact-source safe aggregate and retirement receipt as a signed
+   docs checkpoint after fresh Actions history/settings, secret scan and Git
+   readback. Keep Actions disabled.
+2. Trace generic apron no-match and Crownwood parent-slot failure paths locally,
+   separating plans that never reach the final solver from plans rejected by
+   existing proofs. Find a concrete defect before changing source; add a
+   focused regression and preserve all geometry, ownership, thresholds and
+   search caps. Do not spend another private seed until that correction passes
+   focused checks and typecheck.
 3. If a batch yields an eligible candidate, verify its private package and
    shortlist; continue only if every proof passes, then record selection
    against that exact candidate. Never replay exhausted seeds or relax quality

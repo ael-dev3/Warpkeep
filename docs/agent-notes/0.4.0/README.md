@@ -29,35 +29,37 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state — 6 October 2026
 
-The latest exact-source private search ran on signed `de1a5f63` with a fresh
-seed and exhausted all 256 attempts without an eligible candidate or provider
-operation: 216 geography rejections and 40 proof-rejection attempts. Dry-gate
-apron no-match was the largest geography class (107); Crownwood parent-slot
-missing appeared 22 times and lane-split assignment missing four times. Full
-safe aggregates are in [local operations](../../evidence/0.4.0/local-operations.md).
-The authenticated reader confirmed source binding and ordinal 256, then
-zeroized the recovered root-seed buffer. Signed docs commit `77716367`
-synchronized the safe result; at `2026-10-06 00:33:02 UTC`, the maintained
-abort returned `checkpointAborted: true` and `productionUntouched: true` on
-this exact source. The checkpoint is retired. No candidate, package,
-shortlist, selection, atlas, provider request, or production mutation resulted.
+Signed source `85a2a7cf2826c3526cfacac150827746d6cfa62a` completed one fresh
+private search with the supported 256-attempt cap. It returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; the authenticated checkpoint was
+bound to this exact source and pinned Linux x64 Node 22.22.3 toolchain, at
+sequence/ordinal 256, with 224 geography rejections and 32 proof-rejection
+attempts. The recovered root-seed buffer was zeroized in `finally`. The safe
+aggregate and complete geography-code counts are in
+[local operations](../../evidence/0.4.0/local-operations.md). After recording
+the result, the maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. No candidate, package, shortlist, selection,
+atlas, provider request, or production mutation resulted; the checkpoint is
+retired and must not be replayed.
 
-Signed source `de1a5f63` fixes the demonstrated Lowlands fallback defect:
-child zero retains its own Lowlands reserve bundles, while non-Lowlands
-children may borrow only from other non-Lowlands children. Geometry, ownership,
-proofs, and option/plan caps are unchanged. Focused apron/rejection tests pass
-27/27, generator regressions 21/21, and typecheck. The preceding independent
-`a18930b4` sample had 71 Crownwood failures; separate fresh seeds are
-descriptive only and do not establish causality. Signed source `0109aaf0`
-adds only safe no-match classification: it reports the furthest final-plan
-rejection stage reached, without seed, coordinates, or acceptance changes.
-Typecheck and 48 focused rejection/apron/generator tests pass. A separate
-public ordinal-18 full-candidate fixture reaches both apron lanes but then
-fails closed at `PRIMARY_COMPONENT_UNDERSIZED`; that post-search capacity
-failure is unchanged by the diagnostic patch and must not be reported as a
-passing candidate. The next step is to sync `0109aaf0` to the pinned runner and
-run one fresh-seed maximum-256 batch to classify the 107 prior apron no-matches.
-Do not replay exhausted private checkpoints.
+The new rejection-stage classifier recorded 96 generic dry-gate apron
+no-matches, 1 no-match after the Lowlands repair check, 8 complete-plan limits,
+30 search-node limits, and 32 Crownwood parent-slot misses. Other geography
+codes total 57: active-grid count out of range (30), legacy Lowlands placement
+(8), capacity assignment infeasible (5), throne-component repair forbidden
+(4), primary component undersized (9), and Tier-II assignment missing (1).
+These are rejection occurrences in a fresh sample, not causal comparisons.
+The 96 generic no-matches do not establish that the final plan reached either
+apron lane. The batch produced no acceptance evidence.
+
+The tested diagnostic source `0109aaf0` classifies only safe rejection
+metadata and changes no acceptance, geometry, ownership, thresholds, caps, or
+search limits. The pinned-runner batch confirms that most no-match attempts
+remain generic, so the next step is a bounded local trace of the plan paths
+that return generic no-match, followed by a focused fixture for a demonstrated
+frontier defect. Do not spend another private seed until a concrete,
+threshold-preserving correction is tested. Preserve the Lowlands fallback
+correction and all existing proofs. Never replay an exhausted checkpoint.
 The hydrology correction, deterministic PTR frozen-water catalog, authority
 repairs, and closure/test fixes remain committed and pushed. The old
 `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid and must not be
@@ -98,13 +100,14 @@ synchronized (`checkpointAborted: true`, `productionUntouched: true`). The older
 retained-seed checkpoint remains bound to `19b3422`; preserve it without
 relabeling or seed import.
 
-Next: trace why parents lose every eligible sibling-pair component in both
-lanes, using the 81 recorded parent-slot failures to locate a concrete
-generation-stage cause. Preserve map rules and thresholds; correct only a
-demonstrated frontier gap. Then validate, sign and publish the next source
-before one fresh maximum-256 batch. Do not replay or relabel exhausted seeds or
-infer causality from independent samples. If a candidate passes, verify its
-package and shortlist before separate owner selection.
+Next: trace the generic no-match and Crownwood parent-slot paths locally,
+separating failures that never form a complete final plan from those that
+reach the apron solver. Add a focused regression only for a demonstrated
+search-frontier defect; preserve map rules, geometry, ownership and thresholds.
+Then validate, sign and publish the correction before another fresh
+maximum-256 batch. Do not replay or relabel exhausted seeds or infer causality
+from independent samples. If a candidate passes, verify its package and
+shortlist before separate owner selection.
 Preserve the one-winner import rule, rollback artifacts, Alpha and licensing.
 The [execution handoff](execution-handoff.md) is authoritative for the ordered
 release path. Earlier dated sections below are history.
