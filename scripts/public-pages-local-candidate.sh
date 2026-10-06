@@ -69,6 +69,12 @@ if (p.sourceCommit !== source || p.sourceTree !== tree || p.publicParentCommit !
     || p3_fail PLAN_IDENTITY_INVALID 9
 }
 
+# The operator's bounded reader accepts only a file's canonical absolute path
+# (realpath on Linux, the native C:\ form on Windows), so resolve it with Node.
+p3_native_path() {
+  node -e 'console.log(require("node:fs").realpathSync(process.argv[1]))' "$1"
+}
+
 p3_verify_export() {
   node -e '
 const fs = require("fs"), c = require("crypto"), p = require("path");
@@ -118,8 +124,10 @@ p3_main() {
   plan_sha=$(sha256sum "$P3_PLAN" | cut -c1-64)
   mkdir -p "$evidence"
   cp "$P3_PLAN" "$evidence/plan-$short.json"
+  local plan_path
+  plan_path=$(p3_native_path "$evidence/plan-$short.json")
   node scripts/public-pages-publication-operator.mjs prepare --source-root "$PWD" \
-    --public-root "$WARPKEEP_PUBLIC_ROOT" --plan "$evidence/plan-$short.json" --plan-sha256 "$plan_sha" \
+    --public-root "$WARPKEEP_PUBLIC_ROOT" --plan "$plan_path" --plan-sha256 "$plan_sha" \
     --signer-fingerprint "$P3_SIGNER_FINGERPRINT" --signer-identity "$P3_SIGNER_IDENTITY" \
     > "$evidence/prepare-$short.json"
   local public

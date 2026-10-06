@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -85,6 +85,18 @@ describe.skipIf(!existsSync(BASH) && process.platform === 'win32')('public Pages
       expect(result.status).toBe(9);
       expect(result.stderr).toContain('P3_CANDIDATE_PLAN_IDENTITY_INVALID');
     }
+  });
+
+  it('hands the operator the canonical absolute plan path its bounded reader requires', async () => {
+    const root = tempRoot();
+    mkdirSync(join(root, 'evidence'));
+    writeFileSync(join(root, 'evidence', 'plan-dddddddd.json'), '{}');
+    const result = guard(`cd "${root.replaceAll('\\', '/')}" && p3_native_path evidence/plan-dddddddd.json`);
+    expect(result.status).toBe(0);
+    const resolved = result.stdout.trim();
+    expect(resolved).toBe(realpathSync(join(root, 'evidence', 'plan-dddddddd.json')));
+    const { readLocalBindingBoundedFile } = await import('../scripts/local-binding-bounded-file.mjs');
+    expect(readLocalBindingBoundedFile(resolved, { maximumBytes: 1024 }).body.toString()).toBe('{}');
   });
 
   it('verifies an export byte for byte and rejects a changed, missing or extra file', () => {
