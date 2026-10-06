@@ -30,9 +30,12 @@ with phase `searching`, sequence/next ordinal 256, and 256 rejections: 219
 geography rejections and 37 proof-rejection attempts. The root-seed buffer was
 zeroized after the read. The batch produced no eligible candidate, package,
 shortlist, selection, atlas operation, provider request or production mutation.
-Its encrypted source-bound checkpoint remains in the isolated owner-only
-workspace until this safe summary is published and the maintained abort is
-verified. Do not replay or relabel it.
+The encrypted source-bound checkpoint was retained until this safe summary was
+published. Its maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; the post-abort check at `2026-10-06T11:50:10Z`
+found both generation and completion checkpoint directories absent. The pinned
+operating checkout was clean at the original `1c24e3da` source and no generator
+remained active. Do not replay or relabel it.
 
 Geography rejection counts (one terminal code per geography-exhaustion attempt):
 
@@ -121,6 +124,25 @@ usage total or release acceptance. PR #385 is still open/draft against `main`,
 and both its GitHub head and `origin` branch matched
 `1c24e3da1d764d857adcc993c6e542b41a6c9714` before this successor. No hosted
 Verify or deployment is represented by the local tests or the next backup push.
+
+### Publication and exact Linux rerun — 6 October 2026
+
+The signed source and this evidence were pushed non-forced to
+`release/0.4-living-realm-quality`. GitHub readback confirmed exact head
+`ef383f55fc93e78ee02e06a3693860a5d7985671`, tree
+`e19d96d1626eb486b295cfb6af4140d99b054c68`, parent
+`9bfdf181bada7785ed03fb1d70a48c940a5cce3d`, valid signature, and open draft PR
+#385 against `main`. The post-push Actions check at
+`2026-10-06T11:49:41.282Z` again found all four repositories disabled and idle;
+the newest Warpkeep run remained the completed 2 October run, so this branch
+push created no CI or deployment.
+
+The idle pinned Linux checkout now holds exact code source
+`9bfdf181bada7785ed03fb1d70a48c940a5cce3d` (clean detached worktree). Node
+`22.22.3`, `linux-x64`, all 11 trusted toolchain packages, and Linux
+SpacetimeDB CLI v2.6.1 are verified. The full pinned Linux suite for this new
+edge-frontier source is now running; no further candidate generation begins
+until its complete result is recorded.
 
 ## Exact-source private generation — 6 October 2026 — source `54889099`
 

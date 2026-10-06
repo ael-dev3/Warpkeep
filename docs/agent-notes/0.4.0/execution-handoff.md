@@ -2,40 +2,36 @@
 
 ## Active release checkpoint — 6 October 2026
 
-The current published release branch is `release/0.4-living-realm-quality` at
-signed commit `1c24e3da1d764d857adcc993c6e542b41a6c9714`, open draft PR #385.
-The scoped Lowlands-repair apron correction passes the full pinned Linux suite
-on that exact source: 1,466/1,466 suites, 13,720 passed, 97 pending, zero
-failures (17:56.55). A fresh, source-bound 256-attempt generation on this head
-returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`: 219 geography and 37
-proof-rejection attempts, with no candidate or provider operation. The
-authenticated details and rejection tables are in
-[local operations](../../evidence/0.4.0/local-operations.md). The encrypted
-private checkpoint is retained until the signed summary is pushed and its
-maintained abort is verified.
-
-The signed, locally reviewed successor `9bfdf181bada7785ed03fb1d70a48c940a5cce3d`
-raises only the raw edge frontier from 192 to 256 after the observed 85
-edge-truncation attempts. The five relevant focused files pass 59/59;
+The current release PR is open/draft #385 against `main`; its exact verified
+GitHub head is `ef383f55fc93e78ee02e06a3693860a5d7985671`. Its signed code
+source is parent `9bfdf181bada7785ed03fb1d70a48c940a5cce3d`; the PR head adds
+only the publication/handoff record. The code source raises only the raw edge
+frontier from 192 to 256 after the previous exact-source run hit that edge cap
+in 85 of 256 attempts. Five relevant focused files pass 59/59;
 `npm run typecheck` and `npm run build` pass. The 32 pair cap, 64 option cap,
-other search budgets, map-quality thresholds and proofs stay fixed. Before
-this successor is a usable candidate source, publish it, run the full pinned
-Linux suite on that exact code, and then run its own fresh bounded generation.
-The successor is not yet a passing candidate or release checkpoint.
+other search budgets, map-quality thresholds and proofs stay fixed.
 
-The live custom domain currently serves the existing Alpha at `/` (HTTP 200)
-and returns 404 for `/ptr/`; no PTR cutover or owner acceptance occurred in
-these local operations. Preserve Alpha and its licensing terms. GitHub Actions
-remain disabled under the current policy; local validation and source backup
-are not hosted Verify, merge, deployment or PTR acceptance.
+The prior `1c24e3da` private run exhausted 256 attempts without an eligible
+candidate (219 geography and 37 proof-rejection attempts). Its safe summary is
+published in [local operations](../../evidence/0.4.0/local-operations.md). After
+that publication, the maintained abort returned
+`checkpointAborted: true` and `productionUntouched: true`; an immediate
+postcheck found no generation or completion checkpoint. No candidate, atlas
+operation, provider request or production mutation resulted.
 
-Next: refresh the Actions hold and outgoing-range secret scan, publish the
-reviewed signed successor and evidence to PR #385, then retire the old
-source-bound checkpoint through its maintained abort API. Synchronize the idle
-Linux checkout to the code commit; only after the full Linux suite passes on
-that exact code, run its next fresh-seed candidate batch. Do not raise other
+The exact code source `9bfdf181bada7785ed03fb1d70a48c940a5cce3d` is now pinned
+in the clean Linux checkout with Node `22.22.3`, `linux-x64`, and all 11
+toolchain packages verified. Its complete Linux suite is running; only after
+that exact-source suite passes will a fresh bounded candidate generation run.
+The live custom domain serves the existing Alpha at `/` (HTTP 200) and returns
+404 for `/ptr/`; no PTR cutover or owner acceptance has occurred. Preserve
+Alpha and its licensing terms. Actions remain disabled; local validation and
+source publication are not hosted Verify, merge, deployment or PTR acceptance.
+
+Next: complete the pinned Linux suite on `9bfdf181bada7785ed03fb1d70a48c940a5cce3d`.
+If it passes, run one fresh-seed batch on that exact code. Do not raise other
 caps, relax proofs, invoke Actions, or begin atlas/provider operations before
-an accepted private package and selection.
+an eligible verified package and owner selection.
 
 ## Previous cap-192 checkpoint — historical
 
