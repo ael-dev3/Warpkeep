@@ -4484,6 +4484,24 @@ function allocateTierTwoPassableCapacity(
   let selectedOwnershipForests: readonly (readonly number[])[] | undefined;
   let selectedBundleByChild: readonly GreaterRealmTierTwoGateApronBundle[] | undefined;
   let selectedSearchLane: GreaterRealmGateApronSearchLane | undefined;
+  // On an exhausted no-match only, report the furthest rejection stage reached
+  // by any complete plan. This adds no coordinates, seed data, or acceptance
+  // changes; the ordinary result remains available for legacy checkpoints.
+  const apronNoMatchStageRank = Object.freeze({
+    LOWLANDS_REPAIR_OWNERSHIP: 1,
+    OWNERSHIP_FOREST: 2,
+    TIER_ONE_REPARTITION: 3,
+    POST_REPARTITION_OWNERSHIP: 4,
+  });
+  type ApronNoMatchStage = keyof typeof apronNoMatchStageRank;
+  let deepestApronNoMatchStage: ApronNoMatchStage | undefined;
+  const noteApronNoMatchStage = (stage: ApronNoMatchStage): void => {
+    if (
+      deepestApronNoMatchStage === undefined
+      || apronNoMatchStageRank[stage]
+        > apronNoMatchStageRank[deepestApronNoMatchStage]
+    ) deepestApronNoMatchStage = stage;
+  };
   const MAX_GATE_APRON_SEARCH_NODES = 20_000;
   const MAX_GATE_APRON_COMPLETE_PLANS = 128;
   const lowlandsRepairPlanOwnershipValid = (
@@ -4562,16 +4580,25 @@ function allocateTierTwoPassableCapacity(
       if (
         lane === 'lowlands-repair'
         && !lowlandsRepairPlanOwnershipValid(completeBundles)
-      ) return false;
+      ) {
+        noteApronNoMatchStage('LOWLANDS_REPAIR_OWNERSHIP');
+        return false;
+      }
       const ownershipForests = buildTierTwoOwnershipForests(
         capacityAssignment,
         completeBundles,
       );
-      if (!ownershipForests) return false;
+      if (!ownershipForests) {
+        noteApronNoMatchStage('OWNERSHIP_FOREST');
+        return false;
+      }
       let retainOwnershipForests = false;
       try {
         const repartition = buildTierOneApronRepartition(completeBundles);
-        if (!repartition) return false;
+        if (!repartition) {
+          noteApronNoMatchStage('TIER_ONE_REPARTITION');
+          return false;
+        }
         if (
           lane === 'lowlands-repair'
           && !lowlandsRepairPlanOwnershipValid(
@@ -4579,6 +4606,7 @@ function allocateTierTwoPassableCapacity(
             repartition.tierOneRegionId,
           )
         ) {
+          noteApronNoMatchStage('POST_REPARTITION_OWNERSHIP');
           release(repartition.tierOneRegionId);
           return false;
         }
@@ -4632,7 +4660,21 @@ function allocateTierTwoPassableCapacity(
       case 'match': return gateApronSearch.alternative;
       case 'search-node-limit': return reject('DRY_GATE_APRON_SEARCH_NODE_LIMIT');
       case 'complete-plan-limit': return reject('DRY_GATE_APRON_COMPLETE_PLAN_LIMIT');
-      case 'no-match': return reject('DRY_GATE_APRON_NO_MATCH');
+      case 'no-match': {
+        if (deepestApronNoMatchStage === 'LOWLANDS_REPAIR_OWNERSHIP') {
+          return reject('DRY_GATE_APRON_NO_MATCH_AFTER_LOWLANDS_REPAIR_CHECK');
+        }
+        if (deepestApronNoMatchStage === 'OWNERSHIP_FOREST') {
+          return reject('DRY_GATE_APRON_NO_MATCH_AFTER_OWNERSHIP_FOREST');
+        }
+        if (deepestApronNoMatchStage === 'TIER_ONE_REPARTITION') {
+          return reject('DRY_GATE_APRON_NO_MATCH_AFTER_TIER_ONE_REPARTITION');
+        }
+        if (deepestApronNoMatchStage === 'POST_REPARTITION_OWNERSHIP') {
+          return reject('DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK');
+        }
+        return reject('DRY_GATE_APRON_NO_MATCH');
+      }
     }
   })();
   if (
