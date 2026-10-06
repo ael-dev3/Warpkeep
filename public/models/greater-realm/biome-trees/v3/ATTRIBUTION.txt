@@ -1,0 +1,39 @@
+Warpkeep Greater Realm lush biome trees — v3 asset attribution
+
+Credit: “Warpkeep Greater Realm lush biome trees (v3)” by the Warpkeep project.
+Authored with Codex under Ael's direction. Original project-controlled models,
+painted foliage/bark atlases and creative documentation are licensed under
+Creative Commons Attribution 4.0 International (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+License text shipped with this client: ../../../../licenses/CC-BY-4.0.txt
+Project-authored generator software remains separately Apache-2.0.
+
+Source archive coordinate: greater-realm-lush-biome-trees-2026-09-28-v3
+https://github.com/ael-dev3/Warpkeep-Assets/blob/main/releases/greater-realm-lush-biome-trees-2026-09-28-v3/manifest.json
+Source rights and preparation:
+https://github.com/ael-dev3/Warpkeep-Assets/blob/main/provenance/greater-realm-lush-biome-trees-2026-09-28-v3.md
+Source ZIP SHA-256:
+039d2fb736b4a58857b84ba11c321208e1a9e8ca54eb1922d6684237144f547e
+
+Covered client files: all 40 near/mobile GLBs in this directory. Exact individual
+file identities and source hashes are in the accompanying manifest.json.
+Preparation history: the original v1 trees introduced original painted cutout
+foliage; v2 connected the fuller foliage crowns to branches; v3 added richer
+painted textures and revised shapes at the rounded v2 triangle count plus 20%.
+Warpkeep's client conversion packed each source model's foliage and bark into
+one atlas, mesh and material, remapping UVs for instancing. The static models
+retain the source trunk-root pivot and near/mobile geometry. Runtime placement,
+LOD choice and visual wind are engine presentation, not source-file animation.
+
+The BlendSwap and WoW examples were visual studies only. No reference geometry,
+node graph, UV layout, image, texture or exported model was imported into this
+original set. This grant does not cover those third-party references, tools,
+dependencies, Warpkeep trademarks, official status or endorsement.
+
+These files are included in the Warpkeep 0.4 source candidate. Their presence
+and attribution do not establish release, deployment or measured performance.
+When redistributing or modifying covered material, retain the supplied credits,
+source, license and prior change notices; describe your own changes. No additional
+legal or technological restrictions may prevent exercise of the CC permissions.
+The surrounding game's license does not replace this asset's CC license.
+Full asset ledger: https://github.com/ael-dev3/Warpkeep/blob/main/ASSETS-LICENSE.md

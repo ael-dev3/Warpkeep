@@ -84,6 +84,21 @@ Ael authorized public archival and release distribution, but no separate
 open-content license was supplied or inferred. The archive remains
 `LicenseRef-Warpkeep-Provenance-Required` and is never used as a runtime CDN.
 
+## Portable Creative Commons notices
+
+The built client carries [asset credits and modification notices](public/licenses/ASSET-NOTICES.txt)
+and the unchanged [CC BY 4.0 license text](public/licenses/CC-BY-4.0.txt).
+Standalone model credits are beside the [stone-title assemblies](public/models/title/ATTRIBUTION.txt)
+and [v3 Greater Realm tree models](public/models/greater-realm/biome-trees/v3/ATTRIBUTION.txt).
+The menu credits link to the source records and the same-origin notice. Preserve
+these notices with covered model copies and append downstream modifications;
+retain the upstream CC permissions in any product license or distribution terms.
+
+This supplies portable attribution for expressly covered assets. It does not
+change released GLB/ZIP bytes, hash manifests, existing grants or the status of
+the unpublished 0.4 candidate. Other models, the Warplet castle, the new emblem,
+third-party references and music retain their specific terms below.
+
 ## WARPKEEP stone title provenance
 
 The optimized WARPKEEP stone-letter assemblies were supplied with explicit v0.3 archival and CC-BY-4.0 authorization. Source/master material is held in the public [Warpkeep-Assets](https://github.com/ael-dev3/Warpkeep-Assets) release [`title-stone-letters-2026-07-12`](https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/title-stone-letters-2026-07-12); the browser serves only the verified runtime assemblies committed here.

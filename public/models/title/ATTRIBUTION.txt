@@ -1,0 +1,29 @@
+WARPKEEP Stone Title Assembly — asset attribution
+
+Credit: “WARPKEEP Stone Title Assembly” by Clawberto (Warpkeep project).
+The source archive identifies the Warpkeep project as its attribution party.
+Copyright and related rights controlled by Warpkeep are licensed under
+Creative Commons Attribution 4.0 International (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+License text shipped with this client: ../../licenses/CC-BY-4.0.txt
+
+Source: title-stone-letters-2026-07-12
+https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/title-stone-letters-2026-07-12
+Source rights and preparation:
+https://github.com/ael-dev3/Warpkeep-Assets/blob/main/provenance/title-stone-letters-2026-07-12.md
+
+Covered client files: warpkeep-title-high.glb and warpkeep-title-compact.glb.
+Preparation history: six supplied stone glyphs were arranged into the eight-letter
+WARPKEEP assembly, reusing the P and E meshes. High and compact profiles have
+reduced geometry, normalized bounds, Meshopt compression and embedded WebP
+textures. These client GLBs are byte-identical copies of the optimized release
+assemblies; no additional model or texture edits were made for this client.
+Source filenames identify Meshy AI as the generation service. The CC grant
+covers only rights controlled by Warpkeep, not the service, tools, trademarks,
+unrelated third-party material, official status or endorsement.
+
+When redistributing or modifying covered material, retain the supplied credits,
+source, license and prior change notices; describe your own changes. No additional
+legal or technological restrictions may prevent exercise of the CC permissions.
+The surrounding game's license does not replace this asset's CC license.
+Full asset ledger: https://github.com/ael-dev3/Warpkeep/blob/main/ASSETS-LICENSE.md

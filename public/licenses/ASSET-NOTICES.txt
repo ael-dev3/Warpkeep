@@ -1,0 +1,92 @@
+Warpkeep — portable Creative Commons asset notices
+
+These notices accompany only the specifically identified assets. Warpkeep is
+mixed-license: do not apply CC BY 4.0 to all public models, images, music or
+third-party references. The full per-file record is:
+https://github.com/ael-dev3/Warpkeep/blob/main/ASSETS-LICENSE.md
+
+The complete CC BY 4.0 text is beside this file: CC-BY-4.0.txt.
+For standalone model redistribution, also keep the relevant ATTRIBUTION.txt
+sidecar (including its source and change history) with the model files.
+No released model, archive or hash manifest was altered to add these notices.
+
+WARPKEEP Stone Title Assembly — asset attribution
+
+Credit: “WARPKEEP Stone Title Assembly” by Clawberto (Warpkeep project).
+The source archive identifies the Warpkeep project as its attribution party.
+Copyright and related rights controlled by Warpkeep are licensed under
+Creative Commons Attribution 4.0 International (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+License text shipped with this client: CC-BY-4.0.txt
+
+Source: title-stone-letters-2026-07-12
+https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/title-stone-letters-2026-07-12
+Source rights and preparation:
+https://github.com/ael-dev3/Warpkeep-Assets/blob/main/provenance/title-stone-letters-2026-07-12.md
+
+Covered client files: warpkeep-title-high.glb and warpkeep-title-compact.glb.
+Preparation history: six supplied stone glyphs were arranged into the eight-letter
+WARPKEEP assembly, reusing the P and E meshes. High and compact profiles have
+reduced geometry, normalized bounds, Meshopt compression and embedded WebP
+textures. These client GLBs are byte-identical copies of the optimized release
+assemblies; no additional model or texture edits were made for this client.
+Source filenames identify Meshy AI as the generation service. The CC grant
+covers only rights controlled by Warpkeep, not the service, tools, trademarks,
+unrelated third-party material, official status or endorsement.
+
+When redistributing or modifying covered material, retain the supplied credits,
+source, license and prior change notices; describe your own changes. No additional
+legal or technological restrictions may prevent exercise of the CC permissions.
+The surrounding game's license does not replace this asset's CC license.
+Full asset ledger: https://github.com/ael-dev3/Warpkeep/blob/main/ASSETS-LICENSE.md
+
+Warpkeep Greater Realm lush biome trees — v3 asset attribution
+
+Credit: “Warpkeep Greater Realm lush biome trees (v3)” by the Warpkeep project.
+Authored with Codex under Ael's direction. Original project-controlled models,
+painted foliage/bark atlases and creative documentation are licensed under
+Creative Commons Attribution 4.0 International (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+License text shipped with this client: CC-BY-4.0.txt
+Project-authored generator software remains separately Apache-2.0.
+
+Source archive coordinate: greater-realm-lush-biome-trees-2026-09-28-v3
+https://github.com/ael-dev3/Warpkeep-Assets/blob/main/releases/greater-realm-lush-biome-trees-2026-09-28-v3/manifest.json
+Source rights and preparation:
+https://github.com/ael-dev3/Warpkeep-Assets/blob/main/provenance/greater-realm-lush-biome-trees-2026-09-28-v3.md
+Source ZIP SHA-256:
+039d2fb736b4a58857b84ba11c321208e1a9e8ca54eb1922d6684237144f547e
+
+Covered client files: all 40 near/mobile GLBs in this directory. Exact individual
+file identities and source hashes are in the accompanying manifest.json.
+Preparation history: the original v1 trees introduced original painted cutout
+foliage; v2 connected the fuller foliage crowns to branches; v3 added richer
+painted textures and revised shapes at the rounded v2 triangle count plus 20%.
+Warpkeep's client conversion packed each source model's foliage and bark into
+one atlas, mesh and material, remapping UVs for instancing. The static models
+retain the source trunk-root pivot and near/mobile geometry. Runtime placement,
+LOD choice and visual wind are engine presentation, not source-file animation.
+
+The BlendSwap and WoW examples were visual studies only. No reference geometry,
+node graph, UV layout, image, texture or exported model was imported into this
+original set. This grant does not cover those third-party references, tools,
+dependencies, Warpkeep trademarks, official status or endorsement.
+
+These files are included in the Warpkeep 0.4 source candidate. Their presence
+and attribution do not establish release, deployment or measured performance.
+When redistributing or modifying covered material, retain the supplied credits,
+source, license and prior change notices; describe your own changes. No additional
+legal or technological restrictions may prevent exercise of the CC permissions.
+The surrounding game's license does not replace this asset's CC license.
+Full asset ledger: https://github.com/ael-dev3/Warpkeep/blob/main/ASSETS-LICENSE.md
+
+Warpkeep Hegemony Mark currency artwork
+Credit: “Warpkeep Hegemony Mark currency artwork” by the Warpkeep project.
+License: Creative Commons Attribution 4.0 International (CC BY 4.0), only to the
+extent Warpkeep controls the copyright and related rights in the named artwork.
+https://creativecommons.org/licenses/by/4.0/
+Source: https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/hegemony-mark-2026-07-13
+Changes: the transparent 500 px source was deterministically resized to 32, 64,
+128 and 256 px PNG and lossless WebP client images. Source-service, third-party,
+trademark and official-identity rights remain separate. The currency artwork
+is distinct from the supplied September 2026 Hegemony emblem and castle banners.

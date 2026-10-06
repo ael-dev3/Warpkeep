@@ -130,7 +130,31 @@ export function CreditsRoll({ onClose }: CreditsRollProps) {
           <div aria-hidden="true" className="warpkeep-credits__rule" />
           <p className="warpkeep-credits__finale">THE KEEP STANDS.<br />THE CORE WAITS.</p>
           <p className="warpkeep-credits__attribution">
-            Stone title assembly by Clawberto, licensed under{' '}
+            <a
+              href="https://github.com/ael-dev3/Warpkeep-Assets/releases/tag/title-stone-letters-2026-07-12"
+              rel="noopener noreferrer"
+              tabIndex={manualReading ? 0 : -1}
+              target="_blank"
+            >
+              Stone title assembly
+            </a>{' '}by Clawberto (Warpkeep project): arranged and optimized glyphs.
+            {' '}<a
+              href="https://github.com/ael-dev3/Warpkeep-Assets/blob/main/provenance/greater-realm-lush-biome-trees-2026-09-28-v3.md"
+              rel="noopener noreferrer"
+              tabIndex={manualReading ? 0 : -1}
+              target="_blank"
+            >
+              Greater Realm lush biome trees (v3)
+            </a>{' '}by the Warpkeep project: original models and painted atlases,
+            packed into one atlas per client model.{' '}
+            <a
+              href={`${import.meta.env.BASE_URL}licenses/ASSET-NOTICES.txt`}
+              rel="noopener noreferrer"
+              tabIndex={manualReading ? 0 : -1}
+              target="_blank"
+            >
+              Full asset credits and changes
+            </a>. These named assets are licensed under{' '}
             <a
               href="https://creativecommons.org/licenses/by/4.0/"
               rel="noopener noreferrer"

@@ -23,6 +23,21 @@ Copyright: See ASSETS-LICENSE.md and path-specific provenance records
 License: LicenseRef-Warpkeep-Provenance-Required
 Comment: These paths are not relicensed by repository location. Each file retains its confirmed original or path-specific terms; unresolved material remains unresolved.
 
+Files: public/models/title/warpkeep-title-high.glb public/models/title/warpkeep-title-compact.glb
+Copyright: 2026 Warpkeep project; assembly credit Clawberto
+License: CC-BY-4.0
+Comment: Exact stone-title release copies; retain the source and change history in public/models/title/ATTRIBUTION.txt. Source-service, third-party and trademark rights are excluded.
+
+Files: public/models/greater-realm/biome-trees/v3/*.glb
+Copyright: 2026 Warpkeep project
+License: CC-BY-4.0
+Comment: Only the 40 original v3 near/mobile derivatives pinned in this directory's manifest. Bark and foliage are packed into one atlas per client model; see ATTRIBUTION.txt. No BlendSwap or Blizzard source content is included.
+
+Files: public/licenses/ASSET-NOTICES.txt public/models/title/ATTRIBUTION.txt public/models/greater-realm/biome-trees/v3/ATTRIBUTION.txt
+Copyright: 2026 Warpkeep contributors
+License: CC-BY-4.0
+Comment: Project-authored notices describe existing asset-specific grants and do not broaden them. public/licenses/CC-BY-4.0.txt is an unchanged copy of the canonical license instrument, not a grant for other public media.
+
 Files: public/terms/** public/privacy/** public/social-contract/** public/legal/**
 Copyright: 2026 Warpkeep contributors
 License: CC-BY-4.0
