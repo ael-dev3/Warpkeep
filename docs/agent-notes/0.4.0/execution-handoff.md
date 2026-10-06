@@ -2,38 +2,45 @@
 
 ## Current release checkpoint — 6 October 2026
 
-Signed source `d3d83068726df885e513f20eeb3f6efb389c49a8` (tree
-`557bfe56a02c2fc03f945dfd0aa955e113ede153`) is published and verified at the
-head of open draft PR #385. On that exact source, one fresh-seed maximum-256
-private batch ran for about 30 minutes and returned
-`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Safe readback confirmed all 256
-attempts, 222 geography rejections, and 34 proof-rejection attempts. The new
-frontier diagnostic classified 76 attempts as
-`DRY_GATE_APRON_FRONTIER_TRUNCATED`: the ranked search had discarded viable
-upstream options before an otherwise no-match result. This establishes an
-incomplete retained-prefix search, not that an omitted option would pass final
-geometry or ownership checks. There were also eight complete-plan limits and
-37 search-node limits. Full safe counts are in [local operations](../../evidence/0.4.0/local-operations.md).
+Signed source `d036f000e18a584f267281e89bc8e4fc932d2c15` (tree
+`27f9e860d34fd6eb997ca8c876de06119a1bdbc9`) is published at open draft PR
+#385. Its cap-96 fresh-seed batch exhausted all 256 attempts and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`: 225 geography rejections and 31
+proof-rejection attempts. The earliest retained-frontier diagnostic was the
+raw edge-candidate cap in 105 attempts; one attempt reached the bundle-pair
+cap. This proves the retained edge input is still truncated, not that an
+omitted edge would pass geometry or ownership proofs. Six attempts reached the
+complete-plan limit and 22 the search-node limit. The full safe aggregate is
+in [local operations](../../evidence/0.4.0/local-operations.md).
 
-The authenticated read matched the source, `greater-realm-v2-natural-continent-pr-a.19`,
-Node `22.22.3`, and the verified `linux-x64` toolchain (11 packages). The
-recovered root-seed buffer was zeroized in `finally`. The maintained abort
-returned `checkpointAborted: true` and `productionUntouched: true`; the
-checkpoint is retired and must not be replayed. No candidate, package,
-shortlist, selection, atlas, provider request, or production mutation resulted.
+The authenticated read matched source, generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3` and the verified
+`linux-x64` toolchain (11 packages). The root seed was zeroized; the maintained
+abort returned `checkpointAborted: true` and `productionUntouched: true`. No
+candidate, package, shortlist, selection, atlas, provider request or
+production mutation resulted. The default workspace's separate retained-seed
+checkpoint was preserved; this batch used an isolated owner-only workspace.
 
-The post-push paginated GitHub inventory still reports 3,807 completed runs,
-3,836 attempts, 28 records with reruns, and no active or queued run; Actions
-permission remains disabled. PR #385 remains open and draft at this exact
-source. Do not claim hosted verification or deployment.
+The exact-source public Tier-II fixture passed at cap 96. Against its cap-64
+baseline it used about 0.61 seconds and 9.7 MiB more in this single fixture;
+this is not a broad performance guarantee. Windows typecheck and 51 focused
+apron/rejection/generator tests pass. The Windows private-package suite still
+fails before package assertions at its existing ancestor-path guard; the exact
+published-source Linux fixture is the acceptance evidence for this frontier.
 
-Next: use deterministic public fixtures and a bounded diagnostic to identify
-which apron frontier cap was exceeded (normal bundles, Lowlands-repair options
-or sibling pairs, or capacity assignments). Preserve all proofs, ownership,
-geometry, and resource bounds. Another private seed is justified only after
-the exact truncation source is understood and a source-reviewed correction or
-diagnostic is published. The authenticated owner PTR and Alpha acceptance,
-source integration, release verification, and public cutover remain open.
+The cap-128 follow-on changes only the raw edge limit; the 32-option bundle
+cap, repair budgets, complete-plan and node limits, and all proofs stay fixed.
+Typecheck and 51 focused tests pass. Next: use the exact signed successor for
+the same native Linux fixture and compare peak memory/runtime. Run one fresh
+maximum-256 sample only if that measurement remains acceptable. Do not replay
+the retired d036 checkpoint or touch the retained-seed/serialization
+checkpoints.
+
+The post-push full GitHub inventory reports 3,807 runs, 3,836 attempts, 28
+records with reruns, and no active or queued run. Actions remains disabled, so
+the branch push is not hosted verification. The authenticated owner PTR and
+Alpha acceptance, release integration, hosted verification, and public cutover
+remain unverified.
 
 ## Previous generation diagnosis — historical
 
