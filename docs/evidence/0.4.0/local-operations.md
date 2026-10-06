@@ -2,6 +2,82 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact-source `.24` candidate run — 6 October UTC / 7 October Budapest
+
+On exact signed source `41146ecaedbbc9464503934e0adb01d02529739e`, one fresh-seed
+private candidate run used generator
+`greater-realm-v2-natural-continent-pr-a.24`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The four focused
+Linux suites passed 134/134 (533.90 seconds wall, 599.89 seconds summed test
+time); the exact-source typecheck also passed after installing the nested
+auth-bridge dependencies as the Verify workflow does. The fresh batch exhausted
+256 attempts in about 39 minutes with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no candidate was accepted.
+
+The authenticated maintained checkpoint matched the exact source and toolchain.
+It recorded 219 geography rejections and 37 proof-rejection attempts. Geography
+counts (one terminal code per geography rejection):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 136 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 27 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 26 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 16 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 9 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 4 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 1 |
+| **Total** | **219** |
+
+Proof occurrences are nonexclusive across the 37 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 37 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 32 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 30 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 30 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 22 |
+| `PROOF_REGION_LAND_COHERENCE` | 22 |
+| `PROOF_REGION_GRAPH` | 20 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 19 |
+| `PROOF_CASTLE_CAPACITY` | 14 |
+| `CASTLE_SUITABILITY` | 14 |
+| `PROOF_GATE_APPROACHES` | 14 |
+| `PROOF_GATE_GRAPH` | 12 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 11 |
+| `PROOF_REGION_PASSABLE_LAND` | 10 |
+| `HYDROLOGY_LAKES_48_96` | 9 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 9 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 6 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 5 |
+| `PROOF_BIOME_DIVERSITY` | 3 |
+| `TIER_POTENTIAL_DENSITY` | 3 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; the maintained selection-readiness check passed.
+Abort success also confirms that no accepted generation receipt was present.
+The root-seed buffer was zeroized after the safe aggregation. No seed, candidate
+handle, coordinates, private package bytes, or raw checkpoint was emitted. No
+candidate, package, shortlist, selection, Atlas publication, provider request,
+or production mutation resulted.
+
+The dominant terminal code is the existing bundle-pair frontier cap; this
+single-code projection can mask simultaneous bundle-option truncation. It does
+not prove that widening a cap would produce an eligible Atlas. Next inspect the
+pair-frontier selection path for a reproducible omission or pruning defect and
+add a focused regression only if source evidence confirms one. Keep all proof,
+ownership, and search bounds unchanged absent that evidence.
+
 ## Independent `.23` candidate run — 6 October 2026 — source `387f6b81`
 
 One fresh-seed private `generate-candidates --count 1 --maximum-attempts 256`

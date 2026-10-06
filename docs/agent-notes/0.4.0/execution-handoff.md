@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Active release checkpoint — 6 October 2026
+## Active release checkpoint — 7 October 2026
 
 The only open Warpkeep PR is draft #385 against `main`; verify its exact signed
 head before every source-bound operation. PR #394 and #399 have merged
@@ -60,10 +60,25 @@ namespace, pair/node/plan limits, and candidate eligibility. The new
 deterministic regression, the other two platform-neutral focused suites, and
 Windows typecheck pass (52/52 tests). The private candidate-package fixture
 hits the known Windows temporary-directory ACL guard, so it remains for pinned
-Linux verification; the guard was not weakened. Next sync the `.24` source to
-the pinned Linux runner, verify its toolchain, run all four focused suites,
-then run one fresh-seed maximum-256 candidate batch on that exact source. Do
-not widen another cap absent measured need.
+Linux verification; the guard was not weakened. The exact signed `.24` source
+is now on the pinned Linux runner. All four focused suites passed 134/134
+(533.90 seconds wall, 599.89 seconds summed test time), and the typecheck
+passed after restoring the nested auth-bridge dependencies specified by Verify.
+One fresh-seed maximum-256 batch exhausted all attempts in about 39 minutes
+without an eligible candidate: 219 geography rejections and 37 proof-rejection
+attempts. The dry gate-apron bundle-pair limit was terminal in 136 geography
+rejections, while search-node and complete-plan limits appeared in 26 and 16.
+The maintained checkpoint was aborted with production untouched, no completion
+receipt, and selection readiness true. The full sanitized aggregates are in
+[local operations](../../evidence/0.4.0/local-operations.md).
+
+The pair-limit count does not prove that widening the cap would produce an
+eligible Atlas, and its prioritized single-code projection can mask simultaneous
+bundle-option truncation. Next inspect the bounded pair-frontier selection path
+for a reproducible omission or pruning defect, then add a focused regression
+only if source evidence confirms one. Keep proofs, ownership, and all existing
+search bounds intact. No Atlas package or candidate exists yet, so owner
+acceptance, bridge, frontend, and PTR cutover remain downstream of that gate.
 
 The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
 rejection, and generator tests on Windows Node `24.19.0`, plus TypeScript
