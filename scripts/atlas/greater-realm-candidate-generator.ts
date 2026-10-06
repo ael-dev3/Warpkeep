@@ -8,9 +8,11 @@ import {
   type GreaterRealmSanitizedCandidateSource,
 } from './greater-realm-contracts';
 import {
+  classifyGreaterRealmTierTwoApronSearchFailure,
   classifyGreaterRealmTierTwoAssignmentFailure,
   rejectGreaterRealmCandidate,
   rejectGreaterRealmTierTwoCapacity,
+  type GreaterRealmTierTwoApronNoMatchStage,
   type GreaterRealmTierTwoCapacityRejectionReason,
 } from './greater-realm-candidate-rejection';
 import {
@@ -3064,6 +3066,7 @@ type GreaterRealmTierTwoDryGateApronAuthority = Readonly<{
     componentId: number,
     parent: number,
   ) => readonly GreaterRealmTierTwoGateApronSiblingPair[];
+  frontierWasTruncated: () => boolean;
   clear: () => void;
 }>;
 
@@ -3137,6 +3140,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
     string,
     readonly GreaterRealmTierTwoGateApronSiblingPair[]
   >();
+  let searchFrontierTruncated = false;
   let lowlandsRepairDerived = false;
   let cleared = false;
   const clear = (): void => {
@@ -3170,6 +3174,9 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
     const buildGateApronBundles = (
       rawEdges: readonly GreaterRealmTierTwoGateApronEdge[],
     ): readonly GreaterRealmTierTwoGateApronBundle[] => {
+      if (rawEdges.length > GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES) {
+        searchFrontierTruncated = true;
+      }
       const edges = [...rawEdges]
         .sort((first, second) => first.score - second.score
           || first.tierTwoEndpoint - second.tierTwoEndpoint)
@@ -3205,6 +3212,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
         }
       }
       const selectedPairs = selectBalancedGreaterRealmGateApronPairs(viablePairs);
+      if (selectedPairs.length < viablePairs.length) searchFrontierTruncated = true;
       const bundles: GreaterRealmTierTwoGateApronBundle[] = [];
       for (const pair of selectedPairs) {
         const left = edges[pair.firstIndex]!;
@@ -3680,7 +3688,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       const key = `${componentId}:${child}`;
       const cached = bundleOptionsCache.get(key);
       if (cached) return cached;
-      const options = [...gateApronBundlesByKey]
+      const rankedOptions = [...gateApronBundlesByKey]
         .filter(([bundleKey]) => Number.parseInt(bundleKey.split(':')[0]!, 10) === componentId)
         .flatMap(([, bundles]) => bundles)
         // Lowlands is immutable authority, both as a gate slot and as a donor.
@@ -3692,8 +3700,9 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
           || first.score - second.score
           || first.child - second.child
           || first.edges[0].tierTwoEndpoint - second.edges[0].tierTwoEndpoint
-        ))
-        .slice(0, 64);
+        ));
+      if (rankedOptions.length > 64) searchFrontierTruncated = true;
+      const options = rankedOptions.slice(0, 64);
       const frozen = Object.freeze(options);
       bundleOptionsCache.set(key, frozen);
       return frozen;
@@ -3783,6 +3792,15 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
         bundle => bundle.edges[0].tierTwoEndpoint,
         includeBorrowed,
       );
+      const ownCount = available.filter(bundle => bundle.child === child).length;
+      const eligibleCount = includeBorrowed && child !== 0
+        ? available.filter(bundle => bundle.child !== 0 && bundle.child !== child).length
+        : ownCount > 0
+          ? ownCount
+          : child === 0
+            ? 0
+            : available.filter(bundle => bundle.child !== 0).length;
+      if (options.length < eligibleCount) searchFrontierTruncated = true;
       const frozen = Object.freeze(options);
       lowlandsRepairBundleOptionsCache.set(key, frozen);
       return frozen;
@@ -3864,6 +3882,10 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
         compatibleOwnPairs,
         compatibleFallbackPairs,
       );
+      const preferredPairCount = compatibleOwnPairs.length > 0
+        ? compatibleOwnPairs.length
+        : compatibleFallbackPairs.length;
+      if (frozen.length < preferredPairCount) searchFrontierTruncated = true;
       lowlandsRepairSiblingPairCache.set(cacheKey, frozen);
       return frozen;
     };
@@ -3875,6 +3897,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       parentByChild: readParentByChild,
       siblingPairsFor,
       lowlandsRepairSiblingPairsFor,
+      frontierWasTruncated: () => searchFrontierTruncated,
       clear,
     });
   } catch (error) {
@@ -4050,6 +4073,7 @@ function allocateTierTwoPassableCapacity(
     assignments: readonly CapacityAssignment[];
     eligibleComponentCountsByParent: readonly number[];
     infeasibleComponentCombinations: number;
+    frontierTruncated: boolean;
   }>;
   const buildRankedCapacityAssignments = (
     pairsFor: (
@@ -4125,6 +4149,7 @@ function allocateTierTwoPassableCapacity(
     });
     return Object.freeze({
       assignments: Object.freeze(capacityAssignments.slice(0, maximumAssignments)),
+      frontierTruncated: capacityAssignments.length > maximumAssignments,
       eligibleComponentCountsByParent: Object.freeze(
         eligibleComponentsByParent.map(
           componentsForParent => componentsForParent.length,
@@ -4493,9 +4518,8 @@ function allocateTierTwoPassableCapacity(
     TIER_ONE_REPARTITION: 3,
     POST_REPARTITION_OWNERSHIP: 4,
   });
-  type ApronNoMatchStage = keyof typeof apronNoMatchStageRank;
-  let deepestApronNoMatchStage: ApronNoMatchStage | undefined;
-  const noteApronNoMatchStage = (stage: ApronNoMatchStage): void => {
+  let deepestApronNoMatchStage: GreaterRealmTierTwoApronNoMatchStage | undefined;
+  const noteApronNoMatchStage = (stage: GreaterRealmTierTwoApronNoMatchStage): void => {
     if (
       deepestApronNoMatchStage === undefined
       || apronNoMatchStageRank[stage]
@@ -4655,26 +4679,25 @@ function allocateTierTwoPassableCapacity(
     ),
   );
   const gateApronSearch = gateApronLaneSearch.result;
+  const gateApronFrontierTruncated = gateApronAuthority.frontierWasTruncated()
+    || rankedCapacityAssignmentResult.frontierTruncated
+    || lowlandsRepairCapacityAssignmentResult.frontierTruncated;
   const capacityAssignment = (() => {
     switch (gateApronSearch.outcome) {
       case 'match': return gateApronSearch.alternative;
-      case 'search-node-limit': return reject('DRY_GATE_APRON_SEARCH_NODE_LIMIT');
-      case 'complete-plan-limit': return reject('DRY_GATE_APRON_COMPLETE_PLAN_LIMIT');
-      case 'no-match': {
-        if (deepestApronNoMatchStage === 'LOWLANDS_REPAIR_OWNERSHIP') {
-          return reject('DRY_GATE_APRON_NO_MATCH_AFTER_LOWLANDS_REPAIR_CHECK');
-        }
-        if (deepestApronNoMatchStage === 'OWNERSHIP_FOREST') {
-          return reject('DRY_GATE_APRON_NO_MATCH_AFTER_OWNERSHIP_FOREST');
-        }
-        if (deepestApronNoMatchStage === 'TIER_ONE_REPARTITION') {
-          return reject('DRY_GATE_APRON_NO_MATCH_AFTER_TIER_ONE_REPARTITION');
-        }
-        if (deepestApronNoMatchStage === 'POST_REPARTITION_OWNERSHIP') {
-          return reject('DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK');
-        }
-        return reject('DRY_GATE_APRON_NO_MATCH');
-      }
+      case 'search-node-limit': return reject(classifyGreaterRealmTierTwoApronSearchFailure({
+        outcome: gateApronSearch.outcome,
+        frontierTruncated: gateApronFrontierTruncated,
+      }));
+      case 'complete-plan-limit': return reject(classifyGreaterRealmTierTwoApronSearchFailure({
+        outcome: gateApronSearch.outcome,
+        frontierTruncated: gateApronFrontierTruncated,
+      }));
+      case 'no-match': return reject(classifyGreaterRealmTierTwoApronSearchFailure({
+        outcome: gateApronSearch.outcome,
+        frontierTruncated: gateApronFrontierTruncated,
+        deepestNoMatchStage: deepestApronNoMatchStage,
+      }));
     }
   })();
   if (

@@ -37,6 +37,7 @@ export const GREATER_REALM_CANDIDATE_REJECTION_CODES = Object.freeze([
   'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_OWNERSHIP_FOREST',
   'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_TIER_ONE_REPARTITION',
   'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK',
+  'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED',
   'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT',
   'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT',
   'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_PLAN_MISSING',
@@ -92,6 +93,7 @@ export const GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS = Object.freeze([
   'DRY_GATE_APRON_NO_MATCH_AFTER_OWNERSHIP_FOREST',
   'DRY_GATE_APRON_NO_MATCH_AFTER_TIER_ONE_REPARTITION',
   'DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK',
+  'DRY_GATE_APRON_FRONTIER_TRUNCATED',
   'DRY_GATE_APRON_SEARCH_NODE_LIMIT',
   'DRY_GATE_APRON_COMPLETE_PLAN_LIMIT',
   'DRY_GATE_APRON_PLAN_MISSING',
@@ -201,6 +203,51 @@ export function classifyGreaterRealmTierTwoAssignmentFailure(
   return 'ASSIGNMENT_MISSING';
 }
 
+export type GreaterRealmTierTwoApronNoMatchStage =
+  | 'LOWLANDS_REPAIR_OWNERSHIP'
+  | 'OWNERSHIP_FOREST'
+  | 'TIER_ONE_REPARTITION'
+  | 'POST_REPARTITION_OWNERSHIP';
+
+/**
+ * Preserve the distinction between exhausted retained options and a bounded
+ * frontier that discarded viable alternatives before the ranked search.
+ */
+export function classifyGreaterRealmTierTwoApronSearchFailure(input: Readonly<{
+  outcome: 'search-node-limit' | 'complete-plan-limit' | 'no-match';
+  frontierTruncated: boolean;
+  deepestNoMatchStage?: GreaterRealmTierTwoApronNoMatchStage;
+}>): GreaterRealmTierTwoCapacityRejectionReason {
+  if (
+    (input.outcome !== 'search-node-limit'
+      && input.outcome !== 'complete-plan-limit'
+      && input.outcome !== 'no-match')
+    || typeof input.frontierTruncated !== 'boolean'
+    || (input.deepestNoMatchStage !== undefined && ![
+      'LOWLANDS_REPAIR_OWNERSHIP',
+      'OWNERSHIP_FOREST',
+      'TIER_ONE_REPARTITION',
+      'POST_REPARTITION_OWNERSHIP',
+    ].includes(input.deepestNoMatchStage))
+  ) throw new Error('GREATER_REALM_TIER_TWO_APRON_SEARCH_DIAGNOSTICS_INVALID');
+
+  if (input.outcome === 'search-node-limit') return 'DRY_GATE_APRON_SEARCH_NODE_LIMIT';
+  if (input.outcome === 'complete-plan-limit') return 'DRY_GATE_APRON_COMPLETE_PLAN_LIMIT';
+  if (input.frontierTruncated) return 'DRY_GATE_APRON_FRONTIER_TRUNCATED';
+  switch (input.deepestNoMatchStage) {
+    case 'LOWLANDS_REPAIR_OWNERSHIP':
+      return 'DRY_GATE_APRON_NO_MATCH_AFTER_LOWLANDS_REPAIR_CHECK';
+    case 'OWNERSHIP_FOREST':
+      return 'DRY_GATE_APRON_NO_MATCH_AFTER_OWNERSHIP_FOREST';
+    case 'TIER_ONE_REPARTITION':
+      return 'DRY_GATE_APRON_NO_MATCH_AFTER_TIER_ONE_REPARTITION';
+    case 'POST_REPARTITION_OWNERSHIP':
+      return 'DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK';
+    default:
+      return 'DRY_GATE_APRON_NO_MATCH';
+  }
+}
+
 export const GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON =
   Object.freeze({
     PASSABLE_COMPONENTS_EMPTY: 'GREATER_REALM_TIER_TWO_PASSABLE_COMPONENTS_EMPTY',
@@ -224,6 +271,8 @@ export const GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON =
       'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_TIER_ONE_REPARTITION',
     DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK:
       'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK',
+    DRY_GATE_APRON_FRONTIER_TRUNCATED:
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED',
     DRY_GATE_APRON_SEARCH_NODE_LIMIT:
       'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT',
     DRY_GATE_APRON_COMPLETE_PLAN_LIMIT:

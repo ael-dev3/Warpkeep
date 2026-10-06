@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
+  classifyGreaterRealmTierTwoApronSearchFailure,
   classifyGreaterRealmTierTwoAssignmentFailure,
   GREATER_REALM_CANDIDATE_REJECTION_CODES,
   GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON,
@@ -20,6 +21,39 @@ import {
 } from '../scripts/atlas/greater-realm-strategic-audits';
 
 describe('Greater Realm expected candidate rejection boundary', () => {
+  it('does not call a truncated apron frontier an exhausted no-match', () => {
+    expect(classifyGreaterRealmTierTwoApronSearchFailure({
+      outcome: 'no-match',
+      frontierTruncated: false,
+    })).toBe('DRY_GATE_APRON_NO_MATCH');
+    expect(classifyGreaterRealmTierTwoApronSearchFailure({
+      outcome: 'no-match',
+      frontierTruncated: true,
+    })).toBe('DRY_GATE_APRON_FRONTIER_TRUNCATED');
+    expect(classifyGreaterRealmTierTwoApronSearchFailure({
+      outcome: 'no-match',
+      frontierTruncated: true,
+      deepestNoMatchStage: 'LOWLANDS_REPAIR_OWNERSHIP',
+    })).toBe('DRY_GATE_APRON_FRONTIER_TRUNCATED');
+    expect(classifyGreaterRealmTierTwoApronSearchFailure({
+      outcome: 'no-match',
+      frontierTruncated: false,
+      deepestNoMatchStage: 'POST_REPARTITION_OWNERSHIP',
+    })).toBe('DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK');
+    expect(classifyGreaterRealmTierTwoApronSearchFailure({
+      outcome: 'search-node-limit',
+      frontierTruncated: true,
+    })).toBe('DRY_GATE_APRON_SEARCH_NODE_LIMIT');
+    expect(classifyGreaterRealmTierTwoApronSearchFailure({
+      outcome: 'complete-plan-limit',
+      frontierTruncated: true,
+    })).toBe('DRY_GATE_APRON_COMPLETE_PLAN_LIMIT');
+    expect(() => classifyGreaterRealmTierTwoApronSearchFailure({
+      outcome: 'no-match',
+      frontierTruncated: 'unknown' as unknown as boolean,
+    })).toThrow('GREATER_REALM_TIER_TWO_APRON_SEARCH_DIAGNOSTICS_INVALID');
+  });
+
   it('separates missing parent slots, split lane coverage, and capacity failure', () => {
     expect(classifyGreaterRealmTierTwoAssignmentFailure(
       {
