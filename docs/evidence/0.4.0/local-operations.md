@@ -2,6 +2,126 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Full Linux suite and exact-source generation — 6 October 2026 — source `1c24e3da`
+
+The published, signed source `1c24e3da1d764d857adcc993c6e542b41a6c9714`
+(`release/0.4-living-realm-quality`, draft PR #385) scopes long-span apron
+pairs to the Lowlands repair lane. Ordinary frontiers retain their 48-cell
+separation bound, and Lowlands repair retains the existing geometry, ownership,
+capacity floor, search budgets and proofs.
+
+The full pinned Linux run on that exact source completed successfully on Node
+`22.22.3` / `linux-x64`: 1,466 of 1,466 suites passed; 13,720 tests passed,
+97 were pending, and none failed or were marked todo. The Vitest JSON report
+records a 17:56.55 suite range from `2026-10-06 10:39:13.546 UTC` through
+`10:57:10.096 UTC`. The earlier invalid root-owned WSL run and the run using the
+Windows SpacetimeDB executable remain failed/inconclusive evidence; this clean
+run used the matching Linux x86_64 SpacetimeDB CLI v2.6.1.
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run then exhausted all 256 attempts with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. It ran on exact source
+`1c24e3da1d764d857adcc993c6e542b41a6c9714`, generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3`, profile
+`linux-x64`, and the 11-package verified toolchain. The process started at
+`2026-10-06 13:00:02 CEST` and returned at `13:35:54 CEST` (about 35:52 wall).
+The authenticated maintained checkpoint read matched that source and toolchain,
+with phase `searching`, sequence/next ordinal 256, and 256 rejections: 219
+geography rejections and 37 proof-rejection attempts. The root-seed buffer was
+zeroized after the read. The batch produced no eligible candidate, package,
+shortlist, selection, atlas operation, provider request or production mutation.
+Its encrypted source-bound checkpoint remains in the isolated owner-only
+workspace until this safe summary is published and the maintained abort is
+verified. Do not replay or relabel it.
+
+Geography rejection counts (one terminal code per geography-exhaustion attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 27 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 1 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 5 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 50 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 85 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 28 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 15 |
+| `GREATER_REALM_TIER_TWO_STRATEGIC_COMPONENTS_EMPTY` | 1 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 7 |
+| **Total** | **219** |
+
+Proof occurrences are nonexclusive across the 37 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 13 |
+| `HYDROLOGY_LAKES_48_96` | 9 |
+| `HYDROLOGY_MAJOR_OCEAN_SEA_BODIES_4_6` | 1 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 7 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 3 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 19 |
+| `PROOF_BIOME_DIVERSITY` | 10 |
+| `PROOF_CASTLE_CAPACITY` | 13 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_GATE_APPROACHES` | 16 |
+| `PROOF_GATE_GRAPH` | 16 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 10 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_REGION_GRAPH` | 18 |
+| `PROOF_REGION_LAND_COHERENCE` | 21 |
+| `PROOF_REGION_PASSABLE_LAND` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 34 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 22 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 36 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 29 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 10 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 5 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 28 |
+| `TIER_POTENTIAL_DENSITY` | 4 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 27 |
+
+The frontier codes use priority ordering: an edge-limit code takes precedence
+over a pair-limit code, and an edge-coded attempt may also have downstream pair
+truncation. These counts show the bounded frontier is reached but do not prove
+that omitted edges or pairs would pass the full geometry and ownership proofs.
+The new sample therefore does not establish a cause for every rejected world.
+
+### Follow-on bounded edge-frontier trial
+
+The follow-on source correction raises only the raw edge frontier from 192 to
+256 after the exact-source sample reported edge truncation in 85 of 256
+attempts. The 32 output-pair cap, 64 bundle-option cap, repair budgets,
+complete-plan/node limits, map-quality thresholds and all ownership/content
+proofs remain unchanged. This is a bounded search-coverage trial, not a claim
+that the omitted edges contain a valid plan. The five focused generator,
+apron, capacity, advanced-invariant and ordinary-yield files pass 59/59 on the
+Windows working copy; `npm run typecheck` and `npm run build` also pass. The
+full pinned Linux suite and a new exact-source generation must validate the
+successor before any candidate or release claim. The successful build
+retains its existing advisory for a JavaScript chunk above 600 kB.
+
+### Pre-push GitHub and Actions readback — 6 October 2026
+
+The reusable complete inventory remains 3,807 Warpkeep workflow runs in 39
+pages and 3,836 attempts; all 57 rerun attempts from the 28 rerun records were
+already inspected. Fresh latest-run reads found no post-inventory activity:
+Warpkeep's newest run was `36945781752` (2 October, PR event, attempt 1);
+Warpkeep-Live's was `36343178620` (27 September, dynamic event, attempt 1);
+Warpkeep-Assets' was `36461333088` (28 September, PR event, attempt 1); and
+Warpkeep-Water-Engine had no workflow run. The latest-run records were completed;
+no latest-run rerun needed a new attempt read.
+
+The maintained `verify:actions-hold` read at `2026-10-06T11:46:35.797Z`
+confirmed repository Actions disabled and zero active runs in all four
+configured repositories. Its output explicitly does not establish a daily
+usage total or release acceptance. PR #385 is still open/draft against `main`,
+and both its GitHub head and `origin` branch matched
+`1c24e3da1d764d857adcc993c6e542b41a6c9714` before this successor. No hosted
+Verify or deployment is represented by the local tests or the next backup push.
+
 ## Exact-source private generation — 6 October 2026 — source `54889099`
 
 Signed source `54889099e464862e936459b30da2e681257aadbf` (tree
