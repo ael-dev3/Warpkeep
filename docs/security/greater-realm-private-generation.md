@@ -23,7 +23,7 @@ pull-request comments, CI artifacts, logs, and public SpacetimeDB tables are not
 private storage.
 
 The two additional density channels and marsh-aware dressing rules are bound by
-living-world authority v4, generator algorithm `.21`, and private atlas format
+living-world authority v4, generator algorithm `.22`, and private atlas format
 8. The terrain-seed namespace remains `.3`; a package-layout revision is not
 permission to reroll private world authority.
 
@@ -148,13 +148,14 @@ left between the durable rename and deletion by a hard crash; malformed,
 substituted, or special entries fail closed.
 
 The current candidate and package authority is
-`greater-realm-v2-natural-continent-pr-a.21`, while the terrain-seed namespace
-remains `.3`. A `.20` or earlier checkpoint/package is not resumable,
-selectable, or publishable under `.21`; rotate an authenticated unaccepted or
-exhausted checkpoint and begin one fresh owner-private `.21` generation
-instead. Revision `.21` raises only the bounded gate-apron bundle-pair cap from
-512 to 1,024; it preserves `.20` compatible-footprint traversal, the 320,000
-search-node bound, candidate proofs, and ownership rules.
+`greater-realm-v2-natural-continent-pr-a.22`, while the terrain-seed namespace
+remains `.3`. A `.21` or earlier checkpoint/package is not resumable,
+selectable, or publishable under `.22`; rotate an authenticated unaccepted or
+exhausted checkpoint and begin one fresh owner-private `.22` generation
+instead. Revisions `.21` and `.22` raise only the bounded gate-apron
+bundle-pair cap, from 512 to 1,024 and then 2,048; `.22` preserves `.20`
+compatible-footprint traversal, the 320,000 search-node bound, candidate
+proofs, and ownership rules.
 
 Natural-composition review derives only coordinate-free scalar summaries and
 five public proof booleans from final private terrain authority. Temporary land,

@@ -2,6 +2,90 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Expanded-search candidate run — 6 October 2026 — source `3ad208d0`
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact signed source
+`3ad208d02c10971ddb49fc80f43d42310fe350d1` completed in about 37 minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.21`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained CLI
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Its authenticated
+checkpoint contained 221 geography rejections and 35 proof-rejection
+attempts. No seed, candidate handle, coordinates, package bytes, or raw log
+were emitted; the root-seed buffer was zeroized after aggregation.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 32 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 4 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 19 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 124 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 30 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 8 |
+| `GREATER_REALM_TIER_TWO_STRATEGIC_COMPONENTS_EMPTY` | 1 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 3 |
+| **Total** | **221** |
+
+Proof occurrences are nonexclusive across the 35 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 17 |
+| `HYDROLOGY_LAKES_48_96` | 6 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 3 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 2 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 9 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 4 |
+| `PROOF_BIOME_DIVERSITY` | 5 |
+| `PROOF_CASTLE_CAPACITY` | 17 |
+| `PROOF_GATE_APPROACHES` | 15 |
+| `PROOF_GATE_GRAPH` | 13 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 5 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 2 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 3 |
+| `PROOF_NATURAL_STRATEGIC_REGIONS` | 1 |
+| `PROOF_REGION_GRAPH` | 16 |
+| `PROOF_REGION_LAND_COHERENCE` | 22 |
+| `PROOF_REGION_PASSABLE_LAND` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 29 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 20 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 35 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 27 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 4 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 4 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 28 |
+| `TIER_I_REGION_BALANCE` | 2 |
+| `TIER_POTENTIAL_DENSITY` | 4 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 25 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. Separate maintained checks confirmed selection
+readiness, no completion receipt, and an owner-only workspace containing one
+file, seven directories, and 70 bytes. There is no candidate package,
+shortlist, selection, atlas operation, provider request, or production
+mutation.
+
+The `.20` run reached the 512-pair frontier in 128 of 224 geography attempts.
+After `.21` doubled the cap to 1,024, the frontier remained terminal in 124 of
+221 geography attempts; other bounded-search terminals were the 320,000-node
+limit in 30 and the 256-plan limit in 19. The cap change did not materially
+reduce frontier truncation. Revision `.22` therefore raises only bundle pairs
+`1,024 → 2,048`; edge candidates remain 1,024, search nodes 320,000, complete
+plans 256, Lowlands assignments 32, and sibling pairs per parent 2. The
+compatible-footprint traversal, proofs, ownership rules, and seed namespace
+`.3` remain unchanged. The `.21` implementation in signed commit
+`435586b766fb55514b9197f8438561dde448ba4f` passed all four focused suites,
+133/133, on pinned Linux Node `22.22.3`. The failed batch was bound to the
+documentation-only signed successor
+`3ad208d02c10971ddb49fc80f43d42310fe350d1`, with generator and test bytes
+unchanged. Revision `.22` must pass the same run before another candidate
+batch.
+
 ## Expanded-search candidate run — 6 October 2026 — source `9d3cf8b6`
 
 One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
@@ -83,7 +167,7 @@ unchanged. The deterministic generator fixture, all 51 focused tests, and
 TypeScript checking pass on Windows Node `24.19.0`. Exact signed source
 `435586b766fb55514b9197f8438561dde448ba4f` passes all four focused suites,
 133/133, on pinned Linux Node `22.22.3` with all 11 locked packages verified;
-the run took 524.32 seconds. A fresh `.21` candidate batch remains pending.
+the run took 524.32 seconds. The `.21` candidate result is recorded above.
 
 ## Expanded-search candidate run — 6 October 2026 — source `99184f66`
 
