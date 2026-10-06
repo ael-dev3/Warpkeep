@@ -7,11 +7,16 @@ The previously published cap-192 candidate `54889099e464862e936459b30da2e681257a
 #385. The cap-192 change raises only the raw Tier-II edge frontier. The 32-pair
 cap, repair budgets, complete-plan/node limits, ownership rules, and candidate
 proofs remain fixed. This signed successor corrects incomplete-search
-diagnostics without changing eligibility, proofs, or budgets. On this source,
+diagnostics without changing eligibility, proofs, or budgets, and corrects
+the exact public-boundary source allowance from two occurrences to three.
 Windows typecheck and all 51 focused apron/rejection/generator tests pass; the
-pinned Linux Tier-II fixture passes (1 pass, 1 skipped; 15.99 seconds test
-time, 17.00 seconds total). The fixture is not a whole-generator performance
-guarantee.
+public-boundary verifier passes with 3,459 tracked paths and 1,929 scanned
+entries. The pinned Linux Tier-II fixture passed on the preceding classifier
+commit (1 pass, 1 skipped; 15.99 seconds test time, 17.00 seconds total). The
+full Windows-hosted test sweep reported native-filesystem and runner-sensitive
+failures and was stopped before completion. Its result is inconclusive; the
+full check must run under the pinned Linux/Node 22 toolchain. The fixture is
+not a whole-generator performance guarantee.
 
 Two independent fresh-seed cap-192 batches on this exact commit both exhausted
 all 256 attempts with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. They recorded
@@ -42,12 +47,12 @@ tests; it does not change candidate eligibility, geometry proofs, or search
 budgets. Historical cap-192 labels remain as emitted and cannot establish an
 untruncated root cause.
 
-Stop cap-only iteration here. The next bounded source step is to publish this
-classifier correction, verify it on the pinned Linux fixture, and then use
-fresh exact-source rejection evidence before changing allocator behavior.
-Do not change caps, proof thresholds, or infer parent-slot root causes from
-the historical truncated runs. Do not replay retired checkpoints or touch
-retained-seed/serialization checkpoints.
+Stop cap-only iteration here. The next bounded source step is to publish the
+scanner-allowance correction and run the complete local check under pinned
+Linux/Node 22. Then use fresh exact-source rejection evidence before changing
+allocator behavior. Do not change caps, proof thresholds, or infer parent-slot
+root causes from historical truncated runs. Do not touch the retained-seed or
+serialization checkpoints.
 
 The pre-push GitHub inventory covers 3,807 runs in 39 pages: 3,836 attempts,
 28 records with reruns and all 57 rerun attempts inspected. All runs and

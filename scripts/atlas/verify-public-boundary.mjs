@@ -699,7 +699,7 @@ const TRACKED_PRIVATE_SOURCE_ALLOWANCES = new Map([
     sourceAllowance(`${privateFieldName('geology', 'Authority')}:`, 2, true),
     sourceAllowance(`${privateFieldName('hydrology', 'Authority')}:`, 2, true),
     sourceAllowance(`${privateFieldName('strategic', 'Audits')}:`, 2, true),
-    sourceAllowance(`${privateFieldName('topographic', 'Qa')}:`, 2, true),
+    sourceAllowance(`${privateFieldName('topographic', 'Qa')}:`, 3, true),
     sourceAllowance(`${privateFieldName('chunk', 'Benchmark')}:`, 2, true),
     sourceAllowance(`${privateFieldName('topographyPatch', 'Support')}:`, 2, true),
     sourceAllowance(`${privateFieldName('selectedAxis', 'Span')}: 15,`, 1, true),

@@ -142,6 +142,19 @@ candidate acceptance are unchanged. The historical cap-192 tables retain the
 codes emitted by source `54889099`; those counts do not establish an
 untruncated root cause.
 
+### Public-boundary allowance correction
+
+The full check next found an exact-count drift in the public-source scanner:
+`tests/greaterRealmCandidatePackage.test.ts` contains three reviewed
+topographic-QA fixture and type declarations, while the scanner expected two.
+The allowance is now exactly three; no file or directory was added to the
+scanner's allowlist. `npm run verify:atlas-public-boundary` passes with 3,459
+tracked paths and 1,929 scanned entries. Runtime-asset and tracked-file-size
+checks also pass. A Windows-hosted `npm run check` then reported failures
+across native filesystem, permission, runner, and release-operation tests; it
+was stopped before a final suite result. Treat the Windows sweep as
+inconclusive and run the full check under the pinned Linux/Node 22 toolchain.
+
 For both runs, the maintained checkpoint read matched the full source and
 toolchain binding; root-seed buffers were zeroized. The first run's maintained
 abort returned `checkpointAborted: true` and `productionUntouched: true`. The
