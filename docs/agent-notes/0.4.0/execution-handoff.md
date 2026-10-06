@@ -2,24 +2,27 @@
 
 ## Active release checkpoint — 6 October 2026
 
-The only open Warpkeep PR is draft #385 against `main`, synchronized locally
-and remotely at `cda5c24b45f8e7fbddbd9b9d8fc1c83d28e6627e` before the current
-local correction. PR #394 and #399 have merged remotely; their canonical P3
-plan-path and Cloudflare legal-text header/postflight fixes are in #385. The
-#397 allowance was already present, and stale #375–#378, #380–#381, and #397
-were closed as incorporated or superseded.
+The only open Warpkeep PR is draft #385 against `main`; verify its exact signed
+head before every source-bound operation. PR #394 and #399 have merged
+remotely; their canonical P3 plan-path and Cloudflare legal-text
+header/postflight fixes are in #385. The #397 allowance was already present,
+and stale PRs were closed as incorporated or superseded.
 
-A fresh exact-source run on `cda5c24b` exhausted all 256 attempts without an
-eligible candidate. Its safe rejection aggregate, successful maintained abort,
-and no-production-mutation checks are in [local operations](../../evidence/0.4.0/local-operations.md).
-The repeated run reached the edge, bundle-pair, node, and complete-plan search
-limits. The correction widens only those measured ceilings and aligns Lowlands
-repair assignments; it changes no acceptance threshold, topology, ownership,
-or proof. The signed successor containing this note carries this correction;
-confirm that exact PR head before another candidate run.
+A fresh exact-source run on `f5ee3cda` exhausted all 256 attempts without an
+eligible candidate. Its sanitized rejection aggregate and maintained abort
+and readiness checks are in [local operations](../../evidence/0.4.0/local-operations.md).
+There were 214 geography rejections and 42 proof-rejection attempts; the pair
+frontier was truncated in 125 geography attempts, while edge-candidate
+truncation did not occur. The measured follow-on correction raises only the
+pair cap from 64 to 128. Keep edge candidates at 512, search nodes at 40,000,
+complete plans at 256, Lowlands assignments at 32, sibling pairs per parent
+at 2, and topology, ownership and all proofs unchanged. Confirm that PR #385
+points at the signed successor containing this correction before another
+candidate run.
 
-The correction passes 51/51 focused gate-apron, rejection, and generator tests
-on the pinned Node `22.22.3` Linux toolchain (60.65 seconds of test time).
+The previous frontier correction passes 51/51 focused gate-apron, rejection,
+and generator tests on the pinned Node `22.22.3` Linux toolchain (60.65 seconds
+of test time).
 Windows `npm run typecheck` and the full production build pass; the build
 retains the known 677.52 kB `RealmMapScreen` chunk warning. The five changed
 Pages suites also passed 63/63 on the prior exact source. The attempted Linux
@@ -33,12 +36,12 @@ PTR cutover, and no authenticated 0.4 owner acceptance. GitHub Actions are
 disabled; local validation and branch publication do not count as hosted
 Verify or deployment.
 
-Next: confirm #385 points at the exact signed correction checkpoint, then run a
-fresh source-bound candidate search on that hash. If eligible, validate the
-package and proofs before selection and owner/atlas, bridge, frontend, and
-cutover steps. Keep Alpha and rollback evidence intact; do not relax proofs or
-change additional budgets without new sanitized evidence. Do not use Actions
-or claim deployment/PTR acceptance.
+Next: validate and publish the pair-cap correction, confirm #385's exact signed
+head, then run a fresh source-bound candidate search. If eligible, verify the
+private package and sanitized review before selection under the existing
+`OWNER-EXPLICIT-0.4-SHIP` reference, then complete owner/atlas, bridge, frontend,
+and cutover in dependency order. Keep Alpha and rollback evidence intact. Do
+not relax proofs, use Actions, or claim deployment/PTR acceptance.
 
 ## Previous cap-192 checkpoint — historical
 

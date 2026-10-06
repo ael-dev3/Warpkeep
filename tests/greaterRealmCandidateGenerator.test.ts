@@ -541,12 +541,12 @@ describe('Greater Realm private candidate generator', () => {
     ))).toBe(true);
   });
 
-  it('clears large topology arrays when the primary component is undersized', () => {
+  it('clears large topology arrays when the apron search reaches its node limit', () => {
     if (!rejectedFixtureEvidence) {
       throw new Error('GREATER_REALM_REJECTION_EVIDENCE_MISSING');
     }
     expect(rejectedFixtureEvidence.code).toBe(
-      'GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED',
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT',
     );
     expect(rejectedFixtureEvidence.retiredLargeAuthorityCount).toBeGreaterThan(0);
     expect(rejectedFixtureEvidence.allRetiredAuthoritiesCleared).toBe(true);

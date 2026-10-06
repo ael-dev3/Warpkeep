@@ -2,6 +2,88 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Corrected-frontier candidate search — 6 October 2026 — source `f5ee3cda`
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact source
+`f5ee3cda6d7595bfb654edee6322fd92f6bc31e6` completed in about 40 minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The final maintained
+checkpoint read returned 256 attempts: 214 geography rejections and 42
+proof-rejection attempts. No seed, candidate handle, coordinates, package
+bytes, or raw log were emitted.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 32 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 7 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 9 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 125 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 23 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 13 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| **Total** | **214** |
+
+No attempt reached the edge-candidate truncation code. Proof occurrences are
+nonexclusive across the 42 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 14 |
+| `HYDROLOGY_LAKES_48_96` | 9 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 8 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 8 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 21 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `PROOF_BIOME_DIVERSITY` | 2 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_CASTLE_CAPACITY` | 14 |
+| `PROOF_GATE_APPROACHES` | 20 |
+| `PROOF_GATE_GRAPH` | 17 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 9 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 4 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 2 |
+| `PROOF_NATURAL_STRATEGIC_REGIONS` | 1 |
+| `PROOF_REGION_GRAPH` | 26 |
+| `PROOF_REGION_LAND_COHERENCE` | 28 |
+| `PROOF_REGION_PASSABLE_LAND` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 37 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 17 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 42 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 33 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 5 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 5 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 29 |
+| `TIER_POTENTIAL_DENSITY` | 2 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 29 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. A separate maintained readiness check confirmed
+there is no active checkpoint and no completion receipt. The run made no
+candidate package, shortlist, selection, atlas operation, provider request, or
+production mutation. Its isolated workspace peaked at about 5.6 MiB.
+
+The previous correction eliminated observed edge-candidate truncation, but the
+balanced bundle-pair frontier remained the terminal geography rejection in 125
+attempts. Apply only the measured next correction: raise bundle pairs `64 →
+128`. Keep the 512 edge cap, 40,000 search-node limit, 256 complete-plan limit,
+32 Lowlands capacity-assignment limit, sibling-pair limit, topology,
+ownership, world-size range, and every quality proof unchanged. This evidence
+does not establish that any previously omitted route would pass all proofs.
+The cap-only change, frontier assertion, and zeroization fixture pass the three
+focused suites 51/51 on Windows Node `24.19.0`; `tsc -b` and `git diff --check`
+also pass. The dedicated Linux Node `22.22.3` toolchain preflight verifies its
+11 pinned packages, but that checkout has no Vitest binary, so no Linux
+focused-suite result is claimed. Run the next batch only against the exact
+signed successor.
+
 ## Repeated cap-256 candidate search — 6 October 2026 — source `cda5c24b`
 
 One fresh-seed `generate-candidates --count 1 --maximum-attempts 256` run on
