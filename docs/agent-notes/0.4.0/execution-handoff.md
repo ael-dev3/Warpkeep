@@ -18,18 +18,22 @@ ranked search choose each next sibling group by its currently compatible
 footprints, preserving the rank diagonal, deterministic ties, and the
 320,000-node bound. A simpler cap increase hit the typed node limit even at
 640,000; dynamic conflict pruning lets the deterministic candidate fixture
-pass at 320,000. Edge candidates remain 1,024, complete plans 256, Lowlands
-assignments 32, sibling pairs per parent 2, with topology, ownership and all
-proofs unchanged. The focused 51-test set and typechecking pass, but this
-successor has not yet had a fresh candidate batch. Confirm PR #385 points at
-the signed successor before running one.
+pass at 320,000. The behavior-changing search revision is recorded as generator
+`.20`; the terrain-seed namespace remains `.3`. Edge candidates remain 1,024,
+complete plans 256, Lowlands assignments 32, and sibling pairs per parent 2;
+topology, ownership and all proofs are unchanged. The focused 51-test set and
+typechecking pass, but this successor has not yet had a fresh candidate batch.
+The candidate-package suite cannot initialize on Windows: its POSIX ancestor
+mode check rejects Windows `stat` mode `0666` before any of its 82 assertions
+run. Validate that suite on the pinned Linux runner; confirm PR #385 points at
+the signed successor before a fresh candidate batch.
 
-The `64 → 128` pair-cap correction passes 51/51 focused gate-apron, rejection,
+The `64 → 128` pair-cap correction passed 51/51 focused gate-apron, rejection,
 and generator tests on Windows Node `24.19.0`, plus TypeScript checking. Its
 Linux Node `22.22.3` toolchain preflight verifies, but that checkout has no
 Vitest binary, so no Linux focused-suite result is claimed. The earlier signed
 frontier correction passed 51/51 under pinned Linux Node 22. The current
-256/1,024/320,000 correction also passes 51/51 and TypeScript checking on
+512/1,024/320,000 search correction passes 51/51 and TypeScript checking on
 Windows Node 24.19.0; generation remains pinned to Linux Node 22.
 Windows `npm run typecheck` and the full production build pass; the build
 retains the known 677.52 kB `RealmMapScreen` chunk warning. The five changed
@@ -44,10 +48,10 @@ PTR cutover, and no authenticated 0.4 owner acceptance. GitHub Actions are
 disabled; local validation and branch publication do not count as hosted
 Verify or deployment.
 
-Next: validate and publish the pair-cap and bounded-search correction, confirm #385's exact
-signed head, then run a fresh source-bound candidate search. If eligible, verify the
-private package and sanitized review before selection under the existing
-`OWNER-EXPLICIT-0.4-SHIP` reference, then complete owner/atlas, bridge, frontend,
+Next: validate and publish the pair-cap and bounded-search correction, confirm
+#385's exact signed head, then run a fresh source-bound candidate search. If
+eligible, verify the private package and sanitized review before selection under
+the existing `OWNER-EXPLICIT-0.4-SHIP` reference, then complete owner/atlas, bridge, frontend,
 and cutover in dependency order. Keep Alpha and rollback evidence intact. Do
 not relax proofs, use Actions, or claim deployment/PTR acceptance.
 

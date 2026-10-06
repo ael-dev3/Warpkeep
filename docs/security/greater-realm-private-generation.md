@@ -149,10 +149,10 @@ left between the durable rename and deletion by a hard crash; malformed,
 substituted, or special entries fail closed.
 
 The current candidate and package authority is
-`greater-realm-v2-natural-continent-pr-a.19`, while the terrain-seed namespace
-remains `.3`. A `.18` checkpoint or package is not resumable, selectable, or
-publishable under `.19`; rotate an authenticated unaccepted or exhausted `.18`
-checkpoint and begin one fresh owner-private `.19` generation instead.
+`greater-realm-v2-natural-continent-pr-a.20`, while the terrain-seed namespace
+remains `.3`. A `.19` checkpoint or package is not resumable, selectable, or
+publishable under `.20`; rotate an authenticated unaccepted or exhausted `.19`
+checkpoint and begin one fresh owner-private `.20` generation instead.
 
 Natural-composition review derives only coordinate-free scalar summaries and
 five public proof booleans from final private terrain authority. Temporary land,
@@ -457,15 +457,18 @@ remains fatal. Both rejection forms must reproduce exactly. Accepted attempts mu
 reproduce the complete candidate binary, private manifest, chunk and
 topography-patch manifests, marked seed envelopes, and preview set.
 
-Generator `.19` preserves the `.18` ordinary allocator and adds the bounded
-Lowlands-reserve repair lane only after a complete ordinary no-match. Every
-Tier-II allocator terminal has a frozen typed code, and the bounded gate-apron
-search separately records a complete no-match, node limit, or complete-plan
-limit. Regional hydrogeomorphology also records the failing public region proof
+Generator `.19` preserved the `.18` ordinary allocator and added the bounded
+Lowlands-reserve repair lane only after a complete ordinary no-match. Search
+revision `.20` chooses the next sibling group by its currently compatible
+footprints while retaining the rank diagonal and deterministic group-index
+ties. It changes neither candidate proofs nor ownership rules. Every Tier-II
+allocator terminal has a frozen typed code, and the bounded gate-apron search
+separately records a complete no-match, node limit, or complete-plan limit.
+Regional hydrogeomorphology also records the failing public region proof
 alongside its umbrella gate. The historical `.17` broad Tier-II code remains
 allowlisted only so an authenticated exhausted ledger can be inspected and
-retired; `.19` never emits it. Terrain channels, thresholds, ordinary traversal
-order, atlas format, and the `.3` terrain-seed namespace are unchanged.
+retired; `.20` never emits it. Terrain channels, thresholds, atlas format, and
+the `.3` terrain-seed namespace are unchanged.
 
 Verification requires exact bytes, bounded sizes, complete inventories,
 authority bindings, and recorded SHA-256 values. Each preview must exactly
