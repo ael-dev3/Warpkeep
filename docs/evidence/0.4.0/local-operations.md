@@ -2,6 +2,82 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Expanded-search candidate run — 6 October 2026 — source `fb55117a`
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact source
+`fb55117ac3fa13f17daf3eb38083719bc6e3fff6` completed in about 39 minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.22`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained CLI
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; the authenticated
+checkpoint recorded 221 geography rejections and 35 proof-rejection attempts.
+No seed, candidate handle, coordinates, package bytes, or raw log were emitted;
+the root-seed buffer was zeroized after aggregation.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 19 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 7 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 17 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 134 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 29 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 12 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 3 |
+| **Total** | **221** |
+
+Proof occurrences are nonexclusive across the 35 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 13 |
+| `HYDROLOGY_LAKES_48_96` | 8 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 5 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 7 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 14 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 1 |
+| `PROOF_BIOME_DIVERSITY` | 2 |
+| `PROOF_CASTLE_CAPACITY` | 13 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_GATE_APPROACHES` | 18 |
+| `PROOF_GATE_GRAPH` | 16 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 9 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 5 |
+| `PROOF_REGION_GRAPH` | 20 |
+| `PROOF_REGION_LAND_COHERENCE` | 24 |
+| `PROOF_REGION_PASSABLE_LAND` | 10 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 18 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 35 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 13 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 6 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 24 |
+| `TIER_POTENTIAL_DENSITY` | 6 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 31 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. Readiness remained true with no completion
+receipt; the owner-private workspace contained one file, seven directories,
+and 70 bytes. `acceptedCandidate` was false. No package, shortlist, selection,
+atlas operation, provider request, or production mutation occurred.
+
+The `.21` fresh-seed run recorded 124 bundle-pair-frontier terminals in 221
+geography attempts; `.22` recorded 134 in 221, so this independent-seed sample
+does not support a material improvement from doubling the pair cap. Source
+review found a separate per-child option cutoff of 64 in both ordinary and
+Lowlands repair search. Revision `.23` raises that bounded cutoff to 128 while
+retaining the 2,048-pair cap, search-node and complete-plan limits, proofs,
+ownership rules, and terrain-seed namespace. The `.23` candidate run has not
+yet been performed. Its Windows typecheck and 52 focused tests passed; the four
+focused pinned-Linux suites passed 134/134 in 554.87 seconds with all 11 locked
+toolchain packages verified. Runtime was about 5.5% above `.22`'s 525.89-second
+run; no search-node, complete-plan, proof, or ownership bound changed.
+
 ## Expanded-search candidate run — 6 October 2026 — source `3ad208d0`
 
 One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
@@ -78,7 +154,8 @@ reduce frontier truncation. Revision `.22` therefore raises only bundle pairs
 `1,024 → 2,048`; edge candidates remain 1,024, search nodes 320,000, complete
 plans 256, Lowlands assignments 32, and sibling pairs per parent 2. The
 compatible-footprint traversal, proofs, ownership rules, and seed namespace
-`.3` remain unchanged. The `.21` implementation in signed commit
+`.3` remain unchanged. The subsequent `.22` run and results are recorded above.
+The `.21` implementation in signed commit
 `435586b766fb55514b9197f8438561dde448ba4f` passed all four focused suites,
 133/133, on pinned Linux Node `22.22.3`. The failed batch was bound to the
 documentation-only signed successor
@@ -87,7 +164,6 @@ unchanged. Exact signed `.22` implementation
 `5c04108565086c8a413ca11abaa2ad0bf10b6e44` passed all four focused suites,
 133/133, on pinned Linux Node `22.22.3` in 525.89 seconds with all 11 locked
 packages verified; the Windows 51-test subset and typechecking passed too.
-A fresh `.22` candidate batch is next.
 
 ## Expanded-search candidate run — 6 October 2026 — source `9d3cf8b6`
 

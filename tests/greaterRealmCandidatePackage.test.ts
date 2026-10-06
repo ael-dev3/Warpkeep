@@ -585,7 +585,7 @@ describe('Greater Realm owner-only candidate package', () => {
     let derivedSeed: Buffer | undefined;
     try {
       expect(GREATER_REALM_GENERATOR_VERSION)
-        .toBe('greater-realm-v2-natural-continent-pr-a.22');
+        .toBe('greater-realm-v2-natural-continent-pr-a.23');
       expect(GREATER_REALM_TERRAIN_SEED_NAMESPACE)
         .toBe('greater-realm-v2-natural-continent-pr-a.3');
       expect(GREATER_REALM_GENERATOR_VERSION).not.toBe(

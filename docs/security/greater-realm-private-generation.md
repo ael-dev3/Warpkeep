@@ -148,14 +148,16 @@ left between the durable rename and deletion by a hard crash; malformed,
 substituted, or special entries fail closed.
 
 The current candidate and package authority is
-`greater-realm-v2-natural-continent-pr-a.22`, while the terrain-seed namespace
-remains `.3`. A `.21` or earlier checkpoint/package is not resumable,
-selectable, or publishable under `.22`; rotate an authenticated unaccepted or
-exhausted checkpoint and begin one fresh owner-private `.22` generation
+`greater-realm-v2-natural-continent-pr-a.23`, while the terrain-seed namespace
+remains `.3`. A `.22` or earlier checkpoint/package is not resumable,
+selectable, or publishable under `.23`; rotate an authenticated unaccepted or
+exhausted checkpoint and begin one fresh owner-private `.23` generation
 instead. Revisions `.21` and `.22` raise only the bounded gate-apron
-bundle-pair cap, from 512 to 1,024 and then 2,048; `.22` preserves `.20`
-compatible-footprint traversal, the 320,000 search-node bound, candidate
-proofs, and ownership rules.
+bundle-pair cap, from 512 to 1,024 and then 2,048. Revision `.23` raises the
+per-child ranked bundle-option frontier from 64 to 128, preserving the
+320,000 search-node bound, candidate proofs, and ownership rules. The
+terrain-seed namespace remains unchanged so this search refinement does not
+reroll private world authority.
 
 Natural-composition review derives only coordinate-free scalar summaries and
 five public proof booleans from final private terrain authority. Temporary land,

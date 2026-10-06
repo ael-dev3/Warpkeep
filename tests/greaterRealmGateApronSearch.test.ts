@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES,
   GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS,
+  GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS,
   GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS,
   GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT,
   assertGreaterRealmRepairOwnershipUnchanged,
@@ -12,6 +13,7 @@ import {
   rankGreaterRealmLowlandsRepairBorrowedBundleOptions,
   rankGreaterRealmLowlandsRepairBundleOptions,
   selectGreaterRealmLowlandsRepairBundleOptions,
+  selectGreaterRealmGateApronChildBundleOptions,
   runGreaterRealmGateApronSearchLanes,
   selectBalancedGreaterRealmGateApronPairs,
   sealGreaterRealmRepairBarrierPockets,
@@ -604,6 +606,25 @@ describe('Greater Realm ranked gate-apron search', () => {
     );
     expect(select(0)).toEqual(['lowlands']);
     expect(select(2)).toEqual(['borrow-a', 'borrow-b']);
+  });
+
+  it('keeps child bundle frontiers deterministic and bounded at 128 options', () => {
+    const ranked = Object.freeze(Array.from({ length: 140 }, (_, index) => index));
+    const selected = selectGreaterRealmGateApronChildBundleOptions(ranked);
+    expect(GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS).toBe(128);
+    expect(selected).toEqual(ranked.slice(0, 128));
+    expect(Object.isFrozen(selected)).toBe(true);
+
+    const lowlandsRepair = selectGreaterRealmLowlandsRepairBundleOptions(
+      ranked.map((score, child) => Object.freeze({ child: 1, score, endpoint: child })),
+      1,
+      bundle => bundle.child,
+      bundle => bundle.score,
+      bundle => bundle.endpoint,
+    );
+    expect(lowlandsRepair).toHaveLength(128);
+    expect(lowlandsRepair[0]?.score).toBe(0);
+    expect(lowlandsRepair.at(-1)?.score).toBe(127);
   });
 
   it('tries fallback repair pairs only when no compatible own sibling pair exists', () => {

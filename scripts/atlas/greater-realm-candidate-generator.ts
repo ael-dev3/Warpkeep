@@ -114,7 +114,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.22' as const;
+  'greater-realm-v2-natural-continent-pr-a.23' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -199,6 +199,18 @@ export const GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT = 2 as c
 // complete-plan, and search-node budgets; truncation must remain diagnosable.
 export const GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES = 1024 as const;
 export const GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS = 2048 as const;
+// Bound the per-child cross-product independently of the raw pair frontier.
+export const GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS = 128 as const;
+
+/** Keep a child's ranked bundle frontier bounded and deterministic. */
+export function selectGreaterRealmGateApronChildBundleOptions<Option>(
+  rankedOptions: readonly Option[],
+): readonly Option[] {
+  return Object.freeze(rankedOptions.slice(
+    0,
+    GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS,
+  ));
+}
 
 export type GreaterRealmGateApronPairRank = Readonly<{
   firstIndex: number;
@@ -384,7 +396,7 @@ export function selectGreaterRealmLowlandsRepairBundleOptions<Option>(
         scoreFor,
         endpointFor,
       );
-  return Object.freeze([...ranked].slice(0, 64));
+  return selectGreaterRealmGateApronChildBundleOptions(ranked);
 }
 
 /**
@@ -3772,10 +3784,10 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
           || first.child - second.child
           || first.edges[0].tierTwoEndpoint - second.edges[0].tierTwoEndpoint
         ));
-      if (rankedOptions.length > 64) {
+      if (rankedOptions.length > GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS) {
         noteSearchFrontierTruncation('BUNDLE_OPTION_LIMIT');
       }
-      const options = rankedOptions.slice(0, 64);
+      const options = selectGreaterRealmGateApronChildBundleOptions(rankedOptions);
       const frozen = Object.freeze(options);
       bundleOptionsCache.set(key, frozen);
       return frozen;

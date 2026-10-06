@@ -8,30 +8,29 @@ remotely; their canonical P3 plan-path and Cloudflare legal-text
 header/postflight fixes are in #385. The #397 allowance was already present,
 and stale PRs were closed as incorporated or superseded.
 
-The fresh exact-source run on signed `.21` source `3ad208d0` exhausted all 256
-attempts without an eligible candidate: 221 geography rejections and 35 proof
-rejections. The bundle frontier remained truncated in 124 attempts; the search
-node limit appeared in 30 and the complete-plan limit in 19. Its sanitized
+The fresh exact-source `.22` run on signed documentation-only successor
+`fb55117a` exhausted all 256 attempts without an eligible candidate: 221
+geography rejections and 35 proof-rejection attempts. The 2,048-pair frontier
+was terminal in 134 geography attempts; search-node and complete-plan limits
+appeared in 29 and 17. This independent-seed run did not show improvement over
+`.21` (124 pair-frontier terminals in 221 geography attempts). Its sanitized
 aggregate and maintained abort/readiness checks are in
 [local operations](../../evidence/0.4.0/local-operations.md). The checkpoint
 was aborted with production untouched and no completion receipt.
 
-Measured next correction: raise bundle pairs `1,024 → 2,048` only. The existing
-ranked search keeps its compatible-footprint group ordering, rank diagonal,
-deterministic ties, and 320,000-node bound. Generator revision `.22` records
-this cap change; terrain-seed namespace `.3`, edge candidates 1,024, complete
-plans 256, Lowlands assignments 32, sibling pairs per parent 2, topology,
-ownership and proofs remain unchanged. The `.21` implementation at signed
-commit `435586b766fb55514b9197f8438561dde448ba4f` passed all 133 focused tests
-on pinned Linux Node `22.22.3` and 51 focused Windows tests plus typechecking.
-The failed batch was bound to documentation-only successor
-`3ad208d02c10971ddb49fc80f43d42310fe350d1`, whose generator and test bytes
-were unchanged. Exact signed `.22` implementation
-`5c04108565086c8a413ca11abaa2ad0bf10b6e44` passed all 133 tests across the
-four focused Linux suites in 525.89 seconds, with all 11 locked packages
-verified; Windows also passed 51 focused tests and typechecking. A fresh `.22`
-candidate batch is next. Confirm PR #385's exact signed head before
-source-bound work.
+The next source correction is `.23`: raise the separate per-child ranked
+bundle-option cutoff from 64 to 128 in both ordinary and Lowlands repair
+searches. Keep the 2,048 raw-pair cap, 320,000-node and 256-plan bounds,
+terrain-seed namespace `.3`, ownership, geometry proofs, and candidate
+eligibility unchanged. This targets the downstream option frontier without
+blindly increasing the already ineffective raw-pair cap. Exact `.22`
+implementation `5c04108565086c8a413ca11abaa2ad0bf10b6e44` passed all 133 tests
+across the four focused Linux suites in 525.89 seconds, with all 11 locked
+packages verified. The `.23` working tree passes TypeScript checking and
+52/52 focused Windows tests, then 134/134 across the four focused Linux suites
+in 554.87 seconds with all 11 locked packages verified (about 5.5% slower than
+`.22`). Commit and publish this tested source, confirm PR #385's exact signed
+head, then run one fresh source-bound candidate batch.
 
 The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
 rejection, and generator tests on Windows Node `24.19.0`, plus TypeScript
@@ -57,7 +56,7 @@ PTR cutover, and no authenticated 0.4 owner acceptance. GitHub Actions are
 disabled; local validation and branch publication do not count as hosted
 Verify or deployment.
 
-Next: validate and publish the pair-cap and bounded-search correction, confirm
+Next: validate and publish the `.23` bounded child-option correction, confirm
 #385's exact signed head, then run a fresh source-bound candidate search. If
 eligible, verify the private package and sanitized review before selection under
 the existing `OWNER-EXPLICIT-0.4-SHIP` reference, then complete owner/atlas, bridge, frontend,
