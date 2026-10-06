@@ -74,15 +74,15 @@ attempts:
 | `TIER_POTENTIAL_DENSITY` | 1 |
 | `TOPOGRAPHIC_QA_COMPLETE` | 29 |
 
-At cap 160 the earliest frontier diagnostic was the raw edge limit in 85
-attempts; 15 reached the unchanged bundle-pair limit, 11 the complete-plan
-limit, and 27 the search-node limit. The cap-128 and cap-160 batches used
-independent fresh seeds, so their rejection counts are not paired causal
-measurements. The edge cap still truncates, while pair-limit rejections are
-more visible at this setting. Neither fact proves that a discarded edge or
-pair would pass geometry or ownership proofs. Do not widen either frontier
-again without a deterministic finding that the current ranked, endpoint-
-balanced selection omits a valid plan within preserved downstream budgets.
+At cap 160 the prioritized frontier diagnostic was the raw edge limit in 85
+attempts; 15 reported the unchanged bundle-pair limit, 11 the complete-plan
+limit, and 27 the search-node limit. Frontier codes retain one reason per
+geography rejection, ordered with `EDGE_CANDIDATE_LIMIT` before
+`BUNDLE_PAIR_LIMIT`; edge-coded attempts can also have a downstream pair
+truncation, so 15 is not the total number of pair-limit occurrences. The
+cap-128 and cap-160 batches used independent fresh seeds, so their rejection
+counts are not paired causal measurements. Neither diagnostic proves a
+discarded edge or pair would pass geometry or ownership proofs.
 
 After the safe read, the maintained abort returned `checkpointAborted: true`
 and `productionUntouched: true`. No candidate, package, shortlist, selection,
@@ -163,10 +163,12 @@ attempts:
 | `TIER_POTENTIAL_DENSITY` | 2 |
 | `TOPOGRAPHIC_QA_COMPLETE` | 29 |
 
-At cap 128 the earliest frontier was still the raw edge-candidate limit in 96
-attempts; six attempts reached the bundle-pair limit. Twelve reached the
-complete-plan limit and 24 reached the search-node limit. The cap-96 sample
-was an independent seed, so its 105 edge-cap / one pair-cap profile is not a
+At cap 128 the prioritized frontier code was the raw edge-candidate limit in
+96 attempts; six reported the bundle-pair limit. Twelve reported the
+complete-plan limit and 24 the search-node limit. Because edge truncation has
+higher diagnostic priority, edge-coded attempts may also have had a downstream
+pair truncation; six is not the total pair-limit count. The cap-96 sample was
+an independent seed, so its 105 edge-cap / one pair-cap profile is not a
 paired performance or outcome comparison. Neither sample proves that any
 discarded edge would pass the preserved ownership and quality proofs.
 
@@ -189,13 +191,19 @@ The complete post-push GitHub inventory covered all 3,807 runs in 39 pages:
 permission disabled. The push created no run. PR #385 remains open/draft; no
 hosted verification or deployment is established.
 
-The local signed successor raises only the raw edge cap from 128 to 160. The
-32 bundle options, repair budgets, complete-plan and node limits, ownership
-and candidate proofs remain fixed. Windows typecheck and all 51 focused
-apron/rejection/generator tests pass on this change. Before another fresh
-maximum-256 sample, publish the exact source and recheck the same pinned Linux
-fixture's runtime and peak RSS against cap 128. This incremental increase is a
-bounded experiment, not evidence that discarded edges are valid candidates.
+The pair helper deterministically ranks pairs and balances endpoint use; its
+focused tests cover determinism, endpoint constraints, and malformed pairs,
+but do not establish that the bounded frontier retains a world-level passing
+plan. Review reproduced no ranking correctness defect. Raw-edge truncation
+has remained the prioritized diagnostic across three independent fresh-seed
+samples at caps 96, 128 and 160 (105, 96 and 85 reports respectively); this is
+evidence the bound is frequently reached, not a causal cap comparison. The
+local successor raises only that raw cap from 160 to 192. The 32 bundle
+options, repair budgets, complete-plan and node limits, ownership and
+candidate proofs remain fixed. Windows typecheck and all 51 focused
+apron/rejection/generator tests pass. Publish the signed source and run the
+same pinned Linux fixture before another fresh maximum-256 sample. Do not
+widen again automatically if the bound remains reached.
 
 ## Exact-source private generation — 6 October 2026 — source `d036f000`
 

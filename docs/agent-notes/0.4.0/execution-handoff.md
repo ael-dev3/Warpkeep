@@ -27,15 +27,24 @@ only the raw edge limit; bundle options remain capped at 32, and the repair,
 complete-plan, node, ownership, and candidate-proof limits remain fixed.
 Windows typecheck and all 51 focused apron/rejection/generator tests pass.
 
-The cap-160 sample's process was still CPU-active at 40:07 and exited shortly
-afterward. Do not widen the edge or pair frontier based on this sample alone:
-the fresh seeds are independent, pair-limit rejections rose to 15, and there
-is no evidence that any discarded option passes the full proofs. Next inspect
-the pair ranking and its deterministic fixtures for a concrete bounded-search
-defect. Change it only if a threshold-preserving omission is reproduced; then
-rerun typecheck, focused tests and the exact-source Linux fixture before
-starting another fresh private batch. Do not replay retired checkpoints or
-touch the retained-seed/serialization checkpoints.
+The cap-160 process remained CPU-active at 40:07 and exited shortly afterward.
+The pair helper was reviewed: it deterministically ranks pairs and balances
+endpoint use, with focused coverage for determinism, endpoint constraints, and
+malformed inputs; review reproduced no correctness defect. Frontier rejection
+codes preserve only the highest-priority reason per attempt (edge before
+bundle pair), so pair truncation can co-occur in attempts reported as edge
+truncation. The raw-edge diagnostic persisted across three independent
+fresh-seed samples at caps 96, 128, and 160 (105, 96, and 85 reports). This
+does not prove any omitted option would pass.
+
+The local successor raises only the raw edge cap from 160 to 192. Windows
+typecheck and all 51 focused apron/rejection/generator tests pass. The bundle
+cap remains 32, and repair, complete-plan, node, ownership, and candidate-proof
+limits stay fixed. This is one bounded experiment, not evidence of candidate
+quality. Publish the signed source, run the exact-source Linux fixture, and
+compare runtime and peak RSS before starting another fresh private batch; do
+not widen further automatically. Do not replay retired checkpoints or touch
+the retained-seed/serialization checkpoints.
 
 The latest complete post-push GitHub inventory covered 3,807 runs in 39 pages:
 3,836 attempts, 28 records with reruns, no active or queued run, and Actions
