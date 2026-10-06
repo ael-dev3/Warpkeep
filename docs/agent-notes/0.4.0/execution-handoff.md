@@ -8,36 +8,33 @@ remotely; their canonical P3 plan-path and Cloudflare legal-text
 header/postflight fixes are in #385. The #397 allowance was already present,
 and stale PRs were closed as incorporated or superseded.
 
-A fresh exact-source run on `99184f66` exhausted all 256 attempts without an
-eligible candidate. Its sanitized rejection aggregate and maintained abort
-and readiness checks are in [local operations](../../evidence/0.4.0/local-operations.md).
-There were 227 geography rejections and 29 proof-rejection attempts; the pair
-frontier was truncated in 128 geography attempts, with no edge truncation. The
-follow-on correction raises bundle pairs `256 → 512` and makes the existing
-ranked search choose each next sibling group by its currently compatible
-footprints, preserving the rank diagonal, deterministic ties, and the
-320,000-node bound. A simpler cap increase hit the typed node limit even at
-640,000; dynamic conflict pruning lets the deterministic candidate fixture
-pass at 320,000. The behavior-changing search revision is recorded as generator
-`.20`; the terrain-seed namespace remains `.3`. Edge candidates remain 1,024,
-complete plans 256, Lowlands assignments 32, and sibling pairs per parent 2;
-topology, ownership and all proofs are unchanged. The focused 51-test set and
-typechecking pass. The exact signed `.20` source also passes all 133 tests in
-the four focused suites on pinned Linux Node `22.22.3`; the candidate-package
-tests are supported there. The Windows package-suite setup rejects Windows
-`stat` mode `0666` at its POSIX ancestor check, so use Linux for that suite.
-This successor has not yet had a fresh candidate batch. Confirm PR #385 points
-at the signed successor before running one.
+The fresh exact-source run on signed `.20` source `9d3cf8b6` exhausted all 256
+attempts without an eligible candidate: 224 geography rejections and 32 proof
+rejections. The pair frontier remained truncated in 128 attempts; the search
+node limit appeared in 35 and the complete-plan limit in 15. Its sanitized
+aggregate and maintained abort/readiness checks are in
+[local operations](../../evidence/0.4.0/local-operations.md). The checkpoint
+was aborted with production untouched and no completion receipt.
 
-The `64 → 128` pair-cap correction passed 51/51 focused gate-apron, rejection,
-and generator tests on Windows Node `24.19.0`, plus TypeScript checking. The
-pinned Linux Node `22.22.3` toolchain preflight verifies. Its installed Vitest
-entrypoint runs directly with `node node_modules/vitest/vitest.mjs` even though
-the `.bin` shim is absent. The earlier signed frontier correction passed
-51/51 under pinned Linux Node 22. The current 512/1,024/320,000 search
-correction passes 133/133 focused tests on Linux Node 22 and 51/51 focused
-tests plus typechecking on Windows Node 24.19.0; generation remains pinned to
-Linux Node 22.
+Measured next correction: raise bundle pairs `512 → 1,024` only. The existing
+ranked search keeps its compatible-footprint group ordering, rank diagonal,
+deterministic ties, and 320,000-node bound. Generator revision `.21` records
+this cap change; terrain-seed namespace `.3`, edge candidates 1,024, complete
+plans 256, Lowlands assignments 32, sibling pairs per parent 2, topology,
+ownership and proofs remain unchanged. The deterministic generator fixture,
+all 51 focused tests, and typechecking pass on Windows Node `24.19.0`. The full
+four-suite Linux run passed 133/133 on `.20`; rerun it on `.21` before a fresh
+candidate batch. Confirm PR #385's exact signed head before source-bound work.
+
+The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
+rejection, and generator tests on Windows Node `24.19.0`, plus TypeScript
+checking. The pinned Linux Node `22.22.3` toolchain preflight verifies. Its
+installed Vitest entrypoint runs directly with
+`node node_modules/vitest/vitest.mjs` even though the `.bin` shim is absent.
+The exact signed `.20` source passed 133/133 across the four focused suites on
+Linux Node 22. The current `.21` cap correction passes 51/51 focused tests plus
+typechecking on Windows Node 24.19.0; the corresponding full Linux run remains
+pending. Generation stays pinned to Linux Node 22.
 Windows `npm run typecheck` and the full production build pass; the build
 retains the known 677.52 kB `RealmMapScreen` chunk warning. The five changed
 Pages suites also passed 63/63 on the prior exact source. The attempted Linux

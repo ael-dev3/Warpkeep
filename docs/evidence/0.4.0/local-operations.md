@@ -2,6 +2,87 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Expanded-search candidate run — 6 October 2026 — source `9d3cf8b6`
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact source
+`9d3cf8b69b8f4a5f9dd1a879c5d2570f0ac4b416` completed in about 34 minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.20`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained
+checkpoint read returned 256 attempts: 224 geography rejections and 32
+proof-rejection attempts. No seed, candidate handle, coordinates, package
+bytes, or raw log were emitted; the authenticated root-seed buffer was
+zeroized after aggregation.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 24 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 5 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 15 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 128 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 35 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 16 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 1 |
+| **Total** | **224** |
+
+Proof occurrences are nonexclusive across the 32 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 9 |
+| `HYDROLOGY_LAKES_48_96` | 4 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 8 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 2 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 12 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `PROOF_BIOME_DIVERSITY` | 2 |
+| `PROOF_CASTLE_CAPACITY` | 9 |
+| `PROOF_GATE_APPROACHES` | 7 |
+| `PROOF_GATE_GRAPH` | 5 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 2 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_NATURAL_STRATEGIC_REGIONS` | 1 |
+| `PROOF_REGION_GRAPH` | 12 |
+| `PROOF_REGION_LAND_COHERENCE` | 20 |
+| `PROOF_REGION_PASSABLE_LAND` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 25 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 18 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 26 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 6 |
+| `STRATEGIC_REGION_BOUNDARY_ALIGNMENT` | 1 |
+| `TIER_I_REGION_BALANCE` | 2 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 21 |
+| `TIER_POTENTIAL_DENSITY` | 4 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 27 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. Separate maintained readiness checks confirmed
+selection readiness and no completion receipt. There is no candidate package,
+shortlist, selection, atlas operation, provider request, or production
+mutation. The private workspace contains 70 bytes across one file and seven
+directories.
+
+Bundle-pair truncation remains the terminal geography rejection in 128
+attempts at the 512-pair cap. The node limit was terminal in 35 attempts and
+the 256-plan limit in 15. No `EDGE_CANDIDATE_LIMIT` terminal geography
+rejection was recorded. The measured next change raises only bundle pairs
+`512 → 1,024`. Keep edge candidates
+at 1,024, search nodes at 320,000, complete plans at 256, Lowlands assignments
+at 32, sibling pairs per parent at 2, and all ownership rules and proofs
+unchanged. The dynamic compatibility-aware rank traversal remains in place;
+generator revision `.21` records the cap correction, with seed namespace `.3`
+unchanged. The deterministic generator fixture, all 51 focused tests, and
+TypeScript checking pass on Windows Node `24.19.0`; run the complete focused
+suite on pinned Linux Node `22.22.3` before the next source-bound batch.
+
 ## Expanded-search candidate run — 6 October 2026 — source `99184f66`
 
 One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`

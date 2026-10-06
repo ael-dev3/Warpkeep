@@ -630,7 +630,7 @@ describe('Greater Realm ranked gate-apron search', () => {
 
   it('widens bounded gate-apron frontiers after repeated truncation', () => {
     expect(GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES).toBe(1024);
-    expect(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS).toBe(512);
+    expect(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS).toBe(1024);
   });
 
   it('keeps the Lowlands repair frontier within the complete-plan budget', () => {

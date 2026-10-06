@@ -254,7 +254,7 @@ describe('Greater Realm expected candidate rejection boundary', () => {
     }
   });
 
-  it('keeps the historical broad code out of the .20 generator', () => {
+  it('keeps the historical broad code out of the .21 generator', () => {
     const generatorSource = readFileSync(new URL(
       '../scripts/atlas/greater-realm-candidate-generator.ts',
       import.meta.url,
@@ -264,7 +264,7 @@ describe('Greater Realm expected candidate rejection boundary', () => {
       import.meta.url,
     ), 'utf8');
     expect(generatorSource).toContain(
-      "'greater-realm-v2-natural-continent-pr-a.20'",
+      "'greater-realm-v2-natural-continent-pr-a.21'",
     );
     expect(generatorSource).not.toContain(
       "'greater-realm-v2-natural-continent-pr-a.18'",
