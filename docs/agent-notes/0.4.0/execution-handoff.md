@@ -18,19 +18,31 @@ aggregate and maintained abort/readiness checks are in
 [local operations](../../evidence/0.4.0/local-operations.md). The checkpoint
 was aborted with production untouched and no completion receipt.
 
-The next source correction is `.23`: raise the separate per-child ranked
-bundle-option cutoff from 64 to 128 in both ordinary and Lowlands repair
-searches. Keep the 2,048 raw-pair cap, 320,000-node and 256-plan bounds,
-terrain-seed namespace `.3`, ownership, geometry proofs, and candidate
-eligibility unchanged. This targets the downstream option frontier without
-blindly increasing the already ineffective raw-pair cap. Exact `.22`
-implementation `5c04108565086c8a413ca11abaa2ad0bf10b6e44` passed all 133 tests
-across the four focused Linux suites in 525.89 seconds, with all 11 locked
-packages verified. The `.23` working tree passes TypeScript checking and
-52/52 focused Windows tests, then 134/134 across the four focused Linux suites
-in 554.87 seconds with all 11 locked packages verified (about 5.5% slower than
-`.22`). Commit and publish this tested source, confirm PR #385's exact signed
-head, then run one fresh source-bound candidate batch.
+Revision `.23` raises the separate per-child ranked bundle-option cutoff from
+64 to 128 in both ordinary and Lowlands repair searches. The 2,048 raw-pair
+cap, 320,000-node and 256-plan bounds, terrain-seed namespace `.3`, ownership,
+geometry proofs, and candidate eligibility remain unchanged. The exact signed
+`.23` implementation `483ac590cbb3ae7febc3fb093ad143744ec413d2` passes
+TypeScript checking and 52/52 focused Windows tests, then 134/134 across the
+four focused Linux suites in 554.87 seconds with all 11 locked packages
+verified (about 5.5% slower than `.22`).
+
+A fresh `.23` candidate batch bound to that exact source exhausted 256 attempts
+in about 40½ minutes without an eligible candidate: 220 geography rejections
+and 36 proof-rejection attempts. The pair-limit terminal appeared 127 times,
+the child-option limit once, the search-node limit 24 times, and the
+complete-plan limit 17 times. Compared with independent `.22` seeds, this is a
+modest shift, not evidence that the cap alone will produce a candidate. The
+maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`;
+selection readiness is true, no completion receipt exists, and the private
+workspace is down to one file, seven directories, and 70 bytes. See the full
+sanitized tables in [local operations](../../evidence/0.4.0/local-operations.md).
+
+Next, run one independent fresh-seed batch on PR #385's exact current `.23`
+head before changing more search bounds. If it also yields no candidate, use
+the combined evidence to choose a targeted search change; do not increase caps
+or weaken proofs by guesswork.
 
 The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
 rejection, and generator tests on Windows Node `24.19.0`, plus TypeScript
@@ -56,12 +68,11 @@ PTR cutover, and no authenticated 0.4 owner acceptance. GitHub Actions are
 disabled; local validation and branch publication do not count as hosted
 Verify or deployment.
 
-Next: validate and publish the `.23` bounded child-option correction, confirm
-#385's exact signed head, then run a fresh source-bound candidate search. If
-eligible, verify the private package and sanitized review before selection under
-the existing `OWNER-EXPLICIT-0.4-SHIP` reference, then complete owner/atlas, bridge, frontend,
-and cutover in dependency order. Keep Alpha and rollback evidence intact. Do
-not relax proofs, use Actions, or claim deployment/PTR acceptance.
+After an eligible batch, verify the private package and sanitized review before
+selection under the existing `OWNER-EXPLICIT-0.4-SHIP` reference, then complete
+owner/atlas, bridge, frontend, and cutover in dependency order. Keep Alpha and
+rollback evidence intact. Do not relax proofs, use Actions, or claim
+deployment/PTR acceptance.
 
 ## Previous cap-192 checkpoint — historical
 

@@ -2,6 +2,78 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Expanded-search candidate run — 6 October 2026 — source `483ac590`
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact signed source
+`483ac590cbb3ae7febc3fb093ad143744ec413d2` completed in about 40½ minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.23`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained CLI
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; the authenticated
+checkpoint contained 220 geography rejections and 36 proof-rejection attempts.
+No seed, candidate handle, coordinates, package bytes, or raw log were emitted.
+The maintained aggregation zeroized its root-seed buffer after reading.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 19 |
+| `GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED` | 1 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 10 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 17 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 1 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 127 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 24 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 14 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 7 |
+| **Total** | **220** |
+
+Proof occurrences are nonexclusive across the 36 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 9 |
+| `HYDROLOGY_LAKES_48_96` | 4 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 8 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 15 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 6 |
+| `PROOF_BIOME_DIVERSITY` | 2 |
+| `PROOF_CASTLE_CAPACITY` | 9 |
+| `PROOF_GATE_APPROACHES` | 16 |
+| `PROOF_GATE_GRAPH` | 14 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 8 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_REGION_GRAPH` | 23 |
+| `PROOF_REGION_LAND_COHERENCE` | 24 |
+| `PROOF_REGION_PASSABLE_LAND` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 30 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 10 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 35 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 28 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 7 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 24 |
+| `TIER_POTENTIAL_DENSITY` | 3 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 23 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. Readiness remained true with no completion
+receipt; the owner-private workspace contained one file, seven directories,
+and 70 bytes. `acceptedCandidate` was false. No package, shortlist, selection,
+atlas operation, provider request, or production mutation occurred.
+
+The independent `.22` batch recorded the pair-limit terminal in 134 of 221
+geography attempts and the search-node limit in 29; `.23` recorded 127 of 220,
+one child-option-limit terminal, and 24 node-limit terminals. Both reached the
+256-attempt limit without a candidate, while the complete-plan limit remained
+17. These one-seed-per-revision differences are suggestive but not conclusive.
+Run one more independent `.23` batch before changing any further search bound.
+
 ## Expanded-search candidate run — 6 October 2026 — source `fb55117a`
 
 One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
@@ -72,11 +144,11 @@ does not support a material improvement from doubling the pair cap. Source
 review found a separate per-child option cutoff of 64 in both ordinary and
 Lowlands repair search. Revision `.23` raises that bounded cutoff to 128 while
 retaining the 2,048-pair cap, search-node and complete-plan limits, proofs,
-ownership rules, and terrain-seed namespace. The `.23` candidate run has not
-yet been performed. Its Windows typecheck and 52 focused tests passed; the four
-focused pinned-Linux suites passed 134/134 in 554.87 seconds with all 11 locked
-toolchain packages verified. Runtime was about 5.5% above `.22`'s 525.89-second
-run; no search-node, complete-plan, proof, or ownership bound changed.
+ownership rules, and terrain-seed namespace. The first `.23` candidate run and
+its exact source-bound metrics are recorded above. Its Windows typecheck and 52
+focused tests passed; the four focused pinned-Linux suites passed 134/134 in
+554.87 seconds with all 11 locked toolchain packages verified. Runtime was
+about 5.5% above `.22`'s 525.89-second run; no proof or ownership bound changed.
 
 ## Expanded-search candidate run — 6 October 2026 — source `3ad208d0`
 
