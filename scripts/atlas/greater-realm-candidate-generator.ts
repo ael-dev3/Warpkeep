@@ -3136,6 +3136,10 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
     string,
     readonly GreaterRealmTierTwoGateApronBundle[]
   >();
+  const lowlandsRepairBorrowedBundlesByComponent = new Map<
+    number,
+    readonly GreaterRealmTierTwoGateApronBundle[]
+  >();
   const lowlandsRepairBundleOptionsCache = new Map<
     string,
     readonly GreaterRealmTierTwoGateApronBundle[]
@@ -3168,6 +3172,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
     siblingPairCache.clear();
     lowlandsRepairGateApronEdgesByKey.clear();
     lowlandsRepairGateApronBundlesByKey.clear();
+    lowlandsRepairBorrowedBundlesByComponent.clear();
     lowlandsRepairBundleOptionsCache.clear();
     lowlandsRepairSiblingPairCache.clear();
   };
@@ -3185,6 +3190,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
     } = input;
     const buildGateApronBundles = (
       rawEdges: readonly GreaterRealmTierTwoGateApronEdge[],
+      maximumAxialSeparation: number | null = 48,
     ): readonly GreaterRealmTierTwoGateApronBundle[] => {
       if (rawEdges.length > GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES) {
         noteSearchFrontierTruncation('EDGE_CANDIDATE_LIMIT');
@@ -3208,9 +3214,12 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
             grid.q[right.tierTwoEndpoint]!,
             grid.r[right.tierTwoEndpoint]!,
           );
-          // Nearby approaches can crowd the same frontage, but long-spanning
-          // pairs remain necessary for viable lowlands-repair components.
-          if (separation < 4) continue;
+          // Ordinary frontiers retain their 48-cell cap. Repair components
+          // may need a longer pair to preserve every parent's land capacity.
+          if (
+            separation < 4
+            || (maximumAxialSeparation !== null && separation > maximumAxialSeparation)
+          ) continue;
           const corridorsConflict = (
             left.tierOneCorridors.some(corridor => corridor.includes(right.tierOneEndpoint))
             || right.tierOneCorridors.some(corridor => corridor.includes(left.tierOneEndpoint))
@@ -3687,7 +3696,10 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
           }
         }
         for (const [key, rawEdges] of lowlandsRepairGateApronEdgesByKey) {
-          lowlandsRepairGateApronBundlesByKey.set(key, buildGateApronBundles(rawEdges));
+          lowlandsRepairGateApronBundlesByKey.set(
+            key,
+            buildGateApronBundles(rawEdges, null),
+          );
         }
       } catch (error) {
         clear();
@@ -3795,13 +3807,19 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       const key = `${componentId}:${child}:${includeBorrowed ? 'all' : 'preferred'}`;
       const cached = lowlandsRepairBundleOptionsCache.get(key);
       if (cached) return cached;
+      let borrowedBundles = lowlandsRepairBorrowedBundlesByComponent.get(componentId);
+      if (!borrowedBundles && child !== 0) {
+        const collected: GreaterRealmTierTwoGateApronBundle[] = [];
+        for (const [bundleKey, rawEdges] of gateApronEdgesByKey) {
+          if (Number.parseInt(bundleKey.split(':')[0]!, 10) !== componentId) continue;
+          collected.push(...buildGateApronBundles(rawEdges, null));
+        }
+        borrowedBundles = Object.freeze(collected);
+        lowlandsRepairBorrowedBundlesByComponent.set(componentId, borrowedBundles);
+      }
       const available = child === 0
         ? [...(lowlandsRepairGateApronBundlesByKey.get(`${componentId}:0`) ?? [])]
-        : [...gateApronBundlesByKey]
-            .filter(([bundleKey]) => (
-              Number.parseInt(bundleKey.split(':')[0]!, 10) === componentId
-            ))
-            .flatMap(([, bundles]) => bundles);
+        : [...(borrowedBundles ?? [])];
       const options = selectGreaterRealmLowlandsRepairBundleOptions(
         available,
         child,
