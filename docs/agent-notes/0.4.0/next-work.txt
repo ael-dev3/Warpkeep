@@ -9,6 +9,20 @@ this delegation does not turn a local check or push into deployment evidence.
 GitHub Actions remains disabled; preserve that hold and its downstream Pages
 chain.
 
+CURRENT EXACT-SOURCE BATCH — `de1a5f63b4933539bac916f3a0a2d7ddd8089c69`
+
+One fresh-seed run exhausted all 256 attempts with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`: 216 geography rejections and 40
+proof-rejection attempts. Dry-gate apron no-match was the largest class at 107;
+Crownwood parent-slot missing appeared 22 times and lane-split assignment
+missing four times. The authenticated safe reader verified exact-source
+binding, sequence/next ordinal 256, all attempts, and zeroized the recovered
+root-seed buffer. Full safe aggregates are in
+`docs/evidence/0.4.0/local-operations.md`. No candidate, package, shortlist,
+selection, atlas, provider operation, or production mutation resulted. The
+checkpoint remains active until its synchronized summary is retired using the
+maintained abort API; do not replay it.
+
 The signed source `fee38320f81f54647e17ed8351b3f2a4b45199dc` fixes the Lowlands
 sibling-pair fallback: compatible own-terrain pairs remain preferred; only
 when none pass the existing overlap and minimum-separation checks may children
@@ -64,26 +78,19 @@ retained-seed checkpoint remains bound to `19b3422`; never relabel or inject it
 into another source.
 
 NEXT
-1. The `a18930b4` batch exhausted 256 attempts; all 71 parent-slot failures
-   identify Crownwood. Its safe evidence is published and the exact-source
-   checkpoint was retired with `productionUntouched: true`.
-2. Source inspection found a concrete Lowlands repair bug: the borrowed-only
-   selector was also used for child zero, so it removed Lowlands' own required
-   bundle from the fallback pair. The correction keeps child zero on its own
-   reserve bundles while non-Lowlands siblings borrow only from other
-   non-Lowlands children. Geometry, quality thresholds, ownership proofs and
-   all option/plan caps are unchanged.
-3. The parent-specific classifier remains diagnostic-only; multiple missing
-   parents keep the generic code and lane-split/capacity outcomes keep
-   precedence. Focused tests pass 27/27, generator regression 21/21, typecheck
-   and diff checks pass. Publish the reviewed source and updated evidence, sync
-   the pinned runner, then run one fresh-seed maximum-256 batch on that exact
-   source to measure the correction. Record safe per-parent aggregates only.
-4. If a batch yields an eligible candidate, verify its private package and
+1. Publish the safe `de1a5f63` aggregate in a signed docs checkpoint, refresh
+   Actions/run state before the push, then retire the exact-source exhausted
+   checkpoint with the maintained `generate-candidates --abort-checkpoint`
+   command. Require `checkpointAborted: true` and `productionUntouched: true`.
+2. Inspect the dry-gate apron no-match path against the recorded rejection
+   evidence. Correct only a reproducible defect; keep geometry, ownership,
+   thresholds and search limits unchanged. Add a focused regression and run
+   the appropriate local checks before publishing a source change.
+3. If a batch yields an eligible candidate, verify its private package and
    shortlist; continue only if every proof passes, then record selection
    against that exact candidate. Never replay exhausted seeds or relax quality
    rules.
-5. Publish the source-bound PTR atlas, then apply the isolated PTR update through
+4. Publish the source-bound PTR atlas, then apply the isolated PTR update through
    its maintained prepare/apply and continuation consumer. After import starts,
    reconcile uncertain outcomes read-only; never resubmit a possibly submitted
    import. Proceed through owner provisioning, bridge/frontend readback,

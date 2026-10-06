@@ -2,32 +2,30 @@
 
 ## Current release checkpoint — 6 October 2026
 
-On exact signed source `a18930b4d2e442558bd0b01f465149b745d641a6`, one fresh
+On exact signed source `de1a5f63b4933539bac916f3a0a2d7ddd8089c69`, one fresh
 256-attempt batch returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The
-authenticated safe checkpoint read confirmed sequence/next ordinal 256 and
-showed 215 geography rejections, 41 proof attempts, and 71
-`GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` results. No
-candidate, package, shortlist, selection, atlas, or provider operation
-resulted. Full privacy-safe counts are recorded in local operations and were
-synchronized in signed commit `85e46002`. At `2026-10-05 23:33:33 UTC`, the
-maintained abort confirmed `checkpointAborted: true` and
-`productionUntouched: true` on the exact source. The checkpoint is retired.
-Source inspection found a concrete bug in the Lowlands repair fallback: the
-borrowed-only selector was applied to child zero as well as its non-Lowlands
-sibling, removing Lowlands' own required bundle from fallback pairing. The
-local correction retains child zero's own reserve bundles and keeps borrowing
-restricted to other non-Lowlands children. Geometry, proofs, and option/plan
-caps stay unchanged. This proves a broken fallback path, not that it was the
-only cause of all 71 sample failures; a fresh run on the corrected source is
-required to measure the impact.
+authenticated safe read confirmed source binding, sequence/next ordinal 256,
+216 geography rejections, and 40 proof-rejection attempts. The largest
+geography class was dry-gate apron no-match (107); Crownwood parent-slot
+missing appeared 22 times and lane-split assignment missing four times. No
+candidate, package, shortlist, selection, atlas, provider request, or
+production mutation resulted. Full privacy-safe counts are recorded in local
+operations. The recovered root-seed buffer was zeroized in `finally`; the
+persistent checkpoint remains active until the safe result is synchronized
+and the maintained abort confirms `checkpointAborted: true` and
+`productionUntouched: true` on this exact source.
 
 The signed `a18930b4` source introduced the parent-specific diagnostic:
 exactly one missing parent maps to Crownwood, Ironveil, or Glasswater; multiple
 missing parents retain the generic code, and lane-split/capacity outcomes stay
-distinct. The follow-on correction passes 27 focused tests, all 21 generator
-regressions, typecheck, and diff checks locally. Next, publish that source,
-synchronize the pinned runner, verify its toolchain, and run one fresh-seed
-maximum-256 batch against the exact commit. Do not replay retired checkpoints.
+distinct. The signed `de1a5f63` follow-on correction is published and passes 27
+focused apron/rejection tests, all 21 generator regressions, typecheck, and diff
+checks. It preserves child zero's own Lowlands reserve bundles while limiting
+donor bundles to other non-Lowlands children; it does not relax geometry,
+proofs, or caps. The corrected-source sample is descriptive rather than paired
+with earlier samples. After synchronizing and retiring its safe aggregate,
+inspect the dry-gate apron no-match path for a concrete defect without changing
+geometry, thresholds, or search limits. Do not replay retired checkpoints.
 
 The release route and hydrology correction are recorded in [issue #384](https://github.com/ael-dev3/Warpkeep/issues/384#issuecomment-5995094139). On 5 October the owner delegated remaining release decisions to the release lead. Preserve the Alpha root, G001 state and admission freeze; keep G002 sealed. Actions is disabled; preserve that hold and its downstream Pages chain. Continue local verification and Git synchronization; never represent a branch push as CI or deployment. The `Verify` workflow is triggered for pull requests and pushes to `main`; Pages deployment listens to successful `Verify` runs for `main` pushes.
 

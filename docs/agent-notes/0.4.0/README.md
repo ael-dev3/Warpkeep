@@ -29,44 +29,28 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state — 6 October 2026
 
-The latest exact-source private search ran on signed `a18930b4` with a fresh
-seed. It exhausted all 256 attempts without an eligible candidate or provider
-operation: 215 geography rejections and 41 proof-rejection attempts. The new
-parent-specific diagnostic identified Crownwood in 71 attempts. Full safe
-aggregates are in [local operations](../../evidence/0.4.0/local-operations.md).
-Signed commit `85e46002` synchronized them; at `2026-10-05 23:33:33 UTC`, the
-maintained abort returned `checkpointAborted: true` and
-`productionUntouched: true` on exact source `a18930b4`. That checkpoint is
-retired. This independent seed is not a paired comparison with the previous
-`8bd8de9` batch. The preceding `8bd8de9` result is also recorded there; signed
-commit `a2c3589e` synchronized it and its maintained abort verified the same
-untouched-production result. The
-preceding `40f5c70` summary was synchronized
-in `d9ff3157` before its checkpoint was retired with the same confirmation.
-The signed source correction
-`fee38320f81f54647e17ed8351b3f2a4b45199dc` is pushed to the release branch and
-open draft PR #385. It considers non-Lowlands fallback bundles when both
-Lowlands-repair siblings have own bundles but no compatible own pair, without
-relaxing the existing caps or geometry and ownership proofs. The current
-signed successor `40f5c708a92b765232e0d35c139eaf765ba8ab66` separates missing
-sibling-pair assignments from component-capacity infeasibility in the safe
-rejection codes. Its first private batch produced no eligible candidate:
-`ASSIGNMENT_MISSING` remained the largest
-unclassified geography result (65/256), while the new capacity-infeasible code
-appeared once. The 37 proof-rejection maps are summarized in local operations.
-The follow-up Tier-II diagnostic now names the sole missing parent
-(`CROWNWOOD`, `IRONVEIL`, or `GLASSWATER`) when exactly one lacks eligible
-sibling-pair components in both lanes. Multiple missing parents retain generic
-`GATE_PARENT_SLOT_MISSING`; cross-lane coverage and immutable-capacity failures
-retain their own codes. This changes rejection reporting only: map selection,
-geometry, thresholds, ownership, and search caps are unchanged. Source review
-found a concrete fallback defect: child zero's own Lowlands bundle was removed
-when the repair path requested borrowed options. The fix keeps Lowlands on its
-own reserve terrain while non-Lowlands children borrow only from other
-non-Lowlands children. Focused tests now pass 27/27, generator regression 21/21
-and typecheck. A fresh bounded search on the corrected source is still required
-to measure whether it resolves the observed Crownwood failures. Do not replay
-retired checkpoints.
+The latest exact-source private search ran on signed `de1a5f63` with a fresh
+seed and exhausted all 256 attempts without an eligible candidate or provider
+operation: 216 geography rejections and 40 proof-rejection attempts. Dry-gate
+apron no-match was the largest geography class (107); Crownwood parent-slot
+missing appeared 22 times and lane-split assignment missing four times. Full
+safe aggregates are in [local operations](../../evidence/0.4.0/local-operations.md).
+The authenticated reader confirmed source binding and ordinal 256, then
+zeroized the recovered root-seed buffer. The safe result is being synchronized
+before the maintained abort retires this checkpoint; until that abort is
+verified, treat the checkpoint as active. No candidate, package, shortlist,
+selection, atlas, provider request, or production mutation resulted.
+
+Signed source `de1a5f63` fixes the demonstrated Lowlands fallback defect:
+child zero retains its own Lowlands reserve bundles, while non-Lowlands
+children may borrow only from other non-Lowlands children. Geometry, ownership,
+proofs, and option/plan caps are unchanged. Focused apron/rejection tests pass
+27/27, generator regressions 21/21, and typecheck. The preceding independent
+`a18930b4` sample had 71 Crownwood failures; separate fresh seeds are
+descriptive only and do not establish causality. The next step after safe-result
+synchronization and checkpoint retirement is a bounded source trace of the
+107 apron no-match outcomes, preserving all geometry, thresholds, and search
+limits. Do not replay exhausted seeds.
 The hydrology correction, deterministic PTR frozen-water catalog, authority
 repairs, and closure/test fixes remain committed and pushed. The old
 `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid and must not be

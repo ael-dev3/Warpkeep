@@ -379,8 +379,58 @@ two-pair cap, geometry, ownership, and all quality proofs remain unchanged.
 The new regression covers both the fixed Lowlands side and donor exclusion.
 Focused apron/rejection tests pass 27/27, generator regression 21/21,
 `npm run typecheck`, and `git diff --check` pass. This source correction has
-not yet had a fresh private generation run; publish it, sync the pinned runner,
-and run one new bounded batch before claiming the Crownwood gap is cleared.
+now had one exact-source fresh-seed run; its safe profile follows. Do not claim
+the Crownwood gap is cleared based on code correction or one independent seed.
+
+## Exact-source fallback correction batch — 6 October 2026
+
+The pinned Linux runner ran one fresh-seed batch on signed source
+`de1a5f63b4933539bac916f3a0a2d7ddd8089c69`, with a maximum of 256 attempts. It
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated
+checkpoint reader verified source binding, phase `searching`, sequence/next
+ordinal 256, and all 256 attempts. No candidate, private package, shortlist,
+selection, atlas publication, provider request, or production mutation
+resulted. The recovered root-seed buffer was zeroized in `finally`; the
+persistent private checkpoint must be retired after this result is
+synchronized.
+
+The 216 geography rejections were:
+
+| Geography rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 24 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 4 |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 4 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 2 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 5 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH` | 107 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 32 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 22 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 10 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 6 |
+
+There were 40 proof-rejection attempts. These proof occurrences are
+nonexclusive: region land coherence (24), Tier III smallest passable land
+(26), topographic QA completion (33), regional hydrogeomorphology QA (40),
+Frostmere (32), Mirefen (21), Stonewake (26), Throneheart (12), dormant
+capacity (16), gate approaches (21), region passable land (8), region graph
+(25), gate graph (18), geological highland barriers (8), Sunscar (8), major
+rivers 48–72 (8), castle capacity (13), advanced geomorphology (4), lakes
+48–96 (6), castle suitability (13), natural landmass topology (1), mountain
+system composition (1), Tier I region balance (1), Tier II regional QA (6),
+biome diversity (3), tier-potential density (3), inner-gate/throne redundancy
+(6), and forest patch composition (2).
+
+The aggregate shows 22 Crownwood parent-slot failures and four lane-split
+`ASSIGNMENT_MISSING` outcomes; the former `a18930b4` independent sample had 71
+Crownwood failures and zero lane-split outcomes. The corrected code fixes the
+proven impossible Lowlands fallback path, but these are separate fresh seeds,
+so the count change is descriptive and not a causal or paired result. The
+largest observed geography class is now dry gate apron no-match (107). The next
+step is to synchronize this safe result, retire the exact checkpoint through
+the maintained abort API, and verify production untouched. Then inspect the
+global apron no-match path for a concrete defect without relaxing geometry,
+thresholds, or search limits.
 
 ### Pre-push Actions inventory — 5 October 2026, 21:37 UTC
 
