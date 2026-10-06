@@ -198,7 +198,7 @@ export const GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT = 2 as c
 // Keep this upstream input frontier separate from downstream bundle, capacity,
 // complete-plan, and search-node budgets; truncation must remain diagnosable.
 export const GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES = 1024 as const;
-export const GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS = 256 as const;
+export const GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS = 512 as const;
 
 export type GreaterRealmGateApronPairRank = Readonly<{
   firstIndex: number;
@@ -510,8 +510,10 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
     GreaterRealmRankedSiblingSearchResult<Alternative, Option>,
     { outcome: 'match' }
   > | undefined;
-  // Preserve the original bounded traversal exactly. Future work is structural:
-  // unvisited opaque footprint choices remain a limit, not an inferred no-match.
+  // Keep the rank diagonal intact while choosing the next group by its current
+  // compatible-choice count. Group-index ties stay deterministic, and a group
+  // made impossible by prior footprints is pruned before spending search nodes.
+  // Unvisited opaque choices remain a limit, never an inferred no-match.
   const hasFutureRankedWork = (
     currentTotalRank: number,
     currentAlternativeRank: number,
@@ -574,9 +576,15 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
       const alternative = alternatives[alternativeRank]!;
       const groups = optionGroupsByAlternative[alternativeRank]!;
       if (groups.length === 0 || groups.some(options => options.length === 0)) continue;
+      const footprintsByGroup = footprintsFor === undefined
+        ? undefined
+        : groups.map(options => options.map(option => footprintsFor(option)));
       const selected = new Array<Option | undefined>(groups.length);
-      const chooseAtRank = (depth: number, remainingRank: number): boolean => {
-        if (depth === groups.length) {
+      const chooseAtRank = (
+        remainingGroups: readonly number[],
+        remainingRank: number,
+      ): boolean => {
+        if (remainingGroups.length === 0) {
           if (remainingRank !== 0) return false;
           if (completePlans >= limits.maximumCompletePlans) {
             completePlanLimitReached = true;
@@ -588,8 +596,43 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
           result = Object.freeze({ outcome: 'match', alternative, options });
           return true;
         }
-        const options = groups[depth]!;
+        // Re-rank the remaining groups against the footprints already chosen.
+        // A static smallest-group order misses conflicts introduced by earlier
+        // choices and can spend the bounded node budget exploring dead ends.
+        let selectedGroup = -1;
+        let selectedGroupOptionCount = Number.POSITIVE_INFINITY;
+        for (const groupIndex of remainingGroups) {
+          const options = groups[groupIndex]!;
+          const maximumOptionIndex = Math.min(remainingRank, options.length - 1);
+          let availableOptionCount = 0;
+          for (let optionIndex = 0; optionIndex <= maximumOptionIndex; optionIndex += 1) {
+            const option = options[optionIndex]!;
+            const directFootprint = footprintsFor === undefined
+              ? option as unknown as GreaterRealmRankedSiblingSearchOption
+              : undefined;
+            const footprints = footprintsByGroup?.[groupIndex]?.[optionIndex];
+            if (directFootprint
+              ? !footprintConflicts(directFootprint)
+              : footprints!.every(footprint => !footprintConflicts(footprint))) {
+              availableOptionCount += 1;
+            }
+          }
+          if (
+            availableOptionCount < selectedGroupOptionCount
+            || (
+              availableOptionCount === selectedGroupOptionCount
+              && groupIndex < selectedGroup
+            )
+          ) {
+            selectedGroup = groupIndex;
+            selectedGroupOptionCount = availableOptionCount;
+          }
+          if (selectedGroupOptionCount === 0) break;
+        }
+        if (selectedGroupOptionCount === 0) return false;
+        const options = groups[selectedGroup]!;
         const maximumOptionIndex = Math.min(remainingRank, options.length - 1);
+        const nextGroups = remainingGroups.filter(groupIndex => groupIndex !== selectedGroup);
         for (let optionIndex = 0; optionIndex <= maximumOptionIndex; optionIndex += 1) {
           if (searchNodes >= limits.maximumSearchNodes) {
             searchNodeLimitReached = true;
@@ -600,20 +643,20 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
           const directFootprint = footprintsFor === undefined
             ? option as unknown as GreaterRealmRankedSiblingSearchOption
             : undefined;
-          const footprints = footprintsFor?.(option);
+          const footprints = footprintsByGroup?.[selectedGroup]?.[optionIndex];
           if (
             directFootprint
               ? footprintConflicts(directFootprint)
-              : footprints!.some(footprintConflicts)
+            : footprints!.some(footprintConflicts)
           ) continue;
-          selected[depth] = option;
+          selected[selectedGroup] = option;
           if (directFootprint) occupyFootprint(directFootprint);
           else for (const footprint of footprints!) occupyFootprint(footprint);
           let matched = false;
           try {
-            matched = chooseAtRank(depth + 1, remainingRank - optionIndex);
+            matched = chooseAtRank(nextGroups, remainingRank - optionIndex);
           } finally {
-            selected[depth] = undefined;
+            selected[selectedGroup] = undefined;
             if (directFootprint) releaseFootprint(directFootprint);
             else for (const footprint of footprints!) releaseFootprint(footprint);
           }
@@ -621,7 +664,7 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
         }
         return false;
       };
-      chooseAtRank(0, totalRank - alternativeRank);
+      chooseAtRank(groups.map((_, index) => index), totalRank - alternativeRank);
       if (
         !searchNodeLimitReached
         && !completePlanLimitReached
@@ -4622,13 +4665,7 @@ function allocateTierTwoPassableCapacity(
           parent,
         ),
       );
-      return Array.from(
-        { length: TIER_II_REGION_COUNT },
-        (_, parent) => parent,
-      ).sort((first, second) => (
-        siblingPairsByParent[first]!.length - siblingPairsByParent[second]!.length
-        || first - second
-      )).map(parent => siblingPairsByParent[parent]!);
+      return siblingPairsByParent;
       },
       (capacityAssignment, siblingPairs) => {
       const bundleByChild = new Array<

@@ -8,19 +8,21 @@ remotely; their canonical P3 plan-path and Cloudflare legal-text
 header/postflight fixes are in #385. The #397 allowance was already present,
 and stale PRs were closed as incorporated or superseded.
 
-A fresh exact-source run on `57013881` exhausted all 256 attempts without an
+A fresh exact-source run on `99184f66` exhausted all 256 attempts without an
 eligible candidate. Its sanitized rejection aggregate and maintained abort
 and readiness checks are in [local operations](../../evidence/0.4.0/local-operations.md).
-There were 225 geography rejections and 31 proof-rejection attempts; the pair
-frontier was truncated in 143 geography attempts and the edge frontier twice.
-The measured follow-on correction raises bundle pairs `128 → 256`, edge
-candidates `512 → 1,024`, and search nodes `40,000 → 320,000`. The existing
-deterministic candidate fixture reached the typed node-limit result at 40,000,
-80,000, and 160,000 nodes with the larger frontiers; all 51 focused suites pass
-at 320,000. Keep complete plans at 256, Lowlands assignments at 32, sibling
-pairs per parent at 2, and topology, ownership and all proofs unchanged.
-Confirm that PR #385 points at the signed successor containing this correction
-before another candidate run.
+There were 227 geography rejections and 29 proof-rejection attempts; the pair
+frontier was truncated in 128 geography attempts, with no edge truncation. The
+follow-on correction raises bundle pairs `256 → 512` and makes the existing
+ranked search choose each next sibling group by its currently compatible
+footprints, preserving the rank diagonal, deterministic ties, and the
+320,000-node bound. A simpler cap increase hit the typed node limit even at
+640,000; dynamic conflict pruning lets the deterministic candidate fixture
+pass at 320,000. Edge candidates remain 1,024, complete plans 256, Lowlands
+assignments 32, sibling pairs per parent 2, with topology, ownership and all
+proofs unchanged. The focused 51-test set and typechecking pass, but this
+successor has not yet had a fresh candidate batch. Confirm PR #385 points at
+the signed successor before running one.
 
 The `64 → 128` pair-cap correction passes 51/51 focused gate-apron, rejection,
 and generator tests on Windows Node `24.19.0`, plus TypeScript checking. Its
@@ -42,7 +44,7 @@ PTR cutover, and no authenticated 0.4 owner acceptance. GitHub Actions are
 disabled; local validation and branch publication do not count as hosted
 Verify or deployment.
 
-Next: validate and publish the pair/edge/node correction, confirm #385's exact
+Next: validate and publish the pair-cap and bounded-search correction, confirm #385's exact
 signed head, then run a fresh source-bound candidate search. If eligible, verify the
 private package and sanitized review before selection under the existing
 `OWNER-EXPLICIT-0.4-SHIP` reference, then complete owner/atlas, bridge, frontend,
