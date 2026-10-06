@@ -431,6 +431,29 @@ largest observed geography class is now dry gate apron no-match (107). The next
 step is to inspect the global apron no-match path for a concrete defect without
 relaxing geometry, thresholds, or search limits.
 
+## Apron no-match stage diagnostics — 6 October 2026
+
+Signed source `0109aaf0e3a5c8b0d9614180b9e027fb1d5be59c` adds four safe
+rejection codes for the furthest final-plan rejection stage observed across
+completed plans in an exhausted attempt: Lowlands repair ownership, Tier-II
+ownership forest, Tier-I repartition, or post-repartition ownership. Attempts
+that never reach a complete plan retain the legacy generic no-match code. This
+does not change candidate selection, acceptance, geometry, ownership rules,
+thresholds, or search limits; it records no seed or coordinates. Legacy
+checkpoint parsing still accepts the old generic code.
+
+Local validation on this source passed `npm run typecheck` and 48 tests across
+the rejection, apron-search, and candidate-generator suites. The separate
+`greaterRealmTierTwoCapacityAuthority` public ordinal-18 full-candidate fixture
+reaches both search lanes but fails afterward at
+`GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED`; this is a post-search,
+fail-closed capacity result and is not caused by or classified by the new
+no-match metadata. Keep the primary-capacity floor unchanged. No private batch
+has run on this diagnostic successor yet. Next: sync the exact source to the
+pinned Linux runner, verify the locked toolchain, and run one fresh-seed
+maximum-256 batch to obtain the stage breakdown for the prior 107 generic
+no-match outcomes.
+
 ### Pre-push Actions inventory — 5 October 2026, 21:37 UTC
 
 The complete paginated repository inventory returned 3,807 workflow runs across

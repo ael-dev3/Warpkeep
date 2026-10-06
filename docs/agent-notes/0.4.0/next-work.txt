@@ -25,6 +25,20 @@ summary was synchronized in signed commit `77716367`; at
 `checkpointAborted: true` and `productionUntouched: true` on the exact source.
 The checkpoint is retired; do not replay it.
 
+CURRENT DIAGNOSTIC SOURCE — `0109aaf0e3a5c8b0d9614180b9e027fb1d5be59c`
+
+This signed successor classifies an exhausted apron no-match by the furthest
+final-plan rejection stage observed across completed plans: Lowlands repair
+ownership, Tier-II ownership forest, Tier-I repartition, or post-repartition
+ownership. A plan that never reaches an acceptance callback retains the legacy
+generic no-match code. This is safe rejection metadata only; it exposes no
+seed/coordinates and changes no acceptance, geometry, thresholds, or caps.
+Typecheck and 48 focused rejection/apron/generator tests pass. One separate
+public ordinal-18 capacity-authority fixture reaches both apron lanes, then
+fails closed at `PRIMARY_COMPONENT_UNDERSIZED`; do not claim that seed is an
+eligible candidate. The diagnostic source has not yet had a private generation
+batch.
+
 The signed source `fee38320f81f54647e17ed8351b3f2a4b45199dc` fixes the Lowlands
 sibling-pair fallback: compatible own-terrain pairs remain preferred; only
 when none pass the existing overlap and minimum-separation checks may children
@@ -80,14 +94,13 @@ retained-seed checkpoint remains bound to `19b3422`; never relabel or inject it
 into another source.
 
 NEXT
-1. Publish the safe `de1a5f63` aggregate in a signed docs checkpoint, refresh
-   Actions/run state before the push, then retire the exact-source exhausted
-   checkpoint with the maintained `generate-candidates --abort-checkpoint`
-   command. Require `checkpointAborted: true` and `productionUntouched: true`.
-2. Inspect the dry-gate apron no-match path against the recorded rejection
-   evidence. Correct only a reproducible defect; keep geometry, ownership,
-   thresholds and search limits unchanged. Add a focused regression and run
-   the appropriate local checks before publishing a source change.
+1. Refresh repository-wide Actions history and permission state, publish the
+   signed `0109aaf0` source plus this handoff update, sync the pinned Linux
+   runner, verify the frozen toolchain, and run one fresh-seed maximum-256
+   batch. Keep Actions disabled and record safe stage-level rejection counts.
+2. Use the furthest-stage evidence to locate a concrete defect. Preserve the
+   existing geometry, ownership, thresholds and search limits; add a focused
+   regression and rerun the appropriate local checks before another batch.
 3. If a batch yields an eligible candidate, verify its private package and
    shortlist; continue only if every proof passes, then record selection
    against that exact candidate. Never replay exhausted seeds or relax quality

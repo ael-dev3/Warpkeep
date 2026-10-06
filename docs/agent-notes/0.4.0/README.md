@@ -48,10 +48,16 @@ children may borrow only from other non-Lowlands children. Geometry, ownership,
 proofs, and option/plan caps are unchanged. Focused apron/rejection tests pass
 27/27, generator regressions 21/21, and typecheck. The preceding independent
 `a18930b4` sample had 71 Crownwood failures; separate fresh seeds are
-descriptive only and do not establish causality. The next step after safe-result
-synchronization and checkpoint retirement is a bounded source trace of the
-107 apron no-match outcomes, preserving all geometry, thresholds, and search
-limits. Do not replay exhausted seeds.
+descriptive only and do not establish causality. Signed source `0109aaf0`
+adds only safe no-match classification: it reports the furthest final-plan
+rejection stage reached, without seed, coordinates, or acceptance changes.
+Typecheck and 48 focused rejection/apron/generator tests pass. A separate
+public ordinal-18 full-candidate fixture reaches both apron lanes but then
+fails closed at `PRIMARY_COMPONENT_UNDERSIZED`; that post-search capacity
+failure is unchanged by the diagnostic patch and must not be reported as a
+passing candidate. The next step is to sync `0109aaf0` to the pinned runner and
+run one fresh-seed maximum-256 batch to classify the 107 prior apron no-matches.
+Do not replay exhausted private checkpoints.
 The hydrology correction, deterministic PTR frozen-water catalog, authority
 repairs, and closure/test fixes remain committed and pushed. The old
 `GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid and must not be
