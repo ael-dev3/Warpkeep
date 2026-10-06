@@ -10,8 +10,10 @@ import {
 import {
   classifyGreaterRealmTierTwoApronSearchFailure,
   classifyGreaterRealmTierTwoAssignmentFailure,
+  prioritizeGreaterRealmTierTwoApronFrontierTruncation,
   rejectGreaterRealmCandidate,
   rejectGreaterRealmTierTwoCapacity,
+  type GreaterRealmTierTwoApronFrontierTruncationKind,
   type GreaterRealmTierTwoApronNoMatchStage,
   type GreaterRealmTierTwoCapacityRejectionReason,
 } from './greater-realm-candidate-rejection';
@@ -3066,7 +3068,7 @@ type GreaterRealmTierTwoDryGateApronAuthority = Readonly<{
     componentId: number,
     parent: number,
   ) => readonly GreaterRealmTierTwoGateApronSiblingPair[];
-  frontierWasTruncated: () => boolean;
+  frontierTruncationKind: () => GreaterRealmTierTwoApronFrontierTruncationKind | null;
   clear: () => void;
 }>;
 
@@ -3140,7 +3142,15 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
     string,
     readonly GreaterRealmTierTwoGateApronSiblingPair[]
   >();
-  let searchFrontierTruncated = false;
+  let searchFrontierTruncationKind: GreaterRealmTierTwoApronFrontierTruncationKind | null = null;
+  const noteSearchFrontierTruncation = (
+    kind: GreaterRealmTierTwoApronFrontierTruncationKind,
+  ): void => {
+    searchFrontierTruncationKind = prioritizeGreaterRealmTierTwoApronFrontierTruncation(
+      searchFrontierTruncationKind,
+      kind,
+    );
+  };
   let lowlandsRepairDerived = false;
   let cleared = false;
   const clear = (): void => {
@@ -3175,7 +3185,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       rawEdges: readonly GreaterRealmTierTwoGateApronEdge[],
     ): readonly GreaterRealmTierTwoGateApronBundle[] => {
       if (rawEdges.length > GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES) {
-        searchFrontierTruncated = true;
+        noteSearchFrontierTruncation('EDGE_CANDIDATE_LIMIT');
       }
       const edges = [...rawEdges]
         .sort((first, second) => first.score - second.score
@@ -3212,7 +3222,9 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
         }
       }
       const selectedPairs = selectBalancedGreaterRealmGateApronPairs(viablePairs);
-      if (selectedPairs.length < viablePairs.length) searchFrontierTruncated = true;
+      if (selectedPairs.length < viablePairs.length) {
+        noteSearchFrontierTruncation('BUNDLE_PAIR_LIMIT');
+      }
       const bundles: GreaterRealmTierTwoGateApronBundle[] = [];
       for (const pair of selectedPairs) {
         const left = edges[pair.firstIndex]!;
@@ -3701,7 +3713,9 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
           || first.child - second.child
           || first.edges[0].tierTwoEndpoint - second.edges[0].tierTwoEndpoint
         ));
-      if (rankedOptions.length > 64) searchFrontierTruncated = true;
+      if (rankedOptions.length > 64) {
+        noteSearchFrontierTruncation('BUNDLE_OPTION_LIMIT');
+      }
       const options = rankedOptions.slice(0, 64);
       const frozen = Object.freeze(options);
       bundleOptionsCache.set(key, frozen);
@@ -3800,7 +3814,9 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
           : child === 0
             ? 0
             : available.filter(bundle => bundle.child !== 0).length;
-      if (options.length < eligibleCount) searchFrontierTruncated = true;
+      if (options.length < eligibleCount) {
+        noteSearchFrontierTruncation('LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT');
+      }
       const frozen = Object.freeze(options);
       lowlandsRepairBundleOptionsCache.set(key, frozen);
       return frozen;
@@ -3885,7 +3901,9 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       const preferredPairCount = compatibleOwnPairs.length > 0
         ? compatibleOwnPairs.length
         : compatibleFallbackPairs.length;
-      if (frozen.length < preferredPairCount) searchFrontierTruncated = true;
+      if (frozen.length < preferredPairCount) {
+        noteSearchFrontierTruncation('LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT');
+      }
       lowlandsRepairSiblingPairCache.set(cacheKey, frozen);
       return frozen;
     };
@@ -3897,7 +3915,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       parentByChild: readParentByChild,
       siblingPairsFor,
       lowlandsRepairSiblingPairsFor,
-      frontierWasTruncated: () => searchFrontierTruncated,
+      frontierTruncationKind: () => searchFrontierTruncationKind,
       clear,
     });
   } catch (error) {
@@ -4679,23 +4697,28 @@ function allocateTierTwoPassableCapacity(
     ),
   );
   const gateApronSearch = gateApronLaneSearch.result;
-  const gateApronFrontierTruncated = gateApronAuthority.frontierWasTruncated()
-    || rankedCapacityAssignmentResult.frontierTruncated
+  const capacityAssignmentFrontierTruncated = rankedCapacityAssignmentResult.frontierTruncated
     || lowlandsRepairCapacityAssignmentResult.frontierTruncated;
+  const gateApronFrontierTruncationKind = gateApronAuthority.frontierTruncationKind()
+    ?? (capacityAssignmentFrontierTruncated ? 'CAPACITY_ASSIGNMENT_LIMIT' : null);
+  const gateApronFrontierTruncated = gateApronFrontierTruncationKind !== null;
   const capacityAssignment = (() => {
     switch (gateApronSearch.outcome) {
       case 'match': return gateApronSearch.alternative;
       case 'search-node-limit': return reject(classifyGreaterRealmTierTwoApronSearchFailure({
         outcome: gateApronSearch.outcome,
         frontierTruncated: gateApronFrontierTruncated,
+        frontierTruncationKind: gateApronFrontierTruncationKind,
       }));
       case 'complete-plan-limit': return reject(classifyGreaterRealmTierTwoApronSearchFailure({
         outcome: gateApronSearch.outcome,
         frontierTruncated: gateApronFrontierTruncated,
+        frontierTruncationKind: gateApronFrontierTruncationKind,
       }));
       case 'no-match': return reject(classifyGreaterRealmTierTwoApronSearchFailure({
         outcome: gateApronSearch.outcome,
         frontierTruncated: gateApronFrontierTruncated,
+        frontierTruncationKind: gateApronFrontierTruncationKind,
         deepestNoMatchStage: deepestApronNoMatchStage,
       }));
     }

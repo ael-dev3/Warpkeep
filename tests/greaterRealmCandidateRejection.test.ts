@@ -8,10 +8,12 @@ import {
   classifyGreaterRealmTierTwoApronSearchFailure,
   classifyGreaterRealmTierTwoAssignmentFailure,
   GREATER_REALM_CANDIDATE_REJECTION_CODES,
+  GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS,
   GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON,
   GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS,
   GreaterRealmCandidateRejectionError,
   greaterRealmCandidateRejectionCode,
+  prioritizeGreaterRealmTierTwoApronFrontierTruncation,
   rejectGreaterRealmCandidate,
   rejectGreaterRealmTierTwoCapacity,
   type GreaterRealmCandidateRejectionCode,
@@ -35,6 +37,18 @@ describe('Greater Realm expected candidate rejection boundary', () => {
       frontierTruncated: true,
       deepestNoMatchStage: 'LOWLANDS_REPAIR_OWNERSHIP',
     })).toBe('DRY_GATE_APRON_FRONTIER_TRUNCATED');
+    for (const kind of GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS) {
+      const reason = classifyGreaterRealmTierTwoApronSearchFailure({
+        outcome: 'no-match',
+        frontierTruncated: true,
+        frontierTruncationKind: kind,
+      });
+      expect(reason).toBe(`DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_${kind}`);
+      expect(GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON[reason])
+        .toBe(`GREATER_REALM_TIER_TWO_${reason}`);
+      expect(GREATER_REALM_CANDIDATE_REJECTION_CODES)
+        .toContain(`GREATER_REALM_TIER_TWO_${reason}`);
+    }
     expect(classifyGreaterRealmTierTwoApronSearchFailure({
       outcome: 'no-match',
       frontierTruncated: false,
@@ -52,6 +66,31 @@ describe('Greater Realm expected candidate rejection boundary', () => {
       outcome: 'no-match',
       frontierTruncated: 'unknown' as unknown as boolean,
     })).toThrow('GREATER_REALM_TIER_TWO_APRON_SEARCH_DIAGNOSTICS_INVALID');
+    expect(() => classifyGreaterRealmTierTwoApronSearchFailure({
+      outcome: 'no-match',
+      frontierTruncated: false,
+      frontierTruncationKind: 'EDGE_CANDIDATE_LIMIT',
+    })).toThrow('GREATER_REALM_TIER_TWO_APRON_SEARCH_DIAGNOSTICS_INVALID');
+    expect(() => classifyGreaterRealmTierTwoApronSearchFailure({
+      outcome: 'no-match',
+      frontierTruncated: true,
+      frontierTruncationKind: null,
+    })).toThrow('GREATER_REALM_TIER_TWO_APRON_SEARCH_DIAGNOSTICS_INVALID');
+  });
+
+  it('reports the earliest truncated apron frontier independent of discovery order', () => {
+    expect(prioritizeGreaterRealmTierTwoApronFrontierTruncation(
+      'BUNDLE_PAIR_LIMIT',
+      'EDGE_CANDIDATE_LIMIT',
+    )).toBe('EDGE_CANDIDATE_LIMIT');
+    expect(prioritizeGreaterRealmTierTwoApronFrontierTruncation(
+      'EDGE_CANDIDATE_LIMIT',
+      'BUNDLE_PAIR_LIMIT',
+    )).toBe('EDGE_CANDIDATE_LIMIT');
+    expect(prioritizeGreaterRealmTierTwoApronFrontierTruncation(
+      null,
+      'CAPACITY_ASSIGNMENT_LIMIT',
+    )).toBe('CAPACITY_ASSIGNMENT_LIMIT');
   });
 
   it('separates missing parent slots, split lane coverage, and capacity failure', () => {
