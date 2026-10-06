@@ -3208,7 +3208,9 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
             grid.q[right.tierTwoEndpoint]!,
             grid.r[right.tierTwoEndpoint]!,
           );
-          if (separation < 4 || separation > 48) continue;
+          // Nearby approaches can crowd the same frontage, but long-spanning
+          // pairs remain necessary for viable lowlands-repair components.
+          if (separation < 4) continue;
           const corridorsConflict = (
             left.tierOneCorridors.some(corridor => corridor.includes(right.tierOneEndpoint))
             || right.tierOneCorridors.some(corridor => corridor.includes(left.tierOneEndpoint))

@@ -715,12 +715,22 @@ exact-source private batch.
 
 The correction uses one shared normal/Lowlands-repair builder. It retains the
 same 64 input-edge and 32 output-bundle caps, score ranking, distinct endpoint
-requirements, 4–48 axial separation, corridor-conflict exclusion and all later
-eligibility/content proofs. It gathers only compact viable-pair descriptors,
+requirements, minimum 4-cell axial separation, corridor-conflict exclusion, and
+all later eligibility/content proofs. It gathers only compact viable-pair descriptors,
 selects a deterministic score-ranked frontier by gradually balancing use of
 each edge endpoint, and materializes private coordinate footprints only for the
 selected pairs. Lowlands repair still uses its existing restricted edge source;
 no policy, map-quality threshold, protocol, or player-facing feature changed.
+
+A full pinned Linux run on 2026-10-06 exposed a regression in that bundle filter:
+the Frostmere/Mirefen repair-authority fixture, which passes at the original
+`d7757cec` release checkpoint, was rejected at `2c5f0d3a` because one Tier-II
+primary component finished at 5,041 cells against its unchanged 6,627-cell
+minimum. Isolated replays showed the upper 48-cell separation cutoff caused the
+rejection; retaining the 4-cell minimum while allowing longer spans restored
+the fixture. The current source removes only that upper cutoff. This keeps the
+published capacity floor, corridor-conflict checks, and authority proofs intact.
+The full suite must pass again before another candidate batch or release claim.
 
 The correction was signed and published as `2c5f0d3ab07af4fcfcf11f46ed9dff630c9e235c`
 on the release branch and PR #385. Its native pinned-toolchain preflight passed.
