@@ -2,6 +2,68 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Independent `.23` candidate run — 6 October 2026 — source `387f6b81`
+
+One fresh-seed private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact signed source
+`387f6b81d69a82c985613b652333ec648061d493` completed in about 35 minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.23`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained CLI
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; the authenticated
+checkpoint contained 225 geography rejections and 31 proof-rejection attempts.
+No seed, candidate handle, coordinates, package bytes, or raw log were emitted;
+the root-seed buffer was zeroized after aggregation.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 31 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 7 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 17 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 126 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 27 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 12 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| **Total** | **225** |
+
+Proof occurrences are nonexclusive across the 31 proof-rejection attempts:
+castle suitability (10), lakes 48–96 (4), major rivers 48–72 (2), minor
+streams 120–240 (1), inner-gate/throne redundancy (5), dormant capacity (16),
+advanced geomorphology (4), biome diversity (4), castle capacity (10), gate
+approaches (12), gate graph (11), geological barriers (7), mountain-system
+composition (1), natural-land topology (1), region graph (15), region land
+coherence (17), passable-land region (4), regional hydrogeomorphology
+(Frostmere 26, Mirefen 22, QA 30, Stonewake 23, Sunscar 5, Throneheart 12,
+Tier II 2), smallest passable Tier III (25), tier-potential density (1), and
+topographic QA completion (21).
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. Readiness remained true with no completion
+receipt; the owner-private workspace contained one file, seven directories,
+and 70 bytes. No package, shortlist, selection, atlas operation, provider
+request, or production mutation occurred. This is an independent seed, not a
+paired causal comparison with source `483ac590`.
+
+Both `.23` batches exhausted 256 attempts. The bundle-pair limit was the
+terminal code in 127/220 and 126/225 geography attempts, respectively; the
+complete-plan limit was 17 in each, with 24 and 27 search-node-limit outcomes.
+The rejection API keeps only the highest-priority truncation kind, so a pair
+terminal does not show whether the downstream child-option cap also fired.
+Do not infer that the child-option cap is harmless from its low terminal count.
+Source review separately found that the globally ranked child-option prefix
+can omit every alternative from other child origins when the requested child's
+own options fill the 128-entry cap. Generator `.24` now preserves one ranked
+representative per origin within the same fixed cap, then fills remaining
+slots in the existing score order. Geometry, ownership, proofs, budgets, and
+eligibility remain unchanged. The deterministic regression and two other
+platform-neutral focused suites pass (52/52 total), as does Windows typecheck;
+the private candidate-
+package fixture remains for pinned Linux because the Windows temporary-folder
+ACL does not satisfy its guard. No further private batch ran before this source
+correction is signed and synchronized.
+
 ## Expanded-search candidate run — 6 October 2026 — source `483ac590`
 
 One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
@@ -68,11 +130,10 @@ and 70 bytes. `acceptedCandidate` was false. No package, shortlist, selection,
 atlas operation, provider request, or production mutation occurred.
 
 The independent `.22` batch recorded the pair-limit terminal in 134 of 221
-geography attempts and the search-node limit in 29; `.23` recorded 127 of 220,
-one child-option-limit terminal, and 24 node-limit terminals. Both reached the
-256-attempt limit without a candidate, while the complete-plan limit remained
-17. These one-seed-per-revision differences are suggestive but not conclusive.
-Run one more independent `.23` batch before changing any further search bound.
+geography attempts and the search-node limit in 29; the first `.23` batch
+recorded 127 of 220, one child-option-limit terminal, and 24 node-limit
+terminals. See the independent `.23` successor run above. These fresh-seed
+samples are descriptive, not paired causal comparisons.
 
 ## Expanded-search candidate run — 6 October 2026 — source `fb55117a`
 

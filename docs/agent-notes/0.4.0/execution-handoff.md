@@ -39,10 +39,31 @@ selection readiness is true, no completion receipt exists, and the private
 workspace is down to one file, seven directories, and 70 bytes. See the full
 sanitized tables in [local operations](../../evidence/0.4.0/local-operations.md).
 
-Next, run one independent fresh-seed batch on PR #385's exact current `.23`
-head before changing more search bounds. If it also yields no candidate, use
-the combined evidence to choose a targeted search change; do not increase caps
-or weaken proofs by guesswork.
+The second independent `.23` batch on exact signed source `387f6b81` also
+exhausted 256 attempts without an eligible candidate: 225 geography rejections
+and 31 proof-rejection attempts in about 35 minutes. The pair-limit terminal
+appeared 126 times, the search-node limit 27 times, and the complete-plan limit
+17 times. The maintained abort confirmed production untouched and selection
+readiness true, with no completion receipt. Full safe aggregates are in
+[local operations](../../evidence/0.4.0/local-operations.md).
+
+The two fresh seeds do not establish that the pair cap caused failure. The
+single-code rejection projection also hides downstream truncations behind the
+higher-priority pair-limit code. Source inspection did establish a concrete
+bounded-search omission: `bundleOptionsFor` sorts a requested child's own
+bundles first and then slices to 128, so a full own-child prefix can remove all
+borrowed bundles from later child origins before sibling compatibility is
+tested. Generator `.24` now preserves the first ranked option from each source
+child within the existing 128-option budget, then fills remaining slots in the
+original ranking order. It retains all geometry, ownership, proofs, seed
+namespace, pair/node/plan limits, and candidate eligibility. The new
+deterministic regression, the other two platform-neutral focused suites, and
+Windows typecheck pass (52/52 tests). The private candidate-package fixture
+hits the known Windows temporary-directory ACL guard, so it remains for pinned
+Linux verification; the guard was not weakened. Next sync the `.24` source to
+the pinned Linux runner, verify its toolchain, run all four focused suites,
+then run one fresh-seed maximum-256 candidate batch on that exact source. Do
+not widen another cap absent measured need.
 
 The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
 rejection, and generator tests on Windows Node `24.19.0`, plus TypeScript

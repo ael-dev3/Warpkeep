@@ -4,7 +4,7 @@ Status: candidate-generation design only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Generator algorithm: `greater-realm-v2-natural-continent-pr-a.23`
+Generator algorithm: `greater-realm-v2-natural-continent-pr-a.24`
 Terrain-seed namespace: `greater-realm-v2-natural-continent-pr-a.3`
 Private atlas format: `8`
 Living-world authority: `greater-realm-private-living-world-v4`

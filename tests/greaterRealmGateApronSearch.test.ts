@@ -608,15 +608,38 @@ describe('Greater Realm ranked gate-apron search', () => {
     expect(select(2)).toEqual(['borrow-a', 'borrow-b']);
   });
 
-  it('keeps child bundle frontiers deterministic and bounded at 128 options', () => {
-    const ranked = Object.freeze(Array.from({ length: 140 }, (_, index) => index));
-    const selected = selectGreaterRealmGateApronChildBundleOptions(ranked);
+  it('keeps child bundle frontiers deterministic, bounded, and represented by origin', () => {
+    const ranked = Object.freeze(Array.from({ length: 140 }, (_, index) => Object.freeze({
+      child: index < 132 ? 2 : index === 132 ? 4 : 6,
+      score: index,
+    })));
+    const selected = selectGreaterRealmGateApronChildBundleOptions(
+      ranked,
+      option => option.child,
+    );
     expect(GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS).toBe(128);
-    expect(selected).toEqual(ranked.slice(0, 128));
+    expect(selected).toHaveLength(128);
+    expect(selected[0]).toBe(ranked[0]);
+    expect(selected).toContain(ranked[132]);
+    expect(selected).toContain(ranked[133]);
+    expect(selected.map(option => option.score)).toEqual(
+      [...selected].map(option => option.score).sort((first, second) => first - second),
+    );
     expect(Object.isFrozen(selected)).toBe(true);
 
+    expect(() => selectGreaterRealmGateApronChildBundleOptions(
+      Object.freeze(Array.from({ length: 129 }, (_, index) => Object.freeze({
+        child: index === 128 ? -1 : 2,
+      }))),
+      option => option.child,
+    )).toThrow('GREATER_REALM_GATE_APRON_CHILD_OPTION_ORIGIN_INVALID');
+
     const lowlandsRepair = selectGreaterRealmLowlandsRepairBundleOptions(
-      ranked.map((score, child) => Object.freeze({ child: 1, score, endpoint: child })),
+      Array.from({ length: 140 }, (_, score) => Object.freeze({
+        child: 1,
+        score,
+        endpoint: score,
+      })),
       1,
       bundle => bundle.child,
       bundle => bundle.score,

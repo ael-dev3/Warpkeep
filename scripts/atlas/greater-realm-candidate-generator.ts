@@ -114,7 +114,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.23' as const;
+  'greater-realm-v2-natural-continent-pr-a.24' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -202,14 +202,40 @@ export const GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS = 2048 as const;
 // Bound the per-child cross-product independently of the raw pair frontier.
 export const GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS = 128 as const;
 
-/** Keep a child's ranked bundle frontier bounded and deterministic. */
+/**
+ * Keep a child's ranked bundle frontier bounded without removing every
+ * alternative supplied by a different child. The first ranked bundle from
+ * each origin is retained before filling the remaining slots by rank.
+ */
 export function selectGreaterRealmGateApronChildBundleOptions<Option>(
   rankedOptions: readonly Option[],
+  childOf: (option: Option) => number,
 ): readonly Option[] {
-  return Object.freeze(rankedOptions.slice(
-    0,
-    GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS,
-  ));
+  if (rankedOptions.length <= GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS) {
+    return Object.freeze(rankedOptions.slice());
+  }
+  const originByIndex = rankedOptions.map(option => childOf(option));
+  if (originByIndex.some(origin => !Number.isSafeInteger(origin) || origin < 0)) {
+    fail('GREATER_REALM_GATE_APRON_CHILD_OPTION_ORIGIN_INVALID');
+  }
+  const retainedIndexes = new Set<number>();
+  const retainedOrigins = new Set<number>();
+  for (let index = 0;
+    index < rankedOptions.length
+      && retainedIndexes.size < GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS;
+    index += 1) {
+    const origin = originByIndex[index]!;
+    if (retainedOrigins.has(origin)) continue;
+    retainedOrigins.add(origin);
+    retainedIndexes.add(index);
+  }
+  for (let index = 0;
+    index < rankedOptions.length
+      && retainedIndexes.size < GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS;
+    index += 1) retainedIndexes.add(index);
+  return Object.freeze([...retainedIndexes]
+    .sort((first, second) => first - second)
+    .map(index => rankedOptions[index]!));
 }
 
 export type GreaterRealmGateApronPairRank = Readonly<{
@@ -396,7 +422,10 @@ export function selectGreaterRealmLowlandsRepairBundleOptions<Option>(
         scoreFor,
         endpointFor,
       );
-  return selectGreaterRealmGateApronChildBundleOptions(ranked);
+  return selectGreaterRealmGateApronChildBundleOptions(
+    ranked,
+    option => childFor(option),
+  );
 }
 
 /**
@@ -3787,7 +3816,10 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       if (rankedOptions.length > GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS) {
         noteSearchFrontierTruncation('BUNDLE_OPTION_LIMIT');
       }
-      const options = selectGreaterRealmGateApronChildBundleOptions(rankedOptions);
+      const options = selectGreaterRealmGateApronChildBundleOptions(
+        rankedOptions,
+        bundle => bundle.child,
+      );
       const frozen = Object.freeze(options);
       bundleOptionsCache.set(key, frozen);
       return frozen;

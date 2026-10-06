@@ -148,7 +148,7 @@ left between the durable rename and deletion by a hard crash; malformed,
 substituted, or special entries fail closed.
 
 The current candidate and package authority is
-`greater-realm-v2-natural-continent-pr-a.23`, while the terrain-seed namespace
+`greater-realm-v2-natural-continent-pr-a.24`, while the terrain-seed namespace
 remains `.3`. A `.22` or earlier checkpoint/package is not resumable,
 selectable, or publishable under `.23`; rotate an authenticated unaccepted or
 exhausted checkpoint and begin one fresh owner-private `.23` generation
