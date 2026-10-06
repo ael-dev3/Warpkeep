@@ -23,8 +23,11 @@ this cap change; terrain-seed namespace `.3`, edge candidates 1,024, complete
 plans 256, Lowlands assignments 32, sibling pairs per parent 2, topology,
 ownership and proofs remain unchanged. The deterministic generator fixture,
 all 51 focused tests, and typechecking pass on Windows Node `24.19.0`. The full
-four-suite Linux run passed 133/133 on `.20`; rerun it on `.21` before a fresh
-candidate batch. Confirm PR #385's exact signed head before source-bound work.
+four-suite Linux run passed 133/133 on exact signed `.21` commit
+`435586b766fb55514b9197f8438561dde448ba4f`, using the verified Linux Node
+`22.22.3` toolchain and all 11 locked packages. A fresh `.21` candidate batch
+is now the next source-bound action. Confirm PR #385's exact signed head before
+source-bound work.
 
 The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
 rejection, and generator tests on Windows Node `24.19.0`, plus TypeScript
@@ -32,9 +35,9 @@ checking. The pinned Linux Node `22.22.3` toolchain preflight verifies. Its
 installed Vitest entrypoint runs directly with
 `node node_modules/vitest/vitest.mjs` even though the `.bin` shim is absent.
 The exact signed `.20` source passed 133/133 across the four focused suites on
-Linux Node 22. The current `.21` cap correction passes 51/51 focused tests plus
-typechecking on Windows Node 24.19.0; the corresponding full Linux run remains
-pending. Generation stays pinned to Linux Node 22.
+Linux Node 22. The current `.21` cap correction passes 133/133 across the same
+four suites on Linux Node 22, and 51/51 focused tests plus typechecking on
+Windows Node 24.19.0. Generation stays pinned to Linux Node 22.
 Windows `npm run typecheck` and the full production build pass; the build
 retains the known 677.52 kB `RealmMapScreen` chunk warning. The five changed
 Pages suites also passed 63/63 on the prior exact source. The attempted Linux

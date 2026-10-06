@@ -80,8 +80,10 @@ at 32, sibling pairs per parent at 2, and all ownership rules and proofs
 unchanged. The dynamic compatibility-aware rank traversal remains in place;
 generator revision `.21` records the cap correction, with seed namespace `.3`
 unchanged. The deterministic generator fixture, all 51 focused tests, and
-TypeScript checking pass on Windows Node `24.19.0`; run the complete focused
-suite on pinned Linux Node `22.22.3` before the next source-bound batch.
+TypeScript checking pass on Windows Node `24.19.0`. Exact signed source
+`435586b766fb55514b9197f8438561dde448ba4f` passes all four focused suites,
+133/133, on pinned Linux Node `22.22.3` with all 11 locked packages verified;
+the run took 524.32 seconds. A fresh `.21` candidate batch remains pending.
 
 ## Expanded-search candidate run — 6 October 2026 — source `99184f66`
 
