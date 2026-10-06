@@ -2,56 +2,58 @@
 
 ## Current release checkpoint — 6 October 2026
 
-Signed source `bf9fc3b05a157fbeedf72e73c75697f2ef547ca7` (tree
-`4509463e906dd3b405c2c4bcb480461113534ed5`) is published at open draft PR
-#385. On this exact source, the cap-160 fresh-seed batch exhausted all 256
-attempts and returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`: 215 geography
-rejections and 41 proof-rejection attempts. Its raw edge frontier was
-truncated in 85 attempts; 15 reached the unchanged bundle-pair limit, 11 the
-complete-plan limit, and 27 the search-node limit. The complete authenticated
-aggregate is in [local operations](../../evidence/0.4.0/local-operations.md).
+The previously published cap-192 candidate `54889099e464862e936459b30da2e681257aadbf` (tree
+`261f074d85bb5197fabb737a0368c2a5bab56f52`) is the baseline at open draft PR
+#385. The cap-192 change raises only the raw Tier-II edge frontier. The 32-pair
+cap, repair budgets, complete-plan/node limits, ownership rules, and candidate
+proofs remain fixed. This signed successor corrects incomplete-search
+diagnostics without changing eligibility, proofs, or budgets. On this source,
+Windows typecheck and all 51 focused apron/rejection/generator tests pass; the
+pinned Linux Tier-II fixture passes (1 pass, 1 skipped; 15.99 seconds test
+time, 17.00 seconds total). The fixture is not a whole-generator performance
+guarantee.
 
-The authenticated read matched source, generator
-`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3` and the verified
-`linux-x64` toolchain (11 packages). The root seed was zeroized; the maintained
-abort returned `checkpointAborted: true` and `productionUntouched: true`. No
-candidate, package, shortlist, selection, atlas, provider request or
-production mutation resulted. The default workspace's separate retained-seed
-checkpoint was preserved; this batch used an isolated owner-only workspace.
+Two independent fresh-seed cap-192 batches on this exact commit both exhausted
+all 256 attempts with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. They recorded
+214 geography / 42 proof-rejection attempts in 35:58 with 513,440 KiB peak RSS,
+and 221 geography / 35 proof attempts in 36:56 with 700,684 KiB peak RSS. The
+complete authenticated aggregates are in [local operations](../../evidence/0.4.0/local-operations.md).
+Both reads matched source, generator `greater-realm-v2-natural-continent-pr-a.19`,
+Node `22.22.3`, and the verified `linux-x64` toolchain (11 packages). Both root
+seeds were zeroized. The first maintained abort returned
+`checkpointAborted: true` and `productionUntouched: true`; the second returned
+`GREATER_REALM_ATTEMPT_CHECKPOINT_MISSING`, with no checkpoint or active
+generator process remaining in its isolated workspace. Neither produced a
+candidate, package, shortlist, selection, atlas operation, provider request,
+or production mutation. The default retained-seed workspace was untouched.
 
-The exact-source Linux public Tier-II fixture passed at cap 160 (1 pass, 1
-skipped; 15.83 seconds test duration, 25.33 seconds wall, 397,616 KiB peak
-RSS). At cap 128 it used 443,140 KiB peak RSS in the same single fixture. This
-does not guarantee whole-generator performance. The cap-160 change expands
-only the raw edge limit; bundle options remain capped at 32, and the repair,
-complete-plan, node, ownership, and candidate-proof limits remain fixed.
-Windows typecheck and all 51 focused apron/rejection/generator tests pass.
+At cap 192, prioritized frontier codes reported edge truncation in 75 and 55
+attempts and pair truncation in 23 and 28. Since edge diagnostics have priority
+over pair diagnostics, edge-coded attempts can also contain pair truncation.
+The samples used independent seeds and are not paired cap comparisons. They
+show the current search remains bounded at both frontiers, but do not prove
+that any omitted option would pass the complete geometry and ownership proofs.
+The pair-ranking helper was reviewed; its deterministic endpoint-balanced
+selection has no reproduced correctness defect. A diagnostic defect was
+reproduced in the source path: when no assignment survived, a truncated
+frontier could still be reported as a definitive missing parent or capacity
+failure. The local correction gives known truncation priority and has focused
+tests; it does not change candidate eligibility, geometry proofs, or search
+budgets. Historical cap-192 labels remain as emitted and cannot establish an
+untruncated root cause.
 
-The cap-160 process remained CPU-active at 40:07 and exited shortly afterward.
-The pair helper was reviewed: it deterministically ranks pairs and balances
-endpoint use, with focused coverage for determinism, endpoint constraints, and
-malformed inputs; review reproduced no correctness defect. Frontier rejection
-codes preserve only the highest-priority reason per attempt (edge before
-bundle pair), so pair truncation can co-occur in attempts reported as edge
-truncation. The raw-edge diagnostic persisted across three independent
-fresh-seed samples at caps 96, 128, and 160 (105, 96, and 85 reports). This
-does not prove any omitted option would pass.
+Stop cap-only iteration here. The next bounded source step is to publish this
+classifier correction, verify it on the pinned Linux fixture, and then use
+fresh exact-source rejection evidence before changing allocator behavior.
+Do not change caps, proof thresholds, or infer parent-slot root causes from
+the historical truncated runs. Do not replay retired checkpoints or touch
+retained-seed/serialization checkpoints.
 
-The local successor raises only the raw edge cap from 160 to 192. Windows
-typecheck and all 51 focused apron/rejection/generator tests pass. The bundle
-cap remains 32, and repair, complete-plan, node, ownership, and candidate-proof
-limits stay fixed. This is one bounded experiment, not evidence of candidate
-quality. Publish the signed source, run the exact-source Linux fixture, and
-compare runtime and peak RSS before starting another fresh private batch; do
-not widen further automatically. Do not replay retired checkpoints or touch
-the retained-seed/serialization checkpoints.
-
-The latest complete post-push GitHub inventory covered 3,807 runs in 39 pages:
-3,836 attempts, 28 records with reruns, no active or queued run, and Actions
-permission disabled. The push created no run. Actions remains disabled, so
-the branch push is not hosted verification. The authenticated owner PTR and
-Alpha acceptance, release integration, hosted verification, and public cutover
-remain unverified.
+The pre-push GitHub inventory covers 3,807 runs in 39 pages: 3,836 attempts,
+28 records with reruns and all 57 rerun attempts inspected. All runs and
+attempts are completed; Actions permission is disabled. The authenticated
+owner PTR and Alpha acceptance, release integration, hosted verification,
+and public cutover remain unverified.
 
 ## Previous generation diagnosis — historical
 

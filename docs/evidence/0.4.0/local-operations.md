@@ -2,6 +2,157 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact-source private generation — 6 October 2026 — source `54889099`
+
+Signed source `54889099e464862e936459b30da2e681257aadbf` (tree
+`261f074d85bb5197fabb737a0368c2a5bab56f52`) is published at open draft PR
+#385. Its pinned Linux Tier-II fixture passed 1 case with 1 skipped on Node
+`22.22.3`, profile `linux-x64`: 16.41 seconds test time, 24.97 seconds wall,
+and 399,860 KiB peak RSS. This single-fixture result is not a whole-generator
+performance guarantee.
+
+Two independent fresh-seed batches each exhausted 256 attempts and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Both authenticated checkpoint
+reads matched source `54889099e464862e936459b30da2e681257aadbf`, generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3`, profile
+`linux-x64`, and 11 verified packages. Each reached `searching`, sequence and
+next ordinal 256. Neither produced an eligible candidate.
+
+The first batch took 2,276.88 CPU seconds and 35:58.28 wall, with 513,440 KiB
+maximum RSS. It recorded 214 geography rejections and 42 proof-rejection
+attempts:
+
+| Geography rejection code | Occurrences |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 28 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 4 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 5 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 23 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 75 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 24 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 29 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_SLOT_MISSING` | 1 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 14 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| **Total geography rejections** | **214** |
+
+Proof occurrences are nonexclusive across the 42 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 12 |
+| `HYDROLOGY_LAKES_48_96` | 7 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 10 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 6 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 15 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `PROOF_CASTLE_CAPACITY` | 12 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_GATE_APPROACHES` | 18 |
+| `PROOF_GATE_GRAPH` | 16 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 9 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 4 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 4 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_REGION_GRAPH` | 22 |
+| `PROOF_REGION_LAND_COHERENCE` | 28 |
+| `PROOF_REGION_PASSABLE_LAND` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 32 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 21 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 42 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 4 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 6 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 30 |
+| `TIER_POTENTIAL_DENSITY` | 8 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 33 |
+
+The second batch took 2,341.84 CPU seconds and 36:56.41 wall, with 700,684
+KiB maximum RSS. It recorded 221 geography rejections and 35 proof-rejection
+attempts:
+
+| Geography rejection code | Occurrences |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 35 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 7 |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 2 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 4 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 7 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 28 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 55 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 28 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 36 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_SLOT_MISSING` | 1 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 13 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| **Total geography rejections** | **221** |
+
+Proof occurrences are nonexclusive across the 35 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 10 |
+| `HYDROLOGY_LAKES_48_96` | 6 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 5 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 19 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 1 |
+| `PROOF_BIOME_DIVERSITY` | 3 |
+| `PROOF_CASTLE_CAPACITY` | 10 |
+| `PROOF_GATE_APPROACHES` | 13 |
+| `PROOF_GATE_GRAPH` | 12 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 8 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 4 |
+| `PROOF_REGION_GRAPH` | 18 |
+| `PROOF_REGION_LAND_COHERENCE` | 24 |
+| `PROOF_REGION_PASSABLE_LAND` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 33 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 17 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 35 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 29 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 4 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 4 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 23 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 24 |
+
+The edge and pair frontier codes are priority-selected, with edge before pair;
+edge-coded attempts may also have pair truncation. At cap 192 the first batch
+reported 75 edge and 23 pair frontier codes; the second reported 55 edge and
+28 pair codes. These two runs use independent seeds, so their outcomes and
+resource measurements are not paired causal comparisons. Both show the
+configured frontiers can still bind, but do not show that any omitted edge or
+pair would pass geometry or ownership proofs. Do not raise caps automatically.
+
+### Diagnosis correction
+
+The source classifier now gives a known truncated frontier precedence over
+specific missing-parent and capacity-infeasible labels when no complete
+assignment exists. A truncated option set cannot prove that a parent has no
+valid pair or that every full assignment is infeasible. This changes only the
+terminal diagnosis; parent eligibility, geometry proofs, search budgets, and
+candidate acceptance are unchanged. The historical cap-192 tables retain the
+codes emitted by source `54889099`; those counts do not establish an
+untruncated root cause.
+
+For both runs, the maintained checkpoint read matched the full source and
+toolchain binding; root-seed buffers were zeroized. The first run's maintained
+abort returned `checkpointAborted: true` and `productionUntouched: true`. The
+second run's subsequent maintained abort returned
+`GREATER_REALM_ATTEMPT_CHECKPOINT_MISSING`; the private workspace then
+contained no attempt checkpoint and no generator process was active. The
+second run had produced no candidate, package, shortlist, selection, atlas
+operation, provider request, or production mutation. Each run used its own
+owner-only workspace under the existing private root; the default workspace
+and all prior checkpoints were left untouched.
+
 ## Exact-source private generation — 6 October 2026 — source `bf9fc3b0`
 
 Signed source `bf9fc3b05a157fbeedf72e73c75697f2ef547ca7` (tree

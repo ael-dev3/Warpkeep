@@ -4683,6 +4683,11 @@ function allocateTierTwoPassableCapacity(
       classifyGreaterRealmTierTwoAssignmentFailure(
         rankedCapacityAssignmentResult,
         lowlandsRepairCapacityAssignmentResult,
+        gateApronAuthority.frontierTruncationKind()
+          ?? (rankedCapacityAssignmentResult.frontierTruncated
+            || lowlandsRepairCapacityAssignmentResult.frontierTruncated
+            ? 'CAPACITY_ASSIGNMENT_LIMIT'
+            : null),
       ),
     );
   }

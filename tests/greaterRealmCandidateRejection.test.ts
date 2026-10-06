@@ -159,6 +159,30 @@ describe('Greater Realm expected candidate rejection boundary', () => {
       },
     )).toBe('CAPACITY_ASSIGNMENT_INFEASIBLE');
 
+    expect(classifyGreaterRealmTierTwoAssignmentFailure(
+      {
+        eligibleComponentCountsByParent: [0, 1, 1],
+        infeasibleComponentCombinations: 0,
+      },
+      {
+        eligibleComponentCountsByParent: [0, 1, 1],
+        infeasibleComponentCombinations: 1,
+      },
+      'EDGE_CANDIDATE_LIMIT',
+    )).toBe('DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT');
+
+    expect(classifyGreaterRealmTierTwoAssignmentFailure(
+      {
+        eligibleComponentCountsByParent: [1, 1, 1],
+        infeasibleComponentCombinations: 1,
+      },
+      {
+        eligibleComponentCountsByParent: [1, 1, 1],
+        infeasibleComponentCombinations: 0,
+      },
+      'BUNDLE_PAIR_LIMIT',
+    )).toBe('DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT');
+
     expect(() => classifyGreaterRealmTierTwoAssignmentFailure(
       {
         eligibleComponentCountsByParent: [1, 1, 1],

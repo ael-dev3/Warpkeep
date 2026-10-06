@@ -166,13 +166,14 @@ const GREATER_REALM_TIER_TWO_PARENT_SLOT_FAILURES = Object.freeze([
 
 /**
  * Distinguish a globally absent gate-parent slot from lane-split coverage.
- * Capacity infeasibility keeps precedence because it proves a complete
- * component assignment was attempted and rejected by immutable capacity.
+ * Any truncated frontier takes precedence: the retained options cannot prove
+ * that a parent slot is truly absent or every assignment is infeasible.
  */
 export function classifyGreaterRealmTierTwoAssignmentFailure(
   ordinary: GreaterRealmTierTwoAssignmentLaneDiagnostics,
   lowlandsRepair: GreaterRealmTierTwoAssignmentLaneDiagnostics,
-): GreaterRealmTierTwoAssignmentFailureReason {
+  frontierTruncationKind: GreaterRealmTierTwoApronFrontierTruncationKind | null = null,
+): GreaterRealmTierTwoCapacityRejectionReason {
   const parentCount = ordinary.eligibleComponentCountsByParent.length;
   if (
     parentCount !== GREATER_REALM_TIER_TWO_PARENT_SLOT_FAILURES.length
@@ -187,8 +188,19 @@ export function classifyGreaterRealmTierTwoAssignmentFailure(
     || lowlandsRepair.eligibleComponentCountsByParent.some(
       count => !Number.isSafeInteger(count) || count < 0,
     )
+    || (frontierTruncationKind !== null
+      && !GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS.includes(
+        frontierTruncationKind,
+      ))
   ) {
     throw new Error('GREATER_REALM_TIER_TWO_ASSIGNMENT_DIAGNOSTICS_INVALID');
+  }
+  if (frontierTruncationKind !== null) {
+    return classifyGreaterRealmTierTwoApronSearchFailure({
+      outcome: 'no-match',
+      frontierTruncated: true,
+      frontierTruncationKind,
+    });
   }
   if (
     ordinary.infeasibleComponentCombinations > 0
