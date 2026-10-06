@@ -629,7 +629,7 @@ describe('Greater Realm ranked gate-apron search', () => {
   });
 
   it('expands only the raw edge frontier while keeping bundle pairs bounded', () => {
-    expect(GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES).toBe(128);
+    expect(GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES).toBe(160);
     expect(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS).toBe(32);
   });
 

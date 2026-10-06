@@ -197,7 +197,7 @@ export const GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS = 16 as cons
 export const GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT = 2 as const;
 // Keep this upstream input frontier separate from downstream bundle, capacity,
 // complete-plan, and search-node budgets; truncation must remain diagnosable.
-export const GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES = 128 as const;
+export const GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES = 160 as const;
 export const GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS = 32 as const;
 
 export type GreaterRealmGateApronPairRank = Readonly<{

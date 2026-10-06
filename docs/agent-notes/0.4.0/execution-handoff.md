@@ -2,16 +2,15 @@
 
 ## Current release checkpoint — 6 October 2026
 
-Signed source `d036f000e18a584f267281e89bc8e4fc932d2c15` (tree
-`27f9e860d34fd6eb997ca8c876de06119a1bdbc9`) is published at open draft PR
-#385. Its cap-96 fresh-seed batch exhausted all 256 attempts and returned
-`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`: 225 geography rejections and 31
-proof-rejection attempts. The earliest retained-frontier diagnostic was the
-raw edge-candidate cap in 105 attempts; one attempt reached the bundle-pair
-cap. This proves the retained edge input is still truncated, not that an
-omitted edge would pass geometry or ownership proofs. Six attempts reached the
-complete-plan limit and 22 the search-node limit. The full safe aggregate is
-in [local operations](../../evidence/0.4.0/local-operations.md).
+Signed source `855310104d7579e79ecf68e084976be4e701015a` (tree
+`4cd0f4e2923e0e47aef5eca6de21314187521e36`) is published at open draft PR
+#385. Its exact-source cap-128 fresh-seed batch exhausted all 256 attempts and
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`: 220 geography rejections
+and 36 proof-rejection attempts. The raw edge-candidate frontier was
+truncated in 96 attempts; six reached the bundle-pair cap, 12 the complete-
+plan limit, and 24 the search-node limit. This demonstrates bounded frontier
+pressure, not that any omitted edge would pass geometry or ownership proofs.
+The full safe aggregate is in [local operations](../../evidence/0.4.0/local-operations.md).
 
 The authenticated read matched source, generator
 `greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3` and the verified
@@ -21,23 +20,26 @@ candidate, package, shortlist, selection, atlas, provider request or
 production mutation resulted. The default workspace's separate retained-seed
 checkpoint was preserved; this batch used an isolated owner-only workspace.
 
-The exact-source public Tier-II fixture passed at cap 96. Against its cap-64
-baseline it used about 0.61 seconds and 9.7 MiB more in this single fixture;
-this is not a broad performance guarantee. Windows typecheck and 51 focused
-apron/rejection/generator tests pass. The Windows private-package suite still
-fails before package assertions at its existing ancestor-path guard; the exact
-published-source Linux fixture is the acceptance evidence for this frontier.
+The exact-source public Tier-II fixture passed at cap 128 (1 pass, 1 skipped;
+14.33 seconds test duration, 25.46 seconds wall, 443,140 KiB peak RSS). At cap
+96 it used 415,724 KiB peak RSS. This is a single-fixture comparison, not a
+whole-generator performance guarantee. The Windows cap-128 source also passed
+typecheck and 51 focused apron/rejection/generator tests. The Windows
+private-package suite still stops before package assertions at its existing
+ancestor-path guard; it is not acceptance evidence for this frontier.
 
-The cap-128 follow-on changes only the raw edge limit; the 32-option bundle
-cap, repair budgets, complete-plan and node limits, and all proofs stay fixed.
-Typecheck and 51 focused tests pass. Next: use the exact signed successor for
-the same native Linux fixture and compare peak memory/runtime. Run one fresh
-maximum-256 sample only if that measurement remains acceptable. Do not replay
-the retired d036 checkpoint or touch the retained-seed/serialization
-checkpoints.
+The current local successor raises only the raw edge limit from 128 to 160;
+the 32-option bundle cap, repair budgets, complete-plan and node limits, and
+all ownership and candidate proofs stay fixed. Its Windows typecheck and all
+51 focused tests pass. Before any new private sample, publish this exact
+successor, run the same pinned Linux public fixture against it, and compare
+runtime and peak memory. Run one fresh maximum-256 sample only if that
+measurement remains acceptable. Do not replay retired checkpoints or touch
+the retained-seed/serialization checkpoints.
 
-The post-push full GitHub inventory reports 3,807 runs, 3,836 attempts, 28
-records with reruns, and no active or queued run. Actions remains disabled, so
+The latest complete post-push GitHub inventory covered 3,807 runs in 39 pages:
+3,836 attempts, 28 records with reruns, no active or queued run, and Actions
+permission disabled. The push created no run. Actions remains disabled, so
 the branch push is not hosted verification. The authenticated owner PTR and
 Alpha acceptance, release integration, hosted verification, and public cutover
 remain unverified.
