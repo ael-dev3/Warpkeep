@@ -628,18 +628,18 @@ describe('Greater Realm ranked gate-apron search', () => {
     )).toEqual([]);
   });
 
-  it('expands only the raw edge frontier while keeping bundle pairs bounded', () => {
-    expect(GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES).toBe(256);
-    expect(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS).toBe(32);
+  it('widens bounded gate-apron frontiers after repeated truncation', () => {
+    expect(GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES).toBe(512);
+    expect(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS).toBe(64);
   });
 
-  it('caps the repair frontier at the unchanged complete-plan budget', () => {
-    expect(GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS).toBe(16);
+  it('keeps the Lowlands repair frontier within the complete-plan budget', () => {
+    expect(GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS).toBe(32);
     expect(GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT).toBe(2);
     expect(
       GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS
       * GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT ** 3,
-    ).toBe(128);
+    ).toBe(256);
   });
 
   it('rejects every tier or region mutation inside the repair authority mask', () => {

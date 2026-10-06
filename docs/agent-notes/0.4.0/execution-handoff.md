@@ -2,51 +2,43 @@
 
 ## Active release checkpoint — 6 October 2026
 
-The current release PR is open/draft #385 against `main`. Its remote head before
-this working checkpoint was `50bf3a266dbcc17db7b874808af2618b582b3a74`. The
-local release branch now also has signed merges of #394 (`1e664cf`) and #399
-(`fce8ea0`): the canonical P3 plan path and exact Cloudflare legal-text headers
-and postflight. The topographic QA allowance from #397 is already present in
-the branch. Code correction `9bfdf181bada7785ed03fb1d70a48c940a5cce3d` raises
-only the raw edge frontier from 192 to 256 after the prior exact-source run hit
-that cap in 85 of 256 attempts. Five focused source files passed 59/59;
-typecheck and the full Windows build pass on the release lineage. The complete
-pinned Linux suite on source `9bfdf18` passed: 1,466 suites, 13,720 tests, 97
-pending, zero failures or todos. The 32 pair cap, 64 option cap, other search
-budgets, map-quality thresholds and proofs stay fixed.
+The only open Warpkeep PR is draft #385 against `main`, synchronized locally
+and remotely at `cda5c24b45f8e7fbddbd9b9d8fc1c83d28e6627e` before the current
+local correction. PR #394 and #399 have merged remotely; their canonical P3
+plan-path and Cloudflare legal-text header/postflight fixes are in #385. The
+#397 allowance was already present, and stale #375–#378, #380–#381, and #397
+were closed as incorporated or superseded.
 
-The prior `1c24e3da` private run exhausted 256 attempts without an eligible
-candidate (219 geography and 37 proof-rejection attempts). Its safe summary is
-published in [local operations](../../evidence/0.4.0/local-operations.md). After
-that publication, the maintained abort returned
-`checkpointAborted: true` and `productionUntouched: true`; an immediate
-postcheck found no generation or completion checkpoint. No candidate, atlas
-operation, provider request or production mutation resulted.
+A fresh exact-source run on `cda5c24b` exhausted all 256 attempts without an
+eligible candidate. Its safe rejection aggregate, successful maintained abort,
+and no-production-mutation checks are in [local operations](../../evidence/0.4.0/local-operations.md).
+The repeated run reached the edge, bundle-pair, node, and complete-plan search
+limits. The correction widens only those measured ceilings and aligns Lowlands
+repair assignments; it changes no acceptance threshold, topology, ownership,
+or proof. The signed successor containing this note carries this correction;
+confirm that exact PR head before another candidate run.
 
-The exact code source `9bfdf181bada7785ed03fb1d70a48c940a5cce3d` is pinned in
-the clean Linux checkout with Node `22.22.3`, `linux-x64`, and all 11 toolchain
-packages verified. One fresh-seed, maximum-256 candidate search is running in
-a private workspace against that exact source; its raw output remains outside
-the repository. Do not change or check out that WSL worktree until it finishes.
-The live custom domain serves the existing Alpha at
-`/` (HTTP 200) and returns 404 for `/ptr/`; no PTR cutover or owner acceptance
-has occurred. Preserve Alpha and its licensing terms. Actions remain disabled;
-local validation and source publication are not hosted Verify, merge,
-deployment or PTR acceptance.
+The correction passes 51/51 focused gate-apron, rejection, and generator tests
+on the pinned Node `22.22.3` Linux toolchain (60.65 seconds of test time).
+Windows `npm run typecheck` and the full production build pass; the build
+retains the known 677.52 kB `RealmMapScreen` chunk warning. The five changed
+Pages suites also passed 63/63 on the prior exact source. The attempted Linux
+`pnpm run build` had auto-run an install against the npm-managed dependency
+tree; the original packages were restored, generated pnpm artifacts removed,
+and the pinned toolchain verifies. Avoid `pnpm run` in that WSL checkout.
 
-Next: collect the safe maintained aggregate for the active exact-source search.
-If it exhausts without a candidate, retain only the sanitized rejection summary
-and retire its checkpoint through the maintained abort. If it yields an
-eligible candidate, validate its package and proofs before owner/atlas or
-provider operations. Do not raise other caps, relax proofs, or invoke Actions.
-The attempted Linux `pnpm run build` auto-triggered installation into the
-npm-managed WSL dependency tree; the original packages were restored and the
-verified pnpm artifacts were removed. The pinned bootstrap verifies again.
-Avoid `pnpm run` in that WSL checkout; the same source already passed the
-Windows build and exact Linux suite.
-PR #394 and #399 are integrated locally but not yet published; push them after
-the focused source scan and a fresh Actions readback, then verify the remote
-branch and the resulting PR states before continuing.
+The live Alpha root still returns HTTP 200; `/ptr/` returns HTTP 404. Preserve
+the existing Alpha and its licensing. There is no eligible Atlas package, no
+PTR cutover, and no authenticated 0.4 owner acceptance. GitHub Actions are
+disabled; local validation and branch publication do not count as hosted
+Verify or deployment.
+
+Next: confirm #385 points at the exact signed correction checkpoint, then run a
+fresh source-bound candidate search on that hash. If eligible, validate the
+package and proofs before selection and owner/atlas, bridge, frontend, and
+cutover steps. Keep Alpha and rollback evidence intact; do not relax proofs or
+change additional budgets without new sanitized evidence. Do not use Actions
+or claim deployment/PTR acceptance.
 
 ## Previous cap-192 checkpoint — historical
 

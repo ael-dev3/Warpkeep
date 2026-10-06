@@ -541,12 +541,12 @@ describe('Greater Realm private candidate generator', () => {
     ))).toBe(true);
   });
 
-  it('classifies bounded dry-gate-apron exhaustion as a typed candidate rejection', () => {
+  it('clears large topology arrays when the primary component is undersized', () => {
     if (!rejectedFixtureEvidence) {
       throw new Error('GREATER_REALM_REJECTION_EVIDENCE_MISSING');
     }
     expect(rejectedFixtureEvidence.code).toBe(
-      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT',
+      'GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED',
     );
     expect(rejectedFixtureEvidence.retiredLargeAuthorityCount).toBeGreaterThan(0);
     expect(rejectedFixtureEvidence.allRetiredAuthoritiesCleared).toBe(true);

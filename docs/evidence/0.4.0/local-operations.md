@@ -2,6 +2,94 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Repeated cap-256 candidate search — 6 October 2026 — source `cda5c24b`
+
+One fresh-seed `generate-candidates --count 1 --maximum-attempts 256` run on
+the exact release source `cda5c24b45f8e7fbddbd9b9d8fc1c83d28e6627e` completed
+after about 39 minutes without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained,
+source-bound checkpoint read found 256 rejections: 212 geography rejections
+and 44 proof-rejection attempts. The root-seed buffer was zeroized; no seed,
+candidate handle, coordinates, package bytes, or raw log were emitted.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 18 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 94 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 47 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 22 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 9 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| **Total** | **212** |
+
+Proof occurrences are nonexclusive across the 44 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 16 |
+| `HYDROLOGY_LAKES_48_96` | 8 |
+| `HYDROLOGY_MAJOR_OCEAN_SEA_BODIES_4_6` | 1 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 4 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 19 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `PROOF_BIOME_DIVERSITY` | 3 |
+| `PROOF_CASTLE_CAPACITY` | 16 |
+| `PROOF_GATE_APPROACHES` | 11 |
+| `PROOF_GATE_GRAPH` | 10 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 5 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_REGION_GRAPH` | 25 |
+| `PROOF_REGION_LAND_COHERENCE` | 26 |
+| `PROOF_REGION_PASSABLE_LAND` | 15 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 36 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 19 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 44 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 37 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 5 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 27 |
+| `TIER_POTENTIAL_DENSITY` | 3 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 37 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. A subsequent maintained readiness check confirmed
+there is no active generation checkpoint or completion receipt. The batch
+created no candidate package, shortlist, selection, atlas operation, provider
+request, or production mutation.
+
+This was a second independent cap-256 sample: the preceding source-`9bfdf181`
+run recorded 51 edge-frontier, 74 bundle-pair, 28 node, and 13 complete-plan
+terminal rejections. The current run again hit all four bounds (47, 94, 22, and
+11 respectively). Edge truncation has diagnostic priority over pair
+truncation, so those counts are not total occurrences of each internal limit.
+These results show repeated search-budget exhaustion; they do not prove that
+any omitted route would pass the unchanged ownership and quality proofs.
+
+The local correction widens only the four repeatedly reached ceilings:
+edge candidates `256 → 512`, balanced bundle pairs `32 → 64`, search nodes
+`20,000 → 40,000`, and complete plans `128 → 256`. Lowlands repair capacity
+assignments increase `16 → 32` to keep the documented assignment/pair frontier
+aligned with the 256-plan ceiling. Sibling-pair count, eligibility, world-size
+range, topology, ownership, and all public quality proofs stay unchanged.
+Focused gate-apron, rejection, and candidate-generator tests pass 51/51 under
+the pinned Linux Node 22 toolchain; Windows typecheck and full production build
+also pass. The build retains the known 677.52 kB `RealmMapScreen` chunk warning.
+
+The `cda5c24b` run predates the correction. The signed successor containing
+this evidence carries the correction; bind the next generation run to that
+exact source. GitHub Actions remain disabled. Current live check: the Alpha
+root is HTTP 200 and `/ptr/` is HTTP 404. No PTR cutover or 0.4 release is
+claimed.
+
 ## Full Linux suite and exact-source generation — 6 October 2026 — source `1c24e3da`
 
 The published, signed source `1c24e3da1d764d857adcc993c6e542b41a6c9714`
