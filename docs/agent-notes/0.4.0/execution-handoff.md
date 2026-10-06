@@ -2,15 +2,14 @@
 
 ## Current release checkpoint — 6 October 2026
 
-Signed source `855310104d7579e79ecf68e084976be4e701015a` (tree
-`4cd0f4e2923e0e47aef5eca6de21314187521e36`) is published at open draft PR
-#385. Its exact-source cap-128 fresh-seed batch exhausted all 256 attempts and
-returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`: 220 geography rejections
-and 36 proof-rejection attempts. The raw edge-candidate frontier was
-truncated in 96 attempts; six reached the bundle-pair cap, 12 the complete-
-plan limit, and 24 the search-node limit. This demonstrates bounded frontier
-pressure, not that any omitted edge would pass geometry or ownership proofs.
-The full safe aggregate is in [local operations](../../evidence/0.4.0/local-operations.md).
+Signed source `bf9fc3b05a157fbeedf72e73c75697f2ef547ca7` (tree
+`4509463e906dd3b405c2c4bcb480461113534ed5`) is published at open draft PR
+#385. On this exact source, the cap-160 fresh-seed batch exhausted all 256
+attempts and returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`: 215 geography
+rejections and 41 proof-rejection attempts. Its raw edge frontier was
+truncated in 85 attempts; 15 reached the unchanged bundle-pair limit, 11 the
+complete-plan limit, and 27 the search-node limit. The complete authenticated
+aggregate is in [local operations](../../evidence/0.4.0/local-operations.md).
 
 The authenticated read matched source, generator
 `greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3` and the verified
@@ -20,22 +19,23 @@ candidate, package, shortlist, selection, atlas, provider request or
 production mutation resulted. The default workspace's separate retained-seed
 checkpoint was preserved; this batch used an isolated owner-only workspace.
 
-The exact-source public Tier-II fixture passed at cap 128 (1 pass, 1 skipped;
-14.33 seconds test duration, 25.46 seconds wall, 443,140 KiB peak RSS). At cap
-96 it used 415,724 KiB peak RSS. This is a single-fixture comparison, not a
-whole-generator performance guarantee. The Windows cap-128 source also passed
-typecheck and 51 focused apron/rejection/generator tests. The Windows
-private-package suite still stops before package assertions at its existing
-ancestor-path guard; it is not acceptance evidence for this frontier.
+The exact-source Linux public Tier-II fixture passed at cap 160 (1 pass, 1
+skipped; 15.83 seconds test duration, 25.33 seconds wall, 397,616 KiB peak
+RSS). At cap 128 it used 443,140 KiB peak RSS in the same single fixture. This
+does not guarantee whole-generator performance. The cap-160 change expands
+only the raw edge limit; bundle options remain capped at 32, and the repair,
+complete-plan, node, ownership, and candidate-proof limits remain fixed.
+Windows typecheck and all 51 focused apron/rejection/generator tests pass.
 
-The current local successor raises only the raw edge limit from 128 to 160;
-the 32-option bundle cap, repair budgets, complete-plan and node limits, and
-all ownership and candidate proofs stay fixed. Its Windows typecheck and all
-51 focused tests pass. Before any new private sample, publish this exact
-successor, run the same pinned Linux public fixture against it, and compare
-runtime and peak memory. Run one fresh maximum-256 sample only if that
-measurement remains acceptable. Do not replay retired checkpoints or touch
-the retained-seed/serialization checkpoints.
+The cap-160 sample's process was still CPU-active at 40:07 and exited shortly
+afterward. Do not widen the edge or pair frontier based on this sample alone:
+the fresh seeds are independent, pair-limit rejections rose to 15, and there
+is no evidence that any discarded option passes the full proofs. Next inspect
+the pair ranking and its deterministic fixtures for a concrete bounded-search
+defect. Change it only if a threshold-preserving omission is reproduced; then
+rerun typecheck, focused tests and the exact-source Linux fixture before
+starting another fresh private batch. Do not replay retired checkpoints or
+touch the retained-seed/serialization checkpoints.
 
 The latest complete post-push GitHub inventory covered 3,807 runs in 39 pages:
 3,836 attempts, 28 records with reruns, no active or queued run, and Actions

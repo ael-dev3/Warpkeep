@@ -2,6 +2,100 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact-source private generation — 6 October 2026 — source `bf9fc3b0`
+
+Signed source `bf9fc3b05a157fbeedf72e73c75697f2ef547ca7` (tree
+`4509463e906dd3b405c2c4bcb480461113534ed5`) is published at open draft PR
+#385. The exact-source Linux Tier-II fixture passed 1 case with 1 skipped on
+Node `22.22.3`, profile `linux-x64`: test duration 15.83 seconds, wall time
+25.33 seconds, peak RSS 397,616 KiB. At cap 128 the same fixture measured
+14.33 seconds, 25.46 seconds, and 443,140 KiB. This is one fixture, not a
+whole-generator performance guarantee.
+
+One fresh-seed maximum-256 private batch on this exact source returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The process was still CPU-active at
+40:07 elapsed and exited shortly afterward; that run did not have an exact
+end-to-end timer, so no more precise duration is claimed. The authenticated
+checkpoint read matched source, generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3`, toolchain profile
+`linux-x64`, and 11 verified packages. It confirmed phase `searching`, sequence
+and next ordinal 256, and 256 rejected attempts: 215 geography rejections and
+41 proof-rejection attempts. The root-seed buffer was zeroized in `finally`.
+No seed, handle, coordinate, candidate bytes, or raw checkpoint was emitted.
+
+Exact geography rejection occurrences (one code per geography-exhaustion
+attempt):
+
+| Rejection code | Occurrences |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 22 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 7 |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 1 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 4 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 15 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 85 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 27 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 25 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 10 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 8 |
+| **Total geography rejections** | **215** |
+
+Proof occurrences below are nonexclusive across the 41 proof-rejection
+attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 15 |
+| `HYDROLOGY_LAKES_48_96` | 5 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 2 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 6 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 24 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 5 |
+| `PROOF_BIOME_DIVERSITY` | 5 |
+| `PROOF_CASTLE_CAPACITY` | 15 |
+| `PROOF_GATE_APPROACHES` | 20 |
+| `PROOF_GATE_GRAPH` | 19 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 7 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 3 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_REGION_GRAPH` | 26 |
+| `PROOF_REGION_LAND_COHERENCE` | 26 |
+| `PROOF_REGION_PASSABLE_LAND` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 21 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 41 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 30 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 6 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 23 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 29 |
+
+At cap 160 the earliest frontier diagnostic was the raw edge limit in 85
+attempts; 15 reached the unchanged bundle-pair limit, 11 the complete-plan
+limit, and 27 the search-node limit. The cap-128 and cap-160 batches used
+independent fresh seeds, so their rejection counts are not paired causal
+measurements. The edge cap still truncates, while pair-limit rejections are
+more visible at this setting. Neither fact proves that a discarded edge or
+pair would pass geometry or ownership proofs. Do not widen either frontier
+again without a deterministic finding that the current ranked, endpoint-
+balanced selection omits a valid plan within preserved downstream budgets.
+
+After the safe read, the maintained abort returned `checkpointAborted: true`
+and `productionUntouched: true`. No candidate, package, shortlist, selection,
+atlas operation, provider request, or production mutation resulted. The new
+workspace is owner-only and source-specific; the default workspace, retained
+seed, and all earlier checkpoint workspaces were left untouched.
+
+The full post-push GitHub run inventory remained at 3,807 runs across 39 pages
+and 3,836 recorded attempts, including 57 inspected attempts across 28 rerun
+records. There were no active or queued runs and no run for this candidate
+SHA. Actions permission is disabled. PR #385 remains open/draft, with no
+hosted verification or deployment established.
+
 ## Exact-source private generation — 6 October 2026 — source `85531010`
 
 Signed source `855310104d7579e79ecf68e084976be4e701015a` (tree
