@@ -31,15 +31,20 @@ NEXT — IN DEPENDENCY ORDER
    slots02–06 all ended incomplete: 1,280 authenticated attempts, 1,123 geography
    and 157 proof rejects, no candidate. Each is retired with maintained abort
    and seed zeroization. Slot01-replacement01 also ended incomplete (221/35)
-   and was retired. At 15:03:40 UTC six fresh maximum-256 replacements are active:
-   parallel02–06-replacement01 and parallel01-replacement02. Full timestamps,
+   and was retired. All five parallel02–06-replacement01 batches have now also
+   exhausted: 1,280 authenticated attempts, 1,094 geography / 186 proof rejects,
+   no candidate. Each is retired before its fresh successor. Slot01-replacement02
+   later exhausted 256 (225/31), was authenticated and retired at 16:15:10.826 UTC.
+   Its replacement03 began 16:15:37.462 UTC; the other five use replacement02.
+   All current maximum-256 workers retain the same source/gates and absolute
+   cutoff. Full timestamps,
    source-bound start/retirement pins and current readers are in the handoff.
    The original batch exhausted 256 attempts (225 geography / 31 proof rejects)
    and was authenticated, zeroized and retired at 13:45:32.675 UTC. Never resume
    it. Preserve each active process and operating source until terminal, with
    the same gates and bounds; the global stop boundary remains 19:32:47 UTC.
    Authenticate each terminal separately; use only the first verified winner.
-   Never invoke the original pool or old slot01 readers on retired bindings.
+   Never invoke a reader on its retired original or replacement binding.
    If incomplete,
    use the maintained authenticated aggregate reader, zeroization and abort.
 2. Actual PTR inspection, compatible update preparation and one-submit apply

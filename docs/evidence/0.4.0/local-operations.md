@@ -3,6 +3,102 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Replacement01 cohort retired; current replacement pool — 7 October 2026
+
+All five parallel02–06-replacement01 batches genuinely closed incomplete on
+operating source `7ae40a6f` / tree `0cbb69dd`, generator `.26`, pinned Linux
+Node/toolchain and unchanged count 1 / maximum 256. Maintained readers
+authenticated each only after complete group, recorded descendants and
+supervisor absence. Each exhausted 256 attempts; this five-slot cohort totals
+1,280 authenticated attempts, 1,094 geography / 186 proof rejects, no candidate.
+
+| Slot | Actual finish UTC | Geography | Proof | Maintained retirement UTC |
+| --- | --- | ---: | ---: | --- |
+| 02 | 15:55:11.182 | 222 | 34 | 16:04:03.487 |
+| 03 | 15:57:40.486 | 213 | 43 | 16:04:19.630 |
+| 04 | 15:56:10.596 | 211 | 45 | 16:04:38.550 |
+| 05 | 15:51:29.806 | 228 | 28 | 15:55:57.397 |
+| 06 | 15:56:28.469 | 220 | 36 | 16:04:57.818 |
+
+Full safe reports are
+`october-release-7ae-parallelXX-replacement01-authenticated-terminal-report-v1.json`:
+
+- 02: SHA-256 `c6b037021458a61769ccc5a4faa4490604658888a72aff06d2b240904bbc7f82`.
+- 03: SHA-256 `71022a6e4675c7c2889fd3f975e148b2989d5500bf4417c269a256bd964de731`.
+- 04: SHA-256 `bfc752e5fcc35fe1a45fe02c3c3e2adceb400733ddefdc9f5e6758db90627d53`.
+- 05: SHA-256 `6811db6b5c6d35d8e7e7e40ea2b4ee69fc162c859f3fce3c2ad8896216873929`.
+- 06: SHA-256 `8116914ec366ad2dbf5be9a3ad3145d68b977d221f12e7e74b291185e2b8fe2c`.
+
+Reviewed maintained abort-only helpers revalidated exact exhausted state/digest
+and null completion under each generation lock, then confirmed checkpoint
+aborted and root seed zeroized. Source/index/refs/toolchain and other live
+workers were preserved. Receipt SHA-256 values for
+`october-release-7ae-parallelXX-replacement01-retirement-v1.json` are:
+
+- 02: `312c33300bbbeb3523ee63fe18131d517996e6533955664fcaa006bf57f35451`.
+- 03: `fa6a5ee79be9eeb975dfbc9723d63ad9ca0a4c740e16dd685b32a517380c56bb`.
+- 04: `903c00419efe70a6ad4060697ab8d30e07990396c0701a6b987f97fdfeb7a6a6`.
+- 05: `0cac546af5c537cc2c4000a3d32a3e3fd1c0326762b45bbe32c2c14625304d85`.
+- 06: `55b3b70d64ed084f62975dcdbfe2d40c4acd780f3c00c7171653abe34d2fdd63`.
+
+Exactly one fresh replacement02 per exhausted slot followed its own retirement,
+namespace-absence and fresh capacity checks. Slot05 began 15:56:34.849 UTC;
+02/03/04/06 began 16:04:06.127 / 16:04:22.542 / 16:04:42.374 /
+16:05:03.997 UTC. Together with the already-live slot01-replacement02, six
+actual replacement02 sessions were observed at that snapshot. Coherent safe
+startup/retirement receipt `october-release-7ae-replacement02-pool-start-review-v1.json`
+has SHA-256 `d8e6f9230a8677085a859a45ef86d4010a4566ce0b20c233420cdda908ee652f`.
+It records actual process births, owned groups, UID 1000 chains and distinct
+private workspaces; it is not a permanent assertion of six live sessions.
+
+Subsequently slot01-replacement02 closed incomplete at 16:05:59.009 UTC:
+256 attempts, 225 geography / 31 proof rejects, no candidate. Its matching
+maintained reader authenticated complete process absence and unchanged source
+before private reading. Full safe report
+`october-release-7ae-parallel01-replacement02-authenticated-terminal-report-v1.json`
+has SHA-256 `1f3383910f05a589cde04301aa16162a28d7bb3343864a668634a1742e91b948`.
+The reviewed maintained abort completed once at 16:15:10.826 UTC: exhausted
+state and null completion revalidated, checkpoint aborted, root seed zeroized,
+complete original group/descendants/supervisor absent, source/index/refs/toolchain
+preserved. Receipt `october-release-7ae-parallel01-replacement02-retirement-v1.json`
+has SHA-256 `e33857702149502160841e8469469b3cd5d39d6233ec2900a172fd4c1a5209b7`.
+Exactly one fresh slot01-replacement03 started at 16:15:37.462 UTC after fresh
+namespace/capacity checks, using reviewed launcher v6. Actual session 98343,
+PGID/SID 849108, birth tick 72839987, supervisor 848985 and UID 1000 child chain
+are recorded in `october-release-7ae-parallel01-replacement03-started-v1.json`,
+SHA-256 `1f93ae655e2a3be7fdcb43f23ff37fb6532446e74a8ec6cdf349f5e4ef11a03d`.
+Its separate root-reviewed reader has SHA-256
+`655a3a461a627f9dc8b7a9c1b40db9e15cadef3133b7fc34bf4dc085457c4dec`;
+only the actual binding, reviewed launcher pin and replacement03 suffix differ
+from the retired reader. Native/Windows bytes match; native mode 600, UID/GID
+1000, one link and syntax verification pass. The five other workers were
+preserved. This supersedes the preceding slot01 live observation.
+
+Root also reviewed separate v6 comparison/runtime callers. The only changes
+from preserved v5 are slot01's actual process/start/launcher authority and its
+replacement03 suffix; the other five replacement02 bindings and maintained
+verification/runtime logic are unchanged. Native/Windows bytes, mode 600,
+UID/GID 1000, single-link identity and syntax checks pass:
+
+- `october-release-7ae-parallel-continuation-reader-v6.ts`: SHA-256
+  `a467cffbbae50311e2d5aa6d45db6171ca4b28acbd1eeef7de2ab0cebef696ca`.
+- `october-release-7ae-parallel-runtime-caller-v6.ts`: SHA-256
+  `a4e85fe8986d8268da966e5c9e356d9fdeeffa1f7f7f87790120972118a43c38`.
+
+They are prepared, not executed. Never invoke an older caller on a retired
+slot01 authority; genuine terminal success and maintained package verification
+remain prerequisites for selection/runtime and subsequent atlas/provider work.
+
+For completed slot05, separate observed UTC61m03.961s / monotonic56m49.126s
+intervals give 251.53 / 270.33 attempts/hour. VM suspend pauses monotonic time;
+neither rate is total active-pool throughput or candidate yield. Proof and
+truncation code counts overlap. No active checkpoint counts were inferred.
+All fresh workers retain the original absolute 19:32:47 UTC cutoff; no
+replacement resets it. No replay, selection, runtime preparation, atlas import,
+owner provisioning, cutover or release acceptance was performed. Product,
+assets, licensing, accepted frontend, existing PTR update, Alpha/G001/admission
+policy and G002 are unchanged.
+
 ## Parallel cohort retired and fresh slots restored — 7 October 2026
 
 The five original parallel slots bound to signed operating source `7ae40a6f` /

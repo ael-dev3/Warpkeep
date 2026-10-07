@@ -17,7 +17,7 @@ Windows apron tests passed 24/24; pinned Linux Node `22.22.3` build-mode
 typecheck and four focused generator suites passed 60/60. Existing candidate
 digests passed. This is source evidence, not a production candidate.
 
-The last completed fresh private batch, bound to code source `ac6d85ee`,
+The previous correction's fresh private batch, bound to code source `ac6d85ee`,
 exhausted 256 attempts with 224 geography and 32 proof rejections. It created
 no candidate, package, selection, atlas or production mutation. Authenticated
 aggregate reading zeroized its seed and maintained abort confirmed
@@ -29,18 +29,18 @@ limit change. Full evidence is in
 
 Execute this short release path without expanding the frozen scope:
 
-1. Source publication and clean native synchronization are complete. The five
-   original parallel02–06 batches all ended incomplete: 1,280 authenticated
-   attempts, 1,123 geography and 157 proof rejects, no candidate. All five are
-   retired by maintained abort with seed zeroization. Six fresh source-bound
-   maximum-256 batches are active at 15:03:40 UTC: parallel02–06-replacement01
-   and parallel01-replacement02. The first slot01 replacement exhausted 256
-   attempts (221 geography / 35 proof rejects) at 14:56:33.788 UTC and was
-   retired at 15:02:06.149. Its fresh successor started 15:03:40.097 UTC.
-   Slot04 began 14:42:05.696; slots02/03/05/06 14:49:51–14:50:45.
-   The original batch exhausted 256 attempts (225 geography / 31 proof rejects)
-   and was authenticated, seed-zeroized and retired at 13:45:32.675 UTC. Never
-   resume it. Preserve each active process and frozen source. The default older workspace
+1. Source publication and clean native synchronization are complete. Both
+   five-slot parallel02–06 cohorts ended incomplete and are retired with
+   maintained abort and seed zeroization: original cohort 1,280 attempts
+   (1,123 geography / 157 proof rejects); replacement01 cohort 1,280 attempts
+   (1,094 / 186). Neither produced an eligible candidate. Slot01-replacement02
+   subsequently exhausted 256 attempts (225 / 31), was authenticated and
+   retired at 16:15:10.826 UTC. Its fresh replacement03 began 16:15:37.462 UTC.
+   Current slots02–06 use replacement02: slot05 began 15:56:34.849;
+   slots02/03/04/06 16:04:06–16:05:03 UTC. The earlier slot01
+   replacement and original preparallel batch are also retired. Never resume
+   them. Actual receipts and timestamps are in local operations. Preserve each
+   active process and frozen source. The default older workspace
    was refused before generation; do not overwrite or replay its checkpoint.
 2. Actual isolated PTR inspection, compatible update preparation, one-submit
    apply and preservation postflight are complete. Inspection `4a78bc2b` binds
@@ -63,21 +63,26 @@ Execute this short release path without expanding the frozen scope:
 For the current six workers, native terminal readers are ready in
 `/home/warpkeep/Warpkeep-0.4/artifacts/qa/`:
 
-- `october-release-7ae-replacement-pool-terminal-reader-v1.ts`, SHA-256
-  `7fab575a5a5fb4078fc6d7147c87c60448fe43f2994e75c183834442733071d3`,
-  covers current replacements02–06 (`--slot=02` through `--slot=06`).
-- `october-release-7ae-parallel01-replacement02-terminal-reader-v1.ts`, SHA-256
-  `4b385d36eccf736ada2ad7ef2f0269525bcd10e0b8300d6bda6580085c34ed40`,
+- `october-release-7ae-replacement-pool-terminal-reader-v2.ts`, SHA-256
+  `86f5991e13143d5c7fd7acc902be928f17cae3fbdc2cd18f595d38c9da3b267d`,
+  covers current slots02/03/04/06 (`--slot=02`, `03`, `04` or `06`).
+- `october-release-7ae-parallel01-replacement03-terminal-reader-v1.ts`, SHA-256
+  `655a3a461a627f9dc8b7a9c1b40db9e15cadef3133b7fc34bf4dc085457c4dec`,
   covers current slot01 (`--slot=01`).
+- `october-release-7ae-parallel05-replacement02-terminal-reader-v1.ts`, SHA-256
+  `ca7a678a8b8fbcb50f451fde056dc92be7006c54762e393d973b694f0c1ea485`,
+  covers current slot05 (`--slot=05`).
 
-The original pool reader and original02–06 checkpoints are retired bindings;
-do not invoke that reader after abort or relabel it for replacements. The new
+The original pool and replacement01 readers are retired bindings;
+do not invoke them after abort or relabel them for replacements. The current
 pool retains identical lifecycle/private-read/zeroization/manifest logic and
 binds only actual replacement start receipts. Its launcher is the separately
-reviewed v2, SHA-256
-`e6afe066d5c4609e6fdbe24a99c64157d0010573b3521452159c3da7d48ce8f3`.
-Current slot01 uses its separate v3 launcher, SHA-256
-`e8e11f0386fefac777c79822bde37372e0340b28f58cd76a42fffb17e8a48f3c`.
+reviewed v5, SHA-256
+`b15a64f64708e7ab99f2ed9ef8be9a5e7076fd5d0e38f1f8bc13bfbe65cdee06`.
+Current slot01 uses its separate v6 launcher, SHA-256
+`a8557320593c3f4db7aacf5798867e1a813ea8270c284acdfce418203045c400`.
+Current slot05 uses separate v4, SHA-256
+`3ed26725512fa2c21309762cd3e99b8a393591bb9e8ec448b978377e4a407225`.
 Older slot01 bindings are retired and must never be reopened or relabeled.
 Current startup/retirement pins
 are in local operations. Maintained comparison must still establish package
@@ -89,7 +94,7 @@ environment from the previous source-bound operators. Root reviewed the current
 readers against their actual startup bindings; syntax checks passed and current
 pool metadata probes read no active private checkpoints. The earlier six-worker
 independent review, before those workers were retired, is recorded separately in
-`october-release-7ae-six-worker-continuation-review-v1.json` has SHA-256
+`october-release-7ae-six-worker-continuation-review-v1.json`, SHA-256
 `327f9716ce8bb40e80fc59fba923ac53a46728123e9afefac2c55c4da5ca7cd8`.
 
 Exec session handles belong to the agent that launched them. An `Unknown
@@ -104,16 +109,16 @@ package/shortlist/selection/runtime gates, never substitute the aggregate for
 those proofs. Never reuse these fixed run bindings for a different worker.
 
 Root also reviewed the prepared comparison/runtime callers in the same native QA
-directory. Current v3 binds slot01-replacement02 and slots02–06-replacement01:
+directory. Current v6 binds slot01-replacement03 and slots02–06-replacement02:
 
-- `october-release-7ae-parallel-continuation-reader-v3.ts`, SHA-256
-  `18b958bbf8e48c99befacb9166d114643cc299d580e0e52bedeae3f47956ce08`.
-- `october-release-7ae-parallel-runtime-caller-v3.ts`, SHA-256
-  `e6d2ca659254a2d6de34635075fe1646c7ccdead35c28452921b54ad0139ee14`.
+- `october-release-7ae-parallel-continuation-reader-v6.ts`, SHA-256
+  `a467cffbbae50311e2d5aa6d45db6171ca4b28acbd1eeef7de2ab0cebef696ca`.
+- `october-release-7ae-parallel-runtime-caller-v6.ts`, SHA-256
+  `a4e85fe8986d8268da966e5c9e356d9fdeeffa1f7f7f87790120972118a43c38`.
 
 They call existing maintained gates, keep genuine handles/raw results private
 and have not been executed. Resolve the fixed-worker binding against the actual
-start receipt before use; older v1/v2 slot01 authority is now retired. Comparison
+start receipt before use; older callers contain retired authorities. Comparison
 must produce the genuine private verified-continuation manifest and shortlist
 before a single explicit select-runtime, then prepare-runtime invocation.
 Neither prepared code nor an eligible generation aggregate proves those steps.
