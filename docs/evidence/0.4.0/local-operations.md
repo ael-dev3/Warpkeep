@@ -2,6 +2,68 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Third independent `.26` candidate run — 7 October 2026 — source `e4fb6a46`
+
+The exact-source run used signed documentation successor
+`e4fb6a4690dfa7a6206c7e789fe0f2d9bd2544eb`; generator `.26` is unchanged from
+`93c9b54a`. The pinned Linux Node `22.22.3` runner verified profile
+`linux-x64` and all 11 locked toolchain packages. A fresh-seed private
+candidate batch exhausted all 256 attempts in about 30 minutes with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no candidate was accepted.
+
+The authenticated checkpoint matched the source and toolchain. Geography
+rejections (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 115 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 34 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 35 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 16 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 7 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 8 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 5 |
+| **Total geography rejections** | **231** |
+
+The other 25 attempts ended in proof rejection. Proof occurrences are
+nonexclusive across those attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 25 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 20 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 18 |
+| `PROOF_REGION_GRAPH` | 16 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 16 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 15 |
+| `PROOF_GATE_APPROACHES` | 13 |
+| `PROOF_REGION_LAND_COHERENCE` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 11 |
+| `PROOF_GATE_GRAPH` | 11 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 9 |
+| `PROOF_CASTLE_CAPACITY` | 9 |
+| `CASTLE_SUITABILITY` | 9 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 7 |
+| `HYDROLOGY_LAKES_48_96` | 7 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 |
+| `PROOF_REGION_PASSABLE_LAND` | 4 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 4 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 4 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 2 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_BIOME_DIVERSITY` | 1 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; selection readiness passed without a completion
+receipt. No candidate package, shortlist, selection, provider request, or
+production mutation resulted. No raw checkpoint, seed, coordinates, candidate
+handle, or private package bytes were emitted.
+
 ## Second independent `.26` candidate run — 7 October 2026 — source `6b7a576f`
 
 The signed documentation successor

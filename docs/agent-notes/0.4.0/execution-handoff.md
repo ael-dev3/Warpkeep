@@ -89,7 +89,7 @@ selection readiness true. Safe details are in
 
 Generator `.26` is at source `93c9b54a8745bbb9b3f16fc98c0ca2e7526ff690`;
 the current exact-source documentation checkpoint is
-`6b7a576f3817fb87d30a36228f9b07bd59cdf8d9`. The `.26` source changes only the
+`e4fb6a4690dfa7a6206c7e789fe0f2d9bd2544eb`. The `.26` source changes only the
 retained per-child bundle-pair frontier, from 4,096 to 8,192; the 128
 child-option, 320,000 search-node, 256 complete-plan, geometry, ownership,
 proof, seed namespace, and eligibility rules remain fixed. Windows typecheck
@@ -98,26 +98,33 @@ Linux Node `22.22.3` runner with all 11 locked packages verified, the four
 focused suites passed 134/134 and the workflow-faithful exact-source typecheck
 passed.
 
-Two exact-source fresh-seed `.26` batches exhausted 256 attempts apiece without
-an eligible candidate: 224 geography and 32 proof rejections each. The first
-ran on `93c9b54a` in about 31 minutes and reported the pair-frontier terminal
-122 times. The second ran on its documentation-only successor `6b7a576f` in
-about 36 minutes and reported it 102 times. Across these independent batches,
-that terminal appeared in 224/448 geography rejections. Persisted rejection
-records retain only the earliest-priority frontier code, so this count can mask
-concurrent option or repair truncations and cannot prove that a retained-pair
-cap alone prevented a valid complete plan. Source review traced deterministic
-pair ranking, endpoint-balanced retention, and downstream sibling
+Three exact-source fresh-seed `.26` batches exhausted 256 attempts apiece
+without an eligible candidate. The first ran on `93c9b54a` in about 31 minutes
+and reported 224 geography and 32 proof rejections, including 122 pair-frontier
+terminals. The second ran on documentation successor `6b7a576f` in about 36
+minutes: 224 geography, 32 proof, and 102 pair-frontier terminals. The third
+ran on `e4fb6a46` in about 30 minutes: 231 geography, 25 proof, and 115
+pair-frontier terminals. In total the pair-frontier code appeared in 339/679
+geography rejections across these independent seeds. Persisted rejection
+records retain only the earliest-priority frontier code, so this can mask
+concurrent option or repair truncations and cannot prove that the pair cap
+alone prevented a valid complete plan. Source review traced deterministic pair
+ranking, endpoint-balanced retention, and downstream sibling
 overlap/separation checks; no reproducible incorrect pruning was established.
-Both maintained aborts confirmed production untouched, and selection
-readiness passed without a completion receipt. Do not widen caps or relax
-proofs without a deterministic counterexample. Full sanitized aggregates are
-in [local operations](../../evidence/0.4.0/local-operations.md).
+All three maintained aborts confirmed production untouched, and selection
+readiness passed without completion receipts. Do not widen caps or relax proofs
+without a deterministic counterexample. Full sanitized aggregates are in
+[local operations](../../evidence/0.4.0/local-operations.md).
 
-Continue exact-source fresh-seed generation under the existing limits while the
-candidate remains the first release gate. If another batch fails, use its safe
-aggregate to identify a reproducible, testable strategy correction before
-changing the generator; do not infer causality from unpaired counts alone.
+Run one more exact-source fresh-seed batch under the existing limits. If it
+also exhausts, stop blind seed repetition and make one bounded diagnostic
+change to preserve co-occurring frontier truncation evidence; keep candidate
+eligibility and proof rules fixed, then run a focused deterministic regression
+before generation resumes. Do not infer cap causality from unpaired counts.
+The candidate remains the first release gate. Owner acceptance, bridge,
+frontend, and PTR cutover remain downstream. The live Alpha returns HTTP 200
+and `/ptr/` returns HTTP 404 on 7 October. GitHub Actions are disabled, so local
+verification and branch publication are not hosted CI or deployment evidence.
 Owner acceptance, bridge, frontend, and PTR cutover remain downstream. The live
 Alpha returns HTTP 200 and `/ptr/` returns HTTP 404 on 7 October. GitHub Actions
 are disabled, so local verification and branch publication are not hosted CI or
