@@ -461,7 +461,7 @@ describe('Greater Realm ranked gate-apron search', () => {
     expect('tierTwoCells' in fallback).toBe(false);
   });
 
-  it('enters the Lowlands repair lane only after a complete ordinary no-match', () => {
+  it('prefers ordinary matches and lets bounded repair recover a valid plan', () => {
     const ordinaryMatch = vi.fn(() => Object.freeze({
       outcome: 'match' as const,
       alternative: 'ordinary',
@@ -473,15 +473,6 @@ describe('Greater Realm ranked gate-apron search', () => {
       result: { outcome: 'match', alternative: 'ordinary', options: [] },
     });
     expect(repairAfterMatch).not.toHaveBeenCalled();
-
-    for (const terminal of ['search-node-limit', 'complete-plan-limit'] as const) {
-      const repairAfterLimit = vi.fn(() => Object.freeze({ outcome: 'no-match' as const }));
-      expect(runGreaterRealmGateApronSearchLanes(
-        () => Object.freeze({ outcome: terminal }),
-        repairAfterLimit,
-      )).toEqual({ lane: 'ordinary', result: { outcome: terminal } });
-      expect(repairAfterLimit).not.toHaveBeenCalled();
-    }
 
     const repair = vi.fn(() => Object.freeze({
       outcome: 'match' as const,
@@ -496,6 +487,37 @@ describe('Greater Realm ranked gate-apron search', () => {
       result: { outcome: 'match', alternative: 'repair', options: [] },
     });
     expect(repair).toHaveBeenCalledTimes(1);
+
+    for (const terminal of ['search-node-limit', 'complete-plan-limit'] as const) {
+      const repairAfterLimit = vi.fn(() => Object.freeze({
+        outcome: 'match' as const,
+        alternative: 'repair',
+        options: Object.freeze([]),
+      }));
+      expect(runGreaterRealmGateApronSearchLanes(
+        () => Object.freeze({ outcome: terminal }),
+        repairAfterLimit,
+      )).toEqual({
+        lane: 'lowlands-repair',
+        result: { outcome: 'match', alternative: 'repair', options: [] },
+      });
+      expect(repairAfterLimit).toHaveBeenCalledTimes(1);
+
+      const failedRepair = vi.fn(() => Object.freeze({ outcome: 'no-match' as const }));
+      expect(runGreaterRealmGateApronSearchLanes(
+        () => Object.freeze({ outcome: terminal }),
+        failedRepair,
+      )).toEqual({ lane: 'ordinary', result: { outcome: terminal } });
+      expect(failedRepair).toHaveBeenCalledTimes(1);
+
+      const repairLimit = terminal === 'search-node-limit'
+        ? 'complete-plan-limit'
+        : 'search-node-limit';
+      expect(runGreaterRealmGateApronSearchLanes(
+        () => Object.freeze({ outcome: terminal }),
+        () => Object.freeze({ outcome: repairLimit }),
+      )).toEqual({ lane: 'ordinary', result: { outcome: terminal } });
+    }
   });
 
   it('admits only dry child-zero reserve edges with immutable Lowlands ownership', () => {

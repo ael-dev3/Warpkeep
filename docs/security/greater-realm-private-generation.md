@@ -475,6 +475,14 @@ allowlisted only so an authenticated exhausted ledger can be inspected and
 retired; `.20` never emits it. Terrain channels, thresholds, atlas format, and
 the `.3` terrain-seed namespace are unchanged.
 
+The current `.26` search preserves an ordinary-lane match, then runs the
+separately capped Lowlands repair lane after either a complete ordinary
+no-match or ordinary node/complete-plan exhaustion. A repair result still uses
+the common commit path and complete invariant suite; if repair does not find a
+match after an ordinary limit, the ordinary typed limit remains the rejection
+reason. This corrects candidate-yield handling without changing lane caps,
+edge authority, ranking, ownership, or final proofs.
+
 Verification requires exact bytes, bounded sizes, complete inventories,
 authority bindings, and recorded SHA-256 values. Each preview must exactly
 match the regenerated marked PNG before its bounded decode/dimension check. A

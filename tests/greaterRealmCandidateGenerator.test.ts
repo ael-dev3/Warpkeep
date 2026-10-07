@@ -68,6 +68,7 @@ let secondaryEvidence: Readonly<{
 let rejectedFixtureEvidence: Readonly<{
   code: ReturnType<typeof greaterRealmCandidateRejectionCode>;
   frontierTruncationKinds: readonly string[];
+  searchLanes: readonly string[];
   retiredLargeAuthorityCount: number;
   allRetiredAuthoritiesCleared: boolean;
 }> | undefined;
@@ -320,11 +321,13 @@ beforeAll(() => {
     let unexpectedlyGenerated: GreaterRealmPrivateCandidate | undefined;
     let rejectionCode: ReturnType<typeof greaterRealmCandidateRejectionCode>;
     let frontierTruncationKinds: readonly string[] = Object.freeze([]);
+    const searchLanes: string[] = [];
     try {
       try {
         unexpectedlyGenerated = generateGreaterRealmCandidate({
           rootSeed: rejectedRoot,
           candidateOrdinal: REJECTED_ORDINAL,
+          onGateApronSearchLane: lane => searchLanes.push(lane),
         });
       } catch (error) {
         rejectionCode = greaterRealmCandidateRejectionCode(error);
@@ -337,6 +340,7 @@ beforeAll(() => {
       rejectedFixtureEvidence = Object.freeze({
         code: rejectionCode,
         frontierTruncationKinds,
+        searchLanes: Object.freeze([...searchLanes]),
         retiredLargeAuthorityCount: retiredLargeAuthorities.length,
         allRetiredAuthoritiesCleared: retiredLargeAuthorities.every(values => (
           values.every(value => value === 0n)
@@ -546,7 +550,7 @@ describe('Greater Realm private candidate generator', () => {
     ))).toBe(true);
   });
 
-  it('clears large topology arrays when the apron search reaches its node limit', () => {
+  it('tries bounded repair after apron search limits and clears large topology arrays', () => {
     if (!rejectedFixtureEvidence) {
       throw new Error('GREATER_REALM_REJECTION_EVIDENCE_MISSING');
     }
@@ -554,6 +558,7 @@ describe('Greater Realm private candidate generator', () => {
       'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT',
     );
     expect(rejectedFixtureEvidence.frontierTruncationKinds).toContain('BUNDLE_PAIR_LIMIT');
+    expect(rejectedFixtureEvidence.searchLanes).toEqual(['ordinary', 'lowlands-repair']);
     expect(rejectedFixtureEvidence.retiredLargeAuthorityCount).toBeGreaterThan(0);
     expect(rejectedFixtureEvidence.allRetiredAuthoritiesCleared).toBe(true);
   }, 180_000);

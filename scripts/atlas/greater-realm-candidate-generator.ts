@@ -480,18 +480,25 @@ export function assertGreaterRealmRepairOwnershipUnchanged(input: Readonly<{
 }
 
 /**
- * Keep bounded-limit semantics terminal. Repair is legal only after the
- * ordinary frontier has been completely explored and proved to have no match.
+ * Preserve every ordinary match, then let the separately bounded repair lane
+ * recover a fully proved plan when ordinary search has no match or reaches a
+ * search limit. If repair also fails after an ordinary limit, retain the
+ * ordinary limit as the primary rejection reason.
  */
 export function runGreaterRealmGateApronSearchLanes<Alternative, Option>(
   ordinarySearch: () => GreaterRealmRankedSiblingSearchResult<Alternative, Option>,
   repairSearch: () => GreaterRealmRankedSiblingSearchResult<Alternative, Option>,
 ): GreaterRealmGateApronSearchLaneResult<Alternative, Option> {
   const ordinary = ordinarySearch();
-  if (ordinary.outcome !== 'no-match') {
+  if (ordinary.outcome === 'match') {
     return Object.freeze({ lane: 'ordinary', result: ordinary });
   }
-  return Object.freeze({ lane: 'lowlands-repair', result: repairSearch() });
+
+  const repair = repairSearch();
+  if (ordinary.outcome === 'no-match' || repair.outcome === 'match') {
+    return Object.freeze({ lane: 'lowlands-repair', result: repair });
+  }
+  return Object.freeze({ lane: 'ordinary', result: ordinary });
 }
 
 /**
