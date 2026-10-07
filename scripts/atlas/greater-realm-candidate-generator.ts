@@ -119,7 +119,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.27' as const;
+  'greater-realm-v2-natural-continent-pr-a.28' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -334,11 +334,17 @@ export type GreaterRealmGateApronPairRank = Readonly<{
 /**
  * Keep the bounded bundle frontier representative across its edge endpoints.
  * A score-only prefix can otherwise spend the entire option budget on pairs
- * that share one edge, hiding viable alternatives from the later search.
+ * that share one edge, hiding viable alternatives from the later search. On
+ * overflow, a physical-cell visitor also preserves low-overlap alternatives;
+ * this does not change the cap or its truncation signal.
  */
 export function selectBalancedGreaterRealmGateApronPairs(
   pairs: readonly GreaterRealmGateApronPairRank[],
   maximumPairs: number = GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS,
+  visitPhysicalFootprint?: (
+    pair: GreaterRealmGateApronPairRank,
+    visitCell: (tier: 'tier-one' | 'tier-two', cell: number) => void,
+  ) => void,
 ): readonly GreaterRealmGateApronPairRank[] {
   if (!Number.isSafeInteger(maximumPairs) || maximumPairs < 1) {
     fail('GREATER_REALM_GATE_APRON_PAIR_LIMIT_INVALID');
@@ -365,6 +371,147 @@ export function selectBalancedGreaterRealmGateApronPairs(
 
   const desiredPairCount = Math.min(maximumPairs, ranked.length);
   if (desiredPairCount === 0) return Object.freeze([]);
+
+  // The endpoint-balanced raw-pair cap precedes the smaller child-option cap.
+  // When it overflows, retain endpoint representatives and then spend two
+  // bounded scans on physically distinct footprints before rank filling.
+  // The visitor reads caller-owned paths without copying them. Visited indexes
+  // are validated; selected footprints are deduplicated in scratch sets that
+  // are cleared immediately.
+  if (visitPhysicalFootprint !== undefined && ranked.length > desiredPairCount) {
+    const selected: GreaterRealmGateApronPairRank[] = [];
+    const selectedPairKeys = new Set<string>();
+    const endpointUse = new Map<number, number>();
+    const tierOneUse = new Map<number, number>();
+    const tierTwoUse = new Map<number, number>();
+    let maximumSelectedEndpointUse = 1;
+    let maximumCellUse = 1;
+    const appendPair = (pair: GreaterRealmGateApronPairRank): void => {
+      selected.push(pair);
+      selectedPairKeys.add(`${pair.firstIndex}:${pair.secondIndex}`);
+      const firstUse = (endpointUse.get(pair.firstIndex) ?? 0) + 1;
+      const secondUse = (endpointUse.get(pair.secondIndex) ?? 0) + 1;
+      endpointUse.set(pair.firstIndex, firstUse);
+      endpointUse.set(pair.secondIndex, secondUse);
+      maximumSelectedEndpointUse = Math.max(
+        maximumSelectedEndpointUse,
+        firstUse,
+        secondUse,
+      );
+    };
+    const traverseFootprint = (
+      pair: GreaterRealmGateApronPairRank,
+      visit: (tier: 'tier-one' | 'tier-two', cell: number) => void,
+    ): void => {
+      let active = true;
+      const visitCell = (tier: 'tier-one' | 'tier-two', cell: number): void => {
+        if (!active || (tier !== 'tier-one' && tier !== 'tier-two')
+          || !Number.isSafeInteger(cell) || cell < 0) {
+          fail('GREATER_REALM_GATE_APRON_PAIR_FOOTPRINT_INVALID');
+        }
+        visit(tier, cell);
+      };
+      try {
+        visitPhysicalFootprint(pair, visitCell);
+      } finally {
+        active = false;
+      }
+    };
+    const recordFootprint = (pair: GreaterRealmGateApronPairRank): void => {
+      const tierOneSeen = new Set<number>();
+      const tierTwoSeen = new Set<number>();
+      try {
+        traverseFootprint(pair, (tier, cell) => {
+          const seen = tier === 'tier-one' ? tierOneSeen : tierTwoSeen;
+          if (seen.has(cell)) return;
+          seen.add(cell);
+          const use = tier === 'tier-one' ? tierOneUse : tierTwoUse;
+          const cellUse = (use.get(cell) ?? 0) + 1;
+          use.set(cell, cellUse);
+          maximumCellUse = Math.max(maximumCellUse, cellUse);
+        });
+      } finally {
+        tierOneSeen.clear();
+        tierTwoSeen.clear();
+      }
+    };
+    const footprintFits = (
+      pair: GreaterRealmGateApronPairRank,
+      maximumUse: number,
+    ): boolean => {
+      let fits = true;
+      traverseFootprint(pair, (tier, cell) => {
+        const use = tier === 'tier-one' ? tierOneUse : tierTwoUse;
+        if ((use.get(cell) ?? 0) >= maximumUse) fits = false;
+      });
+      return fits;
+    };
+    const appendWithFootprint = (pair: GreaterRealmGateApronPairRank): void => {
+      appendPair(pair);
+      recordFootprint(pair);
+    };
+
+    // First retain a greedy maximal endpoint-disjoint prefix, then cover any
+    // remaining endpoints without letting an endpoint exceed two uses.
+    for (const pair of ranked) {
+      if (selected.length >= desiredPairCount) break;
+      if ((endpointUse.get(pair.firstIndex) ?? 0) !== 0
+        || (endpointUse.get(pair.secondIndex) ?? 0) !== 0) continue;
+      appendWithFootprint(pair);
+    }
+    for (const pair of ranked) {
+      if (selected.length >= desiredPairCount) break;
+      const firstUse = endpointUse.get(pair.firstIndex) ?? 0;
+      const secondUse = endpointUse.get(pair.secondIndex) ?? 0;
+      if ((firstUse !== 0 && secondUse !== 0) || firstUse >= 2 || secondUse >= 2) continue;
+      appendWithFootprint(pair);
+    }
+
+    const baselineCellUse = maximumCellUse;
+    const baselineEndpointUse = maximumSelectedEndpointUse;
+    for (const maximumCellUse of [baselineCellUse, baselineCellUse + 1]) {
+      const maximumEndpointUse = baselineEndpointUse
+        + Number(maximumCellUse > baselineCellUse);
+      for (const pair of ranked) {
+        if (selected.length >= desiredPairCount) break;
+        if (selectedPairKeys.has(`${pair.firstIndex}:${pair.secondIndex}`)
+          || (endpointUse.get(pair.firstIndex) ?? 0) >= maximumEndpointUse
+          || (endpointUse.get(pair.secondIndex) ?? 0) >= maximumEndpointUse) continue;
+        if (!footprintFits(pair, maximumCellUse)) continue;
+        appendPair(pair);
+        recordFootprint(pair);
+      }
+    }
+
+    const firstFillEndpointLimit = maximumSelectedEndpointUse + 1;
+    for (let maximumEndpointUse = firstFillEndpointLimit;
+      maximumEndpointUse <= desiredPairCount && selected.length < desiredPairCount;
+      maximumEndpointUse += 1) {
+      for (const pair of ranked) {
+        if (selected.length >= desiredPairCount) break;
+        if (selectedPairKeys.has(`${pair.firstIndex}:${pair.secondIndex}`)) continue;
+        if ((endpointUse.get(pair.firstIndex) ?? 0) >= maximumEndpointUse
+          || (endpointUse.get(pair.secondIndex) ?? 0) >= maximumEndpointUse) continue;
+        appendPair(pair);
+      }
+    }
+    const output = Object.freeze(selected
+      .sort((first, second) => first.score - second.score
+        || first.firstIndex - second.firstIndex
+        || first.secondIndex - second.secondIndex)
+      .map(pair => Object.freeze({
+        firstIndex: pair.firstIndex,
+        secondIndex: pair.secondIndex,
+        score: pair.score,
+      })));
+    selected.length = 0;
+    selectedPairKeys.clear();
+    endpointUse.clear();
+    tierOneUse.clear();
+    tierTwoUse.clear();
+    return output;
+  }
+
   const selected: GreaterRealmGateApronPairRank[] = [];
   const selectedPairKeys = new Set<string>();
   const endpointUse = new Map<number, number>();
@@ -3436,7 +3583,30 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
           }));
         }
       }
-      const selectedPairs = selectBalancedGreaterRealmGateApronPairs(viablePairs);
+      const selectedPairs = selectBalancedGreaterRealmGateApronPairs(
+        viablePairs,
+        GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS,
+        (pair, visitCell) => {
+          const left = edges[pair.firstIndex]!;
+          const right = edges[pair.secondIndex]!;
+          visitCell('tier-one', left.tierOneEndpoint);
+          for (const corridor of left.tierOneCorridors) {
+            for (const cell of corridor) visitCell('tier-one', cell);
+          }
+          visitCell('tier-two', left.tierTwoEndpoint);
+          for (const corridor of left.tierTwoCorridors) {
+            for (const cell of corridor) visitCell('tier-two', cell);
+          }
+          visitCell('tier-one', right.tierOneEndpoint);
+          for (const corridor of right.tierOneCorridors) {
+            for (const cell of corridor) visitCell('tier-one', cell);
+          }
+          visitCell('tier-two', right.tierTwoEndpoint);
+          for (const corridor of right.tierTwoCorridors) {
+            for (const cell of corridor) visitCell('tier-two', cell);
+          }
+        },
+      );
       if (selectedPairs.length < viablePairs.length) {
         noteSearchFrontierTruncation('BUNDLE_PAIR_LIMIT');
       }

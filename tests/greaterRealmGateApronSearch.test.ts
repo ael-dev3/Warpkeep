@@ -75,6 +75,62 @@ describe('Greater Realm ranked gate-apron search', () => {
     );
   });
 
+  it('retains a physically novel pair beyond the endpoint-only overflow frontier', () => {
+    const edgeCount = 129;
+    const pairs = Object.freeze(Array.from({ length: edgeCount - 1 }, (_, firstIndex) => (
+      Array.from({ length: edgeCount - firstIndex - 1 }, (_, offset) => Object.freeze({
+        firstIndex,
+        secondIndex: firstIndex + offset + 1,
+        score: firstIndex * edgeCount + firstIndex + offset + 1,
+      }))
+    )).flat());
+    const endpointOnly = selectBalancedGreaterRealmGateApronPairs(pairs);
+    expect(pairs).toHaveLength(8_256);
+    expect(endpointOnly).toHaveLength(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS);
+
+    const commonFootprint = (_pair: typeof pairs[number], visitCell: (tier: 'tier-one' | 'tier-two', cell: number) => void) => {
+      visitCell('tier-one', 0);
+      visitCell('tier-one', 0);
+    };
+    const endpointAndCommonFootprint = selectBalancedGreaterRealmGateApronPairs(
+      pairs,
+      GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS,
+      commonFootprint,
+    );
+    const endpointAndCommonKeys = new Set(endpointAndCommonFootprint
+      .map(pair => `${pair.firstIndex}:${pair.secondIndex}`));
+    const physicallyNovel = pairs.find(pair => !endpointAndCommonKeys
+      .has(`${pair.firstIndex}:${pair.secondIndex}`));
+    expect(physicallyNovel).toBeDefined();
+    const visitor = (pair: typeof pairs[number], visitCell: (tier: 'tier-one' | 'tier-two', cell: number) => void) => {
+      visitCell('tier-one', pair === physicallyNovel ? 1 : 0);
+    };
+    const diverse = selectBalancedGreaterRealmGateApronPairs(
+      pairs,
+      GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS,
+      visitor,
+    );
+
+    expect(endpointAndCommonFootprint).not.toContainEqual(physicallyNovel);
+    expect(diverse).toContainEqual(physicallyNovel);
+    expect(pairs[0]).toEqual({ firstIndex: 0, secondIndex: 1, score: 1 });
+    expect(Object.isFrozen(diverse)).toBe(true);
+  });
+
+  it('skips footprint work for untruncated pair frontiers and rejects invalid cells', () => {
+    const pair = Object.freeze({ firstIndex: 0, secondIndex: 1, score: 1 });
+    const unused = vi.fn(() => { throw new Error('UNUSED_PAIR_FOOTPRINT'); });
+    expect(selectBalancedGreaterRealmGateApronPairs([pair], 8_192, unused)).toEqual([pair]);
+    expect(unused).not.toHaveBeenCalled();
+
+    expect(() => selectBalancedGreaterRealmGateApronPairs([
+      pair,
+      Object.freeze({ firstIndex: 0, secondIndex: 2, score: 2 }),
+    ], 1, (_selected, visitCell) => visitCell('tier-one', -1))).toThrow(
+      'GREATER_REALM_GATE_APRON_PAIR_FOOTPRINT_INVALID',
+    );
+  });
+
   it('widens endpoint capacity only when the viable pair graph has no disjoint continuation', () => {
     expect(selectBalancedGreaterRealmGateApronPairs(Object.freeze([
       Object.freeze({ firstIndex: 0, secondIndex: 1, score: 2 }),
