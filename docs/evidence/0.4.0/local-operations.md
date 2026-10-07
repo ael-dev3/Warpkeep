@@ -2,6 +2,79 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Repair lane after ordinary search limits — 7 October 2026 — source `c855c79b`
+
+Signed source `c855c79bbf573809fdc1ac0f7e658f27b60d2a22` changes the bounded
+Lowlands repair lane sequencing. An ordinary match still wins immediately;
+after an ordinary no-match, node limit, or complete-plan limit, the separately
+capped repair lane now runs. A repair match still uses the common allocator
+commit path and complete candidate proofs. If repair fails after an ordinary
+limit, that ordinary typed limit remains the primary rejection. No edge
+authority, option ranking, frontier cap, geometry, ownership rule, final proof,
+or terrain-seed namespace changed.
+
+The checked-in fixed rejection fixture confirms both `ordinary` and
+`lowlands-repair` lanes are visited after its ordinary node limit. The fixture
+still rejects with the typed node-limit code and all four frontier truncations;
+it does not prove a larger frontier would help.
+
+One fresh-seed private `generate-candidates --count 1 --maximum-attempts 256`
+batch on this exact source ran for about 36 minutes and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. It used pinned Linux Node `22.22.3`,
+the verified `linux-x64` profile, and all 11 locked toolchain packages. Its
+authenticated checkpoint matched the source and toolchain, reached sequence
+256 / next ordinal 256, and recorded 229 geography rejections and 27
+proof-rejection attempts. No candidate or package was accepted.
+
+Geography rejection codes (one priority-selected code per attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 133 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 27 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 27 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 11 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 8 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 1 |
+| **Total geography rejections** | **229** |
+
+The co-occurring frontier record shows the four pair/option/Lowlands-repair
+limits together in 180 attempts; option plus both Lowlands-repair limits
+without pair truncation in 10; and no frontier truncation in 39. Across the 229
+geography attempts, pair truncation occurred 180 times, while bundle-option
+and each Lowlands-repair cutoff occurred 190 times. These cutoffs are not proof
+that a wider frontier would produce a valid complete plan.
+
+Proof-rejection occurrences are nonexclusive across the 27 attempts: regional
+hydrogeomorphology QA (26), Tier III passable-land minimum (15), region graph
+(15), region land coherence (19), region passable-land (7), Frostmere (19),
+Mirefen (10), Stonewake (19), Sunscar (6), Throneheart (6), Tier-II QA (2),
+topographic QA completion (20), living-world dormant capacity (10), gate
+approaches (9), gate graph (8), castle capacity (8), castle suitability (8),
+inner-gate/throne redundancy (7), lakes (3), major rivers (6), geological
+barriers (6), biome diversity (2), mountain composition (2), advanced
+geomorphology (1), natural-land silhouette (1), natural landmass topology (3),
+Tier-I balance (1), and tier-potential density (1).
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; the maintained selection-readiness check then
+passed. No completion receipt, package, shortlist, selection, Atlas publication,
+provider request, or production mutation resulted. The checkpoint reader
+zeroized its recovered root-seed buffer; private seed, handles, coordinates,
+and candidate bytes were not emitted. Code source `c855c79b` was pushed to
+open draft PR #385 before generation; this result is recorded by a docs-only
+successor. The full Actions inventory was 3,807 completed runs across five
+event types with 28 rerun records and no queued/running runs; Actions remains
+disabled, and no run was created for the code source.
+
+This correction prevents a bounded ordinary search from suppressing a valid
+repair plan, but it did not yield an Atlas candidate in this fresh sample. Do
+not widen limits or repeat a blind seed batch. Next inspect Lowlands-repair
+ranking/retention with a deterministic case that demonstrates an eligible
+plan being pruned; all proof checks and current limits remain fixed meanwhile.
+
 ## Fifth independent `.26` candidate run and diagnostic validation — 7 October 2026 — source `7219b8de`
 
 The signed exact source was

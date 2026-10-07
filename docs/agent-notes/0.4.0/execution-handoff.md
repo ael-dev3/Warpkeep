@@ -87,64 +87,42 @@ limits in 29 and 12. The maintained abort confirmed production untouched and
 selection readiness true. Safe details are in
 [local operations](../../evidence/0.4.0/local-operations.md).
 
-Generator `.26` remains at source `93c9b54a8745bbb9b3f16fc98c0ca2e7526ff690`;
-the latest exact-source candidate run used documentation successor
-`21cb97fd4ff71fa92d78f7cf4c5348901245c75f`. The `.26` source changes only the
-retained per-child bundle-pair frontier, from 4,096 to 8,192; the 128
-child-option, 320,000 search-node, 256 complete-plan, geometry, ownership,
-proof, seed namespace, and eligibility rules remain fixed. Before the
-diagnostic correction, Windows typecheck and focused tests passed (52/52), and
-the pinned Linux Node `22.22.3` runner verified all 11 locked packages, passed
-the four focused suites (134/134), and passed the workflow-faithful exact-source
-typecheck.
+The latest `.26` code source is signed
+`c855c79bbf573809fdc1ac0f7e658f27b60d2a22`, pushed to open draft PR #385;
+this post-run evidence is recorded in a docs-only successor. The source
+preserves an ordinary match, then invokes the
+separately capped Lowlands repair lane after ordinary no-match, node-limit, or
+complete-plan-limit. A successful repair still passes the shared allocator
+commit path and all final proofs; an unsuccessful repair preserves the
+ordinary typed limit. The 8,192 pair cap, 128 child-option cap, 320,000 search
+nodes, 256 complete plans, geometry, ownership, proof thresholds, and `.3`
+terrain namespace remain unchanged. This corrects the earlier behavior that
+could discard a valid bounded repair result when ordinary search hit its cap.
 
-Four exact-source fresh-seed `.26` batches exhausted 256 attempts each without
-an eligible candidate. The first ran on `93c9b54a` in about 31 minutes and
-reported 224 geography and 32 proof rejections, including 122 pair-frontier
-terminals. The second ran on documentation successor `6b7a576f` in about 36
-minutes: 224 geography, 32 proof, and 102 pair-frontier terminals. The third
-ran on `e4fb6a46` in about 30 minutes: 231 geography, 25 proof, and 115
-pair-frontier terminals. The fourth ran on `21cb97fd` in about 34 minutes:
-230 geography, 26 proof, and 125 pair-frontier terminals. Across all four
-independent seeds, no candidate was accepted; the pair-frontier code appeared
-in 464/909 geography rejections. The rejection record keeps only the
-earliest-priority frontier code, so those counts can mask concurrent option,
-repair, or assignment cutoffs and cannot prove that the pair cap alone
-prevented a valid complete plan. Source review found no reproducible incorrect
-geometry or ownership pruning. All four maintained aborts confirmed production
-untouched and selection readiness without completion receipts. Full sanitized
-aggregates are in [local operations](../../evidence/0.4.0/local-operations.md).
+Pinned Linux Node `22.22.3` verified all 11 toolchain packages. Six focused
+suites passed 178/178; the integrated fixed rejection fixture was rerun
+afterward and passed 21/21 with an assertion that both lanes execute after its
+ordinary node limit. Pinned Linux typecheck passed. The fixture still rejects;
+it demonstrates the lane is reached, not that its current frontier yields a
+candidate.
 
-A bounded local diagnostic correction was signed and pushed as
-`7219b8deb7753d1c2a7b7fdc6f122a44bf1a3ecf`. It records all observed frontier
-truncation kinds alongside the existing primary rejection without changing
-candidate ranking, accepted-world output, geometry, ownership, proofs, or
-search limits. Windows typecheck and focused tests passed (53/53). On pinned
-Linux Node `22.22.3`, the exact toolchain was verified, all six focused suites
-passed (178/178), including the Windows-sensitive checkpoint suite, and the
-workflow-faithful root typecheck passed after lockfile installs.
+One fresh-seed batch on exact source `c855c79b` exhausted all 256 attempts in
+about 36 minutes without an eligible candidate: 229 geography rejections and
+27 proof rejections. The authenticated checkpoint showed bundle-pair
+truncation in 180 geography attempts, bundle-option and each Lowlands-repair
+cutoff in 190; all four co-occurred in 180 attempts. The maintained abort
+returned production untouched and selection readiness passed. Do not widen
+caps or repeat blind seeds: the candidate remains the first release gate.
+Next inspect the bounded Lowlands-repair ranking/retention path for a
+deterministic case proving that a valid eligible plan is being pruned; keep the
+current caps and all final proofs fixed while doing so. Full sanitized counts
+are in [local operations](../../evidence/0.4.0/local-operations.md).
 
-One fresh-seed `.26` batch on exact source `7219b8de` exhausted all 256 attempts
-without an accepted candidate. Its authenticated checkpoint recorded 227
-geography and 29 proof rejections. Bundle-pair truncation occurred in 169
-geography attempts, while bundle-option and both Lowlands-repair cutoffs each
-occurred in 186. All four cutoffs co-occurred in 169 attempts; 17 more had the
-option/repair cutoffs without the pair cutoff. The maintained abort confirmed
-production untouched. This confirms the old priority code masked concurrent
-cutoffs, but it does not prove any individual cap caused rejection. Keep all
-caps and proofs fixed until a deterministic counterexample establishes a
-correctness issue. Full safe counts and the development-only audit note are in
-[local operations](../../evidence/0.4.0/local-operations.md).
-
-Next inspect the bounded apron and Lowlands-repair ranking/retention paths for
-a deterministic, reproducible case that distinguishes option, pair, and
-repair cutoffs. Do not repeat another blind seed batch or widen caps without
-that evidence. The candidate remains the first release gate; owner acceptance,
-bridge, frontend, and PTR cutover stay downstream. The live Alpha returns HTTP
-200 and `/ptr/` returns HTTP 404 on 7 October. Root production dependencies
-audit clean, but the development toolchain has two high advisories recorded in
-local operations for follow-up. GitHub Actions are disabled, so local
-verification and branch publication are not hosted CI or deployment evidence.
+The live Alpha returned HTTP 200 and `/ptr/` returned HTTP 404 on 7 October.
+Root production dependencies audit clean, but the development toolchain has
+two high advisories recorded in local operations for follow-up. GitHub Actions
+are disabled, so local verification and branch publication are not hosted CI
+or deployment evidence.
 
 The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
 rejection, and generator tests on Windows Node `24.19.0`, plus TypeScript
