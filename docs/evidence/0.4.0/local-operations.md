@@ -22,8 +22,30 @@ with deferred repair versus 71.45 seconds using the prior implementation.
 Because this is one run per version and the difference is small, it is not
 evidence of a meaningful end-to-end speedup. The temporary test overlay in the
 pinned Linux checkout was restored; that checkout is clean at `abb1832d`.
+The lazy preparation change is signed and published as source commit
+`3650021a1c9a3baf5b294231a4bc001a791e6f19` on draft PR #385.
 No private candidate batch, completion receipt, package, selection, or
 production mutation was created.
+
+## Per-child own-first Lowlands fallback — 7 October 2026
+
+The fallback option selector previously switched both non-Lowlands siblings to
+donor-only bundles whenever no compatible own/own pair existed. That discarded
+an available own bundle for a child whose sibling had no compatible own bundle,
+despite the repair policy's per-child own-first rule. The fallback now retains
+that child's own bundles before appending non-Lowlands donor alternatives.
+Lowlands is still never a donor. Pair ranking, frontier caps, protected and
+reserve ownership, the 512-cell count-balanced repartition, and all final
+eligibility proofs remain in force.
+
+The new synthetic regression failed against the prior implementation because
+the own option was absent from the fallback list. Pinned Linux Node `22.22.3`
+typecheck and the focused apron-search, candidate-rejection, and full candidate
+generator suites then passed (53/53). The fixed public rejection fixture still
+visits both lanes and rejects at the same ordinary search-node limit; it did
+not recover an eligible candidate. No cap expansion, private batch, candidate
+package, selection, or production mutation was performed. The temporary Linux
+overlay was restored, leaving its checkout clean at `abb1832d`.
 
 ## Repair lane after ordinary search limits — 7 October 2026 — source `c855c79b`
 

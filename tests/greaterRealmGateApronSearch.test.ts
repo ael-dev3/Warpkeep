@@ -609,7 +609,7 @@ describe('Greater Realm ranked gate-apron search', () => {
     expect(rank(bundles, 0)).toEqual([]);
   });
 
-  it('retains Lowlands own bundles on the fixed side of a borrowed fallback pair', () => {
+  it('retains each child own bundles while admitting a sibling donor fallback', () => {
     const bundles = Object.freeze([
       Object.freeze({ id: 'borrow-b', child: 4, score: 1, endpoint: 8 }),
       Object.freeze({ id: 'own', child: 2, score: 0, endpoint: 1 }),
@@ -627,7 +627,18 @@ describe('Greater Realm ranked gate-apron search', () => {
       ).map(value => value.id)
     );
     expect(select(0)).toEqual(['lowlands']);
-    expect(select(2)).toEqual(['borrow-a', 'borrow-b']);
+    const firstChildOptions = select(2);
+    const secondChildOptions = select(3);
+    expect(firstChildOptions).toEqual(['own', 'borrow-a', 'borrow-b']);
+    expect(secondChildOptions).toEqual(['own', 'borrow-a', 'borrow-b']);
+    const mixedOwnAndDonorPairs = firstChildOptions.flatMap(first => (
+      secondChildOptions
+        .filter(second => first === 'own' && second === 'borrow-b')
+        .map(second => Object.freeze({ first, second }))
+    ));
+    expect(mixedOwnAndDonorPairs).toEqual([
+      Object.freeze({ first: 'own', second: 'borrow-b' }),
+    ]);
   });
 
   it('keeps child bundle frontiers deterministic, bounded, and represented by origin', () => {

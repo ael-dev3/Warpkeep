@@ -346,8 +346,9 @@ export function greaterRealmLowlandsRepairGateEdgeEligible(
 }
 
 /**
- * Rank repair-only bundle options without allowing Lowlands to become a donor.
- * A non-Lowlands child borrows only when it has no compatible own bundle.
+ * Rank repair-only options own-first without allowing Lowlands to become a donor.
+ * The fallback may append non-Lowlands donor options, but never replaces an
+ * available requested-child option.
  */
 export function rankGreaterRealmLowlandsRepairBundleOptions<Option>(
   options: readonly Option[],
@@ -355,18 +356,23 @@ export function rankGreaterRealmLowlandsRepairBundleOptions<Option>(
   childFor: (option: Option) => number,
   scoreFor: (option: Option) => number,
   endpointFor: (option: Option) => number,
+  includeBorrowed = false,
 ): readonly Option[] {
   if (!Number.isSafeInteger(requestedChild) || requestedChild < 0) {
     fail('GREATER_REALM_LOWLANDS_REPAIR_CHILD_INVALID');
   }
   const own = options.filter(option => childFor(option) === requestedChild);
-  const eligible = own.length > 0
-    ? own
-    : requestedChild === 0
-      ? []
-      : options.filter(option => childFor(option) !== 0);
+  const eligible = includeBorrowed && requestedChild !== 0
+    ? options.filter(option => childFor(option) !== 0)
+    : own.length > 0
+      ? own
+      : requestedChild === 0
+        ? []
+        : options.filter(option => childFor(option) !== 0);
   return Object.freeze([...eligible].sort((first, second) => (
-    scoreFor(first) - scoreFor(second)
+    Number(childFor(first) !== requestedChild)
+    - Number(childFor(second) !== requestedChild)
+    || scoreFor(first) - scoreFor(second)
     || childFor(first) - childFor(second)
     || endpointFor(first) - endpointFor(second)
   )));
@@ -396,10 +402,7 @@ export function rankGreaterRealmLowlandsRepairBorrowedBundleOptions<Option>(
     )));
 }
 
-/**
- * Keep Lowlands' own bundle on its immutable side of a borrowed sibling pair.
- * Only a non-Lowlands child switches to donor-only options in the fallback.
- */
+/** Keep Lowlands fixed and keep each non-Lowlands child's own options first. */
 export function selectGreaterRealmLowlandsRepairBundleOptions<Option>(
   options: readonly Option[],
   requestedChild: number,
@@ -408,21 +411,14 @@ export function selectGreaterRealmLowlandsRepairBundleOptions<Option>(
   endpointFor: (option: Option) => number,
   includeBorrowed = false,
 ): readonly Option[] {
-  const ranked = includeBorrowed && requestedChild !== 0
-    ? rankGreaterRealmLowlandsRepairBorrowedBundleOptions(
-        options,
-        requestedChild,
-        childFor,
-        scoreFor,
-        endpointFor,
-      )
-    : rankGreaterRealmLowlandsRepairBundleOptions(
-        options,
-        requestedChild,
-        childFor,
-        scoreFor,
-        endpointFor,
-      );
+  const ranked = rankGreaterRealmLowlandsRepairBundleOptions(
+    options,
+    requestedChild,
+    childFor,
+    scoreFor,
+    endpointFor,
+    includeBorrowed,
+  );
   return selectGreaterRealmGateApronChildBundleOptions(
     ranked,
     option => childFor(option),
@@ -3929,7 +3925,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       );
       const ownCount = available.filter(bundle => bundle.child === child).length;
       const eligibleCount = includeBorrowed && child !== 0
-        ? available.filter(bundle => bundle.child !== 0 && bundle.child !== child).length
+        ? available.filter(bundle => bundle.child !== 0).length
         : ownCount > 0
           ? ownCount
           : child === 0

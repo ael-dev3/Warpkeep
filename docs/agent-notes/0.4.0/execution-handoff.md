@@ -131,6 +131,18 @@ that a valid eligible plan is pruned; keep the current caps and proofs fixed.
 Full sanitized counts are in
 [local operations](../../evidence/0.4.0/local-operations.md).
 
+That trace found a per-child own-first mismatch: the donor fallback discarded
+an available own bundle for both siblings when either side lacked a compatible
+own pair. The fallback now retains each requested child's own bundle first and
+adds non-Lowlands donor options after it; Lowlands remains excluded as a donor.
+Every borrowed choice still requires the existing count-balanced repartition,
+512-cell footprint bound and final proofs. The policy regression failed before
+the change and passes afterward. The pinned fixed rejection fixture still
+reaches both lanes and rejects at the same ordinary search-node limit, so this
+has not yet produced a candidate. No cap was widened and no seed batch was
+repeated. Continue tracing retained pair/assignment alternatives without
+claiming release readiness.
+
 The live Alpha returned HTTP 200 and `/ptr/` returned HTTP 404 on 7 October.
 Root production dependencies audit clean, but the development toolchain has
 two high advisories recorded in local operations for follow-up. GitHub Actions
