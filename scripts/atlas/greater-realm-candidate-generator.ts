@@ -119,7 +119,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.26' as const;
+  'greater-realm-v2-natural-continent-pr-a.27' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -210,11 +210,13 @@ export const GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS = 128 as const;
 /**
  * Keep a child's ranked bundle frontier bounded without removing every
  * alternative supplied by a different child. The first ranked bundle from
- * each origin is retained before filling the remaining slots by rank.
+ * each origin is retained before two bounded physical-diversity scans and
+ * rank filling. Without footprints, retain the established rank-only behavior.
  */
 export function selectGreaterRealmGateApronChildBundleOptions<Option>(
   rankedOptions: readonly Option[],
   childOf: (option: Option) => number,
+  footprintOf?: (option: Option) => GreaterRealmRankedSiblingSearchOption,
 ): readonly Option[] {
   if (rankedOptions.length <= GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS) {
     return Object.freeze(rankedOptions.slice());
@@ -233,6 +235,86 @@ export function selectGreaterRealmGateApronChildBundleOptions<Option>(
     if (retainedOrigins.has(origin)) continue;
     retainedOrigins.add(origin);
     retainedIndexes.add(index);
+  }
+  if (footprintOf !== undefined
+    && retainedIndexes.size < GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS) {
+    const scratchCells: number[][] = [];
+    const tierOneUse = new Map<number, number>();
+    const tierTwoUse = new Map<number, number>();
+    try {
+      const copyUniqueCells = (cells: readonly number[]): number[] => {
+        if (!Array.isArray(cells)) {
+          fail('GREATER_REALM_GATE_APRON_CHILD_OPTION_FOOTPRINT_INVALID');
+        }
+        const unique: number[] = [];
+        scratchCells.push(unique);
+        const seen = new Set<number>();
+        try {
+          for (const cell of cells) {
+            if (!Number.isSafeInteger(cell) || cell < 0) {
+              fail('GREATER_REALM_GATE_APRON_CHILD_OPTION_FOOTPRINT_INVALID');
+            }
+            if (seen.has(cell)) continue;
+            seen.add(cell);
+            unique.push(cell);
+          }
+          return unique;
+        } finally {
+          seen.clear();
+        }
+      };
+      const footprints = rankedOptions.map(option => {
+        const footprint = footprintOf(option);
+        if (footprint === null || typeof footprint !== 'object') {
+          fail('GREATER_REALM_GATE_APRON_CHILD_OPTION_FOOTPRINT_INVALID');
+        }
+        return {
+          tierOneCells: copyUniqueCells(footprint.tierOneCells),
+          tierTwoCells: copyUniqueCells(footprint.tierTwoCells),
+        };
+      });
+      const recordFootprint = (index: number): number => {
+        let maximumUse = 0;
+        const footprint = footprints[index]!;
+        for (const cell of footprint.tierOneCells) {
+          const use = (tierOneUse.get(cell) ?? 0) + 1;
+          tierOneUse.set(cell, use);
+          maximumUse = Math.max(maximumUse, use);
+        }
+        for (const cell of footprint.tierTwoCells) {
+          const use = (tierTwoUse.get(cell) ?? 0) + 1;
+          tierTwoUse.set(cell, use);
+          maximumUse = Math.max(maximumUse, use);
+        }
+        return maximumUse;
+      };
+      let baseline = 1;
+      for (const index of retainedIndexes) {
+        baseline = Math.max(baseline, recordFootprint(index));
+      }
+      // Two fixed scans keep shared mandatory corridors from causing an
+      // unbounded widening loop. Tier-I and Tier-II cells are distinct authority.
+      for (const maximumCellUse of [baseline, baseline + 1]) {
+        for (let index = 0;
+          index < rankedOptions.length
+            && retainedIndexes.size < GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS;
+          index += 1) {
+          if (retainedIndexes.has(index)) continue;
+          const footprint = footprints[index]!;
+          if (
+            footprint.tierOneCells.some(cell => (tierOneUse.get(cell) ?? 0) >= maximumCellUse)
+            || footprint.tierTwoCells.some(cell => (tierTwoUse.get(cell) ?? 0) >= maximumCellUse)
+          ) continue;
+          retainedIndexes.add(index);
+          recordFootprint(index);
+        }
+      }
+    } finally {
+      for (const cells of scratchCells) cells.fill(0);
+      scratchCells.length = 0;
+      tierOneUse.clear();
+      tierTwoUse.clear();
+    }
   }
   for (let index = 0;
     index < rankedOptions.length
@@ -414,6 +496,7 @@ export function selectGreaterRealmLowlandsRepairBundleOptions<Option>(
   scoreFor: (option: Option) => number,
   endpointFor: (option: Option) => number,
   includeBorrowed = false,
+  footprintOf?: (option: Option) => GreaterRealmRankedSiblingSearchOption,
 ): readonly Option[] {
   const ranked = rankGreaterRealmLowlandsRepairBundleOptions(
     options,
@@ -426,6 +509,7 @@ export function selectGreaterRealmLowlandsRepairBundleOptions<Option>(
   return selectGreaterRealmGateApronChildBundleOptions(
     ranked,
     option => childFor(option),
+    footprintOf,
   );
 }
 
@@ -3853,6 +3937,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       const options = selectGreaterRealmGateApronChildBundleOptions(
         rankedOptions,
         bundle => bundle.child,
+        bundle => bundle,
       );
       const frozen = Object.freeze(options);
       bundleOptionsCache.set(key, frozen);
@@ -3948,6 +4033,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
         bundle => bundle.score,
         bundle => bundle.edges[0].tierTwoEndpoint,
         includeBorrowed,
+        bundle => bundle,
       );
       const ownCount = available.filter(bundle => bundle.child === child).length;
       const eligibleCount = includeBorrowed && child !== 0

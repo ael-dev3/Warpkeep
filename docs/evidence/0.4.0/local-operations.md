@@ -3,6 +3,57 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Child-frontier correction — 7 October 2026, 20:23 UTC
+
+The proposed truncation case below was executed against the actual ordinary and
+repair helpers. Both failed with `no-match` before the correction. In each case,
+the unchanged raw-pair selector retained all130 choices; replacing one of the128
+retained star choices with the discarded compatible choice made the maintained
+sibling search succeed under the same node/plan limits. This establishes a real
+frontier defect, not the cause of every rejected private world.
+
+Generator `.27` adds an optional actual-footprint callback to the child selector
+and repair wrapper, used by both production callers. First ranked origin
+representatives are mandatory. Two fixed diversity scans use their maximum
+physical-cell occupancy and then one greater occupancy, followed by rank fill.
+Final ordering remains original rank; Tier I/II cells have separate authorities.
+Footprints are validated, deduplicated and cached once; scratch arrays/maps are
+cleared on success or failure without mutating inputs. Two-argument and small
+frontiers keep their existing behavior. Terrain-seed namespace `.3`, Lowlands
+ownership, eligibility proofs, search/repair limits and truncation diagnostics
+are unchanged. Independent review cleared exact generator bytes SHA-256
+`93ff6a8f833f4d4403189916e906500794acfd0645354fe4554cbac4a9310191`.
+
+Pinned Windows Node22.22.3 passed all33 apron tests and build-mode typechecking.
+The full deterministic generator and capacity suites also passed; the first
+rejection run found an assertion pinned to `.26`, which was updated to `.27`
+alongside the package-version assertion. The rejection rerun passed11/11 with
+JSON report `october-release-27-rejection-vitest-v1.json`. Native package
+qualification is recorded separately when complete; do not infer it from an
+edited assertion. The pinned deterministic candidate's existing digest passed.
+
+An independent public synthetic qualification used8192 options,64 cells each,
+six origins and three iterations per mode. Actual corrected selection took
+210.49–253.01ms, retained128 choices deterministically and preserved all inputs;
+callback evaluation occurred once per option. Temporary measured heap growth
+was18.6–19.2MB. The baseline two-argument selector took2.52–4.17ms. Receipt
+`october-release-27-child-frontier-public-performance-v1-receipt.json`, SHA-256
+`0fea91489bc9211edc0e94a167a55bdf47d121870c7c7658253e070bb9f1a8e4`,
+binds the actual source and pinned runtime. This measures synthetic selector
+cost, not full generation throughput, production memory or eligible-world yield.
+
+The native source remains clean7ae until this reviewed checkpoint is published
+and synchronized. All prior searches remain closed; their `.26` checkpoints
+cannot be resumed or relabeled as `.27`. A separate future cutoff pair is
+prepared in ignored Windows QA only, with unarmable source/tree/boot/workspace
+and new-deadline placeholders. It does not extend the old19:32:47 boundary.
+
+The installed PTR backend needs no repeat deployment: the maintained operator
+accepts a signed descendant when `spacetimedb/`, package.json and package-lock
+are unchanged. Preserve the genuine7ae installed source/update inspection4a78.
+Fresh generator/native-source/caller bindings, cutoff readiness and a genuine
+verified winner are required before atlas import and actual-owner acceptance.
+
 ## Search boundary and authenticated final state — 7 October 2026, 19:38 UTC
 
 ### Reproduced cutoff correction — 19:46 UTC
@@ -65,8 +116,9 @@ the child frontier retains128 stars. A sibling occupying cell0 conflicts with
 every retained option, while the discarded disjoint pair is compatible.
 Combine the existing origin-retention and sibling-footprint fixtures in
 `tests/greaterRealmGateApronSearch.test.ts` before changing production ranking.
-This is a source-traced reproduction proposal, not an executed regression,
-actual failed-world diagnosis or proof of improved yield. Regional QA aggregates
+This was a source-traced proposal at19:38 UTC; the later executed regression and
+correction are recorded above. It is not an actual failed-world diagnosis or
+proof of improved yield. Regional QA aggregates
 lack the individual metric deficits needed to establish a hydrology defect.
 
 At this no-world boundary, the available paths are a deterministic construction

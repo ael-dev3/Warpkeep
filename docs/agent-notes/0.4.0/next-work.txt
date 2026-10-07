@@ -1,6 +1,22 @@
 WARPKEEP 0.4 — NEXT WORK
 CURRENT RESUMPTION - 7 OCTOBER 2026
 
+LATEST CORRECTION - 20:23 UTC
+Generator .27 corrects the reproduced ordinary/repair child-frontier defect.
+All33 apron tests and build-mode types pass; independent source review and
+bounded public synthetic performance qualification passed. Actual footprints
+now guide two fixed retention scans, preserving ownership/proofs/caps/rank and
+terrain namespace .3. See the latest local-operations record.
+
+Publish the reviewed checkpoint, synchronize the idle native source, qualify
+native packages and prepare a NEW guarded search with fresh source/workspace/
+start/deadline bindings. Do not resume .26 state, relabel old evidence or extend
+the completed search boundary. No new search is running. Keep the successful
+installed7ae backend/update4a78 and bridge v52; this offline-only correction
+requires no repeat backend deployment. Actual winner/atlas/owner acceptance,
+existing Cloudflare production SSO/cutover and Alpha regression remain next.
+Everything below is dated history until a newer completed step is recorded.
+
 LATEST STATE - AFTER THE 19:32:47 UTC SEARCH BOUNDARY
 Codex owns the remaining release path. No successor is running. The fixed
 cutoff guards failed closed; identity-bound corrective TERM stopped the three

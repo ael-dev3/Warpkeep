@@ -1,5 +1,24 @@
 # Continue Warpkeep 0.4
 
+## Current correction — 7 October 2026, 20:23 UTC
+
+Codex corrected a reproduced child-frontier truncation defect in generator `.27`.
+The actual ordinary and repair fixtures failed before the change and pass now;
+all33 apron tests and build-mode types pass. Both production callers retain
+physical alternatives through two bounded scans while preserving Lowlands,
+origin representatives, rank order, proofs, caps and terrain namespace `.3`.
+Independent source review and public synthetic cost qualification passed.
+See the newest local-operations record for exact evidence and limits.
+
+Next: publish this reviewed source checkpoint, sync the idle native checkout,
+qualify the current native package and bind a fresh guarded search. No old `.26`
+checkpoint may resume as `.27`; no search has restarted. The installed PTR
+backend7ae/update4a78, bridge v52 and accepted immutable frontend remain valid.
+Then verify/select a real winner, import/read back atlas, provision the actual
+owner, complete existing production Cloudflare SSO/cutover, and accept the
+authenticated canonical PTR journey with Alpha regression. No new product
+feature or licensing change is introduced. Earlier snapshots below are history.
+
 ## Current release path — 7 October 2026, after the search boundary
 
 Owner: Codex. Operating source remains `7ae40a6f4ba44188f7935f7dbcaf6f920f4eb36f`
