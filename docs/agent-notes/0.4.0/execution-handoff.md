@@ -54,6 +54,36 @@ Execute this short release path without expanding the frozen scope:
    submissions read-only; never resubmit blindly. Preserve
    rollback, licensing, Alpha/G001/admission policy and the G002 seal.
 
+For the current six workers, native terminal readers are ready in
+`/home/warpkeep/Warpkeep-0.4/artifacts/qa/`:
+
+- `october-release-7ae-parallel-terminal-reader-v1.ts`, SHA-256
+  `2d28ca4098404f853183e802f17f518d19d8e182608d02b52a3ae0cfd934d8ea`,
+  covers slots 02 through 06 (optional `--slot=02` through `--slot=06`).
+- `october-release-7ae-replacement-terminal-reader-v1.ts`, SHA-256
+  `0ecef7d0d682a127b875d44719a89c832eb74d14a8f7b4476a34205d55405968`,
+  covers the replacement (`--slot=01`).
+
+Run these as UID 1000 from the frozen native checkout with the pinned Node
+`22.22.3` and its existing `node_modules/tsx/dist/cli.mjs`, using the clean
+environment from the previous source-bound operators. Root's actual smoke
+checks passed: all six were active/finalizing, source/index/refs were preserved,
+and no active private checkpoint was read. Both readers independently passed
+review and syntax checking. Review receipt
+`october-release-7ae-six-worker-continuation-review-v1.json` has SHA-256
+`327f9716ce8bb40e80fc59fba923ac53a46728123e9afefac2c55c4da5ca7cd8`.
+
+Exec session handles belong to the agent that launched them. An `Unknown
+process id` from another agent is not a terminal worker observation and must
+not trigger a restart. Use the readers' actual birth/group/supervisor checks;
+they skip private reads while a worker is live. After full absence they
+authenticate the exact source/toolchain and terminal aggregate, reject recorded
+source-hold failure and zeroize recovered secrets. Completion remains explicitly
+not package-verified. Genuine success handles stay only in that workspace's
+private `terminal-reader-success-manifest-v1.json`; next use the maintained
+package/shortlist/selection/runtime gates, never substitute the aggregate for
+those proofs. Never reuse these fixed run bindings for a different worker.
+
 Retain the owner's accepted frontend: public commit `3634aa82`, Pages deployment
 `8a469929`, application source `9ea4821a`. Frontend/auth/public/package paths are
 unchanged through `7ae40a6f`; reverify the existing artifact at cutover instead
