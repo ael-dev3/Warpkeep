@@ -64,21 +64,27 @@ Linux verification; the guard was not weakened. The exact signed `.24` source
 is now on the pinned Linux runner. All four focused suites passed 134/134
 (533.90 seconds wall, 599.89 seconds summed test time), and the typecheck
 passed after restoring the nested auth-bridge dependencies specified by Verify.
-One fresh-seed maximum-256 batch exhausted all attempts in about 39 minutes
-without an eligible candidate: 219 geography rejections and 37 proof-rejection
-attempts. The dry gate-apron bundle-pair limit was terminal in 136 geography
-rejections, while search-node and complete-plan limits appeared in 26 and 16.
-The maintained checkpoint was aborted with production untouched, no completion
-receipt, and selection readiness true. The full sanitized aggregates are in
+The first fresh-seed maximum-256 batch exhausted all attempts in about 39
+minutes without an eligible candidate: 219 geography rejections and 37
+proof-rejection attempts. A second independent batch on exact signed successor
+`f8d5b4af` also exhausted all 256 attempts: 219 geography and 40 proof
+rejections. Across the two batches, the dry gate-apron bundle-pair limit was
+terminal in 268 of 438 geography rejections; search-node and complete-plan
+limits remain separately bounded. Both maintained checkpoints were aborted
+with production untouched, no completion receipt, and selection readiness true.
+The full sanitized aggregates are in
 [local operations](../../evidence/0.4.0/local-operations.md).
 
-The pair-limit count does not prove that widening the cap would produce an
-eligible Atlas, and its prioritized single-code projection can mask simultaneous
-bundle-option truncation. Next inspect the bounded pair-frontier selection path
-for a reproducible omission or pruning defect, then add a focused regression
-only if source evidence confirms one. Keep proofs, ownership, and all existing
-search bounds intact. No Atlas package or candidate exists yet, so owner
-acceptance, bridge, frontend, and PTR cutover remain downstream of that gate.
+That repeated truncation is evidence for a measured `.25` correction: increase
+the retained per-child bundle-pair frontier from 2,048 to 4,096. Keep the 128
+child-option bound, 320,000 search-node bound, 256 complete-plan bound, terrain
+seed namespace `.3`, geometry, ownership, proofs, and candidate eligibility
+unchanged. The Windows typecheck and 52 focused apron, rejection, and generator
+tests pass. Next publish the signed `.25` source, validate all four focused
+suites and typecheck on the pinned Linux runner, then run one fresh-seed
+maximum-256 batch bound to that exact source. No Atlas package or candidate
+exists yet, so owner acceptance, bridge, frontend, and PTR cutover remain
+downstream of that gate.
 
 The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
 rejection, and generator tests on Windows Node `24.19.0`, plus TypeScript

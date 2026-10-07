@@ -72,11 +72,85 @@ candidate, package, shortlist, selection, Atlas publication, provider request,
 or production mutation resulted.
 
 The dominant terminal code is the existing bundle-pair frontier cap; this
-single-code projection can mask simultaneous bundle-option truncation. It does
-not prove that widening a cap would produce an eligible Atlas. Next inspect the
-pair-frontier selection path for a reproducible omission or pruning defect and
-add a focused regression only if source evidence confirms one. Keep all proof,
-ownership, and search bounds unchanged absent that evidence.
+single-code projection can mask simultaneous bundle-option truncation. This
+first independent seed did not alone establish a useful cap adjustment; the
+second exact-source run below tested whether that truncation recurred.
+
+## Independent `.24` candidate run — 7 October 2026 — source `f8d5b4af`
+
+A second fresh-seed batch on exact signed source
+`f8d5b4afdfe5868c9d4bc3624028b9f3cad7d4bc` used the same pinned generator
+`.24`, Node `22.22.3`, verified `linux-x64` profile, and 11 locked packages.
+It exhausted 256 attempts in about 37 minutes with no accepted candidate and
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Its authenticated checkpoint
+matched the full source/toolchain and recorded 219 geography rejections plus
+40 proof-rejection attempts.
+
+Geography rejections (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 132 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 34 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 20 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 10 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 3 |
+| **Total** | **219** |
+
+Proof occurrences are nonexclusive across those 40 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 38 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 34 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 29 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 27 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 26 |
+| `PROOF_REGION_LAND_COHERENCE` | 20 |
+| `PROOF_REGION_GRAPH` | 19 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 19 |
+| `PROOF_GATE_APPROACHES` | 16 |
+| `PROOF_GATE_GRAPH` | 16 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 16 |
+| `HYDROLOGY_LAKES_48_96` | 12 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 11 |
+| `PROOF_CASTLE_CAPACITY` | 9 |
+| `CASTLE_SUITABILITY` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 8 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 7 |
+| `PROOF_BIOME_DIVERSITY` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 6 |
+| `PROOF_REGION_PASSABLE_LAND` | 6 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 5 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 5 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 2 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 2 |
+| `TIER_POTENTIAL_DENSITY` | 2 |
+| `PROOF_DORMANT_THRONE_ANCHOR` | 1 |
+| `TIER_I_REGION_BALANCE` | 1 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; selection readiness passed and no completion
+receipt was present. Secret seed material was zeroized after aggregation. No
+candidate, package, shortlist, selection, provider request, or production
+mutation resulted.
+
+Across both independent `.24` batches, the pair frontier was the terminal
+geography code in 268 of 438 geography rejections. This repeated truncation is
+measured evidence for one bounded adjustment. The `.25` successor raises only
+the retained per-child bundle-pair frontier from 2,048 to 4,096. The separate
+128 child-option bound, 320,000 search-node bound, 256 complete-plan bound,
+geometry, ownership, proofs, and candidate eligibility remain unchanged. It
+does not claim that a higher cap alone guarantees a candidate. On the `.25`
+working tree, `npm run typecheck` and the three focused Windows apron-search,
+rejection, and generator suites pass (52/52). The fourth private-package suite
+still requires the pinned Linux profile; no `.25` candidate batch has run.
+Next validate the signed `.25` source on that profile before generating another
+candidate.
 
 ## Independent `.23` candidate run — 6 October 2026 — source `387f6b81`
 
