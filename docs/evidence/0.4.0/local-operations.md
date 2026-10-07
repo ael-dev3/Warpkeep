@@ -2,6 +2,107 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Fifth independent `.26` candidate run and diagnostic validation — 7 October 2026 — source `7219b8de`
+
+The signed exact source was
+`7219b8deb7753d1c2a7b7fdc6f122a44bf1a3ecf`. The run used
+`greater-realm-v2-natural-continent-pr-a.26`, pinned Linux Node `22.22.3`,
+verified `linux-x64`, and all 11 locked toolchain packages. The workflow-faithful
+root `npm ci`, frozen auth-bridge pnpm install, and `npm run typecheck` passed.
+Windows typecheck and focused rejection/apron/generator tests passed 53/53;
+six pinned-Linux suites passed 178/178, including the ACL-sensitive attempt
+checkpoint suite and full candidate-package suite.
+
+A fresh-seed private batch exhausted all 256 attempts with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no candidate was accepted. The
+authenticated maintained checkpoint matched the exact source and toolchain.
+It recorded 227 geography rejections and 29 proof-rejection attempts.
+
+Geography rejection codes retain one priority-selected terminal code per
+attempt:
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 128 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 35 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 29 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 6 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 1 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 12 |
+| **Total geography rejections** | **227** |
+
+The new diagnostic fields show which cutoffs co-occurred on each geography
+rejection:
+
+| Observed frontier truncations | Attempts |
+| --- | ---: |
+| Bundle-pair, bundle-option, Lowlands-repair bundle-option, and Lowlands-repair sibling-pair limits | 169 |
+| Bundle-option and both Lowlands-repair limits, without bundle-pair truncation | 17 |
+| No frontier truncation recorded | 41 |
+
+Across geography attempts, bundle-pair truncation occurred 169 times;
+bundle-option and each Lowlands-repair cutoff occurred 186 times. The primary
+rejection code named the pair cutoff only 128 times, so priority-based counts
+concealed substantial overlap. These are observed search cutoffs, not proof
+that any one cap caused rejection or that a wider frontier would pass geometry,
+ownership, or candidate proofs. Do not widen caps or relax proof rules without
+a deterministic counterexample.
+
+Proof occurrences are nonexclusive across the 29 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 29 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 19 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 26 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 22 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 22 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 16 |
+| `PROOF_REGION_LAND_COHERENCE` | 15 |
+| `PROOF_REGION_GRAPH` | 15 |
+| `PROOF_GATE_APPROACHES` | 13 |
+| `PROOF_GATE_GRAPH` | 12 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 10 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 8 |
+| `PROOF_CASTLE_CAPACITY` | 7 |
+| `PROOF_REGION_PASSABLE_LAND` | 7 |
+| `CASTLE_SUITABILITY` | 7 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 7 |
+| `HYDROLOGY_LAKES_48_96` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 6 |
+| `PROOF_BIOME_DIVERSITY` | 4 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 3 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 3 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 2 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 2 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 2 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `HYDROLOGY_MAJOR_OCEAN_SEA_BODIES_4_6` | 1 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. No package, shortlist, selection, atlas
+publication, provider request, or production mutation resulted. Across the
+five independent `.26` batches, 1,280 attempts produced no accepted
+candidate (1,136 geography and 144 proof-rejection attempts). The first four
+batches recorded 464 pair-limit priority codes; this batch recorded 128 such
+priority codes but 169 actual pair-limit observations. Do not treat the
+combined priority count as the total pair-frontier occurrence count.
+
+The root dependency audit found zero production (`--omit=dev`) vulnerabilities.
+The full development-tool audit reported two high findings: pinned `sharp`
+`0.35.4`, affected by CVE-2026-96889 / GHSA-wq5f-xc86-pv6w (fixed upstream in
+`0.35.5`), and `source-map-js` `1.2.1`, affected by GHSA-68fv-2mgg-jv7q (fixed
+in `1.2.2`). These packages are absent from shipped production dependencies and
+are follow-up toolchain maintenance, not evidence of a live runtime exposure.
+Actions remain disabled; these local results are not hosted CI or deployment
+evidence.
+
 ## Fourth independent `.26` candidate run — 7 October 2026 — source `21cb97fd`
 
 The run used exact signed source

@@ -115,17 +115,35 @@ geometry or ownership pruning. All four maintained aborts confirmed production
 untouched and selection readiness without completion receipts. Full sanitized
 aggregates are in [local operations](../../evidence/0.4.0/local-operations.md).
 
-A bounded local diagnostic correction now records all observed frontier
-truncation kinds alongside the existing primary rejection. It does not change
+A bounded local diagnostic correction was signed and pushed as
+`7219b8deb7753d1c2a7b7fdc6f122a44bf1a3ecf`. It records all observed frontier
+truncation kinds alongside the existing primary rejection without changing
 candidate ranking, accepted-world output, geometry, ownership, proofs, or
-search limits. Typecheck and the three Windows-portable focused suites pass
-(53/53). The Windows attempt-checkpoint fixture stops at its known temporary
-directory ACL guard before test assertions; keep that guard and validate the
-checkpoint suite on the pinned Linux runner. Next sync this correction, run the
-four exact-source Linux suites and typecheck, then resume fresh-seed generation.
-The candidate remains the first release gate; owner acceptance, bridge,
-frontend, and PTR cutover stay downstream. The live Alpha returns HTTP 200 and
-`/ptr/` returns HTTP 404 on 7 October. GitHub Actions are disabled, so local
+search limits. Windows typecheck and focused tests passed (53/53). On pinned
+Linux Node `22.22.3`, the exact toolchain was verified, all six focused suites
+passed (178/178), including the Windows-sensitive checkpoint suite, and the
+workflow-faithful root typecheck passed after lockfile installs.
+
+One fresh-seed `.26` batch on exact source `7219b8de` exhausted all 256 attempts
+without an accepted candidate. Its authenticated checkpoint recorded 227
+geography and 29 proof rejections. Bundle-pair truncation occurred in 169
+geography attempts, while bundle-option and both Lowlands-repair cutoffs each
+occurred in 186. All four cutoffs co-occurred in 169 attempts; 17 more had the
+option/repair cutoffs without the pair cutoff. The maintained abort confirmed
+production untouched. This confirms the old priority code masked concurrent
+cutoffs, but it does not prove any individual cap caused rejection. Keep all
+caps and proofs fixed until a deterministic counterexample establishes a
+correctness issue. Full safe counts and the development-only audit note are in
+[local operations](../../evidence/0.4.0/local-operations.md).
+
+Next inspect the bounded apron and Lowlands-repair ranking/retention paths for
+a deterministic, reproducible case that distinguishes option, pair, and
+repair cutoffs. Do not repeat another blind seed batch or widen caps without
+that evidence. The candidate remains the first release gate; owner acceptance,
+bridge, frontend, and PTR cutover stay downstream. The live Alpha returns HTTP
+200 and `/ptr/` returns HTTP 404 on 7 October. Root production dependencies
+audit clean, but the development toolchain has two high advisories recorded in
+local operations for follow-up. GitHub Actions are disabled, so local
 verification and branch publication are not hosted CI or deployment evidence.
 
 The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
