@@ -30,11 +30,11 @@ limit change. Full evidence is in
 Execute this short release path without expanding the frozen scope:
 
 1. Source publication and clean native synchronization are complete. Six fresh
-   source-bound maximum-256 batches are running: the original in
-   `/home/warpkeep/.warpkeep/private/greater-realm-candidate-7ae40a6f-20261007`.
-   Five additional isolated siblings, parallel02 through parallel06, started at
-   13:32:47-51 UTC within measured capacity. Preserve each original process and
-   frozen source. The default older workspace
+   source-bound maximum-256 batches are running: parallel02 through parallel06
+   started at 13:32:47-51 UTC, and parallel01-replacement01 at 13:48:33.239 UTC.
+   The original batch exhausted 256 attempts (225 geography / 31 proof rejects)
+   and was authenticated, seed-zeroized and retired at 13:45:32.675 UTC. Never
+   resume it. Preserve each active process and frozen source. The default older workspace
    was refused before generation; do not overwrite or replay its checkpoint.
 2. Actual isolated PTR inspection, compatible update preparation, one-submit
    apply and preservation postflight are complete. Inspection `4a78bc2b` binds
@@ -83,7 +83,10 @@ Fresh 13:18:13.046 UTC Cloudflare reads retain Pages deployment `8a469929` and
 bridge v52. The production CLI's DNS/settings reads return 403; the browser's
 saved GitHub login selects the separate account containing only `snapmeter`.
 One login to the existing production account is requested for final cutover;
-continue atlas work. The [access guide](../../operations/0.4.0-infra-access.md#current-cloudflare-domain-access--7-october-2026)
+continue atlas work. Existing CLI whoami at 13:44:04.639 UTC confirmed the
+production identity and account membership. The unrelated browser profile was
+signed out and the correct-account login form is ready. The
+[access guide](../../operations/0.4.0-infra-access.md#current-cloudflare-domain-access--7-october-2026)
 records the exact target and success readback. No new credential is requested.
 GitHub Actions remains disabled; local tests and Git publication are not hosted
 verification or deployment. The staged frontend and visual acceptance remain

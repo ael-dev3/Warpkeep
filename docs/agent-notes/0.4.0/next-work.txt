@@ -28,10 +28,12 @@ from independent seeds do not establish causation or candidate yield.
 
 NEXT — IN DEPENDENCY ORDER
 1. Publication and clean native synchronization are complete. Six fresh maximum-
-   256 private batches are running: the original distinct private workspace
-   `greater-realm-candidate-7ae40a6f-20261007` and isolated parallel02 through
-   parallel06 siblings, started at 13:32:47-51 UTC. Preserve their original
-   processes and operating source until each finishes, with the same gates and bounds.
+   256 private batches are running: parallel02 through parallel06, started at
+   13:32:47-51 UTC, and parallel01-replacement01, started at 13:48:33.239 UTC.
+   The original batch exhausted 256 attempts (225 geography / 31 proof rejects)
+   and was authenticated, zeroized and retired at 13:45:32.675 UTC. Never resume
+   it. Preserve each active process and operating source until terminal, with
+   the same gates and bounds; the global stop boundary remains 19:32:47 UTC.
    Authenticate each terminal separately; use only the first verified winner.
    If incomplete,
    use the maintained authenticated aggregate reader, zeroization and abort.
@@ -66,10 +68,13 @@ MIME remains optional follow-up #395. Do not rebuild just to change a stamp.
 Final live acceptance is open.
 
 DOMAIN ACCESS
-The current browser's saved GitHub login sees only snapmeter in the wrong
-Cloudflare account. Production CLI reads confirm Warpkeep exists in account
+The browser's saved GitHub login saw only snapmeter in the wrong Cloudflare
+account and has been signed out. Production CLI reads confirm Warpkeep exists in account
 `c647739b4535010b0b13e6fc296e2c4e`, but DNS/settings return 403. One login to
-that existing production account is pending for final cutover; atlas work
+that existing production account is pending for final cutover. The existing
+CLI's whoami confirmed the correct account identity; its browser sign-in form
+is open. Use the access guide's verified identity/command, not the saved GitHub
+profile. Atlas work
 continues. See docs/operations/0.4.0-infra-access.md for the exact URL/readback.
 
 Keep durable work in this repository and private operations in existing

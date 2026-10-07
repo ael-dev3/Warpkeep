@@ -3,6 +3,53 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## First corrected batch retired; fresh replacement started — 7 October 2026
+
+The original exact-source `7ae40a6f` batch closed with actual process exit 1.
+The reviewed terminal reader then passed with original process/group absent
+and source/index/refs unchanged. Its authenticated `.26` / Linux x64 / pinned
+Node `22.22.3` / toolchain binding retained count 1 and maximum 256 attempts.
+The checkpoint was searching at sequence/ordinal 256: 256 rejected attempts,
+225 geography and 31 proof rejections, no eligible candidate or completion.
+The recovered seed was zeroized. These independent-seed counts do not prove
+whether the search correction changed candidate yield.
+
+The priority geography counts were active-grid range 39, legacy Lowlands
+placement 5, complete-plan limit 5, bundle-option limit 10, bundle-pair limit
+119, search-node limit 28, primary-component undersized 13 and forbidden
+throne-component repair 6. Proof and frontier-truncation occurrences overlap;
+the complete safe aggregate is retained in the retirement receipt below.
+The first active observation was 12:54:03.016 UTC; terminal stderr mtime was
+13:35:27.915 UTC. That observed window is 41 minutes 24.899 seconds, or about
+370.88 attempts/hour. Exact birth/exit UTC is unavailable, so this is an
+observed-window rate, not exact lifetime or six-worker throughput. New active
+workers' attempt counts must wait for authenticated terminal records.
+
+At 13:45:32.675 UTC, the maintained abort-only call completed with exit 0 under
+the generation lock. It revalidated the genuine authenticated record digest,
+source/toolchain binding, searching phase and absent completion. Process/group
+absence, seed zeroization and source/index/refs preservation passed. There was
+no replay, generation, selection or provider write. Native receipt
+`october-release-7ae-original-retirement-v1.json` has SHA-256
+`8bff82d6d54a272eca9097d6f05c0ac826c527a4c919608a3e33262339ffbb64`.
+Never resume that retired checkpoint.
+
+One fresh replacement actually started at 13:48:33.239 UTC in distinct private
+workspace `greater-realm-candidate-7ae40a6f-20261007-parallel01-replacement01`.
+It keeps source/tree, generator, toolchain, count and cap unchanged. Its
+separate caller `october-release-7ae-replacement-launcher-v1.ts` has SHA-256
+`8ed609709ab6fb7e5cf7f4af9c2a95db55f738c7e2ae3c9a063590a5ef1f2ad6`;
+the five existing workers' original caller bytes/hash remain unchanged.
+The replacement uses only remaining time to the original 19:32:47 UTC boundary,
+reserving eleven seconds for TERM/KILL cleanup. This does not restart a
+six-hour window. Its actual UID 1000 timeout/bootstrap/tsx/CLI birth chain was
+attested. Native start receipt
+`october-release-7ae-parallel01-replacement01-started-v1.json` has SHA-256
+`4a6770452a6b7f8b5a0e4529c2f254c05630daf9aa2a08e34baba88079bfb325`.
+Root independently matched both receipt hashes and observed all six actual
+process groups alive at 13:49:31.103 UTC. The new search makes no provider write;
+only a genuinely eligible verified result can proceed to atlas/owner operations.
+
 ## Frozen frontend readback and parallel search startup — 7 October 2026
 
 At 13:30:07.892-13:30:17.688 UTC, the accepted immutable deployment
@@ -130,12 +177,13 @@ These actual backend deployment results do not establish usable owner PTR,
 authentication or release acceptance. Only owner and atlas readiness remain
 missing in this observation; Alpha/G001 were outside the mutation target.
 
-The separate fresh candidate batch remains running on frozen source `7ae40a6f`
+The separate fresh candidate batch began on frozen source `7ae40a6f`
 in the existing private root's distinct workspace
 `greater-realm-candidate-7ae40a6f-20261007`. The default workspace was refused
 with `GREATER_REALM_ATTEMPT_CHECKPOINT_EXISTS` before generation; its older
 checkpoint was retained. Do not overwrite it or infer completion from file
-counts. Authenticate the fresh batch's terminal result before selection/runtime
+counts. That batch later exhausted and was retired as recorded above; six
+fresh successors now run. Authenticate their terminal results before selection/runtime
 and current-update atlas continuation. Generation itself makes no provider
 write; the successful backend update above is a separate operation.
 
@@ -164,8 +212,9 @@ owner-connectivity (4) suites. Existing pinned candidate digests passed.
 a production candidate, backend update or authenticated owner acceptance.
 
 This code, tests and canonical handoff are published as signed `7ae40a6f`.
-One fresh source-bound private batch is running under the unchanged 256-attempt
-bound. The previous `ac6d85ee` batch below remains retired. Current-source PTR
+The first fresh source-bound private batch exhausted and was retired; six fresh
+successors run under the unchanged 256-attempt bound as recorded above.
+The previous `ac6d85ee` batch below remains retired. Current-source PTR
 inspection and nonbreaking update have completed independently; atlas import
 and owner provisioning still require an eligible sealed atlas.
 
