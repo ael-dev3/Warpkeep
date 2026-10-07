@@ -87,48 +87,46 @@ limits in 29 and 12. The maintained abort confirmed production untouched and
 selection readiness true. Safe details are in
 [local operations](../../evidence/0.4.0/local-operations.md).
 
-Generator `.26` is at source `93c9b54a8745bbb9b3f16fc98c0ca2e7526ff690`;
-the current exact-source documentation checkpoint is
-`e4fb6a4690dfa7a6206c7e789fe0f2d9bd2544eb`. The `.26` source changes only the
+Generator `.26` remains at source `93c9b54a8745bbb9b3f16fc98c0ca2e7526ff690`;
+the latest exact-source candidate run used documentation successor
+`21cb97fd4ff71fa92d78f7cf4c5348901245c75f`. The `.26` source changes only the
 retained per-child bundle-pair frontier, from 4,096 to 8,192; the 128
 child-option, 320,000 search-node, 256 complete-plan, geometry, ownership,
-proof, seed namespace, and eligibility rules remain fixed. Windows typecheck
-and focused apron, rejection, and generator tests passed (52/52). On the pinned
-Linux Node `22.22.3` runner with all 11 locked packages verified, the four
-focused suites passed 134/134 and the workflow-faithful exact-source typecheck
-passed.
+proof, seed namespace, and eligibility rules remain fixed. Before the
+diagnostic correction, Windows typecheck and focused tests passed (52/52), and
+the pinned Linux Node `22.22.3` runner verified all 11 locked packages, passed
+the four focused suites (134/134), and passed the workflow-faithful exact-source
+typecheck.
 
-Three exact-source fresh-seed `.26` batches exhausted 256 attempts apiece
-without an eligible candidate. The first ran on `93c9b54a` in about 31 minutes
-and reported 224 geography and 32 proof rejections, including 122 pair-frontier
+Four exact-source fresh-seed `.26` batches exhausted 256 attempts each without
+an eligible candidate. The first ran on `93c9b54a` in about 31 minutes and
+reported 224 geography and 32 proof rejections, including 122 pair-frontier
 terminals. The second ran on documentation successor `6b7a576f` in about 36
 minutes: 224 geography, 32 proof, and 102 pair-frontier terminals. The third
 ran on `e4fb6a46` in about 30 minutes: 231 geography, 25 proof, and 115
-pair-frontier terminals. In total the pair-frontier code appeared in 339/679
-geography rejections across these independent seeds. Persisted rejection
-records retain only the earliest-priority frontier code, so this can mask
-concurrent option or repair truncations and cannot prove that the pair cap
-alone prevented a valid complete plan. Source review traced deterministic pair
-ranking, endpoint-balanced retention, and downstream sibling
-overlap/separation checks; no reproducible incorrect pruning was established.
-All three maintained aborts confirmed production untouched, and selection
-readiness passed without completion receipts. Do not widen caps or relax proofs
-without a deterministic counterexample. Full sanitized aggregates are in
-[local operations](../../evidence/0.4.0/local-operations.md).
+pair-frontier terminals. The fourth ran on `21cb97fd` in about 34 minutes:
+230 geography, 26 proof, and 125 pair-frontier terminals. Across all four
+independent seeds, no candidate was accepted; the pair-frontier code appeared
+in 464/909 geography rejections. The rejection record keeps only the
+earliest-priority frontier code, so those counts can mask concurrent option,
+repair, or assignment cutoffs and cannot prove that the pair cap alone
+prevented a valid complete plan. Source review found no reproducible incorrect
+geometry or ownership pruning. All four maintained aborts confirmed production
+untouched and selection readiness without completion receipts. Full sanitized
+aggregates are in [local operations](../../evidence/0.4.0/local-operations.md).
 
-Run one more exact-source fresh-seed batch under the existing limits. If it
-also exhausts, stop blind seed repetition and make one bounded diagnostic
-change to preserve co-occurring frontier truncation evidence; keep candidate
-eligibility and proof rules fixed, then run a focused deterministic regression
-before generation resumes. Do not infer cap causality from unpaired counts.
-The candidate remains the first release gate. Owner acceptance, bridge,
-frontend, and PTR cutover remain downstream. The live Alpha returns HTTP 200
-and `/ptr/` returns HTTP 404 on 7 October. GitHub Actions are disabled, so local
+A bounded local diagnostic correction now records all observed frontier
+truncation kinds alongside the existing primary rejection. It does not change
+candidate ranking, accepted-world output, geometry, ownership, proofs, or
+search limits. Typecheck and the three Windows-portable focused suites pass
+(53/53). The Windows attempt-checkpoint fixture stops at its known temporary
+directory ACL guard before test assertions; keep that guard and validate the
+checkpoint suite on the pinned Linux runner. Next sync this correction, run the
+four exact-source Linux suites and typecheck, then resume fresh-seed generation.
+The candidate remains the first release gate; owner acceptance, bridge,
+frontend, and PTR cutover stay downstream. The live Alpha returns HTTP 200 and
+`/ptr/` returns HTTP 404 on 7 October. GitHub Actions are disabled, so local
 verification and branch publication are not hosted CI or deployment evidence.
-Owner acceptance, bridge, frontend, and PTR cutover remain downstream. The live
-Alpha returns HTTP 200 and `/ptr/` returns HTTP 404 on 7 October. GitHub Actions
-are disabled, so local verification and branch publication are not hosted CI or
-deployment evidence.
 
 The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
 rejection, and generator tests on Windows Node `24.19.0`, plus TypeScript

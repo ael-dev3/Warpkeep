@@ -15,6 +15,7 @@ import {
 } from '../scripts/atlas/greater-realm-candidate-generator';
 import {
   greaterRealmCandidateRejectionCode,
+  greaterRealmCandidateRejectionFrontierTruncationKinds,
 } from '../scripts/atlas/greater-realm-candidate-rejection';
 import { GREATER_REALM_PROOF_KEYS } from '../scripts/atlas/greater-realm-contracts';
 import { GREATER_REALM_ROUTE_CLASS } from '../scripts/atlas/greater-realm-living-world';
@@ -66,6 +67,7 @@ let secondaryEvidence: Readonly<{
 }> | undefined;
 let rejectedFixtureEvidence: Readonly<{
   code: ReturnType<typeof greaterRealmCandidateRejectionCode>;
+  frontierTruncationKinds: readonly string[];
   retiredLargeAuthorityCount: number;
   allRetiredAuthoritiesCleared: boolean;
 }> | undefined;
@@ -317,6 +319,7 @@ beforeAll(() => {
     const uint64Fill = vi.spyOn(BigUint64Array.prototype, 'fill');
     let unexpectedlyGenerated: GreaterRealmPrivateCandidate | undefined;
     let rejectionCode: ReturnType<typeof greaterRealmCandidateRejectionCode>;
+    let frontierTruncationKinds: readonly string[] = Object.freeze([]);
     try {
       try {
         unexpectedlyGenerated = generateGreaterRealmCandidate({
@@ -325,6 +328,7 @@ beforeAll(() => {
         });
       } catch (error) {
         rejectionCode = greaterRealmCandidateRejectionCode(error);
+        frontierTruncationKinds = greaterRealmCandidateRejectionFrontierTruncationKinds(error);
         if (rejectionCode === undefined) throw error;
       }
       const retiredLargeAuthorities = (
@@ -332,6 +336,7 @@ beforeAll(() => {
       ).filter(values => values.length >= EXPECTED_ACTIVE_CELL_MINIMUM);
       rejectedFixtureEvidence = Object.freeze({
         code: rejectionCode,
+        frontierTruncationKinds,
         retiredLargeAuthorityCount: retiredLargeAuthorities.length,
         allRetiredAuthoritiesCleared: retiredLargeAuthorities.every(values => (
           values.every(value => value === 0n)
@@ -548,6 +553,7 @@ describe('Greater Realm private candidate generator', () => {
     expect(rejectedFixtureEvidence.code).toBe(
       'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT',
     );
+    expect(rejectedFixtureEvidence.frontierTruncationKinds).toContain('BUNDLE_PAIR_LIMIT');
     expect(rejectedFixtureEvidence.retiredLargeAuthorityCount).toBeGreaterThan(0);
     expect(rejectedFixtureEvidence.allRetiredAuthoritiesCleared).toBe(true);
   }, 180_000);

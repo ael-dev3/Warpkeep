@@ -244,6 +244,59 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
     }
   });
 
+  it('authenticates canonical co-occurring frontier truncation diagnostics', () => {
+    const { workspace } = fixture();
+    const initial = createInitial(workspace);
+    let next: GreaterRealmAttemptCheckpointState | undefined;
+    let resumed: GreaterRealmAttemptCheckpointState | undefined;
+    const frontierTruncationKinds = Object.freeze([
+      'BUNDLE_PAIR_LIMIT',
+      'BUNDLE_OPTION_LIMIT',
+    ] as const);
+    try {
+      expect(() => recordGreaterRealmRejectedAttempt({
+        workspace,
+        state: initial,
+        rejectedAttempt: Object.freeze({
+          kind: 'geography-exhaustion',
+          candidateOrdinal: 0,
+          rejectionCode: 'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT',
+          frontierTruncationKinds: Object.freeze([
+            'BUNDLE_OPTION_LIMIT',
+            'BUNDLE_PAIR_LIMIT',
+          ] as const),
+        }),
+        nextCandidateHandle: SECOND_CANDIDATE,
+      })).toThrow('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
+
+      next = recordGreaterRealmRejectedAttempt({
+        workspace,
+        state: initial,
+        rejectedAttempt: Object.freeze({
+          kind: 'geography-exhaustion',
+          candidateOrdinal: 0,
+          rejectionCode: 'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT',
+          frontierTruncationKinds,
+        }),
+        nextCandidateHandle: SECOND_CANDIDATE,
+      });
+      resumed = resumeGreaterRealmAttemptCheckpoint({
+        workspace,
+        binding: binding(),
+      });
+      expect(resumed.rejectedAttempts).toEqual([{
+        kind: 'geography-exhaustion',
+        candidateOrdinal: 0,
+        rejectionCode: 'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT',
+        frontierTruncationKinds,
+      }]);
+    } finally {
+      clearGreaterRealmAttemptCheckpointSecret(resumed);
+      clearGreaterRealmAttemptCheckpointSecret(next);
+      clearGreaterRealmAttemptCheckpointSecret(initial);
+    }
+  });
+
   it('fails closed on ciphertext tamper, truncation, chain gaps, and stale bindings', () => {
     for (const mutation of ['tamper', 'truncate', 'gap'] as const) {
       const { workspace } = fixture();

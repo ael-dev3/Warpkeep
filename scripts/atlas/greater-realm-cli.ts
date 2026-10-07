@@ -27,7 +27,10 @@ import {
 import {
   GREATER_REALM_CANDIDATE_REJECTION_CODES,
   greaterRealmCandidateRejectionCode,
+  greaterRealmCandidateRejectionFrontierTruncationKinds,
+  isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds,
   type GreaterRealmCandidateRejectionCode,
+  type GreaterRealmTierTwoApronFrontierTruncationKind,
 } from './greater-realm-candidate-rejection';
 import {
   abortGreaterRealmAttemptCheckpoint,
@@ -1227,6 +1230,8 @@ async function generateSingleWorldCandidate(
                     kind: 'geography-exhaustion',
                     candidateOrdinal: ordinal,
                     rejectionCode,
+                    frontierTruncationKinds:
+                      greaterRealmCandidateRejectionFrontierTruncationKinds(error),
                   });
                   current = recordGreaterRealmRejectedAttempt({
                     workspace,
@@ -1890,6 +1895,7 @@ export type GreaterRealmPrivateGeographyRejectedAttempt = Readonly<{
   kind: 'geography-exhaustion';
   candidateOrdinal: number;
   rejectionCode: GreaterRealmCandidateRejectionCode;
+  frontierTruncationKinds?: readonly GreaterRealmTierTwoApronFrontierTruncationKind[];
 }>;
 
 export type GreaterRealmPrivateRejectedAttempt =
@@ -1922,9 +1928,15 @@ export function verifyGreaterRealmPrivateRejectedAttempt(input: Readonly<{
   } catch (error) {
     const actualRejectionCode = greaterRealmCandidateRejectionCode(error);
     if (actualRejectionCode === undefined) throw error;
+    const expectedFrontierKinds = input.rejectedAttempt.kind === 'geography-exhaustion'
+      ? input.rejectedAttempt.frontierTruncationKinds ?? []
+      : [];
+    const actualFrontierKinds = greaterRealmCandidateRejectionFrontierTruncationKinds(error);
     if (
       input.rejectedAttempt.kind !== 'geography-exhaustion'
       || input.rejectedAttempt.rejectionCode !== actualRejectionCode
+      || expectedFrontierKinds.length !== actualFrontierKinds.length
+      || expectedFrontierKinds.some((kind, index) => kind !== actualFrontierKinds[index])
     ) fail('GREATER_REALM_PRIVATE_ATTEMPT_LEDGER_INVALID');
   } finally {
     if (candidate) clearGreaterRealmPrivateCandidateBuffers(candidate);
@@ -2044,12 +2056,21 @@ function readPrivateBatch(
         fail('GREATER_REALM_PRIVATE_BATCH_INVALID');
       }
       const kind = kindDescriptor.value;
+      const hasFrontierTruncationKinds = Object.prototype.hasOwnProperty.call(
+        value,
+        'frontierTruncationKinds',
+      );
       const rejected = exactRecord(
         value,
         kind === 'proof-rejection'
           ? ['activeCellCount', 'candidateOrdinal', 'failedProofs', 'kind']
           : kind === 'geography-exhaustion'
-            ? ['candidateOrdinal', 'kind', 'rejectionCode']
+            ? [
+              'candidateOrdinal',
+              'kind',
+              'rejectionCode',
+              ...(hasFrontierTruncationKinds ? ['frontierTruncationKinds'] : []),
+            ]
             : [],
         'GREATER_REALM_PRIVATE_BATCH_INVALID',
       );
@@ -2086,11 +2107,24 @@ function readPrivateBatch(
           typeof rejected.rejectionCode !== 'string'
           || !(GREATER_REALM_CANDIDATE_REJECTION_CODES as readonly string[])
             .includes(rejected.rejectionCode)
+          || (
+            hasFrontierTruncationKinds
+            && !isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds(
+              rejected.frontierTruncationKinds,
+            )
+          )
         ) fail('GREATER_REALM_PRIVATE_BATCH_INVALID');
         rejectedAttempts.push(Object.freeze({
           kind,
           candidateOrdinal: rejected.candidateOrdinal as number,
           rejectionCode: rejected.rejectionCode as GreaterRealmCandidateRejectionCode,
+          ...(hasFrontierTruncationKinds
+            ? {
+              frontierTruncationKinds: Object.freeze([
+                ...(rejected.frontierTruncationKinds as readonly GreaterRealmTierTwoApronFrontierTruncationKind[]),
+              ]),
+            }
+            : {}),
         }));
       }
     }

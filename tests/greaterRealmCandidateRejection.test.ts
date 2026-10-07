@@ -13,6 +13,8 @@ import {
   GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS,
   GreaterRealmCandidateRejectionError,
   greaterRealmCandidateRejectionCode,
+  greaterRealmCandidateRejectionFrontierTruncationKinds,
+  isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds,
   prioritizeGreaterRealmTierTwoApronFrontierTruncation,
   rejectGreaterRealmCandidate,
   rejectGreaterRealmTierTwoCapacity,
@@ -287,6 +289,26 @@ describe('Greater Realm expected candidate rejection boundary', () => {
     expect(greaterRealmCandidateRejectionCode(typed)).toBe(code);
     expect(greaterRealmCandidateRejectionCode(new Error(code))).toBeUndefined();
     expect(greaterRealmCandidateRejectionCode({ name: typed.name, code })).toBeUndefined();
+  });
+
+  it('preserves every canonical observed frontier truncation on typed rejection', () => {
+    const code = 'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT';
+    const kinds = Object.freeze(['BUNDLE_PAIR_LIMIT', 'BUNDLE_OPTION_LIMIT'] as const);
+    const typed = new GreaterRealmCandidateRejectionError(code, kinds);
+
+    expect(typed.code).toBe(code);
+    expect(typed.frontierTruncationKinds).toEqual(kinds);
+    expect(greaterRealmCandidateRejectionFrontierTruncationKinds(typed)).toEqual(kinds);
+    expect(greaterRealmCandidateRejectionFrontierTruncationKinds(new Error(code))).toEqual([]);
+    expect(isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds(kinds)).toBe(true);
+    expect(isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds([
+      'BUNDLE_OPTION_LIMIT',
+      'BUNDLE_PAIR_LIMIT',
+    ])).toBe(false);
+    expect(() => new GreaterRealmCandidateRejectionError(code, [
+      'BUNDLE_PAIR_LIMIT',
+      'BUNDLE_PAIR_LIMIT',
+    ])).toThrow('GREATER_REALM_CANDIDATE_REJECTION_DIAGNOSTICS_INVALID');
   });
 
   it('keeps direct audit range failures fatal while branding only generator geography', () => {

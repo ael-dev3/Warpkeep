@@ -26,7 +26,9 @@ import { join } from 'node:path';
 
 import {
   GREATER_REALM_CANDIDATE_REJECTION_CODES,
+  isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds,
   type GreaterRealmCandidateRejectionCode,
+  type GreaterRealmTierTwoApronFrontierTruncationKind,
 } from './greater-realm-candidate-rejection';
 import type { GreaterRealmCandidatePerformance } from './greater-realm-candidate-package';
 import {
@@ -96,6 +98,7 @@ export type GreaterRealmCheckpointRejectedAttempt = Readonly<
     kind: 'geography-exhaustion';
     candidateOrdinal: number;
     rejectionCode: GreaterRealmCandidateRejectionCode;
+    frontierTruncationKinds?: readonly GreaterRealmTierTwoApronFrontierTruncationKind[];
   }
 >;
 
@@ -302,10 +305,15 @@ function validateRejectedAttempt(
     });
   }
   if (kind === 'geography-exhaustion') {
+    const hasFrontierTruncationKinds = Object.prototype.hasOwnProperty.call(
+      value,
+      'frontierTruncationKinds',
+    );
     const row = exactRecord(value, [
       'candidateOrdinal',
       'kind',
       'rejectionCode',
+      ...(hasFrontierTruncationKinds ? ['frontierTruncationKinds'] : []),
     ]);
     if (
       row.candidateOrdinal !== expectedOrdinal
@@ -313,10 +321,26 @@ function validateRejectedAttempt(
       || !(GREATER_REALM_CANDIDATE_REJECTION_CODES as readonly string[])
         .includes(row.rejectionCode)
     ) fail();
+    const frontierTruncationKinds = hasFrontierTruncationKinds
+      ? row.frontierTruncationKinds
+      : undefined;
+    if (
+      hasFrontierTruncationKinds
+      && !isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds(
+        frontierTruncationKinds,
+      )
+    ) fail();
     return Object.freeze({
       kind,
       candidateOrdinal: expectedOrdinal,
       rejectionCode: row.rejectionCode as GreaterRealmCandidateRejectionCode,
+      ...(hasFrontierTruncationKinds
+        ? {
+          frontierTruncationKinds: Object.freeze([
+            ...(frontierTruncationKinds as readonly GreaterRealmTierTwoApronFrontierTruncationKind[]),
+          ]),
+        }
+        : {}),
     });
   }
   return fail();

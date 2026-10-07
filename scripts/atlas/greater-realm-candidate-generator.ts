@@ -8,6 +8,7 @@ import {
   type GreaterRealmSanitizedCandidateSource,
 } from './greater-realm-contracts';
 import {
+  GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS,
   classifyGreaterRealmTierTwoApronSearchFailure,
   classifyGreaterRealmTierTwoAssignmentFailure,
   prioritizeGreaterRealmTierTwoApronFrontierTruncation,
@@ -3155,6 +3156,7 @@ type GreaterRealmTierTwoDryGateApronAuthority = Readonly<{
     parent: number,
   ) => readonly GreaterRealmTierTwoGateApronSiblingPair[];
   frontierTruncationKind: () => GreaterRealmTierTwoApronFrontierTruncationKind | null;
+  frontierTruncationKinds: () => readonly GreaterRealmTierTwoApronFrontierTruncationKind[];
   clear: () => void;
 }>;
 
@@ -3233,9 +3235,11 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
     readonly GreaterRealmTierTwoGateApronSiblingPair[]
   >();
   let searchFrontierTruncationKind: GreaterRealmTierTwoApronFrontierTruncationKind | null = null;
+  const searchFrontierTruncationKinds = new Set<GreaterRealmTierTwoApronFrontierTruncationKind>();
   const noteSearchFrontierTruncation = (
     kind: GreaterRealmTierTwoApronFrontierTruncationKind,
   ): void => {
+    searchFrontierTruncationKinds.add(kind);
     searchFrontierTruncationKind = prioritizeGreaterRealmTierTwoApronFrontierTruncation(
       searchFrontierTruncationKind,
       kind,
@@ -3259,6 +3263,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
     lowlandsRepairBorrowedBundlesByComponent.clear();
     lowlandsRepairBundleOptionsCache.clear();
     lowlandsRepairSiblingPairCache.clear();
+    searchFrontierTruncationKinds.clear();
   };
   try {
     const {
@@ -4025,6 +4030,10 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       siblingPairsFor,
       lowlandsRepairSiblingPairsFor,
       frontierTruncationKind: () => searchFrontierTruncationKind,
+      frontierTruncationKinds: () => Object.freeze(
+        GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS
+          .filter(kind => searchFrontierTruncationKinds.has(kind)),
+      ),
       clear,
     });
   } catch (error) {
@@ -4099,9 +4108,18 @@ function allocateTierTwoPassableCapacity(
   };
   let retainedAuthorityArrays: ReadonlySet<OwnedAllocatorArray> = new Set();
   let gateApronAuthority: GreaterRealmTierTwoDryGateApronAuthority | undefined;
-  const reject = (reason: GreaterRealmTierTwoCapacityRejectionReason): never => (
-    rejectGreaterRealmTierTwoCapacity(reason)
-  );
+  let capacityAssignmentFrontierTruncated = false;
+  const reject = (reason: GreaterRealmTierTwoCapacityRejectionReason): never => {
+    const observedKinds = new Set<GreaterRealmTierTwoApronFrontierTruncationKind>([
+      ...(gateApronAuthority?.frontierTruncationKinds() ?? []),
+      ...(capacityAssignmentFrontierTruncated ? ['CAPACITY_ASSIGNMENT_LIMIT' as const] : []),
+    ]);
+    return rejectGreaterRealmTierTwoCapacity(
+      reason,
+      Object.freeze(GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS
+        .filter(kind => observedKinds.has(kind))),
+    );
+  };
   try {
   const tierId = own(new Uint8Array(strategy.tierId));
   const regionId = own(new Uint8Array(strategy.regionId));
@@ -4776,6 +4794,8 @@ function allocateTierTwoPassableCapacity(
     lowlandsRepairSiblingPairsFor,
     GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS,
   );
+  capacityAssignmentFrontierTruncated = rankedCapacityAssignmentResult.frontierTruncated
+    || lowlandsRepairCapacityAssignmentResult.frontierTruncated;
   if (
     rankedCapacityAssignmentResult.assignments.length === 0
     && lowlandsRepairCapacityAssignmentResult.assignments.length === 0
@@ -4805,8 +4825,6 @@ function allocateTierTwoPassableCapacity(
     ),
   );
   const gateApronSearch = gateApronLaneSearch.result;
-  const capacityAssignmentFrontierTruncated = rankedCapacityAssignmentResult.frontierTruncated
-    || lowlandsRepairCapacityAssignmentResult.frontierTruncated;
   const gateApronFrontierTruncationKind = gateApronAuthority.frontierTruncationKind()
     ?? (capacityAssignmentFrontierTruncated ? 'CAPACITY_ASSIGNMENT_LIMIT' : null);
   const gateApronFrontierTruncated = gateApronFrontierTruncationKind !== null;

@@ -2,6 +2,79 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Fourth independent `.26` candidate run — 7 October 2026 — source `21cb97fd`
+
+The run used exact signed source
+`21cb97fd4ff71fa92d78f7cf4c5348901245c75f`, generator
+`greater-realm-v2-natural-continent-pr-a.26`, pinned Linux Node `22.22.3`,
+verified `linux-x64`, and all 11 locked toolchain packages. A fresh-seed private
+batch exhausted 256 attempts in about 34 minutes with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no candidate was accepted.
+
+The authenticated checkpoint matched the exact source and toolchain. Geography
+rejections (one priority-selected terminal code per attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 125 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 31 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 26 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 16 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 13 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 8 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 7 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+| **Total geography rejections** | **230** |
+
+The other 26 attempts ended in proof rejection. Proof occurrences are
+nonexclusive across those attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 26 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 24 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 23 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 21 |
+| `PROOF_REGION_LAND_COHERENCE` | 16 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 18 |
+| `PROOF_REGION_GRAPH` | 12 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 11 |
+| `PROOF_GATE_APPROACHES` | 10 |
+| `PROOF_GATE_GRAPH` | 10 |
+| `PROOF_CASTLE_CAPACITY` | 8 |
+| `CASTLE_SUITABILITY` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 8 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 7 |
+| `PROOF_REGION_PASSABLE_LAND` | 6 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 5 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 3 |
+| `HYDROLOGY_LAKES_48_96` | 3 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 3 |
+| `PROOF_BIOME_DIVERSITY` | 3 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 3 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 3 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+| `HYDROLOGY_MAJOR_OCEAN_SEA_BODIES_4_6` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; selection readiness passed without a completion
+receipt. Across all four independent `.26` batches, none of 1,024 attempts
+produced a candidate. The pair-frontier terminal was priority-selected in
+464/909 geography rejections. This repeated aggregate does not prove that the
+pair cap alone caused the failures: each persisted rejection kept only the
+earliest-priority cutoff and could hide co-occurring option, repair, or
+assignment limits.
+
+The bounded diagnostic correction now records every observed frontier
+truncation alongside the existing primary rejection. It does not change the
+search cap, ranking, geometry, ownership, proof rules, or accepted-world
+format. Validate this change on pinned Linux before another candidate run.
+
 ## Third independent `.26` candidate run — 7 October 2026 — source `e4fb6a46`
 
 The exact-source run used signed documentation successor

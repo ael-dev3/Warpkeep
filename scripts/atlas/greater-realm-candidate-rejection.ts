@@ -245,6 +245,22 @@ export const GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS = Object.fre
 export type GreaterRealmTierTwoApronFrontierTruncationKind =
   typeof GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS[number];
 
+export function isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds(
+  value: unknown,
+): value is readonly GreaterRealmTierTwoApronFrontierTruncationKind[] {
+  if (
+    !Array.isArray(value)
+    || value.length > GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS.length
+  ) return false;
+  let previousIndex = -1;
+  for (const kind of value) {
+    const currentIndex = GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS.indexOf(kind);
+    if (currentIndex <= previousIndex) return false;
+    previousIndex = currentIndex;
+  }
+  return true;
+}
+
 export function prioritizeGreaterRealmTierTwoApronFrontierTruncation(
   current: GreaterRealmTierTwoApronFrontierTruncationKind | null,
   observed: GreaterRealmTierTwoApronFrontierTruncationKind,
@@ -434,28 +450,42 @@ const CANDIDATE_REJECTION_CODE_SET: ReadonlySet<string> = new Set(
 
 export class GreaterRealmCandidateRejectionError extends Error {
   readonly code: GreaterRealmCandidateRejectionCode;
+  readonly frontierTruncationKinds: readonly GreaterRealmTierTwoApronFrontierTruncationKind[];
 
-  constructor(code: GreaterRealmCandidateRejectionCode) {
+  constructor(
+    code: GreaterRealmCandidateRejectionCode,
+    frontierTruncationKinds: readonly GreaterRealmTierTwoApronFrontierTruncationKind[] = [],
+  ) {
     super(code);
     if (!CANDIDATE_REJECTION_CODE_SET.has(code)) {
       throw new Error('GREATER_REALM_CANDIDATE_REJECTION_CODE_INVALID');
     }
+    if (!isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds(frontierTruncationKinds)) {
+      throw new Error('GREATER_REALM_CANDIDATE_REJECTION_DIAGNOSTICS_INVALID');
+    }
     this.name = 'GreaterRealmCandidateRejectionError';
     this.code = code;
+    this.frontierTruncationKinds = Object.freeze(
+      GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS
+        .filter(kind => frontierTruncationKinds.includes(kind)),
+    );
   }
 }
 
 export function rejectGreaterRealmCandidate(
   code: GreaterRealmCandidateRejectionCode,
+  frontierTruncationKinds: readonly GreaterRealmTierTwoApronFrontierTruncationKind[] = [],
 ): never {
-  throw new GreaterRealmCandidateRejectionError(code);
+  throw new GreaterRealmCandidateRejectionError(code, frontierTruncationKinds);
 }
 
 export function rejectGreaterRealmTierTwoCapacity(
   reason: GreaterRealmTierTwoCapacityRejectionReason,
+  frontierTruncationKinds: readonly GreaterRealmTierTwoApronFrontierTruncationKind[] = [],
 ): never {
   return rejectGreaterRealmCandidate(
     GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON[reason],
+    frontierTruncationKinds,
   );
 }
 
@@ -466,4 +496,13 @@ export function greaterRealmCandidateRejectionCode(
   return error instanceof GreaterRealmCandidateRejectionError
     ? error.code
     : undefined;
+}
+
+/** Preserve all observed search-frontier cutoffs alongside the primary reason. */
+export function greaterRealmCandidateRejectionFrontierTruncationKinds(
+  error: unknown,
+): readonly GreaterRealmTierTwoApronFrontierTruncationKind[] {
+  return error instanceof GreaterRealmCandidateRejectionError
+    ? error.frontierTruncationKinds
+    : Object.freeze([]);
 }
