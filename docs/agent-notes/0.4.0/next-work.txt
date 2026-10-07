@@ -30,19 +30,31 @@ NEXT — IN DEPENDENCY ORDER
 The recorded six-worker pool has now closed: 1,536 authenticated rejected
 attempts (1,332 geography / 204 proof), no eligible atlas. Its terminal-only
 pool rate was 1,077.27 attempts per UTC wall-clock hour, including staggered
-starts and VM suspend. Slots02–05 passed maintained retirement; slots01/06
-await their own retirement. Resolve actual successor starts and cutoff guards
+starts and VM suspend. All six passed maintained retirement and seed
+zeroization; slots01/06 completed at 17:46:45.238 / 17:47:22.360 UTC.
+Resolve actual successor starts and cutoff guards
 from the newest local-operations record. Old readers/callers bind the closed
 pool and must not be relabeled or reopened after abort.
 
-Four actual slot02–05 replacement03 searches are now running with separately
-armed, exact-startup-bound host cutoff guards. Starts: 17:29:54.246,
-17:32:14.069, 17:32:34.190, 17:33:52.416 UTC. All use reviewed launcherv7,
-source7ae/tree0cbb and unchanged gates/caps; the 19:32:47 UTC boundary remains.
-Use local operations for exact digests/exec ownership. Their matching new
-readers require review; historical readers below cannot authorize successors.
-Slot01's next replacement is not started. Slot06 capacity is reserved for a
-separately reviewed current-source retained-seed replay; it is not yet executed.
+Slots02–05 replacement03 closed with no candidate: 1,024 authenticated rejected
+attempts (892 geography / 132 proof). Slot04 passed maintained retirement at
+18:30:36.879 UTC; slots02/03/05 passed maintained retirement at18:52:46.011 /
+18:52:57.303 /18:53:04.423 UTC. Slot01 replacement04 closed18:44:50.958 UTC with 256
+authenticated rejects (232/24); its retirement needs a separately reviewed caller.
+Slot04 replacement04 actually began18:32:12.768 UTC using reviewed launcher v9,
+with separate host-guard readiness18:32:22.944 UTC. Its matching terminal reader
+passed root byte review. Comparison/runtime v7 binds the previous five and cannot
+authorize fresh successors. Use local operations for actual digests/exec ownership.
+Source7ae/tree0cbb, gates/caps and the19:32:47 UTC boundary remain unchanged.
+Root owns comparison, selection and runtime; live metadata does not authorize
+private checkpoint reads. Slot06 capacity now runs the separately reviewed current-source
+retained-entropy replay: initializer closed0 (receipt2e87); full maintained
+generation started18:21:28.521 UTC in root-owned exec30095, singleton CPU7.
+Separate root-owned watchdog exec15771 emitted genuine readiness18:22:54.382 UTC.
+Source7ae / generator.26 / namespace.3 and all gates remain unchanged. This
+retained original is not a retired batch; old source/package claims were not
+copied. Full package/shortlist/runtime acceptance remains open. Exact safe
+receipts, pins and correction/closure history are in local operations.
 
 1. Publication and clean native synchronization are complete. Original parallel
    slots02–06 all ended incomplete: 1,280 authenticated attempts, 1,123 geography

@@ -32,22 +32,34 @@ Execute this short release path without expanding the frozen scope:
 The previous six-worker pool closed by 17:22:07.810 UTC with no eligible atlas:
 1,536 authenticated attempts, 1,332 geography / 204 proof rejects. Its measured
 terminal throughput was 1,077.27 attempts per UTC wall-clock hour, including
-staggered starts and VM suspend. Slots02–05 have passed maintained retirement;
-slots01/06 still require their separate retirement evidence. The reader and
+staggered starts and VM suspend. All six passed maintained retirement and seed
+zeroization; slots01/06 completed at 17:46:45.238 / 17:47:22.360 UTC. The reader and
 caller descriptions below retain that closed pool's exact bindings; never
 invoke them on a successor or reopen a retired private checkpoint. Successors
 require actual startup authorities and separately armed cutoff coverage; see
 the dated lifecycle record in local operations.
 
-Four fresh slot02–05 replacement03 searches now have actual startup receipts
-and separately armed single-slot host guards: starts 17:29:54.246,
-17:32:14.069, 17:32:34.190 and 17:33:52.416 UTC. They use reviewed launcher v7
-and retain every source/gate/cap and the original 19:32:47 UTC boundary.
-Resolve their exact births, start/guard digests and agent-owned exec handles
-from local operations. Matching new terminal/continuation readers must be
-reviewed before private use. Slot01's next replacement is not started; slot06
-capacity is reserved for a separately reviewed current-source retained-seed
-replay. Preparation does not establish eligibility, package verification or
+The next four replacement03 searches also closed with no candidate: 1,024
+authenticated attempts, 892 geography / 132 proof rejects. Slot04 passed
+maintained retirement at18:30:36.879 UTC; slots02/03/05 then passed maintained
+retirement at18:52:46.011 /18:52:57.303 /18:53:04.423 UTC. Slot01 replacement04 closed
+at18:44:50.958 UTC with 256 authenticated rejects (232 geography / 24 proof);
+its retirement requires a separately reviewed caller. Never reopen retired state.
+Slot04 replacement04 actually began18:32:12.768 UTC through reviewed launcher v9;
+its separate host guard emitted readiness18:32:22.944 UTC. The matching terminal
+reader passed root byte review. Comparison/runtime v7 describes the previous
+five bindings and cannot authorize this successor. Resolve exact current
+births, safe digests and agent-owned exec handles from local operations.
+Root owns comparison/selection/runtime; live metadata does not authorize private
+checkpoint reads. Slot06 capacity now runs a separately reviewed
+current-source retained-entropy replay: initializer closed0 with genuine
+receipt2e87; full generation began18:21:28.521 UTC in root-owned exec30095,
+singleton CPU7. Its separate root-owned host watchdog exec15771 emitted
+genuine readiness18:22:54.382 UTC. Source7ae / generator.26 / namespace.3 and
+all maintained gates remain unchanged; no old package claim was copied and no
+retired batch was resumed. Use local operations for exact pins, actual
+owner/phase authorities and correction/closure history.
+Initialization or generation startup does not establish eligibility, package verification or
 release. The following cohort and reader descriptions retain historical scope.
 
 1. Source publication and clean native synchronization are complete. Both

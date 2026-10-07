@@ -3,6 +3,246 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Latest authenticated search lifecycle — 7 October 2026, 18:50 UTC
+
+All four slots02–05 replacement03 completed their unchanged maximum-256 bounds
+with no eligible candidate, completion or accepted pending finalization. Each
+reviewed maintained terminal reader authenticated its checkpoint only after
+the genuine execution terminal and whole group/descendant/supervisor absence.
+Source/index/refs/toolchain held; in-memory recovered secrets were cleared.
+No interruption, deadline, source-hold failure, selection or provider write
+was observed. These are genuine exhausted searches, not package verification.
+
+| Slot | Actual finish UTC | Geography / proof rejects | Safe authenticated terminal report SHA-256 |
+| --- | --- | --- | --- |
+| 02 | 18:30:03.338 | 216 / 40 | `491f786eb342edf0a184b76ddea2cc7016668395d2a4fd4ea3342e864e00415d` |
+| 03 | 18:31:57.742 | 225 / 31 | `96d621ea80d870236178f0bc766750d2ffef60260b37f51b40288d7552c54484` |
+| 04 | 18:24:06.814 | 229 / 27 | `ee5aaf377841adbe0d42b47001d9dba51ae8c0f5f9a5ff5bf536f56a939c912c` |
+| 05 | 18:34:00.024 | 222 / 34 | `5af572033e52037bd24acc18075188b1ad45ad674c55bc2ff7de8e045f7d3e5a` |
+
+The four authenticated reports total1,024 rejects: 892 geography / 132 proof.
+Root read and matched these safe receipts. Slot04 retirement is recorded below.
+Separately reviewed retirement callers for02/03/05 have matching Windows/native
+bytes, UID/GID1000, mode0600, one link, and pinned Node syntax passed. Their exact
+SHA-256 pins are `3e92790e4a58d755674922535e921c236a961ee50fd995a4b6691e2149256f5f`,
+`abd35608d897cd044bb01d4719f71549a2128f651e30f31041fa832126c90214` and
+`cb349ff604ab5351af00e4102eeab963cc932edc73aa36f7553f45fea8ffc565`.
+The three maintained retirements then genuinely completed once each, exit0:
+02 at18:52:46.011 UTC,03 at18:52:57.303 UTC,05 at18:53:04.423 UTC. Their safe
+retirement receipt SHA-256 digests are respectively
+`6050e412f6508351df1b07fe26201319726c5a7d7d6a9e7eda9ddb482e2d6f88`,
+`87f9d11865c050496e0e17d5697e49c930402a142d8a65f41b53fe1915661f14`,
+`67da1b2bf6b3f42e075266ce50b66b3b259c8f5d43ec39d38f018b2cd6716890`.
+Root read all three full safe receipts and matched their hashes. Each confirms
+exhausted256/null completion and exact checkpoint digest under the generation
+lock, maintained abort, seed zeroization, full absence and source/toolchain
+holds. No accepted/completed checkpoint was retired. They must not be reopened.
+Fresh successor startup remains a separate authority.
+
+Slot01 replacement04 genuinely closed1 at18:44:50.958 UTC. The exact approved
+reader authenticated256 rejects (232 geography / 24 proof), no accepted pending
+candidate/completion, whole group/descendant/supervisor absence and preserved
+source/index/refs/toolchain. Its safe report ending
+`parallel01-replacement04-authenticated-terminal-report-v1.json` has SHA-256
+`b4e0dfd2bc8dee7fb444568ebce014a13d1fa83fb86db4ec1f43313612aba955`;
+actual terminal metadata SHA-256 is
+`e7318a798a226d5e24fea2f5d68dd6562180b006f2841fcb0e065994a7521a1e`.
+Root read its full safe report and matched the hash. Retirement is not claimed
+from terminal authentication alone; a separate exact caller must be reviewed.
+
+After the actual slot04 retirement below, fresh slot04 replacement04 started
+18:32:12.768 UTC in generator-owned exec49404, PGID/SID1153542,
+birth73588043. Reviewed launcher v9 SHA-256
+`8fec02832535899ae9106cff20cd34283368f9b9c8f2d720be7a96b0ba2bee32`
+retains source7ae/tree0cbb, generator.26, count1/maximum256 and every gate/cap.
+Actual safe startup receipt SHA-256 is
+`b7dd08780b07410c275004a62cd94c85d287f910ce6b46873bdf7f8d7d50956d`.
+Separate host watchdog exec74212, host39920/birth18:32:19.075 UTC, emitted native
+readiness18:32:22.944 UTC. Safe readiness receipt SHA-256 is
+`c5ee109c26535949a5368461db72805758fe0e8c7426327ac0dfafcb9273fa83`.
+Root read/matched both. Matching terminal reader v1 SHA-256
+`c1d10f7c57c6a46e508d26a74c3f497562729acb8a8a936d29534a54978cbd82`
+passed root full narrow-diff review, actual native/Windows pins/modes and syntax.
+Only metadata may be read while live; private authentication requires genuine
+terminal and whole-group absence. Earlier comparison/runtime v7 bindings are
+historical and cannot authorize this fresh successor.
+
+All birth-bound guards remain unchanged. Successors retain the original
+19:32:47 UTC stop/options boundary; machine suspend and replacement starts
+never extend it. No package, runtime export, atlas import, owner provisioning,
+DNS/cutover or authenticated owner release acceptance is claimed here.
+
+## Slot04 replacement03 terminal — 7 October 2026, 18:24 UTC
+
+Generation exec34322 genuinely exited1 at18:24:06.814 UTC after start
+17:32:34.190 UTC. The reviewed pool-v3 reader authenticated exhausted256:
+229 geography / 27 proof rejects, no completion, candidate or accepted pending
+finalization. Full worker group/recorded descendants/supervisor were absent;
+source/index/refs/toolchain held and the recovered in-memory secret was cleared.
+No interruption, deadline, gate/source failure, selection or provider effect
+was observed. The safe authenticated terminal report
+`october-release-7ae-parallel04-replacement03-authenticated-terminal-report-v1.json`
+has SHA-256 `ee5aaf377841adbe0d42b47001d9dba51ae8c0f5f9a5ff5bf536f56a939c912c`;
+actual supervisor terminal metadata has SHA-256
+`b6165bad1bcd26de72a33e85031215483b838bdcdfcd126873691348f5eb844a`.
+Root read the full report and matched its hash. Maintained retirement then
+completed exactly once at18:30:36.879 UTC, after exhausted state/digest and
+null completion were reauthenticated under the generation lock. Safe
+`october-release-7ae-parallel04-replacement03-retirement-v1.json` has SHA-256
+`3a64eb640fd909bd97bdc93ab8a437a0fd5f539f071a1434ee2077769007bce1`;
+root read it and matched the hash. Checkpoint abort, in-memory seed zeroization,
+full absence and source/toolchain holds passed; no accepted/completed checkpoint
+was retired. It must not be reopened. Its original birth-bound guard remains
+unchanged. Its successor startup is separately recorded above. Earlier live
+snapshots below describe their observation times; the newest lifecycle record
+owns current state. The retained-entropy replay retains its distinct authority
+and absolute stop/options boundary.
+
+## Current-source retained-entropy replay — 7 October 2026, 18:22 UTC
+
+The owner approved all replays and delegated release decisions. The retained
+original auxiliary checkpoint is distinct from every retired search recorded
+below. Its historical replay passed private-package/aggregate gates on source
+`19b3422`, then failed runtime hydrology validation. That flow rule was already
+corrected by signed `aaf4d90e` and remains corrected in current source7ae; the
+historical failure is not a new release blocker. An old-source package still
+cannot be imported or relabeled as current source.
+
+Root and independent review cleared a separate full current-source replay.
+Three actual prelaunch defects were corrected: stale native-origin ancestry
+was replaced by root's verified publication receipt; tracked snapshots use the
+unchanged reviewed UID0/1000 helper while private readers remain UID1000; and
+a separate replay owner/phase-child host cutoff guard preserves the cleanup
+reserve. Independent review then caught the guard rejecting `/proc/1`'s valid
+PPID0. Only unrelated inventory numeric domains changed; strict owned group,
+birth, UID, executable and lineage checks remain intact. Historical prepared
+review-v2 bytes were retained. The separate final native preflight receipt
+`october-release-private-atlas-retained-aux-7ae-recovery-final-preflight-v1.json`
+has SHA-256 `8cbf95a6ae5904faf6d88037315a212e8a175eb822be5d136efca5494346b09c`.
+
+Final reviewed programs in the existing QA directory:
+
+- Retained recovery initializer v2: `634c8a5dd340b75aeec7b0d72d78bf5b9707be23551224a36505c203a5c7860c`.
+- Retained recovery generation v2: `c458d384f1ba9165a8ee0faaa66cc457d189b7f8bd9021b4f65366c089e4b915`.
+- Retained recovery aggregate v2: `ef0677b92674402c3a24f48db1af61f5f68bfbdd5736cb897420ce52cadfbc1f`.
+- Replay-specific native cutoff guard v1: `64767d28371d40589dcbc4e0fcd2a86eb608867b2ce2d024abf09130021d15bd`.
+- Replay-specific host watchdog v1: `d880616e49efa7aa0abfd028adc6d4c6cb6997d96376af7fb1ef643cdd7519d6`.
+
+Root independently matched actual Windows/native bytes; native programs and
+publication receipt are UID/GID1000, mode0600, single-link. Pinned Node syntax
+and PowerShell parsing pass. Native source/index/refs stayed held; no fetch or
+tracked-source ownership change occurred. Eight CPUs and available memory
+support five random searches plus this one-CPU replay. CPU7 is explicitly
+selected; existing searches advertise affinity0–7, so no exclusively unused
+affinity core is claimed.
+
+Root executed the initializer exactly once. Its claim was written at
+18:20:33.089 UTC by owner1127184, birth73524411; child1127333 had birth73524667.
+Actual root tool exit0 and maintained receipt
+`october-release-private-atlas-retained-aux-7ae-recovery-initialize-v2.json`,
+SHA-256 `2e87f7ac971bd453180adde130ba4db03a19ef0eedc06d9cc43c29604abe3846`,
+confirm authenticated original entropy, a fresh current `.26` sequence0 /
+ordinal0 checkpoint, empty current rejection history and fresh maintained
+handles. Original encrypted inventory/key stayed unchanged, in-memory seeds were cleared,
+and the child/group/source holds passed. Original source9ea / current source7ae
+dual provenance, seed-derived data and genuine handles remain private. No old
+eligibility claim was copied. The initializer completed before host guard arming;
+it is not a live search and must not be blindly repeated.
+
+Full maintained generation started at 18:21:28.521 UTC in root-owned exec30095,
+isolated PGID/SID1129447, birth73529722, singleton affinity7. Actual safe startup
+receipt ending `-generation-v2-started.json` has SHA-256
+`f7371837274178e85b2fa0955587f99e8afe2c8699a0eb3bdfe68b28465afb88`.
+It binds genuine initializer receipt2e87, source7ae/tree0cbb, generator `.26`,
+terrain namespace `.3`, count1/maximum256, existing toolchain and fixed workspace
+`/home/warpkeep/.warpkeep/private/greater-realm-release-7ae-retained-9ea-aux-recovery-v1`.
+Required phases remain authenticated readiness → generation → maintained
+private-package verification → comparison/shortlist → aggregate review.
+Initialization and generation startup do not establish eligible yield.
+
+Root armed separate host watchdog exec15771, observed host PID22344 with birth
+18:22:50.900 UTC. Actual native readiness was emitted at 18:22:54.382 UTC,
+binding the genuine owner startup and preflight child receipt SHA-256
+`4c873e1bb35e18eb342a09b762fb366a77dbea461d034433dd2d451c33097800`.
+Root's safe `-generation-v2-host-cutoff-readiness-v1.json` has SHA-256
+`b113100450cd4750d6a2950413cff2bddd3dcb5937d9650a09b836d1998ab50c`.
+Host TERM reserve is 19:32:35.500 UTC; KILL requires actual TERM ACK plus ten
+seconds, with original stop/options boundary19:32:47 UTC. Guard scope is this
+actual replay owner and recorded phase-child lineages, distinct from the four
+fixed search-worker roles. Readiness claims no signal, private checkpoint read
+or successful future cleanup. Root owns both execs; another agent's unknown
+handle cannot establish terminal state or authorize restart.
+
+Independent post-terminal observation at18:27:47.134 UTC confirmed initializer
+owner/child and its whole PGID/SID absent twice, exact full tracked-source
+identity/OID snapshot, index and refs unchanged. The current generation owner,
+generate phase-child, singleton CPU7, native guard1132710/birth73537414 and
+Windows watchdog22344/birth18:22:50.900 UTC match their genuine recorded
+authorities. Preflight/readiness children are absent; generate is present at
+that observation. Safe independent post receipt
+`october-release-private-atlas-retained-aux-7ae-recovery-initializer-independent-post-v1.json`
+has SHA-256 `94a73a3fd19679090a037ed218a5ed62c8104c7d4fbf0e44c3c6e737bb43d23f`.
+It made no private checkpoint/package read, execution poll, signal or provider
+call. Root read its actual safe bytes and matched its hash.
+
+No verified current package, selection, runtime export, atlas import, owner
+provisioning, DNS/cutover or authenticated owner acceptance is claimed yet.
+Only the first genuinely verified winner may advance through the existing
+maintained runtime/atlas/owner gates. Alpha/G001, admission policy, G002 seal,
+accepted frontend, bridge and rollback are preserved.
+
+## Five-search continuation and completed retirement — 7 October 2026
+
+Slot01 replacement03 and slot06 replacement02 passed maintained retirement at
+17:46:45.238 and 17:47:22.360 UTC respectively. Their authentic exhausted
+checkpoints were locked, aborted and seed-zeroized; full original groups,
+recorded descendants and supervisors were absent, with source/index/refs and
+toolchain held. Safe retirement receipts ending in `-retirement-v1.json`:
+
+- Slot01 replacement03: `26eeb661dcf736c4e38dd577438ee8ecc257abb269c26af74f3b39694beb1991`.
+- Slot06 replacement02: `7e42e9fc39c51b05d20e11b2ea3bf213c256cf999f79d71e32a846913153f109`.
+
+All six members of the previously closed pool are now retired. None may be
+resumed. Slot06 has no fresh random successor; its capacity is reserved for
+the separate current-source retained-entropy recovery.
+
+Exactly one fresh slot01 replacement04 began at 17:48:06.993 UTC, through
+reviewed launcher v8, SHA-256
+`a78db321344471a2f0f5837da39a4b1758156aedf39e581f59619705bf6bec96`.
+Its actual startup receipt
+`october-release-7ae-parallel01-replacement04-started-v1.json` has SHA-256
+`bf643897d8eb281cbbef93a10e9fc2a2b9ef2f4d22698dcc2ce1ecdbdcce3919`.
+PGID/SID is 1055210, birth tick 73346967; generation exec 45072 belongs to
+`/root/generator_failure`. Source7ae/tree0cbb, generator `.26`, pinned Linux
+Node/toolchain, count1/maximum256 and every eligibility gate remain unchanged.
+
+Its separate host cutoff watcher exec34636, host PID11416, began at
+17:48:23.691 UTC and was armed at 17:48:25.088 UTC. Actual native readiness
+was emitted at 17:48:28.206 UTC. The safe readiness receipt
+`october-release-7ae-parallel01-replacement04-host-cutoff-readiness-v1.json`
+has SHA-256 `9e1cec73c0ef0d29f32f7c40bf3101dd18217d1e0b2bdf865faed29c3d347ed7`.
+Root matched actual Windows/native bytes. This completes cutoff coverage for
+all five fresh random searches recorded here and in the preceding four-slot
+record below. The absolute 19:32:47 UTC stop/options boundary is unchanged;
+readiness does not claim a signal or future cleanup.
+
+Root cleared the matching terminal readers; root and independent review cleared
+the actual Windows/native current-five comparison/runtime callers. Native files
+are UID/GID1000, mode0600 and single-link:
+
+- Slot01 replacement04 terminal reader v1: `7c41c97df335f44a89b57eb98cb826d18f4f68d6afa73b652cfcf35de7c423be`.
+- Slot02–05 replacement03 pool terminal reader v3: `2a0dbd218c6344f168b9f736beac1ecb0a1bc822dae248f9b9f906e273614079`.
+- Parallel continuation reader v7: `c4ec2b449daec5aaedd3f57045dcf30c5a6f8b7238dda530345e935682fc4162`.
+- Parallel runtime caller v7: `c4025ca37a127493d2b1501db95bb7792416bee8898b2ddb115c151471c35338`.
+
+The narrow diffs bind only genuine current startup authorities and exclude
+retired slot06. Maintained absence/source/private-package/comparison/shortlist/
+selection/runtime logic is unchanged. Matching terminal readers may authenticate
+private state only after genuine terminal and full recorded-process absence;
+metadata probes while live do not read checkpoints. Root owns comparison,
+selection and runtime and accepts only the first verified winner. These prepared
+callers have not established an eligible package or provider result.
+
 ## Four fresh searches with separate cutoff guards — 7 October 2026
 
 Exactly one fresh replacement03 started for each retired slot02–05 through
