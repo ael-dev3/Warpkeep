@@ -27,11 +27,11 @@ and productionUntouched. It is retired; never resume or relabel it. Counts
 from independent seeds do not establish causation or candidate yield.
 
 NEXT — IN DEPENDENCY ORDER
-1. Publication and clean native synchronization are complete. One fresh maximum-
-   256 private batch is running in the distinct existing private workspace
-   `greater-realm-candidate-7ae40a6f-20261007`; preserve its original process
-   and operating source until it finishes. Five additional isolated fresh workers
-   are being prepared within measured capacity, with the same gates and bounds.
+1. Publication and clean native synchronization are complete. Six fresh maximum-
+   256 private batches are running: the original distinct private workspace
+   `greater-realm-candidate-7ae40a6f-20261007` and isolated parallel02 through
+   parallel06 siblings, started at 13:32:47-51 UTC. Preserve their original
+   processes and operating source until each finishes, with the same gates and bounds.
    Authenticate each terminal separately; use only the first verified winner.
    If incomplete,
    use the maintained authenticated aggregate reader, zeroization and abort.
@@ -58,7 +58,11 @@ Alpha `https://warpkeep.com/` returned 200; custom-domain `/ptr/` returned 404;
 Pages preview `/ptr/` returned 200. Frontend implementation and visual evidence
 remain staged and frozen at public commit `3634aa82` / deployment `8a469929`
 (frontend source `9ea4821a`). Those product paths are unchanged through `7ae`;
-reverify the existing artifact, without rebuilding just to change its stamp.
+fresh immutable-origin postflight at 13:30:07-17 UTC verified all 800 planned
+files and both SPA fallbacks with the exact original maintained verifier/plan.
+The newer verifier's added legal-header criterion does not pass this old plan;
+all five legal files are accessible with exact approved bytes. Download-style
+MIME remains optional follow-up #395. Do not rebuild just to change a stamp.
 Final live acceptance is open.
 
 DOMAIN ACCESS

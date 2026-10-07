@@ -3,6 +3,75 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Frozen frontend readback and parallel search startup — 7 October 2026
+
+At 13:30:07.892-13:30:17.688 UTC, the accepted immutable deployment
+`https://8a469929.warpkeep.pages.dev` passed all 800 served-file checks and both
+nearest-SPA 404 fallbacks against its unchanged original reviewed plan
+`370f84ab66f4e7bdb1f9f7026fb40a68ddf860bd6a30ce6e96fa2e7e3bf94861`.
+Public commit remains `3634aa82acace39d7db7c48be6f8bb0a97f95b01`, with
+application source `9ea4821ad3fda90694ccc80dfe3bc81fc96c6646` and deployment
+`8a469929-355d-4caf-967a-f090e03c6a60`. Frontend, auth-bridge, public files
+and root package manifests are unchanged from that source through operating
+source `7ae40a6f`.
+
+The current verifier failed locally with `CLOUDFLARE_PAGES_POSTFLIGHT_PLAN_INVALID`
+before any HTTP request: a later revision added the `_headers` legal-route
+requirement. Parsing the original canonical plan still passes; the old plan
+has all five legal files but no `_headers`. The actual failed-current receipt
+`october-release-accepted-frontend-7ae-readback-v1.json` retains SHA-256
+`09c24d8cb1cab44c25d083460d92a5010f8163bfe488eb73c7cb24405f65f7eb`.
+No plan was rewritten, no current guard weakened and no new artifact built.
+
+The read-only diagnostic used the exact maintained verifier Git blob at the
+accepted source, SHA-256
+`27f1477a04120017928ada40cd81c2a7a0bc7f33dfec9cc034711aea2c2ccff6`,
+matching the prior acceptance receipt. Its unchanged file/fallback verification
+passed with actual exit 0. The five legal routes independently returned 200
+and exact reviewed bytes, with `application/octet-stream` and no
+Content-Disposition. This is the existing optional presentation issue
+[#395](https://github.com/ael-dev3/Warpkeep/issues/395), not absent licensing
+content or an observed gameplay failure. The current newer metadata criterion
+has not passed. Diagnostic receipt
+`october-release-p3-9ea-accepted-postflight-diagnostic-20261007T133017688Z.json`
+has SHA-256
+`b4b4b657fd7509f1cdce47f92c22bb76c26a4e59d53d3b3154bb71332944c051`.
+There were no provider/DNS/configuration writes. Actual owner acceptance and
+final domain postflight remain due.
+
+At 13:36:52.721 UTC, public bridge `GET /healthz` returned 200 with
+`ok: true` and `publicAuthEnabled: true`. PTR exchange `OPTIONS` returned 204,
+allowed the exact `https://warpkeep.com` origin and included `authorization`
+and `content-type` in allowed headers. Receipt
+`october-release-bridge-public-preflight-20261007T133652721Z.json` has SHA-256
+`f228dd9ebc904178d1d06418cec91b95006b65859d2bcf4b64086dea5be5fb1e`.
+This is public route/CORS readiness, not an authenticated owner exchange or
+player acceptance. Owner provisioning must not create substitute Alpha Terms
+records; the PTR menu follows its distinct server-verified owner entry path.
+
+The original source-bound fresh private batch remains active. Five additional
+isolated fresh batches started at 13:32:47-51 UTC, all on signed source
+`7ae40a6f` / tree `0cbb69dd`, pinned Linux Node `22.22.3`, generator `.26`,
+maximum 256 attempts and count 1. Each uses a distinct parallel02 through
+parallel06 sibling inside the existing owner-only private root. The launcher
+SHA-256 is `b2c251b213ab9bee859dc4b83465963b90dd0ff892cf8b445371c2d475751a9e`.
+Independent review and a non-generating two-second fixture verified owned
+`setsid -> timeout -> Node -> child` group cleanup, including a TERM-ignoring
+child. Startup attested the actual UID 1000 timeout/bootstrap/tsx/CLI chain
+for each worker, with separate process groups and private logs.
+
+At 13:34:24.679 UTC, all six actual groups were present. Their combined resident
+memory was about 3.69 GiB; WSL retained about 15.35 GiB available of 19.53 GiB.
+The six CLI processes averaged about 6.95 CPUs together on eight exposed CPUs.
+This is startup capacity evidence, not a lifetime maximum or throughput claim.
+Each terminal must be authenticated separately; completed attempts per elapsed
+hour must come from genuine aggregate results. Preserve native source/index/refs
+while any worker is active. Use only the first verified winner, retire other
+searches and retain their authenticated disposition. No eligibility gate, bound,
+rank, seed namespace or production state changed in this expansion.
+The full-parallel six-hour stop/options boundary is 19:32:47 UTC; there is no
+indefinite replacement loop and no permission to silently extend that boundary.
+
 ## Exact-source PTR backend update — 7 October 2026
 
 Signed source `7ae40a6f4ba44188f7935f7dbcaf6f920f4eb36f`, tree

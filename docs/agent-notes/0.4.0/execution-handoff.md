@@ -29,11 +29,12 @@ limit change. Full evidence is in
 
 Execute this short release path without expanding the frozen scope:
 
-1. Source publication and clean native synchronization are complete. One fresh
-   source-bound maximum-256 batch is running in
+1. Source publication and clean native synchronization are complete. Six fresh
+   source-bound maximum-256 batches are running: the original in
    `/home/warpkeep/.warpkeep/private/greater-realm-candidate-7ae40a6f-20261007`.
-   Five additional isolated workers are being prepared within measured capacity;
-   preserve each original process and frozen source. The default older workspace
+   Five additional isolated siblings, parallel02 through parallel06, started at
+   13:32:47-51 UTC within measured capacity. Preserve each original process and
+   frozen source. The default older workspace
    was refused before generation; do not overwrite or replay its checkpoint.
 2. Actual isolated PTR inspection, compatible update preparation, one-submit
    apply and preservation postflight are complete. Inspection `4a78bc2b` binds
@@ -57,12 +58,24 @@ Retain the owner's accepted frontend: public commit `3634aa82`, Pages deployment
 `8a469929`, application source `9ea4821a`. Frontend/auth/public/package paths are
 unchanged through `7ae40a6f`; reverify the existing artifact at cutover instead
 of rebuilding solely for a new stamp. Do not relabel the component's provenance.
+Fresh immutable-origin verification at 13:30:07-17 UTC passed all 800 planned
+files and both fallbacks using the exact historical maintained verifier and
+unchanged reviewed plan. The current verifier later added a legal-header
+criterion that the old plan does not satisfy; that failed check is retained.
+All five legal files still return 200 with exact approved bytes. Their
+download-style MIME is optional [follow-up #395](https://github.com/ael-dev3/Warpkeep/issues/395),
+not a missing disclosure or observed gameplay failure. See local operations
+for the diagnostic's exact provenance and scope.
 At 13:21:47 UTC the current generation group's summed process high-water marks
 were about 0.80 GiB, with about 1.12 CPU average. WSL exposes eight CPUs and
 about 20 GiB; six total workers leave approximately one CPU free. Each batch
 keeps the existing bounds and fresh private entropy. Report authenticated
 terminal attempts per elapsed hour; do not infer them from checkpoint files.
 The owner's full-parallel no-winner stop/options boundary remains in force.
+The first full-parallel window began at 13:32:47 UTC; the six-hour boundary is
+19:32:47 UTC (21:32:47 Budapest). The new workers have owned-group timeouts,
+independently checked with a non-generating TERM-ignoring-child fixture.
+Do not allow the original worker or replacement batches to extend that boundary.
 
 Last read-only live checks: Alpha HTTP 200, custom-domain `/ptr/` HTTP 404,
 Pages preview `/ptr/` HTTP 200. No additional open PRs awaited integration.
