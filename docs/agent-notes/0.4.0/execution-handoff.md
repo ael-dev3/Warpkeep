@@ -87,39 +87,41 @@ limits in 29 and 12. The maintained abort confirmed production untouched and
 selection readiness true. Safe details are in
 [local operations](../../evidence/0.4.0/local-operations.md).
 
-Signed source `.26` is now published at exact PR #385 head
-`93c9b54a8745bbb9b3f16fc98c0ca2e7526ff690`. It changes only the retained
-per-child bundle-pair frontier, from 4,096 to 8,192; the 128 child-option,
-320,000 search-node, 256 complete-plan, geometry, ownership, proof, seed
-namespace, and eligibility rules remain fixed. Windows typecheck and focused
-apron, rejection, and generator tests passed (52/52). On the pinned Linux
-Node `22.22.3` runner with all 11 locked packages verified, the four focused
-suites passed 134/134 and the workflow-faithful exact-source typecheck passed.
+Generator `.26` is at source `93c9b54a8745bbb9b3f16fc98c0ca2e7526ff690`;
+the current exact-source documentation checkpoint is
+`6b7a576f3817fb87d30a36228f9b07bd59cdf8d9`. The `.26` source changes only the
+retained per-child bundle-pair frontier, from 4,096 to 8,192; the 128
+child-option, 320,000 search-node, 256 complete-plan, geometry, ownership,
+proof, seed namespace, and eligibility rules remain fixed. Windows typecheck
+and focused apron, rejection, and generator tests passed (52/52). On the pinned
+Linux Node `22.22.3` runner with all 11 locked packages verified, the four
+focused suites passed 134/134 and the workflow-faithful exact-source typecheck
+passed.
 
-The exact-source fresh-seed `.26` batch then exhausted all 256 attempts in
-about 31 minutes without an eligible candidate. Its authenticated checkpoint
-matched the source and toolchain; 224 attempts ended in geography rejection
-and 32 in proof rejection. The pair-frontier terminal remained the most common
-geography code (122/224). Because the `.25` and `.26` batches used independent
-seeds, the count change does not establish a cap effect. The rejection record
-retains only the earliest-priority frontier code, which can mask concurrent
-option or repair truncations. Source review traced deterministic pair ranking,
-endpoint-balanced retention, and downstream sibling overlap/separation checks;
-no reproducible incorrect pruning was established, so do not raise another cap
-without a concrete counterexample. The maintained abort confirmed
-`checkpointAborted: true` and `productionUntouched: true`; the maintained
-selection-readiness check passed, with no accepted candidate or completion
-receipt. Full sanitized rejection counts are in
-[local operations](../../evidence/0.4.0/local-operations.md).
+Two exact-source fresh-seed `.26` batches exhausted 256 attempts apiece without
+an eligible candidate: 224 geography and 32 proof rejections each. The first
+ran on `93c9b54a` in about 31 minutes and reported the pair-frontier terminal
+122 times. The second ran on its documentation-only successor `6b7a576f` in
+about 36 minutes and reported it 102 times. Across these independent batches,
+that terminal appeared in 224/448 geography rejections. Persisted rejection
+records retain only the earliest-priority frontier code, so this count can mask
+concurrent option or repair truncations and cannot prove that a retained-pair
+cap alone prevented a valid complete plan. Source review traced deterministic
+pair ranking, endpoint-balanced retention, and downstream sibling
+overlap/separation checks; no reproducible incorrect pruning was established.
+Both maintained aborts confirmed production untouched, and selection
+readiness passed without a completion receipt. Do not widen caps or relax
+proofs without a deterministic counterexample. Full sanitized aggregates are
+in [local operations](../../evidence/0.4.0/local-operations.md).
 
-Keep the current bounded search unchanged and continue exact-source fresh-seed
-generation under the existing limits. If another batch fails, use its safe
-aggregate together with this run to select one testable search-strategy change
-or continue generating; do not widen caps on an unpaired count alone. An
-eligible Atlas is still the first release gate; owner acceptance, bridge,
-frontend, and PTR cutover remain downstream. The live Alpha returns HTTP 200
-and `/ptr/` returns HTTP 404 on 7 October. GitHub Actions are disabled, so local
-verification and branch publication are not hosted CI or deployment evidence.
+Continue exact-source fresh-seed generation under the existing limits while the
+candidate remains the first release gate. If another batch fails, use its safe
+aggregate to identify a reproducible, testable strategy correction before
+changing the generator; do not infer causality from unpaired counts alone.
+Owner acceptance, bridge, frontend, and PTR cutover remain downstream. The live
+Alpha returns HTTP 200 and `/ptr/` returns HTTP 404 on 7 October. GitHub Actions
+are disabled, so local verification and branch publication are not hosted CI or
+deployment evidence.
 
 The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
 rejection, and generator tests on Windows Node `24.19.0`, plus TypeScript

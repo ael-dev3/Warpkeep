@@ -2,6 +2,74 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Second independent `.26` candidate run — 7 October 2026 — source `6b7a576f`
+
+The signed documentation successor
+`6b7a576f3817fb87d30a36228f9b07bd59cdf8d9` leaves the `.26` generator
+unchanged from `93c9b54a`. On this exact source, the pinned Linux Node
+`22.22.3` runner verified the `linux-x64` profile and all 11 locked toolchain
+packages. A fresh-seed private candidate batch exhausted all 256 attempts in
+about 36 minutes with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no candidate
+was accepted.
+
+The authenticated checkpoint matched the exact source and toolchain. Geography
+rejections (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 102 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 32 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 27 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 22 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 16 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 12 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 9 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+| **Total geography rejections** | **224** |
+
+The other 32 attempts ended in proof rejection. Proof occurrences below are
+nonexclusive across those attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 32 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 29 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 29 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 28 |
+| `PROOF_REGION_LAND_COHERENCE` | 23 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 21 |
+| `PROOF_REGION_GRAPH` | 18 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 15 |
+| `PROOF_CASTLE_CAPACITY` | 14 |
+| `CASTLE_SUITABILITY` | 14 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 11 |
+| `PROOF_REGION_PASSABLE_LAND` | 10 |
+| `PROOF_GATE_APPROACHES` | 10 |
+| `PROOF_GATE_GRAPH` | 10 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 8 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 7 |
+| `TIER_POTENTIAL_DENSITY` | 6 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 6 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 5 |
+| `HYDROLOGY_LAKES_48_96` | 5 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 3 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 2 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 2 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `PROOF_BIOME_DIVERSITY` | 1 |
+
+The pair-frontier limit remained the largest single geography code. Across the
+two independent `.26` batches it occurred in 224/448 geography rejections; the
+priority projection can conceal concurrent truncations, and neither batch
+proves that an omitted pair would form an eligible complete plan. No geometry,
+ownership, or proof rule was relaxed. The maintained abort returned
+`checkpointAborted: true` and `productionUntouched: true`; selection readiness
+passed with no completion receipt. No candidate package, selection, provider
+request, or production mutation resulted.
+
 ## Exact-source `.26` candidate run — 7 October 2026 — source `93c9b54a`
 
 The signed `.26` source
