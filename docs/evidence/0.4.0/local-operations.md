@@ -2,6 +2,86 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact-source `.25` candidate run — 7 October 2026 — source `a10a7d1f`
+
+The signed `.25` source
+`a10a7d1feae63bf31712bfcf1661c1f30cfdedbc` passed all four focused Linux
+suites (134/134) on Node `22.22.3`, verified `linux-x64`, with all 11 locked
+toolchain packages. Its exact-source typecheck passed in a disposable clone
+after the workflow's root `npm ci` and nested auth-bridge `pnpm@11.11.0`
+install. The clone was removed after verification. The candidate run used a
+fresh seed and the maintained private generator, exhausting all 256 attempts in
+about 35 minutes without an accepted candidate.
+
+The authenticated checkpoint matched the exact commit and toolchain. It
+recorded 229 geography rejections and 27 proof-rejection attempts:
+
+| Geography rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 152 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 29 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 18 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 12 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 2 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 1 |
+| **Total** | **229** |
+
+Proof occurrences are nonexclusive across the 27 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 25 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 20 |
+| `PROOF_REGION_LAND_COHERENCE` | 19 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 19 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 18 |
+| `PROOF_REGION_GRAPH` | 16 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 15 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 14 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 14 |
+| `PROOF_GATE_APPROACHES` | 13 |
+| `PROOF_GATE_GRAPH` | 13 |
+| `PROOF_REGION_PASSABLE_LAND` | 7 |
+| `PROOF_CASTLE_CAPACITY` | 6 |
+| `CASTLE_SUITABILITY` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 6 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 5 |
+| `PROOF_BIOME_DIVERSITY` | 4 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 4 |
+| `HYDROLOGY_LAKES_48_96` | 3 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 3 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 3 |
+| `TIER_I_REGION_BALANCE` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 1 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; selection readiness passed with no completion
+receipt. The root-seed buffer was zeroized after aggregation. No seed, candidate
+handle, coordinates, private package bytes, or raw checkpoint was emitted. No
+candidate, package, shortlist, selection, provider request, or production
+mutation resulted.
+
+The pair cap was still the terminal geography code in 152/229 attempts. The
+sample is independent of the `.24` batches, so the count change is not a paired
+causal comparison. The `.26` working tree raises only the retained pair
+frontier from 4,096 to 8,192; its Windows typecheck and focused tests pass
+(52/52). Its exact Linux checks and candidate batch remain pending.
+
+The disposable typecheck install reported two high-severity development-tree
+advisories: [sharp/librsvg GHSA-wq5f-xc86-pv6w](https://github.com/advisories/GHSA-wq5f-xc86-pv6w)
+and [source-map-js GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+`npm audit --omit=dev` found zero production-dependency vulnerabilities. No
+dependency or lockfile was changed; track these as a toolchain follow-up, not a
+production runtime finding.
+
 ## Exact-source `.24` candidate run — 6 October UTC / 7 October Budapest
 
 On exact signed source `41146ecaedbbc9464503934e0adb01d02529739e`, one fresh-seed

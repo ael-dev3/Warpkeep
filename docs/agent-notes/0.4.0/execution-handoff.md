@@ -75,16 +75,29 @@ with production untouched, no completion receipt, and selection readiness true.
 The full sanitized aggregates are in
 [local operations](../../evidence/0.4.0/local-operations.md).
 
-That repeated truncation is evidence for a measured `.25` correction: increase
-the retained per-child bundle-pair frontier from 2,048 to 4,096. Keep the 128
-child-option bound, 320,000 search-node bound, 256 complete-plan bound, terrain
-seed namespace `.3`, geometry, ownership, proofs, and candidate eligibility
-unchanged. The Windows typecheck and 52 focused apron, rejection, and generator
-tests pass. Next publish the signed `.25` source, validate all four focused
-suites and typecheck on the pinned Linux runner, then run one fresh-seed
-maximum-256 batch bound to that exact source. No Atlas package or candidate
-exists yet, so owner acceptance, bridge, frontend, and PTR cutover remain
-downstream of that gate.
+That repeated truncation justified `.25` increasing the retained per-child
+bundle-pair frontier from 2,048 to 4,096, while preserving the 128 child-option
+bound, 320,000 search-node bound, 256 complete-plan bound, terrain seed
+namespace `.3`, geometry, ownership, proofs, and candidate eligibility. Signed
+source `a10a7d1f` passed the four focused Linux suites (134/134) and exact-source
+typecheck. Its fresh-seed maximum-256 batch exhausted in about 35 minutes with
+229 geography rejections and 27 proof-rejection attempts; the pair frontier
+remained terminal in 152 geography attempts, with search-node and complete-plan
+limits in 29 and 12. The maintained abort confirmed production untouched and
+selection readiness true. Safe details are in
+[local operations](../../evidence/0.4.0/local-operations.md).
+
+The current `.26` working tree makes one further measured adjustment, raising
+only that retained pair frontier to 8,192 because it still dominated `.25`
+rejections. Its Windows typecheck and focused apron, rejection, and generator
+tests pass (52/52). If the pair frontier remains dominant after the next exact
+Linux batch, stop increasing caps and change the search strategy based on the
+collected evidence. Next publish `.26`, run all four focused suites and the
+workflow-faithful exact-source typecheck on the pinned Linux runner, then one
+fresh-seed maximum-256 batch. No eligible Atlas exists yet; owner acceptance,
+bridge, frontend, and PTR cutover remain downstream of that gate. Actions are
+disabled, so local verification and branch publication are not hosted CI or
+deployment evidence.
 
 The earlier `64 → 128` pair-cap correction passed 51/51 focused gate-apron,
 rejection, and generator tests on Windows Node `24.19.0`, plus TypeScript
