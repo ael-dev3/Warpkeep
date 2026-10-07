@@ -1,6 +1,6 @@
 # Continue Warpkeep 0.4
 
-## Active release step — 7 October 2026, 22:33 UTC
+## Active release step — 7 October 2026, 22:54 UTC
 
 Codex owns the release. Generator .28 is signed and published at
 acad76d18ced8761aea3d64dc94c75cf6f8cc784, tree
@@ -16,26 +16,34 @@ not owner access. PTR still reports ACCESS UNKNOWN until server-verified
 Farcaster Mini App Quick Auth is exercised. The current Farcaster web tab shows
 Login, so authenticated owner acceptance is not established.
 
-The native checkout is now exact at .28 and clean. Native Node 22.22.3 /
+The native checkout is exact at .28 and clean. Native Node 22.22.3 /
 npm 10.9.8 typechecking passed, followed by all149 affected tests in four
 whole files, including the 82-test private package suite. The former Windows
 ACL failure does not reproduce on Linux.
 
+One fresh-seed .28 search is running in fixed window `20261007T224500Z`:
+actual start 22:45:08.180 UTC, one candidate, maximum 256 attempts, no
+automatic restart and no provider writes. Startup receipt SHA-256 is
+`1c8120bb8bc0ee434a9328b7ee9faa4e409ccc6d7078c686301cddcc7bcebfbb`; the
+launcher SHA-256 is `47424d46f2435c261e5a9098181149690c884fcfb6932b9e23301bea031f69d0`.
+The exact-source host cutoff guard (native helper SHA-256
+`d4ae81caf04b676d4725e7cba9300b0d9e9711b0519d3d8f55ecab6b04449a8e`) reached
+READY at 22:45:27.577 UTC. It schedules TERM at 04:44:00 and KILL at 04:44:45,
+with the absolute stop at 04:45:00 UTC on 8 October. The terminal result is
+pending. Keep the native checkout pinned until the generation execution closes.
+Before private reads, independently prove each recorded process birth,
+group/session and supervisor absent twice, then use the separately bound reader.
+
 Next, in order:
 
-1. Prepare fresh .28-bound source/index/start receipts, a separate candidate
-   workspace, launcher and exact-root guard. Preserve the one-slot limit and
-   six-hour bound; no auto-restart or provider write.
-2. Start one new guarded, fresh-seed, maximum-256 batch. Never reuse .27
-   private state. Authenticate genuine process closure and terminal receipt
-   before private inspection.
-3. Only a verified winner permits package verification, separate selection,
-   atlas import/readback, and actual owner provisioning. Reuse the installed
-   backend and bridge unless a concrete failure reproduces.
-4. Retain the already deployed exact frontend and Alpha root. License bytes
+1. Authenticate the .28 terminal result and closure. Never reuse .27 private
+   state. Only a verified winner permits package verification, separate
+   selection, atlas import/readback and actual owner provisioning. Reuse the
+   installed backend and bridge unless a concrete failure reproduces.
+2. Retain the already deployed exact frontend and Alpha root. License bytes
    match and .28 changes no terms. The newer legal response-header guard is
    still unpassed; generic application/octet-stream may download text files.
-5. Test owner sign-in and the keep/gather/build/return journey inside the
+3. Test owner sign-in and the keep/gather/build/return journey inside the
    signed-in Farcaster Mini App, then regress Alpha. Do not call 0.4 released
    before authenticated PTR and Alpha acceptance pass.
 

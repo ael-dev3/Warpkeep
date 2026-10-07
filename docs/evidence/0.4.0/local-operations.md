@@ -3,6 +3,42 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Fresh .28 bounded atlas search started — 7 October 2026, 22:45 UTC
+
+The clean native checkout is held at signed source
+`acad76d18ced8761aea3d64dc94c75cf6f8cc784`, tree
+`9e353605005e94c95e5c375e3c769f518462662a`, generator
+`greater-realm-v2-natural-continent-pr-a.28`, and verified linux-x64 toolchain
+`sha256:20b2eb07baaefe0c61fd2e87396f04751c7b9df6cdb8b117832baaa689ad2ac7`.
+The fresh one-candidate batch started at 22:45:08.180 UTC in fixed window
+`20261007T224500Z` (22:45 UTC 7 October–04:45 UTC 8 October). Maximum attempts
+256, one slot, no automatic restart, no provider writes. Startup receipt SHA-256
+`1c8120bb8bc0ee434a9328b7ee9faa4e409ccc6d7078c686301cddcc7bcebfbb` binds the
+exact source, generator, toolchain, window and four UID1000 worker roles plus
+their supervisor. The separately hash-pinned host/native cutoff guard reached
+READY at 22:45:27.577 UTC; launcher SHA-256 is
+`47424d46f2435c261e5a9098181149690c884fcfb6932b9e23301bea031f69d0`, native
+helper SHA-256 is
+`d4ae81caf04b676d4725e7cba9300b0d9e9711b0519d3d8f55ecab6b04449a8e`. TERM is
+fixed for 04:44:00 and KILL for 04:44:45 UTC, before the 04:45:00 stop. The
+guard reports one bound process group and `privateCheckpointRead:false`. The
+root generation execution and guard remain
+active. No terminal result, candidate, package, atlas or owner is established.
+
+Do not inspect the private checkpoint or generation log while the execution is
+active. After the root execution actually exits, independently prove every
+recorded process birth, its PGID/SID and the supervisor absent twice, then use
+the exact-start-bound `.28` terminal reader. If a candidate is found, verify its
+package, shortlist and selection separately before any atlas import. The prior
+`.27` workspace and its still-running old-identity cutoff watcher are untouched.
+
+Read-only public checks at 22:49 UTC returned HTTP 200 for
+`https://warpkeep.com/`, `https://warpkeep.com/ptr/`, and
+`https://auth.warpkeep.com/healthz`; the bridge reports `warpkeep-auth-v2` and
+`publicAuthEnabled:true`. The PTR directory was visible in the ordinary browser,
+but Farcaster's web tab showed its logged-out landing page and PTR access remained
+`UNKNOWN`. This is no authenticated-owner or gameplay acceptance evidence.
+
 ## Native .28 synchronization and qualification — 7 October 2026, 22:33 UTC
 
 The clean native checkout /home/warpkeep/Warpkeep-0.4 is detached at signed

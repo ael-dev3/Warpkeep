@@ -1,5 +1,5 @@
 WARPKEEP 0.4 — NEXT WORK
-CURRENT RESUMPTION - 7 OCTOBER 2026, 22:33 UTC
+CURRENT RESUMPTION - 7 OCTOBER 2026, 22:54 UTC
 
 ACTIVE RELEASE STEP - .28 SOURCE PUBLISHED AND NATIVE-QUALIFIED
 Signed source acad76d18ced8761aea3d64dc94c75cf6f8cc784, tree
@@ -13,15 +13,22 @@ postflight passed 800 files and both fallback routes while Alpha root remains
 available. Authenticated owner access is not accepted: PTR shows ACCESS
 UNKNOWN, and the current Farcaster web tab shows Login.
 
+ACTIVE SEARCH
+One fresh-seed .28-bound candidate batch started at 22:45:08.180 UTC in fixed
+window `20261007T224500Z` (stop 04:45 UTC, 8 October). Startup receipt SHA-256
+`1c8120bb8bc0ee434a9328b7ee9faa4e409ccc6d7078c686301cddcc7bcebfbb`; the
+separately pinned host cutoff guard reached READY at 22:45:27.577 UTC. Limit is
+one candidate / 256 attempts, with no automatic restart and no provider writes.
+Terminal result is pending. Do not read private data until the root generation
+execution exits and all recorded process births, group/session and supervisor
+are independently observed absent twice, then run the exact-bound reader.
+
 ORDERED NEXT WORK
 1. **Complete:** native checkout is clean at exact .28 source. Node 22.22.3 /
    npm 10.9.8 typecheck and all149 cases across four affected files passed,
    including the full82-test private package suite. Linux resolved the
    Windows-only ACL failure.
-2. **Next:** prepare fresh .28-bound source/index/start receipts and an isolated
-   launcher/guard, then start one fresh-seed maximum-256 batch. Do not reuse
-   .27 state. Authenticate terminal and whole-process closure before private
-   read.
+2. Authenticate the terminal and whole-process closure. Do not reuse .27 state.
 3. Verify a genuine winner; then package, select separately, import/read back
    atlas and provision the actual PTR owner. Reuse backend and bridge unless a
    concrete failure reproduces.
