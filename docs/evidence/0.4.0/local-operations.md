@@ -3,6 +3,75 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Parallel cohort retired and fresh slots restored — 7 October 2026
+
+The five original parallel slots bound to signed operating source `7ae40a6f` /
+tree `0cbb69dd` all closed incomplete. The maintained source/toolchain-bound
+readers authenticated their actual terminal records after complete worker,
+recorded descendants, group and supervisor absence. None yielded a candidate.
+
+| Original slot | Actual finish UTC | Geography rejects | Proof rejects |
+| --- | --- | ---: | ---: |
+| 02 | 14:42:51.052 | 222 | 34 |
+| 03 | 14:41:09.951 | 223 | 33 |
+| 04 | 14:32:33.782 | 236 | 20 |
+| 05 | 14:46:39.250 | 213 | 43 |
+| 06 | 14:46:07.287 | 229 | 27 |
+
+Each observed 256 attempts: 1,280 in this completed five-slot cohort, with
+1,123 geography and 157 proof rejects. Proof/truncation code occurrences overlap;
+these counts do not establish causation or predict candidate yield. Full safe
+reports are `october-release-7ae-parallelXX-authenticated-terminal-report-v1.json`
+in existing Windows/native QA. Their SHA-256 values, by slot, are:
+
+- 02: `769fb20ff41a89527da286ae19fc08e7bbd421ce0d0e08cae0727cb1ef13f8f7`.
+- 03: `b5ec06f2fb19856ab4cc95715e13568d900ad8dee1febac495f4f5364ef3770f`.
+- 04: `1ff1cd22a101209e25e10f89ef1ebad8ede5e29462e107c4922dd251646644e9`.
+- 05: `46ad96254d4b9f83a9e1a564172b7ade6fb888e6b4a4b6aad76216fad87fbf62`.
+- 06: `7f1a8c2c9fcb3c370fd1c2cf7a2ba116c791d4b6a25dae61841d498aac3150e9`.
+
+All five then passed maintained abort-only retirement under the generation lock,
+with exact exhausted digest/null-completion revalidation and seed zeroization.
+Source/index/refs and toolchain remained held; no replay, selection or provider
+write occurred. Retirement receipt SHA-256 values, by slot, are:
+
+- 02: `b35010b34f61b16c13c275fdc22270cd4b749bd826271c3d3c2acf44823bc60f`.
+- 03: `a02fdee64b0cc549b2210c1c5e15dd92a07ed22d7b68460c49856e8f1d9444e9`.
+- 04: `d5a9733d78133f0f53f2fba7e8f1880bc709dd6097848de6e76e9379832e0456`.
+- 05: `987a24f5fceb79bcc4a9462baeeea475003f6c53e00c79b403e3abbab59dade2`.
+- 06: `880d2c0b93ac77ba8d04411990efd259f2029a72be4c6759c46134b8305862eb`.
+
+Exactly one fresh replacement per slot started with unchanged source, generator
+`.26`, pinned Linux Node/toolchain, count 1, maximum 256, capacity gates and
+the existing absolute 19:32:47 UTC boundary. Slot04 began 14:42:05.696 UTC;
+02/03/05/06 began 14:49:51.680 / 14:50:10.435 / 14:50:25.845 /
+14:50:45.256 UTC. Real UID 1000 timeout/bootstrap/tsx/CLI birth chains were
+attested in distinct private parallelXX-replacement01 workspaces. Source remains
+frozen; no active launcher was modified. Coherent startup/retirement/review
+receipt `october-release-7ae-replacement-pool-start-review-v1.json` has SHA-256
+`70581a3f1644374a70a8bca14b2071f8cd09fa3c1564ff775073699f5fc5fc5f`.
+
+The first slot01 replacement closed incomplete at 14:56:33.788 UTC: 256
+attempts, 221 geography / 35 proof rejects, no candidate. Its authenticated
+safe report SHA-256 is
+`c32e37781d59d6bddac1b55e445bd8e7e46921e143e6f4952393eda3633f3b48`.
+Maintained abort-only retirement passed at 15:02:06.149 UTC, receipt SHA-256
+`b1f0d0b012cdf9451c04393bdbfca217a0e088813969ef89372a84b11e5a970d`.
+One fresh slot01-replacement02 started 15:03:40.097 UTC; actual start receipt
+SHA-256 is `820ef676989221e186b9081eee19a302ed3b7f7102ccdfe44f20817868a9723a`.
+The other five remained active; six scoped sessions are restored. No retired
+workspace was resumed. Current source-bound readers are listed in the handoff.
+
+UTC and monotonic observed intervals differ because VM suspend pauses monotonic
+time; both remain in the authentic reports. For example, original slot04's
+59m43.495s UTC interval gives 257.18 attempts/hour, whereas its separate
+56m02.754s monotonic interval gives 274.06. Neither is total active-pool
+throughput; active attempt counts remain unknown. Relative timeouts must not
+extend the absolute cutoff. No candidate/package verification, selection,
+runtime preparation, atlas import, owner provision or full release pass follows
+from these exhausted searches or prepared callers. Product source, assets,
+licensing, existing PTR update, frozen frontend, Alpha/G001 and G002 are unchanged.
+
 ## First corrected batch retired; fresh replacement started — 7 October 2026
 
 The original exact-source `7ae40a6f` batch closed with actual process exit 1.

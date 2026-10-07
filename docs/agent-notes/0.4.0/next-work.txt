@@ -18,23 +18,28 @@ all production caps are preserved. Windows apron tests pass 24/24; pinned
 Linux Node `22.22.3` typecheck and four focused suites pass 60/60. Independent
 review found no blocker. See `docs/evidence/0.4.0/local-operations.md`.
 
-LAST COMPLETED PRIVATE BATCH — `ac6d85ee`
+PREVIOUS CORRECTION'S PRIVATE BATCH — `ac6d85ee`
 
-The last fresh maximum-256 batch ended incomplete: 224 geography and 32 proof
+That fresh maximum-256 batch ended incomplete: 224 geography and 32 proof
 rejections, no candidate/package/selection/atlas/provider mutation. The
 maintained reader zeroized its seed, and abort confirmed checkpointAborted
 and productionUntouched. It is retired; never resume or relabel it. Counts
 from independent seeds do not establish causation or candidate yield.
 
 NEXT — IN DEPENDENCY ORDER
-1. Publication and clean native synchronization are complete. Six fresh maximum-
-   256 private batches are running: parallel02 through parallel06, started at
-   13:32:47-51 UTC, and parallel01-replacement01, started at 13:48:33.239 UTC.
+1. Publication and clean native synchronization are complete. Original parallel
+   slots02–06 all ended incomplete: 1,280 authenticated attempts, 1,123 geography
+   and 157 proof rejects, no candidate. Each is retired with maintained abort
+   and seed zeroization. Slot01-replacement01 also ended incomplete (221/35)
+   and was retired. At 15:03:40 UTC six fresh maximum-256 replacements are active:
+   parallel02–06-replacement01 and parallel01-replacement02. Full timestamps,
+   source-bound start/retirement pins and current readers are in the handoff.
    The original batch exhausted 256 attempts (225 geography / 31 proof rejects)
    and was authenticated, zeroized and retired at 13:45:32.675 UTC. Never resume
    it. Preserve each active process and operating source until terminal, with
    the same gates and bounds; the global stop boundary remains 19:32:47 UTC.
    Authenticate each terminal separately; use only the first verified winner.
+   Never invoke the original pool or old slot01 readers on retired bindings.
    If incomplete,
    use the maintained authenticated aggregate reader, zeroization and abort.
 2. Actual PTR inspection, compatible update preparation and one-submit apply

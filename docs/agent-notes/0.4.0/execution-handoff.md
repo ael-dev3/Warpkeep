@@ -29,9 +29,15 @@ limit change. Full evidence is in
 
 Execute this short release path without expanding the frozen scope:
 
-1. Source publication and clean native synchronization are complete. Six fresh
-   source-bound maximum-256 batches are running: parallel02 through parallel06
-   started at 13:32:47-51 UTC, and parallel01-replacement01 at 13:48:33.239 UTC.
+1. Source publication and clean native synchronization are complete. The five
+   original parallel02–06 batches all ended incomplete: 1,280 authenticated
+   attempts, 1,123 geography and 157 proof rejects, no candidate. All five are
+   retired by maintained abort with seed zeroization. Six fresh source-bound
+   maximum-256 batches are active at 15:03:40 UTC: parallel02–06-replacement01
+   and parallel01-replacement02. The first slot01 replacement exhausted 256
+   attempts (221 geography / 35 proof rejects) at 14:56:33.788 UTC and was
+   retired at 15:02:06.149. Its fresh successor started 15:03:40.097 UTC.
+   Slot04 began 14:42:05.696; slots02/03/05/06 14:49:51–14:50:45.
    The original batch exhausted 256 attempts (225 geography / 31 proof rejects)
    and was authenticated, seed-zeroized and retired at 13:45:32.675 UTC. Never
    resume it. Preserve each active process and frozen source. The default older workspace
@@ -57,19 +63,32 @@ Execute this short release path without expanding the frozen scope:
 For the current six workers, native terminal readers are ready in
 `/home/warpkeep/Warpkeep-0.4/artifacts/qa/`:
 
-- `october-release-7ae-parallel-terminal-reader-v1.ts`, SHA-256
-  `2d28ca4098404f853183e802f17f518d19d8e182608d02b52a3ae0cfd934d8ea`,
-  covers slots 02 through 06 (optional `--slot=02` through `--slot=06`).
-- `october-release-7ae-replacement-terminal-reader-v1.ts`, SHA-256
-  `0ecef7d0d682a127b875d44719a89c832eb74d14a8f7b4476a34205d55405968`,
-  covers the replacement (`--slot=01`).
+- `october-release-7ae-replacement-pool-terminal-reader-v1.ts`, SHA-256
+  `7fab575a5a5fb4078fc6d7147c87c60448fe43f2994e75c183834442733071d3`,
+  covers current replacements02–06 (`--slot=02` through `--slot=06`).
+- `october-release-7ae-parallel01-replacement02-terminal-reader-v1.ts`, SHA-256
+  `4b385d36eccf736ada2ad7ef2f0269525bcd10e0b8300d6bda6580085c34ed40`,
+  covers current slot01 (`--slot=01`).
+
+The original pool reader and original02–06 checkpoints are retired bindings;
+do not invoke that reader after abort or relabel it for replacements. The new
+pool retains identical lifecycle/private-read/zeroization/manifest logic and
+binds only actual replacement start receipts. Its launcher is the separately
+reviewed v2, SHA-256
+`e6afe066d5c4609e6fdbe24a99c64157d0010573b3521452159c3da7d48ce8f3`.
+Current slot01 uses its separate v3 launcher, SHA-256
+`e8e11f0386fefac777c79822bde37372e0340b28f58cd76a42fffb17e8a48f3c`.
+Older slot01 bindings are retired and must never be reopened or relabeled.
+Current startup/retirement pins
+are in local operations. Maintained comparison must still establish package
+verification before selection/runtime or atlas/provider work.
 
 Run these as UID 1000 from the frozen native checkout with the pinned Node
 `22.22.3` and its existing `node_modules/tsx/dist/cli.mjs`, using the clean
-environment from the previous source-bound operators. Root's actual smoke
-checks passed: all six were active/finalizing, source/index/refs were preserved,
-and no active private checkpoint was read. Both readers independently passed
-review and syntax checking. Review receipt
+environment from the previous source-bound operators. Root reviewed the current
+readers against their actual startup bindings; syntax checks passed and current
+pool metadata probes read no active private checkpoints. The earlier six-worker
+independent review, before those workers were retired, is recorded separately in
 `october-release-7ae-six-worker-continuation-review-v1.json` has SHA-256
 `327f9716ce8bb40e80fc59fba923ac53a46728123e9afefac2c55c4da5ca7cd8`.
 
@@ -83,6 +102,21 @@ not package-verified. Genuine success handles stay only in that workspace's
 private `terminal-reader-success-manifest-v1.json`; next use the maintained
 package/shortlist/selection/runtime gates, never substitute the aggregate for
 those proofs. Never reuse these fixed run bindings for a different worker.
+
+Root also reviewed the prepared comparison/runtime callers in the same native QA
+directory. Current v3 binds slot01-replacement02 and slots02–06-replacement01:
+
+- `october-release-7ae-parallel-continuation-reader-v3.ts`, SHA-256
+  `18b958bbf8e48c99befacb9166d114643cc299d580e0e52bedeae3f47956ce08`.
+- `october-release-7ae-parallel-runtime-caller-v3.ts`, SHA-256
+  `e6d2ca659254a2d6de34635075fe1646c7ccdead35c28452921b54ad0139ee14`.
+
+They call existing maintained gates, keep genuine handles/raw results private
+and have not been executed. Resolve the fixed-worker binding against the actual
+start receipt before use; older v1/v2 slot01 authority is now retired. Comparison
+must produce the genuine private verified-continuation manifest and shortlist
+before a single explicit select-runtime, then prepare-runtime invocation.
+Neither prepared code nor an eligible generation aggregate proves those steps.
 
 Retain the owner's accepted frontend: public commit `3634aa82`, Pages deployment
 `8a469929`, application source `9ea4821a`. Frontend/auth/public/package paths are
@@ -106,6 +140,12 @@ The first full-parallel window began at 13:32:47 UTC; the six-hour boundary is
 19:32:47 UTC (21:32:47 Budapest). The new workers have owned-group timeouts,
 independently checked with a non-generating TERM-ignoring-child fixture.
 Do not allow the original worker or replacement batches to extend that boundary.
+
+Actual terminal UTC and monotonic elapsed values differ because VM suspend
+pauses monotonic time. Retain both values; report neither as the other. Enforce
+the absolute UTC boundary independently of relative process timeout expiry.
+Active attempt counts and total pool throughput remain unknown until genuine
+terminal records; completed rejection/proof counts are not candidate yield.
 
 Last read-only live checks: Alpha HTTP 200, custom-domain `/ptr/` HTTP 404,
 Pages preview `/ptr/` HTTP 200. No additional open PRs awaited integration.
