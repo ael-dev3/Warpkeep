@@ -1,38 +1,45 @@
 WARPKEEP 0.4 — NEXT WORK
-CURRENT RESUMPTION - 7 OCTOBER 2026, 22:54 UTC
+CURRENT RESUMPTION - 7 OCTOBER 2026, 23:55 UTC
 
-ACTIVE RELEASE STEP - .28 SOURCE PUBLISHED AND NATIVE-QUALIFIED
-Signed source acad76d18ced8761aea3d64dc94c75cf6f8cc784, tree
-9e353605005e94c95e5c375e3c769f518462662a, is on release branch / draft PR
-#385. GitHub verified its signature. Actions are disabled; no workflow ran.
-The .27 batch ended with 256 authenticated rejects and a successful maintained
-abort; no package, atlas or owner was selected from it.
+ACTIVE RELEASE STEP - .29 APRON-FRONTIER CORRECTION QUALIFIED LOCALLY
+The signed .28 source acad76d18ced8761aea3d64dc94c75cf6f8cc784, tree
+9e353605005e94c95e5c375e3c769f518462662a, remains published on release branch
+/ draft PR #385. Its fresh search ended 23:26:10.472 UTC with authenticated
+exhaustion: 256/256 rejected, no candidate completion, package, selection,
+atlas or provider write. The maintained abort returned
+checkpointAborted:true / productionUntouched:true. Do not replay that workspace
+or seed. Full safe aggregates and process-closure evidence are at the top of
+docs/evidence/0.4.0/local-operations.md.
+
+The measured leading geography rejection was the bounded bundle-pair frontier
+(133 attempts); pair truncation was observed in 175 attempts. The .29
+correction doubles only that bounded pair cap from 8,192 to 16,384, leaving the
+edge and child caps, search/complete-plan limits, proofs, admission policy and
+terrain-seed namespace unchanged. Generator version is .29. Windows typecheck
+and 67 apron/rejection/generator tests pass. Native Linux typecheck passes. The
+four-file Linux closure had 148/149 pass; its only failure was a stale .28
+version assertion. After updating the assertion to .29, the isolated case
+passed. A synthetic maximum-edge-cap selector benchmark retained 16,384 of
+523,776 pairs in 1,316 ms at 254,844,928-byte sampled peak RSS.
 
 The accepted 9ea4821a frontend is now live at custom-domain /ptr/. Exact
 postflight passed 800 files and both fallback routes while Alpha root remains
 available. Authenticated owner access is not accepted: PTR shows ACCESS
 UNKNOWN, and the current Farcaster web tab shows Login.
 
-ACTIVE SEARCH
-One fresh-seed .28-bound candidate batch started at 22:45:08.180 UTC in fixed
-window `20261007T224500Z` (stop 04:45 UTC, 8 October). Startup receipt SHA-256
-`1c8120bb8bc0ee434a9328b7ee9faa4e409ccc6d7078c686301cddcc7bcebfbb`; the
-separately pinned host cutoff guard reached READY at 22:45:27.577 UTC. Limit is
-one candidate / 256 attempts, with no automatic restart and no provider writes.
-Terminal result is pending. Do not read private data until the root generation
-execution exits and all recorded process births, group/session and supervisor
-are independently observed absent twice, then run the exact-bound reader.
-
 ORDERED NEXT WORK
-1. **Complete:** native checkout is clean at exact .28 source. Node 22.22.3 /
-   npm 10.9.8 typecheck and all149 cases across four affected files passed,
-   including the full82-test private package suite. Linux resolved the
-   Windows-only ACL failure.
-2. Authenticate the terminal and whole-process closure. Do not reuse .27 state.
-3. Verify a genuine winner; then package, select separately, import/read back
-   atlas and provision the actual PTR owner. Reuse backend and bridge unless a
-   concrete failure reproduces.
-4. Test signed-in owner Quick Auth and keep/gather/build/return inside Farcaster
+1. **Complete:** review the exact .29 source/docs diff and local qualification
+   evidence. No .29 private candidate has started.
+2. Sign and publish one coherent signed checkpoint to PR #385. Before the
+   push, refresh repository-wide Actions inventory and inspect downstream
+   triggers. Actions are currently disabled; do not enable or dispatch them.
+3. Synchronize the native checkout to the exact published .29 commit and prove
+   clean equality. Then start one fresh-source/fresh-workspace candidate
+   window. Never replay .28 state.
+4. For a genuine winner only: verify the private package, select separately,
+   import/read back the atlas, and provision the actual PTR owner. Reuse backend
+   and bridge unless a concrete failure reproduces.
+5. Test signed-in owner Quick Auth and keep/gather/build/return inside Farcaster
    Mini App; then regress Alpha. Only then call 0.4 shipped.
 
 If the signed-in Mini App context cannot be reused, the exact human step is:

@@ -3,6 +3,68 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## .28 candidate search authenticated exhausted; .29 correction qualified locally — 7 October 2026, 23:55 UTC
+
+The one-candidate window 20261007T224500Z ran against signed source
+acad76d18ced8761aea3d64dc94c75cf6f8cc784, tree
+9e353605005e94c95e5c375e3c769f518462662a, generator
+greater-realm-v2-natural-continent-pr-a.28, and pinned Linux x64 Node 22.22.3
+toolchain sha256:20b2eb07baaefe0c61fd2e87396f04751c7b9df6cdb8b117832baaa689ad2ac7.
+Startup receipt SHA-256:
+1c8120bb8bc0ee434a9328b7ee9faa4e409ccc6d7078c686301cddcc7bcebfbb.
+
+The actual start was 22:45:08.180 UTC; the terminal receipt reports finish at
+23:26:10.472 UTC, exit code 1, and no signal, deadline, interrupt, kill,
+monitoring failure, spawn error or source-hold failure. Terminal metadata
+SHA-256 is 08cb9d5342ebe6d62ad2efc109ff7c5bc5971239afc005d146bec7d3cbf5ec5d;
+the 41-byte log digest is
+1c33f77505a6828a9acadf7b5aae8c01e4be8dad48fb9ced3bce88e8fa02c1f1.
+The receipt's monotonic elapsedMilliseconds is 2,219,376; its UTC start/finish
+timestamps span 2,462,292 ms. Preserve both fields: they differ by 242,916 ms,
+so the monotonic value must not be reported as elapsed wall time.
+
+After the generation exec actually closed, independent native observations
+10 seconds apart found no process in PGID/SID 1703052 and none of the recorded
+worker/supervisor PIDs 1703052, 1703053, 1703066, 1703077 or 1702956. The
+exact-start-bound safe reader then authenticated source, tree, toolchain,
+window, terminal receipt and checkpoint. It reported phase searching, next
+ordinal 256, all 256 attempts rejected (235 geography, 21 proof), no completion
+or success candidate, root seed zeroized, source references and toolchain
+preserved, selection false, provider writes false and production untouched.
+Rejection-code counts included BUNDLE_PAIR_LIMIT 133,
+GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE 34,
+GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT 35,
+GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED 8 and
+GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT 9.
+Frontier-kind counts were pair 175, ordinary bundle option 190, Lowlands
+repair bundle option 186 and Lowlands repair sibling pair 186; counts overlap
+when an attempt records multiple truncations.
+
+The maintained generate-candidates --abort-checkpoint operation returned
+checkpointAborted:true and productionUntouched:true. The exhausted private
+workspace and seed are retired and must never be resumed. No private atlas,
+package, shortlist, selection, import, owner provisioning or provider write
+resulted.
+
+The locally qualified correction is generator .29: the bounded
+apron pair cap changes from 8,192 to 16,384. The edge/child caps, search and
+complete-plan caps, geometry, proofs, admission rules and terrain-seed
+namespace remain fixed. Windows typecheck passed; 67/67 tests passed across
+apron search, rejection and deterministic generator files. Pinned Linux
+Node22.22.3 typecheck passed. The full four-file Linux run reported 148/149:
+all three other files passed, and 81/82 private-package tests passed. Its
+single failure was a version assertion still expecting .28. After changing
+that assertion to .29, the isolated case passed 1/1; all 149 cases therefore
+have passing evidence across the full run and the focused rerun.
+
+A synthetic selector benchmark used the 1,024-edge cap's complete 523,776-pair
+frontier and selected 16,384 pairs. It completed in 1,316 ms; a 20 ms sampler
+observed peak process RSS of 254,844,928 bytes. This measures the bounded pair
+selector on a deterministic synthetic footprint, not full atlas generation.
+The next fresh .29 search must continue to record its own runtime and memory.
+After exact signed .29 source is published and synchronized, use one genuinely
+fresh workspace and seed window; do not replay .28 state.
+
 ## Fresh .28 bounded atlas search started — 7 October 2026, 22:45 UTC
 
 The clean native checkout is held at signed source

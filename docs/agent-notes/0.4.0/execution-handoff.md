@@ -1,57 +1,57 @@
 # Continue Warpkeep 0.4
 
-## Active release step — 7 October 2026, 22:54 UTC
+## Active release step — 7 October 2026, 23:55 UTC
 
-Codex owns the release. Generator .28 is signed and published at
-acad76d18ced8761aea3d64dc94c75cf6f8cc784, tree
-9e353605005e94c95e5c375e3c769f518462662a, on release branch / draft PR #385.
-GitHub verified the signature; Actions remain disabled and no run was created.
-The .27 batch authenticated 256 rejections and was maintained-aborted without
-production writes. It produced no eligible atlas or owner.
+Codex owns the release. Signed .28 source
+acad76d18ced8761aea3d64dc94c75cf6f8cc784 remains published on release branch
+/ draft PR #385. Its fresh 20261007T224500Z search terminated at 23:26:10.472
+UTC after all 256 attempts rejected. The safe reader authenticated exhaustion,
+zeroized the recovered root seed, found no candidate completion, and confirmed
+no package, selection, provider write, or production mutation. Source
+references and toolchain remained intact. Every recorded process birth, the
+original process group and supervisor were observed absent twice. The
+maintained abort returned checkpointAborted:true and productionUntouched:true;
+never replay that workspace or seed.
 
-The accepted immutable 9ea4821a frontend is now reachable at the custom
-domain. Its exact postflight passed all 800 files and both fallback routes at
-https://warpkeep.com; Alpha root remains live. This proves static delivery,
-not owner access. PTR still reports ACCESS UNKNOWN until server-verified
-Farcaster Mini App Quick Auth is exercised. The current Farcaster web tab shows
-Login, so authenticated owner acceptance is not established.
+The leading measured rejection was BUNDLE_PAIR_LIMIT (133 classified
+rejections; pair-frontier truncation appeared in 175 rejected attempts). The
+local .29 correction doubles only the bounded apron-pair cap from 8,192 to
+16,384. It leaves the edge/child caps, search and complete-plan limits, proofs,
+admission rules and terrain-seed namespace unchanged. Windows typecheck and
+67 apron/rejection/generator tests pass; native Linux typecheck passes. The
+four-file Linux closure passed 148/149; the sole failure was a stale .28
+version assertion. After updating it to .29, the isolated assertion passed.
+A synthetic full edge-cap selector benchmark retained 16,384 of 523,776 pairs
+in 1,316 ms with sampled peak RSS 254,844,928 bytes. Local qualification is
+complete; the .29 private candidate window has not started.
 
-The native checkout is exact at .28 and clean. Native Node 22.22.3 /
-npm 10.9.8 typechecking passed, followed by all149 affected tests in four
-whole files, including the 82-test private package suite. The former Windows
-ACL failure does not reproduce on Linux.
-
-One fresh-seed .28 search is running in fixed window `20261007T224500Z`:
-actual start 22:45:08.180 UTC, one candidate, maximum 256 attempts, no
-automatic restart and no provider writes. Startup receipt SHA-256 is
-`1c8120bb8bc0ee434a9328b7ee9faa4e409ccc6d7078c686301cddcc7bcebfbb`; the
-launcher SHA-256 is `47424d46f2435c261e5a9098181149690c884fcfb6932b9e23301bea031f69d0`.
-The exact-source host cutoff guard (native helper SHA-256
-`d4ae81caf04b676d4725e7cba9300b0d9e9711b0519d3d8f55ecab6b04449a8e`) reached
-READY at 22:45:27.577 UTC. It schedules TERM at 04:44:00 and KILL at 04:44:45,
-with the absolute stop at 04:45:00 UTC on 8 October. The terminal result is
-pending. Keep the native checkout pinned until the generation execution closes.
-Before private reads, independently prove each recorded process birth,
-group/session and supervisor absent twice, then use the separately bound reader.
+The accepted immutable 9ea4821a frontend remains reachable at the custom
+domain; exact postflight passed all 800 files and both fallback routes while
+Alpha root remains live. This proves static delivery, not owner acceptance.
+PTR still reports ACCESS UNKNOWN until server-verified Farcaster Mini App
+Quick Auth is exercised. The current Farcaster web tab shows Login.
 
 Next, in order:
 
-1. Authenticate the .28 terminal result and closure. Never reuse .27 private
-   state. Only a verified winner permits package verification, separate
-   selection, atlas import/readback and actual owner provisioning. Reuse the
-   installed backend and bridge unless a concrete failure reproduces.
-2. Retain the already deployed exact frontend and Alpha root. License bytes
-   match and .28 changes no terms. The newer legal response-header guard is
-   still unpassed; generic application/octet-stream may download text files.
-3. Test owner sign-in and the keep/gather/build/return journey inside the
-   signed-in Farcaster Mini App, then regress Alpha. Do not call 0.4 released
-   before authenticated PTR and Alpha acceptance pass.
+1. Review the exact .29 source/docs diff and local qualification evidence.
+2. Sign and publish one coherent source/docs checkpoint to draft PR #385.
+   Before pushing, refresh the repository-wide Actions inventory and downstream
+   trigger check. Actions are disabled and must remain so.
+3. Synchronize the native checkout to the exact published .29 commit and verify
+   clean equality. Then start one fresh-source/fresh-workspace candidate
+   window; never replay .28 state.
+4. Only a genuine eligible winner permits private-package verification,
+   separate selection, atlas import/readback and actual owner provisioning.
+   Reuse the installed backend and bridge unless a concrete failure reproduces.
+5. Test owner Quick Auth and keep/gather/build/return in the signed-in Farcaster
+   Mini App, then regress Alpha. Do not call 0.4 shipped until both acceptance
+   paths pass.
 
-If the current Mini App host cannot be reused, the single required human step
-is to open https://warpkeep.com/ptr/?miniApp=true inside the signed-in
-Farcaster Mini App and tell Codex when the realm directory is visible. Never
-request QR codes or credentials in chat. Exact evidence is at the top of
-docs/evidence/0.4.0/local-operations.md; later dated snapshots are history.
+If the signed-in Mini App host cannot be reused, the required human step is to
+open https://warpkeep.com/ptr/?miniApp=true inside the signed-in Farcaster Mini
+App and tell Codex when the realm directory is visible. Never request QR codes
+or credentials in chat. Exact evidence is at the top of
+docs/evidence/0.4.0/local-operations.md; older dated snapshots are history.
 
 ## Superseded active-step snapshot — 7 October 2026, 21:03 UTC
 
