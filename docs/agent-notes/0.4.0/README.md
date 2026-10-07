@@ -30,36 +30,39 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 ## Current working state — 7 October 2026
 
 The synchronized signed release-branch source is
-`3c1456cf0dbe298d615b2bc2d06a7b087180b504` on
+`e2488c735971a34283810ea6a063e211f1e552de` on
 [`release/0.4-living-realm-quality`](https://github.com/ael-dev3/Warpkeep/tree/release/0.4-living-realm-quality);
-PR [#385](https://github.com/ael-dev3/Warpkeep/pull/385) remains open and
-draft. A fresh pinned Linux Node `22.22.3` search on that exact source exhausted
-256 attempts with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Its authenticated
-safe summary recorded 230 geography rejections and 26 proof rejections; the
-maintained abort returned `checkpointAborted: true` and
-`productionUntouched: true`, then the selection-readiness check passed. No
-candidate, package, shortlist, selection, atlas publication, provider request,
-or production mutation resulted. The complete sanitized profile is in
-[local operations](../../evidence/0.4.0/local-operations.md); the exhausted
-checkpoint is retired and must not be replayed.
+draft PR [#385](https://github.com/ael-dev3/Warpkeep/pull/385) is open at this
+same head. The correction keeps the best compatible own-terrain sibling pair
+and one permitted non-Lowlands donor pair inside the existing two-pair cap.
+Its deterministic regression, Windows typecheck and focused tests passed;
+pinned Linux typecheck and apron/rejection/generator suites passed 53/53.
 
-The new deterministic regression exposed a repair-retention gap: the top
-own-terrain pair could conflict with another parent's globally selected
-footprint while all borrowed pairs were dropped. The current local correction
-keeps one compatible, non-Lowlands fallback behind the best own pair within
-the existing two-pair cap. It preserves the geometry, ownership and proof
-rules. Windows typecheck and the focused 21-case suite pass; pinned Linux
-typecheck and the apron/rejection/generator suites pass 53/53. The next fresh
-batch must bind to this correction's actual signed remote hash; the previous
-3c1456cf result cannot be reused. No candidate search had yet run on the
-corrected source when this checkpoint was prepared. If the new batch exhausts,
-read only its aggregate checkpoint, retire it through the maintained abort,
-and continue with a specific deterministic counterexample rather than widening
-caps or repeating blind seeds.
+A fresh-seed batch on this exact source, pinned Linux Node `22.22.3`, and all
+11 locked toolchain packages exhausted the maintained 256-attempt bound with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`: 222 geography and 34 proof
+rejections. Bundle-pair limit was the terminal geography code in 123 attempts;
+search-node, complete-plan and bundle-option limits appeared in 26, 11 and 5.
+These counts are one independent sample, not a causal comparison with the
+previous `3c1456cf` run. The authenticated reader zeroized the recovered seed;
+the maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`, and selection readiness passed. No candidate,
+package, shortlist, selection, atlas publication, provider request, or
+production mutation resulted. The exhausted checkpoint is retired and must
+not be replayed. Full sanitized counts are in
+[local operations](../../evidence/0.4.0/local-operations.md).
+
+Next, trace the remaining bounded search rejections and proof failures with a
+deterministic local fixture. Fix only a reproduced omission while preserving
+all caps, geometry, ownership, and proofs; do not widen limits or spend another
+private seed without that evidence. Then publish the signed correction and run
+one fresh source-bound batch.
 
 Actions remains disabled by the current repository policy, so local checks and
 Git publication are not hosted verification, deployment, or release
-acceptance. The PTR owner journey, bridge/frontend completion, custom-domain
+acceptance. The frontend implementation and visual acceptance are already
+staged and frozen; retain their evidence and recheck the exact artifact at
+cutover. The owner PTR journey, final bridge/artifact readback, custom-domain
 cutover, authenticated owner acceptance, and Alpha preservation checks remain
 open. The owner PTR is not yet a released 0.4 build; the live Alpha and G001
 must remain intact.

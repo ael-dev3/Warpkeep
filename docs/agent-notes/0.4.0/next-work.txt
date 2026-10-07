@@ -1,5 +1,74 @@
 WARPKEEP 0.4 — NEXT WORK
-CURRENT RESUMPTION - 6 OCTOBER 2026
+CURRENT RESUMPTION - 7 OCTOBER 2026
+
+Owner PTR remains the release target. Preserve Alpha root/G001 and its
+admission policy; keep G002 sealed. Follow the current owner instructions and
+retain the maintained source-binding, proof,
+preservation, rollback and acceptance gates. GitHub Actions remains disabled;
+a push is source synchronization, not hosted verification or deployment.
+
+CURRENT SIGNED SOURCE — `e2488c735971a34283810ea6a063e211f1e552de`
+
+The synchronized head of `release/0.4-living-realm-quality` and open draft PR
+#385 is this signed commit. It fixes a deterministic bounded-search omission:
+an own-terrain sibling pair can conflict with another parent's selected
+footprints while all borrowed alternatives had been discarded. The correction
+retains the best own pair and one compatible non-Lowlands donor pair under the
+unchanged two-pair cap. Geometry, ownership, proofs and every other search cap
+are unchanged. Its regression and typecheck pass; the focused pinned-Linux
+apron/rejection/generator suites pass 53/53.
+
+CURRENT EXACT-SOURCE BATCH — `e2488c73`
+
+One fresh-seed search on exact signed source `e2488c735971a34283810ea6a063e211f1e552de`,
+generator `.26`, pinned Linux Node `22.22.3`, `linux-x64`, and all 11 locked
+toolchain packages exhausted 256 attempts in about 42 minutes 45 seconds with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated reader confirmed
+source/toolchain/attempt binding, phase `searching`, sequence and next ordinal
+256, with 222 geography rejections and 34 proof-rejection attempts. Full safe
+counts are in `docs/evidence/0.4.0/local-operations.md`; no seed, coordinates,
+candidate handle or candidate bytes were emitted.
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; the maintained selection-readiness check passed.
+No candidate, package, shortlist, selection, atlas publication, provider
+request or production mutation resulted. This exhausted checkpoint is retired;
+never resume or relabel it. This is an independent sample, not a paired test
+with source `3c1456cf`, so do not attribute count changes to the correction.
+
+LIVE BASELINE — 7 OCTOBER 2026
+
+Read-only HTTP checks returned 200 for `https://warpkeep.com/`, 404 for
+`https://warpkeep.com/ptr/`, and 200 for `https://warpkeep.pages.dev/ptr/`.
+Thus Alpha remains available, but custom-domain PTR cutover and authenticated
+owner acceptance remain release gates. Only draft PR #385 is open. The source
+push created no Actions run; the current repository-wide Actions policy stays
+disabled.
+
+NEXT
+1. Trace the remaining bounded search pruning and proof failures locally.
+   Build a deterministic counterexample before changing source. Preserve the
+   geometry, ownership, proofs, terrain-seed namespace, and every search cap.
+   Do not widen limits or spend another private seed without a demonstrated
+   fix and focused checks.
+2. Sign and publish one coherent correction, synchronize the pinned Linux
+   checkout to that exact clean source, then run one fresh maximum-256 private
+   batch. Use the maintained aggregate reader, seed-zeroization and abort path
+   if it exhausts.
+3. If a candidate passes, verify its exact private package, shortlist and
+   inspection before selection through the maintained owner-authorization
+   gate. Then prepare the source-bound atlas.
+4. Continue the maintained isolated PTR update, owner provisioning,
+   bridge/frontend readback, custom-domain cutover, and authenticated owner PTR
+   plus Alpha acceptance in dependency order. Reconcile an uncertain submitted
+   import read-only; never resubmit it. Preserve rollback, licensing, Alpha,
+   G001 and G002.
+
+Keep work in the existing checkout/repository and owner-only Linux private
+roots. Do not create Desktop files, recovery credentials, or unrelated feature
+scope. Ask only if an unavoidable access gate requires the owner.
+
+PREVIOUS RESUMPTION - 6 OCTOBER 2026 (SUPERSEDED)
 
 Owner PTR remains the release target; preserve the existing Alpha root/G001,
 keep G002 sealed, and use the ordered release record in execution-handoff.md.

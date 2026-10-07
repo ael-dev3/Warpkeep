@@ -302,9 +302,76 @@ while the corrected retention finds the complete plan.
 Windows `npm run typecheck` and the focused apron-search suite passed. On the
 pinned Linux runner, toolchain preflight verified all 11 packages, `tsc -b`
 passed, and the apron, rejection, and full generator suites passed 53/53. This
-threshold-preserving correction is the next signed source checkpoint. Run one
-fresh 256-attempt source-bound batch only after publication; no batch has yet
-run on the corrected source.
+threshold-preserving correction was signed and published as
+`e2488c735971a34283810ea6a063e211f1e552de`. Its one fresh exact-source batch
+is recorded next.
+
+## Corrected-source Lowlands fallback batch — 7 October 2026 — source `e2488c73`
+
+The pinned Linux runner used Node `22.22.3`, profile `linux-x64`, all 11 locked
+toolchain packages, generator `greater-realm-v2-natural-continent-pr-a.26`,
+and exact signed source `e2488c735971a34283810ea6a063e211f1e552de`. One fresh
+seed was searched once with the maintained 256-attempt bound. It ran for about
+42 minutes 45 seconds and ended with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated aggregate reader
+matched the exact source, generator, toolchain receipt/profile, Node version,
+and attempt bound; it read phase `searching`, sequence/next ordinal 256, and
+256 rejected attempts. The recovered root-seed buffer was zeroized in
+`finally`. No seed, candidate handle, coordinates, or candidate bytes were
+printed.
+
+Geography rejection codes are mutually exclusive, with one terminal code per
+attempt:
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 123 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 26 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 5 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 29 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 14 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 8 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| `GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED` | 1 |
+| **Total geography rejections** | **222** |
+
+Frontier observations are nonexclusive: bundle pair limit (167), bundle option
+limit (179), Lowlands-repair bundle option limit (171), and Lowlands-repair
+sibling-pair limit (171). These observations describe bounded search
+truncation; they do not prove that a wider frontier or any individual change
+would produce an eligible map.
+
+Proof rejection occurrences are also nonexclusive across 34 attempts:
+
+| Failed proof | Occurrences | Failed proof | Occurrences |
+| --- | ---: | --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 34 | `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 28 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 23 | `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 25 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 26 | `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 17 |
+| `PROOF_REGION_LAND_COHERENCE` | 25 | `PROOF_REGION_GRAPH` | 27 |
+| `PROOF_GATE_APPROACHES` | 23 | `PROOF_GATE_GRAPH` | 19 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 9 | `PROOF_CASTLE_CAPACITY` | 15 |
+| `CASTLE_SUITABILITY` | 15 | `LIVING_WORLD_DORMANT_CAPACITY` | 13 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 | `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 12 |
+| `PROOF_REGION_PASSABLE_LAND` | 14 | `HYDROLOGY_LAKES_48_96` | 9 |
+| `PROOF_BIOME_DIVERSITY` | 2 | `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 3 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 5 | `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 7 |
+| `TIER_I_REGION_BALANCE` | 1 | `TIER_POTENTIAL_DENSITY` | 3 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 8 | `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 | `PROOF_NATURAL_LAND_SILHOUETTE` | 2 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |  |  |
+
+This is an independent fresh-seed sample, not a paired experiment with the
+`3c1456cf` batch. Do not attribute changes in rejection counts to the
+correction. No candidate, package, completion receipt, shortlist, selection,
+atlas publication, provider request, or production mutation resulted. The
+maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; the maintained selection-readiness check passed.
+The checkpoint is retired and must not be resumed. Its owner-only workspace
+`/home/warpkeep/.warpkeep/private/greater-realm-candidate-e2488c73-20261007`
+contains one 32 KiB file after retirement. Actions remained disabled, and no
+workflow run was created for the pushed source.
 
 ## Fourth independent `.26` candidate run — 7 October 2026 — source `21cb97fd`
 

@@ -1,6 +1,46 @@
 # Continue Warpkeep 0.4
 
-## Active release checkpoint — 7 October 2026
+## Active release checkpoint — 7 October 2026, after corrected-source batch
+
+The only open Warpkeep PR is draft #385 against `main`, now at signed source
+`e2488c735971a34283810ea6a063e211f1e552de` on
+`release/0.4-living-realm-quality`. This correction retains the best compatible
+own-terrain Lowlands-repair pair plus one permitted non-Lowlands donor pair
+under the existing two-pair cap. It preserves geometry, ownership, proofs and
+all other limits. Its deterministic regression, typecheck and focused Windows
+suite passed; pinned Linux typecheck and the apron/rejection/generator suites
+passed 53/53.
+
+One fresh-seed batch on that exact source exhausted 256 attempts in about 42
+minutes 45 seconds with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`: 222
+geography rejections and 34 proof-rejection attempts. Bundle-pair limit was
+terminal in 123 geography attempts; the search-node, complete-plan and
+bundle-option limits were terminal in 26, 11 and 5. The sanitized profile is
+in [local operations](../../evidence/0.4.0/local-operations.md). The
+authenticated reader zeroized the recovered root seed. The maintained abort
+returned `checkpointAborted: true` and `productionUntouched: true`; selection
+readiness passed. No candidate, package, shortlist, selection, atlas, provider
+request or production mutation resulted. Do not replay or relabel the retired
+checkpoint, and do not infer causation from independent seed profiles.
+
+Read-only live checks on 7 October returned HTTP 200 for the Alpha root, 404
+for custom-domain `/ptr/`, and 200 for the Pages preview `/ptr/`. Alpha remains
+available; owner PTR is not live on the custom domain. GitHub Actions remains
+disabled; the push did not create a workflow run. No additional open PRs are
+waiting for integration.
+
+Next executable work: trace the remaining bounded pair/option/node/plan search
+and proof failures to a deterministic local counterexample. Make only a
+demonstrated correction that preserves every existing limit and proof, validate
+it locally, publish one signed source checkpoint, and run one fresh
+source-bound batch. If it yields an eligible candidate, verify the private
+package, shortlist and inspection before selection; then continue the
+source-bound atlas, isolated PTR update, owner, bridge/frontend, cutover and
+authenticated owner plus Alpha acceptance in dependency order. Preserve
+rollback and Alpha/G001/G002. No hosted CI or deployment is implied by source
+publication.
+
+## Previous release checkpoint — 7 October 2026 (superseded by `e2488c73`)
 
 The only open Warpkeep PR is draft #385 against `main`; verify its exact signed
 head before every source-bound operation. PR #394 and #399 have merged
