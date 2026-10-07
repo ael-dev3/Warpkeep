@@ -2,6 +2,56 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact-source `.26` candidate run — 7 October 2026 — source `93c9b54a`
+
+The signed `.26` source
+`93c9b54a8745bbb9b3f16fc98c0ca2e7526ff690` passed Windows typecheck and the
+focused apron, rejection, and generator suites (52/52). On the pinned Linux
+Node `22.22.3` runner, the verified `linux-x64` profile and all 11 locked
+toolchain packages, the four focused suites passed 134/134 and the
+workflow-faithful exact-source typecheck passed. The source changes only the
+per-child retained bundle-pair frontier from 4,096 to 8,192; other search
+bounds, geometry, ownership, proofs, seed namespace, and eligibility are
+unchanged.
+
+A fresh-seed private `generate-candidates --count 1 --maximum-attempts 256`
+batch exhausted all 256 attempts in about 31 minutes with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no candidate was accepted. The
+authenticated checkpoint matched the exact source and toolchain. Geography
+rejections (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 122 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 37 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 18 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 18 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 9 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 7 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 6 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED` | 1 |
+| **Total geography rejections** | **224** |
+
+The other 32 attempts ended in proof rejection. The pair-frontier terminal
+remained the largest single geography code at 122/224. The `.26` batch used an
+independent seed from `.25`, so the lower count does not establish that the cap
+change caused improvement. Rejection storage keeps only the earliest-priority
+frontier code, so this count can mask simultaneous option or repair truncations
+and does not identify a sole cause. Source review traced the deterministic
+edge-pair selection, endpoint-balanced retention, and later sibling
+overlap/separation checks; no reproducible incorrect pruning was established.
+Keep the current bounds and do not raise the cap again without a deterministic
+counterexample or stronger paired evidence.
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; selection readiness passed with no completion
+receipt. No candidate, package, shortlist, selection, provider request, or
+production mutation resulted. The summary was read through the maintained
+checkpoint API; no raw checkpoint, seed, coordinates, candidate handle, or
+private package bytes were emitted. This is local validation, not a hosted CI,
+deployment, or release result.
+
 ## Exact-source `.25` candidate run — 7 October 2026 — source `a10a7d1f`
 
 The signed `.25` source
@@ -71,9 +121,8 @@ mutation resulted.
 
 The pair cap was still the terminal geography code in 152/229 attempts. The
 sample is independent of the `.24` batches, so the count change is not a paired
-causal comparison. The `.26` working tree raises only the retained pair
-frontier from 4,096 to 8,192; its Windows typecheck and focused tests pass
-(52/52). Its exact Linux checks and candidate batch remain pending.
+causal comparison. The exact-source `.26` validation and candidate result are
+recorded above.
 
 The disposable typecheck install reported two high-severity development-tree
 advisories: [sharp/librsvg GHSA-wq5f-xc86-pv6w](https://github.com/advisories/GHSA-wq5f-xc86-pv6w)
