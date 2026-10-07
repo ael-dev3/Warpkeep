@@ -2,6 +2,48 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact-source candidate batch after the Lowlands fallback repair — 7 October 2026
+
+One fresh-seed `generate-candidates --count 1 --maximum-attempts 256` run
+against signed source `15682cb2dcceb06d592efb0de17895ff55a15169` returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Its authenticated checkpoint used
+generator `greater-realm-v2-natural-continent-pr-a.26`, pinned Node `22.22.3`,
+the verified `linux-x64` profile, and toolchain receipt
+`sha256:20b2eb07baaefe0c61fd2e87396f04751c7b9df6cdb8b117832baaa689ad2ac7`.
+All 256 attempts were recorded: 226 geography rejections and 30 proof-rejection
+attempts. There was no eligible candidate, package, shortlist, or selection.
+
+Geography rejection codes (one priority-selected code per attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 120 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 32 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 30 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 14 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 9 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+| **Total geography rejections** | **226** |
+
+Frontier truncations are non-exclusive and overlap terminal rejections:
+
+| Truncation kind | Attempts |
+| --- | ---: |
+| `BUNDLE_PAIR_LIMIT` | 172 |
+| `BUNDLE_OPTION_LIMIT` | 186 |
+| `LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT` | 178 |
+| `LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT` | 178 |
+
+The maintained authenticated reader printed only source/toolchain identity and
+aggregate counts, then zeroized the recovered seed. The maintained abort
+returned `checkpointAborted: true` and `productionUntouched: true`; the
+selection-readiness assertion passed. No provider request or production write
+occurred. These overlapping truncation counts do not establish which bound, if
+any, hid a valid plan. Do not replay or relabel this retired search. Trace a
+deterministic local counterexample before changing ranking or limits.
+
 ## Lazy Lowlands-repair preparation — 7 October 2026
 
 Source review found `lowlandsRepairSiblingPairsFor` was used to build the
