@@ -2,6 +2,29 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Lazy Lowlands-repair preparation — 7 October 2026
+
+Source review found `lowlandsRepairSiblingPairsFor` was used to build the
+repair capacity frontier before the ordinary allocator search. That call lazily
+derives repair bundles and scans the full grid even for a candidate whose
+ordinary lane already succeeds. Repair assignment construction is now memoized
+inside the repair callback passed to the two-lane sequencer. Ordinary matches
+therefore skip the repair derivation; ordinary no-match and bounded-limit
+results still enter the same bounded repair search. Ordinary ordering, repair
+limits, candidate eligibility, ownership and final proofs are unchanged.
+
+Pinned Linux Node `22.22.3` typecheck passed. Focused apron-search,
+candidate-rejection, and candidate-generator suites passed 53/53. The public
+deterministic candidate retained its exact final digest and visited only the
+ordinary lane; the deterministic rejection fixture continued through both
+lanes. On the same runner, the candidate-generator suite took 70.12 seconds
+with deferred repair versus 71.45 seconds using the prior implementation.
+Because this is one run per version and the difference is small, it is not
+evidence of a meaningful end-to-end speedup. The temporary test overlay in the
+pinned Linux checkout was restored; that checkout is clean at `abb1832d`.
+No private candidate batch, completion receipt, package, selection, or
+production mutation was created.
+
 ## Repair lane after ordinary search limits — 7 October 2026 — source `c855c79b`
 
 Signed source `c855c79bbf573809fdc1ac0f7e658f27b60d2a22` changes the bounded

@@ -87,9 +87,9 @@ limits in 29 and 12. The maintained abort confirmed production untouched and
 selection readiness true. Safe details are in
 [local operations](../../evidence/0.4.0/local-operations.md).
 
-The latest `.26` code source is signed
+The `.26` candidate-generation change is based on signed source
 `c855c79bbf573809fdc1ac0f7e658f27b60d2a22`, pushed to open draft PR #385;
-this post-run evidence is recorded in a docs-only successor. The source
+its post-run evidence is recorded in a docs-only successor. That source
 preserves an ordinary match, then invokes the
 separately capped Lowlands repair lane after ordinary no-match, node-limit, or
 complete-plan-limit. A successful repair still passes the shared allocator
@@ -113,10 +113,23 @@ truncation in 180 geography attempts, bundle-option and each Lowlands-repair
 cutoff in 190; all four co-occurred in 180 attempts. The maintained abort
 returned production untouched and selection readiness passed. Do not widen
 caps or repeat blind seeds: the candidate remains the first release gate.
-Next inspect the bounded Lowlands-repair ranking/retention path for a
-deterministic case proving that a valid eligible plan is being pruned; keep the
-current caps and all final proofs fixed while doing so. Full sanitized counts
-are in [local operations](../../evidence/0.4.0/local-operations.md).
+
+Follow-up source review found the repair capacity frontier was derived before
+the ordinary search, even when ordinary search later succeeded. The repair
+frontier is now memoized and built inside the fallback thunk, which the
+two-lane sequencer invokes only after ordinary no-match or a bounded limit.
+This removes unnecessary repair derivation from successful ordinary attempts
+and prevents repair-preparation failures from preempting an ordinary match.
+Caps, ranking, ownership, geometry and proof gates are unchanged. Pinned Linux
+typecheck and 53 focused tests pass; the fixed ordinary fixture retains its
+exact digest, and the rejection fixture still reaches both lanes. A same-runner
+candidate-generator timing was 70.12 seconds with lazy repair versus 71.45
+seconds before it; this single-run difference is too small to claim a measured
+end-to-end speedup. No new private batch was run. Continue inspecting the
+bounded Lowlands-repair ranking/retention path for a deterministic case proving
+that a valid eligible plan is pruned; keep the current caps and proofs fixed.
+Full sanitized counts are in
+[local operations](../../evidence/0.4.0/local-operations.md).
 
 The live Alpha returned HTTP 200 and `/ptr/` returned HTTP 404 on 7 October.
 Root production dependencies audit clean, but the development toolchain has

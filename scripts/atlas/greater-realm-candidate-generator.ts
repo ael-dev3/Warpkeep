@@ -4316,6 +4316,7 @@ function allocateTierTwoPassableCapacity(
     siblingPairsFor,
     64,
   );
+  capacityAssignmentFrontierTruncated = rankedCapacityAssignmentResult.frontierTruncated;
 
   type GateApronPlan = Readonly<{
     parentByChild: readonly number[];
@@ -4797,39 +4798,50 @@ function allocateTierTwoPassableCapacity(
       pair => pair.bundles,
     );
   };
-  const lowlandsRepairCapacityAssignmentResult = buildRankedCapacityAssignments(
-    lowlandsRepairSiblingPairsFor,
-    GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS,
-  );
-  capacityAssignmentFrontierTruncated = rankedCapacityAssignmentResult.frontierTruncated
-    || lowlandsRepairCapacityAssignmentResult.frontierTruncated;
-  if (
-    rankedCapacityAssignmentResult.assignments.length === 0
-    && lowlandsRepairCapacityAssignmentResult.assignments.length === 0
-  ) {
-    reject(
-      classifyGreaterRealmTierTwoAssignmentFailure(
-        rankedCapacityAssignmentResult,
-        lowlandsRepairCapacityAssignmentResult,
-        gateApronAuthority.frontierTruncationKind()
-          ?? (rankedCapacityAssignmentResult.frontierTruncated
-            || lowlandsRepairCapacityAssignmentResult.frontierTruncated
-            ? 'CAPACITY_ASSIGNMENT_LIMIT'
-            : null),
-      ),
+  // Keep this expensive repair derivation behind the fallback callback so a
+  // successful ordinary plan never constructs a second frontier.
+  let lowlandsRepairCapacityAssignmentResult: RankedCapacityAssignments | undefined;
+  const getLowlandsRepairCapacityAssignmentResult = (): RankedCapacityAssignments => {
+    if (lowlandsRepairCapacityAssignmentResult) return lowlandsRepairCapacityAssignmentResult;
+    const result = buildRankedCapacityAssignments(
+      lowlandsRepairSiblingPairsFor,
+      GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS,
     );
-  }
+    lowlandsRepairCapacityAssignmentResult = result;
+    capacityAssignmentFrontierTruncated = rankedCapacityAssignmentResult.frontierTruncated
+      || result.frontierTruncated;
+    if (
+      rankedCapacityAssignmentResult.assignments.length === 0
+      && result.assignments.length === 0
+    ) {
+      reject(
+        classifyGreaterRealmTierTwoAssignmentFailure(
+          rankedCapacityAssignmentResult,
+          result,
+          gateApronAuthority?.frontierTruncationKind()
+            ?? (rankedCapacityAssignmentResult.frontierTruncated
+              || result.frontierTruncated
+              ? 'CAPACITY_ASSIGNMENT_LIMIT'
+              : null),
+        ),
+      );
+    }
+    return result;
+  };
   const gateApronLaneSearch = runGreaterRealmGateApronSearchLanes(
     () => searchGateApronLane(
       'ordinary',
       rankedCapacityAssignmentResult.assignments,
       siblingPairsFor,
     ),
-    () => searchGateApronLane(
-      'lowlands-repair',
-      lowlandsRepairCapacityAssignmentResult.assignments,
-      lowlandsRepairSiblingPairsFor,
-    ),
+    () => {
+      const result = getLowlandsRepairCapacityAssignmentResult();
+      return searchGateApronLane(
+        'lowlands-repair',
+        result.assignments,
+        lowlandsRepairSiblingPairsFor,
+      );
+    },
   );
   const gateApronSearch = gateApronLaneSearch.result;
   const gateApronFrontierTruncationKind = gateApronAuthority.frontierTruncationKind()
