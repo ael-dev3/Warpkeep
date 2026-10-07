@@ -427,13 +427,19 @@ export function selectGreaterRealmLowlandsRepairBundleOptions<Option>(
 
 /**
  * Prefer repair pairs using both children's own terrain, but only when those
- * bundles actually form a compatible sibling pair. A non-Lowlands fallback is
- * considered when the own-terrain pair set is empty.
+ * bundles actually form a compatible sibling pair. One non-Lowlands fallback
+ * is retained under the same cap to resolve cross-parent footprint conflicts.
  */
 export function chooseGreaterRealmLowlandsRepairSiblingPairs<Option>(
   compatibleOwnPairs: readonly Option[],
   compatibleFallbackPairs: readonly Option[],
 ): readonly Option[] {
+  if (compatibleOwnPairs.length > 0 && compatibleFallbackPairs.length > 0) {
+    return Object.freeze([
+      compatibleOwnPairs[0]!,
+      compatibleFallbackPairs[0]!,
+    ].slice(0, GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT));
+  }
   const preferred = compatibleOwnPairs.length > 0
     ? compatibleOwnPairs
     : compatibleFallbackPairs;
@@ -4005,19 +4011,17 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
         firstPreferred.filter(bundle => bundle.child === firstChild),
         secondPreferred.filter(bundle => bundle.child === secondChild),
       );
-      const compatibleFallbackPairs = compatibleOwnPairs.length > 0
-        ? []
-        : buildCompatiblePairs(
-            lowlandsRepairBundleOptionsFor(componentId, firstChild!, true),
-            lowlandsRepairBundleOptionsFor(componentId, secondChild!, true),
-          );
+      const compatibleFallbackPairs = buildCompatiblePairs(
+        lowlandsRepairBundleOptionsFor(componentId, firstChild!, true),
+        lowlandsRepairBundleOptionsFor(componentId, secondChild!, true),
+      ).filter(pair => pair.bundles.some((bundle, index) => (
+        bundle.child !== pair.children[index]
+      )));
       const frozen = chooseGreaterRealmLowlandsRepairSiblingPairs(
         compatibleOwnPairs,
         compatibleFallbackPairs,
       );
-      const preferredPairCount = compatibleOwnPairs.length > 0
-        ? compatibleOwnPairs.length
-        : compatibleFallbackPairs.length;
+      const preferredPairCount = compatibleOwnPairs.length + compatibleFallbackPairs.length;
       if (frozen.length < preferredPairCount) {
         noteSearchFrontierTruncation('LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT');
       }

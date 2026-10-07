@@ -221,6 +221,91 @@ are follow-up toolchain maintenance, not evidence of a live runtime exposure.
 Actions remain disabled; these local results are not hosted CI or deployment
 evidence.
 
+## Exact-source fallback-correction batch — 7 October 2026 — source `3c1456cf`
+
+The pinned Linux runner executed one fresh-seed batch on exact signed source
+`3c1456cf0dbe298d615b2bc2d06a7b087180b504`, generator
+`greater-realm-v2-natural-continent-pr-a.26`, Node `22.22.3`, verified
+`linux-x64` profile, and all 11 locked toolchain packages. It exhausted all 256
+attempts with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated
+aggregate-only read matched the exact source and toolchain, recorded phase
+`searching`, sequence/next ordinal 256, and 256 rejected attempts. The recovered
+root-seed buffer was zeroized; no seed, candidate handle, coordinates, or
+candidate bytes were emitted.
+
+Geography codes below are mutually exclusive, with one terminal code selected
+per attempt:
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 133 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 25 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 22 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 11 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 23 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 9 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 4 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 3 |
+| **Total geography rejections** | **230** |
+
+Frontier observations are nonexclusive across the geography attempts: bundle
+pair limit (181), bundle option limit (200), Lowlands-repair bundle option
+limit (197), and Lowlands-repair sibling-pair limit (197). These records show
+where the bounded search truncated; they do not prove that a wider frontier
+would yield an eligible plan.
+
+Proof rejection occurrences are nonexclusive across 26 attempts:
+
+| Failed proof | Occurrences | Failed proof | Occurrences |
+| --- | ---: | --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 26 | `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 21 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 21 | `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 21 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 18 | `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 17 |
+| `PROOF_REGION_LAND_COHERENCE` | 14 | `PROOF_REGION_GRAPH` | 13 |
+| `PROOF_GATE_APPROACHES` | 12 | `PROOF_GATE_GRAPH` | 12 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 11 | `PROOF_CASTLE_CAPACITY` | 10 |
+| `CASTLE_SUITABILITY` | 10 | `LIVING_WORLD_DORMANT_CAPACITY` | 7 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 | `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 4 |
+| `PROOF_REGION_PASSABLE_LAND` | 5 | `HYDROLOGY_LAKES_48_96` | 3 |
+| `PROOF_BIOME_DIVERSITY` | 3 | `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 3 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 3 | `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 3 |
+| `TIER_I_REGION_BALANCE` | 2 | `TIER_POTENTIAL_DENSITY` | 2 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 5 | `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 1 | `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |  |  |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; the maintained selection-readiness check passed.
+No accepted candidate, package, completion receipt, shortlist, selection,
+atlas publication, provider request, or production mutation resulted. This
+checkpoint is retired and must not be resumed. Actions remained disabled.
+
+## Lowlands fallback retention correction — 7 October 2026
+
+The exact-source profile above contained no Lowlands parent-slot failure, but
+the source review found a separate deterministic retention gap. For each
+repair parent, an own-terrain pair can be locally compatible yet conflict with
+another parent's already selected footprints. The prior pair selector then
+dropped every borrowed alternative, so the bounded global search could not
+recover even when a permitted non-Lowlands donor pair avoided that conflict.
+
+The correction keeps the best own-terrain pair first and one compatible
+non-Lowlands donor pair second under the unchanged two-pair cap. It removes
+own-only duplicates from the fallback set and preserves the original top-two
+behavior when there is no own pair or no donor alternative. Lowlands is never a
+donor; geometry, ownership, counts, proof rules, and all search caps are
+unchanged. A deterministic regression feeds the same ranked footprint search
+an own pair that conflicts with another parent's footprint and a donor pair
+that completes the assignment; the prior retention rejected the assignment,
+while the corrected retention finds the complete plan.
+
+Windows `npm run typecheck` and the focused apron-search suite passed. On the
+pinned Linux runner, toolchain preflight verified all 11 packages, `tsc -b`
+passed, and the apron, rejection, and full generator suites passed 53/53. This
+threshold-preserving correction is the next signed source checkpoint. Run one
+fresh 256-attempt source-bound batch only after publication; no batch has yet
+run on the corrected source.
+
 ## Fourth independent `.26` candidate run — 7 October 2026 — source `21cb97fd`
 
 The run used exact signed source

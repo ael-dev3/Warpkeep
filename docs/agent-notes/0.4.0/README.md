@@ -27,7 +27,50 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
   provisioning, bridge/frontend verification, cutover, and authenticated owner
   PTR plus Alpha acceptance in order. Never relabel an older seed or candidate.
 
-## Current working state — 6 October 2026
+## Current working state — 7 October 2026
+
+The synchronized signed release-branch source is
+`3c1456cf0dbe298d615b2bc2d06a7b087180b504` on
+[`release/0.4-living-realm-quality`](https://github.com/ael-dev3/Warpkeep/tree/release/0.4-living-realm-quality);
+PR [#385](https://github.com/ael-dev3/Warpkeep/pull/385) remains open and
+draft. A fresh pinned Linux Node `22.22.3` search on that exact source exhausted
+256 attempts with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Its authenticated
+safe summary recorded 230 geography rejections and 26 proof rejections; the
+maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`, then the selection-readiness check passed. No
+candidate, package, shortlist, selection, atlas publication, provider request,
+or production mutation resulted. The complete sanitized profile is in
+[local operations](../../evidence/0.4.0/local-operations.md); the exhausted
+checkpoint is retired and must not be replayed.
+
+The new deterministic regression exposed a repair-retention gap: the top
+own-terrain pair could conflict with another parent's globally selected
+footprint while all borrowed pairs were dropped. The current local correction
+keeps one compatible, non-Lowlands fallback behind the best own pair within
+the existing two-pair cap. It preserves the geometry, ownership and proof
+rules. Windows typecheck and the focused 21-case suite pass; pinned Linux
+typecheck and the apron/rejection/generator suites pass 53/53. The next fresh
+batch must bind to this correction's actual signed remote hash; the previous
+3c1456cf result cannot be reused. No candidate search had yet run on the
+corrected source when this checkpoint was prepared. If the new batch exhausts,
+read only its aggregate checkpoint, retire it through the maintained abort,
+and continue with a specific deterministic counterexample rather than widening
+caps or repeating blind seeds.
+
+Actions remains disabled by the current repository policy, so local checks and
+Git publication are not hosted verification, deployment, or release
+acceptance. The PTR owner journey, bridge/frontend completion, custom-domain
+cutover, authenticated owner acceptance, and Alpha preservation checks remain
+open. The owner PTR is not yet a released 0.4 build; the live Alpha and G001
+must remain intact.
+
+The 7 October read-only Tervain review is recorded in the
+[repository ecosystem guide](../../engineering/repository-ecosystem.md#current-tervain-source-review-7-october-2026).
+It found no Tervain-specific media that should be copied into this mobile
+strategy release; useful environment composition and loading practices are
+noted there, with Tervain's separate art, audio, model and code terms preserved.
+
+## Previous working state — 6 October 2026
 
 Signed source `85a2a7cf2826c3526cfacac150827746d6cfa62a` completed one fresh
 private search with the supported 256-attempt cap. It returned

@@ -683,18 +683,23 @@ describe('Greater Realm ranked gate-apron search', () => {
     expect(lowlandsRepair.at(-1)?.score).toBe(127);
   });
 
-  it('tries fallback repair pairs only when no compatible own sibling pair exists', () => {
+  it('retains a borrowed pair so global footprint conflicts can be resolved', () => {
     type Pair = Readonly<{ id: string }>;
     const ownPair: Pair = Object.freeze({ id: 'own-compatible-pair' });
+    const ownAlternative: Pair = Object.freeze({ id: 'own-compatible-alternative' });
     const borrowedPairs: readonly Pair[] = Object.freeze([
       Object.freeze({ id: 'borrowed-first' }),
       Object.freeze({ id: 'borrowed-second' }),
       Object.freeze({ id: 'borrowed-overflow' }),
     ]);
     expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
-      Object.freeze([ownPair]),
+      Object.freeze([ownPair, ownAlternative]),
       borrowedPairs,
-    )).toEqual([ownPair]);
+    )).toEqual([ownPair, borrowedPairs[0]]);
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      Object.freeze([ownPair, ownAlternative]),
+      Object.freeze([]),
+    )).toEqual([ownPair, ownAlternative]);
     expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
       Object.freeze([]),
       borrowedPairs,
@@ -703,6 +708,44 @@ describe('Greater Realm ranked gate-apron search', () => {
       Object.freeze([]),
       Object.freeze([]),
     )).toEqual([]);
+
+    const ownFootprintPair = descriptor(
+      'own',
+      option('own-first', [1], [10]),
+      option('own-second', [2], [20]),
+    );
+    const borrowedFootprintPair = descriptor(
+      'borrowed',
+      option('borrowed-first', [3], [30]),
+      option('borrowed-second', [4], [40]),
+    );
+    const competingParentPair = descriptor(
+      'competing-parent',
+      option('competing-first', [5], [10]),
+      option('competing-second', [6], [50]),
+    );
+    const retainedPairs = chooseGreaterRealmLowlandsRepairSiblingPairs(
+      Object.freeze([ownFootprintPair]),
+      Object.freeze([borrowedFootprintPair]),
+    );
+    const repairedAssignment = searchGreaterRealmRankedSiblingAlternatives(
+      Object.freeze(['same-capacity-assignment']),
+      () => Object.freeze([
+        retainedPairs,
+        Object.freeze([competingParentPair]),
+      ]),
+      (_alternative, selected) => (
+        selected[0]?.id === 'borrowed'
+        && selected[1]?.id === 'competing-parent'
+      ),
+      Object.freeze({ maximumSearchNodes: 32, maximumCompletePlans: 32 }),
+      pair => pair.footprints,
+    );
+    expect(repairedAssignment).toEqual({
+      outcome: 'match',
+      alternative: 'same-capacity-assignment',
+      options: [borrowedFootprintPair, competingParentPair],
+    });
   });
 
   it('widens bounded gate-apron frontiers after repeated truncation', () => {
