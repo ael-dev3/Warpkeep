@@ -2,6 +2,148 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact-source candidate batch after connected-lobe correction — 7 October 2026
+
+One fresh-seed `generate-candidates --count 1 --maximum-attempts 256` run on
+signed source `ac6d85ee8f10ab0515b7111f02d228b9d5cbbd00` returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE` after about 34 minutes. The
+authenticated completion receipt was absent. The checkpoint remained in the
+`searching` phase at sequence 256 / ordinal 256: all 256 attempts were
+rejections, comprising 224 geography rejections and 32 proof-rejection
+attempts. The binding was generator
+`greater-realm-v2-natural-continent-pr-a.26`, pinned Node `22.22.3`, verified
+`linux-x64`, and toolchain receipt
+`sha256:20b2eb07baaefe0c61fd2e87396f04751c7b9df6cdb8b117832baaa689ad2ac7`.
+
+Geography rejection codes below are the one priority-selected terminal code
+per attempt:
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 128 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 33 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 26 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 12 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 9 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 4 |
+| `GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED` | 1 |
+| **Total geography rejections** | **224** |
+
+Proof-code occurrences across those 32 rejected attempts can overlap because an
+attempt may fail several proofs:
+
+| Failed proof code | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 8 |
+| `HYDROLOGY_LAKES_48_96` | 1 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 6 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 2 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 16 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 4 |
+| `PROOF_BIOME_DIVERSITY` | 1 |
+| `PROOF_CASTLE_CAPACITY` | 8 |
+| `PROOF_GATE_APPROACHES` | 7 |
+| `PROOF_GATE_GRAPH` | 7 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 2 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 2 |
+| `PROOF_REGION_GRAPH` | 13 |
+| `PROOF_REGION_LAND_COHERENCE` | 23 |
+| `PROOF_REGION_PASSABLE_LAND` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 21 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 13 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 22 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 3 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 18 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 24 |
+
+Frontier truncations overlap terminal geography outcomes:
+
+| Truncation kind | Attempts |
+| --- | ---: |
+| `BUNDLE_OPTION_LIMIT` | 179 |
+| `BUNDLE_PAIR_LIMIT` | 164 |
+| `LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT` | 178 |
+| `LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT` | 178 |
+
+The maintained authenticated reader emitted only the binding and these
+aggregates, then zeroized the recovered root seed. The maintained abort returned
+`checkpointAborted: true` and `productionUntouched: true`. No candidate,
+completion receipt, package, shortlist, selection, atlas, provider request or
+production mutation resulted. The private temporary reader and generation log
+were removed. These priority codes and overlapping frontier counts do not prove
+that any bounded-off frontier contains a fully eligible candidate; do not
+replay this retired batch or raise search limits based on the counts alone.
+Reproduce a deterministic downstream-valid search gap before changing ranking
+or bounds. On the pinned runner, invoke WSL as `--user warpkeep`; its default
+root identity fails the private-workspace trust preflight, while the owner
+identity passed the pinned toolchain verification.
+
+## Deterministic regional-proof comparison on corrected source — 7 October 2026
+
+To avoid repeating a private batch, the checked-in deterministic test root
+`greater-realm-ordinary-parent-a` was generated at the two adjacent ordinals
+already used by the candidate-generator suite on signed source `ac6d85ee`.
+Ordinal 9 has no eligibility failures and passes all regional proofs: Frostmere
+13 fjord cells / 5 systems; Mirefen 109 marsh, 140 wetland-complex, 37 delta
+estuary and 37 braided-proxy counts; Sunscar 539 arid-land basis points across
+4 biome classes, 738 seasonal-channel cells, 11 oasis-margin cells and 9
+systems; Stonewake 3 meaningful islands and 82 narrow-strait cells; Tier II's
+minimum highland-channel source count is 18; Throneheart channel density is
+966 basis points with a 9,932-basis-point largest navigable component. Its
+topographic consistency report has zero inconsistent, high-gradient-marsh or
+marsh-classification-mismatch cells.
+
+Ordinal 10 is rejected by multiple independent proofs, including castle
+capacity/suitability, gate approaches/graph, geological highland barriers,
+region land coherence/graph and Tier III smallest passable land. Its topographic
+consistency report still has zero inconsistencies. Regional measurements
+isolate two shortfalls: Mirefen has 60 marsh and 63 wetland-complex cells
+(minimum 64), while Stonewake has 1 meaningful island (minimum 3) and 0
+narrow-strait cells (minimum 4). Frostmere, Sunscar, Tier II and Throneheart
+pass on this ordinal. These deterministic test roots are public regression
+fixtures, not production entropy, and neither ordinal 10 nor its metrics imply
+that the retired private batch can be replayed. The accepted ordinal shows the
+regional contract is reachable; keep its thresholds intact and fix only a
+reproduced generator defect. The public bundle-pair diagnostic and this proof
+comparison are complete; do not repeat them as the next step.
+
+## Bounded public-root feasibility diagnostic — 7 October 2026
+
+Sixteen deterministic public test roots were generated at candidate ordinal 0
+on `ac6d85ee`. Their root values used
+`sha256("greater-realm-test-root\0" + String(index))` for indexes 0–15. Three
+reached proof evaluation and zero were fully eligible; the
+other 13 stopped in geography. Their terminal geography codes were active-grid
+range 1, complete-plan limit 2, bundle-option limit 2, bundle-pair limit 6,
+and search-node limit 2. Across the three proof-evaluated roots, regional QA
+failed in all three, Frostmere failed in all three, and Mirefen, Throneheart,
+and Tier-III smallest-passable-land each failed once. Other proof failures
+included river range, dormant capacity, region graph/coherence, gate, castle,
+and highland proofs. Full private-map data and seeds were not retained. This
+small fixed public regression sample is for failure localization only; do not
+use it to estimate production acceptance probability or as candidate entropy.
+
+Public root index 0 / ordinal 0 was checked with temporary 4x edge, bundle,
+child-option, repair-assignment and repair-pair bounds plus 100x search-node
+and complete-plan bounds. It still ended at
+`GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT`, with bundle-option
+and Lowlands-repair option/pair truncations remaining. A preceding 10x probe
+also reached its search-node limit after removing the bundle-pair truncation.
+Both overlays were restored byte-for-byte; no candidate or production state
+was created. These probes are inconclusive about the remaining unvisited
+frontier and do not justify changing production limits or ranking. Stop
+escalating diagnostic bounds on this root; diagnose the specific retained
+option frontiers or find a different reproducible downstream-valid case.
+
 ## Exact-source candidate batch after the Lowlands fallback repair — 7 October 2026
 
 One fresh-seed `generate-candidates --count 1 --maximum-attempts 256` run

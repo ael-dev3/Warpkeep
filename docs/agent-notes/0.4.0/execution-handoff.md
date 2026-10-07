@@ -1,6 +1,56 @@
 # Continue Warpkeep 0.4
 
-## Active release checkpoint — 7 October 2026, after exact-source batch
+## Current release checkpoint — 7 October 2026, corrected-source batch
+
+Draft PR #385 against `main` is open on
+`release/0.4-living-realm-quality`. Its latest signed code checkpoint is
+`ac6d85ee8f10ab0515b7111f02d228b9d5cbbd00`, which includes exact donor
+connectivity and a bounded connected-lobe transfer without changing search
+bounds or candidate eligibility proofs. Pinned Linux Node `22.22.3` typecheck
+and the focused suites passed 57/57 before publication.
+
+One fresh-seed batch bound to this exact source used the existing maximum of
+256 attempts and ended `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE` after about
+34 minutes. It recorded 224 geography and 32 proof-rejection attempts, with no
+completion receipt, candidate, package, shortlist, selection, atlas, provider
+request or production mutation. The authenticated aggregate reader zeroized
+the seed; the maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. Exact codes and toolchain identity are in
+[local operations](../../evidence/0.4.0/local-operations.md). This is not an
+eligible candidate or deployment. Do not replay it or start another same-source
+batch based on rejection counts alone.
+
+The earlier fixed public rejection fixture remains ineligible: its traced
+internal apron match failed the later `PRIMARY_COMPONENT_UNDERSIZED` proof, and
+the corrected allocator still leaves that root below its required Lowlands
+floor. On a separate 16-root public test sample, 3 reached proof checks and
+none was eligible; 13 stopped in geography, including 6 bundle-pair and 2
+search-node terminals. A temporary diagnostic on one pair-truncated root at
+100x node/plan and 4x frontier bounds still stopped at the node limit with
+other option frontiers truncated. This small public sample is not a yield
+estimate, and its diagnostic does not prove a valid plan is hidden. Keep
+production limits, ranking and proofs fixed.
+
+The last read-only live check on 7 October returned HTTP 200 for the Alpha root,
+404 for custom-domain `/ptr/`, and 200 for the Pages preview `/ptr/`. Alpha
+remains available; authenticated owner PTR is not live on the custom domain.
+GitHub Actions remains disabled. No additional open PRs are waiting for
+integration. The previously accepted frontend implementation and visual
+acceptance remain frozen.
+
+Next executable work: target the remaining bundle-option and Lowlands-repair
+frontiers with a source-level selector diagnosis, without escalating this
+public root's bounds again. Change selection only if a deterministic complete
+plan then passes every downstream proof under the existing production
+contract; otherwise retain the gate and do not repeat a private batch until a
+corrective code change is justified. Once a fresh eligible candidate exists,
+verify its private package, shortlist and inspection before selection; then
+continue the source-bound atlas, isolated PTR update, owner/bridge/frontend,
+custom-domain cutover, and authenticated owner plus Alpha acceptance in
+dependency order. Preserve rollback and Alpha/G001/G002. Source publication
+and local tests are not hosted verification or deployment.
+
+## Prior release checkpoint — 7 October 2026 (superseded by `ac6d85ee`)
 
 The only open Warpkeep PR is draft #385 against `main` on
 `release/0.4-living-realm-quality`. The last published code checkpoint is
