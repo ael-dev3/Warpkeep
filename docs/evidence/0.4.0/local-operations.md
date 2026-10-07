@@ -1,6 +1,74 @@
 # Local operations evidence
 
-Dated local and authenticated inventory. **Not deployment evidence.**
+Dated local checks and authenticated operating observations. Each record states
+its scope; local checks alone are not deployment or release acceptance evidence.
+
+## Exact-source PTR backend update — 7 October 2026
+
+Signed source `7ae40a6f4ba44188f7935f7dbcaf6f920f4eb36f`, tree
+`0cbb69dd6258533a84e851d0929d70a43765e8ea`, was published on the release
+branch and synchronized to the clean native operating checkout. GitHub verified
+its signature. A fresh repository-wide Actions inventory retained all branch,
+event and rerun history; all four configured repositories remained disabled
+with no active run. Publication started no Actions run.
+
+Actual fixed-target PTR inspection completed with only `OWNER_NOT_ENABLED` and
+`ATLAS_READY_NOT_OBSERVED`. Bridge and private configuration were observed;
+bootstrap and credential recovery did not need repeating. Inspection receipt
+`october-release-ptr-7ae40a6f-20261007-inspect-v1-operation.json` has SHA-256
+`e47a5fe0595b7b3ad96ba2f84fc605eb116fcfff66b9682a2ddfde962988136b`.
+
+The first update preparation failed locally before provider build/transport.
+The outer `PTR_INITIAL_OWNER_UPDATE_PROVIDER_BUILD_OR_PROTOCOL_FAILED` was
+reproduced in the source-clone guard as
+`PTR_PRODUCTION_SOURCE_CLONE_INVENTORY_INVALID`: a previous root-run Git import
+left 103 object files owned by root. A scoped ownership repair at
+12:59:41.019 UTC restored UID/GID 1000 while retaining object bytes, modes,
+index, refs and source. Its receipt is
+`october-release-native-object-ownership-7ae40a6f-v1.json`. No provider write
+occurred in that failed preparation or repair. The prevention/unblock path is
+in [development synchronization](../../operations/0.4.0-development-sync.md#native-synchronization-ownership-preflight).
+
+Preparation then passed. Inspection digest
+`4a78bc2b6d4ef9bc4a7f0bc9762081dcb94744c30ddbbf0e7e589694983dc433`
+binds the exact source, artifact, predecessor, schema and preservation snapshot.
+All 31 tables are preserved with no additions. Existing row commitments, owner,
+atlas and private configuration remain required postconditions. Its operation
+receipt SHA-256 is
+`d63218fbfd9c086522476812bb7c3003cba11e9c8b1d8a8f468d6aeb6997114e`.
+
+The maintained apply ran from 13:06:52.882 to 13:12:58.948 UTC and completed
+with normal exit 0. It recorded the exclusive submission marker, received the
+fixed-target acknowledgement and verified installed state with repeated schema
+and full state/configuration observations. Outcome is
+`observed-preserved-candidate`; program
+`95ca580103ed96b0b9cdb283cc69a0d813a2cc70d20fee80807f130ad57755c8`
+is installed. Existing table rows, owner/atlas state and private configuration
+are preserved. This is repeated-observation evidence, not an atomic database
+snapshot. Source/index/refs and owned-process cleanup passed; reconciliation is
+not required and retry is not authorized. The predecessor program commitment
+and journals remain retained for recovery.
+
+Apply receipt `october-release-ptr-7ae40a6f-20261007-apply-v1-operation.json`
+has SHA-256
+`680fe2914d87291c85be2e3fd968e8c2190796b358e3ed4c46fd3dfe438090d6`;
+its independently bounded caller summary has SHA-256
+`7cff1fc6e3106f5b0e64114b43dbf7f52aac00e8df207489403b29f7a73f7bf7`.
+Independent review matched those actual receipt hashes to the validated
+preparation journal and confirmed the preservation classification and retained
+acknowledgement without making another provider call.
+These actual backend deployment results do not establish usable owner PTR,
+authentication or release acceptance. Only owner and atlas readiness remain
+missing in this observation; Alpha/G001 were outside the mutation target.
+
+The separate fresh candidate batch remains running on frozen source `7ae40a6f`
+in the existing private root's distinct workspace
+`greater-realm-candidate-7ae40a6f-20261007`. The default workspace was refused
+with `GREATER_REALM_ATTEMPT_CHECKPOINT_EXISTS` before generation; its older
+checkpoint was retained. Do not overwrite it or infer completion from file
+counts. Authenticate the fresh batch's terminal result before selection/runtime
+and current-update atlas continuation. Generation itself makes no provider
+write; the successful backend update above is a separate operation.
 
 ## Exact-rank search-budget correction — 7 October 2026
 
@@ -26,12 +94,11 @@ owner-connectivity (4) suites. Existing pinned candidate digests passed.
 `git diff --check` passed. These are local source checks; they do not establish
 a production candidate, backend update or authenticated owner acceptance.
 
-Publish this code, tests and canonical handoff as one signed checkpoint, resolve
-its exact remote head, then run one fresh source-bound private batch under the
-unchanged 256-attempt bound. The previous `ac6d85ee` batch below remains retired.
-Current-source PTR inspection and nonbreaking update preparation can proceed
-independently; atlas import and owner provisioning still require an eligible
-sealed atlas.
+This code, tests and canonical handoff are published as signed `7ae40a6f`.
+One fresh source-bound private batch is running under the unchanged 256-attempt
+bound. The previous `ac6d85ee` batch below remains retired. Current-source PTR
+inspection and nonbreaking update have completed independently; atlas import
+and owner provisioning still require an eligible sealed atlas.
 
 ## Exact-source candidate batch after connected-lobe correction — 7 October 2026
 

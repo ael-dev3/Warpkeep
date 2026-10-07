@@ -3,8 +3,10 @@
 ## Current release checkpoint — 7 October 2026, exact-rank correction
 
 The reviewed correction on `release/0.4-living-realm-quality` / draft PR #385
-follows signed checkpoint `867b3abe23a676b691690cce1a41d90cb47bc97f`.
-Resolve the exact synchronized signed head before source-bound operations.
+is signed, published source `7ae40a6f4ba44188f7935f7dbcaf6f920f4eb36f`, tree
+`0cbb69dd6258533a84e851d0929d70a43765e8ea`. The native operating checkout
+stays frozen at this source while generation runs; documentation publication
+must not alter an active operation's input.
 The ranked sibling search previously spent nodes on prefixes whose remaining
 groups could not supply the residual exact rank. Two deterministic tests
 reproduced the failure, including the production footprint adapter. The fix
@@ -27,23 +29,49 @@ limit change. Full evidence is in
 
 Execute this short release path without expanding the frozen scope:
 
-1. Publish this signed/scanned checkpoint, verify remote equality and synchronize
-   the idle native checkout. Run one fresh source-bound private maximum-256
-   batch. Preserve its actual process handle and frozen operating source.
-2. In parallel, inspect the isolated PTR against the same source and prepare
-   any necessary nonbreaking backend update. Current-source implementation
-   compatibility gates atlas import; atlas readiness itself does not block
-   update preparation. Use existing credential ingress and maintained operators.
+1. Source publication and clean native synchronization are complete. One fresh
+   source-bound maximum-256 batch is running in
+   `/home/warpkeep/.warpkeep/private/greater-realm-candidate-7ae40a6f-20261007`.
+   Five additional isolated workers are being prepared within measured capacity;
+   preserve each original process and frozen source. The default older workspace
+   was refused before generation; do not overwrite or replay its checkpoint.
+2. Actual isolated PTR inspection, compatible update preparation, one-submit
+   apply and preservation postflight are complete. Inspection `4a78bc2b` binds
+   installed program `95ca5801` to source `7ae40a6f`; the only readiness blockers
+   are owner and atlas. Bridge/private configuration are observed. Do not repeat
+   bootstrap, credential recovery or this resolved update. The native Git
+   object-ownership preparation failure was repaired without changing bytes;
+   run future native Git synchronization as UID 1000. Full evidence and hashes
+   are in [local operations](../../evidence/0.4.0/local-operations.md).
 3. If generation succeeds, verify the exact private package, shortlist and
    inspection, select through maintained authorization, and prepare runtime.
-   Apply the reviewed compatible PTR update before importing this atlas.
+   The installed compatible PTR update already satisfies that dependency.
 4. Import/read back atlas, provision the actual owner, verify bridge/frontend,
    complete custom-domain cutover and authenticated owner plus Alpha acceptance.
-   Reconcile uncertain submissions read-only; never resubmit blindly. Preserve
+   Pass genuine bootstrap inspection `ad787790` and current update inspection
+   `4a78bc2b` to the maintained atlas continuation. Reconcile uncertain new
+   submissions read-only; never resubmit blindly. Preserve
    rollback, licensing, Alpha/G001/admission policy and the G002 seal.
+
+Retain the owner's accepted frontend: public commit `3634aa82`, Pages deployment
+`8a469929`, application source `9ea4821a`. Frontend/auth/public/package paths are
+unchanged through `7ae40a6f`; reverify the existing artifact at cutover instead
+of rebuilding solely for a new stamp. Do not relabel the component's provenance.
+At 13:21:47 UTC the current generation group's summed process high-water marks
+were about 0.80 GiB, with about 1.12 CPU average. WSL exposes eight CPUs and
+about 20 GiB; six total workers leave approximately one CPU free. Each batch
+keeps the existing bounds and fresh private entropy. Report authenticated
+terminal attempts per elapsed hour; do not infer them from checkpoint files.
+The owner's full-parallel no-winner stop/options boundary remains in force.
 
 Last read-only live checks: Alpha HTTP 200, custom-domain `/ptr/` HTTP 404,
 Pages preview `/ptr/` HTTP 200. No additional open PRs awaited integration.
+Fresh 13:18:13.046 UTC Cloudflare reads retain Pages deployment `8a469929` and
+bridge v52. The production CLI's DNS/settings reads return 403; the browser's
+saved GitHub login selects the separate account containing only `snapmeter`.
+One login to the existing production account is requested for final cutover;
+continue atlas work. The [access guide](../../operations/0.4.0-infra-access.md#current-cloudflare-domain-access--7-october-2026)
+records the exact target and success readback. No new credential is requested.
 GitHub Actions remains disabled; local tests and Git publication are not hosted
 verification or deployment. The staged frontend and visual acceptance remain
 frozen unless a reproducible blocker appears. Full 0.4 release remains open.

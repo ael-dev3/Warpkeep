@@ -7,9 +7,10 @@ is synchronization, not hosted verification or deployment.
 
 CURRENT CORRECTION
 
-Resolve the signed head of `release/0.4-living-realm-quality` / draft PR #385
-before source-bound operations. The exact-rank budget correction follows
-published source `867b3abe23a676b691690cce1a41d90cb47bc97f`. It prunes only
+The frozen operating source is signed/published
+`7ae40a6f4ba44188f7935f7dbcaf6f920f4eb36f`, tree
+`0cbb69dd6258533a84e851d0929d70a43765e8ea`, on the release branch / draft
+PR #385. Keep active native source/index/refs unchanged. The correction prunes only
 option prefixes whose remaining groups cannot supply the residual exact rank.
 Two new regressions fail on the old helper and pass after the fix. Feasible
 plan order, MRV choice, ownership, proofs, geometry, terrain-seed namespace and
@@ -26,26 +27,46 @@ and productionUntouched. It is retired; never resume or relabel it. Counts
 from independent seeds do not establish causation or candidate yield.
 
 NEXT — IN DEPENDENCY ORDER
-1. Publish the signed/scanned correction, verify remote equality and synchronize
-   the idle native checkout. Run one fresh source-bound maximum-256 private
-   batch; keep its operating source pinned until it finishes. If incomplete,
+1. Publication and clean native synchronization are complete. One fresh maximum-
+   256 private batch is running in the distinct existing private workspace
+   `greater-realm-candidate-7ae40a6f-20261007`; preserve its original process
+   and operating source until it finishes. Five additional isolated fresh workers
+   are being prepared within measured capacity, with the same gates and bounds.
+   Authenticate each terminal separately; use only the first verified winner.
+   If incomplete,
    use the maintained authenticated aggregate reader, zeroization and abort.
-2. While generation runs, inspect the isolated PTR against this same source.
-   Prepare its schema-preserving backend update if installed code is stale.
-   This preparation does not require a ready atlas. Reuse existing credential
-   ingress; do not replay bootstrap or uncertain submitted operations.
+2. Actual PTR inspection, compatible update preparation and one-submit apply
+   have passed. Inspection `4a78bc2b` binds installed program `95ca5801` to
+   source `7ae40a6f`; all existing tables/rows and private configuration are
+   preserved. The only observed readiness gaps are owner and atlas; bridge is
+   ready. Do not repeat bootstrap, credentials or the resolved update. A local
+   native Git-object ownership failure was fixed; future native imports run as
+   UID 1000. See docs/operations/0.4.0-development-sync.md for the precise
+   prevention/unblock path.
 3. If eligible, verify the exact private package, shortlist and inspection,
-   then select and prepare runtime exports through the maintained gates. Apply
-   the reviewed compatible PTR update before current-source atlas import.
+   then select and prepare runtime exports through the maintained gates. The
+   compatible backend is already installed; do not repeat its apply.
 4. Complete atlas import/readback, actual-owner provisioning, bridge/frontend
-   readback and custom-domain cutover. Verify the authenticated owner journey
-   and Alpha preservation before claiming release. Preserve rollback/licensing.
+   readback and custom-domain cutover. Atlas commands use genuine bootstrap
+   inspection `ad787790` plus current update inspection `4a78bc2b`. Verify the
+   authenticated owner journey and Alpha preservation before claiming release.
+   Preserve rollback/licensing.
 
 LIVE BASELINE — 7 OCTOBER 2026
 
 Alpha `https://warpkeep.com/` returned 200; custom-domain `/ptr/` returned 404;
 Pages preview `/ptr/` returned 200. Frontend implementation and visual evidence
-remain staged and frozen. Final live acceptance is open.
+remain staged and frozen at public commit `3634aa82` / deployment `8a469929`
+(frontend source `9ea4821a`). Those product paths are unchanged through `7ae`;
+reverify the existing artifact, without rebuilding just to change its stamp.
+Final live acceptance is open.
+
+DOMAIN ACCESS
+The current browser's saved GitHub login sees only snapmeter in the wrong
+Cloudflare account. Production CLI reads confirm Warpkeep exists in account
+`c647739b4535010b0b13e6fc296e2c4e`, but DNS/settings return 403. One login to
+that existing production account is pending for final cutover; atlas work
+continues. See docs/operations/0.4.0-infra-access.md for the exact URL/readback.
 
 Keep durable work in this repository and private operations in existing
 owner-only roots. Do not create Desktop files or new recovery credentials.

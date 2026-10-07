@@ -21,18 +21,20 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
   allow lower accumulation only when generated River/Stream flow terminates
   into a verified frozen Alpha Ocean endpoint. Keep every other check and all
   Alpha rows unchanged.
-- **Sequence.** Validate and publish the reviewed source checkpoint, then
-  generate a source-bound candidate with the maintained private workflow;
-  complete its proof/selection, atlas publication, isolated PTR update, owner
+- **Sequence.** Publish the reviewed source, generate a source-bound candidate
+  and inspect/update isolated PTR in parallel. Complete candidate proof/selection
+  and runtime gates before atlas publication; the compatible backend must be
+  installed before importing current-source atlas. Then complete owner
   provisioning, bridge/frontend verification, cutover, and authenticated owner
   PTR plus Alpha acceptance in order. Never relabel an older seed or candidate.
 
 ## Current working state — 7 October 2026
 
 The release branch and draft PR [#385](https://github.com/ael-dev3/Warpkeep/pull/385)
-now contain an exact-rank search-budget correction. Resolve their signed Git
-head before source-bound work. The previous published checkpoint was
-`867b3abe23a676b691690cce1a41d90cb47bc97f`; the new code skips option prefixes
+contain the exact-rank search-budget correction at signed published source
+`7ae40a6f4ba44188f7935f7dbcaf6f920f4eb36f`, tree
+`0cbb69dd6258533a84e851d0929d70a43765e8ea`. Native operating source stays
+frozen while generation runs. The code skips option prefixes
 whose remaining groups cannot supply the required rank. Two regressions
 reproduced the old node-limit failure. The correction preserves feasible plan
 order, MRV selection, production caps, geometry, ownership and eligibility
@@ -48,12 +50,16 @@ package, selection, atlas or production mutation resulted. The retired batch
 must not be replayed. Full sanitized evidence and the new correction are in
 [local operations](../../evidence/0.4.0/local-operations.md).
 
-Next, publish and synchronize the exact signed correction, then run one fresh
-source-bound private batch under the existing bound. In parallel, inspect the
-isolated PTR against this source and prepare its nonbreaking backend update if
-required. Atlas readiness does not block update preparation; atlas import and
-owner provisioning still require a verified eligible candidate. Preserve all
-source, proof, preservation, rollback and acceptance gates.
+Source publication/synchronization are complete and a fresh private batch is
+running; five additional isolated workers are being prepared within measured
+capacity. Actual PTR inspection, nonbreaking update preparation and one-submit
+apply passed: program `95ca5801` is installed at this source, with existing
+tables/rows and private configuration preserved. Only owner/atlas readiness
+remain missing; the bridge is ready. See the [ordered release checklist](../../operations/0.4.0-release-checklist.md)
+and [full operating evidence](../../evidence/0.4.0/local-operations.md).
+Next verify the terminal candidate/package/shortlist, select and prepare runtime,
+then import/read back atlas and provision the owner. Preserve all source, proof,
+preservation, rollback and acceptance gates; do not repeat the resolved update.
 
 GitHub Actions remains disabled. Source synchronization and local checks are
 not deployment evidence. The staged frontend and visual acceptance remain
