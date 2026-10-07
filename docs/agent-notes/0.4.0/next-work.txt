@@ -43,6 +43,9 @@ NEXT — IN DEPENDENCY ORDER
    and was authenticated, zeroized and retired at 13:45:32.675 UTC. Never resume
    it. Preserve each active process and operating source until terminal, with
    the same gates and bounds; the global stop boundary remains 19:32:47 UTC.
+   The host-clock cutoff is armed for these exact six recorded births; preserve
+   its bytes. Any successor needs separately reviewed cutoff coverage before
+   generation. See local operations; machine sleep never resets the boundary.
    Authenticate each terminal separately; use only the first verified winner.
    Never invoke a reader on its retired original or replacement binding.
    If incomplete,

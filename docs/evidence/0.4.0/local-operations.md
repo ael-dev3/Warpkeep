@@ -3,6 +3,47 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Host-clock search cutoff armed — 7 October 2026
+
+VM suspend pauses WSL monotonic time, so relative timeouts alone cannot enforce
+the original absolute search boundary. Root and independent review checked
+the ignored host/native cutoff pair. Review corrected native-clock vetoes,
+message-schema/date parsing, grace acknowledgment and no-ACK cleanup before
+arming. Signals remain restricted to the six exact startup receipts, boot,
+UID 1000 process births and owned groups, with fresh scope checks and prior
+successful TERM before KILL. Package comparison, providers, source/index/refs
+and unrelated processes are outside its signal scope.
+
+- `october-release-7ae-host-cutoff-native-v1.mjs`: SHA-256
+  `7cec6a432fbcab18d51945c88c640605ef8d89eb5e66b93335fe3922d8ac7576`.
+- `october-release-7ae-host-cutoff-watch-v1.ps1`: SHA-256
+  `f024a3d820b20223341618554a43ba4dc39d8de9906c65da8409f1beb3419430`.
+
+Windows/native bytes match; native copies are regular, single-link, mode 600,
+UID/GID 1000. Native syntax and PowerShell 7.6.4 parsing pass. The watcher
+started once at 16:56:37.303 UTC, host PID 14456 / birth 16:56:35.878 UTC,
+agent-scoped exec session 57261. Genuine native readiness reached the host at
+16:56:38.093 UTC. Exclusive sanitized start receipt
+`october-release-7ae-host-cutoff-watch-v1-started-v1.json` has SHA-256
+`892e185cf153b4d9e71e5efc1ddeee544fb32f32dae44bc6bcfd2f4d8648039a`.
+Actual readiness receipt `october-release-7ae-host-cutoff-actual-readiness-v1.json`
+has SHA-256 `a9b94f13ae4e0802715a64e96c71a7ca4562072591b980eb299c883eff82d663`.
+It binds native helper PID/PGID/SID 939755, boot `b838a6fd` and birth tick
+73064981, alongside all six genuine search-start authorities. Native/Windows
+receipt bytes match; no signal or private checkpoint read occurred.
+
+The nominal host TERM is 19:32:35.500 UTC; KILL is due no earlier than
+19:32:45.500 and ten seconds after actual TERM acknowledgment. The original
+19:32:47 UTC boundary is unchanged. No-ACK cleanup sends a bounded fallback
+request but retains explicit failure evidence and cannot claim established
+grace. Late acknowledgment or process absence does not erase that failure.
+Unresponsive transport or late cleanup requires independent verification of
+the recorded births/groups before corrective scoped cleanup. The watcher
+records `cleanupSuccessClaimed: false` at startup; no signal or future cleanup
+success is implied by readiness. Active bytes must stay unchanged. Any fresh
+successor needs separate reviewed cutoff coverage, never relabeled old births.
+No private checkpoint read, provider mutation or release acceptance occurred.
+
 ## Replacement01 cohort retired; current replacement pool — 7 October 2026
 
 All five parallel02–06-replacement01 batches genuinely closed incomplete on

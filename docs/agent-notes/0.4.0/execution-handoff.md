@@ -149,6 +149,15 @@ Do not allow the original worker or replacement batches to extend that boundary.
 Actual terminal UTC and monotonic elapsed values differ because VM suspend
 pauses monotonic time. Retain both values; report neither as the other. Enforce
 the absolute UTC boundary independently of relative process timeout expiry.
+At 16:56:37.303 UTC, the reviewed Windows host-clock watcher was armed once
+for the six current source-bound search groups. Native readiness was received;
+no termination or cleanup success is claimed before actual cutoff evidence.
+It initiates TERM at 19:32:35.500 UTC, preserves the acknowledged grace period,
+then requests scoped KILL within the original stop boundary. Missing ACK or
+late cleanup remains an explicit failure, never a pass. Preserve the armed
+bytes. Any later successor needs its own reviewed cutoff coverage before
+generation; the existing watcher binds only its recorded process births.
+Exact helper/start pins and recovery details are in local operations.
 Active attempt counts and total pool throughput remain unknown until genuine
 terminal records; completed rejection/proof counts are not candidate yield.
 
