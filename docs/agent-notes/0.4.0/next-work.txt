@@ -1,6 +1,38 @@
 WARPKEEP 0.4 — NEXT WORK
 CURRENT RESUMPTION - 7 OCTOBER 2026
 
+ACTIVE RELEASE STEP - 21:03 UTC
+Published/native-qualified d1ab2b21 / generator .27 is running one fresh guarded
+search. Actual start21:01:11.913; guard READY21:01:29.401 UTC. Root generation
+exec55823, guard exec89976. Fixed window20:57 UTC to02:57 UTC8 October;
+TERM02:56:00, KILL02:56:45 with actual acknowledgement plus10-second minimum
+grace. No automatic restart. All five startup roles were observed on CPU7.
+
+Keep active native source/index/refs frozen; documentation-only publication
+must not fetch or sync that checkout. Root must observe actual exec closure,
+validate genuine terminal evidence and all group/recorded-role/supervisor
+absence before the exact bound reader accesses private state. Earlier .26
+checkpoints stay stopped and may not be relabeled.
+
+Next: genuine winner verification/comparison/selection/runtime, atlas import
+and readback, actual owner, existing bridge/frontend rechecks, production
+Cloudflare SSO and approved cutover with fresh DNS/Alpha rollback, then real
+authenticated canonical PTR acceptance and Alpha regression. No winner or
+owner acceptance is established yet. Do not repeat the successful backend
+update. Latest local-operations records own evidence; everything below is
+dated history when superseded by a newer completed step.
+
+PUBLISHED OPERATING SOURCE - 20:38 UTC
+Signed d1ab2b217ebef4dee504b61d5098d9719c553f35, tree
+7b551a8cafef6c15e0abe678480d43a8b4b85594, is synchronized with GitHub/PR385
+and the clean native checkout. Generator .27 and unchanged toolchain verified.
+Build-mode types,69 targeted native tests and the package namespace assertion
+passed. No new search has started. Finish public cutoff smoke, bind a new
+guarded search, then
+verify a genuine winner and follow atlas/owner/cutover/authenticated acceptance.
+Keep the operating source pinned. Do not repeat the successful backend update.
+The newest local-operations record owns the actual evidence and limits.
+
 LATEST CORRECTION - 20:23 UTC
 Generator .27 corrects the reproduced ordinary/repair child-frontier defect.
 All33 apron tests and build-mode types pass; independent source review and

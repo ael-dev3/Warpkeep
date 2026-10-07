@@ -3,6 +3,111 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Cutoff qualification and fresh search — 7 October 2026, 21:03 UTC
+
+The reviewed public fixture exercised the corrected real host/native transport
+with four truthful sleeping Node roles and no private generation. Actual window
+20:50:05–20:52:05 UTC: host TERM20:51:05.000, acknowledgement20:51:05.129,
+KILL20:51:50.004 and terminal observation20:51:50.118. Actual grace was44.875s;
+all deadline flags were false. Root-owned fixture exec91264 and watcher22123
+genuinely closed0. No fallback or survivor was reported. Native terminal SHA-256
+`d61093451cc7a5e68c540754cf1e105fd18fb4278801f1df58e96246b31fd9d2`;
+host receipt SHA-256
+`8fe73ab65ccfee7eb12e329909162f61cb8ed6c44a2f2f170c96d3e45baef50d`.
+Root independently rechecked all four recorded births, their supervisor and
+the entire PGID/SID absent at20:54:42.509 UTC, with native d1ab/tree7b551 and
+index4265 still held. This public short-window result does not rewrite the old
+failed cutoff records or prove private eligibility or every future timer.
+
+Final fresh launcher SHA-256
+`403ad39c386553cd4a50da74f8116ca5a8d0e8800fcae2abbd945c279fc6addf`;
+native guard SHA-256
+`3d4fc7449a812d8ca770486fe6ca412a5b0f67e10bcc9bc917079e537aa6ec5a`;
+host watcher SHA-256
+`2f935c6e1d5857a17294094d51b4d21f677fcfe4cfcd4677678f54fc79179314`.
+Independent review verified only final source/window/boot bindings changed
+from the reviewed templates. Pinned syntax/PowerShell parsing passed. The
+approved launcher and native guard were exclusively staged as UID/GID1000,
+mode0600, single-link regular files with exact hashes. Initial inline staging
+hit Windows' command-length limit before the launcher copy; bounded exact-file
+reading corrected it. No search was started by either staging operation.
+
+Root-owned exec55823 then started actual fresh `.27` generation21:01:11.913 UTC
+from signed `d1ab2b217ebef4dee504b61d5098d9719c553f35`, tree
+`7b551a8cafef6c15e0abe678480d43a8b4b85594`, with unchanged toolchain20b2.
+The new window is `20261007T205700Z`,20:57 UTC7 October–02:57 UTC8 October;
+this is a separate post-correction run, never an extension of the old boundary.
+One fresh count1/maximum256 batch, no automatic restart or provider write.
+Public startup receipt SHA-256
+`e19b7285e5e5f5f4ffd0a825911277f9bb45b753b59c7b6de6c389a55cc9fc7d`.
+Root-owned host guard exec89976 emitted genuine READY21:01:29.401 UTC, binding
+that exact receipt, launcher, source, boot and window; TERM02:56:00 and
+KILL02:56:45, with at least10 seconds after actual TERM acknowledgement.
+
+Root independently authenticated the bounded public startup and observed all
+five actual roles present on CPU7 at21:02:32.732 UTC. Supervisor1478208/birth
+74400436; leader1478312/birth74400552, bootstrap1478313/same birth,
+tsx1478326/birth74400567, cli1478339/birth74400573, all under boot
+`b838a6fd-94ef-43a6-9d58-ed8f2141dd66`. Worker PGID/SID1478312 and UID1000.
+Root probe receipt SHA-256
+`76a9129c1b04861b286376916e197d9c4fee702b5af8ac2a892cc61290b5ac1c`.
+Source-capture refs3e433477/index4265 remain the exact startup authorities.
+Do not fetch/sync or mutate the active native checkout. A documentation-only
+descendant on GitHub does not change this operating source.
+
+The terminal reader is independently reviewed but remains unexecuted; bind a
+separate copy only to genuine startup identities and root session55823. Actual
+root exec closure, exact terminal/source/toolchain holds and repeated whole
+group/recorded-role/supervisor absence must precede private authentication.
+No completion, eligible package, selection, atlas, owner or deployment success
+is inferred from readiness. Winner verification/runtime, exact PTR atlas
+import/readback, actual owner, bridge/frontend rechecks, existing production
+Cloudflare SSO/cutover, canonical authenticated acceptance and Alpha regression
+remain ordered next. Prior private material and failed evidence stay untouched.
+
+## Published correction and native synchronization — 7 October 2026, 20:38 UTC
+
+Signed source `d1ab2b217ebef4dee504b61d5098d9719c553f35`, tree
+`7b551a8cafef6c15e0abe678480d43a8b4b85594`, is published on the release
+branch and draft PR #385. GitHub's commit, signature, branch and PR readback,
+local HEAD and tracking ref all match. The outgoing eight-file checkpoint
+passed the secret scan: receipt SHA-256
+`320ff670c9a8ab42a2dd7c30594448fdfdbf5dca9cf3ed7c6ac5dcb70a815343`.
+
+The publisher genuinely exited 1 after its single successful push because its
+post-push ancestry comparison applied the outgoing eight-file scope to older
+documentation changes since 7ae. A separate read-only readback established the
+exact signed publication and older docs-only ancestry; no repeat push occurred.
+Reconciliation receipt `october-release-d1ab2b21-published-reconciled-v1.json`,
+SHA-256 `7f2b300d836cf5e4176e02d8f53fb15123115dcc38ec5baab981c932aa8ba160`,
+preserves that original failure. Fresh paginated Actions inventory completed
+20:29:24.155 UTC; all four repositories stayed disabled with unchanged run
+totals and no active runs. This source push consumed no new Actions run.
+
+Native synchronization then genuinely completed as UID 1000 at 20:33:45.842 UTC.
+The clean detached checkout now holds exact signed d1ab/tree7b551, generator
+`.27`, unchanged pinned Node22.22.3/linux-x64 toolchain20b2 and genuine prior
+backend/bootstrap records. The normal index is regular, single-link, UID/GID1000,
+mode0644, SHA-256
+`4265ba3992fd1251f3550288319d0da466b2a41c17eac8c16c3e8598ccc7b062`.
+Source-capture refs digest remains3e433477. Root read the full safe source-ready
+receipt and independently matched its Windows/native SHA-256
+`594aa100d48a06048a44171c3560ff74198e7773b6a59cf22011cf52ac05cecb`.
+No private records, provider operation or search was started by synchronization.
+Native qualification then genuinely passed: build-mode types, all69 tests in
+apron/rejection/generator/owner-connectivity, and the changed package namespace
+assertion (1 passed,81 intentionally skipped). Exact operating source, index,
+refs and toolchain held after every check; no installs or provider/private
+operator action occurred. Receipt
+`october-release-d1ab2b21-native-qualification-v1.json`, SHA-256
+`069c84b1cf46e7c5d02e4bf5abeb5aff6e67fa8498bac88f03155c863d58f501`,
+binds actual commands, successful exits, counts and logs through20:40:01.516 UTC.
+Root read the receipt/logs and matched Windows/native hashes. These are selected
+local checks, not full-root-suite or owner acceptance. Keep this operating
+source pinned. A truthful public process fixture will exercise the
+corrected cutoff before any fresh private generation. No new search deadline
+has been bound yet.
+
 ## Child-frontier correction — 7 October 2026, 20:23 UTC
 
 The proposed truncation case below was executed against the actual ordinary and

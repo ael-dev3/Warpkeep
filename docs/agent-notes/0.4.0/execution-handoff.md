@@ -1,5 +1,52 @@
 # Continue Warpkeep 0.4
 
+## Active release step — 7 October 2026, 21:03 UTC
+
+Codex owns the release. Signed operating source `d1ab2b21` / generator `.27`
+is published and native-qualified. The real public cutoff smoke passed;
+the fresh private search started at21:01:11.913 UTC with matching guard readiness
+at21:01:29.401 UTC. Root owns generation exec55823 and guard exec89976.
+Its fixed window is20:57 UTC–02:57 UTC on8 October; TERM02:56:00,
+KILL02:56:45 with at least10 seconds after actual TERM acknowledgement.
+There is one maximum256 search and no automatic restart. All five startup roles
+were independently observed on CPU7. Earlier `.26` searches remain stopped.
+
+Keep active native source/index/refs pinned. Documentation-only GitHub updates
+do not authorize fetching or synchronizing this active checkout. Before private
+inspection, root must observe its actual generation exec close, authenticate
+the exact terminal receipt and verify the whole group, recorded births and
+supervisor absent. Bind a separate terminal reader to genuine startup evidence;
+never infer package eligibility from process completion or tests.
+
+Remaining dependency order:
+
+1. Authenticate the terminal result; verify/compare/select and prepare runtime
+   only for a genuine eligible winner. No winner is established at this snapshot.
+2. Import and read back its atlas in the isolated PTR, then provision the actual
+   owner. Reuse the successful installed backend7ae/update4a78; no redeployment
+   is required for this offline generator change.
+3. Recheck bridge v52 and the accepted immutable frontend, complete the existing
+   production Cloudflare SSO gate, and cut over with fresh DNS and Alpha rollback.
+4. Accept actual owner sign-in → keep → gather → choose → build → benefit →
+   return at canonical PTR; regress Alpha root. 0.4 is not live until this passes.
+
+Exact startup, guard, smoke, qualification and publication pins are in the newest
+local-operations record. Older dated snapshots below retain their original scope.
+
+## Published operating source — 7 October 2026, 20:38 UTC
+
+Generator `.27` is signed, published and synchronized to the idle native
+checkout at `d1ab2b217ebef4dee504b61d5098d9719c553f35`, tree
+`7b551a8cafef6c15e0abe678480d43a8b4b85594`. GitHub/PR #385 and local refs
+match; the outgoing secret scan passed and no new Actions run was created.
+Native source/signature/index/toolchain checks passed. Build-mode types,
+69 targeted native tests and the package namespace assertion passed. A fresh
+search has not started.
+Use the latest local-operations record for actual completed evidence. Next:
+finish public cutoff smoke, bind a new guarded search,
+then the existing winner → atlas → owner → cutover → authenticated PTR path.
+Keep this operating source pinned; do not repeat the successful backend update.
+
 ## Current correction — 7 October 2026, 20:23 UTC
 
 Codex corrected a reproduced child-frontier truncation defect in generator `.27`.
