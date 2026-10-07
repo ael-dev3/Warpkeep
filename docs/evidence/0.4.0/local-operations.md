@@ -44,6 +44,66 @@ occurred. These overlapping truncation counts do not establish which bound, if
 any, hid a valid plan. Do not replay or relabel this retired search. Trace a
 deterministic local counterexample before changing ranking or limits.
 
+## Fixed public rejection fixture — bounded-search depth diagnostics — 7 October 2026
+
+Temporary diagnostics ran on the public deterministic fixture
+`greater-realm-secondary-fixture` / ordinal 19 against source
+`15682cb2`; release-branch successor `d7c2ec34` changed documentation only.
+With the checked-in 320,000-node and 256-plan bounds, ordinary search used all
+320,000 nodes by rank diagonal `122:0`, evaluated no complete plan, and
+recorded 310,620 empty-compatible-group prunes plus 1,856 footprint conflicts.
+The separately bounded Lowlands-repair lane completed with no match. These
+counters explain the limit result, but do not establish that the unvisited
+frontier contains a candidate.
+
+Two isolated local probes widened only the ordinary lane's temporary ceilings;
+the checked-in values and eligibility proofs were restored unchanged after
+each run. At 3.2 million search nodes with the original 256 complete-plan cap,
+the fixture advanced to `COMPLETE_PLAN_LIMIT` and still produced no candidate.
+At 3.2 million nodes and 2,560 plans, the ordinary lane found an internal
+gate-apron match after 816 failed tier-one repartitions, but the full fixture
+then failed the later `PRIMARY_COMPONENT_UNDERSIZED` proof. It was not an
+eligible candidate and no package or selection was made. Both temporary runs
+restored the generator byte-for-byte (SHA-256
+`570535e4a3dc0b2b07f523964cdeb27b27fa698039d2f4a6e4018ac80b3b3dfe`) and
+removed their temporary test file.
+
+This rejection fixture is not evidence for increasing the production limits
+or changing ranking: deeper search reaches a later failure on this rejected
+root, and does not show a downstream-valid plan. Keep the 320,000-node and
+256-plan bounds and do not reuse this fixture as a release candidate.
+
+## Exact owner connectivity and connected-lobe correction — 7 October 2026
+
+The deeper public-fixture trace exposed a false negative in the primary-region
+fringe repair. Its local six-neighbour run heuristic rejected 14 donor cells
+even though removing each cell left the full donor territory connected. The
+allocator now verifies global connectivity with a reusable, zeroized BFS
+scratch area. When a true articulation blocks a single-cell move, a deterministic
+connected-lobe fallback may move the articulation cell with one or more
+adjacent donor components, leaving one connected donor component behind. Both
+the target and donor remain connected; strategic spine/apron cells, protected
+and reserve cells, donor contact floors, the minimum primary-cell floor, target
+capacity, geometry and all candidate proofs remain enforced. Search-node and
+complete-plan bounds are unchanged.
+
+On the fixed public root with temporary diagnostic apron ceilings only, the
+exact check increased Lowlands passable ownership from 4,180 to 4,906. One
+connected-lobe transfer then raised it to 5,098 against a required 5,724;
+the generator correctly retained `PRIMARY_COMPONENT_UNDERSIZED`. No candidate,
+package, selection or production mutation resulted. The public root remains a
+rejection fixture, not a release candidate. All temporary search/source
+overlays were restored byte-for-byte and their temporary test files removed.
+
+Pinned Linux Node `22.22.3` typecheck passed; the full focused gate-apron,
+candidate-rejection, candidate-generator and owner-connectivity files passed
+57/57. The new topology tests cover globally connected removal across separated
+local neighbour runs, a true bridge, a contact-preserving lobe transfer, and
+refusal when every possible donor remainder would move fixed authority. The
+next candidate attempt must use the signed source checkpoint containing this
+correction and a fresh seed; the diagnostic fixture and retired private
+checkpoints are not replayable release candidates.
+
 ## Lazy Lowlands-repair preparation — 7 October 2026
 
 Source review found `lowlandsRepairSiblingPairsFor` was used to build the

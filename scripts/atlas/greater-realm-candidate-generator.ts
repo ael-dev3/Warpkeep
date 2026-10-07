@@ -74,6 +74,10 @@ import {
   type GreaterRealmReliefStructureMetrics,
 } from './greater-realm-relief-structure';
 import {
+  findGreaterRealmConnectedDonorLobeTransfer,
+  greaterRealmOwnerRemainsConnectedAfterCellRemoval,
+} from './greater-realm-owner-connectivity';
+import {
   GREATER_REALM_GEOLOGY_AUTHORITY_VERSION,
   deriveGreaterRealmDomainMaterialAuthority,
   type GreaterRealmDomainMaterialMetrics,
@@ -4921,6 +4925,9 @@ function allocateTierTwoPassableCapacity(
   const usedComponents = new Set(capacityAssignment.componentByParent);
   const tierTwoSpineOwner = own(new Int8Array(grid.cellCount));
   tierTwoSpineOwner.fill(-1);
+  let donorConnectivityVisitMarks: Uint32Array | undefined;
+  let donorConnectivityPending: Int32Array | undefined;
+  let donorConnectivityVisitMark = 0;
 
   for (const component of components) {
     if (!usedComponents.has(component.id)) {
@@ -5119,23 +5126,24 @@ function allocateTierTwoPassableCapacity(
       if (outerBoundaryMask[cell] === 1) outerContactCounts[parent] += 1;
     }
     const safeDonorBoundaryRemoval = (cell: number, donor: number): boolean => {
-      let runs = 0;
-      let previousMatches = false;
-      let firstMatches = false;
-      let lastMatches = false;
-      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-        const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
-        const matches = neighbor >= 0 && owner[neighbor] === donor;
-        if (direction === 0) firstMatches = matches;
-        if (matches && !previousMatches) runs += 1;
-        previousMatches = matches;
-        lastMatches = matches;
+      donorConnectivityVisitMarks ??= own(new Uint32Array(grid.cellCount));
+      donorConnectivityPending ??= own(new Int32Array(grid.cellCount));
+      if (donorConnectivityVisitMark >= 0xffff_ffff) {
+        donorConnectivityVisitMarks.fill(0);
+        donorConnectivityVisitMark = 0;
       }
-      if (firstMatches && lastMatches && runs > 1) runs -= 1;
-      // A single cyclic run means every same-owner neighbour remains linked
-      // around this hex after removal. This is a conservative local
-      // articulation guard for an already-connected flood territory.
-      return runs <= 1;
+      donorConnectivityVisitMark += 1;
+      return greaterRealmOwnerRemainsConnectedAfterCellRemoval({
+        grid,
+        member,
+        owner,
+        ownerId: donor,
+        removedCell: cell,
+        expectedRemainingCellCount: counts[donor]! - 1,
+        visitMarks: donorConnectivityVisitMarks,
+        visitMark: donorConnectivityVisitMark,
+        pending: donorConnectivityPending,
+      });
     };
     // Natural choke points can let two balanced fronts enclose a third just
     // short of its published land-capacity floor. Move only safe fringe cells
@@ -5204,6 +5212,98 @@ function allocateTierTwoPassableCapacity(
           if (outerBoundaryMask[cell] === 1) {
             outerContactCounts[donor] -= 1;
             outerContactCounts[targetParent] += 1;
+          }
+          progress = true;
+        }
+      }
+      if (!progress) {
+        let selectedLobeTransfer: Readonly<{
+          targetParent: number;
+          donor: number;
+          cells: number[];
+        }> | undefined;
+        for (const targetParent of deficientParents) {
+          if (counts[targetParent]! >= minimumPrimaryCells) continue;
+          const candidates = component.cells.filter(cell => {
+            const donor = owner[cell]!;
+            if (
+              donor < 0
+              || donor === targetParent
+              || counts[donor]! <= minimumPrimaryCells
+              || strategicSpineMask[cell] === 1
+              || strategicApronMask[cell] === 1
+              || legacyProtectedCell[cell] === 1
+              || legacyReserveCell[cell] === 1
+            ) return false;
+            for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+              const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+              if (neighbor >= 0 && owner[neighbor] === targetParent) return true;
+            }
+            return false;
+          }).sort((first, second) => {
+            const firstDonor = owner[first]!;
+            const secondDonor = owner[second]!;
+            return (counts[secondDonor]! - minimumPrimaryCells)
+                - (counts[firstDonor]! - minimumPrimaryCells)
+              || allocationField[first]! - allocationField[second]!
+              || first - second;
+          });
+          for (const cell of candidates) {
+            const donor = owner[cell]!;
+            if (safeDonorBoundaryRemoval(cell, donor)) continue;
+            const transferCells = findGreaterRealmConnectedDonorLobeTransfer({
+              grid,
+              member,
+              owner,
+              targetOwnerId: targetParent,
+              donorOwnerId: donor,
+              candidateCell: cell,
+              componentCellCount: component.cells.length,
+              targetCellCount: counts[targetParent]!,
+              targetCellMaximum: targetCounts[targetParent]!,
+              donorCellCount: counts[donor]!,
+              donorCellMinimum: minimumPrimaryCells,
+              strategicSpineMask,
+              strategicApronMask,
+              protectedCell: legacyProtectedCell,
+              reserveCell: legacyReserveCell,
+              innerBoundaryMask,
+              outerBoundaryMask,
+              donorInnerContactCount: innerContactCounts[donor]!,
+              donorOuterContactCount: outerContactCounts[donor]!,
+            });
+            if (!transferCells) continue;
+            selectedLobeTransfer = Object.freeze({ targetParent, donor, cells: transferCells });
+            break;
+          }
+          if (selectedLobeTransfer) break;
+        }
+        if (selectedLobeTransfer) {
+          try {
+            for (const cell of selectedLobeTransfer.cells) {
+              if (
+                member[cell] !== 1
+                || owner[cell] !== selectedLobeTransfer.donor
+                || strategicSpineMask[cell] === 1
+                || strategicApronMask[cell] === 1
+                || legacyProtectedCell[cell] === 1
+                || legacyReserveCell[cell] === 1
+              ) fail('GREATER_REALM_CONNECTED_DONOR_LOBE_CHANGED');
+              owner[cell] = selectedLobeTransfer.targetParent;
+              counts[selectedLobeTransfer.donor] -= 1;
+              counts[selectedLobeTransfer.targetParent] += 1;
+              if (innerBoundaryMask[cell] === 1) {
+                innerContactCounts[selectedLobeTransfer.donor] -= 1;
+                innerContactCounts[selectedLobeTransfer.targetParent] += 1;
+              }
+              if (outerBoundaryMask[cell] === 1) {
+                outerContactCounts[selectedLobeTransfer.donor] -= 1;
+                outerContactCounts[selectedLobeTransfer.targetParent] += 1;
+              }
+            }
+          } finally {
+            selectedLobeTransfer.cells.fill(0);
+            selectedLobeTransfer.cells.length = 0;
           }
           progress = true;
         }

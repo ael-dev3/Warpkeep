@@ -2,15 +2,19 @@
 
 ## Active release checkpoint — 7 October 2026, after exact-source batch
 
-The only open Warpkeep PR is draft #385 against `main`, at signed source
-`15682cb2dcceb06d592efb0de17895ff55a15169` on
-`release/0.4-living-realm-quality`. Its code ancestor
+The only open Warpkeep PR is draft #385 against `main` on
+`release/0.4-living-realm-quality`. The last published code checkpoint is
+signed source `15682cb2dcceb06d592efb0de17895ff55a15169`; the local working
+correction adds exact donor-connectivity checks and a bounded connected-lobe
+transfer without changing candidate/search caps or eligibility proofs. Resolve
+the signed PR head after this correction is committed and pushed before any
+source-bound operation. The older code ancestor
 `e2488c735971a34283810ea6a063e211f1e552de` retains the best compatible
 own-terrain Lowlands-repair pair plus one permitted non-Lowlands donor pair
 under the existing two-pair cap. It preserves geometry, ownership, proofs and
-all other limits. The deterministic regression, typecheck and focused Windows
-suite passed; pinned Linux typecheck and the apron/rejection/generator suites
-passed 53/53.
+all other limits. That published checkpoint passed the focused suites 53/53.
+The pending exact-connectivity/lobe correction passes pinned Linux typecheck
+and the four focused suites 57/57.
 
 A second independent fresh-seed batch on the same correction, bound to exact
 source `15682cb2`, also exhausted all 256 attempts with
@@ -32,23 +36,40 @@ and do not infer causation from overlapping limits or independent seeds. Do
 not start a third same-source batch without a reproduced deterministic search
 gap.
 
+A bounded diagnostic used the fixed public rejection fixture on the prior code
+source. At the checked-in 320,000-node/256-plan bounds, ordinary search reached
+diagonal `122:0` after 310,620 empty-compatible-group prunes and 1,856 footprint
+conflicts, with no complete plan evaluated. Temporary 10x node and 10x plan
+ceilings let the ordinary lane find an internal apron match after 816 failed
+tier-one repartitions, but the fixture then failed the later
+`PRIMARY_COMPONENT_UNDERSIZED` proof. The intermediate match is not an
+eligible candidate. Both diagnostic overlays were removed and the source was
+restored byte-for-byte; exact results are in
+[local operations](../../evidence/0.4.0/local-operations.md). This did not
+justify changing production limits or ranking. The follow-up trace found and
+corrected a separate topology false negative: globally safe removals rejected
+by a local-neighbour heuristic, plus connected donor lobes that could safely
+move around true articulation cells. The exact implementation and rejected
+fixture result are recorded in the same evidence file; the public root remains
+ineligible.
+
 Read-only live checks on 7 October returned HTTP 200 for the Alpha root, 404
 for custom-domain `/ptr/`, and 200 for the Pages preview `/ptr/`. Alpha remains
 available; owner PTR is not live on the custom domain. GitHub Actions remains
 disabled; the push did not create a workflow run. No additional open PRs are
 waiting for integration.
 
-Next executable work: use the fixed public rejection fixture and bounded
-synthetic search tests to trace pair/option retention and proof failures to a
-deterministic counterexample. Change ranking only if a test demonstrates that
-an otherwise eligible plan is omitted; keep every cap, proof and ownership
-rule fixed. Validate, publish one signed checkpoint, then run one fresh
-source-bound batch. If it yields an eligible candidate, verify its private
+Next executable work: finish reviewing and publish the exact connectivity/lobe
+correction and its regression evidence as one signed checkpoint, then run one
+fresh source-bound candidate batch with the existing 256-attempt bound and a
+fresh seed. Do not reuse the public rejection fixture or retired private
+checkpoints. If the batch yields an eligible candidate, verify its private
 package, shortlist and inspection before selection; then continue the
-source-bound atlas, isolated PTR update, owner, bridge/frontend, cutover and
-authenticated owner plus Alpha acceptance in dependency order. Preserve
-rollback and Alpha/G001/G002. No hosted CI or deployment is implied by source
-publication.
+source-bound atlas, isolated PTR update, owner/bridge/frontend, custom-domain
+cutover, and authenticated owner plus Alpha acceptance in dependency order. If
+no candidate qualifies, retain the safe aggregate and maintained-abort result;
+do not blindly repeat the same source. Preserve rollback and Alpha/G001/G002.
+No hosted CI or deployment is implied by source publication.
 
 ## Previous release checkpoint — 7 October 2026 (superseded by `15682cb2`)
 
