@@ -31,6 +31,16 @@ other option frontiers truncated. This small public sample is not a yield
 estimate, and its diagnostic does not prove a valid plan is hidden. Keep
 production limits, ranking and proofs fixed.
 
+A focused selector-balance experiment is now complete. On public root index 0 /
+ordinal 0, a temporary round-robin policy for the existing 128-child-option cap
+ended at the same search-node limit with the same bundle-pair, bundle-option,
+Lowlands-repair option and Lowlands-repair pair truncations as the checked-in
+selector. It found no complete plan and is not evidence for changing ranking.
+The WSL overlay was removed and the generator byte hash restored. Do not repeat
+this variant, root or widened-bound probes; do not start another private batch
+without a different, reproducible selector defect tied to a downstream-valid
+plan under the existing production contract.
+
 The last read-only live check on 7 October returned HTTP 200 for the Alpha root,
 404 for custom-domain `/ptr/`, and 200 for the Pages preview `/ptr/`. Alpha
 remains available; authenticated owner PTR is not live on the custom domain.
@@ -38,12 +48,11 @@ GitHub Actions remains disabled. No additional open PRs are waiting for
 integration. The previously accepted frontend implementation and visual
 acceptance remain frozen.
 
-Next executable work: target the remaining bundle-option and Lowlands-repair
-frontiers with a source-level selector diagnosis, without escalating this
-public root's bounds again. Change selection only if a deterministic complete
-plan then passes every downstream proof under the existing production
-contract; otherwise retain the gate and do not repeat a private batch until a
-corrective code change is justified. Once a fresh eligible candidate exists,
+Next executable work: continue only from a different reproducible case that
+can establish a concrete selector gap and a complete downstream-valid plan
+under existing bounds. If source inspection yields no such case, keep the
+candidate gate closed; do not make speculative ranking changes or repeat a
+private batch. Once a fresh eligible candidate exists,
 verify its private package, shortlist and inspection before selection; then
 continue the source-bound atlas, isolated PTR update, owner/bridge/frontend,
 custom-domain cutover, and authenticated owner plus Alpha acceptance in

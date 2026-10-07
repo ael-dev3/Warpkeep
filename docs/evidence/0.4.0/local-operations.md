@@ -144,6 +144,26 @@ frontier and do not justify changing production limits or ranking. Stop
 escalating diagnostic bounds on this root; diagnose the specific retained
 option frontiers or find a different reproducible downstream-valid case.
 
+## Selector-balance probe on public root index 0 — 7 October 2026
+
+The planned source-level selector check compared public root index 0 / ordinal
+0 on corrected source `ac6d85ee`, first with the checked-in selector and then
+with a temporary round-robin retention policy for the existing 128-child-option
+cap. Both runs used the normal production bounds. Both ended at
+`GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` with the same
+`BUNDLE_PAIR_LIMIT`, `BUNDLE_OPTION_LIMIT`,
+`LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT`, and
+`LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT` frontier kinds. The experiment produced no
+complete plan or eligibility result and therefore does not establish that
+round-robin retention improves feasibility. Keep the checked-in ranking,
+limits and proofs unchanged; do not repeat this selector variant or root as a
+release experiment.
+
+The public test root was not private candidate entropy. The temporary WSL
+overlay and probe were removed, and the generator source hash returned to
+`2540f8403385caee47221bedfca7aa5bace8973fd8940e86d4d6cf47080c6464`. No
+private candidate, package, selection, atlas or production state was created.
+
 ## Exact-source candidate batch after the Lowlands fallback repair — 7 October 2026
 
 One fresh-seed `generate-candidates --count 1 --maximum-attempts 256` run
