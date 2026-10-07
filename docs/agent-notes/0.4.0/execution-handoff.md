@@ -1,6 +1,39 @@
 # Continue Warpkeep 0.4
 
-## Current release checkpoint — 7 October 2026, exact-rank correction
+## Current release path — 7 October 2026, after the search boundary
+
+Owner: Codex. Operating source remains `7ae40a6f4ba44188f7935f7dbcaf6f920f4eb36f`
+with tree `0cbb69dd6258533a84e851d0929d70a43765e8ea`; signed documentation
+checkpoint `d9d546ba74ceffe006d3f8448fb5cd04c79cc30a` is published on PR #385.
+The fixed 19:32:47 UTC search boundary has passed. No successor is running.
+The cutoff guards failed closed; corrective, identity-bound TERM stopped the
+three surviving groups. Record the deadline breach; do not claim bounded cleanup
+or infer eligibility from an exit code. Exact final results and guard evidence
+belong in the newest local-operations record. Earlier active-worker descriptions
+below are dated history, not authorization to restart them.
+
+1. Terminal authentication is complete for all six final workers: 751 committed
+   rejects (639 geography / 112 proof), no completion or accepted-pending candidate.
+   Five searches are interrupted; their encrypted partial state is preserved.
+   Do not retire it using an exhaustion-only caller. No atlas can be selected.
+2. Resolve the verified-atlas blocker through a deterministic public fixture
+   and a bounded generator correction that preserves proofs and production caps.
+   Reproduce valid unrelated PGID/SID zero in the process inventory and test
+   its narrow parser correction before another timed search. The full
+   retained replay exhausted 256 attempts (234 geography / 22 proof rejects),
+   was authenticated and maintained-retired; original 9ea material is untouched.
+   Blindly extending the same search is not the next step.
+3. Once a genuine winner passes package/comparison/runtime checks, import and
+   read back its exact atlas, then provision the actual owner. The compatible
+   PTR backend update and bridge v52 are complete; do not repeat them.
+4. Complete the production Cloudflare SSO session, then perform the approved
+   domain cutover using fresh DNS evidence and the existing Alpha rollback.
+5. Test the actual owner at `https://warpkeep.com/ptr/?miniApp=true`: sign in,
+   keep, gather, choose, build, benefit and return; verify Alpha root separately.
+   Until that evidence exists, 0.4 is not released. Preserve Alpha/G001,
+   sealed G002, existing licensing and the current Actions policy.
+
+## Reviewed source and earlier operating snapshots — 7 October 2026
 
 The reviewed correction on `release/0.4-living-realm-quality` / draft PR #385
 is signed, published source `7ae40a6f4ba44188f7935f7dbcaf6f920f4eb36f`, tree
@@ -44,17 +77,25 @@ authenticated attempts, 892 geography / 132 proof rejects. Slot04 passed
 maintained retirement at18:30:36.879 UTC; slots02/03/05 then passed maintained
 retirement at18:52:46.011 /18:52:57.303 /18:53:04.423 UTC. Slot01 replacement04 closed
 at18:44:50.958 UTC with 256 authenticated rejects (232 geography / 24 proof);
-its retirement requires a separately reviewed caller. Never reopen retired state.
+it passed separately reviewed maintained retirement at19:00:51.912 UTC.
+Never reopen retired state.
 Slot04 replacement04 actually began18:32:12.768 UTC through reviewed launcher v9;
 its separate host guard emitted readiness18:32:22.944 UTC. The matching terminal
 reader passed root byte review. Comparison/runtime v7 describes the previous
 five bindings and cannot authorize this successor. Resolve exact current
 births, safe digests and agent-owned exec handles from local operations.
 Root owns comparison/selection/runtime; live metadata does not authorize private
-checkpoint reads. Slot06 capacity now runs a separately reviewed
+checkpoint reads. Slot06 capacity then ran a separately reviewed
 current-source retained-entropy replay: initializer closed0 with genuine
 receipt2e87; full generation began18:21:28.521 UTC in root-owned exec30095,
-singleton CPU7. Its separate root-owned host watchdog exec15771 emitted
+singleton CPU7. It genuinely closed1 at19:08:50.109 UTC:
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Preflight/readiness passed, generate
+returned no usable candidate; verification/comparison/aggregate did not run.
+Root observed the whole replay group and all recorded children absent twice;
+source/index/refs held. Its separately authenticated exhaustion and maintained
+retirement are complete in the latest local-operations record;
+never invoke the prepared success/runtime callers on this failed replay.
+Its separate root-owned host watchdog exec15771 emitted
 genuine readiness18:22:54.382 UTC. Source7ae / generator.26 / namespace.3 and
 all maintained gates remain unchanged; no old package claim was copied and no
 retired batch was resumed. Use local operations for exact pins, actual

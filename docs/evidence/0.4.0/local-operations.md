@@ -3,6 +3,234 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Search boundary and authenticated final state — 7 October 2026, 19:38 UTC
+
+### Reproduced cutoff correction — 19:46 UTC
+
+Independent diagnosis and root byte review confirmed two separate causes.
+Generic v1 `proc()` rejected valid unrelated PGID/SID zero before filtering
+the owned group; actual PID2/8 made every group scope ambiguous. The retained
+guard instead found its already-retired group absent, but classified on-time
+host TERM35.516 as late using native UTC36.218. Its host timing flags were
+false; native clock later shifted backwards. Preserve both actual failures.
+
+Separate ignored QA `october-release-7ae-single-slot-host-cutoff-native-v2.mjs`,
+SHA-256 `c3282a985d6a2bab6a6a8b6d99dfe62edd40ddb1db94da88d6ed5d6d51d863c1`,
+changes only SELF leaf, inventory numeric validation and TERM classification
+using validated hostMs. Root reviewed the full diff and actual hash. Inventory
+accepts PID>0 with unrelated PPID/PGID/SID>=0; matched owned members still need
+exact UID/session/birth/recorded membership. Missing ACK never establishes
+grace, KILL still needs prior TERM, and final absence checks are unchanged.
+
+Public fixture `october-release-7ae-cutoff-public-fixtures-v1.mjs`, SHA-256
+`0a729e5f4d92ae1d18469ee74885c10ac16dcf4e433e094b7cf524c79954beb7`,
+runs extracted actual old/new functions with mocked process inventory/signals.
+All9 tests passed at19:46:45.433 UTC; root independently reran and passed9/9.
+Original ambiguity reproduces, corrected inventory resolves owned/absent
+groups, malformed or mismatched identities fail closed, prior TERM and actual
+ACK+10-second grace remain strict, and shifted native-clock TERM classification
+reproduces. Syntax passed. Actual fixture receipt SHA-256
+`10c8f6e2c929fa7670418b4f05cda5e49162b34d86acde584d660782a29dd809`.
+No operator entrypoint, real process signal, checkpoint or provider was invoked.
+
+This corrected helper is prepared in Windows QA only, unarmed. Existing
+watch-v1 still selects native-v1. Future use requires a matching watcher and
+actual source/start/boundary binding reviewed before staging and readiness.
+Original helpers and failed receipts are unchanged. Native final STOP/reap
+clock checks remain unchanged; these fixtures do not prove a complete timer
+redesign or a successful future cutoff. No new search deadline was granted.
+
+Final same-source parallel aggregate
+`october-release-7ae-public-pool-throughput-final-v1.json`, SHA-256
+`bbe6c7886cb07515ee447124081ec5d16110d34660a0d6d6898efa4b004b0f15`,
+covers29 unique authenticated 7ae/.26 batches:24 exhausted and5 interrupted,
+6,639 committed rejects=5,758 geography+881 proof, zero candidates or accepted
+pending. Root independently matched every input report's hash, exact binding,
+authenticated counts and terminal authority, then recomputed totals and interval
+union. Scope excludes the original preparallel worker and distinct retained
+replay, recorded separately. The actual13:32:47.677–19:34:40.829 UTC span includes
+late cleanup:1,100.734 attempts per whole UTC elapsed hour;1,124.899 per union
+of observed active-search UTC intervals. Both include VM suspend. Neither is
+an exact within-six-hour count, an eligible-world rate or a release ETA.
+Pair-limit rejection3093 and regional QA failure872/881 proof survivors identify
+diagnostic pressure; overlapping proof/frontier counts must not be added as
+independent attempts or treated as proven causal defects.
+
+The next bounded public reproduction targets the real child-option truncation
+seam in `selectGreaterRealmGateApronChildBundleOptions`, used by
+`bundleOptionsFor` in `scripts/atlas/greater-realm-candidate-generator.ts`.
+Construct129 same-child star pairs(0,i), scores1–129, plus disjoint pair(1,130)
+at score1000. The maintained pair frontier retains all130 at its unchanged cap;
+the child frontier retains128 stars. A sibling occupying cell0 conflicts with
+every retained option, while the discarded disjoint pair is compatible.
+Combine the existing origin-retention and sibling-footprint fixtures in
+`tests/greaterRealmGateApronSearch.test.ts` before changing production ranking.
+This is a source-traced reproduction proposal, not an executed regression,
+actual failed-world diagnosis or proof of improved yield. Regional QA aggregates
+lack the individual metric deficits needed to establish a hydrology defect.
+
+At this no-world boundary, the available paths are a deterministic construction
+correction with unchanged proofs/caps, or a separately bounded search after
+measuring resources and validating the cutoff correction. Codex recommends
+the first path. Do not silently extend the completed boundary, increase caps
+from aggregate pressure alone, relabel an old package or claim an ETA from
+rejected-attempt throughput. Only genuine package/atlas/owner acceptance can
+advance the remaining release steps.
+
+Full safe incident/reconciliation receipt
+`october-release-7ae-host-cutoff-failure-reconciliation-v1.json`, SHA-256
+`6b6c4267406fe08d5aab64956a8140eed5fc052c4671feac20e5ccf74b64ec53`,
+preserves original failed guard receipts, exact corrective observations and
+all final terminal references. Root read it and matched the hash. At19:41:01.855
+UTC, an independent public-only root probe found all six random group leaders
+and the retained owner absent, with no member of their PGID/SID groups.
+Native source7ae/tree0cbb was clean; index SHA-25605cc1530 and common refs
+SHA-2565af86b95 matched the held source. No signals or private reads occurred.
+
+The absolute boundary was 19:32:47 UTC, unchanged by replacements or VM suspend.
+The current single-slot guards failed closed with ambiguous identity and did
+not deliver native TERM. They are not successful cutoff evidence. After exact
+startup-receipt hash, boot, birth, UID1000, PGID/SID and recorded-member
+attestation, corrective TERM was delivered only to groups1210604/1211692/1212789
+at19:34:40.320–19:34:40.331 UTC. Groups1257446/1262798 were already absent.
+After at least10 seconds of actual host-observed grace, all three signaled
+groups were absent; no corrective KILL was required. Deadline breach remains
+explicit. No successor, broad signal or provider mutation occurred.
+
+All six final generation execs genuinely closed1. Exact reviewed maintained
+terminal readers then authenticated state after whole worker-group,
+recorded-descendant and supervisor absence; finally cleared recovered seeds;
+source/index/refs/toolchain held. Root read the full safe reports and matched
+their hashes. No completion, accepted-pending candidate, success manifest,
+package verification, selection, retirement or provider write occurred.
+
+| Final slot / replacement | Actual finish UTC | Committed rejects: geography / proof | Result | Safe authenticated report SHA-256 |
+| --- | --- | --- | --- | --- |
+| 01 / 05 | 19:33:54.049 | 54: 44 / 10 | Relative timeout124; cutoff breached | `889e5b2ced810c2a1d9b7ad76ed38a154217ee42555aa6d11bda82ba049671d9` |
+| 02 / 04 | 19:34:40.812 | 148: 126 / 22 | Corrective SIGTERM; cutoff breached | `f91046542ec48bfb3e29f0a1995d88552ac46f561e0f3d4f4106dbfed44ba150` |
+| 03 / 04 | 19:34:40.824 | 133: 112 / 21 | Corrective SIGTERM; cutoff breached | `1df20faf923d35b9f38477f6758d240a97c01d1da243a5a3cd2503124413e8be` |
+| 04 / 04 | 19:22:04.438 | 256: 221 / 35 | Genuine maximum-256 exhaustion | `669c6a037954ea41bb689ca5d78d2300ea4e8b539dbc92d5452e24bec6175082` |
+| 05 / 04 | 19:34:40.829 | 128: 111 / 17 | Corrective SIGTERM; cutoff breached | `871f7707c483c4323c080686162558f75bb7f8032c24a7b806f39c83c7105868` |
+| 06 / 03 | 19:33:43.074 | 32: 25 / 7 | Relative timeout124; cutoff breached | `58948a3173a1c3d53e717b8566afc1237e1111a581b16dfe07650f8ee1341592` |
+
+Final six total751 committed rejects:639 geography /112 proof. Five interrupted
+searches total495:418/77; they are not256 exhaustions. Preserve their encrypted
+checkpoints. Counts exclude uncommitted in-flight work. Recorded UTC rates
+include VM suspend and staggered starts; native monotonic time is separate.
+The earlier pool rate is not the full-session rate or measured candidate yield.
+
+Last fresh01/06 starts were19:19:01.543 /19:21:16.776 UTC, generation exec51025 /
+10231 and guard exec72734 /20950, owned by `/root/generator_failure`. Root read
+full startup/readiness receipts and matched hashes:01 startup89949b86,
+readiness166cf0d7;06 startup0831cbc0, readiness6817b26d. Exact01/06 terminal
+reader SHA-256 pins are `ff32733b765c52e691b041eb322f93661f8e5183e19de01c25573a2f58309bca`
+and `e5feb01993c43d09da62a5721e157b08a28563893be2e871afd7fbacf9ce6034`.
+Root reviewed full narrow actual-binding diffs and matched native/Windows
+bytes, UID/GID1000, mode0600, single link and pinned esbuild syntax0 before use.
+No old reader was relabeled and no retired checkpoint was reopened.
+
+The separate retained host guard exec15771 also genuinely closed1:
+`QA_HOST_NATIVE_CLEANUP_NOT_CONFIRMED`. Its original group had already
+completed and been retired; actual TERM/KILL probes skipped the absent group,
+but native terminal counts retained deadlineBreach:true. Root read actual
+receipt SHA-256 `2416709bae14aea8b1af849cac0b97be90e1406c26e736e47cfd897b5b4fc8e6`
+and failure SHA-256 `1ef28262df4ed63b9f6f03844bf513af1383c52f91b25374391c5b0185cc98b5`.
+Host TERM19:32:35.516/ACK35.765, KILL45.812 and terminal observation45.954 are
+preserved as actual events; no successful bounded-cleanup claim is made.
+Correct the guard using deterministic fixtures before another timed search;
+retain failed originals and identity/grace/absence checks.
+
+## Retained replay authenticated exhaustion and retirement — 7 October 2026
+
+Root inspected the genuinely closed replay once with reviewed caller SHA-256
+`a302494d0c599afc6add9ff2e18c46ad6c3b6fcba990f70655be20074ff8e038`.
+Inspection exec47896 actually closed0; observed by19:20:47 UTC. Safe receipt
+SHA-256 `332c22c30378de104b1738c4faa2a882b3d957db443a1f298af3c674c8ebbc39`
+authenticates256=234 geography/22 proof rejects, null completion, no accepted
+pending candidate and true exhaustion. Pair-limit rejects131, node-limit25
+and complete-plan-limit19 identify bounded search pressure; all22 proof
+rejects include regional hydrogeomorphology QA. These aggregates identify
+diagnostic targets, not a proven causal defect or permission to weaken proofs.
+
+Root retirement exec81617 then actually closed0, observed by19:22:37 UTC.
+Safe receipt SHA-256 `b6dba97b4eb42b0e35f831586b7aae503f03a46f754def242c2c9ac8b7aa9a65`
+confirms the locked inspected checkpoint digest, null completion, exhausted256,
+maintained abort, cleared secrets, full replay-group/supervisor absence and
+source/index/refs preservation. Root read full safe native/Windows receipts
+and matched unchanged bytes. Only the fresh recovery workspace was retired;
+original encrypted9ea material was untouched. No accepted/completed state was
+retired. Never resume this recovery workspace or execute its prepared success
+callers. No provider operation occurred.
+
+## Retained replay terminal and fresh search authorities — 7 October 2026, 19:10 UTC
+
+Root-owned generation exec30095 genuinely closed1. Actual safe summary
+`october-release-private-atlas-retained-aux-7ae-recovery-generation-v2-summary.json`
+has SHA-256 `def7835eabd2ba5cac0de6ab486caa6daec4759244d6eaaab2d5b265b3c92d31`;
+finish19:08:50.109 UTC. Preflight/readiness passed0. Generate closed1 at
+19:08:48.944 UTC with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`, without timeout,
+signal, spawn error, remaining child, cleanup signal or source-hold failure.
+Generated/verified/compared/review are null; later phases did not execute.
+Source/index/refs held and the shared import journal stayed unsubmitted.
+Root read the full safe summary, matched its digest and copied unchanged bytes
+to existing Windows QA. At19:10:16.673 and19:10:16.781 UTC, direct public process
+probes found owner1129447/birth73529722 and all three recorded phase children
+absent, with whole PGID/SID group empty. No active checkpoint read occurred.
+Do not infer private attempt counts from the error string. Matching terminal
+authentication/retirement must be reviewed separately. Original encrypted
+9ea material remains preserved. No retry, runtime export or provider effect
+is authorized by this failure receipt.
+
+Slot01 replacement04 maintained retirement completed once at19:00:51.912 UTC,
+after exact exhausted256/null completion and locked digest were reauthenticated.
+Safe retirement receipt SHA-256
+`d05794434942cea544a5a23e604cfe46de6f82d1e25d135e4408bb98c8b59529`
+confirms abort/seed zeroization/full group-descendant-supervisor absence and
+source/index/refs/toolchain preservation. Root read the full safe receipt and
+matched the hash. No accepted/completed checkpoint was retired; no successor
+was claimed from retirement.
+
+Exactly one fresh replacement04 started per retired slot02/03/05 via reviewed
+launcher v11 SHA-256
+`ca79df90f3ad070484d98c34c8966eb81d858678425bb4be57680cdc83e9d2c5`.
+Each immediate guard binds its actual startup, recorded births and unchanged
+single-slot guard pair. Root read all six full safe startup/readiness receipts
+and matched their hashes. Eight CPUs and at least17.206GB observed available
+memory passed launch preflight; source/gates/caps and original cutoff held.
+
+| Slot | Actual start UTC | Generation / guard exec | PGID / birth | Startup SHA-256 | Guard ready UTC / receipt SHA-256 |
+| --- | --- | --- | --- | --- | --- |
+| 02 | 18:57:49.869 | 41780 / 18708 | 1210604 / 73728004 | `135c2dba93d0564c402fc5e55281f795c89f958bc85606b100c81a608a852b55` | 18:57:59.807 / `7fb1151fe54d71cde46c6a80d562a8e6a0747454756acd7a19ecfd15ddbe3a63` |
+| 03 | 18:58:16.459 | 7500 / 5005 | 1211692 / 73730342 | `1edf87e3dcd23da68e36523312d72f2483d91680192839c9ee28492ba856ca64` | 18:58:26.035 / `d57b2c9da974a9f9942555364408e7813e567a2e51092e6805b2ce72d50a7672` |
+| 05 | 18:58:39.800 | 96091 / 70101 | 1212789 / 73732676 | `b87da2c4526fb19ee42cb9e3c4048c86bb702ceab140f0a6a9afa9f2daf2feef` | 18:58:52.846 / `9f45db7376b9a6f8693193445b24692b8f3e82aeaadf684bba4af7c333148e31` |
+
+All execs in that table belong to `/root/generator_failure`. Slot04's current
+replacement04 binding is in the record below. Exact matching02/03/05 terminal
+pool reader v4 SHA-256
+`fba5c162d023752636c41cf09b01545306c4da833835252155384e81c0f673e6`
+passed root full narrow-diff, actual Win/native pins/modes and syntax review.
+Metadata while live reads no checkpoint; private authentication needs genuine
+terminal and full absence. Root and independent review cleared current-four
+comparison/runtime v8, respectively
+`6c5d97ad8f0180ed11e7aa2d18b1e62eba2999de2060949644ff2cb721e8dc5d` /
+`41d99bfe91e65fe6916f8a4eb6ce837c2b686e00b2b8adb6ff0e0ce3fc38b20e`.
+Only exact02/03/04/05 replacement04 rows/selector/suffix changed; maintained
+terminal/package/comparison/selection/runtime gates stayed unchanged. Root
+owns execution; preparation proves no package or release.
+
+The separate retained runtime v1 was never executed. Independent review caught
+its inspection claiming package verification before authenticating the actual
+package-to-completion binding. Separate v2 SHA-256
+`5a5962abc155d4ad5b98f4d20e97325cd1a773cc6fab5aee147f37a6cf8a95d1`
+closes that gate with the maintained package verifier and held atlas/manifest,
+ordinal/performance/rejection lineage. Root and independent byte review, actual
+Win/native pins/UID1000/0600/single-link and syntax pass. It remains unexecuted
+and cannot operate against the failed replay above. Retained-workspace atlas
+child/run/parent clones are separately prepared: exact workspace/name/pin
+changes only, unchanged originals, no guessed confirmation or import digests.
+No provider step is claimed. These prepared operations require a genuinely
+verified selected/runtime-prepared winner and actual maintained inspection.
+
 ## Latest authenticated search lifecycle — 7 October 2026, 18:50 UTC
 
 All four slots02–05 replacement03 completed their unchanged maximum-256 bounds

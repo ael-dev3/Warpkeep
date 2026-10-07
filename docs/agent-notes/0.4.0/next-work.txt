@@ -1,6 +1,31 @@
 WARPKEEP 0.4 — NEXT WORK
 CURRENT RESUMPTION - 7 OCTOBER 2026
 
+LATEST STATE - AFTER THE 19:32:47 UTC SEARCH BOUNDARY
+Codex owns the remaining release path. No successor is running. The fixed
+cutoff guards failed closed; identity-bound corrective TERM stopped the three
+surviving groups. Preserve the actual deadline breach and saved checkpoints.
+Use the latest local-operations record; all active-worker snapshots below are
+historical. Do not restart old callers or change their authority.
+
+1. All six final terminal states are authenticated: 751 committed rejects
+   (639 geography / 112 proof), no completion or accepted-pending candidate.
+   Five interrupted encrypted checkpoints are preserved; exhaustion-only abort
+   is inapplicable. There is no eligible atlas to select.
+2. Reproduce and correct the generator blocker with a deterministic public
+   fixture, preserving proofs/caps; test the process-inventory PGID/SID-zero
+   cutoff correction before a new timed search. Return options at this boundary
+   instead of silently extending it.
+   The retained replay really exhausted 256 (234 geography / 22 proof), was
+   authenticated and maintained-retired; original 9ea material is untouched.
+3. Verify/compare/select/prepare only a genuine winner, then import/read back
+   its atlas and provision the actual owner. Backend update and bridge v52 passed.
+4. Complete the existing production Cloudflare SSO login, then approved cutover
+   with fresh DNS evidence and preserved Alpha rollback.
+5. Accept the actual authenticated owner journey at
+   https://warpkeep.com/ptr/?miniApp=true and regress Alpha root. 0.4 is not live
+   until this passes. No licensing change or new product feature is required.
+
 Owner PTR remains the release target. Preserve Alpha root/G001 and its
 admission policy; keep G002 sealed. Actions remains disabled. A source push
 is synchronization, not hosted verification or deployment.
@@ -40,16 +65,23 @@ Slots02–05 replacement03 closed with no candidate: 1,024 authenticated rejecte
 attempts (892 geography / 132 proof). Slot04 passed maintained retirement at
 18:30:36.879 UTC; slots02/03/05 passed maintained retirement at18:52:46.011 /
 18:52:57.303 /18:53:04.423 UTC. Slot01 replacement04 closed18:44:50.958 UTC with 256
-authenticated rejects (232/24); its retirement needs a separately reviewed caller.
+authenticated rejects (232/24); separately reviewed maintained retirement passed
+at19:00:51.912 UTC. Never reopen retired state.
 Slot04 replacement04 actually began18:32:12.768 UTC using reviewed launcher v9,
 with separate host-guard readiness18:32:22.944 UTC. Its matching terminal reader
 passed root byte review. Comparison/runtime v7 binds the previous five and cannot
 authorize fresh successors. Use local operations for actual digests/exec ownership.
 Source7ae/tree0cbb, gates/caps and the19:32:47 UTC boundary remain unchanged.
 Root owns comparison, selection and runtime; live metadata does not authorize
-private checkpoint reads. Slot06 capacity now runs the separately reviewed current-source
+private checkpoint reads. Slot06 capacity then ran the separately reviewed current-source
 retained-entropy replay: initializer closed0 (receipt2e87); full maintained
 generation started18:21:28.521 UTC in root-owned exec30095, singleton CPU7.
+It genuinely closed1 at19:08:50.109 UTC with
+GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE. Source/index/refs held; root observed
+the whole group and recorded children absent twice. Terminal private
+authentication and maintained retirement subsequently passed, as recorded
+above and in local operations. Prepared success/runtime
+callers cannot run against this failed replay. No blind retry.
 Separate root-owned watchdog exec15771 emitted genuine readiness18:22:54.382 UTC.
 Source7ae / generator.26 / namespace.3 and all gates remain unchanged. This
 retained original is not a retired batch; old source/package claims were not
