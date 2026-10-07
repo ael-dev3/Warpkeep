@@ -1,6 +1,51 @@
 # Continue Warpkeep 0.4
 
-## Active release step — 7 October 2026, 21:03 UTC
+## Active release step — 7 October 2026, 22:33 UTC
+
+Codex owns the release. Generator .28 is signed and published at
+acad76d18ced8761aea3d64dc94c75cf6f8cc784, tree
+9e353605005e94c95e5c375e3c769f518462662a, on release branch / draft PR #385.
+GitHub verified the signature; Actions remain disabled and no run was created.
+The .27 batch authenticated 256 rejections and was maintained-aborted without
+production writes. It produced no eligible atlas or owner.
+
+The accepted immutable 9ea4821a frontend is now reachable at the custom
+domain. Its exact postflight passed all 800 files and both fallback routes at
+https://warpkeep.com; Alpha root remains live. This proves static delivery,
+not owner access. PTR still reports ACCESS UNKNOWN until server-verified
+Farcaster Mini App Quick Auth is exercised. The current Farcaster web tab shows
+Login, so authenticated owner acceptance is not established.
+
+The native checkout is now exact at .28 and clean. Native Node 22.22.3 /
+npm 10.9.8 typechecking passed, followed by all149 affected tests in four
+whole files, including the 82-test private package suite. The former Windows
+ACL failure does not reproduce on Linux.
+
+Next, in order:
+
+1. Prepare fresh .28-bound source/index/start receipts, a separate candidate
+   workspace, launcher and exact-root guard. Preserve the one-slot limit and
+   six-hour bound; no auto-restart or provider write.
+2. Start one new guarded, fresh-seed, maximum-256 batch. Never reuse .27
+   private state. Authenticate genuine process closure and terminal receipt
+   before private inspection.
+3. Only a verified winner permits package verification, separate selection,
+   atlas import/readback, and actual owner provisioning. Reuse the installed
+   backend and bridge unless a concrete failure reproduces.
+4. Retain the already deployed exact frontend and Alpha root. License bytes
+   match and .28 changes no terms. The newer legal response-header guard is
+   still unpassed; generic application/octet-stream may download text files.
+5. Test owner sign-in and the keep/gather/build/return journey inside the
+   signed-in Farcaster Mini App, then regress Alpha. Do not call 0.4 released
+   before authenticated PTR and Alpha acceptance pass.
+
+If the current Mini App host cannot be reused, the single required human step
+is to open https://warpkeep.com/ptr/?miniApp=true inside the signed-in
+Farcaster Mini App and tell Codex when the realm directory is visible. Never
+request QR codes or credentials in chat. Exact evidence is at the top of
+docs/evidence/0.4.0/local-operations.md; later dated snapshots are history.
+
+## Superseded active-step snapshot — 7 October 2026, 21:03 UTC
 
 Codex owns the release. Signed operating source `d1ab2b21` / generator `.27`
 is published and native-qualified. The real public cutoff smoke passed;

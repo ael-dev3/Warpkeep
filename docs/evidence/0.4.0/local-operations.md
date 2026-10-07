@@ -3,6 +3,108 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Native .28 synchronization and qualification — 7 October 2026, 22:33 UTC
+
+The clean native checkout /home/warpkeep/Warpkeep-0.4 is detached at signed
+source acad76d18ced8761aea3d64dc94c75cf6f8cc784, tree
+9e353605005e94c95e5c375e3c769f518462662a. Its worktree is clean. Pinned Node
+22.22.3 SHA-256 is
+e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2; npm is
+10.9.8. Native npm run typecheck exited0. The full affected Vitest closure
+passed all 149 tests across four files: 35 apron-search, 11 rejection, 21
+generator, and 82 private-package tests. Duration was 533.48s; no failure was
+reported. This native result resolves the Windows-only
+GREATER_REALM_PRIVATE_PATH_UNTRUSTED_ANCESTOR ACL failure recorded below.
+
+The prior .27 process identities and whole group are absent; its private
+workspace remains retired. Its old root guard remains idle and bound only to
+the old identities/cutoff. Do not signal it broadly or reuse its window.
+Next executable step: prepare fresh .28-bound source/index/start receipts,
+launcher and exact-root guard, then run one new fresh-seed maximum-256 search
+with no automatic restart and no provider writes. No .28 candidate result
+exists yet.
+
+## Historical operating checkpoint — 7 October 2026, 22:17 UTC
+
+### `.27` terminal and maintained retirement
+
+The single fresh `.27` batch ended without an eligible candidate. Root exec55823
+closed exit1. Actual UTC interval was21:01:11.913–21:44:13.989; the launcher
+reported monotonic elapsed2,340,034ms. These are separate clocks; do not infer
+an exact suspension interval. The fixed window was20:57–02:57 UTC, with no
+automatic restart. Terminal metadata SHA-256
+`f4f8ed312a37ad5b4fea19a4b0990b0f7afec581e58de6692b0b4394caa922e7`, log
+SHA-256 `1c33f77505a6828a9acadf7b5aae8c01e4be8dad48fb9ced3bce88e8fa02c1f1`
+(41 bytes), startup SHA-256
+`e19b7285e5e5f5f4ffd0a825911277f9bb45b753b59c7b6de6c389a55cc9fc7d`.
+All five recorded native births and their PGID/SID were absent in two root
+probes. The reviewed reader SHA-256
+`25ee42affaa59f9d315ab485fc2b40c8a2e138cea525da0b57587dd44cb5302e`
+authenticated `searching`, ordinal256, attempts256, rejections256 (geography229,
+proof27), no candidate, no private package, and production untouched. The
+maintained abort returned `checkpointAborted:true` and
+`productionUntouched:true`; this private workspace is retired and must not be
+replayed. `BUNDLE_PAIR_LIMIT` was a repeated nonexclusive frontier signal, not
+an acceptance failure or a cap to relax.
+
+### `.28` physical-pair correction
+
+Signed commit `acad76d18ced8761aea3d64dc94c75cf6f8cc784`, tree
+`9e353605005e94c95e5c375e3c769f518462662a`, advances the generator to
+`greater-realm-v2-natural-continent-pr-a.28`. It adds bounded physical-footprint
+diversity scans after the endpoint-balanced frontier overflows. Existing pair
+caps, truncation signal, acceptance proofs, admission policy and terrain seed
+namespace `.3` remain unchanged. Deterministic overflow and validation coverage
+was added. `npm run typecheck`, the whole apron/rejection suites (46/46), the
+whole generator suite (21/21), and `git diff --check` passed on Windows. The
+Windows package suite retains one environment failure at
+`GREATER_REALM_PRIVATE_PATH_UNTRUSTED_ANCESTOR` (private-parent ownership/ACL
+capability); rerun it on the pinned native Linux runner before a fresh search.
+
+Before publication, a repository-wide GitHub Actions inventory paginated all
+3,807 Warpkeep runs and read all29 additional rerun attempts: 0 active; 2,491
+success, 496 failure, 801 cancelled, 19 skipped. Actions were disabled before
+and after; push, PR, and `workflow_run` chains were inspected. Commit
+`acad76d1` is now on the release branch and draft PR #385, signature verified
+by GitHub, with zero runs for that commit. Main remains `cb282bab`.
+
+### Current custom-domain static result and owner gate
+
+The maintained Cloudflare Pages postflight used the accepted immutable plan SHA-256
+`370f84ab66f4e7bdb1f9f7026fb40a68ddf860bd6a30ce6e96fa2e7e3bf94861` and
+origin `https://warpkeep.com`. It verified all800 planned files and both
+Alpha/PTR fallback routes. The source is `9ea4821a`, public artifact
+`3634aa82`, deployment `8a469929`; its complete byte result, including
+`/ptr/index.html`, matches the reviewed plan. The root and `/ptr/` now both
+return HTTP200; this supersedes older Alpha200/PTR404 observations. A
+PowerShell-only byte read differed, while the maintained Node verifier and
+Node runtime returned the exact planned bytes; do not use that PowerShell
+read as deployment evidence. This postflight was completed during the 7 October
+release session before the fresh Actions inventory at22:16:18 UTC.
+
+The in-app browser renders build `9EA4821` and the realm directory. G001 remains
+0.3.43, G002 is sealed, and PTR `0.4.0-PTR.1` displays `ACCESS UNKNOWN` until
+Farcaster Mini App Quick Auth yields server authority. Selecting PTR returned
+the explicit no-connection notice. The current Farcaster web tab shows Login;
+an ordinary browser opened with `?miniApp=true` does not provide the required
+Mini App host context. This is not evidence of a bridge outage, owner denial,
+or successful owner authentication. Do not claim the authenticated journey.
+The exact license, CC-BY license and NOTICE bytes are present in the accepted
+800-file artifact; `.28` changes no license terms. They are currently served
+as `application/octet-stream`, so browsers may download them instead of
+rendering inline; content and fallback checks pass, but response metadata has
+not passed the newer legal-header guard.
+
+Next: synchronize exact `.28` source to the pinned native Linux checkout, rerun
+the package and full affected test closure, then start one fresh guarded
+maximum-256 search. Authenticate terminal closure before private inspection.
+Only a valid winner permits package/selection, atlas import/readback and owner
+provisioning. Then test owner sign-in and the real keep/gather/build/return
+journey inside the Farcaster Mini App and regress Alpha. To unblock that final
+test, the human action is: open the signed-in Warpkeep Mini App at
+`https://warpkeep.com/ptr/?miniApp=true` and tell Codex when the realm directory
+is visible. No QR, token, or credential should be pasted into chat.
+
 ## Cutoff qualification and fresh search — 7 October 2026, 21:03 UTC
 
 The reviewed public fixture exercised the corrected real host/native transport
