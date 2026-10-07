@@ -3,7 +3,110 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
-## Host-clock search cutoff armed — 7 October 2026
+## Four fresh searches with separate cutoff guards — 7 October 2026
+
+Exactly one fresh replacement03 started for each retired slot02–05 through
+reviewed launcher v7, SHA-256
+`4137d69cc4f048fbccadbca6883cd4f656cea48d1821f50f4779a174220e8930`.
+Each retained source `7ae40a6f` / tree `0cbb69dd`, generator `.26`, pinned Linux
+Node/toolchain, count 1 / maximum 256, an isolated fresh private namespace,
+unchanged gates and the absolute 19:32:47 UTC cutoff. Each actual startup was
+followed by its own reviewed single-slot host guard and genuine native readiness.
+
+| Slot | Actual generation start UTC | PGID/SID / birth tick | Generation exec | Guard exec / host PID | Native guard ready UTC |
+| --- | --- | --- | --- | --- | --- |
+| 02 | 17:29:54.246 | 1014173 / 73247264 | 66684 | 35317 / 49236 | 17:30:52.930 |
+| 03 | 17:32:14.069 | 1019284 / 73259781 | 38773 | 31645 / 35936 | 17:32:23.821 |
+| 04 | 17:32:34.190 | 1020222 / 73261793 | 34322 | 32701 / 42780 | 17:32:47.342 |
+| 05 | 17:33:52.416 | 1023318 / 73268989 | 14055 | 44290 / 49464 | 17:34:05.403 |
+
+These exec handles belong to `/root/generator_failure`. Root read and matched
+Windows/native safe receipt bytes; an actual process observation confirmed all
+four generation chains and Windows guards present. This is a dated observation,
+not a permanent assertion of activity. Startup receipt SHA-256 values for
+`october-release-7ae-parallelXX-replacement03-started-v1.json` are:
+
+- 02: `9321710174d6c3773d71a5a060a974e5247216bbff964597ba3caa83f9a510db`.
+- 03: `0e70bde76cbb4a0afeb05bac114ff9a9bfd13fc0ad70710a40154dc2232bc381`.
+- 04: `c293fefb66ca266d789a688938b759417c529b74fef03a3d66ed75fd859aa66c`.
+- 05: `5e41ae458a4e41a0ca69c21236190e1aede53cbc3bea123fd958889e9cf78c54`.
+
+Corresponding actual guard readiness receipts end in
+`-replacement03-host-cutoff-readiness-v1.json`:
+
+- 02: `e7d25047075418703d54fee8ceb1b5f6ec1bc74a8680ad6b292aecaf277e6dc3`.
+- 03: `d05312728a8455cd63a32df8715306e8baf7d7561de2a2da5dd816596ecc0f19`.
+- 04: `67063d7148122713a8192381ba09d46fbf73b1c4db9e852aa3095815ed9801e0`.
+- 05: `b88dbabbb61c3c2af72a35ba93c11f5f7d706f45863d31286ff89f0681de86ad`.
+
+Each binds its exact actual startup digest and reviewed launcher/helper pins;
+host UTC controls the original deadline. Readiness claims no signal, private
+checkpoint read, provider operation or successful future cleanup. Preserve the
+armed bytes. New terminal/continuation callers need these actual bindings;
+closed-pool readers and comparison/runtime v6 cannot authorize these workers.
+Slot01's next replacement is not started at this checkpoint. Slot06 capacity is
+reserved for a separately reviewed current-source retained-seed replay; no
+replay, recovered eligibility or provider result is claimed from preparation.
+
+## Closed replacement pool — 7 October 2026, 17:22 UTC
+
+All six previously recorded workers genuinely exhausted their bounds without an
+eligible atlas on frozen source `7ae40a6f` / tree `0cbb69dd`. Maintained readers
+authenticated 1,536 rejected attempts: 1,332 geography and 204 proof rejects.
+Each recovered seed was cleared in `finally`; source/index/refs/toolchain and
+provider state were preserved. No completion, verified package, selection,
+runtime export, import or owner provisioning resulted.
+
+| Slot / replacement | Actual finish UTC | Geography | Proof | Maintained retirement UTC |
+| --- | --- | ---: | ---: | --- |
+| 01 / 03 | 17:22:07.810 | 225 | 31 | Pending |
+| 02 / 02 | 17:16:37.938 | 221 | 35 | 17:28:05.833 |
+| 03 / 02 | 17:17:17.897 | 219 | 37 | 17:28:16.131 |
+| 04 / 02 | 17:08:51.599 | 226 | 30 | 17:21:02.263 |
+| 05 / 02 | 17:10:05.829 | 220 | 36 | 17:21:07.837 |
+| 06 / 02 | 17:19:34.147 | 221 | 35 | Pending |
+
+Slot06's agent-scoped exec handle was unavailable. Its outcome was established
+by the matching maintained reader, hash-bound actual terminal metadata and full
+original group/descendant/supervisor absence, rather than inferred from that
+handle error. Other terminal records retain their actual exec evidence.
+
+Root's credential-free aggregate
+`october-release-7ae-closed-pool-terminal-aggregate-v1.json`, SHA-256
+`031abcdc746f492ccfc8205b0f454c00a789cc6bef6ad9853a9df26451fff284`,
+binds all six full safe report digests. Its measured terminal-pool throughput is
+1,077.27 attempts per UTC wall-clock hour over 15:56:34.849–17:22:07.810 UTC.
+That window includes staggered starts and VM suspend; it neither estimates live
+checkpoint progress nor establishes eligible yield. UTC and native monotonic
+elapsed values remain separate.
+
+The four completed retirements revalidated exhausted state/digest and null
+completion under the maintained generation lock, then aborted and zeroized it.
+They confirm full original-process absence and source/toolchain preservation;
+no accepted checkpoint was retired. Receipt digests for
+`october-release-7ae-parallelXX-replacement02-retirement-v1.json`:
+
+- 02: `a150da9a1360e5f45201b69541f1d497bb94fdae33596509607b237ab7cf7c4a`.
+- 03: `390ba10e39b6c6d4a8d5f91703b8d93b833691f1e654414bc0a9347e0d93ec47`.
+- 04: `ae8ab35150057a174bbc88545b8bfe5837f7af983da64e1c0eeb44165a483a28`.
+- 05: `cf874d18d65a7c5d391382227d2887899fc333242c124e329a18d2a5791b31fa`.
+
+Any successor keeps the same source/gates/caps and the original 19:32:47 UTC
+stop/options boundary. Root and independent review passed the separate
+single-slot host/native cutoff pair, binding an explicitly supplied genuine
+startup receipt digest and reviewed launcher digest. Native helper SHA-256 is
+`18e025fc0c48099ed538bc4b075b721370e068cf161c7b7e63b8ea76836692e7`;
+Windows watcher SHA-256 is
+`3cd6b1a8c8764e040a1cf7b0e90e1806918e9223e0320937bd210456815c0d76`.
+The exact ASCII receipt leaf, source/tree/boot, pinned Node/toolchain, workspace,
+caps, roles and UID/group must match. Signals, grace and explicit no-ACK failure
+semantics retain the reviewed host-clock behavior below. Windows/native bytes,
+native mode 600 / UID/GID 1000 / single link, native syntax and PowerShell 7.6.4
+parsing pass. Prepared coverage alone is not actual arming or cleanup evidence.
+The original armed watcher bytes remain unchanged; its six old births must
+never be relabeled for successors.
+
+## First host-clock search cutoff armed — 7 October 2026
 
 VM suspend pauses WSL monotonic time, so relative timeouts alone cannot enforce
 the original absolute search boundary. Root and independent review checked

@@ -29,6 +29,27 @@ limit change. Full evidence is in
 
 Execute this short release path without expanding the frozen scope:
 
+The previous six-worker pool closed by 17:22:07.810 UTC with no eligible atlas:
+1,536 authenticated attempts, 1,332 geography / 204 proof rejects. Its measured
+terminal throughput was 1,077.27 attempts per UTC wall-clock hour, including
+staggered starts and VM suspend. Slots02–05 have passed maintained retirement;
+slots01/06 still require their separate retirement evidence. The reader and
+caller descriptions below retain that closed pool's exact bindings; never
+invoke them on a successor or reopen a retired private checkpoint. Successors
+require actual startup authorities and separately armed cutoff coverage; see
+the dated lifecycle record in local operations.
+
+Four fresh slot02–05 replacement03 searches now have actual startup receipts
+and separately armed single-slot host guards: starts 17:29:54.246,
+17:32:14.069, 17:32:34.190 and 17:33:52.416 UTC. They use reviewed launcher v7
+and retain every source/gate/cap and the original 19:32:47 UTC boundary.
+Resolve their exact births, start/guard digests and agent-owned exec handles
+from local operations. Matching new terminal/continuation readers must be
+reviewed before private use. Slot01's next replacement is not started; slot06
+capacity is reserved for a separately reviewed current-source retained-seed
+replay. Preparation does not establish eligibility, package verification or
+release. The following cohort and reader descriptions retain historical scope.
+
 1. Source publication and clean native synchronization are complete. Both
    five-slot parallel02–06 cohorts ended incomplete and are retired with
    maintained abort and seed zeroization: original cohort 1,280 attempts
@@ -60,7 +81,18 @@ Execute this short release path without expanding the frozen scope:
    submissions read-only; never resubmit blindly. Preserve
    rollback, licensing, Alpha/G001/admission policy and the G002 seal.
 
-For the current six workers, native terminal readers are ready in
+Before atlas inspection, bind separate copies of the staged parent-v3/run-v2/
+child-v2 callers to the genuine winner workspace and update their transitive
+filename/hash pins. Their current workspace is the original preparallel batch;
+it cannot supply a parallel winner's runtime package. Native source stays
+`7ae40a6f` / tree `0cbb69dd`: the parent accepts a later documentation-only
+release-branch descendant, so source synchronization must not break an active
+hold. Atlas inspect → import/readback → inspect-owner → provision-owner is the
+maintained order. `inspect-owner` requires an ownerless ready atlas and is a
+pre-provision check; after successful provisioning use its actual postflight
+and authenticated journey, rather than repeating that precondition.
+
+For the now-closed six-worker pool, native terminal readers were reviewed in
 `/home/warpkeep/Warpkeep-0.4/artifacts/qa/`:
 
 - `october-release-7ae-replacement-pool-terminal-reader-v2.ts`, SHA-256
@@ -109,7 +141,7 @@ package/shortlist/selection/runtime gates, never substitute the aggregate for
 those proofs. Never reuse these fixed run bindings for a different worker.
 
 Root also reviewed the prepared comparison/runtime callers in the same native QA
-directory. Current v6 binds slot01-replacement03 and slots02–06-replacement02:
+directory. Closed-pool v6 binds slot01-replacement03 and slots02–06-replacement02:
 
 - `october-release-7ae-parallel-continuation-reader-v6.ts`, SHA-256
   `a467cffbbae50311e2d5aa6d45db6171ca4b28acbd1eeef7de2ab0cebef696ca`.

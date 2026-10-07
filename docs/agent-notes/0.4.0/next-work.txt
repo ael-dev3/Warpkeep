@@ -27,6 +27,23 @@ and productionUntouched. It is retired; never resume or relabel it. Counts
 from independent seeds do not establish causation or candidate yield.
 
 NEXT — IN DEPENDENCY ORDER
+The recorded six-worker pool has now closed: 1,536 authenticated rejected
+attempts (1,332 geography / 204 proof), no eligible atlas. Its terminal-only
+pool rate was 1,077.27 attempts per UTC wall-clock hour, including staggered
+starts and VM suspend. Slots02–05 passed maintained retirement; slots01/06
+await their own retirement. Resolve actual successor starts and cutoff guards
+from the newest local-operations record. Old readers/callers bind the closed
+pool and must not be relabeled or reopened after abort.
+
+Four actual slot02–05 replacement03 searches are now running with separately
+armed, exact-startup-bound host cutoff guards. Starts: 17:29:54.246,
+17:32:14.069, 17:32:34.190, 17:33:52.416 UTC. All use reviewed launcherv7,
+source7ae/tree0cbb and unchanged gates/caps; the 19:32:47 UTC boundary remains.
+Use local operations for exact digests/exec ownership. Their matching new
+readers require review; historical readers below cannot authorize successors.
+Slot01's next replacement is not started. Slot06 capacity is reserved for a
+separately reviewed current-source retained-seed replay; it is not yet executed.
+
 1. Publication and clean native synchronization are complete. Original parallel
    slots02–06 all ended incomplete: 1,280 authenticated attempts, 1,123 geography
    and 157 proof rejects, no candidate. Each is retired with maintained abort
@@ -35,8 +52,8 @@ NEXT — IN DEPENDENCY ORDER
    exhausted: 1,280 authenticated attempts, 1,094 geography / 186 proof rejects,
    no candidate. Each is retired before its fresh successor. Slot01-replacement02
    later exhausted 256 (225/31), was authenticated and retired at 16:15:10.826 UTC.
-   Its replacement03 began 16:15:37.462 UTC; the other five use replacement02.
-   All current maximum-256 workers retain the same source/gates and absolute
+   Its replacement03 began 16:15:37.462 UTC; the other five then used replacement02.
+   Those now-closed maximum-256 workers retained the same source/gates and absolute
    cutoff. Full timestamps,
    source-bound start/retirement pins and current readers are in the handoff.
    The original batch exhausted 256 attempts (225 geography / 31 proof rejects)
@@ -66,6 +83,11 @@ NEXT — IN DEPENDENCY ORDER
    inspection `ad787790` plus current update inspection `4a78bc2b`. Verify the
    authenticated owner journey and Alpha preservation before claiming release.
    Preserve rollback/licensing.
+   Bind all three staged atlas callers to the actual verified winner workspace
+   and derive their transitive pins first. The source remains native7ae/tree0cbb;
+   later documentation-only release-branch ancestry is accepted. Inspect-owner
+   is the ownerless pre-provision check; use actual provisioning postflight and
+   authenticated play after success, not a repeat of that precondition.
 
 LIVE BASELINE — 7 OCTOBER 2026
 
