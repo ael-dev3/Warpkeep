@@ -2,6 +2,37 @@
 
 Dated local and authenticated inventory. **Not deployment evidence.**
 
+## Exact-rank search-budget correction — 7 October 2026
+
+Review of signed source `867b3abe23a676b691690cce1a41d90cb47bc97f`
+reproduced a bounded-search false negative: the diagonal search charged nodes
+for option prefixes whose remaining groups could not supply the residual exact
+rank. A single three-option group exhausted its node budget before considering
+the accepted third option. The actual sibling-footprint adapter reproduced the
+same failure. Both regression tests failed before the correction.
+
+The correction bounds the chosen option index using the remaining groups'
+maximum rank sum and rejects mathematically impossible residual ranks. It
+retains MRV group selection, every feasible complete plan's established order,
+all production node/plan/frontier caps, footprint checks, ownership, terrain
+seed namespace and downstream eligibility proofs. Independent review found no
+blocking issue. An exhaustive small-group regression asserts the same six
+feasible complete plans in the same order.
+
+After the correction, Windows apron tests passed 24/24. Pinned native Linux
+Node `22.22.3`, running as UID 1000, passed build-mode typechecking and all
+60 tests in the apron (24), rejection (11), candidate-generator (21) and
+owner-connectivity (4) suites. Existing pinned candidate digests passed.
+`git diff --check` passed. These are local source checks; they do not establish
+a production candidate, backend update or authenticated owner acceptance.
+
+Publish this code, tests and canonical handoff as one signed checkpoint, resolve
+its exact remote head, then run one fresh source-bound private batch under the
+unchanged 256-attempt bound. The previous `ac6d85ee` batch below remains retired.
+Current-source PTR inspection and nonbreaking update preparation can proceed
+independently; atlas import and owner provisioning still require an eligible
+sealed atlas.
+
 ## Exact-source candidate batch after connected-lobe correction — 7 October 2026
 
 One fresh-seed `generate-candidates --count 1 --maximum-attempts 256` run on

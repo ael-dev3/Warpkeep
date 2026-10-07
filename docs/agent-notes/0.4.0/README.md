@@ -29,49 +29,44 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state — 7 October 2026
 
-The synchronized signed release-branch source is
-`e2488c735971a34283810ea6a063e211f1e552de` on
-[`release/0.4-living-realm-quality`](https://github.com/ael-dev3/Warpkeep/tree/release/0.4-living-realm-quality);
-draft PR [#385](https://github.com/ael-dev3/Warpkeep/pull/385) is open at this
-same head. The correction keeps the best compatible own-terrain sibling pair
-and one permitted non-Lowlands donor pair inside the existing two-pair cap.
-Its deterministic regression, Windows typecheck and focused tests passed;
-pinned Linux typecheck and apron/rejection/generator suites passed 53/53.
+The release branch and draft PR [#385](https://github.com/ael-dev3/Warpkeep/pull/385)
+now contain an exact-rank search-budget correction. Resolve their signed Git
+head before source-bound work. The previous published checkpoint was
+`867b3abe23a676b691690cce1a41d90cb47bc97f`; the new code skips option prefixes
+whose remaining groups cannot supply the required rank. Two regressions
+reproduced the old node-limit failure. The correction preserves feasible plan
+order, MRV selection, production caps, geometry, ownership and eligibility
+proofs. Windows apron tests passed 24/24; pinned Linux Node `22.22.3` passed
+build-mode typechecking and all 60 focused apron/rejection/generator/connectivity
+tests. Independent review found no blocking issue.
 
-A fresh-seed batch on this exact source, pinned Linux Node `22.22.3`, and all
-11 locked toolchain packages exhausted the maintained 256-attempt bound with
-`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`: 222 geography and 34 proof
-rejections. Bundle-pair limit was the terminal geography code in 123 attempts;
-search-node, complete-plan and bundle-option limits appeared in 26, 11 and 5.
-These counts are one independent sample, not a causal comparison with the
-previous `3c1456cf` run. The authenticated reader zeroized the recovered seed;
-the maintained abort returned `checkpointAborted: true` and
-`productionUntouched: true`, and selection readiness passed. No candidate,
-package, shortlist, selection, atlas publication, provider request, or
-production mutation resulted. The exhausted checkpoint is retired and must
-not be replayed. Full sanitized counts are in
+The last completed fresh private batch, on code source `ac6d85ee`, exhausted
+256 attempts with 224 geography and 32 proof-rejection attempts. Its authenticated
+reader zeroized the recovered seed; the maintained abort confirmed
+`checkpointAborted: true` and `productionUntouched: true`. No candidate,
+package, selection, atlas or production mutation resulted. The retired batch
+must not be replayed. Full sanitized evidence and the new correction are in
 [local operations](../../evidence/0.4.0/local-operations.md).
 
-Next, trace the remaining bounded search rejections and proof failures with a
-deterministic local fixture. Fix only a reproduced omission while preserving
-all caps, geometry, ownership, and proofs; do not widen limits or spend another
-private seed without that evidence. Then publish the signed correction and run
-one fresh source-bound batch.
+Next, publish and synchronize the exact signed correction, then run one fresh
+source-bound private batch under the existing bound. In parallel, inspect the
+isolated PTR against this source and prepare its nonbreaking backend update if
+required. Atlas readiness does not block update preparation; atlas import and
+owner provisioning still require a verified eligible candidate. Preserve all
+source, proof, preservation, rollback and acceptance gates.
 
-Actions remains disabled by the current repository policy, so local checks and
-Git publication are not hosted verification, deployment, or release
-acceptance. The frontend implementation and visual acceptance are already
-staged and frozen; retain their evidence and recheck the exact artifact at
-cutover. The owner PTR journey, final bridge/artifact readback, custom-domain
-cutover, authenticated owner acceptance, and Alpha preservation checks remain
-open. The owner PTR is not yet a released 0.4 build; the live Alpha and G001
-must remain intact.
+GitHub Actions remains disabled. Source synchronization and local checks are
+not deployment evidence. The staged frontend and visual acceptance remain
+frozen. Final bridge/artifact readback, custom-domain cutover, authenticated
+owner journey and Alpha preservation acceptance remain open. The last live
+readback found Alpha HTTP 200, custom-domain `/ptr/` HTTP 404 and Pages preview
+`/ptr/` HTTP 200. Owner PTR is not yet a released 0.4 build. Preserve G001 and
+its admission policy; keep G002 sealed.
 
-The 7 October read-only Tervain review is recorded in the
+The 7 October Tervain review is in the
 [repository ecosystem guide](../../engineering/repository-ecosystem.md#current-tervain-source-review-7-october-2026).
-It found no Tervain-specific media that should be copied into this mobile
-strategy release; useful environment composition and loading practices are
-noted there, with Tervain's separate art, audio, model and code terms preserved.
+It found no Tervain-specific media suited for copying into this release; useful
+composition/loading practices and separate licensing boundaries are recorded.
 
 ## Previous working state — 6 October 2026
 

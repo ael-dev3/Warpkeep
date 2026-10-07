@@ -2,71 +2,55 @@ WARPKEEP 0.4 — NEXT WORK
 CURRENT RESUMPTION - 7 OCTOBER 2026
 
 Owner PTR remains the release target. Preserve Alpha root/G001 and its
-admission policy; keep G002 sealed. Follow the current owner instructions and
-retain the maintained source-binding, proof,
-preservation, rollback and acceptance gates. GitHub Actions remains disabled;
-a push is source synchronization, not hosted verification or deployment.
+admission policy; keep G002 sealed. Actions remains disabled. A source push
+is synchronization, not hosted verification or deployment.
 
-CURRENT SIGNED SOURCE — `e2488c735971a34283810ea6a063e211f1e552de`
+CURRENT CORRECTION
 
-The synchronized head of `release/0.4-living-realm-quality` and open draft PR
-#385 is this signed commit. It fixes a deterministic bounded-search omission:
-an own-terrain sibling pair can conflict with another parent's selected
-footprints while all borrowed alternatives had been discarded. The correction
-retains the best own pair and one compatible non-Lowlands donor pair under the
-unchanged two-pair cap. Geometry, ownership, proofs and every other search cap
-are unchanged. Its regression and typecheck pass; the focused pinned-Linux
-apron/rejection/generator suites pass 53/53.
+Resolve the signed head of `release/0.4-living-realm-quality` / draft PR #385
+before source-bound operations. The exact-rank budget correction follows
+published source `867b3abe23a676b691690cce1a41d90cb47bc97f`. It prunes only
+option prefixes whose remaining groups cannot supply the residual exact rank.
+Two new regressions fail on the old helper and pass after the fix. Feasible
+plan order, MRV choice, ownership, proofs, geometry, terrain-seed namespace and
+all production caps are preserved. Windows apron tests pass 24/24; pinned
+Linux Node `22.22.3` typecheck and four focused suites pass 60/60. Independent
+review found no blocker. See `docs/evidence/0.4.0/local-operations.md`.
 
-CURRENT EXACT-SOURCE BATCH — `e2488c73`
+LAST COMPLETED PRIVATE BATCH — `ac6d85ee`
 
-One fresh-seed search on exact signed source `e2488c735971a34283810ea6a063e211f1e552de`,
-generator `.26`, pinned Linux Node `22.22.3`, `linux-x64`, and all 11 locked
-toolchain packages exhausted 256 attempts in about 42 minutes 45 seconds with
-`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated reader confirmed
-source/toolchain/attempt binding, phase `searching`, sequence and next ordinal
-256, with 222 geography rejections and 34 proof-rejection attempts. Full safe
-counts are in `docs/evidence/0.4.0/local-operations.md`; no seed, coordinates,
-candidate handle or candidate bytes were emitted.
+The last fresh maximum-256 batch ended incomplete: 224 geography and 32 proof
+rejections, no candidate/package/selection/atlas/provider mutation. The
+maintained reader zeroized its seed, and abort confirmed checkpointAborted
+and productionUntouched. It is retired; never resume or relabel it. Counts
+from independent seeds do not establish causation or candidate yield.
 
-The maintained abort returned `checkpointAborted: true` and
-`productionUntouched: true`; the maintained selection-readiness check passed.
-No candidate, package, shortlist, selection, atlas publication, provider
-request or production mutation resulted. This exhausted checkpoint is retired;
-never resume or relabel it. This is an independent sample, not a paired test
-with source `3c1456cf`, so do not attribute count changes to the correction.
+NEXT — IN DEPENDENCY ORDER
+1. Publish the signed/scanned correction, verify remote equality and synchronize
+   the idle native checkout. Run one fresh source-bound maximum-256 private
+   batch; keep its operating source pinned until it finishes. If incomplete,
+   use the maintained authenticated aggregate reader, zeroization and abort.
+2. While generation runs, inspect the isolated PTR against this same source.
+   Prepare its schema-preserving backend update if installed code is stale.
+   This preparation does not require a ready atlas. Reuse existing credential
+   ingress; do not replay bootstrap or uncertain submitted operations.
+3. If eligible, verify the exact private package, shortlist and inspection,
+   then select and prepare runtime exports through the maintained gates. Apply
+   the reviewed compatible PTR update before current-source atlas import.
+4. Complete atlas import/readback, actual-owner provisioning, bridge/frontend
+   readback and custom-domain cutover. Verify the authenticated owner journey
+   and Alpha preservation before claiming release. Preserve rollback/licensing.
 
 LIVE BASELINE — 7 OCTOBER 2026
 
-Read-only HTTP checks returned 200 for `https://warpkeep.com/`, 404 for
-`https://warpkeep.com/ptr/`, and 200 for `https://warpkeep.pages.dev/ptr/`.
-Thus Alpha remains available, but custom-domain PTR cutover and authenticated
-owner acceptance remain release gates. Only draft PR #385 is open. The source
-push created no Actions run; the current repository-wide Actions policy stays
-disabled.
+Alpha `https://warpkeep.com/` returned 200; custom-domain `/ptr/` returned 404;
+Pages preview `/ptr/` returned 200. Frontend implementation and visual evidence
+remain staged and frozen. Final live acceptance is open.
 
-NEXT
-1. Trace the remaining bounded search pruning and proof failures locally.
-   Build a deterministic counterexample before changing source. Preserve the
-   geometry, ownership, proofs, terrain-seed namespace, and every search cap.
-   Do not widen limits or spend another private seed without a demonstrated
-   fix and focused checks.
-2. Sign and publish one coherent correction, synchronize the pinned Linux
-   checkout to that exact clean source, then run one fresh maximum-256 private
-   batch. Use the maintained aggregate reader, seed-zeroization and abort path
-   if it exhausts.
-3. If a candidate passes, verify its exact private package, shortlist and
-   inspection before selection through the maintained owner-authorization
-   gate. Then prepare the source-bound atlas.
-4. Continue the maintained isolated PTR update, owner provisioning,
-   bridge/frontend readback, custom-domain cutover, and authenticated owner PTR
-   plus Alpha acceptance in dependency order. Reconcile an uncertain submitted
-   import read-only; never resubmit it. Preserve rollback, licensing, Alpha,
-   G001 and G002.
-
-Keep work in the existing checkout/repository and owner-only Linux private
-roots. Do not create Desktop files, recovery credentials, or unrelated feature
-scope. Ask only if an unavoidable access gate requires the owner.
+Keep durable work in this repository and private operations in existing
+owner-only roots. Do not create Desktop files or new recovery credentials.
+Ask only for an unavoidable human access action; current owner instructions
+remain authoritative.
 
 PREVIOUS RESUMPTION - 6 OCTOBER 2026 (SUPERSEDED)
 

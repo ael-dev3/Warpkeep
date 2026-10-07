@@ -1,63 +1,52 @@
 # Continue Warpkeep 0.4
 
-## Current release checkpoint — 7 October 2026, corrected-source batch
+## Current release checkpoint — 7 October 2026, exact-rank correction
 
-Draft PR #385 against `main` is open on
-`release/0.4-living-realm-quality`. Its latest signed code checkpoint is
-`ac6d85ee8f10ab0515b7111f02d228b9d5cbbd00`, which includes exact donor
-connectivity and a bounded connected-lobe transfer without changing search
-bounds or candidate eligibility proofs. Pinned Linux Node `22.22.3` typecheck
-and the focused suites passed 57/57 before publication.
+The reviewed correction on `release/0.4-living-realm-quality` / draft PR #385
+follows signed checkpoint `867b3abe23a676b691690cce1a41d90cb47bc97f`.
+Resolve the exact synchronized signed head before source-bound operations.
+The ranked sibling search previously spent nodes on prefixes whose remaining
+groups could not supply the residual exact rank. Two deterministic tests
+reproduced the failure, including the production footprint adapter. The fix
+prunes those impossible branches while preserving every feasible complete
+plan's order, MRV selection, production caps, geometry, ownership, seed
+namespace and eligibility proofs. Independent review found no blocker.
+Windows apron tests passed 24/24; pinned Linux Node `22.22.3` build-mode
+typecheck and four focused generator suites passed 60/60. Existing candidate
+digests passed. This is source evidence, not a production candidate.
 
-One fresh-seed batch bound to this exact source used the existing maximum of
-256 attempts and ended `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE` after about
-34 minutes. It recorded 224 geography and 32 proof-rejection attempts, with no
-completion receipt, candidate, package, shortlist, selection, atlas, provider
-request or production mutation. The authenticated aggregate reader zeroized
-the seed; the maintained abort returned `checkpointAborted: true` and
-`productionUntouched: true`. Exact codes and toolchain identity are in
-[local operations](../../evidence/0.4.0/local-operations.md). This is not an
-eligible candidate or deployment. Do not replay it or start another same-source
-batch based on rejection counts alone.
+The last completed fresh private batch, bound to code source `ac6d85ee`,
+exhausted 256 attempts with 224 geography and 32 proof rejections. It created
+no candidate, package, selection, atlas or production mutation. Authenticated
+aggregate reading zeroized its seed and maintained abort confirmed
+`checkpointAborted: true` / `productionUntouched: true`. Never replay this
+retired batch. The previous temporary selector-balance and widened-bound
+experiments were inconclusive and were removed; they justify no ranking or
+limit change. Full evidence is in
+[local operations](../../evidence/0.4.0/local-operations.md).
 
-The earlier fixed public rejection fixture remains ineligible: its traced
-internal apron match failed the later `PRIMARY_COMPONENT_UNDERSIZED` proof, and
-the corrected allocator still leaves that root below its required Lowlands
-floor. On a separate 16-root public test sample, 3 reached proof checks and
-none was eligible; 13 stopped in geography, including 6 bundle-pair and 2
-search-node terminals. A temporary diagnostic on one pair-truncated root at
-100x node/plan and 4x frontier bounds still stopped at the node limit with
-other option frontiers truncated. This small public sample is not a yield
-estimate, and its diagnostic does not prove a valid plan is hidden. Keep
-production limits, ranking and proofs fixed.
+Execute this short release path without expanding the frozen scope:
 
-A focused selector-balance experiment is now complete. On public root index 0 /
-ordinal 0, a temporary round-robin policy for the existing 128-child-option cap
-ended at the same search-node limit with the same bundle-pair, bundle-option,
-Lowlands-repair option and Lowlands-repair pair truncations as the checked-in
-selector. It found no complete plan and is not evidence for changing ranking.
-The WSL overlay was removed and the generator byte hash restored. Do not repeat
-this variant, root or widened-bound probes; do not start another private batch
-without a different, reproducible selector defect tied to a downstream-valid
-plan under the existing production contract.
+1. Publish this signed/scanned checkpoint, verify remote equality and synchronize
+   the idle native checkout. Run one fresh source-bound private maximum-256
+   batch. Preserve its actual process handle and frozen operating source.
+2. In parallel, inspect the isolated PTR against the same source and prepare
+   any necessary nonbreaking backend update. Current-source implementation
+   compatibility gates atlas import; atlas readiness itself does not block
+   update preparation. Use existing credential ingress and maintained operators.
+3. If generation succeeds, verify the exact private package, shortlist and
+   inspection, select through maintained authorization, and prepare runtime.
+   Apply the reviewed compatible PTR update before importing this atlas.
+4. Import/read back atlas, provision the actual owner, verify bridge/frontend,
+   complete custom-domain cutover and authenticated owner plus Alpha acceptance.
+   Reconcile uncertain submissions read-only; never resubmit blindly. Preserve
+   rollback, licensing, Alpha/G001/admission policy and the G002 seal.
 
-The last read-only live check on 7 October returned HTTP 200 for the Alpha root,
-404 for custom-domain `/ptr/`, and 200 for the Pages preview `/ptr/`. Alpha
-remains available; authenticated owner PTR is not live on the custom domain.
-GitHub Actions remains disabled. No additional open PRs are waiting for
-integration. The previously accepted frontend implementation and visual
-acceptance remain frozen.
-
-Next executable work: continue only from a different reproducible case that
-can establish a concrete selector gap and a complete downstream-valid plan
-under existing bounds. If source inspection yields no such case, keep the
-candidate gate closed; do not make speculative ranking changes or repeat a
-private batch. Once a fresh eligible candidate exists,
-verify its private package, shortlist and inspection before selection; then
-continue the source-bound atlas, isolated PTR update, owner/bridge/frontend,
-custom-domain cutover, and authenticated owner plus Alpha acceptance in
-dependency order. Preserve rollback and Alpha/G001/G002. Source publication
-and local tests are not hosted verification or deployment.
+Last read-only live checks: Alpha HTTP 200, custom-domain `/ptr/` HTTP 404,
+Pages preview `/ptr/` HTTP 200. No additional open PRs awaited integration.
+GitHub Actions remains disabled; local tests and Git publication are not hosted
+verification or deployment. The staged frontend and visual acceptance remain
+frozen unless a reproducible blocker appears. Full 0.4 release remains open.
 
 ## Prior release checkpoint — 7 October 2026 (superseded by `ac6d85ee`)
 

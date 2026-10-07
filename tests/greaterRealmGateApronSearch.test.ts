@@ -421,6 +421,73 @@ describe('Greater Realm ranked gate-apron search', () => {
     expect(exactNodeBoundaryWithEmptyTail).toEqual({ outcome: 'no-match' });
   });
 
+  it('reaches a later ranked option without charging impossible suffix ranks', () => {
+    const choices = Object.freeze([
+      option('first', [1], [11]),
+      option('second', [2], [12]),
+      option('third', [3], [13]),
+    ]);
+    const visited: string[] = [];
+    const result = searchGreaterRealmRankedSiblingAlternatives(
+      Object.freeze(['only']),
+      () => Object.freeze([choices]),
+      (_alternative, selected) => {
+        visited.push(selected[0]!.id);
+        return selected[0] === choices[2];
+      },
+      Object.freeze({ maximumSearchNodes: 3, maximumCompletePlans: 3 }),
+    );
+    expect(result).toEqual({
+      outcome: 'match', alternative: 'only', options: [choices[2]],
+    });
+    expect(visited).toEqual(['first', 'second', 'third']);
+  });
+
+  it('prunes impossible residual ranks through the real sibling-footprint adapter', () => {
+    const choices = Object.freeze([
+      descriptor('first', option('first-footprint', [1], [11])),
+      descriptor('second', option('second-footprint', [2], [12])),
+      descriptor('third', option('third-footprint', [3], [13])),
+    ]);
+    const sibling = descriptor('sibling', option('sibling-footprint', [4], [14]));
+    const result = searchGreaterRealmRankedSiblingAlternatives(
+      Object.freeze(['only']),
+      () => Object.freeze([choices, Object.freeze([sibling])]),
+      (_alternative, selected) => selected[0] === choices[2],
+      Object.freeze({ maximumSearchNodes: 6, maximumCompletePlans: 3 }),
+      value => value.footprints,
+    );
+    expect(result).toEqual({
+      outcome: 'match', alternative: 'only', options: [choices[2], sibling],
+    });
+  });
+
+  it('preserves every feasible plan and its established diagonal traversal order', () => {
+    const first = Object.freeze([
+      option('a0', [1], [11]),
+      option('a1', [2], [12]),
+      option('a2', [3], [13]),
+    ]);
+    const second = Object.freeze([
+      option('b0', [4], [14]),
+      option('b1', [5], [15]),
+    ]);
+    const visited: string[] = [];
+    const result = searchGreaterRealmRankedSiblingAlternatives(
+      Object.freeze(['only']),
+      () => Object.freeze([first, second]),
+      (_alternative, selected) => {
+        visited.push(selected.map(value => value.id).join('+'));
+        return false;
+      },
+      Object.freeze({ maximumSearchNodes: 99, maximumCompletePlans: 99 }),
+    );
+    expect(result).toEqual({ outcome: 'no-match' });
+    expect(visited).toEqual([
+      'a0+b0', 'a0+b1', 'a1+b0', 'a2+b0', 'a1+b1', 'a2+b1',
+    ]);
+  });
+
   it('searches sibling descriptors through their existing bundle footprints', () => {
     const overlapping = descriptor(
       'overlapping',

@@ -651,6 +651,14 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
           result = Object.freeze({ outcome: 'match', alternative, options });
           return true;
         }
+        // A rank diagonal requires an exact sum of option indexes. Branches
+        // beyond the remaining groups' total rank capacity cannot reach a
+        // complete plan and must not consume the bounded search-node budget.
+        const maximumRemainingRank = remainingGroups.reduce(
+          (sum, groupIndex) => sum + groups[groupIndex]!.length - 1,
+          0,
+        );
+        if (remainingRank > maximumRemainingRank) return false;
         // Re-rank the remaining groups against the footprints already chosen.
         // A static smallest-group order misses conflicts introduced by earlier
         // choices and can spend the bounded node budget exploring dead ends.
@@ -686,9 +694,17 @@ export function searchGreaterRealmRankedSiblingAlternatives<Alternative, Option>
         }
         if (selectedGroupOptionCount === 0) return false;
         const options = groups[selectedGroup]!;
+        // Keep the established MRV calculation and feasible-plan order. Only
+        // skip choices whose suffix cannot supply the residual exact rank.
+        const minimumOptionIndex = Math.max(
+          0,
+          remainingRank - (maximumRemainingRank - (options.length - 1)),
+        );
         const maximumOptionIndex = Math.min(remainingRank, options.length - 1);
         const nextGroups = remainingGroups.filter(groupIndex => groupIndex !== selectedGroup);
-        for (let optionIndex = 0; optionIndex <= maximumOptionIndex; optionIndex += 1) {
+        for (let optionIndex = minimumOptionIndex;
+          optionIndex <= maximumOptionIndex;
+          optionIndex += 1) {
           if (searchNodes >= limits.maximumSearchNodes) {
             searchNodeLimitReached = true;
             return false;
