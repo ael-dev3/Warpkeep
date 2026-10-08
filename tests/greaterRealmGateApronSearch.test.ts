@@ -76,7 +76,7 @@ describe('Greater Realm ranked gate-apron search', () => {
   });
 
   it('retains a physically novel pair beyond the endpoint-only overflow frontier', () => {
-    const edgeCount = 182;
+    const edgeCount = 257;
     const pairs = Object.freeze(Array.from({ length: edgeCount - 1 }, (_, firstIndex) => (
       Array.from({ length: edgeCount - firstIndex - 1 }, (_, offset) => Object.freeze({
         firstIndex,
@@ -85,7 +85,7 @@ describe('Greater Realm ranked gate-apron search', () => {
       }))
     )).flat());
     const endpointOnly = selectBalancedGreaterRealmGateApronPairs(pairs);
-    expect(pairs).toHaveLength(16_471);
+    expect(pairs).toHaveLength(32_896);
     expect(endpointOnly).toHaveLength(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS);
 
     const commonFootprint = (_pair: typeof pairs[number], visitCell: (tier: 'tier-one' | 'tier-two', cell: number) => void) => {
@@ -1026,7 +1026,7 @@ describe('Greater Realm ranked gate-apron search', () => {
 
   it('widens bounded gate-apron frontiers after repeated truncation', () => {
     expect(GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES).toBe(1024);
-    expect(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS).toBe(16_384);
+    expect(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS).toBe(32_768);
   });
 
   it('keeps the Lowlands repair frontier within the complete-plan budget', () => {

@@ -557,7 +557,7 @@ describe('Greater Realm private candidate generator', () => {
     expect(rejectedFixtureEvidence.code).toBe(
       'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT',
     );
-    expect(rejectedFixtureEvidence.frontierTruncationKinds).toContain('BUNDLE_PAIR_LIMIT');
+    expect(rejectedFixtureEvidence.frontierTruncationKinds).toContain('BUNDLE_OPTION_LIMIT');
     expect(rejectedFixtureEvidence.searchLanes).toEqual(['ordinary', 'lowlands-repair']);
     expect(rejectedFixtureEvidence.retiredLargeAuthorityCount).toBeGreaterThan(0);
     expect(rejectedFixtureEvidence.allRetiredAuthoritiesCleared).toBe(true);

@@ -119,7 +119,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.29' as const;
+  'greater-realm-v2-natural-continent-pr-a.30' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -205,7 +205,7 @@ export const GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT = 2 as c
 export const GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES = 1024 as const;
 // Preserve a wider, still-bounded pair frontier before child options are merged
 // and reduced to their separate per-child cap.
-export const GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS = 16_384 as const;
+export const GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS = 32_768 as const;
 // Bound the per-child cross-product independently of the raw pair frontier.
 export const GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS = 128 as const;
 
