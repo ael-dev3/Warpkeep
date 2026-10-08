@@ -8135,3 +8135,67 @@ inventory finished 07:25:23.130471 UTC; four repositories disabled, no active ru
 Receipt october-release-34-prepublish-actions-v1.json SHA256
 0d91b09e8862990497b0c7ad97477b403bbdb755b4414bb9b919b61ffd3d24e5.
 Qualification does not establish atlas eligibility or authenticated owner acceptance.
+
+## .34 authenticated search exhaustion — 8 October 2026, 08:34 UTC
+
+Signed source `e3a7de6adf2b5fc3d52297e30dbc5a6ff9a6839b`, tree
+`2ec9b9f9125753ebd240dbb4f251bb884af92bc0`, generator .34 ran from
+07:34:47.904 to 08:34:38.968 UTC. Worker session 34630 exited 1 without
+source hold, monitoring, deadline or toolchain failure. Two complete native
+observations proved the recorded workers, group and supervisor absent.
+The bound terminal reader authenticated receipt SHA256
+`1ca272c07d2813c3002f592d55d0ef06b0acdaea1e5e4930198e6518a13220d7`:
+256 rejected attempts (210 geography, 46 proof), no eligible package,
+accepted pending finalization, selection or provider write. Seed zeroization
+passed. Geography included 113 bundle-option frontier, 9 bundle-pair frontier,
+20 search-node, 13 complete-plan, 20 undersized-primary, 21 active-grid,
+10 legacy placement, 1 empty strategic and 3 forbidden throne repair rejects.
+Overlapping frontier flags: bundle-option 175, bundle-pair 16,
+repair bundle-option 165 and repair sibling-pair 165. These counts identify
+where diagnosis should start; they do not establish a specific defect.
+Maintained pinned `generate-candidates --abort-checkpoint` returned
+`checkpointAborted:true`, `productionUntouched:true`. Watcher session 30381
+was stopped after retirement. Never resume this exhausted workspace.
+Next: reproduce remaining generation failure using public synthetic input,
+then batch any confirmed fix and qualification before a new source-bound search.
+Existing production, admission freeze, G001 preservation and G002 seal remain
+unchanged. No 0.4 release or authenticated owner acceptance is claimed.
+
+### .34 public terrain diagnosis after retirement
+
+Independent bounded selector review at e3a7de6a found no demonstrated remaining
+selector defect. Finite-frontier incompleteness alone does not justify a change.
+Pinned public fixture `greater-realm-ordinary-parent-a` plus NUL, ordinal 10,
+completed successfully as a diagnostic (not an eligible release candidate).
+Recomputing semantic roles as [0,1,2,5,3,4] still failed regional proofs:
+Mirefen wetland complex 30, delta/estuary 19, braided proxy edges 2;
+Stonewake meaningful islands 8, narrow saltwater strait cells 0.
+Default roles had Mirefen wetland 63, delta 11, braided 23 and Stonewake
+one meaningful island, zero narrow straits. Biome classification consistency
+was 10000 basis points with zero mismatches. Thus naming alone remains
+insufficient; inspect physical terrain and political water ownership before
+another full search. These are public-fixture observations, not the private
+retired batch's seed or a proof that every candidate fails for this cause.
+
+
+### .35 balanced saltwater ownership correction - 8 October 2026
+
+Synthetic final-QA reproduction demonstrated physical strait potential across
+foreign ownership. The integrated repair exchanges eligible same-tier ocean/sea
+cells with equal donor compensation before derived world data. Locked cells,
+terrain, hydrology and region sizes are preserved. Adoption requires final
+Stonewake proof and preservation of other passing regional proofs. Rejection
+or acceptance exceptions roll back and zeroize scratch buffers.
+
+All 186 affected tests passed: repair 9, apron 45, and generator/rejection/
+package/topographic QA 132. The latter suite completed in 595.79 seconds.
+Build-mode typecheck, file-size, license and public-boundary checks passed;
+the boundary scan included both new paths (3463 tracked, 1928 scanned).
+
+Complete paginated Actions inventory finished 08:55:26.999893 UTC, no active
+runs, all four repositories disabled. Receipt SHA256:
+`119773462f9ff85efd7ec45d9f41ddc8c3293f1dca3e882d9859838063b9da67`.
+Before publication, fresh GETs must confirm unchanged permissions/run history.
+Next: signed publication and exact Windows/WSL synchronization, then one fresh
+source-bound search. No eligible atlas, provider write or owner acceptance
+is claimed by this correction. Existing Alpha and licensing remain unchanged.

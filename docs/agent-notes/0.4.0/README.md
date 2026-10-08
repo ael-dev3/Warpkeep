@@ -1,3 +1,14 @@
+Current checkpoint preparation — 8 October 2026: .35 repairs the demonstrated
+Stonewake predictor/final-proof ownership mismatch using balanced same-tier
+saltwater exchanges. Existing terrain, hydrology, protected cells and region
+counts remain authoritative; final Stonewake acceptance and other passing
+regional proofs are checked before adoption. The repair runs before derived
+world data. Qualification passed: all 186 affected tests, build-mode
+typecheck, file-size, license and public-boundary checks. Signed publication
+and exact Windows/WSL synchronization must precede the next bounded search. The .34 search exhausted
+and was retired, with no eligible atlas or provider writes. Older entries below
+are historical. Authenticated owner/device acceptance remains open.
+
 .34 qualified — 8 October 2026, 07:33 UTC: all159 affected tests and project
 typecheck/policy checks pass. Next: verify signed publication/synchronization,
 then one fresh source-bound search. Resolve exact commit/tree from Git/PR.

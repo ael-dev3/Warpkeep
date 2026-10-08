@@ -109,6 +109,7 @@ import {
   measureGreaterRealmTopographicQa,
   type GreaterRealmTopographicQaReport,
 } from './greater-realm-topographic-qa';
+import { repairGreaterRealmStraitOwnership } from './greater-realm-strait-ownership-repair';
 import {
   benchmarkGreaterRealmChunkPartition,
   type GreaterRealmChunkPartitionBenchmark,
@@ -119,7 +120,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.34' as const;
+  'greater-realm-v2-natural-continent-pr-a.35' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -11789,6 +11790,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
   let preliminaryBiomeIdOnFailure: Uint8Array | undefined;
   let preliminaryLandformIdOnFailure: Uint8Array | undefined;
   let repairImmutableCellOnFailure: Uint8Array | undefined;
+  let straitOwnershipLockedCellOnFailure: Uint8Array | undefined;
   try {
     const canvas = greaterRealmPrivateCanvasAuthority();
     const domainSeeds = separatedDomains(candidateSeed);
@@ -12144,6 +12146,11 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         tierId: strategy.tierId,
         regionId: strategy.regionId,
       });
+      // Retain the immutable ownership fence for the final saltwater-only
+      // corridor exchange after hydrology and semantic roles are authoritative.
+      straitOwnershipLockedCellOnFailure = Uint8Array.from(
+        capacityStrategy.repairImmutableCell,
+      );
       capacityStrategy.repairImmutableCell.fill(0);
       repairImmutableCellOnFailure = undefined;
     }
@@ -12246,6 +12253,70 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         oceanWaterRegime: WATER_OCEAN,
         seaWaterRegime: WATER_SEA,
       });
+    }
+    const topographicQaInput = Object.freeze({
+      grid,
+      regionId: strategy.regionId,
+      geomorphologyCoastalClass: geomorphology.coastalClass,
+      elevation: reconciled.elevation,
+      preErosionElevation: geomorphology.elevation,
+      sedimentDepth: fluvial.sedimentDepth,
+      flowReceiver: reconciled.flowReceiver,
+      flowAccumulation: hydrology.flowAccumulation,
+      waterRegime: hydrology.waterRegime,
+      biomeId: topography.biomeId,
+      landformId: topography.landformId,
+      slope: topography.slope,
+      aspect: topography.aspect,
+      profileCurvature: topography.profileCurvature,
+      planCurvature: topography.planCurvature,
+      watershedId: topography.watershedId,
+      ridgeId: topography.ridgeId,
+      legacyProtectedCell: legacy.protectedCell,
+      waterClassificationExemptionMask: engineeredWaterClearanceMask,
+      seaLevel: SEA_LEVEL,
+    });
+    const tierOneSemanticRegionByRole = lowlandsRepairLane
+      ? deriveGreaterRealmTierOneSemanticRegionsFromFinalGeometry(
+        topographicQaInput,
+      )
+      : Object.freeze([0, 1, 2, 3, 4, 5]);
+    if (lowlandsRepairLane) {
+      const lockedCell = straitOwnershipLockedCellOnFailure
+        ?? new Uint8Array(grid.cellCount);
+      straitOwnershipLockedCellOnFailure = lockedCell;
+      for (let cell = 0; cell < grid.cellCount; cell += 1) {
+        if (legacy.protectedCell[cell] === 1 || legacy.reserveCell[cell] === 1
+          || capacityStrategy.tierTwoPassableOwner[cell]! >= 0
+          || capacityStrategy.tierTwoSpineOwner[cell]! >= 0
+          || engineeredWaterClearanceMask[cell] === 1) lockedCell[cell] = 1;
+      }
+      const before = measureGreaterRealmTopographicQa({
+        ...topographicQaInput, tierOneSemanticRegionByRole,
+      }).regionalHydrogeomorphology;
+      const repaired = repairGreaterRealmStraitOwnership({
+        grid, regionId: strategy.regionId, tierId: strategy.tierId,
+        elevation: reconciled.elevation, waterRegime: hydrology.waterRegime,
+        lockedCell, targetRegion: tierOneSemanticRegionByRole[4]!, seaLevel: SEA_LEVEL,
+        accept: trialRegionId => {
+          const trial = measureGreaterRealmTopographicQa({
+            ...topographicQaInput, regionId: trialRegionId, tierOneSemanticRegionByRole,
+          }).regionalHydrogeomorphology;
+          return trial.stonewake.proof
+            && (!before.frostmere.proof || trial.frostmere.proof)
+            && (!before.mirefen.proof || trial.mirefen.proof)
+            && (!before.sunscar.proof || trial.sunscar.proof)
+            && (!before.tierII.proof || trial.tierII.proof)
+            && (!before.throneheart.proof || trial.throneheart.proof);
+        },
+      });
+      try {
+        if (repaired.status === 'repaired') strategy.regionId.set(repaired.regionId);
+      } finally {
+        repaired.regionId.fill(0);
+        lockedCell.fill(0);
+        straitOwnershipLockedCellOnFailure = undefined;
+      }
     }
     const finalHydrology = finalHydrologyMetrics(
       grid,
@@ -12482,33 +12553,6 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       throneAnchor: throne.mask,
       gates: strategicBarrier.gates,
     });
-    const topographicQaInput = Object.freeze({
-      grid,
-      regionId: strategy.regionId,
-      geomorphologyCoastalClass: geomorphology.coastalClass,
-      elevation: reconciled.elevation,
-      preErosionElevation: geomorphology.elevation,
-      sedimentDepth: fluvial.sedimentDepth,
-      flowReceiver: reconciled.flowReceiver,
-      flowAccumulation: hydrology.flowAccumulation,
-      waterRegime: hydrology.waterRegime,
-      biomeId: topography.biomeId,
-      landformId: topography.landformId,
-      slope: topography.slope,
-      aspect: topography.aspect,
-      profileCurvature: topography.profileCurvature,
-      planCurvature: topography.planCurvature,
-      watershedId: topography.watershedId,
-      ridgeId: topography.ridgeId,
-      legacyProtectedCell: legacy.protectedCell,
-      waterClassificationExemptionMask: engineeredWaterClearanceMask,
-      seaLevel: SEA_LEVEL,
-    });
-    const tierOneSemanticRegionByRole = lowlandsRepairLane
-      ? deriveGreaterRealmTierOneSemanticRegionsFromFinalGeometry(
-        topographicQaInput,
-      )
-      : Object.freeze([0, 1, 2, 3, 4, 5]);
     const topographicQa = (() => {
       try {
         return measureGreaterRealmTopographicQa(lowlandsRepairLane
@@ -13084,6 +13128,8 @@ export function generateGreaterRealmCandidate(input: Readonly<{
     preliminaryLandformIdOnFailure = undefined;
     repairImmutableCellOnFailure?.fill(0);
     repairImmutableCellOnFailure = undefined;
+    straitOwnershipLockedCellOnFailure?.fill(0);
+    straitOwnershipLockedCellOnFailure = undefined;
     reconciledFlowAccumulationOnFailure?.fill(0n);
     reconciledFlowAccumulationOnFailure = undefined;
     activeMaskOnFailure?.fill(0);
