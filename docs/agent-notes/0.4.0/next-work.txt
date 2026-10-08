@@ -1,3 +1,68 @@
+Current correction qualification — 8 October 2026, 22:49 UTC
+
+Generator .40 prevents provisional lowland marsh and coastal-cliff classification
+from overriding alpine elevation. Existing cold, volcanic, arid and highland
+branches now resolve those high dry cells; protected Lowlands and fixed water
+remain authoritative. Terrain seed namespace and living-world version unchanged.
+A synthetic alpine-cliff regression fails on .39 (coastal biome 23 instead of
+highland 19) and passes with the two-condition correction, including protected
+visual preservation and high saturated-ground coverage.
+Public ordinary-parent-a ordinal 5 independently reproduces 21 elevation/biome
+inconsistencies: 14 coastal and seven marsh, all outside protected Lowlands.
+After correction, all 21 clear and TOPOGRAPHIC_QA_COMPLETE passes. The public
+fixture remains ineligible on separate castle capacity, topology, regional and
+route-anchor proofs; it is not a release atlas and cannot substitute for one.
+Public ordinal 3 has valid living invariants but insufficient cold ecology for
+the existing capacity floor; this is not evidence of an invariant-check defect.
+The known eligible public ordinal 9 still has no failed eligibility or living
+invariant checks and zero elevation inconsistencies on .40. All diagnostic
+roots/candidate scratch were cleared. All eight affected files / 172 native
+tests passed in 782.52 seconds, including 82 package, 21 generator, 27 living,
+18 topographic QA, four topography, 11 rejection, eight isolated-pocket and one
+independent final-passability test. Project and targeted types, file-size,
+licensing, public boundary and redacted diff secret scan passed.
+Next: publish this reviewed checkpoint, synchronize native source and run one
+fresh bounded private search; never resume retired batches.
+
+Current atlas terminal — 8 October 2026, 22:42 UTC
+
+The .39 reviewed source is published at e7d860b618bbe9a097a45fcb7a4f91be3331f04d,
+tree 076b8fcdb8c61ce866b2c424019e4222c8588c1c.
+Replacement20 started 21:41:11.073 UTC and finished 22:41:34.389 UTC.
+Authenticated exhaustion: 256 rejected attempts, 220 geography / 36 proof.
+One passed regional QA but failed castle suitability/capacity, dormant capacity,
+Tier-III smallest passable land and complete topographic QA. Its major-river
+count was within the required range. No eligible or pending private package exists.
+Terminal metadata SHA256:
+cf35f98e4d22be9141a6c7f890501fabec12a794d804a22305d9f6b42878b9cd.
+Source/index/refs and toolchain preserved; no monitoring failure, interruption,
+deadline or provider write. Root seed zeroized. Two process scans confirmed
+original births/group/supervisor absent. Maintained abort confirmed checkpoint
+aborted and production untouched. Replacement20 retired; never resume it.
+
+Replacement19 stopped at 21:37:25.560 UTC with the earlier supervisor's combined
+source/process-monitor failure flag. Immediate source/index/refs readback matched
+the startup binding exactly; the original monitor did not retain the cause.
+Do not claim a proven source mutation or authenticated exhaustion for that run.
+It was aborted after process absence verification and is retired. Ignored QA
+supervisor v21 separates source failures from process monitoring failures and
+retains bounded failure codes without relaxing either guard. Its targeted type
+check passed; replacement20 completed without either failure.
+
+Fresh browser retry at approximately 22:43 UTC confirms Farcaster channel login
+but Warpkeep secure sign-in remains unavailable. Farcaster's wallet iframe still
+requests Continue plus mobile Approve and states a 30-day browser session.
+Channel login is not authenticated owner PTR acceptance. No token was extracted,
+account impersonated, owner provisioned or security guard bypassed.
+
+Next: reproduce remaining capacity/topography failures with public fixtures,
+fix only confirmed defects and qualify them before a fresh bounded private search.
+Do not replay private seeds or import a rejected package. Owner import/provision
+and authenticated PTR acceptance remain downstream of a verified eligible atlas.
+Existing Alpha, admission freeze, licensing and rollback remain preserved.
+
+Previous checkpoint and qualification evidence follows.
+
 Current atlas correction — 8 October 2026, 20:52 UTC
 
 Generator .39 fixes a reproduced barrier-coherence defect using existing planned

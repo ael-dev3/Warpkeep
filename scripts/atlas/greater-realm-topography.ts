@@ -581,7 +581,7 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     } else if (coastClass === 4 || geomorphicGlacialMask[cell] === 1) {
       biomeId[cell] = BIOME.PINE_FOREST;
       landformId[cell] = LANDFORM.GLACIAL_VALLEY;
-    } else if (coastClass === 2) {
+    } else if (coastClass === 2 && !high) {
       biomeId[cell] = BIOME.COASTAL;
       landformId[cell] = LANDFORM.SEA_CLIFF;
     } else if (geomorphicVolcanicMask[cell] === 1) {
@@ -603,6 +603,7 @@ export function deriveGreaterRealmTopography(input: Readonly<{
       landformId[cell] = slope[cell]! < 500 ? LANDFORM.DUNE : slope[cell]! > 1_400 ? LANDFORM.BADLANDS : LANDFORM.HIGHLAND;
     } else if (
       !waterRegimeIsAuthoritative
+      && !high
       && saturated
       && nearFreshwater
       && slope[cell]! < 650

@@ -394,5 +394,23 @@ describe('Greater Realm derived topography', () => {
     ).reduce<number>((total, value) => total + value, 0);
     expect(dryMarshCount(provisionalMarsh.biomeId)).toBeGreaterThan(0);
     expect(dryMarshCount(authoritative.biomeId)).toBe(0);
+
+    // A mountain coast cannot use the lowland coastal biome merely because
+    // the process descriptor identifies a cliff. Saturation likewise cannot
+    // nominate alpine dry ground as a lowland marsh in the preliminary pass.
+    elevation.fill(14_000);
+    geomorphicMoisture.fill(0);
+    geomorphicCoastalClass[center] = 2;
+    const alpineCliff = derive();
+    expect(alpineCliff.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND);
+    expect(alpineCliff.landformId[center]).toBe(GREATER_REALM_LANDFORM_ID.MOUNTAIN);
+    expect(alpineCliff.biomeId[protectedCell]).toBe(protectedBiomeId[protectedCell]);
+    expect(alpineCliff.landformId[protectedCell]).toBe(protectedLandformId[protectedCell]);
+
+    geomorphicCoastalClass.fill(0);
+    geomorphicMoisture.fill(6_000);
+    const alpineWetGround = derive();
+    expect(alpineWetGround.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND);
+    expect(alpineWetGround.landformId[center]).toBe(GREATER_REALM_LANDFORM_ID.MOUNTAIN);
   });
 });
