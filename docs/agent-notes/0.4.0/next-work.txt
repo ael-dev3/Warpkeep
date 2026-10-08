@@ -1,3 +1,30 @@
+Current terminal evidence — 8 October 2026, 16:04 UTC
+
+Signed source 56fe20f184f0e7b7a5b6231beefdd5ab44c358ed / tree
+0853fc24bcd820b31b2140d5b8555b0a3f6491e6 finished at 16:04:23.560 UTC.
+The bound reader authenticated 256 rejections: 211 geography / 45 proof.
+43 proof attempts failed combined regional QA. Two passed regional QA;
+one failed only gateApproaches, gateGraph and regionGraph. The other also
+failed castle suitability/capacity, lakes, land coherence, Tier III size,
+potential density and complete topography. Measured major rivers were
+40–71 across 45 proof attempts (eight below range); the two regionally
+eligible attempts had 57–60 major rivers. No eligible atlas was accepted.
+
+Terminal metadata SHA256:
+0e5a9f8d147f52d429259e6140c9b2f0853848e0bf67828071bb7819f0df1984.
+Two full /proc scans each examined 50 processes and found no original
+worker births, group or supervisor. Source/index/refs, toolchain and
+root-seed zeroization passed; no interruption or cutoff caused exhaustion.
+Maintained abort returned checkpointAborted:true / productionUntouched:true.
+Replacement15 is retired and its owned cutoff watcher stopped; never resume it.
+No package, selection, provider write or authenticated owner acceptance exists.
+
+Next: diagnose gate placement completeness and final approach validation using
+public fixtures. Existing greedy selection already checks side entrances and
+required approach conflicts; do not assume that missing a fallback for a complete
+assignment is a demonstrated bug. Keep acceptance and installed services intact.
+Earlier entries below are historical evidence.
+
 Current terminal evidence — 8 October 2026, 14:55 UTC
 
 Signed diagnostic source de76d1ce9345005ffc4fcfe908e5d8e84b215aa2 / tree
