@@ -1,3 +1,16 @@
+.34 qualified — 8 October 2026, 07:33 UTC: all159 affected tests and project
+typecheck/policy checks pass. Next: verify signed publication/synchronization,
+then one fresh source-bound search. Resolve exact commit/tree from Git/PR.
+No eligible atlas or authenticated owner acceptance is claimed.
+
+CURRENT RESUMPTION — 8 OCTOBER 2026, 07:16 UTC
+.33 signed source 2ad40f31/tree c520e6b9 exhausted and is retired: 256 rejected
+attempts, 217 geography / 39 proof, no eligible atlas or provider write. Source
+checks and seed zeroization passed. Watcher stopped. Never resume this workspace.
+Next: reproduce one remaining gate-apron selection defect publicly before another
+search; preserve existing caps and acceptance criteria. Detailed authenticated
+terminal evidence is in local-operations.md. Older search/publish steps below are
+historical. Actual atlas and authenticated owner/device acceptance remain open.
 WARPKEEP 0.4 - NEXT WORK
 
 Qualified checkpoint — 8 October 2026, 06:17 UTC: .33 correction complete.

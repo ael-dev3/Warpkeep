@@ -1,12 +1,32 @@
+.34 qualified — 8 October 2026, 07:33 UTC: all159 affected tests and project
+typecheck/policy checks pass. Next: verify signed publication/synchronization,
+then one fresh source-bound search. Resolve exact commit/tree from Git/PR.
+No eligible atlas or authenticated owner acceptance is claimed.
+
 # Warpkeep 0.4 development handoff
 
-Qualified checkpoint — 8 October 2026, 06:17 UTC: .33 correction complete.
-All 157 affected tests pass (43 apron, 21 generator, 11 rejection, 82 package),
-as do pinned project build-mode typecheck, file-size, license and public-boundary
-checks. The prior repair-pair generic inference error is also fixed without a
-runtime behavior change. Resolve the signed commit/tree from actual Git/PR state.
-Next: publish/synchronize this reviewed checkpoint, then run one fresh bound
-candidate search. Atlas and authenticated owner acceptance remain pending.
+## Current release step — 8 October 2026, 07:22 UTC
+
+Published signed .33 source `2ad40f31` / tree `c520e6b9` completed its search
+at 07:15:55.885 UTC: 256 authenticated rejections (217 geography / 39 proof),
+no eligible atlas, selection or provider write. Its checkpoint is retired,
+seed zeroization is confirmed and watcher/helper are stopped. Do not resume it.
+The .33 source passed 157 affected tests and project build-mode typecheck.
+
+A bounded public replay proves a remaining repair-pair defect: presence of a
+fallback pair excludes remaining own pairs from the second-slot diversity scan.
+The current selector yields no-match; retaining a better own pair under the same
+two-slot cap yields a match. Qualify the .34 correction before publishing and
+another fresh source-bound search. This reproduction does not establish the cause
+of every random rejection. Existing proof criteria and caps remain authoritative.
+
+Remaining order: qualify/publish/sync .34; generate and verify/select a genuine
+atlas; import/read back and provision actual owner; authenticated Mini App journey
+and device/Alpha acceptance; Cloudflare cutover/readback with rollback. Static PTR
+and accepted backend/bridge remain reusable absent a reproduced defect.
+
+The dated sections below are historical snapshots. Use this section and
+next-work.txt for the current next action.
 
 Start with the [product direction](../../design/warpkeep-direction.md), then use
 this index to find the implementation, current evidence, and next useful work.

@@ -8073,3 +8073,65 @@ UTC, no active runs and all four repositories disabled. Receipt
 `182aefbfb92fa47cc67ee8ff4ea66c99b515ec45dd127922437416d98d831e7f`.
 Source qualification is complete; publication and fresh search must be verified
 separately. No eligible atlas or authenticated owner acceptance is claimed.
+
+## .33 search exhausted and retired — 8 October 2026, 07:16 UTC
+
+Signed source 2ad40f31ba86399a2ad651085c135e688f66093f, tree
+c520e6b92d3be567e7c4b0d308042c41afc33bf1, completed its source-bound search
+at 07:15:55.885 UTC (start 06:19:46.959 UTC), exit 1 with no cutoff, monitoring
+or source-hold failure. Two complete process/group/supervisor absence observations
+preceded the bound terminal reader. The authenticated result proves 256 rejected
+attempts: 217 geography / 39 proof, root seed zeroized, no eligible package,
+selection or provider write. Maintained abort returned checkpointAborted=true,
+productionUntouched=true; the persistent watcher was stopped. Never resume this
+exhausted workspace or relabel its source/seed.
+
+Terminal metadata SHA256:
+`d06fa50bc11a20e2c35964a6146153677d915190e06fee23271ac560fc7977d6`.
+Started receipt SHA256:
+`b4e225d8ecacca504ae62f1efc5c2e493fe3f78c066276442ffd8981f2d31c86`.
+Bound reader SHA256:
+`11e4e29518f2b10e9bcfce275289a267cc007eb053b3e86136f64dd56e00bba4`.
+
+Geography failures: active grid 24, complete-plan limit 15, child-option frontier
+113, sibling-pair frontier 17, search-node limit 31, undersized primary component
+12, forbidden Throne component repair 5. Overlapping frontier kinds: bundle
+option 188, bundle pair 18, Lowlands repair option 182 and repair sibling pair
+182. These counts overlap and must not be summed as separate attempts.
+
+The .33 correction remains regression-qualified; this batch did not establish
+release atlas eligibility. Next action is a bounded public reproduction of any
+remaining real gate-apron selection defect, before another fresh search. Keep
+existing acceptance criteria and caps. Atlas, actual owner provisioning and
+Mini App/device acceptance remain incomplete; static PTR is not release proof.
+
+Preflight incident: initial replacement07 helper had mode0644 and failed
+QA_LAUNCHER_INVALID before worker/workspace creation. Its failure receipt remains
+separate. Replacement08 used a fresh launcher mode0600; source/toolchain checks
+passed. No security check was bypassed.
+
+### .34 bounded correction — 8 October 2026, 07:23 UTC
+
+Actual public selector/downstream replay proved that any available fallback pair
+excluded remaining own pairs from slot2. First own [1]/[2], second own [3]/[4],
+fallback [1]/[5], competing parent [1]/[6]: .33 retained first+fallback and the
+ranked search found no match; same-cap first+second-own found a match. This
+proves a feasible-selection loss, not the cause of every .33 random rejection.
+
+.34 scores remaining own pairs followed by fallback pairs together for slot2.
+Strictly smaller physical overlap wins; own preference and existing order break
+ties. The first own pair, two-slot cap, original physical collision footprints,
+tier separation and temporary-set cleanup remain intact. Two new regressions
+failed .33 first; all45 apron tests and pinned project tsc -b pass. Root reviewed
+the actual diff. Generator/rejection/package qualification is running. No new
+candidate search or production mutation has begun; publish only after checks.
+The retired native cutoff helper is independently confirmed absent.
+
+Final .34 qualification — 8 October 2026, 07:33 UTC: all159 affected tests pass
+(45 apron, 21 generator, 11 rejection, 82 package). Three root suites completed
+114 tests in 572.44 seconds; package suite took 571.239 seconds. Pinned project
+tsc -b, file-size, licensing and public-boundary checks pass. Complete Actions
+inventory finished 07:25:23.130471 UTC; four repositories disabled, no active runs.
+Receipt october-release-34-prepublish-actions-v1.json SHA256
+0d91b09e8862990497b0c7ad97477b403bbdb755b4414bb9b919b61ffd3d24e5.
+Qualification does not establish atlas eligibility or authenticated owner acceptance.

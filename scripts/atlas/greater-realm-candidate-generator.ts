@@ -119,7 +119,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.33' as const;
+  'greater-realm-v2-natural-continent-pr-a.34' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -697,10 +697,11 @@ export function selectGreaterRealmLowlandsRepairBundleOptions<Option>(
 
 /**
  * Prefer repair pairs using both children's own terrain, but only when those
- * bundles actually form a compatible sibling pair. One non-Lowlands fallback
- * is retained under the same cap to resolve cross-parent footprint conflicts.
- * On overflow, prefer the alternative sharing the fewest physical cells with
- * the first pair. Rank breaks ties; tiers stay separate and repeated cells count once.
+ * bundles actually form a compatible sibling pair. Under the same two-slot cap,
+ * compare remaining own and non-Lowlands fallback pairs together to resolve
+ * cross-parent footprint conflicts. Prefer the fewest shared physical cells;
+ * own pairs and their established rank break ties. Tiers remain separate and
+ * repeated cells count once.
  */
 export function chooseGreaterRealmLowlandsRepairSiblingPairs<Option>(
   compatibleOwnPairs: readonly Option[],
@@ -712,9 +713,9 @@ export function chooseGreaterRealmLowlandsRepairSiblingPairs<Option>(
     : compatibleFallbackPairs;
   if (preferred.length === 0) return Object.freeze([]);
   const first = preferred[0]!;
-  const remaining = compatibleOwnPairs.length > 0 && compatibleFallbackPairs.length > 0
-    ? compatibleFallbackPairs
-    : preferred.slice(1);
+  const remaining = compatibleOwnPairs.length > 0
+    ? [...compatibleOwnPairs.slice(1), ...compatibleFallbackPairs]
+    : compatibleFallbackPairs.slice(1);
   if (remaining.length === 0) return Object.freeze([first]);
   let second: Option = remaining[0]!;
   if (footprintsOf !== undefined && remaining.length > 1) {

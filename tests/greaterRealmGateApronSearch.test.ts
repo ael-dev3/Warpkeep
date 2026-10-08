@@ -1033,7 +1033,7 @@ describe('Greater Realm ranked gate-apron search', () => {
     expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
       Object.freeze([ownPair, ownAlternative]),
       borrowedPairs,
-    )).toEqual([ownPair, borrowedPairs[0]]);
+    )).toEqual([ownPair, ownAlternative]);
     expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
       Object.freeze([ownPair, ownAlternative]),
       Object.freeze([]),
@@ -1114,6 +1114,38 @@ describe('Greater Realm ranked gate-apron search', () => {
       expect(first.footprints[0]?.tierOneCells).toEqual([1]);
     },
   );
+
+  it('retains a feasible own repair alternative when a conflicting fallback exists', () => {
+    const first = descriptor('first', option('first-a', [1], []), option('first-b', [2], []));
+    const ownAlternative = descriptor('own-alternative', option('own-a', [3], []), option('own-b', [4], []));
+    const fallback = descriptor('fallback', option('fallback-a', [1], []), option('fallback-b', [5], []));
+    const competitor = descriptor('competitor', option('competitor-a', [1], []), option('competitor-b', [6], []));
+    const search = (pairs: readonly SyntheticDescriptor[]) => searchGreaterRealmRankedSiblingAlternatives(
+      ['capacity'], () => [pairs, [competitor]], () => true,
+      { maximumSearchNodes: 32, maximumCompletePlans: 32 }, pair => pair.footprints,
+    );
+    expect(search([first, fallback]).outcome).toBe('no-match');
+    const retained = chooseGreaterRealmLowlandsRepairSiblingPairs(
+      [first, ownAlternative], [fallback], pair => pair.footprints,
+    );
+    expect(retained).toEqual([first, ownAlternative]);
+    expect(retained).toHaveLength(GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT);
+    expect(search(retained)).toMatchObject({ outcome: 'match', options: [ownAlternative, competitor] });
+  });
+
+  it('prefers own rank on equal overlap but keeps a physically better fallback', () => {
+    const first = descriptor('first', option('first-corridor', [1, 2], []));
+    const own = descriptor('own', option('own-corridor', [1, 3], []));
+    const ownTie = descriptor('own-tie', option('own-tied-corridor', [2, 4], []));
+    const fallbackTie = descriptor('fallback-tie', option('fallback-tied-corridor', [1, 5], []));
+    const fallbackBetter = descriptor('fallback-better', option('fallback-distinct-corridor', [6, 7], []));
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      [first, own, ownTie], [fallbackTie], pair => pair.footprints,
+    )).toEqual([first, own]);
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      [first, own, ownTie], [fallbackTie, fallbackBetter], pair => pair.footprints,
+    )).toEqual([first, fallbackBetter]);
+  });
 
   it('counts repair pair cells once per tier and preserves ranked overlap ties', () => {
     const first = descriptor('first', option('first-corridor', [1, 1], [2, 2]));
