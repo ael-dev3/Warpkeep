@@ -3,6 +3,94 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## .29 candidate exhausted; .30 pair frontier qualified locally - 8 October 2026, 01:39 UTC
+
+The one-candidate window 20261008T003000Z ran against signed source
+eae5d82e0a8521f9ee155f0c3f8c8a81da2d2a13, tree
+9de5f4e1aa3261ef352d6cf4f1627360c661d016, generator
+greater-realm-v2-natural-continent-pr-a.29, and pinned Linux x64 Node 22.22.3
+toolchain sha256:20b2eb07baaefe0c61fd2e87396f04751c7b9df6cdb8b117832baaa689ad2ac7.
+Startup receipt SHA-256:
+4fbc8b120218f5814245d17f72321c64ffd76bd4441c030fb1993941ad2de0b2.
+
+The launcher started at 00:30:01.551 UTC and its terminal receipt records
+01:17:26.687 UTC, exit code 1 and no signal. Deadline, interrupt, kill,
+monitoring failure, spawn error and source-hold failure were all false. The
+terminal receipt SHA-256 is
+c5385c27af067578062e6a5ec17d1f8b1f759cf6f66d13cf745ec7bf995eb538. Its
+41-byte log digest is
+1c33f77505a6828a9acadf7b5aae8c01e4be8dad48fb9ced3bce88e8fa02c1f1; raw log
+contents remain private. The receipt monotonic elapsedMilliseconds is
+2,562,800; its UTC start/finish timestamps span 2,845,136 ms. Preserve both:
+they differ by 282,336 ms, so monotonic time must not be reported as elapsed
+wall time.
+
+The controller first reported NO_TERMINAL_EVENT. No raw log or private
+workspace was opened. After launcher-session closure, two native observations
+ten seconds apart found no process in PGID/SID 1929271 and none of the exact
+recorded births: 1929271 timeout group leader, 1929272 bootstrap, 1929285 tsx,
+1929296 CLI, supervisor 1929170. Cutoff watcher 1930351 was also absent. The
+exact-source safe reader checked the start-receipt hash and authenticated
+terminal metadata and checkpoint. It reported phase searching, next ordinal
+256, all 256 attempts rejected (219 geography, 37 proof), no completion or
+success candidate, recovered root seed zeroized, source references and
+toolchain preserved, provider writes false, selection false and production
+untouched. The terminal receipt recorded the original process and group absent.
+
+Rejection-code counts included
+GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT 99,
+GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT 32,
+GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT 27,
+GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE 27,
+GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED 11,
+GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED 9,
+GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT 9 and
+GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN 5.
+Frontier-kind counts were pair 124, ordinary bundle option 178, Lowlands repair
+bundle option 171 and Lowlands repair sibling pair 171; counts overlap when an
+attempt records multiple truncations. No candidate, private package, atlas,
+owner selection, atlas import or provider write resulted.
+
+The maintained generate-candidates --abort-checkpoint operation returned
+checkpointAborted:true and productionUntouched:true. The exhausted private
+workspace and seed are retired and must never be resumed or reused.
+
+The signed .30 correction is code commit
+6b9ccc3ae6a6a8b393c8757e33da0dea4e621e80, tree
+d8c7d83bd89d61b793b36e5fc92f819ffa38be25, parent eae5d82. It widens only
+the bounded raw apron-pair cap from 16,384 to 32,768 and advances generator
+version to .30. Edge/child caps, search and complete-plan budgets, geometry,
+proofs, admission rules and terrain-seed namespace .3 are unchanged. SSH
+signature verification passed.
+
+Pinned Linux Node 22.22.3 typecheck passed. Apron search, rejection and
+generator suites passed 67/67 after updating the deterministic repair test to
+assert BUNDLE_OPTION_LIMIT, the frontier reached under .30. Candidate-package
+tests passed 82/82. The first combined run was 148/149 because the generator
+test still expected BUNDLE_PAIR_LIMIT. After correcting that assertion, the
+generator suite passed 21/21 and apron/rejection suites passed 46/46. All 149
+relevant cases therefore have passing evidence across those runs.
+
+The reproducible .30 selector benchmark used the 1,024-edge cap's complete
+523,776-pair frontier and selected 32,768 pairs. It completed in 2,512 ms;
+sampled peak process RSS was 227,897,344 bytes and final RSS was 213,516,288.
+The selected digest was
+9a6f7546761a681e41973ccba0997e9dace40ef4024e09a2b7d95e378be8b89f. This
+synthetic selector result is not a full candidate-generation benchmark. No
+.30 candidate has started. Publish its signed source checkpoint first, then
+use one new source-bound window, workspace and seed.
+
+Immediately before publication, paginated repository-wide Actions inventory
+found 3,807 runs, all completed, with no queued/running work. Event counts:
+2,703 pull_request, 699 push, 239 workflow_run, 156 workflow_dispatch and 10
+dynamic. All attempts for 28 rerun workflows were enumerated: 57/57, with 18
+success, 24 failure, 15 cancelled and no errors. Repository Actions permission
+is enabled:false. Trigger review confirmed Verify on pull_request and main
+push, Pages deployment only after successful Verify for a main push, and
+manual dispatch-only production workflows. No setting change or dispatch is
+needed. PR #385 is open/draft with head eae5d82 before the pending combined
+code/documentation push.
+
 ## .29 signed checkpoint published and native source synchronized — 8 October 2026, 00:01 UTC
 
 Signed commit `ffa72f44f454711107be11e949578e48e0432946`, tree

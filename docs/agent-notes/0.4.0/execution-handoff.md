@@ -1,58 +1,59 @@
 # Continue Warpkeep 0.4
 
-## Active release step — 8 October 2026, 00:01 UTC
+## Active release step - 8 October 2026, 01:39 UTC
 
-Codex owns the release. Signed .29 source
-`ffa72f44f454711107be11e949578e48e0432946`, tree
-`8034e2829f23c26be0fb5600c137db154b4cfaa6`, is published on the release branch
-and open draft PR #385. The native checkout is clean at this exact commit. The
-.28 20261007T224500Z search terminated at 23:26:10.472 UTC after all 256
-attempts rejected. The safe reader authenticated exhaustion, zeroized the
-recovered root seed, found no candidate completion, and confirmed no package,
-selection, provider write or production mutation. Every recorded process birth,
-the original process group and supervisor were observed absent twice. The
-maintained abort returned `checkpointAborted:true` and `productionUntouched:true`;
-never replay that workspace or seed.
+Codex owns the release. The .29 fresh search on signed source
+eae5d82e0a8521f9ee155f0c3f8c8a81da2d2a13, tree
+9de5f4e1aa3261ef352d6cf4f1627360c661d016, exhausted 256/256 attempts at
+2026-10-08T01:17:26.687Z. The safe reader authenticated 219 geography and
+37 proof rejections, zeroized the recovered root seed and confirmed no
+candidate, package, selection, provider write or production mutation. The
+maintained abort retired the private checkpoint. Never resume that workspace
+or seed. The first orchestration response was NO_TERMINAL_EVENT despite a
+valid terminal receipt. We proved the launcher, worker group, recorded
+descendants and supervisor absent twice before the exact safe reader
+authenticated the result. Follow the receipt-bound recovery rail in
+docs/agent-notes/0.4.0/next-work.txt.
 
-The leading measured rejection was `BUNDLE_PAIR_LIMIT` (133 classified
-rejections; pair-frontier truncation appeared in 175 rejected attempts). The
-published .29 correction doubles only the bounded apron-pair cap from 8,192
-to 16,384. It leaves edge/child caps, search and complete-plan limits, proofs,
-admission rules and terrain-seed namespace unchanged. Windows typecheck and 67
-apron/rejection/generator tests pass; native Linux typecheck passes. The
-four-file Linux closure passed 148/149; the sole failure was a stale .28
-version assertion, updated to .29 and passed in isolation. A synthetic
-full-edge-cap selector benchmark retained 16,384 of 523,776 pairs in 1,316 ms
-with sampled peak RSS 254,844,928 bytes. No .29 private candidate exists yet.
+The corrective .30 code commit is signed
+6b9ccc3ae6a6a8b393c8757e33da0dea4e621e80, tree
+d8c7d83bd89d61b793b36e5fc92f819ffa38be25. It widens only the bounded raw
+apron-pair cap from 16,384 to 32,768 and advances generator version to .30.
+Edge/child caps, search and complete-plan budgets, proofs, admission rules,
+geometry and terrain-seed namespace .3 stay fixed. Pinned Linux Node 22.22.3
+typecheck passes; apron/rejection/generator tests pass 67/67 and package tests
+82/82. The .30 1,024-edge selector benchmark retained 32,768/523,776 pairs in
+2,512 ms with sampled peak RSS 227,897,344 bytes. This synthetic benchmark
+does not establish full candidate generation. No .30 candidate has started.
 
-Before publish, the full GitHub Actions inventory had 3,807 completed runs, no
-queued/running work, and all 57 attempts across 28 rerun workflows enumerated.
-Repository Actions permission is disabled; the release-branch push created no
-run. Verify is limited to main pushes and PR events; Pages follows only a
-successful main-push Verify. Manual production workflows are dispatch-only.
-
-The accepted immutable 9ea4821a frontend remains reachable at the custom
-domain; exact postflight passed all 800 files and both fallback routes while
-Alpha root remains live. This proves static delivery, not owner acceptance.
-PTR still reports ACCESS UNKNOWN until server-verified Farcaster Mini App
-Quick Auth is exercised. The current Farcaster web tab shows Login.
+Immediately before publish, full Actions inventory found 3,807 completed runs,
+0 active, and all 57 attempts across 28 rerun workflows enumerated without
+errors. Repository Actions permission is disabled. Verify runs for PR events
+and main pushes; Pages follows only successful Verify for a main push.
+Production workflows are dispatch-only. PR #385 is open/draft at eae5d82
+before the pending push. The signed code and docs commits publish together;
+keep Actions disabled.
 
 Next, in order:
 
-1. Start one fresh-source/fresh-workspace candidate window from exact published
-   .29; measure actual runtime and memory and retain the fixed cutoff. Never
-   replay .28 state.
-2. Only a genuine eligible winner permits private-package verification,
+1. Publish both signed .30 commits to the release branch and synchronize the
+   clean Windows and WSL checkouts to the exact head; keep PR #385 a draft.
+2. Start one fresh .30 source/tree/toolchain-bound search with a new seed and
+   workspace, maximum 256 attempts, fixed six-hour cutoff and no auto-restart.
+   Never reuse .29 state.
+3. Only a genuine eligible winner permits private-package verification,
    separate selection, atlas import/readback and actual owner provisioning.
-   Reuse the installed backend and bridge unless a concrete failure reproduces.
-3. Test owner Quick Auth and keep/gather/build/return in the signed-in Farcaster
-   Mini App, then regress Alpha. Do not call 0.4 shipped until both acceptance
-   paths pass.
+   Reuse backend 95ca5801 and bridge v52 unless a concrete failure reproduces.
+4. Accept owner Quick Auth and keep/gather/build/return inside the signed-in
+   Farcaster Mini App, then regress Alpha root. 0.4 is not shipped until this
+   passes.
 
-If the signed-in Mini App host cannot be reused, the required human step is to
-open https://warpkeep.com/ptr/?miniApp=true inside the signed-in Farcaster Mini
-App and tell Codex when the realm directory is visible. Never request QR codes
-or credentials in chat. Exact evidence is at the top of
+If NO_TERMINAL_EVENT recurs, use the receipt-bound recovery rail; never infer
+completion from missing stdout, inspect raw private logs, or resume exhausted
+seed state. If the Mini App host cannot be reused, open
+https://warpkeep.com/ptr/?miniApp=true inside the signed-in Farcaster Mini App
+and tell Codex when the realm directory is visible. Never request QR codes or
+credentials in chat. Exact evidence is at the top of
 docs/evidence/0.4.0/local-operations.md; older dated snapshots are history.
 
 ## Superseded active-step snapshot — 7 October 2026, 21:03 UTC
