@@ -8199,3 +8199,28 @@ Before publication, fresh GETs must confirm unchanged permissions/run history.
 Next: signed publication and exact Windows/WSL synchronization, then one fresh
 source-bound search. No eligible atlas, provider write or owner acceptance
 is claimed by this correction. Existing Alpha and licensing remain unchanged.
+
+
+### .35 exhausted and retired - 8 October 2026, 10:03 UTC
+
+Source 75c617e55140aae55f23d96a2ab591c1bd394ede/tree f2c81c9ed3d3b80cfdaea17e39cf0ee936a00e53
+ran 09:06:05.132 through 10:03:08.600 UTC in replacement10. Worker session
+12894 ended exit 1, without source/toolchain/monitor/deadline failure. Two full
+native process observations proved the original workers/group/supervisor absent
+before the bound reader authenticated 256 rejections (225 geography, 31 proof),
+no eligible package or accepted pending finalization, and root seed zeroization.
+Terminal metadata SHA256 bfc34eaa2ee23ac9a42c531567005b3a7eb1a55a33bcb083ffcdff1492bd3f41.
+Bound reader SHA256 5b9da28252fa4da006d8efb7747fa516219a7fea7c8717161a4063bd8fd29465.
+Frostmere failed 28 proof attempts, Mirefen 17, Stonewake 18; overlapping proof
+counts are not evidence of one shared cause. Maintained abort reported
+checkpointAborted:true/productionUntouched:true; watcher 47008 was stopped.
+Next: bounded public Frostmere reproduction before another source search.
+
+Owner host login was verified at Farcaster as 0xael.eth. Existing Alpha build
+5f77c3c reports quick_auth_token_timeout (web, online) after initial launch and
+a fresh reopen; its host also shows Confirm it's you with phone approval.
+The pinned SDK obtains a nonce, awaits host signIn, then verifies SIWF; the
+observed timeout precedes Warpkeep bridge exchange. Host approval as the cause
+remains a hypothesis until approval and successful retry. No authenticated PTR
+acceptance is claimed. Privacy-safe observation receipt SHA256
+852a805ed4729ea640dbd871a011349c7183d96fa7d6a169718fd1a34072ee08.
