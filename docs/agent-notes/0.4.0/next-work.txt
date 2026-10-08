@@ -1,3 +1,27 @@
+Current terminal evidence — 8 October 2026, 14:55 UTC
+
+Signed diagnostic source de76d1ce9345005ffc4fcfe908e5d8e84b215aa2 / tree
+a65a7e4fd955be93b16484fb1d0e6db867e0187f finished at 14:55:03.290 UTC.
+The bound terminal reader authenticated 256 rejections: 214 geography / 42
+proof; all 42 proof attempts failed combined regional hydrogeomorphology QA.
+Major-river measurements: 42 observed, eight below 48, 34 within 48–72,
+none above 72, range 39–66. No regionally eligible attempt was observed.
+These measurements do not establish a river-counting bug or justify tuning
+threshold 144. Regional terrain remains the primary diagnosis path.
+
+Two independent full /proc scans found no original worker births, group or
+supervisor. Source/index/refs and toolchain preservation, authenticated
+exhaustion and root-seed zeroization passed. Terminal metadata SHA256:
+e7a3e3cbe71c7dfcc8ce54690c8dea6c84da94132a6897300fbaa2381cfbabaa.
+Maintained abort returned checkpointAborted:true / productionUntouched:true.
+The replacement14 workspace is retired; its cutoff watcher is stopped.
+Never resume this workspace. No candidate, package, selection or provider write
+was accepted. No 0.4 release or authenticated owner acceptance is claimed.
+
+Next: investigate regional terrain using public fixtures. Change generator geometry
+only for a reproduced defect; a separately bounded fresh search may retain the
+qualified geometry when no defect is established. Keep acceptance criteria
+and approved backend/bridge/frontend intact. Earlier entries below are history.
 Current release checkpoint - 8 October 2026, 13:47 UTC
 
 The third .36 search bound signed source
