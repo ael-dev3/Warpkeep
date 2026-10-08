@@ -1,4 +1,4 @@
-Current atlas diagnosis — 8 October 2026, 18:54 UTC
+Current atlas checkpoint — 8 October 2026, 19:16 UTC
 
 Replacement17 bound signed source 7ad506d3632ddc4b9e2ed3600cc472c582e37743 /
 tree fdf09f7ad4077a10047fda085fccfefa8955008c and finished 18:49:33.477 UTC.
@@ -56,13 +56,33 @@ Do not adopt a land rebalance or raise search limits from these results alone.
 The ordinary .37 generator retains a genuinely eligible public fixture; rejected
 terrain is not evidence that its acceptance requirements should be relaxed.
 
-Next: diagnose a reproduced structural defect using public fixtures before
-another private search. Trace land-coherence and dormant-capacity authority,
-and distinguish a defective measurement/placement from legitimately rejected
-terrain. Do not loop retries, resume retired workspaces or relax requirements.
-No eligible atlas, selection, import, owner acceptance or shipped 0.4 is claimed.
-Preserve installed services, Alpha, G001 admission freeze/progress, G002 sealing,
-licensing and current Actions policy.
+The public ordinal 3 living-world diagnosis reproduced insufficient independent
+open groundcover: 397 cells versus the unchanged 454-cell separation minimum.
+Its Jaccard overlap check already passed. Leaf-only fringe repair could not use
+safe, connected woody boundaries. The .38 correction permits only boundary
+cells with existing open neighbours and locally connected remaining neighbours.
+It rechecks every removal sequentially and tracks whole-patch sizes to preserve
+the six-cell minimum, rather than pruning an undersized remainder afterward.
+Dense interiors and narrow connectors stay untouched. Groundcover, water,
+strategic ownership, protected clearances and acceptance limits do not change.
+Generator identity advances to .38; terrain seed namespace and living-world
+serialized schema remain unchanged. The new boundary regression failed before
+the fix. All 27 living-world cases pass, including connector preservation and
+minimum patch size. Public ordinal 3 now has 454 open-groundcover cells, passes
+that independence invariant and retains valid patch sizes/routes/clearances;
+its other terrain/capacity failures remain genuine rejection evidence.
+Qualification completed: 142 affected tests pass (21 generator, 82 package,
+11 rejection, one final-passability regression and 27 living-world tests).
+Package replay, semantic ownership, tamper rejection and zeroization pass.
+Project and affected test types, licensing, file-size, diff and public-boundary
+checks pass. No private candidate or provider operation used the correction yet.
+
+Next: publish/synchronize the qualified .38 source, then run one fresh bounded
+source-bound atlas batch with unchanged acceptance requirements. Authenticate
+its terminal evidence before selecting/importing anything; never resume retired
+workspaces or automatically loop retries. No eligible atlas, selection, import,
+owner acceptance or shipped 0.4 is claimed. Preserve installed services, Alpha,
+G001 admission freeze/progress, G002 sealing, licensing and current Actions policy.
 Earlier entries below are historical evidence.
 
 Current terminal evidence — 8 October 2026, 16:04 UTC

@@ -269,6 +269,63 @@ describe('Greater Realm private living-world authority', () => {
     }
   });
 
+  it('opens connected woody boundaries without shrinking a patch below its minimum', () => {
+    const grid = indexGreaterRealmAxialGrid(coordinatesForRadius(3));
+    const vegetation = new Uint8Array(grid.cellCount);
+    const groundcover = new Uint8Array(grid.cellCount);
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      if (axialDistance(grid.q[cell]!, grid.r[cell]!) <= 1) {
+        vegetation[cell] = 64;
+        groundcover[cell] = 96;
+      }
+    }
+    const originalGroundcover = groundcover.slice();
+    try {
+      expect(refineGreaterRealmOpenGroundcoverFringes(
+        grid, new Uint32Array([1, 2, 3, 4]), vegetation, groundcover,
+      )).toBe(1);
+      const remaining = [...vegetation].flatMap((value, cell) => value ? [cell] : []);
+      expect(remaining).toHaveLength(6);
+      const reached = new Set([remaining[0]!]);
+      for (const cell of reached) {
+        for (let direction = 0; direction < 6; direction += 1) {
+          const neighbor = grid.neighbors[cell * 6 + direction]!;
+          if (neighbor >= 0 && vegetation[neighbor]) reached.add(neighbor);
+        }
+      }
+      expect(reached.size).toBe(6);
+      expect(groundcover).toEqual(originalGroundcover);
+      // Requiring another opening must leave this minimum-sized patch intact.
+      const cleared = vegetation.findIndex((value, cell) => !value && groundcover[cell] !== 0);
+      groundcover[cleared] = 0;
+      expect(refineGreaterRealmOpenGroundcoverFringes(
+        grid, new Uint32Array([1, 2, 3, 4]), vegetation, groundcover,
+      )).toBe(0);
+      expect([...vegetation].filter(Boolean)).toHaveLength(6);
+    } finally { vegetation.fill(0); groundcover.fill(0); grid.clearIndex?.(); }
+  });
+
+  it('preserves a woody connector whose neighbours cannot reconnect around it', () => {
+    const grid = indexGreaterRealmAxialGrid(coordinatesForRadius(4));
+    const vegetation = new Uint8Array(grid.cellCount);
+    const groundcover = new Uint8Array(grid.cellCount);
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
+      const q = grid.q[cell]!;
+      const r = grid.r[cell]!;
+      if (axialDistance(q - 2, r) <= 1 || axialDistance(q + 2, r) <= 1) vegetation[cell] = 64;
+    }
+    const connector = grid.indexOf({ q: 0, r: 0 });
+    vegetation[connector] = 32;
+    groundcover[connector] = 96;
+    const before = vegetation.slice();
+    try {
+      expect(refineGreaterRealmOpenGroundcoverFringes(
+        grid, new Uint32Array([1, 2, 3, 4]), vegetation, groundcover,
+      )).toBe(0);
+      expect(vegetation).toEqual(before);
+    } finally { vegetation.fill(0); groundcover.fill(0); grid.clearIndex?.(); }
+  });
+
   it('does not hollow a woody interior when no safe fringe leaf exists', () => {
     const grid = indexGreaterRealmAxialGrid(coordinatesForRadius(2));
     const vegetationDensity = new Uint8Array(grid.cellCount);

@@ -2327,12 +2327,10 @@ function pruneSmallDensityPatches(
 }
 
 /**
- * Convert only leaf cells on an existing woody patch boundary into open
- * groundcover until the reviewed one-percent separation floor is met.
- *
- * Removing a degree-one cell cannot split the remaining woody component. The
- * final prune handles a bounded undersized remnant, while a dense interior
- * with no safe fringe remains untouched and therefore still fails closed.
+ * Thin existing woody boundaries only while the remaining immediate neighbours
+ * reconnect without the removed cell. Sequential rechecks preserve connectivity;
+ * tracked component sizes preserve the minimum patch floor. Dense interiors and
+ * narrow connectors remain untouched, even when the separation floor cannot be met.
  */
 export function refineGreaterRealmOpenGroundcoverFringes(
   grid: IndexedAxialGrid,
@@ -2347,6 +2345,28 @@ export function refineGreaterRealmOpenGroundcoverFringes(
   const seedCopy = copyAndValidateSeed(seed);
   const seedWords = seedCopy as unknown as SeedWords;
   const candidates: number[] = [];
+  const componentId = new Int32Array(grid.cellCount).fill(-1);
+  const queue = new Uint32Array(grid.cellCount);
+  const componentSizes: number[] = [];
+  const safeBoundary = (cell: number): boolean => {
+    const woodyNeighbours: number[] = [];
+    let openNeighbour = false;
+    for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+      const neighbour = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+      if (neighbour < 0) continue;
+      if (vegetationDensity[neighbour] !== 0) woodyNeighbours.push(neighbour);
+      else openNeighbour = true;
+    }
+    if (!openNeighbour || woodyNeighbours.length === 0) return false;
+    const connected = new Set([woodyNeighbours[0]!]);
+    for (const neighbour of connected) {
+      for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+        const next = grid.neighbors[neighbour * NEIGHBOR_COUNT + direction]!;
+        if (woodyNeighbours.includes(next)) connected.add(next);
+      }
+    }
+    return connected.size === woodyNeighbours.length;
+  };
   let groundcoverCellCount = 0;
   let openGroundcoverCellCount = 0;
   try {
@@ -2357,14 +2377,7 @@ export function refineGreaterRealmOpenGroundcoverFringes(
         openGroundcoverCellCount += 1;
         continue;
       }
-      let woodyNeighborCount = 0;
-      for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
-        const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
-        if (neighbor >= 0 && vegetationDensity[neighbor] !== 0) {
-          woodyNeighborCount += 1;
-        }
-      }
-      if (woodyNeighborCount === 1) candidates.push(cell);
+      if (safeBoundary(cell)) candidates.push(cell);
     }
     const requiredOpenGroundcoverCellCount = Math.floor(
       (groundcoverCellCount + 99) / 100,
@@ -2374,6 +2387,25 @@ export function refineGreaterRealmOpenGroundcoverFringes(
       requiredOpenGroundcoverCellCount - openGroundcoverCellCount,
     );
     if (shortfall === 0 || candidates.length === 0) return 0;
+    for (let start = 0; start < grid.cellCount; start += 1) {
+      if (vegetationDensity[start] === 0 || componentId[start] >= 0) continue;
+      const component = componentSizes.length;
+      let head = 0;
+      let tail = 1;
+      queue[0] = start;
+      componentId[start] = component;
+      while (head < tail) {
+        const cell = queue[head++]!;
+        for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+          const neighbour = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+          if (neighbour < 0 || vegetationDensity[neighbour] === 0
+            || componentId[neighbour] >= 0) continue;
+          componentId[neighbour] = component;
+          queue[tail++] = neighbour;
+        }
+      }
+      componentSizes.push(tail);
+    }
     candidates.sort((left, right) => (
       vegetationDensity[left]! - vegetationDensity[right]!
       || groundcoverDensity[right]! - groundcoverDensity[left]!
@@ -2392,17 +2424,22 @@ export function refineGreaterRealmOpenGroundcoverFringes(
       )
       || left - right
     ));
-    const cleared = Math.min(shortfall, candidates.length);
-    for (let ordinal = 0; ordinal < cleared; ordinal += 1) {
-      vegetationDensity[candidates[ordinal]!] = 0;
+    let cleared = 0;
+    for (const cell of candidates) {
+      if (cleared >= shortfall) break;
+      const component = componentId[cell]!;
+      if (componentSizes[component]! <= MINIMUM_VEGETATION_PATCH_CELLS
+        || !safeBoundary(cell)) continue;
+      vegetationDensity[cell] = 0;
+      componentSizes[component] -= 1;
+      cleared += 1;
     }
-    pruneSmallDensityPatches(
-      grid,
-      vegetationDensity,
-      MINIMUM_VEGETATION_PATCH_CELLS,
-    );
     return cleared;
   } finally {
+    componentId.fill(0);
+    queue.fill(0);
+    componentSizes.fill(0);
+    componentSizes.length = 0;
     seedCopy.fill(0);
     candidates.fill(0);
     candidates.length = 0;
