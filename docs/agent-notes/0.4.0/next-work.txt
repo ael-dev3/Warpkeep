@@ -1,79 +1,64 @@
 WARPKEEP 0.4 - NEXT WORK
-CURRENT RESUMPTION - 8 OCTOBER 2026, 01:39 UTC
+CURRENT RESUMPTION - 8 OCTOBER 2026, 03:22 UTC
 
-ACTIVE RELEASE STEP - PUBLISH AND SEARCH THE .30 FRONTIER CORRECTION
+ACTIVE RELEASE STEP - PUBLISH THE TESTED .31 CORRECTION, THEN SEARCH
 
-The fresh .29 search on signed source eae5d82e0a8521f9ee155f0c3f8c8a81da2d2a13,
-tree 9de5f4e1aa3261ef352d6cf4f1627360c661d016, ran from
-2026-10-08T00:30:01.551Z to 2026-10-08T01:17:26.687Z. Its exact terminal
-receipt and private checkpoint were authenticated only after launcher closure
-and two identity-bound absence checks ten seconds apart. All 256 attempts
-were rejected (219 geography, 37 proof); no candidate, package, selection,
-atlas, owner or provider write resulted. The checkpoint was retired with the
-maintained abort command. Never reuse its workspace or seed. Detailed safe
-evidence and rejection counts are at the top of
-docs/evidence/0.4.0/local-operations.md.
+The current published source is signed `.30` commit
+`4e4fdc857d1ea8dec5177afed50d62d95d3016ff`, tree
+`c3f1cc47119561b632921db7c26c1bb97bbfb81b`, on the existing release branch
+and draft PR #385. The exact-source `.30` batch
+`20261008T020000Z` exhausted 256 attempts with no candidate, package,
+selection, atlas, owner action, or provider write. Its terminal receipt and
+rejection evidence are at the top of
+`docs/evidence/0.4.0/local-operations.md`. The private workspace and seed are
+retired; never reuse them.
 
-The signed .30 code commit is
-6b9ccc3ae6a6a8b393c8757e33da0dea4e621e80, tree
-d8c7d83bd89d61b793b36e5fc92f819ffa38be25. It raises only the bounded raw
-apron-pair frontier from 16,384 to 32,768 and advances the generator
-identifier to .30. Edge/child caps, search and complete-plan budgets, proofs,
-admission policy, geometry and terrain-seed namespace .3 are unchanged.
-Pinned Linux Node 22.22.3 typecheck passed; apron/rejection/generator tests
-pass 67/67, candidate-package tests 82/82. All 149 cases have passing
-evidence across the combined run and focused reruns. The 1,024-edge synthetic
-selector retained 32,768 of 523,776 pairs in 2,512 ms, sampled peak RSS
-227,897,344 bytes. It is a selector benchmark, not full-world generation.
-No .30 candidate has started.
+The fresh `.31` correction is locally prepared in four source/test files and
+has a signed local checkpoint awaiting publication. It
+widens only bounds directly reached in `.30` evidence: raw apron pairs 32,768
+→ 65,536; per-child bundles 128 → 256; search nodes 320,000 → 640,000; and
+complete plans 256 → 512. The generator identifier is `.31`; terrain seed
+namespace `.3`, proofs, geometry, admission and deployment policy are unchanged.
 
-Immediately before publication, repository-wide Actions inventory found 3,807
-completed runs and none active. All 57 attempts across 28 rerun workflows
-were enumerated without errors. Repository Actions permission is disabled.
-Verify listens to pull_request and main pushes; Pages follows only successful
-Verify for a main push; production operations are dispatch-only. PR #385 is
-open/draft at eae5d82 before the pending push. The signed code and this
-documentation checkpoint will publish together as one branch update. Actions
-will remain disabled.
+Pinned Linux Node 22.22.3 typecheck passed. Focused evidence: gate-apron
+35/35, rejection 11/11, generator 21/21, candidate-package 82/82. The package
+suite took 566.72 seconds, including its seed-bound candidate fixture and
+package verification replays. A maximum-edge synthetic selector retained
+65,536 of 523,776 pairs in 6,038 ms at a sampled 230,035,456-byte peak RSS.
+This is selector/package evidence, not full-world generation. Details and
+hashes are in the local-operations record above. The Windows and pinned WSL
+checkouts match the signed local checkpoint. No `.31` search has started.
 
-ORDERED NEXT WORK
-1. Complete: retire .29 exhaustion and locally qualify the signed .30 code.
-2. Publish both signed commits to the existing release branch and synchronize
-   the clean Windows and WSL checkouts to the exact published head. Keep PR
-   #385 a draft.
-3. Only after publication, run one fresh .30 search with new seed/workspace,
-   exact source/tree/toolchain binding, maximum 256 attempts, fixed six-hour
-   cutoff and no automatic restart. Never reuse .29 state.
-4. For a genuine eligible candidate only: verify its private package, select
-   separately, import/read back the atlas and provision the actual PTR owner.
-   Reuse the installed backend and bridge unless a concrete failure reproduces.
-5. Test owner Quick Auth and keep/gather/build/return in the signed-in
-   Farcaster Mini App, then regress Alpha. Do not call 0.4 shipped until both
-   acceptance paths pass.
+ORDERED NEXT ACTIONS
 
-TERMINAL RECEIPT RECOVERY RAIL
+1. Complete the outgoing Gitleaks scan and recheck the current remote branch/PR
+   head immediately before pushing the signed local checkpoint.
+2. Publish only to the existing release branch; keep PR #385 a draft. Confirm
+   the exact remote head and that Actions remain disabled with no new run.
+   Synchronize and verify both local checkouts against that published commit.
+3. Only after publication, start one wholly fresh `.31` search: exact source,
+   tree, pinned Node/toolchain, new private workspace and seed, 256 attempts,
+   fixed six-hour cutoff, one slot, no provider writes, no automatic restart.
+   Use a persistent-stdin watchdog and require genuine armed readiness before
+   relying on its cutoff. Never reuse `.30` state.
+4. For an eligible candidate only: verify package, compare and select through
+   maintained gates, export/import/read back the atlas, then provision and
+   test the actual PTR owner. Reuse the installed backend and bridge unless a
+   concrete failure reproduces. Test Quick Auth and keep/gather/build/return in
+   the signed-in Mini App, then regress the existing Alpha.
 
-If orchestration says NO_TERMINAL_EVENT, do not infer success or failure and do
-not read the raw generation log. Wait for launcher-session closure; validate
-the exact started receipt, source, window, receipt hash, worker identities and
-supervisor identity. Observe the root group, every recorded worker and the
-supervisor absent twice at least ten seconds apart. Then use a one-use safe
-reader bound to those exact identities to authenticate the terminal receipt
-and summarize the private checkpoint. If an identity is live or ambiguous, a
-receipt is missing or mismatched, or source/toolchain is not preserved, fail
-closed; do not restart or reuse the workspace. For authenticated exhaustion,
-run the maintained abort command and create a wholly fresh source-bound search
-only after the corrective commit is published. This procedure resolved .29's
-NO_TERMINAL_EVENT; its terminal receipt was valid and the search exhausted
-normally.
+RELEASE STATE
 
-If the signed-in Mini App context cannot be reused, open
-https://warpkeep.com/ptr/?miniApp=true inside the signed-in Warpkeep Farcaster
-Mini App and tell Codex when the realm directory is visible. Do not send QR
-codes or credentials. Detailed receipts are at the top of
-docs/evidence/0.4.0/local-operations.md; older entries are dated history.
+0.4 is not shipped. The live Alpha remains the compatibility target. There is
+no `.31` candidate or atlas, and the actual authenticated owner PTR acceptance
+is still outstanding. Do not merge or claim completion until the owner journey
+and Alpha regression have real acceptance evidence. Source publication is not
+deployment or release acceptance.
 
-ACTIVE RELEASE STEP - 21:03 UTC
+The detailed repository evidence is authoritative. The remaining snapshots
+below are dated operating history; do not revive old workspaces, seeds,
+cutoffs, source bindings, or stale candidate states.
+DATED HISTORICAL SNAPSHOT - 21:03 UTC
 Published/native-qualified d1ab2b21 / generator .27 is running one fresh guarded
 search. Actual start21:01:11.913; guard READY21:01:29.401 UTC. Root generation
 exec55823, guard exec89976. Fixed window20:57 UTC to02:57 UTC8 October;

@@ -3,6 +3,99 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## .30 candidate exhausted; `.31` correction locally qualified — 8 October 2026, 03:22 UTC
+
+The fresh one-slot `.30` search used source `4e4fdc857d1ea8dec5177afed50d62d95d3016ff`,
+tree `c3f1cc47119561b632921db7c26c1bb97bbfb81b`, generator
+`greater-realm-v2-natural-continent-pr-a.30`, and the pinned Linux x64 Node
+22.22.3 toolchain. Window `20261008T020000Z`, private workspace
+`greater-realm-candidate-4e4fdc85-20261008T020000Z-parallel01-replacement04`,
+was bounded to 256 attempts with no automatic restart or provider writes.
+
+Started receipt SHA-256:
+`787bec6fee9ba2b9190fa63fd5e3a2eacbd5cb15f20e25f5bf095d717baccb18`.
+The runner began at `2026-10-08T02:00:08.718Z`; the terminal receipt records
+`2026-10-08T02:51:32.919Z`, exit code 1, no signal or spawn error, and no
+deadline, interruption, monitoring or source-hold failure. Terminal receipt
+SHA-256 is
+`089008af660517ae06588241b5a1b2beacc794f34022899a74932cb520d09618`.
+Its 41-byte private log digest is
+`1c33f77505a6828a9acadf7b5aae8c01e4be8dad48fb9ced3bce88e8fa02c1f1`; the
+raw log was not read. Receipt monotonic elapsed time is 2,777,552 ms, while
+the UTC timestamps span 3,084,201 ms. Preserve the discrepancy; do not use
+monotonic duration as wall time.
+
+The first native cutoff helper ran without a persistent stdin and exited on
+EOF after printing readiness; it never armed, read a checkpoint, or signalled
+a process. It was replaced immediately with the same reviewed helper in a
+persistent PTY. The armed watcher then remained attached through normal worker
+completion and was closed after authenticated process retirement. Future
+watchers must use a persistent session and verify genuine armed readiness
+before relying on coverage.
+
+After the generation launcher closed, two identity-bound process/group
+observations 15 seconds apart found the exact recorded process, group and
+supervisor absent. Only then did the single-use source-bound safe reader
+authenticate the terminal receipt and checkpoint: searching, ordinal 256,
+256 rejected attempts (227 geography / 29 proof), no candidate or completion,
+no package or selection, no atlas or owner action, no provider write, and
+production untouched. The root seed was zeroized. The private workspace is
+retired and must not be resumed or reused.
+
+Geography rejection codes were: active-cell count out of range 24; legacy
+Lowlands placement 10; dry gate-apron complete-plan limit 17; pair frontier
+truncated at bundle-option limit 85; pair limit 44; search-node limit 33;
+Tier-II primary component undersized 8; throne repair forbidden 6. Overlapping
+frontier-kind counts were bundle-option limit 187, bundle-pair limit 59,
+Lowlands repair bundle-option limit 184, and Lowlands repair sibling-pair
+limit 184. These counts identify reached bounds, not proof that any one bound
+alone caused exhaustion.
+
+The evidence-directed `.31` source correction widens only the reached bounded
+search capacities: raw pair cap 32,768 to 65,536; per-child bundle cap 128 to
+256; search-node cap 320,000 to 640,000; complete-plan cap 256 to 512. The
+generator identifier advances to `.31`; deterministic terrain-seed namespace
+`.3`, geometry, proof policy and admissions remain unchanged.
+
+Pinned Linux Node 22.22.3 typecheck passed. The focused gate-apron suite passed
+35/35 after replacing its oversized frontier fixture with a deterministic
+six-pair physical-diversity case; the rejection suite passed 11/11 and the
+generator suite passed 21/21. The private candidate-package suite passed
+82/82 in 566.72 seconds, including the seed-bound candidate fixture and its
+package verification replays. A synthetic maximum-edge selector benchmark
+retained 65,536 of 523,776 pairs in 6,038 ms; initial/final/sampled-peak RSS
+were 189,448,192 / 216,395,776 / 230,035,456 bytes. Its selected digest is
+`bc4b2b32b0ae3aa7643a564c1e3d2156d2c64bcc776c6474bdba077415176f67`. This is
+selector and local package evidence, not full candidate-generation evidence.
+No `.31` search has started. Publish the tested and signed source/documentation
+checkpoint, confirm both checkouts match the published tree, then create a
+fresh, exact-source-bound `.31` window. Current publication state and next
+actions are recorded at the top of `docs/agent-notes/0.4.0/next-work.txt`.
+
+Before the proposed branch update, paginated GitHub inventory returned 3,807
+workflow runs across all branches/events: all completed, none queued or
+running. Event totals were pull request 2,703, push 699, workflow run 239,
+workflow dispatch 156 and dynamic 10. The latest run was created 2 October;
+none was created on 8 October. All 28 run records with rerun attempts were
+enumerated at the run-attempt jobs endpoint: 57/57 attempts, with every
+attempt's reported job total matched to returned jobs and no incomplete page
+or API error. Repository Actions permission is `enabled:false`. The local
+Actions hold check also reported disabled settings and zero active runs for
+Warpkeep, Warpkeep-Live, Warpkeep-Assets and Warpkeep-Water-Engine; its
+account-wide daily-minute total is unavailable.
+
+Trigger review confirms Verify listens to pull requests and pushes to `main`;
+Deploy GitHub Pages only follows a successful Verify for a `main` push. The
+four production workflows are dispatch-only. A release-branch PR update would
+match Verify's PR trigger if Actions were enabled, but the repository setting
+remains disabled. No Actions run was started, dispatched, rerun or enabled for
+this checkpoint.
+
+Pinned Gitleaks 8.30.1 at `/usr/bin/gitleaks` matched the maintained binary
+SHA-256 `88f91962aa2f93ac6ab281d553b9e125f5197bbbce38f9f2437f7299c32e5509`.
+Its scanner regression passed 49 positive and 98 negative fixtures. The final
+outgoing signed-commit range is scanned once before publication.
+
 ## .29 candidate exhausted; .30 pair frontier qualified locally - 8 October 2026, 01:39 UTC
 
 The one-candidate window 20261008T003000Z ran against signed source

@@ -76,7 +76,8 @@ describe('Greater Realm ranked gate-apron search', () => {
   });
 
   it('retains a physically novel pair beyond the endpoint-only overflow frontier', () => {
-    const edgeCount = 257;
+    const edgeCount = 4;
+    const maximumPairs = 4;
     const pairs = Object.freeze(Array.from({ length: edgeCount - 1 }, (_, firstIndex) => (
       Array.from({ length: edgeCount - firstIndex - 1 }, (_, offset) => Object.freeze({
         firstIndex,
@@ -84,9 +85,9 @@ describe('Greater Realm ranked gate-apron search', () => {
         score: firstIndex * edgeCount + firstIndex + offset + 1,
       }))
     )).flat());
-    const endpointOnly = selectBalancedGreaterRealmGateApronPairs(pairs);
-    expect(pairs).toHaveLength(32_896);
-    expect(endpointOnly).toHaveLength(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS);
+    const endpointOnly = selectBalancedGreaterRealmGateApronPairs(pairs, maximumPairs);
+    expect(pairs).toHaveLength(6);
+    expect(endpointOnly).toHaveLength(maximumPairs);
 
     const commonFootprint = (_pair: typeof pairs[number], visitCell: (tier: 'tier-one' | 'tier-two', cell: number) => void) => {
       visitCell('tier-one', 0);
@@ -94,20 +95,20 @@ describe('Greater Realm ranked gate-apron search', () => {
     };
     const endpointAndCommonFootprint = selectBalancedGreaterRealmGateApronPairs(
       pairs,
-      GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS,
+      maximumPairs,
       commonFootprint,
     );
     const endpointAndCommonKeys = new Set(endpointAndCommonFootprint
       .map(pair => `${pair.firstIndex}:${pair.secondIndex}`));
-    const physicallyNovel = pairs.find(pair => !endpointAndCommonKeys
-      .has(`${pair.firstIndex}:${pair.secondIndex}`));
-    expect(physicallyNovel).toBeDefined();
+    const physicallyNovel = pairs.find(pair => pair.firstIndex === 1 && pair.secondIndex === 3);
+    expect(physicallyNovel).toMatchObject({ firstIndex: 1, secondIndex: 3 });
+    expect(endpointAndCommonKeys.has('1:3')).toBe(false);
     const visitor = (pair: typeof pairs[number], visitCell: (tier: 'tier-one' | 'tier-two', cell: number) => void) => {
       visitCell('tier-one', pair === physicallyNovel ? 1 : 0);
     };
     const diverse = selectBalancedGreaterRealmGateApronPairs(
       pairs,
-      GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS,
+      maximumPairs,
       visitor,
     );
 
@@ -765,33 +766,33 @@ describe('Greater Realm ranked gate-apron search', () => {
   });
 
   it('keeps child bundle frontiers deterministic, bounded, and represented by origin', () => {
-    const ranked = Object.freeze(Array.from({ length: 140 }, (_, index) => Object.freeze({
-      child: index < 132 ? 2 : index === 132 ? 4 : 6,
+    const ranked = Object.freeze(Array.from({ length: 270 }, (_, index) => Object.freeze({
+      child: index < 260 ? 2 : index === 260 ? 4 : 6,
       score: index,
     })));
     const selected = selectGreaterRealmGateApronChildBundleOptions(
       ranked,
       option => option.child,
     );
-    expect(GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS).toBe(128);
-    expect(selected).toHaveLength(128);
+    expect(GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS).toBe(256);
+    expect(selected).toHaveLength(256);
     expect(selected[0]).toBe(ranked[0]);
-    expect(selected).toContain(ranked[132]);
-    expect(selected).toContain(ranked[133]);
+    expect(selected).toContain(ranked[260]);
+    expect(selected).toContain(ranked[261]);
     expect(selected.map(option => option.score)).toEqual(
       [...selected].map(option => option.score).sort((first, second) => first - second),
     );
     expect(Object.isFrozen(selected)).toBe(true);
 
     expect(() => selectGreaterRealmGateApronChildBundleOptions(
-      Object.freeze(Array.from({ length: 129 }, (_, index) => Object.freeze({
-        child: index === 128 ? -1 : 2,
+      Object.freeze(Array.from({ length: 257 }, (_, index) => Object.freeze({
+        child: index === 256 ? -1 : 2,
       }))),
       option => option.child,
     )).toThrow('GREATER_REALM_GATE_APRON_CHILD_OPTION_ORIGIN_INVALID');
 
     const lowlandsRepair = selectGreaterRealmLowlandsRepairBundleOptions(
-      Array.from({ length: 140 }, (_, score) => Object.freeze({
+      Array.from({ length: 270 }, (_, score) => Object.freeze({
         child: 1,
         score,
         endpoint: score,
@@ -801,21 +802,21 @@ describe('Greater Realm ranked gate-apron search', () => {
       bundle => bundle.score,
       bundle => bundle.endpoint,
     );
-    expect(lowlandsRepair).toHaveLength(128);
+    expect(lowlandsRepair).toHaveLength(256);
     expect(lowlandsRepair[0]?.score).toBe(0);
-    expect(lowlandsRepair.at(-1)?.score).toBe(127);
+    expect(lowlandsRepair.at(-1)?.score).toBe(255);
   });
 
   it.each(['ordinary', 'repair'] as const)(
     'retains a same-origin compatible footprint through the actual %s child frontier',
     lane => {
       const pairs = selectBalancedGreaterRealmGateApronPairs(Object.freeze([
-        ...Array.from({ length: 129 }, (_, index) => Object.freeze({
+        ...Array.from({ length: 257 }, (_, index) => Object.freeze({
           firstIndex: 0,
           secondIndex: index + 1,
           score: index + 1,
         })),
-        Object.freeze({ firstIndex: 1, secondIndex: 130, score: 1000 }),
+        Object.freeze({ firstIndex: 1, secondIndex: 258, score: 1000 }),
       ]));
       const ranked = Object.freeze(pairs.map(pair => Object.freeze({
         ...pair,
@@ -832,15 +833,15 @@ describe('Greater Realm ranked gate-apron search', () => {
         Object.freeze(['same-capacity-assignment']),
         () => Object.freeze([frontier, Object.freeze([competing])]),
         (_alternative, selected) => selected[0]?.id === compatible.id,
-        Object.freeze({ maximumSearchNodes: 320_000, maximumCompletePlans: 256 }),
+        Object.freeze({ maximumSearchNodes: 640_000, maximumCompletePlans: 512 }),
         bundle => Object.freeze([bundle]),
       );
 
       // The raw pair cap already retains this real physical alternative.
-      expect(pairs).toHaveLength(130);
-      const scorePrefix = Object.freeze(ranked.slice(0, 128));
+      expect(pairs).toHaveLength(258);
+      const scorePrefix = Object.freeze(ranked.slice(0, 256));
       expect(search(scorePrefix)).toEqual({ outcome: 'no-match' });
-      const sameBoundControl = Object.freeze([...scorePrefix.slice(0, 127), compatible]);
+      const sameBoundControl = Object.freeze([...scorePrefix.slice(0, 255), compatible]);
       expect(search(sameBoundControl).outcome).toBe('match');
 
       const selected = lane === 'ordinary'
@@ -851,7 +852,7 @@ describe('Greater Realm ranked gate-apron search', () => {
           ranked, 2, bundle => bundle.child, bundle => bundle.score,
           bundle => bundle.firstIndex, false, bundle => bundle,
         );
-      expect(selected).toHaveLength(128);
+      expect(selected).toHaveLength(256);
       expect(selected[0]).toBe(ranked[0]);
       expect(search(selected).outcome).toBe('match');
       expect(selected.map(bundle => bundle.score)).toEqual(
@@ -859,22 +860,22 @@ describe('Greater Realm ranked gate-apron search', () => {
       );
       expect(Object.isFrozen(selected)).toBe(true);
       expect(ranked[0]?.tierOneCells).toEqual([0, 1]);
-      expect(compatible.tierOneCells).toEqual([1, 130]);
+      expect(compatible.tierOneCells).toEqual([1, 258]);
     },
   );
 
   it('keeps tiers distinct and treats repeated cells as one physical footprint', () => {
-    const ranked = Object.freeze(Array.from({ length: 140 }, (_, index) => Object.freeze({
-      ...option(String(index), index < 139 ? [0, index + 1] : [], index === 139 ? [0] : []),
+    const ranked = Object.freeze(Array.from({ length: 270 }, (_, index) => Object.freeze({
+      ...option(String(index), index < 269 ? [0, index + 1] : [], index === 269 ? [0] : []),
       child: 2,
     })));
     const footprint = vi.fn((bundle: typeof ranked[number]) => bundle);
     const selected = selectGreaterRealmGateApronChildBundleOptions(
       ranked, bundle => bundle.child, footprint,
     );
-    expect(selected).toContain(ranked[139]);
+    expect(selected).toContain(ranked[269]);
     expect(footprint).toHaveBeenCalledTimes(ranked.length);
-    expect(selected).toHaveLength(128);
+    expect(selected).toHaveLength(256);
     const duplicated = Object.freeze(ranked.map(bundle => Object.freeze({
       ...bundle,
       tierOneCells: Object.freeze(bundle.tierOneCells.flatMap(cell => [cell, cell, cell])),
@@ -884,12 +885,12 @@ describe('Greater Realm ranked gate-apron search', () => {
       duplicated, bundle => bundle.child, bundle => bundle,
     ).map(bundle => bundle.id)).toEqual(selected.map(bundle => bundle.id));
     expect(duplicated[0]?.tierOneCells).toEqual([0, 0, 0, 1, 1, 1]);
-    expect(ranked[139]?.tierTwoCells).toEqual([0]);
+    expect(ranked[269]?.tierTwoCells).toEqual([0]);
   });
 
   it('preserves mandatory origins sharing a corridor while retaining physical alternatives', () => {
-    const ranked = Object.freeze(Array.from({ length: 140 }, (_, index) => Object.freeze({
-      ...option(String(index), index < 139 ? [0, index + 1] : [200, 201], []),
+    const ranked = Object.freeze(Array.from({ length: 270 }, (_, index) => Object.freeze({
+      ...option(String(index), index < 269 ? [0, index + 1] : [200, 201], []),
       child: index === 1 ? 4 : 2,
     })));
     const select = () => selectGreaterRealmGateApronChildBundleOptions(
@@ -898,8 +899,8 @@ describe('Greater Realm ranked gate-apron search', () => {
     const selected = select();
     expect(selected).toContain(ranked[0]);
     expect(selected).toContain(ranked[1]);
-    expect(selected).toContain(ranked[139]);
-    expect(selected).toHaveLength(128);
+    expect(selected).toContain(ranked[269]);
+    expect(selected).toHaveLength(256);
     expect(selected).toEqual(select());
     expect(selected.map(bundle => Number(bundle.id))).toEqual(
       selected.map(bundle => Number(bundle.id)).sort((first, second) => first - second),
@@ -907,7 +908,7 @@ describe('Greater Realm ranked gate-apron search', () => {
   });
 
   it('keeps repair authority and own-first order when diverse donors survive overflow', () => {
-    const own = Array.from({ length: 140 }, (_, score) => Object.freeze({
+    const own = Array.from({ length: 270 }, (_, score) => Object.freeze({
       ...option(`own-${score}`, [0, score + 1], []), child: 2, score, endpoint: score,
     }));
     const donor = Object.freeze({
@@ -923,7 +924,7 @@ describe('Greater Realm ranked gate-apron search', () => {
         bundle => bundle.endpoint, includeBorrowed, bundle => bundle,
       )
     );
-    expect(select(2, true)).toHaveLength(128);
+    expect(select(2, true)).toHaveLength(256);
     expect(select(2, true)[0]).toBe(own[0]);
     expect(select(2, true).at(-1)).toBe(donor);
     expect(select(2, true)).not.toContain(lowlands);
@@ -932,7 +933,7 @@ describe('Greater Realm ranked gate-apron search', () => {
   });
 
   it('leaves small frontiers unchanged without inspecting unused footprints', () => {
-    const ranked = Object.freeze(Array.from({ length: 128 }, (_, index) => Object.freeze({
+    const ranked = Object.freeze(Array.from({ length: 256 }, (_, index) => Object.freeze({
       ...option(String(index), [index], []), child: 2,
     })));
     const unused = vi.fn(() => { throw new Error('UNUSED_FOOTPRINT'); });
@@ -948,14 +949,14 @@ describe('Greater Realm ranked gate-apron search', () => {
   it.each([-1, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
     'rejects invalid physical cell %s without changing the frontier',
     invalidCell => {
-      const ranked = Object.freeze(Array.from({ length: 129 }, (_, index) => Object.freeze({
-        ...option(String(index), index === 128 ? [invalidCell] : [index], []), child: 2,
+      const ranked = Object.freeze(Array.from({ length: 257 }, (_, index) => Object.freeze({
+        ...option(String(index), index === 256 ? [invalidCell] : [index], []), child: 2,
       })));
       expect(() => selectGreaterRealmGateApronChildBundleOptions(
         ranked, bundle => bundle.child, bundle => bundle,
       )).toThrow('GREATER_REALM_GATE_APRON_CHILD_OPTION_FOOTPRINT_INVALID');
       expect(ranked[0]?.tierOneCells).toEqual([0]);
-      expect(ranked[128]?.tierOneCells[0]).toBe(invalidCell);
+      expect(ranked[256]?.tierOneCells[0]).toBe(invalidCell);
     },
   );
 
@@ -1026,7 +1027,7 @@ describe('Greater Realm ranked gate-apron search', () => {
 
   it('widens bounded gate-apron frontiers after repeated truncation', () => {
     expect(GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES).toBe(1024);
-    expect(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS).toBe(32_768);
+    expect(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS).toBe(65_536);
   });
 
   it('keeps the Lowlands repair frontier within the complete-plan budget', () => {
