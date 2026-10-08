@@ -119,7 +119,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.32' as const;
+  'greater-realm-v2-natural-continent-pr-a.33' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -241,6 +241,7 @@ export function selectGreaterRealmGateApronChildBundleOptions<Option>(
   if (footprintOf !== undefined
     && retainedIndexes.size < GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS) {
     const scratchCells: number[][] = [];
+    const mandatoryByOrigin = new Map<number, readonly [Set<number>, Set<number>]>();
     const tierOneUse = new Map<number, number>();
     const tierTwoUse = new Map<number, number>();
     try {
@@ -275,6 +276,34 @@ export function selectGreaterRealmGateApronChildBundleOptions<Option>(
           tierTwoCells: copyUniqueCells(footprint.tierTwoCells),
         };
       });
+      // A corridor required by every option of an origin cannot distinguish
+      // that origin's alternatives. Discount it only in diversity scoring;
+      // the original footprints still enforce physical collisions downstream.
+      for (const [index, footprint] of footprints.entries()) {
+        const origin = originByIndex[index]!;
+        const mandatory = mandatoryByOrigin.get(origin);
+        const tiers = [footprint.tierOneCells, footprint.tierTwoCells] as const;
+        if (mandatory === undefined) {
+          mandatoryByOrigin.set(origin, [new Set(tiers[0]), new Set(tiers[1])]);
+          continue;
+        }
+        for (const [tier, cells] of tiers.entries()) {
+          const present = new Set(cells);
+          try {
+            for (const cell of mandatory[tier]!) {
+              if (!present.has(cell)) mandatory[tier]!.delete(cell);
+            }
+          } finally {
+            present.clear();
+          }
+        }
+      }
+      for (const [index, footprint] of footprints.entries()) {
+        const mandatory = mandatoryByOrigin.get(originByIndex[index]!)!;
+        footprint.tierOneCells = footprint.tierOneCells.filter(cell => !mandatory[0].has(cell));
+        footprint.tierTwoCells = footprint.tierTwoCells.filter(cell => !mandatory[1].has(cell));
+        scratchCells.push(footprint.tierOneCells, footprint.tierTwoCells);
+      }
       const recordFootprint = (index: number): number => {
         let maximumUse = 0;
         const footprint = footprints[index]!;
@@ -314,6 +343,10 @@ export function selectGreaterRealmGateApronChildBundleOptions<Option>(
     } finally {
       for (const cells of scratchCells) cells.fill(0);
       scratchCells.length = 0;
+      for (const tiers of mandatoryByOrigin.values()) {
+        for (const cells of tiers) cells.clear();
+      }
+      mandatoryByOrigin.clear();
       tierOneUse.clear();
       tierTwoUse.clear();
     }
@@ -683,7 +716,7 @@ export function chooseGreaterRealmLowlandsRepairSiblingPairs<Option>(
     ? compatibleFallbackPairs
     : preferred.slice(1);
   if (remaining.length === 0) return Object.freeze([first]);
-  let second = remaining[0]!;
+  let second: Option = remaining[0]!;
   if (footprintsOf !== undefined && remaining.length > 1) {
     const firstCells = [new Set<number>(), new Set<number>()] as const;
     const candidateCells = [new Set<number>(), new Set<number>()] as const;

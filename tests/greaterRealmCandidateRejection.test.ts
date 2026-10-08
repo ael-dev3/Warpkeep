@@ -266,7 +266,7 @@ describe('Greater Realm expected candidate rejection boundary', () => {
       import.meta.url,
     ), 'utf8');
     expect(generatorSource).toContain(
-      "'greater-realm-v2-natural-continent-pr-a.32'",
+      "'greater-realm-v2-natural-continent-pr-a.33'",
     );
     expect(generatorSource).not.toContain(
       "'greater-realm-v2-natural-continent-pr-a.18'",

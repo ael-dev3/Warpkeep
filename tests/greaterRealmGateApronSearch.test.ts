@@ -864,6 +864,67 @@ describe('Greater Realm ranked gate-apron search', () => {
     },
   );
 
+  it.each(['ordinary', 'repair'] as const)(
+    'retains a feasible %s alternative behind a mandatory same-origin corridor',
+    lane => {
+      const ranked = Object.freeze(Array.from({ length: 257 }, (_, index) => Object.freeze({
+        ...option(String(index), index === 256 ? [0, 999] : [0, 1, index + 2], []),
+        child: 2, score: index, endpoint: index,
+      })));
+      const competing = option('competing', [1], []);
+      const search = (frontier: typeof ranked) => searchGreaterRealmRankedSiblingAlternatives(
+        ['capacity'], () => [frontier, [competing]],
+        (_alternative, selected) => selected[0]?.id === '256',
+        { maximumSearchNodes: 640_000, maximumCompletePlans: 512 },
+        bundle => [bundle],
+      );
+      expect(search(Object.freeze(ranked.slice(0, 256))).outcome).toBe('no-match');
+      const selected = lane === 'ordinary'
+        ? selectGreaterRealmGateApronChildBundleOptions(ranked, bundle => bundle.child, bundle => bundle)
+        : selectGreaterRealmLowlandsRepairBundleOptions(
+          ranked, 2, bundle => bundle.child, bundle => bundle.score,
+          bundle => bundle.endpoint, false, bundle => bundle,
+        );
+      expect(selected).toHaveLength(256);
+      expect(selected[0]).toBe(ranked[0]);
+      expect(selected).toContain(ranked[256]);
+      expect(search(selected).outcome).toBe('match');
+      expect(ranked[0]?.tierOneCells).toEqual([0, 1, 2]);
+    },
+  );
+
+  it('discounts mandatory cells per origin and tier without changing collision authority', () => {
+    const ranked = Object.freeze(Array.from({ length: 270 }, (_, index) => Object.freeze({
+      ...option(String(index),
+        index === 268 ? [5, 1] : index === 269 ? [0, 999] : [0, 1, index + 2],
+        index === 268 ? [0] : [],
+      ),
+      child: index === 268 ? 4 : 2,
+    })));
+    const selected = selectGreaterRealmGateApronChildBundleOptions(
+      ranked, bundle => bundle.child, bundle => bundle,
+    );
+    expect(selected).toHaveLength(256);
+    expect(selected).toContain(ranked[0]);
+    expect(selected).toContain(ranked[268]);
+    expect(selected).toContain(ranked[269]);
+    expect(ranked[268]?.tierOneCells).toEqual([5, 1]);
+    expect(ranked[268]?.tierTwoCells).toEqual([0]);
+    const duplicated = Object.freeze(ranked.map(bundle => Object.freeze({
+      ...bundle,
+      tierOneCells: Object.freeze(bundle.tierOneCells.flatMap(cell => [cell, cell])),
+      tierTwoCells: Object.freeze(bundle.tierTwoCells.flatMap(cell => [cell, cell])),
+    })));
+    expect(selectGreaterRealmGateApronChildBundleOptions(
+      duplicated, bundle => bundle.child, bundle => bundle,
+    ).map(bundle => bundle.id)).toEqual(selected.map(bundle => bundle.id));
+    const collision = searchGreaterRealmRankedSiblingAlternatives(
+      ['capacity'], () => [[ranked[0]!], [ranked[268]!]], () => true,
+      { maximumSearchNodes: 640_000, maximumCompletePlans: 512 }, bundle => [bundle],
+    );
+    expect(collision.outcome).toBe('no-match');
+  });
+
   it('keeps tiers distinct and treats repeated cells as one physical footprint', () => {
     const ranked = Object.freeze(Array.from({ length: 270 }, (_, index) => Object.freeze({
       ...option(String(index), index < 269 ? [0, index + 1] : [], index === 269 ? [0] : []),

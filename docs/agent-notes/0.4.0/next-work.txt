@@ -1,4 +1,45 @@
 WARPKEEP 0.4 - NEXT WORK
+
+Qualified checkpoint — 8 October 2026, 06:17 UTC: .33 correction complete.
+All 157 affected tests pass (43 apron, 21 generator, 11 rejection, 82 package),
+as do pinned project build-mode typecheck, file-size, license and public-boundary
+checks. The prior repair-pair generic inference error is also fixed without a
+runtime behavior change. Resolve the signed commit/tree from actual Git/PR state.
+Next: publish/synchronize this reviewed checkpoint, then run one fresh bound
+candidate search. Atlas and authenticated owner acceptance remain pending.
+CURRENT RESUMPTION - 8 OCTOBER 2026, 06:02 UTC
+
+ACTIVE RELEASE STEP - CORRECT THE REPRODUCED CHILD-OPTION DIVERSITY LOSS
+
+Signed .32 source 51b41e2bd8dced229387e84f0195953ff0319ed0/tree
+66acff5ba768f86ec7563239151a18942701339d completed 256 attempts at
+05:57:19.253 UTC: 216 geography and 40 proof rejections. Authenticated terminal
+receipt 3fb8a1c4a2698f201cbad528636f894471dcc7524ee15cfa41928791090a352d
+proves no eligible package, selection, atlas or provider write. The seed was
+zeroized, maintained abort retired the checkpoint and the watcher was stopped.
+Never resume .32 or older exhausted workspaces.
+
+1. Correct the demonstrated child-bundle selector defect under unchanged caps:
+   origin-mandatory corridor cells must not suppress footprint diversity, but
+   must remain authoritative in actual collision checks. Qualify both ordinary
+   and repair callers with regressions, generator/package tests and typecheck.
+2. Batch source and current evidence, inspect outgoing diff/secret scan/signature,
+   refresh repository-wide Actions evidence, publish and synchronize the actual
+   checkpoint. Keep Actions disabled and PR #385 draft.
+3. Only then start one fresh source-bound search with the pinned toolchain,
+   new workspace/seed, existing fixed cutoff and verified persistent watcher.
+   Do not automatically retry or weaken acceptance criteria.
+4. Verify/select a genuine candidate, export/import/read back atlas and provision
+   actual owner. Reuse accepted backend 95ca5801 and bridge absent a defect.
+5. Complete actual Farcaster Mini App owner journey, device/performance and Alpha
+   acceptance, then direct Cloudflare cutover/readback with rollback. The existing
+   static /ptr/ deployment is not authenticated gameplay acceptance. Current
+   sign-in recovery is documented in infra-access.md; no new keys are needed.
+
+Public ordinal-10 diagnostics ruled out naming alone as a sufficient fix.
+Detailed .32 terminal and synthetic defect evidence is in local-operations.md.
+The following entry is a superseded snapshot, not the current next action.
+
 CURRENT RESUMPTION - 8 OCTOBER 2026, 04:43 UTC
 
 ACTIVE RELEASE STEP - CONFIRM THE QUALIFIED .32 CHECKPOINT, THEN SEARCH

@@ -1,5 +1,13 @@
 # Warpkeep 0.4 development handoff
 
+Qualified checkpoint — 8 October 2026, 06:17 UTC: .33 correction complete.
+All 157 affected tests pass (43 apron, 21 generator, 11 rejection, 82 package),
+as do pinned project build-mode typecheck, file-size, license and public-boundary
+checks. The prior repair-pair generic inference error is also fixed without a
+runtime behavior change. Resolve the signed commit/tree from actual Git/PR state.
+Next: publish/synchronize this reviewed checkpoint, then run one fresh bound
+candidate search. Atlas and authenticated owner acceptance remain pending.
+
 Start with the [product direction](../../design/warpkeep-direction.md), then use
 this index to find the implementation, current evidence, and next useful work.
 The goal is a satisfying **gather → choose → build → benefit → return** journey
@@ -30,13 +38,15 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
 
 ## Current working state — 8 October 2026
 
-Published source `222e64bc` / tree `f7fb7052` on draft PR #385 completed its
-`.31` search with 256 authenticated rejections and no eligible atlas. Its
-checkpoint is maintained-retired and its watcher stopped. The local `.32`
-repair-pair correction reproduces and fixes a loss of physical alternatives
-within the existing two-pair cap; all 154 affected tests and pinned typecheck
-pass, including 82 private-package cases. Confirm its signed publication from
-actual Git/PR HEAD/tree. No successor search has started. Follow
+Published source `51b41e2b` / tree `66acff5b` on draft PR #385 completed its
+`.32` search at 05:57:19.253 UTC with 256 authenticated rejections and no
+eligible atlas. Its checkpoint is maintained-retired and its watcher stopped.
+The local `.33` correction prevents origin-mandatory corridors from suppressing
+child-option diversity, while preserving physical collision authority and caps.
+Two regressions reproduced the old failure; 43 apron tests and pinned typecheck
+pass. Remaining generator/package qualification and signed publication must
+complete before a fresh search. Resolve exact source from actual Git/PR HEAD/tree.
+Follow
 [next-work.txt](next-work.txt) and the [ordered release checklist](../../operations/0.4.0-release-checklist.md)
 for current qualification, publication and fresh exact-source search steps.
 

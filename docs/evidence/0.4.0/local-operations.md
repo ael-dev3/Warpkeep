@@ -3,6 +3,47 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## .32 exhausted and retired; child-option diversity defect reproduced — 8 October 2026, 06:02 UTC
+
+Signed `.32` source `51b41e2bd8dced229387e84f0195953ff0319ed0`, tree
+`66acff5ba768f86ec7563239151a18942701339d`, was published after signature,
+outgoing secret scan and repository-wide Actions inspection; Windows, WSL and
+remote release branch matched cleanly. No Actions run started. Its fresh slot
+`greater-realm-candidate-51b41e2b-20261008T050000Z-parallel01-replacement06`
+started `2026-10-08T05:00:15.081Z` and finished `2026-10-08T05:57:19.253Z`,
+exit 1 without signal, deadline breach, source-hold or toolchain failure.
+Two full process/group/supervisor absence scans preceded authenticated reading.
+Start receipt SHA-256: `1cf27e3a7053b03e11045ea250261c7308abcd35ab57d704c7ff388c7e739713`;
+terminal: `3fb8a1c4a2698f201cbad528636f894471dcc7524ee15cfa41928791090a352d`;
+reader: `43f5abd764268f95c619de073ab4cdb3cd1a930e12d8a181c6ca5669066420ff`.
+
+The bound reader proved 256 rejected attempts, 216 geography / 40 proof, no
+completion or accepted-pending candidate, no package, selection or provider write,
+and root-seed zeroization. Maintained abort returned checkpointAborted:true and
+productionUntouched:true; the persistent watcher was stopped afterward. Never
+resume this workspace. Geography rejections: active-cell count 25, legacy
+placement 4, complete-plan limit 9, bundle-option frontier 118, bundle-pair
+frontier 11, search-node limit 28, undersized primary component 16 and forbidden
+throne repair 5. Overlapping frontier counts are bundle option 182, bundle pair
+14, repair bundle option 174 and repair sibling pair 174. Regional proof counts
+include Frostmere 32, Mirefen 18 and Stonewake 28; all 40 proof rejections failed
+the combined regional requirement. Counts do not establish sole causation.
+
+Two bounded diagnostic runs used the existing public ordinary-parent fixture,
+ordinal 10, with the real pinned toolchain. Final regional naming alone did not
+make its terrain eligible: Mirefen wetland coverage and Stonewake straits still
+failed. These public-fixture observations are not private-search acceptance.
+
+A bounded independent review reproduced a selector defect with public synthetic
+data and actual exported selectors/search. Of 257 same-origin bundles, the first
+256 use Tier-I [0,1,index+2], and the last uses [0,999]. A competing sibling uses
+[1]. Mandatory cell 0 suppresses diversity scans; rank filling drops the only
+compatible last bundle. Both ordinary and repair selectors return no-match;
+retaining the last option under the same 256 cap permits match. The next
+correction must discount origin-mandatory cells only for diversity scoring,
+preserve their actual collision authority, and qualify the real callers.
+No production change or eligible atlas is claimed.
+
 ## .31 exhausted and retired; .32 repair-pair correction locally qualified — 8 October 2026, 04:43 UTC
 
 The `.31` one-slot search bound signed source
@@ -7997,3 +8038,38 @@ migration, complete local release execution, genuine workflow/OIDC evidence wher
 required, and isolated recovery verification. Cloudflare and SpacetimeDB targeting
 need separate fresh authenticated checks. Frontend setting verification alone
 does not satisfy the complete hosting or live-release gates.
+
+### .33 correction qualification — 8 October 2026, 06:07 UTC
+
+The origin-mandatory corridor correction is implemented in the real child-bundle
+selector shared by ordinary and repair callers. Mandatory intersections are
+computed separately for each origin and tier, from validated unique footprints.
+Only diversity scoring discounts these cells; original physical footprints,
+collision authority, geometry and search caps are preserved. Temporary arrays and
+Sets are cleared. Two regressions failed against .32 before the correction; all
+43 apron tests and pinned typecheck pass against .33. Mixed-origin, repeated-cell
+and actual collision rejection coverage also passes. Generator, rejection and
+package qualification is running; publication and a fresh search remain pending.
+
+File-size, licensing and public-boundary checks pass. The complete read-only
+Actions inventory finished at 06:05:39.102316 UTC: all four repositories remain
+disabled and have no active runs. Receipt
+`artifacts/qa/october-release-32-retirement-actions-v1.json`, SHA256
+`f30415958b9f1afa5da7b85ce2656d1212351d21aad5b0d39d01663d492b29e1`.
+No production mutation or new candidate search was performed during this fix.
+
+Build-mode qualification caught TS2322 in the previous repair-pair change: the
+non-null initializer inferred NonNullable<Option>, but later assignment accepts
+Option. Explicitly typing the local as Option fixes inference without changing
+runtime behavior. Pinned project tsc -b --pretty false now passes; root
+tsc --noEmit alone was not sufficient project qualification.
+
+Final .33 qualification: 157 affected tests passed. The three generator/rejection/
+package files passed 114 tests in 610.88 seconds (package 82 in 609.69 seconds),
+in addition to 43 apron tests. Pinned project build-mode typecheck and all policy
+checks pass. Complete prepublication Actions inventory finished 06:14:52.687658
+UTC, no active runs and all four repositories disabled. Receipt
+`artifacts/qa/october-release-33-prepublish-actions-v1.json`, SHA256
+`182aefbfb92fa47cc67ee8ff4ea66c99b515ec45dd127922437416d98d831e7f`.
+Source qualification is complete; publication and fresh search must be verified
+separately. No eligible atlas or authenticated owner acceptance is claimed.
