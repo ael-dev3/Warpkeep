@@ -1,36 +1,43 @@
-Current release checkpoint - 8 October 2026, 12:27 UTC
+Current release checkpoint - 8 October 2026, 13:47 UTC
 
-The second .36 search bound signed source
-460dedddcfac18ef27c9d6fee842ef709fc2f5d7 / tree
-cbfb549930e66a3fe6592c351ddd4d32c9c5bd98. Code matches qualified c80b46d7:
-200 affected tests and project types/policy checks passed. Source was published
-and synchronized before generation. No eligible atlas or owner acceptance exists.
+The third .36 search bound signed source
+7f6379d1c4d28680ba12a8ca3cf58fae6110bc85 / tree
+45f295d872e83030955fecfe36fd0eb30bdb3ff2. It finished 13:36:19.108 UTC:
+256 authenticated rejections, 212 geography / 44 proof, no eligible atlas,
+accepted-pending candidate, package, selection or provider write. Of 44 proof
+rejections, 43 failed combined regional QA; the remaining attempt failed only
+major-river range and geological highland barriers. Source/toolchain preservation
+and root-seed zeroization passed. The exhausted replacement13 workspace is
+maintained-retired and its watcher is stopped; never resume it.
 
-Search start 11:28:29.857 UTC; terminal finish 12:26:17.360 UTC, exit 1,
-without signal, deadline, monitoring, source-hold or toolchain failure. The bound
-reader authenticated 256 rejections: 221 geography / 35 proof. Of the 35 proof
-rejections, 33 failed combined regional hydrogeomorphology. One of the remaining
-two failed only major-river range and combined topographic QA; the other failed
-castle/capacity, gate/region graph and coherence, advanced geomorphology and
-Tier-III land checks. Counts and failure codes alone do not prove a source bug.
-No package, selection, accepted-pending candidate or provider write resulted.
-The root seed is zeroized; maintained abort succeeded and watcher is stopped.
-The exhausted replacement12 workspace is retired and must never resume.
+Across the last two batches, every regionally passing rejected attempt failed
+river-range checks. Existing receipts lack measured counts, so failure codes
+cannot establish whether counts are low or high. The narrow diagnostic correction
+retains optional majorRiverCount in encrypted rejection/completion and private
+batch records, validates bounds/proof consistency and checks exact values against
+regenerated authority. Historical records remain readable; sanitized output,
+geometry, threshold 144, 48-72 requirement and generator/seed versions stay intact.
+No player feature or acceptance requirement changes.
 
-A bounded public river replay agrees across constructor, final measurement and
-independent audit: 66 major rivers, within the required 48-72 range. No counting
-bug is demonstrated, and rejection receipts do not retain the failed river counts.
-Keep the qualified .36 calibration and every proof requirement. Codex next runs
-one fresh bounded search, verifies/selects an eligible atlas, imports/readbacks
-and provisions the actual owner, accepts the authenticated journey and device/
-Alpha behavior, then completes Cloudflare cutover/rollback readback. Reuse the
-accepted backend, bridge and frontend unless an actual defect is reproduced.
+Qualification: 55 affected tests pass (27 checkpoint, 28 CLI security), including
+encrypted resume/completion boundary values and regenerated tampered-count
+rejection. Two retention regressions failed before the correction. Explicit CLI/
+checkpoint typechecking, project types, file-size, license and public-boundary
+checks pass; bounded independent review found no blocker. The existing 200-case
+geometry qualification remains applicable because generator code is unchanged.
 
-Owner Farcaster login is verified, but Alpha Mini App Quick Auth still times out
-before bridge exchange while the host requests identity approval. Phone approval
-and actual owner PTR acceptance remain pending. Existing Alpha, G001 progress
-and admission freeze, G002 seal, licensing and Actions policy are preserved.
-Entries below are historical.
+Codex next publishes/synchronizes the reviewed diagnostic checkpoint, runs one
+fresh source-bound search with unchanged requirements and reads only authenticated
+aggregate failure measurements at terminal. Then verify/select an eligible atlas,
+import/read back and provision the real owner, accept the authenticated journey
+and device/Alpha behavior, and complete Cloudflare cutover/rollback readback.
+Reuse accepted backend, bridge and frontend unless an actual defect is reproduced.
+
+Farcaster host login is verified; Alpha Mini App Quick Auth still times out before
+bridge exchange while host identity approval is pending. No authenticated owner
+PTR acceptance or shipped 0.4 is claimed. Preserve existing Alpha, G001 progress/
+admission freeze, G002 sealing, licensing and Actions policy. Entries below are
+historical; resolve exact current source from Git and PR #385.
 
 .34 qualified — 8 October 2026, 07:33 UTC: all159 affected tests and project
 typecheck/policy checks pass. Next: verify signed publication/synchronization,

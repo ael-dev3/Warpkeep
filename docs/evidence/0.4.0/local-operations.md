@@ -3,6 +3,59 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Third .36 search retired; rejection measurements qualified - 8 October 2026, 13:47 UTC
+
+Signed 7f6379d1c4d28680ba12a8ca3cf58fae6110bc85 / tree
+45f295d872e83030955fecfe36fd0eb30bdb3ff2 was published and synchronized
+before the single fresh replacement13 search. Actual start:
+2026-10-08T12:31:58.686Z; terminal finish: 2026-10-08T13:36:19.108Z.
+Session 88744 exited 1, without signal, deadline, monitoring, interruption,
+source-hold or toolchain failure. Watcher 86197 remained live until terminal.
+Two full /proc scans each found 48 processes and no original immutable worker
+birth, group or supervisor before the bound reader accessed authenticated state.
+Start receipt SHA-256: da651a2237a9d968b41f53739278756687f7dd838337b2be6e72ff2f497d1ae3.
+Bound reader SHA-256: 5faf095e48cb4080c65a5e7318677e841ac0d2a6ed47e0fbe2571930003ae146.
+Authenticated terminal metadata SHA-256:
+382d096b3aa929b40231d558207a8de526dd0d7a3d0094281da8cf84ef55048d.
+
+The reader authenticated 256 rejected attempts: 212 geography / 44 proof.
+No completion, accepted-pending candidate, atlas, package, selection or provider
+write. Source preservation and root-seed zeroization passed. Geography counts:
+active grid 21, body surface 1, legacy placement 7, complete-plan 11, bundle-option
+frontier 114, bundle-pair frontier 9, search-node 21, undersized primary 20,
+empty strategic components 1 and forbidden throne repair 7. Overlapping regional
+failures: Frostmere 37, Mirefen 23, Stonewake 24, combined QA 43. The sole
+regionally passing attempt failed HYDROLOGY_MAJOR_RIVERS_48_72 and
+PROOF_GEOLOGICAL_HIGHLAND_BARRIERS. Counts do not identify a source defect.
+Maintained abort returned checkpointAborted:true,productionUntouched:true;
+then the owned watcher was stopped. Replacement13 is retired; never resume it.
+No raw private log or seed was read or printed.
+
+The next correction fixes missing diagnostic evidence, not hydrology eligibility.
+Fresh proof rejections retain optional majorRiverCount from the actual final
+aggregate in encrypted checkpoints and private batch records. Strict validators
+require a nonnegative safe integer bounded by active cells, with range-failure
+consistency. Historical records without the property remain valid. Actual private
+batch replay checks the value against regenerated candidate authority; cleanup
+and exact-shape rejection remain intact. Completion receipts retain the count.
+Sanitized/public outputs, generator .36, seed namespace .3, geometry, discharge
+144 and every existing quality proof remain unchanged.
+
+Red-first regressions for counts 47 and 73 both failed with checkpoint-invalid
+before implementation. Final checkpoint suite passes 27 cases, including 48/72
+inclusive boundaries, encrypted resume/completion and invalid/inconsistent values
+without append. Full CLI security passes 28 cases, including historical replay,
+actual retained counts and tampered counts/proofs checked through six complete
+public-fixture generations (141.655 seconds for that test; 149.45-second combined
+run). Total current affected coverage: 55 passing cases. The initial combined run
+contained 25 checkpoint cases; the final 27-case suite supersedes it. Project
+build-mode types and explicit strict CLI/checkpoint typechecking both pass, as do
+file-size, licensing and public-boundary checks (3463 tracked/1928 scanned).
+The explicit TypeScript command initially required --ignoreConfig because input
+files were supplied; the corrected scoped command exits 0. Bounded independent
+review found no release blocker. Publish/synchronize this coherent source, then
+run one fresh guarded batch and inspect only authenticated aggregate measurements.
+
 ## Second .36 search exhausted and retired - 8 October 2026, 12:27 UTC
 
 Signed source 460dedddcfac18ef27c9d6fee842ef709fc2f5d7, tree

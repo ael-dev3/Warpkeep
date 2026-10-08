@@ -37,6 +37,7 @@ import {
   assertGreaterRealmAttemptSelectionReady,
   clearGreaterRealmAttemptCheckpointSecret,
   createGreaterRealmAttemptCheckpoint,
+  isCanonicalGreaterRealmRejectedMajorRiverCount,
   readGreaterRealmAttemptCompletionReceipt,
   reconcileGreaterRealmAttemptCompletion,
   recordGreaterRealmAcceptedAttempt,
@@ -1251,6 +1252,7 @@ async function generateSingleWorldCandidate(
                     candidateOrdinal: ordinal,
                     activeCellCount: candidate.grid.cellCount,
                     failedProofs: candidate.privateMetrics.eligibilityFailureCodes,
+                    majorRiverCount: candidate.aggregate.hydrology.majorRivers,
                   });
                   current = recordGreaterRealmRejectedAttempt({
                     workspace,
@@ -1889,6 +1891,7 @@ export type GreaterRealmPrivateProofRejectedAttempt = Readonly<{
   candidateOrdinal: number;
   activeCellCount: number;
   failedProofs: readonly string[];
+  majorRiverCount?: number;
 }>;
 
 export type GreaterRealmPrivateGeographyRejectedAttempt = Readonly<{
@@ -1920,6 +1923,8 @@ export function verifyGreaterRealmPrivateRejectedAttempt(input: Readonly<{
     if (
       candidate.aggregate.eligible
       || candidate.grid.cellCount !== proofAttempt.activeCellCount
+      || (proofAttempt.majorRiverCount !== undefined
+        && candidate.aggregate.hydrology.majorRivers !== proofAttempt.majorRiverCount)
       || actualFailures.length !== proofAttempt.failedProofs.length
       || actualFailures.some((failure, index) => (
         failure !== proofAttempt.failedProofs[index]
@@ -2060,10 +2065,12 @@ function readPrivateBatch(
         value,
         'frontierTruncationKinds',
       );
+      const hasMajorRiverCount = Object.prototype.hasOwnProperty.call(value, 'majorRiverCount');
       const rejected = exactRecord(
         value,
         kind === 'proof-rejection'
-          ? ['activeCellCount', 'candidateOrdinal', 'failedProofs', 'kind']
+          ? ['activeCellCount', 'candidateOrdinal', 'failedProofs', 'kind',
+            ...(hasMajorRiverCount ? ['majorRiverCount'] : [])]
           : kind === 'geography-exhaustion'
             ? [
               'candidateOrdinal',
@@ -2095,12 +2102,18 @@ function readPrivateBatch(
             typeof proof !== 'string'
             || !/^[A-Z0-9_:-]{3,160}$/u.test(proof)
           ))
+          || (hasMajorRiverCount && !isCanonicalGreaterRealmRejectedMajorRiverCount(
+            rejected.majorRiverCount,
+            rejected.activeCellCount as number,
+            rejected.failedProofs as string[],
+          ))
         ) fail('GREATER_REALM_PRIVATE_BATCH_INVALID');
         rejectedAttempts.push(Object.freeze({
           kind,
           candidateOrdinal: rejected.candidateOrdinal as number,
           activeCellCount: rejected.activeCellCount as number,
           failedProofs: Object.freeze([...(rejected.failedProofs as string[])]),
+          ...(hasMajorRiverCount ? { majorRiverCount: rejected.majorRiverCount as number } : {}),
         }));
       } else {
         if (
