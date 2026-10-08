@@ -1,34 +1,36 @@
-Current release checkpoint - 8 October 2026, 11:21 UTC
+Current release checkpoint - 8 October 2026, 12:27 UTC
 
-Signed .36 source c80b46d752d22b3e3521a22236185d5aab4cddff
-(tree f612596296a3ec102c0e0705e8292fbb3535e405) was published and
-synchronized before its fresh search. Its final-fjord distance correction passed
-200 affected tests and build-mode types, file-size, license and public-boundary
-checks. Qualification does not establish a release-ready atlas.
+The second .36 search bound signed source
+460dedddcfac18ef27c9d6fee842ef709fc2f5d7 / tree
+cbfb549930e66a3fe6592c351ddd4d32c9c5bd98. Code matches qualified c80b46d7:
+200 affected tests and project types/policy checks passed. Source was published
+and synchronized before generation. No eligible atlas or owner acceptance exists.
 
-The search started 10:19:44.011 UTC and finished 11:20:33.706 UTC,
-exit 1 without signal, deadline, monitoring, source-hold or toolchain failure.
-The bound terminal reader authenticated 256 rejections: 212 geography / 44 proof,
-including overlapping Frostmere 42, Mirefen 22 and Stonewake 35 failures.
-There is no eligible atlas, accepted-pending candidate, selection or provider write.
-The seed is zeroized; the maintained checkpoint abort succeeded and the cutoff
-watcher is stopped. This exhausted workspace is retired and must never resume.
-Counts alone do not prove a source defect or justify weakening acceptance.
+Search start 11:28:29.857 UTC; terminal finish 12:26:17.360 UTC, exit 1,
+without signal, deadline, monitoring, source-hold or toolchain failure. The bound
+reader authenticated 256 rejections: 221 geography / 35 proof. Of the 35 proof
+rejections, 33 failed combined regional hydrogeomorphology. One of the remaining
+two failed only major-river range and combined topographic QA; the other failed
+castle/capacity, gate/region graph and coherence, advanced geomorphology and
+Tier-III land checks. Counts and failure codes alone do not prove a source bug.
+No package, selection, accepted-pending candidate or provider write resulted.
+The root seed is zeroized; maintained abort succeeded and watcher is stopped.
+The exhausted replacement12 workspace is retired and must never resume.
 
-Bounded public replays found no further demonstrated caller defect: final naming
-correctly favors passing regional proofs, and the tested terrain lacks the required
-simultaneous physical regional combination. Do not edit source or relax proofs on
-that evidence. Codex next runs one fresh bounded search with the qualified .36
-generator; verify/select an eligible atlas, import/read back and provision the real
-owner, accept the authenticated journey and device/Alpha behavior, then complete
-Cloudflare cutover and rollback readback. Reuse accepted backend/bridge/frontend.
+A bounded public river replay agrees across constructor, final measurement and
+independent audit: 66 major rivers, within the required 48-72 range. No counting
+bug is demonstrated, and rejection receipts do not retain the failed river counts.
+Keep the qualified .36 calibration and every proof requirement. Codex next runs
+one fresh bounded search, verifies/selects an eligible atlas, imports/readbacks
+and provisions the actual owner, accepts the authenticated journey and device/
+Alpha behavior, then completes Cloudflare cutover/rollback readback. Reuse the
+accepted backend, bridge and frontend unless an actual defect is reproduced.
 
-Owner Farcaster login is verified, but a fresh Alpha Mini App sign-in still reports
-quick_auth_token_timeout while the host shows a separate identity approval prompt.
-Requested phone approval remains pending. This occurs before bridge token exchange;
-it is not evidence of a bridge rejection or successful owner PTR acceptance.
-Existing Alpha, G001 progress/admission freeze, G002 seal and licensing are
-preserved. Actions remain disabled. Entries below are historical.
+Owner Farcaster login is verified, but Alpha Mini App Quick Auth still times out
+before bridge exchange while the host requests identity approval. Phone approval
+and actual owner PTR acceptance remain pending. Existing Alpha, G001 progress
+and admission freeze, G002 seal, licensing and Actions policy are preserved.
+Entries below are historical.
 
 .34 qualified — 8 October 2026, 07:33 UTC: all159 affected tests and project
 typecheck/policy checks pass. Next: verify signed publication/synchronization,

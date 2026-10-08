@@ -3,6 +3,57 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Second .36 search exhausted and retired - 8 October 2026, 12:27 UTC
+
+Signed source 460dedddcfac18ef27c9d6fee842ef709fc2f5d7, tree
+cbfb549930e66a3fe6592c351ddd4d32c9c5bd98, retains qualified .36 code from
+c80b46d7 with retirement/replay documentation only. Windows, native and PR #385
+matched before generation. Repository-wide Actions remained disabled; complete
+11:26 inventory and fresh activity/attempt/ref readbacks are reused for publication.
+
+The fresh one-slot window began 11:27 UTC with the original fixed stop 16:19 UTC.
+Actual worker start: 2026-10-08T11:28:29.857Z; terminal finish:
+2026-10-08T12:26:17.360Z. Session 78099 exited 1, no signal, deadline,
+monitoring, source-hold, toolchain or interruption failure. Persistent watcher
+3909 was live until terminal. Two independent full /proc scans (48 processes)
+found all immutable worker births, group and supervisor absent before reading.
+Start receipt SHA-256: 4517ee9f73c5c0bd559b90134bea604506655282c0f2d133832bdfc52edb83b1.
+Initial bound reader SHA-256:
+85812b7dd39d2fed39d4dca6736311d796c3f86370982242b9c06c2672da16ed.
+Authenticated terminal metadata SHA-256:
+b0946789dd06db116490f621584de6d955ac4f0f4b5659655550c13a67bb3496.
+
+The reader authenticated 256 rejections: 221 geography / 35 proof, no completion,
+accepted-pending candidate, eligible atlas, package, selection or provider write.
+Root seed zeroization and source preservation are confirmed. Geography counts:
+active grid 23, legacy placement 6, complete-plan 12, bundle-option frontier 117,
+bundle-pair frontier 15, search-node limit 20, undersized primary component 22,
+forbidden throne repair 6. Overlapping regional failures: Frostmere 27, Mirefen
+12, Stonewake 26 and combined regional QA 33.
+
+An exclusive bound reader v2 preserved every source/process/toolchain check and
+added only aggregation of public failure-code combinations for proof attempts
+which passed combined regional QA. Its SHA-256:
+bc7182da42f3198c40b4a277de2b9444374bf55ffa5df94f32bc181dba01b087.
+One such attempt failed only HYDROLOGY_MAJOR_RIVERS_48_72 and
+TOPOGRAPHIC_QA_COMPLETE. The other failed CASTLE_SUITABILITY,
+LIVING_WORLD_DORMANT_CAPACITY, PROOF_ADVANCED_GEOMORPHOLOGY,
+PROOF_CASTLE_CAPACITY, PROOF_GATE_APPROACHES, PROOF_GATE_GRAPH,
+PROOF_REGION_GRAPH, PROOF_REGION_LAND_COHERENCE and
+TIER_III_SMALLEST_PASSABLE_LAND. This is genuine partial proof evidence,
+not acceptance or proof of a caller defect. No seed, raw private log, candidate
+handle or coordinate was printed. The maintained abort returned
+checkpointAborted:true,productionUntouched:true, then the watcher was stopped.
+Replacement12 is exhausted/retired and must never resume. A bounded public
+ordinary-parent ordinal-10 replay on exact native 460deddd finished exit 0
+(session 97734): constructor majorRiverCount 66, finalHydrology.majorRivers 66,
+independent connected components 66, mask cells 4258. All use the same nonlegacy,
+above-sea-level, discharge-at-least-144 predicate; accumulation is preserved.
+No counting discrepancy is demonstrated. Rejection receipts retain failed proof
+codes rather than river counts, so they cannot reveal below-range versus above-
+range direction. Do not tune calibration from failure codes alone. Retain the
+qualified .36 implementation and requirements for one fresh bounded search.
+
 ## .36 exhausted and retired - 8 October 2026, 11:21 UTC
 
 Signed source c80b46d752d22b3e3521a22236185d5aab4cddff, tree
