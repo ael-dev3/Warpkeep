@@ -35,9 +35,20 @@ region 4 needed 6018 cells but found 1523; region 2 needed 3166 but found 33.
 The final reported counts and component shares now match independent BFS exactly.
 This evidence does not justify forcing annexation or bypassing immutable ownership.
 
-Next: finish package qualification and publish/synchronize this coherent fix,
-then diagnose physically undersized outer land on public fixtures before a new
-bounded source-bound search. No eligible atlas, selection, import, owner acceptance
+Further public diagnosis: ordinal 10 starts with one outer parent owning only
+3635 sea-level land cells versus 21496/21447 for its peers. A land-first scratch
+prototype balanced parents but failed gate-capacity search and regressed the
+known eligible ordinal 9. A conditional gate-frontier-preserving prototype kept
+ordinal 9 eligible but ordinal 10 still hit the existing bounded gate search limit.
+Neither prototype is production source, qualification or a release candidate.
+Do not adopt a land rebalance or raise search limits from these results alone.
+The ordinary .37 generator retains a genuinely eligible public fixture; rejected
+terrain is not evidence that its acceptance requirements should be relaxed.
+
+Next: run one fresh bounded source-bound search using qualified .37 source and
+unchanged geometry/requirements. This is the first private batch with the final
+passability correction; do not resume retired .36 workspaces or loop retries.
+If it exhausts, authenticate its actual evidence before choosing another action. No eligible atlas, selection, import, owner acceptance
 or shipped 0.4 is claimed. Preserve installed services, Alpha, G001 admission
 freeze/progress, G002 sealing, licensing and current Actions policy.
 Earlier entries below are historical evidence.
