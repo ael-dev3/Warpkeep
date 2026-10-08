@@ -1,3 +1,42 @@
+Current atlas diagnosis — 8 October 2026, 17:24 UTC
+
+Replacement16 bound signed source 76d1ea9160efa0bf0d7f089226406ad630abacd4 /
+tree 8645bfa32d55146e8e1308c14ef0e64bf33e4b08 and finished 17:15:00.227 UTC.
+The authenticated terminal reader found 256 rejections: 211 geography / 45 proof.
+42 proof attempts failed regional QA. Three passed regional QA but still failed
+land size/coherence, capacity, topology or river checks. Major rivers ranged
+42–72; seven were below range, 38 within. No eligible or pending candidate exists.
+Terminal metadata SHA256:
+e866b7dd8c57eca5f90a01fd21a4854adf07f2eb0bd034a60d3d43a132bb1a9a.
+Two full /proc scans each examined 49 processes and found no original worker
+births, group or supervisor. Source/index/refs and toolchain preservation passed;
+root seed was zeroized. No deadline, interruption or provider write occurred.
+Maintained abort returned checkpointAborted:true / productionUntouched:true;
+replacement16 is retired and its owned watcher stopped. Never resume it.
+
+Public gate diagnosis did not establish a selector or search-depth defect:
+missing pairs had no reachable dry approaches even under uncapped independent
+BFS. Do not relax dry access, isolation, topology or acceptance requirements.
+Public ordinary-parent-a ordinal 10 reproduces a separate measurement defect:
+the ordinary lane reused barrier-stage topology before final marsh conversion.
+Independent final-mask BFS measured throne land 6286 versus reported 6323, and
+minimum outer land 1587 versus reported 1603, with differing component shares.
+The .37 correction recomputes final topology in both lanes after authoritative
+hydrology/ownership, then clears component scratch. Terrain seed namespace,
+geometry, hydrology and acceptance thresholds remain unchanged. This corrects
+proof authority; it does not turn the undersized public fixture into a winner.
+The independent regression failed before the correction and passes afterward.
+Generator/rejection tests, project and regression types, licensing, file-size
+and public-boundary checks pass. Package checks are still running; qualification
+is incomplete until their actual terminal result is inspected.
+
+Next: finish package qualification and publish/synchronize this coherent fix,
+then diagnose physically undersized outer land on public fixtures before a new
+bounded source-bound search. No eligible atlas, selection, import, owner acceptance
+or shipped 0.4 is claimed. Preserve installed services, Alpha, G001 admission
+freeze/progress, G002 sealing, licensing and current Actions policy.
+Earlier entries below are historical evidence.
+
 Current terminal evidence — 8 October 2026, 16:04 UTC
 
 Signed source 56fe20f184f0e7b7a5b6231beefdd5ab44c358ed / tree

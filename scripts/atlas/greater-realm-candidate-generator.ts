@@ -120,7 +120,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.36' as const;
+  'greater-realm-v2-natural-continent-pr-a.37' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -12455,22 +12455,29 @@ export function generateGreaterRealmCandidate(input: Readonly<{
     const tierIBasisPoints = Math.round((strategy.tierCounts[0] * 10_000) / grid.cellCount);
     const tierIIBasisPoints = Math.round((strategy.tierCounts[1] * 10_000) / grid.cellCount);
     const tierIIIBasisPoints = 10_000 - tierIBasisPoints - tierIIBasisPoints;
-    const topology = lowlandsRepairLane
-      ? passableRegionTopology(
-        grid,
-        strategy.regionId,
-        hydrology.waterRegime,
-        strategicBarrier.barrier,
-      )
-      : strategicBarrier.passableTopology;
-    const strategicShape = strategicShapeMetrics(
+    // Marsh conversion can remove traversable cells after gate placement in
+    // either lane. Final land proofs must measure the retained water authority,
+    // rather than reuse the preliminary barrier-stage topology.
+    const topology = passableRegionTopology(
       grid,
-      strategy.tierId,
       strategy.regionId,
       hydrology.waterRegime,
       strategicBarrier.barrier,
-      topology,
     );
+    const strategicShape = (() => {
+      try {
+        return strategicShapeMetrics(
+          grid,
+          strategy.tierId,
+          strategy.regionId,
+          hydrology.waterRegime,
+          strategicBarrier.barrier,
+          topology,
+        );
+      } finally {
+        topology.componentId.fill(0);
+      }
+    })();
     const tierThreePassableLandCells = topology.passableCounts[TIER_III_REGION_INDEX]!;
     const smallestOtherRegionPassableLandCells = Math.min(
       ...topology.passableCounts.slice(0, TIER_III_REGION_INDEX),
