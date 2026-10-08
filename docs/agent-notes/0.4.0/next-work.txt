@@ -1,7 +1,7 @@
 WARPKEEP 0.4 - NEXT WORK
-CURRENT RESUMPTION - 8 OCTOBER 2026, 03:22 UTC
+CURRENT RESUMPTION - 8 OCTOBER 2026, 03:26 UTC
 
-ACTIVE RELEASE STEP - PUBLISH THE TESTED .31 CORRECTION, THEN SEARCH
+ACTIVE RELEASE STEP - VERIFY THE PUBLISHED .31 CHECKPOINT, THEN SEARCH
 
 The current published source is signed `.30` commit
 `4e4fdc857d1ea8dec5177afed50d62d95d3016ff`, tree
@@ -13,8 +13,13 @@ rejection evidence are at the top of
 `docs/evidence/0.4.0/local-operations.md`. The private workspace and seed are
 retired; never reuse them.
 
-The fresh `.31` correction is locally prepared in four source/test files and
-has a signed local checkpoint awaiting publication. It
+The signed `.31` source/evidence checkpoint is published as commit
+`8b093c2c082e10830ae941fe562d5717ce372b6e`, tree
+`a7db61e67b1f6eae5bc48324b537e202b7d92b98`, on the existing release branch
+and open/draft PR #385. No `.31` search has started. This publication-status
+note is part of the release line; the next search must bind the actual latest
+signed branch HEAD/tree and use clean synchronized Windows/WSL checkouts, not
+assume that the code commit is still HEAD after this note update. The code correction
 widens only bounds directly reached in `.30` evidence: raw apron pairs 32,768
 → 65,536; per-child bundles 128 → 256; search nodes 320,000 → 640,000; and
 complete plans 256 → 512. The generator identifier is `.31`; terrain seed
@@ -26,22 +31,22 @@ suite took 566.72 seconds, including its seed-bound candidate fixture and
 package verification replays. A maximum-edge synthetic selector retained
 65,536 of 523,776 pairs in 6,038 ms at a sampled 230,035,456-byte peak RSS.
 This is selector/package evidence, not full-world generation. Details and
-hashes are in the local-operations record above. The Windows and pinned WSL
-checkouts match the signed local checkpoint. No `.31` search has started.
+hashes are in the local-operations record above. Actions remain disabled; the
+post-push head query returned zero workflow runs. Local operations evidence
+records the complete run and rerun-attempt inventory.
 
 ORDERED NEXT ACTIONS
 
-1. Complete the outgoing Gitleaks scan and recheck the current remote branch/PR
-   head immediately before pushing the signed local checkpoint.
-2. Publish only to the existing release branch; keep PR #385 a draft. Confirm
-   the exact remote head and that Actions remain disabled with no new run.
-   Synchronize and verify both local checkouts against that published commit.
-3. Only after publication, start one wholly fresh `.31` search: exact source,
+1. Confirm the latest signed publication-status note is at the remote release
+   branch head, PR #385 remains a draft, and both checkouts are clean and match
+   it. Keep Actions disabled and verify the exact head has no workflow run.
+2. Only after publication and synchronization, start one wholly fresh `.31`
+   search: exact source,
    tree, pinned Node/toolchain, new private workspace and seed, 256 attempts,
    fixed six-hour cutoff, one slot, no provider writes, no automatic restart.
    Use a persistent-stdin watchdog and require genuine armed readiness before
    relying on its cutoff. Never reuse `.30` state.
-4. For an eligible candidate only: verify package, compare and select through
+3. For an eligible candidate only: verify package, compare and select through
    maintained gates, export/import/read back the atlas, then provision and
    test the actual PTR owner. Reuse the installed backend and bridge unless a
    concrete failure reproduces. Test Quick Auth and keep/gather/build/return in

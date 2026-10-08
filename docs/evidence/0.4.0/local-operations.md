@@ -3,7 +3,7 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
-## .30 candidate exhausted; `.31` correction locally qualified — 8 October 2026, 03:22 UTC
+## .30 exhausted; `.31` correction published and locally qualified — 8 October 2026, 03:26 UTC
 
 The fresh one-slot `.30` search used source `4e4fdc857d1ea8dec5177afed50d62d95d3016ff`,
 tree `c3f1cc47119561b632921db7c26c1bb97bbfb81b`, generator
@@ -67,10 +67,17 @@ retained 65,536 of 523,776 pairs in 6,038 ms; initial/final/sampled-peak RSS
 were 189,448,192 / 216,395,776 / 230,035,456 bytes. Its selected digest is
 `bc4b2b32b0ae3aa7643a564c1e3d2156d2c64bcc776c6474bdba077415176f67`. This is
 selector and local package evidence, not full candidate-generation evidence.
-No `.31` search has started. Publish the tested and signed source/documentation
-checkpoint, confirm both checkouts match the published tree, then create a
-fresh, exact-source-bound `.31` window. Current publication state and next
-actions are recorded at the top of `docs/agent-notes/0.4.0/next-work.txt`.
+The signed source/evidence checkpoint is commit
+`8b093c2c082e10830ae941fe562d5717ce372b6e`, tree
+`a7db61e67b1f6eae5bc48324b537e202b7d92b98`, direct child of `.30` commit
+`4e4fdc857d1ea8dec5177afed50d62d95d3016ff`. SSH signature verification
+passed. Pinned Gitleaks 8.30.1 scanned the one-commit outgoing range: 12,399
+bytes, no findings. The non-forced push advanced only the existing
+`release/0.4-living-realm-quality` branch. PR #385 remains open and draft with
+head `8b093c2c`. Both Windows and pinned WSL checkouts are clean at that exact
+head. No `.31` search has started; next create one fresh, exact-source-bound
+window. Current state and actions are recorded at the top of
+`docs/agent-notes/0.4.0/next-work.txt`.
 
 Before the proposed branch update, paginated GitHub inventory returned 3,807
 workflow runs across all branches/events: all completed, none queued or
@@ -89,12 +96,14 @@ Deploy GitHub Pages only follows a successful Verify for a `main` push. The
 four production workflows are dispatch-only. A release-branch PR update would
 match Verify's PR trigger if Actions were enabled, but the repository setting
 remains disabled. No Actions run was started, dispatched, rerun or enabled for
-this checkpoint.
+this checkpoint. After the push, repository-wide total remained 3,807, the
+latest run remained the 2 October completion, and querying exact head
+`8b093c2c` returned zero runs.
 
 Pinned Gitleaks 8.30.1 at `/usr/bin/gitleaks` matched the maintained binary
 SHA-256 `88f91962aa2f93ac6ab281d553b9e125f5197bbbce38f9f2437f7299c32e5509`.
 Its scanner regression passed 49 positive and 98 negative fixtures. The final
-outgoing signed-commit range is scanned once before publication.
+outgoing signed-commit range was scanned once before publication.
 
 ## .29 candidate exhausted; .30 pair frontier qualified locally - 8 October 2026, 01:39 UTC
 
