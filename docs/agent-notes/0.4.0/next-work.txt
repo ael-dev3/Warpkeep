@@ -1,18 +1,29 @@
-Current atlas diagnosis — 8 October 2026, 17:24 UTC
+Current atlas diagnosis — 8 October 2026, 18:54 UTC
 
-Replacement16 bound signed source 76d1ea9160efa0bf0d7f089226406ad630abacd4 /
-tree 8645bfa32d55146e8e1308c14ef0e64bf33e4b08 and finished 17:15:00.227 UTC.
-The authenticated terminal reader found 256 rejections: 211 geography / 45 proof.
-42 proof attempts failed regional QA. Three passed regional QA but still failed
-land size/coherence, capacity, topology or river checks. Major rivers ranged
-42–72; seven were below range, 38 within. No eligible or pending candidate exists.
+Replacement17 bound signed source 7ad506d3632ddc4b9e2ed3600cc472c582e37743 /
+tree fdf09f7ad4077a10047fda085fccfefa8955008c and finished 18:49:33.477 UTC.
+The authenticated .37 terminal reader found 256 rejections: 210 geography /
+46 proof. 44 proof attempts failed regional QA. Two passed regional QA:
+one failed castle capacity/suitability, region graph/coherence/passable land,
+Tier III size and complete topography; the other failed only inner-gate throne
+redundancy, dormant capacity and region land coherence. Major rivers ranged
+37–70: seven below range, 39 within. Both regionally passing attempts were
+within range (52–56). No eligible or pending candidate exists.
 Terminal metadata SHA256:
-e866b7dd8c57eca5f90a01fd21a4854adf07f2eb0bd034a60d3d43a132bb1a9a.
-Two full /proc scans each examined 49 processes and found no original worker
+38deb1dc37d795ab27748d82a7bb033950baddc1faa18ff1bd28b301c1437846.
+Two full /proc scans each examined 48 processes and found no original worker
 births, group or supervisor. Source/index/refs and toolchain preservation passed;
 root seed was zeroized. No deadline, interruption or provider write occurred.
 Maintained abort returned checkpointAborted:true / productionUntouched:true;
-replacement16 is retired and its owned watcher stopped. Never resume it.
+replacement17 is retired and its owned watcher stopped. Never resume it.
+
+A bounded public ordinary-parent-a scan of ordinals 0–8 reached final audits
+for ordinals 3 and 5. Both had six valid inner-gate approach pairs, six gates
+with two independent throne routes and a passing redundancy proof. The other
+seven rejected earlier in geography. This does not reproduce the private
+throne-access failure or justify changing the audit/selection algorithm.
+Public ordinal 10 also did not fail throne redundancy. All diagnostic candidates
+and roots were cleared; no private candidate was replayed or exported.
 
 Public gate diagnosis did not establish a selector or search-depth defect:
 missing pairs had no reachable dry approaches even under uncapped independent
@@ -45,12 +56,13 @@ Do not adopt a land rebalance or raise search limits from these results alone.
 The ordinary .37 generator retains a genuinely eligible public fixture; rejected
 terrain is not evidence that its acceptance requirements should be relaxed.
 
-Next: run one fresh bounded source-bound search using qualified .37 source and
-unchanged geometry/requirements. This is the first private batch with the final
-passability correction; do not resume retired .36 workspaces or loop retries.
-If it exhausts, authenticate its actual evidence before choosing another action. No eligible atlas, selection, import, owner acceptance
-or shipped 0.4 is claimed. Preserve installed services, Alpha, G001 admission
-freeze/progress, G002 sealing, licensing and current Actions policy.
+Next: diagnose a reproduced structural defect using public fixtures before
+another private search. Trace land-coherence and dormant-capacity authority,
+and distinguish a defective measurement/placement from legitimately rejected
+terrain. Do not loop retries, resume retired workspaces or relax requirements.
+No eligible atlas, selection, import, owner acceptance or shipped 0.4 is claimed.
+Preserve installed services, Alpha, G001 admission freeze/progress, G002 sealing,
+licensing and current Actions policy.
 Earlier entries below are historical evidence.
 
 Current terminal evidence — 8 October 2026, 16:04 UTC
