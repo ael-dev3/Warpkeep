@@ -153,15 +153,17 @@ Follow [the development workflow](docs/engineering/development-workflow.md) and
 
 ## Delivery and handoff
 
-The live 0.3.43 frontend is served from the public, generated-assets-only
-[`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live) GitHub Pages repository;
-the development repository remains private and has no Pages site on the current
-plan. This restores the existing Alpha, not the 0.4 release lane. Read the
-[hosting and recovery record](docs/operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
-before changing either site. Cloudflare hosts identity/recovery services, and
-SpacetimeDB hosts persistent realms. Verify configured accounts and immutable
-targets. Complete the Windows/WSL/Linux operating path without a Mac dependency;
-required workflow identity must come from the actual supported runner.
+Preserve the live Alpha at `warpkeep.com/` and its signed generated-assets mirror
+[`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live). The owner-PTR frontend
+at `warpkeep.com/ptr/` uses Cloudflare Pages project `warpkeep` through the
+reviewed direct-upload lane; static delivery alone does not prove owner gameplay.
+The private development repository has no Pages site on the current plan.
+Read the [hosting and recovery record](docs/operations/0.4.0-infra-access.md)
+before changing either site. Cloudflare also hosts identity/recovery services,
+and SpacetimeDB hosts persistent realms. Verify current provider identity, DNS,
+immutable targets and the actual deployment path. Complete the Windows/WSL/Linux
+operating path without a Mac dependency; any required workflow identity must
+come from the actual supported runner.
 
 Source synchronization, a green test, deployment and usable player experience are
 different outcomes. The [release acceptance record](docs/operations/0.4.0-release-checklist.md)

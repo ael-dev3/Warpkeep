@@ -119,7 +119,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.31' as const;
+  'greater-realm-v2-natural-continent-pr-a.32' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -666,23 +666,67 @@ export function selectGreaterRealmLowlandsRepairBundleOptions<Option>(
  * Prefer repair pairs using both children's own terrain, but only when those
  * bundles actually form a compatible sibling pair. One non-Lowlands fallback
  * is retained under the same cap to resolve cross-parent footprint conflicts.
+ * On overflow, prefer the alternative sharing the fewest physical cells with
+ * the first pair. Rank breaks ties; tiers stay separate and repeated cells count once.
  */
 export function chooseGreaterRealmLowlandsRepairSiblingPairs<Option>(
   compatibleOwnPairs: readonly Option[],
   compatibleFallbackPairs: readonly Option[],
+  footprintsOf?: (option: Option) => readonly GreaterRealmRankedSiblingSearchOption[],
 ): readonly Option[] {
-  if (compatibleOwnPairs.length > 0 && compatibleFallbackPairs.length > 0) {
-    return Object.freeze([
-      compatibleOwnPairs[0]!,
-      compatibleFallbackPairs[0]!,
-    ].slice(0, GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT));
-  }
   const preferred = compatibleOwnPairs.length > 0
     ? compatibleOwnPairs
     : compatibleFallbackPairs;
-  return Object.freeze(preferred.slice(
-    0,
-    GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT,
+  if (preferred.length === 0) return Object.freeze([]);
+  const first = preferred[0]!;
+  const remaining = compatibleOwnPairs.length > 0 && compatibleFallbackPairs.length > 0
+    ? compatibleFallbackPairs
+    : preferred.slice(1);
+  if (remaining.length === 0) return Object.freeze([first]);
+  let second = remaining[0]!;
+  if (footprintsOf !== undefined && remaining.length > 1) {
+    const firstCells = [new Set<number>(), new Set<number>()] as const;
+    const candidateCells = [new Set<number>(), new Set<number>()] as const;
+    const collect = (option: Option, cells: typeof firstCells) => {
+      const footprints = footprintsOf(option);
+      if (!Array.isArray(footprints)) fail('GREATER_REALM_LOWLANDS_REPAIR_PAIR_FOOTPRINT_INVALID');
+      for (const footprint of footprints) {
+        if (footprint === null || typeof footprint !== 'object') {
+          fail('GREATER_REALM_LOWLANDS_REPAIR_PAIR_FOOTPRINT_INVALID');
+        }
+        for (const [tier, source] of [footprint.tierOneCells, footprint.tierTwoCells].entries()) {
+          if (!Array.isArray(source)) fail('GREATER_REALM_LOWLANDS_REPAIR_PAIR_FOOTPRINT_INVALID');
+          for (const cell of source) {
+            if (!Number.isSafeInteger(cell) || cell < 0) {
+              fail('GREATER_REALM_LOWLANDS_REPAIR_PAIR_FOOTPRINT_INVALID');
+            }
+            cells[tier]!.add(cell);
+          }
+        }
+      }
+    };
+    try {
+      collect(first, firstCells);
+      let minimumOverlap = Number.POSITIVE_INFINITY;
+      for (const candidate of remaining) {
+        collect(candidate, candidateCells);
+        let overlap = 0;
+        for (const [tier, cells] of candidateCells.entries()) {
+          for (const cell of cells) if (firstCells[tier]!.has(cell)) overlap += 1;
+          cells.clear();
+        }
+        if (overlap < minimumOverlap) {
+          minimumOverlap = overlap;
+          second = candidate;
+        }
+        if (minimumOverlap === 0) break;
+      }
+    } finally {
+      for (const cells of [...firstCells, ...candidateCells]) cells.clear();
+    }
+  }
+  return Object.freeze([first, second].slice(
+    0, GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT,
   ));
 }
 
@@ -4298,6 +4342,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       const frozen = chooseGreaterRealmLowlandsRepairSiblingPairs(
         compatibleOwnPairs,
         compatibleFallbackPairs,
+        pair => pair.bundles,
       );
       const preferredPairCount = compatibleOwnPairs.length + compatibleFallbackPairs.length;
       if (frozen.length < preferredPairCount) {

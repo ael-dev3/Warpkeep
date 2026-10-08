@@ -28,7 +28,32 @@ and a coherent Verdant Citadel, delivered as a dependable persistent game.
   provisioning, bridge/frontend verification, cutover, and authenticated owner
   PTR plus Alpha acceptance in order. Never relabel an older seed or candidate.
 
-## Current working state — 7 October 2026
+## Current working state — 8 October 2026
+
+Published source `222e64bc` / tree `f7fb7052` on draft PR #385 completed its
+`.31` search with 256 authenticated rejections and no eligible atlas. Its
+checkpoint is maintained-retired and its watcher stopped. The local `.32`
+repair-pair correction reproduces and fixes a loss of physical alternatives
+within the existing two-pair cap; all 154 affected tests and pinned typecheck
+pass, including 82 private-package cases. Confirm its signed publication from
+actual Git/PR HEAD/tree. No successor search has started. Follow
+[next-work.txt](next-work.txt) and the [ordered release checklist](../../operations/0.4.0-release-checklist.md)
+for current qualification, publication and fresh exact-source search steps.
+
+Backend program `95ca5801`, bridge readiness and immutable frontend source
+`9ea4821a` are accepted and should be reused absent a reproduced defect. The
+frontend already serves statically at `warpkeep.com/ptr/` through Cloudflare
+Pages direct upload; Alpha root remains reachable. Atlas import/readback,
+actual owner provisioning and Mini App gameplay/device acceptance remain open.
+Keep G001 progress/admission freeze, G002 sealing, exact legal bytes and rollback.
+The current Farcaster client has a mobile sync-channel failure, and the production
+Cloudflare browser route awaits existing-account sign-in. Use those human
+handoffs; no new recovery key or substitute player identity is required.
+
+Tervain reuse/design findings remain in the [7 October ecosystem review](../../engineering/repository-ecosystem.md#current-tervain-source-review-7-october-2026).
+Do not add unrelated features or duplicate assets while closing release gates.
+
+## Previous working state — 7 October 2026
 
 The release branch and draft PR [#385](https://github.com/ael-dev3/Warpkeep/pull/385)
 contain the exact-rank search-budget correction at signed published source

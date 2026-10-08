@@ -1,68 +1,66 @@
 WARPKEEP 0.4 - NEXT WORK
-CURRENT RESUMPTION - 8 OCTOBER 2026, 03:26 UTC
+CURRENT RESUMPTION - 8 OCTOBER 2026, 04:43 UTC
 
-ACTIVE RELEASE STEP - VERIFY THE PUBLISHED .31 CHECKPOINT, THEN SEARCH
+ACTIVE RELEASE STEP - CONFIRM THE QUALIFIED .32 CHECKPOINT, THEN SEARCH
 
-The current published source is signed `.30` commit
-`4e4fdc857d1ea8dec5177afed50d62d95d3016ff`, tree
-`c3f1cc47119561b632921db7c26c1bb97bbfb81b`, on the existing release branch
-and draft PR #385. The exact-source `.30` batch
-`20261008T020000Z` exhausted 256 attempts with no candidate, package,
-selection, atlas, owner action, or provider write. Its terminal receipt and
-rejection evidence are at the top of
-`docs/evidence/0.4.0/local-operations.md`. The private workspace and seed are
-retired; never reuse them.
+The completed .31 batch used signed 222e64bc8d969a90c38b832d43e0aa11d149429b,
+tree f7fb70526a4463ccc17421edb7a3b7e7dbc9f127, on the release branch
+and draft PR #385. Resolve the .32 publication from the actual signed remote
+HEAD/tree; this dated note does not embed its own future commit hash. The .31 batch started 03:34:05.016 UTC and terminated
+04:37:46.075 UTC with 256 rejections (226 geography / 30 proof), no eligible
+candidate, package, selection, atlas, owner action or provider write. Two
+identity-bound observations established worker/group/supervisor absence.
+The bound reader authenticated terminal receipt 98cb6c6accb999632e900a459e08472d27a72f6b0507da6d63e86fd5d29fd2e2;
+maintained abort retired the exhausted checkpoint, and its watcher was stopped.
+Never resume its seed or workspace. See local-operations.md for rejection counts.
 
-The signed `.31` source/evidence checkpoint is published as commit
-`8b093c2c082e10830ae941fe562d5717ce372b6e`, tree
-`a7db61e67b1f6eae5bc48324b537e202b7d92b98`, on the existing release branch
-and open/draft PR #385. No `.31` search has started. This publication-status
-note is part of the release line; the next search must bind the actual latest
-signed branch HEAD/tree and use clean synchronized Windows/WSL checkouts, not
-assume that the code commit is still HEAD after this note update. The code correction
-widens only bounds directly reached in `.30` evidence: raw apron pairs 32,768
-→ 65,536; per-child bundles 128 → 256; search nodes 320,000 → 640,000; and
-complete plans 256 → 512. The generator identifier is `.31`; terrain seed
-namespace `.3`, proofs, geometry, admission and deployment policy are unchanged.
-
-Pinned Linux Node 22.22.3 typecheck passed. Focused evidence: gate-apron
-35/35, rejection 11/11, generator 21/21, candidate-package 82/82. The package
-suite took 566.72 seconds, including its seed-bound candidate fixture and
-package verification replays. A maximum-edge synthetic selector retained
-65,536 of 523,776 pairs in 6,038 ms at a sampled 230,035,456-byte peak RSS.
-This is selector/package evidence, not full-world generation. Details and
-hashes are in the local-operations record above. Actions remain disabled; the
-post-push head query returned zero workflow runs. Local operations evidence
-records the complete run and rerun-attempt inventory.
+Local .32 corrects a reproduced repair-pair truncation: rank-first retention
+can spend both slots on the same corridor and discard an alternative required
+by another parent's footprint. Keep the first own pair and the least-overlapping
+fallback (or second own pair), with deterministic rank ties. The two-pair cap,
+all other search caps, ownership, geometry, proofs and seed namespace .3 stay
+unchanged. Five regression cases cover both repair selection modes, repeated cells,
+tier separation, invalid input and untruncated behavior. Pinned Linux qualification passed all 154 affected cases (40 apron, 11
+rejection, 21 generator, 82 package), plus typecheck. The package suite took
+524.33 seconds. No .32 search has started.
 
 ORDERED NEXT ACTIONS
 
-1. Confirm the latest signed publication-status note is at the remote release
-   branch head, PR #385 remains a draft, and both checkouts are clean and match
-   it. Keep Actions disabled and verify the exact head has no workflow run.
-2. Only after publication and synchronization, start one wholly fresh `.31`
-   search: exact source,
-   tree, pinned Node/toolchain, new private workspace and seed, 256 attempts,
-   fixed six-hour cutoff, one slot, no provider writes, no automatic restart.
-   Use a persistent-stdin watchdog and require genuine armed readiness before
-   relying on its cutoff. Never reuse `.30` state.
-3. For an eligible candidate only: verify package, compare and select through
-   maintained gates, export/import/read back the atlas, then provision and
-   test the actual PTR owner. Reuse the installed backend and bridge unless a
-   concrete failure reproduces. Test Quick Auth and keep/gather/build/return in
-   the signed-in Mini App, then regress the existing Alpha.
+1. Confirm the qualified, reviewed .32 checkpoint is signed, scanned, published
+   and synchronized. Before any pending push, inspect all configured repository
+   Actions histories/attempts and triggers. Keep
+   Actions disabled and PR #385 draft. Bind any new run to its actual HEAD/tree.
+2. Start one fresh source-bound search only after qualification/publication:
+   pinned Node/toolchain, new private workspace/seed, 256 attempts, one slot,
+   fixed six-hour cutoff, persistent-stdin watcher with genuine armed readiness,
+   no provider writes and no automatic restart. Never reuse .31 state.
+3. For a genuine candidate: verify its package, compare/select separately,
+   export/import/read back the atlas, and provision the actual owner. Reuse the
+   installed backend program 95ca5801 and accepted bridge absent a reproduced
+   failure; bootstrap and recovery are already complete.
+4. Accept Quick Auth and gather -> choose -> build -> benefit -> return inside
+   the signed-in Farcaster Mini App, then regress Alpha. The Farcaster client
+   currently reports a failed mobile sync channel and requests an app update.
+   Cloudflare's production dashboard is at existing-account sign-in. Human
+   login is required; no new keys or substitute player identity are needed.
+5. Follow the direct Cloudflare Pages deployment/cutover lane and exact
+   postflight with fresh account/DNS evidence and preserved Alpha rollback.
+   Warpkeep-Live is the Alpha/provenance mirror; no Actions dispatch is needed.
 
 RELEASE STATE
 
-0.4 is not shipped. The live Alpha remains the compatibility target. There is
-no `.31` candidate or atlas, and the actual authenticated owner PTR acceptance
-is still outstanding. Do not merge or claim completion until the owner journey
-and Alpha regression have real acceptance evidence. Source publication is not
-deployment or release acceptance.
+0.4 is not shipped. Accepted immutable frontend source 9ea4821a, public artifact
+3634aa82 and Cloudflare deployment 8a469929 already serve /ptr/. The previous
+full postflight passed all 800 files and both fallbacks. Current root, PTR
+landing pages and referenced script/style assets return HTTP 200; this is
+static delivery only. Do not rebuild an unchanged frontend without a defect.
+Actual atlas, owner admission/gameplay, device acceptance and final cutover
+readback remain required. Preserve G001 progress/admission freeze, Alpha root,
+G002 sealing, exact legal bytes and rollback. No licensing-term change is needed.
 
-The detailed repository evidence is authoritative. The remaining snapshots
-below are dated operating history; do not revive old workspaces, seeds,
-cutoffs, source bindings, or stale candidate states.
+The remaining snapshots below are dated history. Never revive their sources,
+workspaces, seeds, cutoffs or candidate states.
+
 DATED HISTORICAL SNAPSHOT - 21:03 UTC
 Published/native-qualified d1ab2b21 / generator .27 is running one fresh guarded
 search. Actual start21:01:11.913; guard READY21:01:29.401 UTC. Root generation

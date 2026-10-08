@@ -3,6 +3,87 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## .31 exhausted and retired; .32 repair-pair correction locally qualified — 8 October 2026, 04:43 UTC
+
+The `.31` one-slot search bound signed source
+`222e64bc8d969a90c38b832d43e0aa11d149429b`, tree
+`f7fb70526a4463ccc17421edb7a3b7e7dbc9f127`, generator
+`greater-realm-v2-natural-continent-pr-a.31`, Linux x64 Node 22.22.3 and the
+existing trusted toolchain. Window `20261008T033000Z` used fresh workspace
+`greater-realm-candidate-222e64bc-20261008T033000Z-parallel01-replacement05`.
+It started at `2026-10-08T03:34:05.016Z` and terminated at
+`2026-10-08T04:37:46.075Z`, exit 1, no signal or deadline/source-hold failure.
+The persistent watcher was verified live until normal completion. After two
+independent identity-bound observations found all recorded workers, group and
+supervisor absent, the exact bound reader authenticated the terminal receipt:
+`98cb6c6accb999632e900a459e08472d27a72f6b0507da6d63e86fd5d29fd2e2`.
+The reader SHA-256 was
+`82ad3442696c134f76f638c1c57c668f9016732f0579bcde5c54a8be7a4a21e0`;
+start receipt SHA-256 was
+`c85b5ee82d37ae048f7bb1881107c02e01b3a38a055d873f5c38ceb5005f99ad`.
+The first reader invocation refused the distro's default root UID before
+accessing private state. Reinvoking explicitly with `wsl -u warpkeep` satisfied
+the fixed UID 1000 contract. Use that explicit user for tests, readers, builds
+and Git; the distro default is root. No runtime check was weakened.
+
+The authenticated checkpoint contained 256/256 rejections: 226 geography and
+30 proof. No completion or accepted-pending candidate, package, selection,
+atlas or owner resulted; the seed was zeroized and production untouched.
+Maintained `generate-candidates --abort-checkpoint` returned
+`checkpointAborted:true,productionUntouched:true`. The exhausted workspace
+is retired and must never resume. The owned watcher session was closed;
+its native cutoff process was then confirmed absent. No raw log was read.
+
+Geography codes: active-cell count 29; legacy Lowlands placement 5; complete-plan
+limit 11; bundle-option frontier 138; bundle-pair frontier 13; search-node
+limit 21; undersized primary component 6; forbidden throne repair 3.
+Overlapping frontier counts: bundle option 189, bundle pair 13, Lowlands repair
+bundle option 186 and Lowlands repair sibling pair 186. These establish reached
+bounds, not that widening a cap alone will produce a valid world.
+
+Local `.32` fixes a concrete bounded-selector defect: the first own pair and
+first fallback (or first two own pairs) can share the same corridor, dropping
+a later alternative compatible with another parent's fixed footprint. Two
+deterministic public regressions reproduced no-match on `.31` and match after
+the fix. On overflow the selector keeps the first preferred pair and retains
+the alternative with minimum shared physical cells, counting each cell once
+per tier and resolving ties by existing rank. Its actual repair caller supplies
+the existing bundle footprints. The two-pair cap and every other cap, ownership,
+terrain geometry, proofs and seed namespace `.3` are unchanged. This correction
+is not evidence that a full candidate will pass.
+
+Pinned Linux tests pass: gate-apron 40/40, rejection 11/11, generator 21/21;
+the combined run was 72/72 in 72.97 seconds. Pinned Node 22.22.3 typecheck
+also passed. The private-package suite passed 82/82 in 524.33 seconds, including
+its seed-bound fixture and all tamper/zeroization replays. Total affected coverage
+is 154 passing cases. File-size, license and public-boundary checks also pass.
+A credential-free
+stress fixture scanned 65,536 ranked alternatives and retained the sole
+disjoint last option in 20.09 ms; RSS before/after was 170,217,472 / 183,717,888
+bytes. This is selector-only evidence, not a sampled memory peak or full-world
+generation. New assertions also cover repeated cells, distinct tier authority,
+rank ties, invalid cells and untouched untruncated inputs.
+
+Current live root/PTR HTML and their referenced JS/CSS return HTTP 200, matching
+the accepted HTML hashes recorded in deployment evidence. Current records now
+distinguish the immutable static PTR deployment from outstanding atlas/owner
+acceptance and route 0.4 delivery through direct Cloudflare Pages upload.
+Farcaster's actual client shows Login and the mobile sync-channel error;
+Cloudflare's existing production-account route shows sign-in. No owner/device
+acceptance or new provider write is claimed. Actions remains disabled.
+
+Before publication, the read-only repository-wide inventory completed at
+`2026-10-08T04:55:17.014851+00:00`: Warpkeep 3,807 completed runs and 57
+rerun attempts, Live 8 completed runs, Assets 226 completed runs, Water Engine
+no runs. All pages and rerun jobs were inspected; no active run exists and
+Actions is disabled in all four repositories. Receipt SHA-256:
+`c926a70847aa1c11be9141aa0a9f135d5de477b422b623bd7c486cf23f3269b3`.
+Inspected main workflow definitions retain Verify main-push/PR triggers and
+its main-only Pages completion chain; four production workflows are manual.
+Assets Verify/CodeQL use main-push/PR, with manual CodeQL also available.
+Live and Water Engine have no workflow files. Publication must leave repository
+Actions disabled and must not dispatch any downstream workflow.
+
 ## .30 exhausted; `.31` correction published and locally qualified — 8 October 2026, 03:26 UTC
 
 The fresh one-slot `.30` search used source `4e4fdc857d1ea8dec5177afed50d62d95d3016ff`,

@@ -3,8 +3,28 @@
 Status: **pending**. This record is the authoritative destination for R15 and
 must be updated only from an authenticated deployment and live readback.
 
-The current public site is still **Alpha 0.3.43**, not the 0.4 PTR. Its latest
-signed diagnostic client source is
+## Current delivery scope — 8 October 2026
+
+The existing Alpha root remains reachable, and the immutable owner-PTR frontend
+is already statically delivered at https://warpkeep.com/ptr/. Accepted frontend
+source is 9ea4821a, public artifact 3634aa82 and Cloudflare Pages deployment
+8a469929. Its full postflight passed all 800 files and both fallback routes,
+as recorded in the release checklist and live-delivery status. Current root and
+PTR HTML hashes remain ad741690ebcced015fde8d49d05c8ac63d50d8bd38378039669850ea8dafbd33
+and 5fe1374aeb73b5d51b2e7a00585624edf52a6c729ce08f903f40690ac66435fa;
+referenced JS/CSS return HTTP 200. These public GETs establish availability,
+not authenticated owner gameplay or a fresh provider-account inspection.
+
+R15 remains pending: an eligible atlas, owner admission/authenticated journey,
+actual device/performance acceptance, and final provider/DNS/cutover readback
+are not yet proved. Use the Cloudflare Pages direct-upload lane and preserve
+Alpha rollback. Warpkeep-Live is the generated Alpha/provenance mirror; its
+historical GitHub Pages runs do not establish the current owner-PTR release.
+
+## Historical Alpha restoration and QR recovery — 27 September 2026
+
+At this historical checkpoint, the public site was Alpha 0.3.43 and the 0.4 PTR
+had not been deployed. Its signed diagnostic client source was
 [`5f77c3ce`](https://github.com/ael-dev3/Warpkeep/commit/5f77c3cec555823fd52b73c90080032867fc2ed4),
 published as generated files in
 [`Warpkeep-Live@b6afe92`](https://github.com/ael-dev3/Warpkeep-Live/commit/b6afe92e7b09197b1578d992103ac3c8f916d8ad).

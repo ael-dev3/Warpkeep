@@ -1025,6 +1025,68 @@ describe('Greater Realm ranked gate-apron search', () => {
     });
   });
 
+  it.each(['borrowed', 'own-only'] as const)(
+    'retains a physically distinct repair pair in the bounded %s frontier',
+    lane => {
+      const first = descriptor('first', option('first-corridor', [1], [10]));
+      const duplicate = descriptor('duplicate', option('duplicate-corridor', [1], [10]));
+      const alternative = descriptor('alternative', option('alternative-corridor', [2], [20]));
+      const competitor = descriptor('competitor', option('other-parent', [1], [30]));
+      const own = lane === 'borrowed' ? [first] : [first, duplicate, alternative];
+      const fallback = lane === 'borrowed' ? [duplicate, alternative] : [];
+      const search = (pairs: readonly SyntheticDescriptor[]) => searchGreaterRealmRankedSiblingAlternatives(
+        ['same-capacity-assignment'],
+        () => [pairs, [competitor]],
+        () => true,
+        { maximumSearchNodes: 32, maximumCompletePlans: 32 },
+        pair => pair.footprints,
+      );
+      const rankOnly = chooseGreaterRealmLowlandsRepairSiblingPairs(own, fallback);
+      expect(search(rankOnly)).toEqual({ outcome: 'no-match' });
+      const retained = chooseGreaterRealmLowlandsRepairSiblingPairs(
+        own, fallback, pair => pair.footprints,
+      );
+      expect(retained).toEqual([first, alternative]);
+      expect(retained).toHaveLength(GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT);
+      expect(search(retained)).toMatchObject({ outcome: 'match', options: [alternative, competitor] });
+      expect(Object.isFrozen(retained)).toBe(true);
+      expect(first.footprints[0]?.tierOneCells).toEqual([1]);
+    },
+  );
+
+  it('counts repair pair cells once per tier and preserves ranked overlap ties', () => {
+    const first = descriptor('first', option('first-corridor', [1, 1], [2, 2]));
+    const repeated = descriptor('repeated', option('repeated-cell', [1, 1, 1], []));
+    const tied = descriptor('tied', option('other-tier', [], [2]));
+    const crossTier = descriptor('cross-tier', option('distinct-authority', [2], [1]));
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      [first], [repeated, tied], pair => pair.footprints,
+    )).toEqual([first, repeated]);
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      [first], [repeated, tied, crossTier], pair => pair.footprints,
+    )).toEqual([first, crossTier]);
+    expect(repeated.footprints[0]?.tierOneCells).toEqual([1, 1, 1]);
+  });
+
+  it('rejects invalid repair pair cells before selecting an alternative', () => {
+    const first = descriptor('first', option('first-corridor', [1], [10]));
+    const invalid = descriptor('invalid', option('invalid-corridor', [-1], []));
+    const alternative = descriptor('alternative', option('alternative-corridor', [2], []));
+    expect(() => chooseGreaterRealmLowlandsRepairSiblingPairs(
+      [first], [invalid, alternative], pair => pair.footprints,
+    )).toThrowError('GREATER_REALM_LOWLANDS_REPAIR_PAIR_FOOTPRINT_INVALID');
+    expect(invalid.footprints[0]?.tierOneCells).toEqual([-1]);
+  });
+
+  it('leaves untruncated repair pairs intact without inspecting footprints', () => {
+    const own = descriptor('own', option('own-corridor', [1], [10]));
+    const fallback = descriptor('fallback', option('fallback-corridor', [2], [20]));
+    const footprints = vi.fn(() => { throw new Error('unused footprint'); });
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs([own], [fallback], footprints))
+      .toEqual([own, fallback]);
+    expect(footprints).not.toHaveBeenCalled();
+  });
+
   it('widens bounded gate-apron frontiers after repeated truncation', () => {
     expect(GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES).toBe(1024);
     expect(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS).toBe(65_536);
