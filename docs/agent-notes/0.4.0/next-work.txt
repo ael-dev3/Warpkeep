@@ -1,32 +1,34 @@
-Current release checkpoint - 8 October 2026, 10:03 UTC
+Current release checkpoint - 8 October 2026, 11:21 UTC
 
-Reviewed .35 source 75c617e55140aae55f23d96a2ab591c1bd394ede
-(tree f2c81c9ed3d3b80cfdaea17e39cf0ee936a00e53) passed 186 affected
-tests and typecheck/policy checks. Its authenticated search exhausted 256
-attempts: 225 geography / 31 proof rejections, including 28 Frostmere and
-18 Stonewake proof failures. No eligible atlas, selection or provider write.
-The exhausted checkpoint is retired; do not resume it.
+Signed .36 source c80b46d752d22b3e3521a22236185d5aab4cddff
+(tree f612596296a3ec102c0e0705e8292fbb3535e405) was published and
+synchronized before its fresh search. Its final-fjord distance correction passed
+200 affected tests and build-mode types, file-size, license and public-boundary
+checks. Qualification does not establish a release-ready atlas.
 
-The .36 correction is qualified: final fjord classification now
-uses the original constructor's glacial-distance eligibility (within four graph
-steps), preserving cold/steep/dry/saltwater/protection/reserve/existing-class
-guards. Four distance regressions failed before the fix; all 32 geomorphology
-and topographic tests now pass. All 200 affected tests and build-mode types,
-file-size, license and public-boundary checks passed. Signed publication and
-exact synchronization must precede the next search. This does
-not establish that every random Frostmere failure has been resolved.
+The search started 10:19:44.011 UTC and finished 11:20:33.706 UTC,
+exit 1 without signal, deadline, monitoring, source-hold or toolchain failure.
+The bound terminal reader authenticated 256 rejections: 212 geography / 44 proof,
+including overlapping Frostmere 42, Mirefen 22 and Stonewake 35 failures.
+There is no eligible atlas, accepted-pending candidate, selection or provider write.
+The seed is zeroized; the maintained checkpoint abort succeeded and the cutoff
+watcher is stopped. This exhausted workspace is retired and must never resume.
+Counts alone do not prove a source defect or justify weakening acceptance.
 
-Remaining order: publish/synchronize exact source; generate and
-verify/select an eligible atlas; import/read back and provision the real owner;
-authenticated Mini App journey and device/Alpha acceptance; Cloudflare cutover
-and rollback readback. No proof criterion is waived.
+Bounded public replays found no further demonstrated caller defect: final naming
+correctly favors passing regional proofs, and the tested terrain lacks the required
+simultaneous physical regional combination. Do not edit source or relax proofs on
+that evidence. Codex next runs one fresh bounded search with the qualified .36
+generator; verify/select an eligible atlas, import/read back and provision the real
+owner, accept the authenticated journey and device/Alpha behavior, then complete
+Cloudflare cutover and rollback readback. Reuse accepted backend/bridge/frontend.
 
-Owner Farcaster login is now verified. Alpha Mini App secure sign-in still
-reports quick_auth_token_timeout while the host shows a separate identity
-approval prompt; requested phone approval remains pending. This occurs before
-bridge token exchange, not as a demonstrated bridge rejection. Public Alpha,
-PTR and bridge JWKS return HTTP 200. Existing Alpha, G001 admission freeze,
-G002 seal and public licensing remain unchanged. Entries below are historical.
+Owner Farcaster login is verified, but a fresh Alpha Mini App sign-in still reports
+quick_auth_token_timeout while the host shows a separate identity approval prompt.
+Requested phone approval remains pending. This occurs before bridge token exchange;
+it is not evidence of a bridge rejection or successful owner PTR acceptance.
+Existing Alpha, G001 progress/admission freeze, G002 seal and licensing are
+preserved. Actions remain disabled. Entries below are historical.
 
 .34 qualified — 8 October 2026, 07:33 UTC: all159 affected tests and project
 typecheck/policy checks pass. Next: verify signed publication/synchronization,

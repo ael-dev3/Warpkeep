@@ -3,6 +3,52 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## .36 exhausted and retired - 8 October 2026, 11:21 UTC
+
+Signed source c80b46d752d22b3e3521a22236185d5aab4cddff, tree
+f612596296a3ec102c0e0705e8292fbb3535e405, generator .36, was clean and
+synchronized across Windows, WSL and draft PR #385 before this single fresh
+search. Qualification passed 200 affected tests and the existing type/policy
+checks. The fixed window was 10:19-16:19 UTC; actual start was
+2026-10-08T10:19:44.011Z and terminal finish 2026-10-08T11:20:33.706Z.
+Worker session 47619 returned exit 1, no signal, source/toolchain preservation
+true, and deadline, monitoring, interruption and source-hold failure false.
+No provider write occurred. Watcher session 16747 was verified live until terminal.
+
+Two independent full /proc scans (48 processes each) found every recorded worker
+birth, process group and supervisor absent before the bound reader ran. Start
+receipt SHA-256: 1530e9490d0c68d54e1ce3ca7d5a7c3cc5a123a7c6759b1355f6e8e76c6c8d9b.
+Reader SHA-256: 9e6b39f22ffa50a7721b319854876a04ff1cf265d3f630c45396afcb016bd4af.
+Authenticated terminal metadata SHA-256:
+994f7431c64682cc353e3a43c7a2ae299a5d269455400d33ec0a89be016830ef.
+
+The reader authenticated 256 rejected attempts, 212 geography / 44 proof;
+no completion, accepted-pending candidate, eligible atlas, package, selection
+or provider write. Root seed zeroization was confirmed. Geography counts:
+active grid 27, legacy placement 6, complete-plan limit 7, bundle-option frontier
+119, bundle-pair frontier 5, search-node limit 30, undersized primary component
+13 and forbidden throne repair 5. Overlapping proof counts include Frostmere 42,
+Mirefen 22, Stonewake 35, region graph 25, land coherence 24, dormant capacity 22,
+smallest Tier-III passable land 31 and topographic QA 32. All 44 proof rejections
+failed the combined regional requirement. These counts do not identify a sole
+cause and cannot authorize reduced quality criteria.
+
+The pinned maintained generate-candidates --abort-checkpoint operation returned
+checkpointAborted:true,productionUntouched:true. The exhausted workspace
+suffix c80b46d7-20261008T101900Z-parallel01-replacement11 is retired; never resume
+it. The owned watcher was stopped after retirement. No raw private log or seed
+was read. Bounded read-only public follow-ups found no additional proven caller
+bug. A synthetic final-assignment replay correctly selected the passing eight-cell,
+two-system Frostmere basin over a failing 100-cell, one-system basin. The existing
+ordinary-parent ordinal-10 replay passed Frostmere (26 cells/six systems), but failed
+Mirefen (63 wetland cells) and Stonewake (one island/no strait). Giving the diagnostic
+all physical saltwater showed only its Frostmere basin had eligible Stonewake
+island/strait geometry; this is not proof of simultaneous full regional eligibility
+or a repair-lane defect. No tracked code, private state or provider was changed.
+After publishing/synchronizing this evidence, run one fresh bounded search with
+the qualified .36 generator and unchanged requirements. Actual owner/device
+acceptance and release completion remain open.
+
 ## .32 exhausted and retired; child-option diversity defect reproduced — 8 October 2026, 06:02 UTC
 
 Signed `.32` source `51b41e2bd8dced229387e84f0195953ff0319ed0`, tree
