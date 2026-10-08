@@ -8224,3 +8224,18 @@ observed timeout precedes Warpkeep bridge exchange. Host approval as the cause
 remains a hypothesis until approval and successful retry. No authenticated PTR
 acceptance is claimed. Privacy-safe observation receipt SHA256
 852a805ed4729ea640dbd871a011349c7183d96fa7d6a169718fd1a34072ee08.
+
+
+### .36 final fjord distance correction - 8 October 2026
+
+A bounded independent review identified an inconsistent predicate: the canonical
+coastal constructor accepts distance-to-glacial-mask <=4, but the final post-
+hydrology repair required glacialMask[cell]===1. A public axial line with dry,
+cold, steep coast one step from glacial authority reproduced missing fjord
+classification. Root-owned distance 1/2/3/4 regressions failed on .35; distance
+5 correctly rejected. The corrected repair reuses canonical maskDistances and
+zeroizes its result in finally, retaining all existing physical/protection guards.
+Qualification completed: 32 geomorphology/topographic and 168 generator,
+rejection, package, apron and strait tests passed (200 total); the latter suite
+finished in 596.34 seconds. Build-mode typecheck, file-size, license and public-
+boundary checks passed (3463 tracked, 1928 scanned). No global proof waiver or universal random-rejection fix is claimed.

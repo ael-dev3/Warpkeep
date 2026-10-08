@@ -90,36 +90,41 @@ export function repairGreaterRealmFinalFjordCoastalClass(input: Readonly<{
     ) fail("GREATER_REALM_FINAL_FJORD_REPAIR_INPUT_INVALID");
   }
 
-  let reclassifiedCellCount = 0;
-  for (let cell = 0; cell < grid.cellCount; cell += 1) {
-    if (
-      input.coastalClass[cell] !== GREATER_REALM_COASTAL_CLASS.none
-      || input.waterRegime[cell] !== input.dryWaterRegime
-      || input.protectedCell[cell] === 1
-      || input.reserveCell?.[cell] === 1
-      || input.glacialMask[cell] !== 1
-      || input.temperature[cell]! > 2_000
-      || input.slope[cell]! < 500
-    ) continue;
-    let touchesFinalSaltwater = false;
-    for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
-      const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+  const glacialDistance = maskDistances(grid, input.glacialMask);
+  try {
+    let reclassifiedCellCount = 0;
+    for (let cell = 0; cell < grid.cellCount; cell += 1) {
       if (
-        neighbor >= 0
-        && (
-          input.waterRegime[neighbor] === input.oceanWaterRegime
-          || input.waterRegime[neighbor] === input.seaWaterRegime
-        )
-      ) {
-        touchesFinalSaltwater = true;
-        break;
+        input.coastalClass[cell] !== GREATER_REALM_COASTAL_CLASS.none
+        || input.waterRegime[cell] !== input.dryWaterRegime
+        || input.protectedCell[cell] === 1
+        || input.reserveCell?.[cell] === 1
+        || glacialDistance[cell]! > 4
+        || input.temperature[cell]! > 2_000
+        || input.slope[cell]! < 500
+      ) continue;
+      let touchesFinalSaltwater = false;
+      for (let direction = 0; direction < NEIGHBOR_COUNT; direction += 1) {
+        const neighbor = grid.neighbors[cell * NEIGHBOR_COUNT + direction]!;
+        if (
+          neighbor >= 0
+          && (
+            input.waterRegime[neighbor] === input.oceanWaterRegime
+            || input.waterRegime[neighbor] === input.seaWaterRegime
+          )
+        ) {
+          touchesFinalSaltwater = true;
+          break;
+        }
       }
+      if (!touchesFinalSaltwater) continue;
+      input.coastalClass[cell] = GREATER_REALM_COASTAL_CLASS.glacialFjord;
+      reclassifiedCellCount += 1;
     }
-    if (!touchesFinalSaltwater) continue;
-    input.coastalClass[cell] = GREATER_REALM_COASTAL_CLASS.glacialFjord;
-    reclassifiedCellCount += 1;
+    return Object.freeze({ reclassifiedCellCount });
+  } finally {
+    glacialDistance.fill(0);
   }
-  return Object.freeze({ reclassifiedCellCount });
 }
 
 const NEIGHBOR_COUNT = 6;

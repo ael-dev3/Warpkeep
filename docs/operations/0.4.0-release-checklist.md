@@ -7,8 +7,16 @@ attempts: 225 geography / 31 proof rejections, including 28 Frostmere and
 18 Stonewake proof failures. No eligible atlas, selection or provider write.
 The exhausted checkpoint is retired; do not resume it.
 
-Remaining order: diagnose/reproduce the Frostmere failure; batch any confirmed
-correction and qualification; publish/synchronize exact source; generate and
+The .36 correction is qualified: final fjord classification now
+uses the original constructor's glacial-distance eligibility (within four graph
+steps), preserving cold/steep/dry/saltwater/protection/reserve/existing-class
+guards. Four distance regressions failed before the fix; all 32 geomorphology
+and topographic tests now pass. All 200 affected tests and build-mode types,
+file-size, license and public-boundary checks passed. Signed publication and
+exact synchronization must precede the next search. This does
+not establish that every random Frostmere failure has been resolved.
+
+Remaining order: publish/synchronize exact source; generate and
 verify/select an eligible atlas; import/read back and provision the real owner;
 authenticated Mini App journey and device/Alpha acceptance; Cloudflare cutover
 and rollback readback. No proof criterion is waived.
