@@ -1,3 +1,34 @@
+Current atlas checkpoint — 8 October 2026, 20:20 UTC
+
+Replacement18 bound signed source edb9378ba820334c8c0c09438384a13c7211f2f0 /
+tree 02940aeb61f75f37e89d5c25374a6a22c4452501, generator .38.
+Started 19:22:35.024 UTC; finished 20:18:08.787 UTC without deadline or interruption.
+Authenticated terminal evidence: 256 rejections, 213 geography / 43 proof.
+42 proof attempts failed regional QA. One passed regional QA, then failed
+PROOF_GATE_APPROACHES, PROOF_REGION_GRAPH, PROOF_REGION_LAND_COHERENCE,
+TIER_III_SMALLEST_PASSABLE_LAND and TOPOGRAPHIC_QA_COMPLETE.
+Major rivers: 43 observed, 11 below range, 32 within, range 35–68.
+The regionally eligible attempt had 65, within the required range.
+No eligible, pending or verified private package exists; production untouched.
+Terminal metadata SHA256:
+22b6fe0e5a7a79331d6c7e6c690c1dc6f5705a43392f6140f2288ab7f54f5ca8.
+Root seed zeroized; source/index/refs and toolchain preserved.
+Two full /proc scans each examined 47 processes, no original births/group/supervisor.
+Maintained abort returned checkpointAborted:true / productionUntouched:true.
+Replacement18 retired; owned cutoff watcher stopped. Never resume this workspace.
+Current-source public ordinary-parent-a ordinal 10 independently reproduced
+14 gates across nine required graph pairs: pairs 0:7 and 4:7 have no gates.
+Endpoint conflicts, required-path conflicts, open side edges and invalid
+endpoints are all zero. Gate approaches, gate graph and region graph fail.
+This is consistent with the earlier independent dry-access diagnosis, not
+evidence of a new endpoint-conflict defect or justification to relax proofs.
+Next: diagnose reproducible region coherence/land-floor failures before
+another bounded private search. Do not relax requirements or replay private seeds.
+The .38 public opening regression and 142 native affected tests passed;
+this qualification is not a private atlas winner or authenticated PTR acceptance.
+
+Previous checkpoint and qualification details follow.
+
 Current atlas checkpoint — 8 October 2026, 19:16 UTC
 
 Replacement17 bound signed source 7ad506d3632ddc4b9e2ed3600cc472c582e37743 /
