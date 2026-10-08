@@ -1,29 +1,35 @@
 # Continue Warpkeep 0.4
 
-## Active release step — 7 October 2026, 23:55 UTC
+## Active release step — 8 October 2026, 00:01 UTC
 
-Codex owns the release. Signed .28 source
-acad76d18ced8761aea3d64dc94c75cf6f8cc784 remains published on release branch
-/ draft PR #385. Its fresh 20261007T224500Z search terminated at 23:26:10.472
-UTC after all 256 attempts rejected. The safe reader authenticated exhaustion,
-zeroized the recovered root seed, found no candidate completion, and confirmed
-no package, selection, provider write, or production mutation. Source
-references and toolchain remained intact. Every recorded process birth, the
-original process group and supervisor were observed absent twice. The
-maintained abort returned checkpointAborted:true and productionUntouched:true;
+Codex owns the release. Signed .29 source
+`ffa72f44f454711107be11e949578e48e0432946`, tree
+`8034e2829f23c26be0fb5600c137db154b4cfaa6`, is published on the release branch
+and open draft PR #385. The native checkout is clean at this exact commit. The
+.28 20261007T224500Z search terminated at 23:26:10.472 UTC after all 256
+attempts rejected. The safe reader authenticated exhaustion, zeroized the
+recovered root seed, found no candidate completion, and confirmed no package,
+selection, provider write or production mutation. Every recorded process birth,
+the original process group and supervisor were observed absent twice. The
+maintained abort returned `checkpointAborted:true` and `productionUntouched:true`;
 never replay that workspace or seed.
 
-The leading measured rejection was BUNDLE_PAIR_LIMIT (133 classified
+The leading measured rejection was `BUNDLE_PAIR_LIMIT` (133 classified
 rejections; pair-frontier truncation appeared in 175 rejected attempts). The
-local .29 correction doubles only the bounded apron-pair cap from 8,192 to
-16,384. It leaves the edge/child caps, search and complete-plan limits, proofs,
-admission rules and terrain-seed namespace unchanged. Windows typecheck and
-67 apron/rejection/generator tests pass; native Linux typecheck passes. The
+published .29 correction doubles only the bounded apron-pair cap from 8,192
+to 16,384. It leaves edge/child caps, search and complete-plan limits, proofs,
+admission rules and terrain-seed namespace unchanged. Windows typecheck and 67
+apron/rejection/generator tests pass; native Linux typecheck passes. The
 four-file Linux closure passed 148/149; the sole failure was a stale .28
-version assertion. After updating it to .29, the isolated assertion passed.
-A synthetic full edge-cap selector benchmark retained 16,384 of 523,776 pairs
-in 1,316 ms with sampled peak RSS 254,844,928 bytes. Local qualification is
-complete; the .29 private candidate window has not started.
+version assertion, updated to .29 and passed in isolation. A synthetic
+full-edge-cap selector benchmark retained 16,384 of 523,776 pairs in 1,316 ms
+with sampled peak RSS 254,844,928 bytes. No .29 private candidate exists yet.
+
+Before publish, the full GitHub Actions inventory had 3,807 completed runs, no
+queued/running work, and all 57 attempts across 28 rerun workflows enumerated.
+Repository Actions permission is disabled; the release-branch push created no
+run. Verify is limited to main pushes and PR events; Pages follows only a
+successful main-push Verify. Manual production workflows are dispatch-only.
 
 The accepted immutable 9ea4821a frontend remains reachable at the custom
 domain; exact postflight passed all 800 files and both fallback routes while
@@ -33,17 +39,13 @@ Quick Auth is exercised. The current Farcaster web tab shows Login.
 
 Next, in order:
 
-1. Review the exact .29 source/docs diff and local qualification evidence.
-2. Sign and publish one coherent source/docs checkpoint to draft PR #385.
-   Before pushing, refresh the repository-wide Actions inventory and downstream
-   trigger check. Actions are disabled and must remain so.
-3. Synchronize the native checkout to the exact published .29 commit and verify
-   clean equality. Then start one fresh-source/fresh-workspace candidate
-   window; never replay .28 state.
-4. Only a genuine eligible winner permits private-package verification,
+1. Start one fresh-source/fresh-workspace candidate window from exact published
+   .29; measure actual runtime and memory and retain the fixed cutoff. Never
+   replay .28 state.
+2. Only a genuine eligible winner permits private-package verification,
    separate selection, atlas import/readback and actual owner provisioning.
    Reuse the installed backend and bridge unless a concrete failure reproduces.
-5. Test owner Quick Auth and keep/gather/build/return in the signed-in Farcaster
+3. Test owner Quick Auth and keep/gather/build/return in the signed-in Farcaster
    Mini App, then regress Alpha. Do not call 0.4 shipped until both acceptance
    paths pass.
 

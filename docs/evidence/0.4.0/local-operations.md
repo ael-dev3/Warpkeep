@@ -3,6 +3,33 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## .29 signed checkpoint published and native source synchronized — 8 October 2026, 00:01 UTC
+
+Signed commit `ffa72f44f454711107be11e949578e48e0432946`, tree
+`8034e2829f23c26be0fb5600c137db154b4cfaa6`, was pushed to
+`release/0.4-living-realm-quality` and is the current head of open draft PR #385.
+The pre-push `git ls-remote` value was the expected parent
+`af471f32c8b4fd29a9e69c031d94295c3ddaf961`; the push advanced only that branch.
+GitHub confirmed PR #385 head equals the commit. The signed commit verified
+locally and GitHub reported no Actions run for the branch after publication.
+
+Immediately before the push, paginated repository-wide inventory contained
+3,807 workflow runs, all completed, none queued or running. It counted 2,703
+pull-request, 699 push, 239 workflow-run, 156 workflow-dispatch and 10 dynamic
+events. Every attempt for all 28 workflows with rerun attempts was enumerated:
+57 total, 18 success, 24 failure and 15 cancelled, with no enumeration errors.
+Repository Actions permission is `enabled:false`. Trigger inspection found
+`Verify` on `main` pushes and PR events, Pages deployment on successful Verify
+for a `main` push, and separate dispatch-only production operations. No
+workflow was enabled, dispatched, rerun or triggered by the release-branch
+push.
+
+Native `/home/warpkeep/Warpkeep-0.4` was fetched from the same remote. Its four
+pre-existing working-tree edits matched the exact contents of commit `ffa72f4`
+byte-for-byte before synchronization. The tracked tree is now clean and HEAD
+equals the published commit. Ignored `artifacts/qa/*029*` evidence was retained.
+No candidate process was started as part of this synchronization.
+
 ## .28 candidate search authenticated exhausted; .29 correction qualified locally — 7 October 2026, 23:55 UTC
 
 The one-candidate window 20261007T224500Z ran against signed source
