@@ -26,9 +26,14 @@ hydrology/ownership, then clears component scratch. Terrain seed namespace,
 geometry, hydrology and acceptance thresholds remain unchanged. This corrects
 proof authority; it does not turn the undersized public fixture into a winner.
 The independent regression failed before the correction and passes afterward.
-Generator/rejection tests, project and regression types, licensing, file-size
-and public-boundary checks pass. Package checks are still running; qualification
-is incomplete until their actual terminal result is inspected.
+Qualification completed: 115 affected tests pass (21 generator, 82 package,
+11 rejection and one independent final-mask regression). Package checks include
+roundtrip/replay, semantic ownership, tamper rejection and zeroization. Project
+and regression types, licensing, file-size and public-boundary checks pass.
+Public floor-repair tracing shows insufficient reachable same-tier donor land:
+region 4 needed 6018 cells but found 1523; region 2 needed 3166 but found 33.
+The final reported counts and component shares now match independent BFS exactly.
+This evidence does not justify forcing annexation or bypassing immutable ownership.
 
 Next: finish package qualification and publish/synchronize this coherent fix,
 then diagnose physically undersized outer land on public fixtures before a new
