@@ -1,5 +1,7 @@
 import { createHash, createHmac } from 'node:crypto';
 
+import { sealGreaterRealmIsolatedBarrierPockets } from './greater-realm-isolated-barrier-pockets';
+
 import {
   GREATER_REALM_MAXIMUM_ACTIVE_CELL_COUNT,
   GREATER_REALM_MINIMUM_ACTIVE_CELL_COUNT,
@@ -120,7 +122,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.38' as const;
+  'greater-realm-v2-natural-continent-pr-a.39' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -9716,6 +9718,8 @@ function barriersAndGates(
   regionId: Uint8Array,
   gateGraph: readonly GreaterRealmGateGraphEdge[],
   legacyProtectedCell: Uint8Array,
+  legacyReserveCell: Uint8Array,
+  plannedBiomeId: Uint8Array,
   tierTwoPassableOwner: Int8Array,
   tierTwoSpineOwner: Int8Array,
   repairImmutableCell?: Uint8Array,
@@ -10662,6 +10666,11 @@ function barriersAndGates(
       tierTwoSpineOwner,
     });
   }
+  sealGreaterRealmIsolatedBarrierPockets({
+    grid, regionId, tierId, waterRegime, plannedBiomeId, barrier,
+    geologicalBarrierBand, legacyProtectedCell, legacyReserveCell,
+    tierTwoSpineOwner, repairImmutableCell, protectedApproachCells, gates,
+  });
   assertTierTwoCapacityAuthority({
     grid,
     tierId,
@@ -12134,6 +12143,8 @@ export function generateGreaterRealmCandidate(input: Readonly<{
       strategy.regionId,
       strategy.gateGraph,
       legacy.protectedCell,
+      legacy.reserveCell,
+      topography.biomeId,
       capacityStrategy.tierTwoPassableOwner,
       capacityStrategy.tierTwoSpineOwner,
       capacityStrategy.repairImmutableCell,

@@ -1,3 +1,41 @@
+Current atlas correction — 8 October 2026, 20:52 UTC
+
+Generator .39 fixes a reproduced barrier-coherence defect using existing planned
+marsh classification before authoritative barrier audits. Public ordinary-parent-a
+ordinal 3 passed the preliminary tendril ratio (119 / 7945 rounds to 150),
+but marsh conversion produced 120 / 7929, rounding to 151 and failing coherence.
+The isolated pockets already existed before marsh conversion. Closing one
+unprotected isolated geological pocket clears PROOF_REGION_LAND_COHERENCE:
+tendril 151 -> 150, minor-fragment share 84 -> 83, largest share 9629 -> 9630.
+Actual .39 source reproduces the cleared failure; all living-world invariants pass.
+The public fixture still fails separate geography, hydrology, gate and capacity
+proofs. It is not an eligible private release atlas.
+
+The bounded helper closes at most four already isolated Tier-II cells, only
+inside the geological band. It preserves Lowlands protected/reserve masks,
+immutable repair ownership, every reviewed gate endpoint/path, interior capacity
+spines, hydrology and political ownership, and the throne land ordering.
+Passing regions are untouched. Seed namespace and living-world v4 stay unchanged.
+The known eligible public ordinal 9 remains eligible with identical stage digests
+under prototype and control. This public fixture cannot substitute for the
+private owner atlas. All diagnostic roots and candidate scratch were cleared.
+
+Qualification: six native files / 150 tests passed, including 82 package tests
+for roundtrip/replay, semantic ownership, payload/manifest tamper rejection,
+preview validation and zeroization; 21 generator, 11 rejection, 27 living-world,
+eight new isolated-pocket tests and one independent final-passability regression.
+Final helper bytes also pass all eight tests natively and on Windows. Project
+and targeted types, file-size, licensing and the 3466-path public boundary pass.
+The stricter optional type probe found pre-existing terrain indexed-access
+annotations; no new helper errors remain after explicit counter assignments.
+
+Next: publish this exact reviewed checkpoint, synchronize the idle native source,
+then run one fresh bounded private atlas search. Never resume retired batches.
+No private atlas has been selected, imported or accepted. No provider write or
+rendered/mobile acceptance is implied by these local checks.
+
+Previous terminal and diagnosis evidence follows.
+
 Current atlas checkpoint — 8 October 2026, 20:20 UTC
 
 Replacement18 bound signed source edb9378ba820334c8c0c09438384a13c7211f2f0 /
