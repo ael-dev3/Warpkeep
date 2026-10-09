@@ -29,12 +29,21 @@ ridge/ancient-stone heights, exact legacy water routing, input arrays, canonical
 visuals and placement. Only the generated host relief is reconciled; G001 data
 and its deployed surface are not edited. QA criteria, seed namespace, water
 pins, admission freeze, G002 seal and licensing remain unchanged.
+Signed .44 source 716d5426d9a1dbfe030196eb1704571152e347e4 /
+tree 8f737f1055682ea23ae0108869054b4229dcd6ea is published and native-synchronized.
 The regression fails on .43 and passes on .44. Project and explicit source/test
-types pass; full native qualification remains pending. Do not claim an eligible
-atlas or ship readiness from this focused correction.
-Next: complete local boundary/license/diff/secret checks, publish the reviewed
-checkpoint with these limits, synchronize the idle native checkout, and qualify
-the affected suites before another bounded source-bound private search.
+types, boundary/license/file-size/diff/redacted secret checks pass. All eight
+affected native suites / 167 tests pass in 647.22s, including eligible yield,
+canonical private-package replay and tamper rejection. Native run began at
+05:25:16 UTC; terminal exec exit code was 0.
+A controlled public ordinal 3 replay on .44 has zero biome/elevation mismatch
+cells (118 on .43), and the complete-topography failure is removed. Remaining
+regional, gate/graph, biome-diversity and dormant-capacity failures stay rejected.
+No QA criterion was relaxed; source did not change during qualification/replay.
+This establishes the correction, not an eligible private atlas or ship readiness.
+Next: publish this qualification evidence, synchronize the exact checkpoint,
+then run one fresh bounded source-bound private search. Do not resume retired
+workspaces or repeat full qualification without a new change or failure.
 Owner import/provision and authenticated acceptance remain downstream of a
 verified eligible atlas. Alpha and the existing PTR deployment remain preserved.
 

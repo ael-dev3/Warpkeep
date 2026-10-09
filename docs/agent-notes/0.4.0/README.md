@@ -4,8 +4,10 @@ The .43 private search completed with authenticated exhaustion and is retired.
 No eligible atlas, owner import or authenticated owner PTR journey is established.
 A public replay identifies preserved Lowlands visuals at conflicting generated
 mountain heights. Generator .44 reconciles those five canonical lowland terrain
-kinds before routing. The focused before/after regression and source types pass;
-full native qualification is pending. Existing QA criteria remain intact.
+kinds before routing. All 167 affected native tests and source checks pass.
+A controlled public replay removes all 118 altitude mismatches while retaining
+unrelated rejection criteria. No eligible private atlas is yet established.
+Existing QA criteria remain intact.
 
 See the maintained [next-work brief](next-work.txt) for exact terminal evidence,
 correction scope and the next executable action. Resolve the current signed
