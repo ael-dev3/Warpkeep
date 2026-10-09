@@ -15,6 +15,7 @@ import {
   selectGreaterRealmLowlandsRepairBundleOptions,
   selectGreaterRealmGateApronChildBundleOptions,
   pruneGreaterRealmMandatorySiblingConflicts,
+  pruneGreaterRealmIncompatibleSiblingOptions,
   runGreaterRealmGateApronSearchLanes,
   selectBalancedGreaterRealmGateApronPairs,
   sealGreaterRealmRepairBarrierPockets,
@@ -51,6 +52,53 @@ const descriptor = (
 });
 
 describe('Greater Realm ranked gate-apron search', () => {
+  it('removes fully incompatible separated siblings before the shortlist hides a feasible pair', () => {
+    const distance = (a: readonly number[], b: readonly number[]) => Math.max(
+      Math.abs(a[0]! - b[0]!), Math.abs(a[1]! - b[1]!),
+      Math.abs(a[0]! + a[1]! - b[0]! - b[1]!),
+    );
+    const points: number[][] = [];
+    for (const origin of [0, 30]) for (let q = -7; q <= 7; q += 1) {
+      for (let r = -7; r <= 7; r += 1) {
+        if (distance([q, r], [0, 0]) <= 7) points.push([origin + q, r]);
+      }
+    }
+    const choices = points.slice(0, 256).map((point, index) => ({
+      ...option(String(index), [index], [1000 + index]), child: 0,
+      endpoints: [point, [point[0]!, point[1]! + 20]],
+    }));
+    choices.push({ ...option('good', [8888], [9990]), child: 0, endpoints: [[0, 50], [10, 50]] });
+    const sibling = { ...option('sibling', [7777], [9999]), child: 1, endpoints: [[0, 0], [30, 0]] };
+    const compatible = (first: typeof sibling, second: typeof sibling) => first !== second
+      && !first.tierOneCells.some(cell => second.tierOneCells.includes(cell))
+      && !first.tierTwoCells.some(cell => second.tierTwoCells.includes(cell))
+      && first.endpoints.every(a => second.endpoints.every(b => distance(a, b) >= 8));
+    const run = (selected: readonly typeof sibling[]) => searchGreaterRealmRankedSiblingAlternatives(
+      ['component'], () => [selected, [sibling]],
+      (_component, plan) => compatible(plan[0] as typeof sibling, sibling),
+      { maximumSearchNodes: 1024, maximumCompletePlans: 512 },
+    );
+    const mandatoryEligible = pruneGreaterRealmMandatorySiblingConflicts(choices, [sibling]);
+    const shortlist = (values: readonly typeof sibling[]) => selectGreaterRealmGateApronChildBundleOptions(
+      values, value => value.child, value => value,
+    );
+    expect(run(shortlist(mandatoryEligible)).outcome).toBe('no-match');
+    const kept = pruneGreaterRealmIncompatibleSiblingOptions(mandatoryEligible, [sibling], compatible);
+    expect(kept.map(value => value.id)).toEqual(['good']);
+    expect(run(shortlist(kept)).outcome).toBe('match');
+  });
+
+  it('retains unresolved options at the compatibility budget and counts every check', () => {
+    const choices = [1, 2, 3];
+    const check = vi.fn((first: number, second: number) => first === second);
+    expect(pruneGreaterRealmIncompatibleSiblingOptions(choices, [9, 2], check, 3)).toEqual([2, 3]);
+    expect(check).toHaveBeenCalledTimes(3);
+    expect(pruneGreaterRealmIncompatibleSiblingOptions(choices, [9], check, 0)).toEqual(choices);
+    expect(pruneGreaterRealmIncompatibleSiblingOptions(choices, [], check, 0)).toEqual([]);
+    expect(() => pruneGreaterRealmIncompatibleSiblingOptions(choices, [9], check, -1)).toThrow();
+    expect(pruneGreaterRealmIncompatibleSiblingOptions(choices, [3, 2, 1], check, 9)).toEqual(choices);
+  });
+
   it('prunes impossible sibling conflicts before the child budget hides a valid pair', () => {
     const ranked = Object.freeze(Array.from({ length: 257 }, (_, index) => Object.freeze({
       ...option(String(index), [index < 256 ? index : 999], []), child: 0,

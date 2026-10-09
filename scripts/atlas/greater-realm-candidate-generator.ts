@@ -122,7 +122,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.45' as const;
+  'greater-realm-v2-natural-continent-pr-a.46' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -392,6 +392,28 @@ export function pruneGreaterRealmMandatorySiblingConflicts<
     mandatoryTierOne.clear();
     mandatoryTierTwo.clear();
   }
+}
+
+/** Prune only fully disproved options; budget exhaustion preserves unresolved choices. */
+export function pruneGreaterRealmIncompatibleSiblingOptions<Option>(
+  options: readonly Option[],
+  siblings: readonly Option[],
+  compatible: (first: Option, second: Option) => boolean,
+  maximumChecks: number = GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS,
+): readonly Option[] {
+  if (!Number.isSafeInteger(maximumChecks) || maximumChecks < 0) {
+    fail('GREATER_REALM_GATE_APRON_COMPATIBILITY_BUDGET_INVALID');
+  }
+  if (siblings.length === 0) return Object.freeze([]);
+  let checks = 0;
+  return Object.freeze(options.filter(first => {
+    for (const second of siblings) {
+      if (checks >= maximumChecks) return true;
+      checks += 1;
+      if (compatible(first, second)) return true;
+    }
+    return false;
+  }));
 }
 
 export type GreaterRealmGateApronPairRank = Readonly<{
@@ -4217,6 +4239,17 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       }
     };
 
+    const siblingBundlesCompatible = (
+      first: GreaterRealmTierTwoGateApronBundle,
+      second: GreaterRealmTierTwoGateApronBundle,
+    ): boolean => first !== second
+      && !first.tierOneCells.some(cell => second.tierOneCells.includes(cell))
+      && !first.tierTwoCells.some(cell => second.tierTwoCells.includes(cell))
+      && first.edges.every(edge => second.edges.every(siblingEdge => axialDistance(
+        grid.q[edge.tierTwoEndpoint]!, grid.r[edge.tierTwoEndpoint]!,
+        grid.q[siblingEdge.tierTwoEndpoint]!, grid.r[siblingEdge.tierTwoEndpoint]!,
+      ) >= 8));
+
     const rankedBundleOptionsFor = (
       componentId: number,
       child: number,
@@ -4246,9 +4279,12 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       const sibling = children.find(value => value !== child)!;
       // Use the complete eligible raw sibling pool, never its capped shortlist.
       // A cell common to every sibling makes a colliding option impossible.
-      const rankedOptions = pruneGreaterRealmMandatorySiblingConflicts(
+      const mandatoryEligible = pruneGreaterRealmMandatorySiblingConflicts(
         rankedBundleOptionsFor(componentId, child),
         rankedBundleOptionsFor(componentId, sibling),
+      );
+      const rankedOptions = pruneGreaterRealmIncompatibleSiblingOptions(
+        mandatoryEligible, rankedBundleOptionsFor(componentId, sibling), siblingBundlesCompatible,
       );
       if (rankedOptions.length > GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS) {
         noteSearchFrontierTruncation('BUNDLE_OPTION_LIMIT');
@@ -4262,10 +4298,6 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       bundleOptionsCache.set(key, frozen);
       return frozen;
     };
-    const bundlesOverlap = (
-      first: readonly number[],
-      second: readonly number[],
-    ): boolean => first.some(cell => second.includes(cell));
     const siblingPairsFor = (
       componentId: number,
       parent: number,
@@ -4286,20 +4318,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       const pairs: GreaterRealmTierTwoGateApronSiblingPair[] = [];
       for (const first of bundleOptionsFor(componentId, firstChild!)) {
         for (const second of bundleOptionsFor(componentId, secondChild!)) {
-          if (
-            first === second
-            || bundlesOverlap(first.tierOneCells, second.tierOneCells)
-            || bundlesOverlap(first.tierTwoCells, second.tierTwoCells)
-          ) continue;
-          const separation = Math.min(...first.edges.flatMap(edge => (
-            second.edges.map(siblingEdge => axialDistance(
-              grid.q[edge.tierTwoEndpoint]!,
-              grid.r[edge.tierTwoEndpoint]!,
-              grid.q[siblingEdge.tierTwoEndpoint]!,
-              grid.r[siblingEdge.tierTwoEndpoint]!,
-            ))
-          )));
-          if (separation < 8) continue;
+          if (!siblingBundlesCompatible(first, second)) continue;
           pairs.push(Object.freeze({
             children: Object.freeze([firstChild!, secondChild!] as const),
             bundles: Object.freeze([first, second] as const),
@@ -4359,9 +4378,14 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       const sibling = children.find(value => value !== child)!;
       // Preferred and donor lanes have distinct complete eligible pools.
       // Never constrain a donor lane by a preferred-only sibling shortlist.
-      const eligible = pruneGreaterRealmMandatorySiblingConflicts(
+      const mandatoryEligible = pruneGreaterRealmMandatorySiblingConflicts(
         rankedLowlandsRepairBundleOptionsFor(componentId, child, includeBorrowed),
         rankedLowlandsRepairBundleOptionsFor(componentId, sibling, includeBorrowed),
+      );
+      const eligible = pruneGreaterRealmIncompatibleSiblingOptions(
+        mandatoryEligible,
+        rankedLowlandsRepairBundleOptionsFor(componentId, sibling, includeBorrowed),
+        siblingBundlesCompatible,
       );
       const options = selectGreaterRealmGateApronChildBundleOptions(
         eligible, bundle => bundle.child, bundle => bundle,
@@ -4398,20 +4422,7 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
         const pairs: GreaterRealmTierTwoGateApronSiblingPair[] = [];
         for (const first of firstBundles) {
           for (const second of secondBundles) {
-            if (
-              first === second
-              || bundlesOverlap(first.tierOneCells, second.tierOneCells)
-              || bundlesOverlap(first.tierTwoCells, second.tierTwoCells)
-            ) continue;
-            const separation = Math.min(...first.edges.flatMap(edge => (
-              second.edges.map(siblingEdge => axialDistance(
-                grid.q[edge.tierTwoEndpoint]!,
-                grid.r[edge.tierTwoEndpoint]!,
-                grid.q[siblingEdge.tierTwoEndpoint]!,
-                grid.r[siblingEdge.tierTwoEndpoint]!,
-              ))
-            )));
-            if (separation < 8) continue;
+            if (!siblingBundlesCompatible(first, second)) continue;
             pairs.push(Object.freeze({
               children: Object.freeze([firstChild!, secondChild!] as const),
               bundles: Object.freeze([first, second] as const),
