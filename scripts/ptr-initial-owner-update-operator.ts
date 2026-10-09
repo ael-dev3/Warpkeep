@@ -206,7 +206,8 @@ export async function executePtrInitialOwnerUpdate(input: Readonly<{ command: Co
     const supportedHost = async () => {
       const bytes = await request('health');
       try { const value = parseExistingUpdateJson(bytes);
-        if (value.version !== '2.10.2' || value.package_name !== 'spacetimedb-cloud') fail('HOST_UNSUPPORTED');
+        // Explicitly reviewed Maincloud versions; schema and migration-plan checks still bind each update.
+        if (!['2.10.2', '2.11.0'].includes(value.version) || value.package_name !== 'spacetimedb-cloud') fail('HOST_UNSUPPORTED');
       } finally { bytes.fill(0); }
     };
     const observe = async () => {

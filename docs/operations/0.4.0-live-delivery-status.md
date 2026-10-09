@@ -1,4 +1,43 @@
-Current release checkpoint — 9 October 2026, 07:03 UTC
+Current release checkpoint — 9 October 2026, 08:16 UTC
+
+Published source 11115e7275028dc1149cb6a63b2a4cb395d3bb05 contains the
+PTR sealed-flow correction. Replacement28 closed at 08:10:16.491 UTC with
+all 256 attempts rejected (210 geography, 46 proof). The authenticated terminal
+reader confirmed exhaustion, source preservation and process/group/supervisor
+absence. No candidate was selected and no provider write occurred. Retain the
+successful replacement27 package as historical evidence; do not relabel it.
+
+Backend preparation first failed because one native tracked test file had CRLF
+bytes despite clean Git status. After worker closure and terminal authentication,
+only tests/greaterRealmGateApronSearch.test.ts was restored to its existing
+committed LF bytes. Exact-path index refresh via git add preserved the tree;
+the full strict source preflight then passed. No code or commit changed in that
+representation repair; never normalize the full checkout or public Alpha.
+
+Actual prepare-update at 08:11:48.009–08:13:50.286 UTC then failed safely with
+PTR_INITIAL_OWNER_UPDATE_HOST_UNSUPPORTED, without a submission marker.
+Maincloud GET /v1/health now reports 2.11.0 / spacetimedb-cloud. Official release:
+https://github.com/clockworklabs/SpacetimeDB/releases/tag/v2.11.0
+The current update operator adds only this exact host version to its existing
+2.10.2 allowance. Fixed target/package, exact source/artifact, complete schema,
+plan, preservation and one-submission checks remain required. Native Linux x64
+UID1000 validation passed all 22 operator tests, including both supported versions,
+future-version and wrong-package rejection. Independent bounded review found no
+blocker. This is not proof of provider compatibility: actual preparation is next.
+The historical compatibility bootstrap is not rerun or modified by this change.
+
+Next ordered work, owned by Codex:
+1. Publish/synchronize this reviewed host-version fix and recovery record.
+2. Retry actual backend preparation; apply once only after compatible schema/plan
+   and preservation evidence, then read back. Reconcile a lost acknowledgement.
+3. Generate a fresh source-bound eligible atlas, verify/select/prepare/import it.
+4. Provision the actual owner, accept the authenticated mobile journey and Alpha
+   preservation, then complete cutover/readback with rollback retained.
+
+Farcaster host login is present; fresh Warpkeep entry still reaches a separate
+wallet identity check. Actual owner acceptance and 0.4 shipping remain unproven.
+
+Historical release checkpoint — 9 October 2026, 07:03 UTC
 
 The .44 search at signed de8b7663802c327ed6f71a14447345547df707c5
 completed successfully at 06:00:26.567 UTC. Its private package was canonically
