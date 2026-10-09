@@ -16,6 +16,7 @@ import {
   selectGreaterRealmGateApronChildBundleOptions,
   pruneGreaterRealmMandatorySiblingConflicts,
   pruneGreaterRealmIncompatibleSiblingOptions,
+  selectGreaterRealmCompatibleSiblingBundleOptions,
   runGreaterRealmGateApronSearchLanes,
   selectBalancedGreaterRealmGateApronPairs,
   sealGreaterRealmRepairBarrierPockets,
@@ -52,6 +53,95 @@ const descriptor = (
 });
 
 describe('Greater Realm ranked gate-apron search', () => {
+  it('reserves both compatible witnesses before independent caps discard them', () => {
+    const nearby: number[][] = [];
+    for (let q = -3; q <= 3; q += 1) for (let r = -3; r <= 3; r += 1) {
+      if (Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) <= 3) nearby.push([q, r]);
+    }
+    const make = (child: number) => Array.from({ length: 257 }, (_, index) => ({
+      ...option(`${child}:${index}`, [child * 10000 + index], [child * 10000 + index + 30000]),
+      child, endpoints: index < 256
+        ? [nearby[Math.floor(index / nearby.length)]!,
+          [20 + nearby[index % nearby.length]![0]!, nearby[index % nearby.length]![1]!]]
+        : [[0, 50], [20, 50]],
+    }));
+    const first = make(1), second = make(2);
+    const distance = (a: readonly number[], b: readonly number[]) => Math.max(
+      Math.abs(a[0]! - b[0]!), Math.abs(a[1]! - b[1]!),
+      Math.abs(a[0]! + a[1]! - b[0]! - b[1]!),
+    );
+    const compatible = (a: typeof first[number], b: typeof first[number]) => a !== b
+      && !a.tierOneCells.some(cell => b.tierOneCells.includes(cell))
+      && !a.tierTwoCells.some(cell => b.tierTwoCells.includes(cell))
+      && a.endpoints.every(x => b.endpoints.every(y => distance(x, y) >= 8));
+    expect(new Set(first.map(value => JSON.stringify(value.endpoints))).size).toBe(257);
+    expect(first.every(value => distance(value.endpoints[0]!, value.endpoints[1]!) >= 4
+      && distance(value.endpoints[0]!, value.endpoints[1]!) <= 48)).toBe(true);
+    const eligible = (a: typeof first, b: typeof first) => pruneGreaterRealmIncompatibleSiblingOptions(
+      pruneGreaterRealmMandatorySiblingConflicts(a, b), b, compatible,
+    );
+    const a = eligible(first, second), b = eligible(second, first);
+    expect([a.length, b.length]).toEqual([257, 257]);
+    const independent = [a, b].map(values => selectGreaterRealmGateApronChildBundleOptions(
+      values, value => value.child, value => value,
+    ));
+    const run = (groups: readonly (readonly typeof first[number][])[]) => searchGreaterRealmRankedSiblingAlternatives(
+      ['component'], () => groups, (_component, plan) => compatible(plan[0]!, plan[1]!),
+      { maximumSearchNodes: 2_000_000, maximumCompletePlans: 100_000 },
+    );
+    expect(run(independent).outcome).toBe('no-match');
+    const joint = selectGreaterRealmCompatibleSiblingBundleOptions(
+      a, b, value => value.child, value => value, compatible,
+      value => value.child === 1, value => value.child === 2,
+    );
+    expect(joint.map(values => values.length)).toEqual([256, 256]);
+    expect(joint[1]).toContain(second[256]);
+    expect(joint[1]).toContain(second[0]);
+    expect(run(joint).outcome).toBe('match');
+    expect(joint).toEqual(selectGreaterRealmCompatibleSiblingBundleOptions(
+      a, b, value => value.child, value => value, compatible,
+      value => value.child === 1, value => value.child === 2,
+    ));
+    for (const [index, values] of joint.entries()) {
+      expect(values.map(value => [a, b][index]!.indexOf(value))).toEqual(
+        values.map(value => [a, b][index]!.indexOf(value)).sort((x, y) => x - y),
+      );
+    }
+  });
+
+  it('keeps joint witness discovery bounded and prioritizes preferred pairs over donors', () => {
+    const first = Array.from({ length: 257 }, (_, index) => ({ ...option(`a${index}`, [index], []), child: 1 }));
+    const second = Array.from({ length: 257 }, (_, index) => ({ ...option(`b${index}`, [1000 + index], []), child: 2 }));
+    const check = vi.fn((a: typeof first[number], b: typeof first[number]) => a === first[0] && b === second[256]);
+    const select = (budget: number) => selectGreaterRealmCompatibleSiblingBundleOptions(
+      first, second, value => value.child, value => value, check, () => true, () => true, budget,
+    );
+    const unresolved = select(256);
+    expect(check).toHaveBeenCalledTimes(256);
+    expect(unresolved[1]).not.toContain(second[256]);
+    check.mockClear();
+    expect(select(257)[1]).toContain(second[256]);
+    expect(check).toHaveBeenCalledTimes(257);
+    check.mockClear();
+    expect(select(0)[1]).toEqual(unresolved[1]);
+    expect(check).not.toHaveBeenCalled();
+    expect(() => select(-1)).toThrow();
+    expect(() => selectGreaterRealmGateApronChildBundleOptions(
+      [first[0]!], value => value.child, value => value, [first[1]!],
+    )).toThrow('GREATER_REALM_GATE_APRON_REQUIRED_OPTION_MISSING');
+    const calls: string[] = [];
+    const donorFirst = [{ ...option('donor', [9999], []), child: 3 }, ...first];
+    const preferred = selectGreaterRealmCompatibleSiblingBundleOptions(
+      donorFirst, second, value => value.child, value => value,
+      (a, b) => { calls.push(a.id); return a === donorFirst[0] || (a === first[255] && b === second[0]); },
+      value => value.child === 1, () => true,
+    );
+    // Use a witness reachable within the existing predicate budget.
+    expect(calls).not.toContain('donor');
+    expect(preferred[0]).toContain(first[255]);
+    expect(preferred[0].length).toBe(256);
+  });
+
   it('removes fully incompatible separated siblings before the shortlist hides a feasible pair', () => {
     const distance = (a: readonly number[], b: readonly number[]) => Math.max(
       Math.abs(a[0]! - b[0]!), Math.abs(a[1]! - b[1]!),

@@ -122,7 +122,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.46' as const;
+  'greater-realm-v2-natural-continent-pr-a.47' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -222,7 +222,14 @@ export function selectGreaterRealmGateApronChildBundleOptions<Option>(
   rankedOptions: readonly Option[],
   childOf: (option: Option) => number,
   footprintOf?: (option: Option) => GreaterRealmRankedSiblingSearchOption,
+  requiredOptions: readonly Option[] = [],
 ): readonly Option[] {
+  if (requiredOptions.length > GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS) {
+    fail('GREATER_REALM_GATE_APRON_REQUIRED_OPTION_LIMIT');
+  }
+  if (requiredOptions.some(option => !rankedOptions.includes(option))) {
+    fail('GREATER_REALM_GATE_APRON_REQUIRED_OPTION_MISSING');
+  }
   if (rankedOptions.length <= GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS) {
     return Object.freeze(rankedOptions.slice());
   }
@@ -232,6 +239,11 @@ export function selectGreaterRealmGateApronChildBundleOptions<Option>(
   }
   const retainedIndexes = new Set<number>();
   const retainedOrigins = new Set<number>();
+  for (const option of requiredOptions) {
+    const index = rankedOptions.indexOf(option);
+    if (index < 0) fail('GREATER_REALM_GATE_APRON_REQUIRED_OPTION_MISSING');
+    retainedIndexes.add(index);
+  }
   for (let index = 0;
     index < rankedOptions.length
       && retainedIndexes.size < GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS;
@@ -414,6 +426,43 @@ export function pruneGreaterRealmIncompatibleSiblingOptions<Option>(
     }
     return false;
   }));
+}
+
+/** Reserve both sides of a witnessed pair before independently spending child caps.
+ * Search preferred/preferred, mixed, then donor/donor lanes. Every predicate call
+ * consumes the shared budget; unresolved pools retain their existing shortlist.
+ */
+export function selectGreaterRealmCompatibleSiblingBundleOptions<Option>(
+  firstOptions: readonly Option[],
+  secondOptions: readonly Option[],
+  childOf: (option: Option) => number,
+  footprintOf: (option: Option) => GreaterRealmRankedSiblingSearchOption,
+  compatible: (first: Option, second: Option) => boolean,
+  preferredFirst: (option: Option) => boolean,
+  preferredSecond: (option: Option) => boolean,
+  maximumChecks: number = GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS,
+): readonly [readonly Option[], readonly Option[]] {
+  if (!Number.isSafeInteger(maximumChecks) || maximumChecks < 0) {
+    fail('GREATER_REALM_GATE_APRON_COMPATIBILITY_BUDGET_INVALID');
+  }
+  let checks = 0;
+  let witness: readonly [Option, Option] | undefined;
+  const firstLanes = [firstOptions.filter(preferredFirst), firstOptions.filter(option => !preferredFirst(option))];
+  const secondLanes = [secondOptions.filter(preferredSecond), secondOptions.filter(option => !preferredSecond(option))];
+  search: for (const [firstLane, secondLane] of [[0, 0], [0, 1], [1, 0], [1, 1]] as const) {
+    for (const first of firstLanes[firstLane]!) for (const second of secondLanes[secondLane]!) {
+      if (checks >= maximumChecks) break search;
+      checks += 1;
+      if (compatible(first, second)) {
+        witness = [first, second];
+        break search;
+      }
+    }
+  }
+  return Object.freeze([
+    selectGreaterRealmGateApronChildBundleOptions(firstOptions, childOf, footprintOf, witness ? [witness[0]] : []),
+    selectGreaterRealmGateApronChildBundleOptions(secondOptions, childOf, footprintOf, witness ? [witness[1]] : []),
+  ] as const);
 }
 
 export type GreaterRealmGateApronPairRank = Readonly<{
@@ -4275,28 +4324,27 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       const key = `${componentId}:${child}`;
       const cached = bundleOptionsCache.get(key);
       if (cached) return cached;
-      const children = childrenByParent[parentByChild[child]!]!;
-      const sibling = children.find(value => value !== child)!;
-      // Use the complete eligible raw sibling pool, never its capped shortlist.
-      // A cell common to every sibling makes a colliding option impossible.
-      const mandatoryEligible = pruneGreaterRealmMandatorySiblingConflicts(
-        rankedBundleOptionsFor(componentId, child),
-        rankedBundleOptionsFor(componentId, sibling),
-      );
-      const rankedOptions = pruneGreaterRealmIncompatibleSiblingOptions(
-        mandatoryEligible, rankedBundleOptionsFor(componentId, sibling), siblingBundlesCompatible,
-      );
-      if (rankedOptions.length > GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS) {
+      const [firstChild, secondChild] = childrenByParent[parentByChild[child]!]!;
+      const eligibleFor = (slot: number, sibling: number) => {
+        const raw = rankedBundleOptionsFor(componentId, slot);
+        const siblings = rankedBundleOptionsFor(componentId, sibling);
+        return pruneGreaterRealmIncompatibleSiblingOptions(
+          pruneGreaterRealmMandatorySiblingConflicts(raw, siblings), siblings, siblingBundlesCompatible,
+        );
+      };
+      const first = eligibleFor(firstChild!, secondChild!);
+      const second = eligibleFor(secondChild!, firstChild!);
+      if (first.length > GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS
+        || second.length > GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS) {
         noteSearchFrontierTruncation('BUNDLE_OPTION_LIMIT');
       }
-      const options = selectGreaterRealmGateApronChildBundleOptions(
-        rankedOptions,
-        bundle => bundle.child,
-        bundle => bundle,
+      const options = selectGreaterRealmCompatibleSiblingBundleOptions(
+        first, second, bundle => bundle.child, bundle => bundle, siblingBundlesCompatible,
+        bundle => bundle.child === firstChild, bundle => bundle.child === secondChild,
       );
-      const frozen = Object.freeze(options);
-      bundleOptionsCache.set(key, frozen);
-      return frozen;
+      bundleOptionsCache.set(`${componentId}:${firstChild}`, options[0]);
+      bundleOptionsCache.set(`${componentId}:${secondChild}`, options[1]);
+      return bundleOptionsCache.get(key)!;
     };
     const siblingPairsFor = (
       componentId: number,
@@ -4374,28 +4422,27 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       const key = `${componentId}:${child}:${includeBorrowed ? 'all' : 'preferred'}`;
       const cached = lowlandsRepairBundleOptionsCache.get(key);
       if (cached) return cached;
-      const children = childrenByParent[parentByChild[child]!]!;
-      const sibling = children.find(value => value !== child)!;
-      // Preferred and donor lanes have distinct complete eligible pools.
-      // Never constrain a donor lane by a preferred-only sibling shortlist.
-      const mandatoryEligible = pruneGreaterRealmMandatorySiblingConflicts(
-        rankedLowlandsRepairBundleOptionsFor(componentId, child, includeBorrowed),
-        rankedLowlandsRepairBundleOptionsFor(componentId, sibling, includeBorrowed),
+      const [firstChild, secondChild] = childrenByParent[parentByChild[child]!]!;
+      const eligibleFor = (slot: number, sibling: number) => {
+        const raw = rankedLowlandsRepairBundleOptionsFor(componentId, slot, includeBorrowed);
+        const siblings = rankedLowlandsRepairBundleOptionsFor(componentId, sibling, includeBorrowed);
+        return pruneGreaterRealmIncompatibleSiblingOptions(
+          pruneGreaterRealmMandatorySiblingConflicts(raw, siblings), siblings, siblingBundlesCompatible,
+        );
+      };
+      const first = eligibleFor(firstChild!, secondChild!);
+      const second = eligibleFor(secondChild!, firstChild!);
+      const options = selectGreaterRealmCompatibleSiblingBundleOptions(
+        first, second, bundle => bundle.child, bundle => bundle, siblingBundlesCompatible,
+        bundle => bundle.child === firstChild, bundle => bundle.child === secondChild,
       );
-      const eligible = pruneGreaterRealmIncompatibleSiblingOptions(
-        mandatoryEligible,
-        rankedLowlandsRepairBundleOptionsFor(componentId, sibling, includeBorrowed),
-        siblingBundlesCompatible,
-      );
-      const options = selectGreaterRealmGateApronChildBundleOptions(
-        eligible, bundle => bundle.child, bundle => bundle,
-      );
-      if (options.length < eligible.length) {
+      if (options[0].length < first.length || options[1].length < second.length) {
         noteSearchFrontierTruncation('LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT');
       }
-      const frozen = Object.freeze(options);
-      lowlandsRepairBundleOptionsCache.set(key, frozen);
-      return frozen;
+      const lane = includeBorrowed ? 'all' : 'preferred';
+      lowlandsRepairBundleOptionsCache.set(`${componentId}:${firstChild}:${lane}`, options[0]);
+      lowlandsRepairBundleOptionsCache.set(`${componentId}:${secondChild}:${lane}`, options[1]);
+      return lowlandsRepairBundleOptionsCache.get(key)!;
     };
     const lowlandsRepairSiblingPairsFor = (
       componentId: number,

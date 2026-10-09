@@ -1,3 +1,47 @@
+Current release checkpoint - 9 October 2026, 14:55 UTC
+
+Published source 4ba9899632e8e90266af6262d76dfe19dcaf1c21 (generator .46)
+completed replacement34 at 14:49:28.696 UTC. Maintained terminal validation
+authenticated exhaustion of all 256 candidates (207 geography, 49 proof), seed
+zeroization, source preservation and worker/group/supervisor absence. No atlas
+was accepted, selected or imported. Production was untouched. The cutoff monitor
+is stopped and its native process is absent. Do not resume this workspace.
+
+A public reproduction demonstrates a remaining independent-shortlist defect:
+both complete sibling pools contain compatible pairs, but each bounded shortlist
+can discard the other's compatible witness, leaving no pair for ranked search.
+The local .47 correction jointly reserves a compatible pair within existing caps
+and integrates ordinary and repair selection. Lowlands protection, preferred and
+donor eligibility, proof criteria and the terrain seed namespace remain intact.
+This reproduction does not establish the cause of every private rejection.
+
+Validation completed: native Linux passed 146 affected tests (53 search,
+11 rejection, 82 package) in 620.75 seconds, including deterministic replay,
+tamper rejection and cleanup. Explicit TypeScript, root build-mode types, license
+and file-size checks passed. Independent review found no functional blocker.
+The joint witness adds at most one reserved choice per capped child pool and
+65,536 predicate calls per uncached parent/lane; it preserves original rank order
+but does not claim the globally lowest-score pair. Actions inventory completed
+at 14:57:29 UTC with no active runs and all configured repositories disabled.
+Publication is pending; no replacement35 or provider write has started.
+
+Next ordered work, owned by Codex:
+1. Review and qualify joint selection, publish the source checkpoint with conserved
+   Actions state, and synchronize exact bytes into the idle native checkout.
+2. Generate a fresh source-bound atlas; authenticate closure and verify/select/
+   prepare only an accepted package. Bind import adapters to that exact source.
+3. Import using final inspection 45c7403e... plus prior 4a78bc2b... and bootstrap
+   ad787790.... Installed backend 6713e152... must not be reapplied.
+4. Provision the real owner; accept authenticated gather -> choose -> build ->
+   benefit -> return, mobile performance and Alpha preservation, then cut over
+   with rollback retained and verified deployment readback.
+
+G001 progress and the admission freeze remain preserved; G002 stays sealed.
+Farcaster host login does not establish mini-app secure-sign-in acceptance.
+Existing Alpha remains the public baseline. 0.4 is not shipped.
+
+Earlier checkpoints (historical):
+
 Current release checkpoint - 9 October 2026, 13:26 UTC
 
 Published source 6220954dd197db976976df0b3a5db4bac0cddf95 (generator .45)
