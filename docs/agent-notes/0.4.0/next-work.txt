@@ -31,10 +31,17 @@ remain unchanged. This does not prove all private failures are repaired.
 
 Focused before/after regression, project/explicit types, license, file-size,
 public-boundary, diff and redacted secret checks pass. Mixed encoding in the
-release notes is corrected to UTF-8. Full native seven-file affected-suite
-qualification is running. Publish this reviewed
-checkpoint; keep the active native qualification source pinned. After successful
-qualification, synchronize exact source before one fresh bounded private search.
+release notes is corrected to UTF-8. Native qualification is complete: six
+suite files / 160 tests passed in the 574.60s full run; that run also passed
+three topography cases but exposed an overly narrow new ceiling assertion
+(oak required although old-growth forest is also a valid lowland result).
+Published b67879c94ba853d7849daedc0981f9050c647b49 contains the corrected
+semantic assertion. All four native topography cases pass on the 22.06s rerun.
+Combined coverage: seven files / 164 tests, including deterministic eligible
+yield, canonical replay and tamper rejection. Generator code did not change
+after the full run. Source is clean and native-synchronized.
+Next: publish this qualification evidence, synchronize the exact checkpoint,
+then one fresh bounded private search. Never resume retired workspaces.
 Owner import/provision remains downstream of a verified eligible atlas. Preserve
 Alpha, G001 progress/admission freeze, G002 seal, licensing, rollback and the
 current Actions policy.

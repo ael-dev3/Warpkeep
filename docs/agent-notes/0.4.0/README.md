@@ -3,8 +3,8 @@ Current release checkpoint — 9 October 2026
 The .42 private search completed with authenticated exhaustion and is retired.
 No eligible atlas, owner import or authenticated owner PTR journey is established.
 Generator .43 corrects a reproduced alpine neighbor-vote defect. Focused
-before/after regression passes; native affected-suite qualification is running.
-Existing proof thresholds and protections remain.
+regressions and all 164 affected native tests pass across the suite and
+corrected ceiling-assertion rerun. Existing proof thresholds remain.
 
 See the maintained [next-work brief](next-work.txt) for qualification, exact prior
 terminal evidence and the next executable action. Resolve the current signed
