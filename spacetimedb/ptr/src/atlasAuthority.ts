@@ -47,7 +47,10 @@ import {
 } from './atlasPolicy';
 import type { PtrContext } from './context';
 import { Sha256, sha256Hex, updateLengthFramedSha256 } from './sha256';
-import { requireGreaterRealmPtrHydrologyLinkV1 } from './greaterRealmHydrologyAuthority';
+import {
+  isGreaterRealmPtrSealedHydrologyContinuationV1,
+  requireGreaterRealmPtrHydrologyLinkV1,
+} from './greaterRealmHydrologyAuthority';
 
 /**
  * PTR-local authority for the declassified v17 atlas package. It preserves
@@ -2157,21 +2160,30 @@ function verifyCell(ctx: GreaterRealmContext, ordinal: number) {
     const downstream = ctx.db.greaterRealmCellV1.atlasCoordKey.find(
       `A:${row.atlasQ + direction![0]}:${row.atlasR + direction![1]}`,
     );
-    if (downstream === null || downstream.tier !== GREATER_REALM_VISIBLE_TIER_MAX) {
-      fail('GREATER_REALM_HYDROLOGY_PUBLIC_CLOSURE_INVALID');
+    // The mask was recomputed against all installed public cells above. A
+    // missing target is valid only for flowing water through that sealed edge;
+    // no hidden cell is imported and no navigable route is opened.
+    if (downstream === null) {
+      if (!isGreaterRealmPtrSealedHydrologyContinuationV1(row)) {
+        fail('GREATER_REALM_HYDROLOGY_PUBLIC_CLOSURE_INVALID');
+      }
+    } else {
+      if (downstream.tier !== GREATER_REALM_VISIBLE_TIER_MAX) {
+        fail('GREATER_REALM_HYDROLOGY_PUBLIC_CLOSURE_INVALID');
+      }
+      const release = ctx.db.greaterRealmReleaseV1.atlasId.find(row.atlasId);
+      const legacyTransform = release === null
+        || release.legacyTransformRotation === undefined
+        || release.legacyTransformOffsetQ === undefined
+        || release.legacyTransformOffsetR === undefined
+        ? undefined
+        : {
+          rotation: release.legacyTransformRotation,
+          offsetQ: release.legacyTransformOffsetQ,
+          offsetR: release.legacyTransformOffsetR,
+        };
+      requireGreaterRealmPtrHydrologyLinkV1(row, downstream, legacyTransform);
     }
-    const release = ctx.db.greaterRealmReleaseV1.atlasId.find(row.atlasId);
-    const legacyTransform = release === null
-      || release.legacyTransformRotation === undefined
-      || release.legacyTransformOffsetQ === undefined
-      || release.legacyTransformOffsetR === undefined
-      ? undefined
-      : {
-        rotation: release.legacyTransformRotation,
-        offsetQ: release.legacyTransformOffsetQ,
-        offsetR: release.legacyTransformOffsetR,
-      };
-    requireGreaterRealmPtrHydrologyLinkV1(row, downstream, legacyTransform);
   } else if (
     greaterRealmHydrologyRequiresDownstream(row.hydroRegime)
   ) {

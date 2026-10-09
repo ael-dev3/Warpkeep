@@ -1245,7 +1245,7 @@ function buildCell(
       .find(index => source.grid.neighbors[cell * 6 + index] === downstream);
     if (direction === undefined) fail('GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID');
     if (
-      source.tierId[downstream] === 1
+      (source.tierId[downstream] === 1 || atlasId === PTR_GREATER_REALM_ATLAS_ID)
       && (regime === GREATER_REALM_WATER_REGIME_ID.RIVER
         || regime === GREATER_REALM_WATER_REGIME_ID.STREAM)
     ) hydroFlowDirection = direction;
@@ -3260,6 +3260,15 @@ function verifyGreaterRealmRuntimeReleaseArtifactsForAtlas(
     const target = cellByAtlasCoord.get(
       `A:${cell.atlasQ + delta.q}:${cell.atlasR + delta.r}`,
     );
+    // PTR publishes only Tier 1. Preserve the verified source's flow direction
+    // across a sealed edge, without publishing its private downstream cell.
+    // The complete sealed mask is independently recomputed below.
+    if (
+      expectedAtlasId === PTR_GREATER_REALM_ATLAS_ID
+      && flowing
+      && target === undefined
+      && (cell.sealedBoundaryMask & (1 << cell.hydroFlowDirection)) !== 0
+    ) continue;
     if (
       target === undefined
       || !publicHydrologyTransitionAllowed(cell.hydroRegime, target.hydroRegime)

@@ -5,10 +5,33 @@ import {
   canonicalOceanDepthAt,
   isCanonicalWaterCoordinate,
 } from '../ptr/src/greaterRealmFrozenWaterCatalog';
-import { requireGreaterRealmPtrHydrologyLinkV1 } from '../ptr/src/greaterRealmHydrologyAuthority';
+import {
+  isGreaterRealmPtrSealedHydrologyContinuationV1,
+  requireGreaterRealmPtrHydrologyLinkV1,
+} from '../ptr/src/greaterRealmHydrologyAuthority';
 import { GENESIS_WATER_REVISION_ENABLED_CELLS_V1 } from '../src/waterRevision';
 
 const HYDRO = Object.freeze({ DRY: 0, OCEAN: 1, RIVER: 3 } as const);
+
+test('PTR sealed continuation requires flowing water and the exact sealed direction', () => {
+  for (const hydroRegime of [3, 4]) {
+    for (let direction = 0; direction < 6; direction++) {
+      const row = { hydroRegime, hydroFlowDirection: direction, sealedBoundaryMask: 1 << direction };
+      assert.equal(isGreaterRealmPtrSealedHydrologyContinuationV1(row), true);
+      assert.equal(isGreaterRealmPtrSealedHydrologyContinuationV1({ ...row, sealedBoundaryMask: 0 }), false);
+      assert.equal(isGreaterRealmPtrSealedHydrologyContinuationV1({ ...row, sealedBoundaryMask: 1 << ((direction + 1) % 6) }), false);
+    }
+  }
+  for (const hydroRegime of [0, 1, 2, 5, 6]) {
+    assert.equal(isGreaterRealmPtrSealedHydrologyContinuationV1({ hydroRegime, hydroFlowDirection: 0, sealedBoundaryMask: 63 }), false);
+  }
+  for (const direction of [undefined, -1, 6, 0.5, NaN]) {
+    assert.equal(isGreaterRealmPtrSealedHydrologyContinuationV1({ hydroRegime: 3, hydroFlowDirection: direction, sealedBoundaryMask: 63 }), false);
+  }
+  for (const sealedBoundaryMask of [-1, 64, NaN, 1.5]) {
+    assert.equal(isGreaterRealmPtrSealedHydrologyContinuationV1({ hydroRegime: 3, hydroFlowDirection: 0, sealedBoundaryMask }), false);
+  }
+});
 
 function code(action: () => void): string | undefined {
   try {

@@ -3,6 +3,80 @@
 Dated local checks and authenticated operating observations. Each record states
 its scope; local checks alone are not deployment or release acceptance evidence.
 
+## Verified .44 candidate; sealed hydrology projection correction — 9 October 2026
+
+The .44 search at signed de8b7663802c327ed6f71a14447345547df707c5
+completed successfully at 06:00:26.567 UTC. Its private package was canonically
+verified, all 26 eligibility proofs passed, and explicit owner selection was
+recorded. Preserve replacement27 as evidence; it has not been imported.
+
+Runtime preparation failed with GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID.
+A read-only verified-package reproduction identifies the missing-direction
+branch: 12 flowing Tier 1 cells drain into hidden tiers. The exporter omitted
+those directions. The actual PTR import verifier also required a public target,
+so changing export alone would not unblock deployment.
+
+The correction retains direction only for PTR river/stream flow through a sealed
+edge. Both runtime verification and the actual PTR backend recompute the complete
+seal; present downstream targets retain transition, slope, body and accumulation
+checks. No hidden cells or navigable routes are added. Historical G001 and G002
+producers retain their previous behavior, and schemas/licensing are unchanged.
+
+The regression failed before the correction. Native qualification covers all 39
+runtime cases (36 passed in the full run; three repaired/new cases passed on the
+focused rerun), 90 PTR read/import/update cases and three hydrology cases. Actual
+PTR cell verification accepts river/stream exits and rejects forged complete seals
+before counter mutation. Project, explicit source/test and PTR module types pass;
+the pinned CLI builds the module (its missing local tsc warning is covered by the
+separate explicit compiler check). Independent bounded review found no blocker.
+The full run also exposed stale generator-version contract vectors and a test
+rehash helper that defaulted PTR artifacts to G001. These test issues are corrected;
+published and corrected G001 fixture exports were independently byte-identical.
+
+Next ordered work, owned by Codex:
+1. Publish and synchronize this reviewed fix; retain the source checkpoint exactly.
+2. Generate/verify/select a fresh source-bound atlas, then prepare its runtime once.
+   Existing provenance checks cover scripts/atlas, so do not relabel or reuse the
+   old candidate under changed source, weaken that check, or blindly replay it.
+3. Inspect the real PTR deployment, install/read back the schema-compatible backend
+   correction, import/read back the atlas, and provision the real owner.
+4. Accept the authenticated owner journey, mobile/device and Alpha preservation,
+   then complete Cloudflare cutover/readback with rollback retained.
+
+Farcaster host login is verified, but a fresh Warpkeep Mini App retry still reaches
+its separate wallet identity approval with a stated 30-day browser session. That
+approval has not been confirmed as completed. No owner acceptance or 0.4 release
+is claimed. No provider writes occurred during this correction. Preserve Alpha,
+G001 progress/admission freeze, G002 sealing and current Actions policy.
+
+Evidence retained privately/under ignored QA: replacement27 terminal metadata
+392ce54f67e99dda05e1c3165daa37861a78b05800a22acf2a4c2c436e036181;
+canonical comparison report a4db4f24736a354a3145e6677166c7c0482386dad36b442f8b4d03b66d627256;
+selection operation d8025abdb9cb74fd06887b4894c1e1314b0940171b93968115e9d39ab4c8f552.
+Runtime preparation session 81189 exited 1. Verified-package diagnostic 13485
+exited 0 and identified validator line 3255; aggregate diagnostic 40863 exited 0
+and counted 12 hidden-tier links, no non-neighbor links. Corrected isolated
+projection experiment 73409 exited 0 after canonical package verification; no
+runtime artifact was installed. Actual PTR runtime directory is absent; its
+persisted seed control exists and must be retained for reconciliation.
+
+Pre-fix targeted regression session 31129 exited 1 with the same flow error.
+Full runtime session 75816: 36 passed, two test failures, 289.55 seconds; focused
+rerun 72010: three passed, 31.16 seconds, correcting the snapshot and realm-aware
+rehash issues without changing production source. PTR operator/read/update run
+54447: 88 passed; actual verifier additions subsequently pass 11 read-contract
+cases (two additional cases). Node hydrology: three passed. Project types, explicit
+source/test types and explicit PTR module types exit 0. Pinned 2.6.1 CLI build
+exits 0; no publication or deployment implied. Historical vector comparison
+proves both published and corrected producers retain header SHA a4a92be739a61b7b9dd2a1cc0f188b2755912f2c9abeff75caeda784a79e0625
+and release SHA 84b4601c80716c4ceb79246fe18f7ca5364fa309fb94e3b6d529ccff69f272e1
+under the current .44 generator version. License and file-size checks pass.
+
+GET-only full Actions inventory 06:56:34.392–07:00:49.686 UTC:
+723e537db765eabeab87dfe243d5b42e54617c0b971ed3ee505d6aa6e59e3ac2.
+All four repositories remain disabled, none active; all pages and rerun attempts
+were inspected. No Actions execution or provider mutation is part of this evidence.
+
 ## Third .36 search retired; rejection measurements qualified - 8 October 2026, 13:47 UTC
 
 Signed 7f6379d1c4d28680ba12a8ca3cf58fae6110bc85 / tree

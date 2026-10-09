@@ -14,6 +14,21 @@ const HYDRO_REGIME = Object.freeze({
   MARSH: 6,
 } as const);
 
+/** The caller must first verify the complete seal against installed Tier 1 cells. */
+export function isGreaterRealmPtrSealedHydrologyContinuationV1(input: Readonly<{
+  hydroRegime: number;
+  hydroFlowDirection?: number;
+  sealedBoundaryMask: number;
+}>): boolean {
+  const direction = input.hydroFlowDirection;
+  return (input.hydroRegime === HYDRO_REGIME.RIVER || input.hydroRegime === HYDRO_REGIME.STREAM)
+    && direction !== undefined
+    && Number.isSafeInteger(direction) && direction >= 0 && direction < 6
+    && Number.isSafeInteger(input.sealedBoundaryMask)
+    && input.sealedBoundaryMask >= 0 && input.sealedBoundaryMask <= 0b11_1111
+    && (input.sealedBoundaryMask & (1 << direction)) !== 0;
+}
+
 export type GreaterRealmPtrHydrologyCellV1 = Readonly<{
   regionId: string;
   localQ: number;
