@@ -1,3 +1,43 @@
+Current atlas correction — 9 October 2026, 05:20 UTC
+
+Qualified .43 source 98feaebb3e8f5d9f20ef27826ccf0871ce8982f6 /
+tree 56088b6b4fa92c673f542b0e626795ea49e3cee0 completed replacement26.
+Started 04:06:58.138 UTC; finished 05:08:41.574 UTC. Authenticated exhaustion:
+256 rejections (217 geography / 39 proof), no eligible or pending atlas,
+selection or provider write. Terminal metadata SHA256:
+141af875f7b4ba2eb0114e1b1811c476aea41a090bfde6b4756f0d5a4bc47075.
+Source/index/refs and toolchain were preserved; no deadline, monitoring failure,
+interruption or signal. Actual worker/group/descendant/supervisor absence was
+verified before checkpoint access. Root seed zeroized; maintained checkpoint
+abort completed and owned cutoff watch stopped. Never resume this workspace.
+One exact rejected replay matched aggregate regional QA, Stonewake and complete
+topography failures, including 219 lowland biomes above the alpine ceiling.
+This is a different private root from replacement25; do not infer a controlled
+increase or reduction. No seed, ordinal or geometry was exported.
+
+A public ordinary-parent-a ordinal 3 replay on .43 identifies all 118 altitude
+mismatches inside the protected legacy patch: meadow, savanna, temperate lowland
+and old-growth forest. No generated cell accounts for those mismatches.
+The existing reconciliation preserves canonical visuals but only applies a
+minimum dry altitude; generated mountain heights can therefore conflict with
+those frozen lowland classes. A focused canonical-patch regression reproduces
+20,000-unit dry lowlands where the unchanged QA ceiling is 13,500.
+
+Generator .44 caps reconciled bedrock/surface altitude for the five canonical
+lowland terrain kinds before flood/routing. It preserves lower dry heights,
+ridge/ancient-stone heights, exact legacy water routing, input arrays, canonical
+visuals and placement. Only the generated host relief is reconciled; G001 data
+and its deployed surface are not edited. QA criteria, seed namespace, water
+pins, admission freeze, G002 seal and licensing remain unchanged.
+The regression fails on .43 and passes on .44. Project and explicit source/test
+types pass; full native qualification remains pending. Do not claim an eligible
+atlas or ship readiness from this focused correction.
+Next: complete local boundary/license/diff/secret checks, publish the reviewed
+checkpoint with these limits, synchronize the idle native checkout, and qualify
+the affected suites before another bounded source-bound private search.
+Owner import/provision and authenticated acceptance remain downstream of a
+verified eligible atlas. Alpha and the existing PTR deployment remain preserved.
+
 Current atlas correction — 9 October 2026, 03:52 UTC
 
 Published qualified .42 checkpoint 230e5be249f99e22ae062e5efb73e589fd86dd08 /

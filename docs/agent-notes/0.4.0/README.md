@@ -1,18 +1,19 @@
 Current release checkpoint — 9 October 2026
 
-The .42 private search completed with authenticated exhaustion and is retired.
+The .43 private search completed with authenticated exhaustion and is retired.
 No eligible atlas, owner import or authenticated owner PTR journey is established.
-Generator .43 corrects a reproduced alpine neighbor-vote defect. Focused
-regressions and all 164 affected native tests pass across the suite and
-corrected ceiling-assertion rerun. Existing proof thresholds remain.
+A public replay identifies preserved Lowlands visuals at conflicting generated
+mountain heights. Generator .44 reconciles those five canonical lowland terrain
+kinds before routing. The focused before/after regression and source types pass;
+full native qualification is pending. Existing QA criteria remain intact.
 
-See the maintained [next-work brief](next-work.txt) for qualification, exact prior
-terminal evidence and the next executable action. Resolve the current signed
-commit/tree from Git and PR #385; a historical source hash is not live state.
-The finish order remains atlas verification/selection, owner import/provision,
-authenticated acceptance and Cloudflare cutover/readback with rollback.
-Preserve Alpha, G001 progress/admission freeze, G002 seal, licensing and Actions
-policy. The dated entries below are historical evidence.
+See the maintained [next-work brief](next-work.txt) for exact terminal evidence,
+correction scope and the next executable action. Resolve the current signed
+commit/tree from Git and PR #385; historical hashes are not current source.
+The finish order remains qualification, atlas verification/selection, owner
+import/provision, authenticated acceptance and Cloudflare cutover/readback.
+Preserve Alpha, G001 progress/admission freeze, G002 seal, licensing, rollback
+and the current Actions policy. Dated entries below are historical evidence.
 
 # Warpkeep 0.4 development handoff
 

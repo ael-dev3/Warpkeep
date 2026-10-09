@@ -122,7 +122,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.43' as const;
+  'greater-realm-v2-natural-continent-pr-a.44' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -2285,7 +2285,7 @@ function fluvialPass(
 
 function reconcileLegacyLowlandsTopography(
   grid: IndexedAxialGrid,
-  legacy: GreaterRealmLegacyPlacement,
+  legacy: Pick<GreaterRealmLegacyPlacement, 'transform' | 'protectedCell'>,
   bedrockElevation: Int32Array,
   erodedElevation: Int32Array,
 ): Readonly<{
@@ -2301,6 +2301,28 @@ function reconcileLegacyLowlandsTopography(
     if (legacy.protectedCell[cell] !== 1) continue;
     adjustedBedrock[cell] = Math.max(200, adjustedBedrock[cell]!);
     adjustedElevation[cell] = Math.max(300, adjustedElevation[cell]!);
+  }
+  // The preserved visuals do not inherit the generated mountain classifier.
+  // Reconcile their altitude before routing, without changing legacy terrain,
+  // placement, water edges, or unprotected generated ground.
+  const patch = GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1;
+  const tileByKey = new Map(patch.world.tiles.map(tile => [tile.key, tile] as const));
+  try {
+    for (const metadata of patch.world.metadata) {
+      if (
+        metadata.terrainKind !== 'lowland' && metadata.terrainKind !== 'meadow'
+        && metadata.terrainKind !== 'forest' && metadata.terrainKind !== 'heath'
+        && metadata.terrainKind !== 'lake'
+      ) continue;
+      const tile = tileByKey.get(metadata.tileKey);
+      if (!tile) fail('GREATER_REALM_LEGACY_VISUAL_TOPOGRAPHY_MISSING');
+      const cell = grid.indexOf(transformLegacyLowlandsToGlobal(tile, legacy.transform));
+      if (cell < 0 || legacy.protectedCell[cell] !== 1) fail('GREATER_REALM_LEGACY_VISUAL_TOPOGRAPHY_MISSING');
+      adjustedBedrock[cell] = Math.min(13_500, adjustedBedrock[cell]!);
+      adjustedElevation[cell] = Math.min(13_500, adjustedElevation[cell]!);
+    }
+  } finally {
+    tileByKey.clear();
   }
   for (const waterCell of GREATER_REALM_PRIVATE_LEGACY_LOWLANDS_PATCH_V1.water.enabledCells) {
     const cell = grid.indexOf(transformLegacyLowlandsToGlobal(waterCell, legacy.transform));
@@ -8618,6 +8640,7 @@ function overlayLegacyLowlandsVisualAuthority(
 
 /** Focused, non-production seams for the surface-split characterization tests. */
 export const greaterRealmSurfaceSplitTestSeams = Object.freeze({
+  reconcileLegacyLowlandsTopography,
   deriveGeneratedWaterSurface: deriveGreaterRealmGeneratedWaterSurface,
   deriveGeneratedSurfaceVisuals: deriveGreaterRealmGeneratedSurfaceVisuals,
   overlayLegacyLowlandsWaterAuthority,
