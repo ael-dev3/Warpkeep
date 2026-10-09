@@ -122,7 +122,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.44' as const;
+  'greater-realm-v2-natural-continent-pr-a.45' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -361,6 +361,37 @@ export function selectGreaterRealmGateApronChildBundleOptions<Option>(
   return Object.freeze([...retainedIndexes]
     .sort((first, second) => first - second)
     .map(index => rankedOptions[index]!));
+}
+
+/** Remove only choices that collide with every sibling before spending the shortlist budget. */
+export function pruneGreaterRealmMandatorySiblingConflicts<
+  Option extends GreaterRealmRankedSiblingSearchOption,
+>(options: readonly Option[], siblings: readonly GreaterRealmRankedSiblingSearchOption[]): readonly Option[] {
+  if (options.length === 0 || siblings.length === 0) return Object.freeze([]);
+  const mandatoryTierOne = new Set(siblings[0]!.tierOneCells);
+  const mandatoryTierTwo = new Set(siblings[0]!.tierTwoCells);
+  try {
+    for (const sibling of siblings.slice(1)) {
+      const tiers = [
+        [mandatoryTierOne, sibling.tierOneCells],
+        [mandatoryTierTwo, sibling.tierTwoCells],
+      ] as const;
+      for (const [mandatory, cells] of tiers) {
+        const present = new Set(cells);
+        try {
+          for (const cell of mandatory) if (!present.has(cell)) mandatory.delete(cell);
+        } finally { present.clear(); }
+      }
+      if (mandatoryTierOne.size === 0 && mandatoryTierTwo.size === 0) break;
+    }
+    return Object.freeze(options.filter(option => (
+      !option.tierOneCells.some(cell => mandatoryTierOne.has(cell))
+      && !option.tierTwoCells.some(cell => mandatoryTierTwo.has(cell))
+    )));
+  } finally {
+    mandatoryTierOne.clear();
+    mandatoryTierTwo.clear();
+  }
 }
 
 export type GreaterRealmGateApronPairRank = Readonly<{
@@ -4186,14 +4217,11 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       }
     };
 
-    const bundleOptionsFor = (
+    const rankedBundleOptionsFor = (
       componentId: number,
       child: number,
     ): readonly GreaterRealmTierTwoGateApronBundle[] => {
-      const key = `${componentId}:${child}`;
-      const cached = bundleOptionsCache.get(key);
-      if (cached) return cached;
-      const rankedOptions = [...gateApronBundlesByKey]
+      return [...gateApronBundlesByKey]
         .filter(([bundleKey]) => Number.parseInt(bundleKey.split(':')[0]!, 10) === componentId)
         .flatMap(([, bundles]) => bundles)
         // Lowlands is immutable authority, both as a gate slot and as a donor.
@@ -4206,6 +4234,22 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
           || first.child - second.child
           || first.edges[0].tierTwoEndpoint - second.edges[0].tierTwoEndpoint
         ));
+    };
+    const bundleOptionsFor = (
+      componentId: number,
+      child: number,
+    ): readonly GreaterRealmTierTwoGateApronBundle[] => {
+      const key = `${componentId}:${child}`;
+      const cached = bundleOptionsCache.get(key);
+      if (cached) return cached;
+      const children = childrenByParent[parentByChild[child]!]!;
+      const sibling = children.find(value => value !== child)!;
+      // Use the complete eligible raw sibling pool, never its capped shortlist.
+      // A cell common to every sibling makes a colliding option impossible.
+      const rankedOptions = pruneGreaterRealmMandatorySiblingConflicts(
+        rankedBundleOptionsFor(componentId, child),
+        rankedBundleOptionsFor(componentId, sibling),
+      );
       if (rankedOptions.length > GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS) {
         noteSearchFrontierTruncation('BUNDLE_OPTION_LIMIT');
       }
@@ -4280,14 +4324,11 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       siblingPairCache.set(cacheKey, frozen);
       return frozen;
     };
-    const lowlandsRepairBundleOptionsFor = (
+    const rankedLowlandsRepairBundleOptionsFor = (
       componentId: number,
       child: number,
       includeBorrowed = false,
     ): readonly GreaterRealmTierTwoGateApronBundle[] => {
-      const key = `${componentId}:${child}:${includeBorrowed ? 'all' : 'preferred'}`;
-      const cached = lowlandsRepairBundleOptionsCache.get(key);
-      if (cached) return cached;
       let borrowedBundles = lowlandsRepairBorrowedBundlesByComponent.get(componentId);
       if (!borrowedBundles && child !== 0) {
         const collected: GreaterRealmTierTwoGateApronBundle[] = [];
@@ -4301,24 +4342,31 @@ function deriveTierTwoDryGateApronAuthority(input: Readonly<{
       const available = child === 0
         ? [...(lowlandsRepairGateApronBundlesByKey.get(`${componentId}:0`) ?? [])]
         : [...(borrowedBundles ?? [])];
-      const options = selectGreaterRealmLowlandsRepairBundleOptions(
-        available,
-        child,
-        bundle => bundle.child,
-        bundle => bundle.score,
-        bundle => bundle.edges[0].tierTwoEndpoint,
-        includeBorrowed,
-        bundle => bundle,
+      return rankGreaterRealmLowlandsRepairBundleOptions(
+        available, child, bundle => bundle.child, bundle => bundle.score,
+        bundle => bundle.edges[0].tierTwoEndpoint, includeBorrowed,
       );
-      const ownCount = available.filter(bundle => bundle.child === child).length;
-      const eligibleCount = includeBorrowed && child !== 0
-        ? available.filter(bundle => bundle.child !== 0).length
-        : ownCount > 0
-          ? ownCount
-          : child === 0
-            ? 0
-            : available.filter(bundle => bundle.child !== 0).length;
-      if (options.length < eligibleCount) {
+    };
+    const lowlandsRepairBundleOptionsFor = (
+      componentId: number,
+      child: number,
+      includeBorrowed = false,
+    ): readonly GreaterRealmTierTwoGateApronBundle[] => {
+      const key = `${componentId}:${child}:${includeBorrowed ? 'all' : 'preferred'}`;
+      const cached = lowlandsRepairBundleOptionsCache.get(key);
+      if (cached) return cached;
+      const children = childrenByParent[parentByChild[child]!]!;
+      const sibling = children.find(value => value !== child)!;
+      // Preferred and donor lanes have distinct complete eligible pools.
+      // Never constrain a donor lane by a preferred-only sibling shortlist.
+      const eligible = pruneGreaterRealmMandatorySiblingConflicts(
+        rankedLowlandsRepairBundleOptionsFor(componentId, child, includeBorrowed),
+        rankedLowlandsRepairBundleOptionsFor(componentId, sibling, includeBorrowed),
+      );
+      const options = selectGreaterRealmGateApronChildBundleOptions(
+        eligible, bundle => bundle.child, bundle => bundle,
+      );
+      if (options.length < eligible.length) {
         noteSearchFrontierTruncation('LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT');
       }
       const frozen = Object.freeze(options);

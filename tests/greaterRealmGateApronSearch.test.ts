@@ -14,6 +14,7 @@ import {
   rankGreaterRealmLowlandsRepairBundleOptions,
   selectGreaterRealmLowlandsRepairBundleOptions,
   selectGreaterRealmGateApronChildBundleOptions,
+  pruneGreaterRealmMandatorySiblingConflicts,
   runGreaterRealmGateApronSearchLanes,
   selectBalancedGreaterRealmGateApronPairs,
   sealGreaterRealmRepairBarrierPockets,
@@ -50,6 +51,68 @@ const descriptor = (
 });
 
 describe('Greater Realm ranked gate-apron search', () => {
+  it('prunes impossible sibling conflicts before the child budget hides a valid pair', () => {
+    const ranked = Object.freeze(Array.from({ length: 257 }, (_, index) => Object.freeze({
+      ...option(String(index), [index < 256 ? index : 999], []), child: 0,
+    })));
+    const sibling = option('sibling', Array.from({ length: 256 }, (_, index) => index), []);
+    const search = (choices: readonly SyntheticOption[]) => searchGreaterRealmRankedSiblingAlternatives(
+      ['component'], () => [choices, [sibling]], () => true,
+      { maximumSearchNodes: 1024, maximumCompletePlans: 4 },
+    );
+    expect(search(selectGreaterRealmGateApronChildBundleOptions(ranked, value => value.child)).outcome)
+      .toBe('no-match');
+    const pruned = pruneGreaterRealmMandatorySiblingConflicts(ranked, [sibling]);
+    expect(pruned).toEqual([ranked[256]]);
+    expect(search(selectGreaterRealmGateApronChildBundleOptions(pruned, value => value.child)).outcome)
+      .toBe('match');
+    expect(ranked[0]?.tierOneCells).toEqual([0]);
+    expect(sibling.tierOneCells).toHaveLength(256);
+  });
+
+  it('uses all raw sibling alternatives and keeps tier footprints separate', () => {
+    const choices = [option('first', [7], [8]), option('second', [8], [7])];
+    const siblings = [option('a', [7, 9], [8, 10]), option('b', [9], [10])];
+    expect(pruneGreaterRealmMandatorySiblingConflicts(choices, siblings)).toEqual(choices);
+    expect(pruneGreaterRealmMandatorySiblingConflicts(choices, [option('cross-tier', [8], [7])]))
+      .toEqual([choices[0]]);
+    expect(pruneGreaterRealmMandatorySiblingConflicts(choices, [])).toEqual([]);
+    expect(pruneGreaterRealmMandatorySiblingConflicts([], siblings)).toEqual([]);
+  });
+
+  it('preserves every feasible pair across small complete tier footprints', () => {
+    const universe = Array.from({ length: 16 }, (_, mask) => option(
+      String(mask), [0, 1].filter(cell => (mask & (1 << cell)) !== 0),
+      [0, 1].filter(cell => (mask & (1 << (cell + 2))) !== 0),
+    ));
+    for (const first of universe) for (const second of universe) {
+      const siblings = [first, second];
+      const kept = pruneGreaterRealmMandatorySiblingConflicts(universe, siblings);
+      for (const candidate of universe) {
+        const feasible = siblings.some(sibling => (
+          !candidate.tierOneCells.some(cell => sibling.tierOneCells.includes(cell))
+          && !candidate.tierTwoCells.some(cell => sibling.tierTwoCells.includes(cell))
+        ));
+        if (feasible) expect(kept).toContain(candidate);
+      }
+    }
+  });
+
+  it('prunes donor lanes against their full raw pool without changing Lowlands authority', () => {
+    const own = Object.freeze({ ...option('own', [1], []), child: 2, score: 0, endpoint: 0 });
+    const donor = Object.freeze({ ...option('donor', [2], []), child: 4, score: 1, endpoint: 1 });
+    const lowlands = Object.freeze({ ...option('lowlands', [3], []), child: 0, score: 2, endpoint: 2 });
+    const rank = (child: number, includeBorrowed: boolean) => rankGreaterRealmLowlandsRepairBundleOptions(
+      [own, donor, lowlands], child, value => value.child, value => value.score,
+      value => value.endpoint, includeBorrowed,
+    );
+    const choices = [option('candidate', [1], [])];
+    expect(pruneGreaterRealmMandatorySiblingConflicts(choices, rank(2, false))).toEqual([]);
+    expect(pruneGreaterRealmMandatorySiblingConflicts(choices, rank(2, true))).toEqual(choices);
+    expect(rank(0, true)).toEqual([lowlands]);
+    expect(rank(2, true)).not.toContain(lowlands);
+  });
+
   it('balances a bounded bundle frontier across edge endpoints deterministically', () => {
     const completePairs = Object.freeze(Array.from({ length: 8 }, (_, firstIndex) => firstIndex)
       .flatMap(firstIndex => Array.from(

@@ -1,3 +1,49 @@
+Current release checkpoint - 9 October 2026, 11:51 UTC
+
+Published predecessor d501b848eb569c69c59c527562e28488635b26cb repaired
+successive PTR backend-update continuity; the native affected suite passed 105 tests.
+Backend program 6713e15292fc304ebc971e3bc37b852d81f4ee5507b813682634f6d6d172dae4
+is installed with preserved schema, rows and configuration. Do not reapply it.
+
+Replacement31 closed at 11:41:21.427 UTC: all 256 candidates were rejected
+(211 geography, 45 proof). The terminal reader authenticated exhaustion,
+source preservation, seed cleanup and worker/group/supervisor absence.
+No selection or provider write occurred. The cutoff watcher is also stopped.
+
+The next generator revision .45 fixes a reproduced bounded-search failure:
+provably incompatible bundles could occupy all 256 shortlisted positions,
+hiding a feasible sibling pair. Ordinary and repair callers now prune only
+collisions with cells mandatory in every option of the complete raw sibling
+pool before applying the existing cap. Preferred and donor repair pools remain
+separate; Lowlands protection, proof criteria and terrain seed namespace remain
+unchanged. A synthetic reproduction and exhaustive small-footprint checks cover
+feasible-pair preservation. This does not prove that all historical failures had
+this cause. Historical packages retain their original source and generator bindings.
+
+Validation completed: native Linux passed all 142 affected tests (49 search,
+11 rejection, 82 private-package tests), including deterministic replay, tampering
+rejection and cleanup. Explicit TypeScript, root build-mode types, license policy,
+tracked file-size policy, diff whitespace and outgoing secret scan passed.
+Independent bounded review found no functional blocker. Repository-wide Actions
+inventory found no active runs; Actions remain disabled, with no runner usage.
+
+Next ordered work, owned by Codex:
+1. Finish native qualification, publish the reviewed .45 checkpoint and synchronize
+   exact source bytes before a fresh bounded source-bound atlas generation.
+2. Authenticate actual closure; verify/select/prepare the eligible atlas. Import
+   against final inspection 45c7403e... with prior inspection 4a78bc2b... and the
+   preserved bootstrap inspection ad787790.... Never relabel a historical package.
+3. Provision the real owner; accept authenticated gather -> choose -> build ->
+   benefit -> return, mobile performance and Alpha preservation.
+4. Complete production cutover/readback with rollback retained.
+
+Farcaster host login is verified. Mini-app secure sign-in is not yet accepted;
+the host browser still requests a separate wallet identity confirmation.
+G001 and its admission freeze are preserved; G002 stays sealed. Existing Alpha
+remains the public baseline. No new release completion claim is made here.
+
+Earlier checkpoints (historical):
+
 Current release checkpoint — 9 October 2026, 08:48 UTC
 
 Published and native frozen source: 3bd4214342262251be0a08792b9eee45cfd44157
