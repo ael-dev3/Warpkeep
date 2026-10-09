@@ -758,6 +758,16 @@ export function deriveGreaterRealmTopography(input: Readonly<{
               moisture[cell]!,
               temperature[cell]!,
             )) continue;
+            // Climate compatibility alone cannot make low ground alpine.
+            // Apply the same minimum elevation enforced by topographic QA
+            // before a neighbor's cold highland pair can vote for this cell.
+            if (
+              elevation[cell]! < 4_000
+              && (
+                biomeId[neighbor] === BIOME.ALPINE_SNOW
+                || biomeId[neighbor] === BIOME.TUNDRA
+              )
+            ) continue;
             biomeCounts[biomeId[neighbor]!] += 1;
             pairCounts[
               biomeId[neighbor]! * LANDFORM_PAIR_STRIDE + landformId[neighbor]!

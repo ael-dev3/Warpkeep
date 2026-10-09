@@ -1,52 +1,22 @@
-Current release checkpoint - 8 October 2026, 13:47 UTC
+Current release checkpoint — 9 October 2026
 
-The third .36 search bound signed source
-7f6379d1c4d28680ba12a8ca3cf58fae6110bc85 / tree
-45f295d872e83030955fecfe36fd0eb30bdb3ff2. It finished 13:36:19.108 UTC:
-256 authenticated rejections, 212 geography / 44 proof, no eligible atlas,
-accepted-pending candidate, package, selection or provider write. Of 44 proof
-rejections, 43 failed combined regional QA; the remaining attempt failed only
-major-river range and geological highland barriers. Source/toolchain preservation
-and root-seed zeroization passed. The exhausted replacement13 workspace is
-maintained-retired and its watcher is stopped; never resume it.
+The .40 private search completed with authenticated exhaustion and is retired.
+No eligible atlas, owner import or authenticated owner PTR journey is established.
+Generator .41 corrects a reproduced cold-lowland biome smoothing defect;
+all 164 affected native tests and type/policy checks pass. Existing proof
+thresholds and protections remain.
 
-Across the last two batches, every regionally passing rejected attempt failed
-river-range checks. Existing receipts lack measured counts, so failure codes
-cannot establish whether counts are low or high. The narrow diagnostic correction
-retains optional majorRiverCount in encrypted rejection/completion and private
-batch records, validates bounds/proof consistency and checks exact values against
-regenerated authority. Historical records remain readable; sanitized output,
-geometry, threshold 144, 48-72 requirement and generator/seed versions stay intact.
-No player feature or acceptance requirement changes.
-
-Qualification: 55 affected tests pass (27 checkpoint, 28 CLI security), including
-encrypted resume/completion boundary values and regenerated tampered-count
-rejection. Two retention regressions failed before the correction. Explicit CLI/
-checkpoint typechecking, project types, file-size, license and public-boundary
-checks pass; bounded independent review found no blocker. The existing 200-case
-geometry qualification remains applicable because generator code is unchanged.
-
-Codex next publishes/synchronizes the reviewed diagnostic checkpoint, runs one
-fresh source-bound search with unchanged requirements and reads only authenticated
-aggregate failure measurements at terminal. Then verify/select an eligible atlas,
-import/read back and provision the real owner, accept the authenticated journey
-and device/Alpha behavior, and complete Cloudflare cutover/rollback readback.
-Reuse accepted backend, bridge and frontend unless an actual defect is reproduced.
-
-Farcaster host login is verified; Alpha Mini App Quick Auth still times out before
-bridge exchange while host identity approval is pending. No authenticated owner
-PTR acceptance or shipped 0.4 is claimed. Preserve existing Alpha, G001 progress/
-admission freeze, G002 sealing, licensing and Actions policy. Entries below are
-historical; resolve exact current source from Git and PR #385.
-
-.34 qualified — 8 October 2026, 07:33 UTC: all159 affected tests and project
-typecheck/policy checks pass. Next: verify signed publication/synchronization,
-then one fresh source-bound search. Resolve exact commit/tree from Git/PR.
-No eligible atlas or authenticated owner acceptance is claimed.
+See the maintained [next-work brief](next-work.txt) for qualification, exact prior
+terminal evidence and the next executable action. Resolve the current signed
+commit/tree from Git and PR #385; a historical source hash is not live state.
+The finish order remains atlas verification/selection, owner import/provision,
+authenticated acceptance and Cloudflare cutover/readback with rollback.
+Preserve Alpha, G001 progress/admission freeze, G002 seal, licensing and Actions
+policy. The dated entries below are historical evidence.
 
 # Warpkeep 0.4 development handoff
 
-## Current release step — 8 October 2026, 07:22 UTC
+## Historical release step — 8 October 2026, 07:22 UTC
 
 Published signed .33 source `2ad40f31` / tree `c520e6b9` completed its search
 at 07:15:55.885 UTC: 256 authenticated rejections (217 geography / 39 proof),

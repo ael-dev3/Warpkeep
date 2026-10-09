@@ -1,3 +1,31 @@
+Current correction qualification — 9 October 2026
+
+Generator .41 prevents cold low ground from inheriting tundra/alpine-snow
+biomes during neighbor smoothing. A regression reproduces the .40 defect:
+a cold cell at elevation 1,000 inherits tundra from four high neighbors and
+violates the existing complete-topography elevation floor. The correction
+rejects those neighbor votes below 4,000 and preserves valid smoothing at
+exactly 4,000. Protected terrain, fixed water, terrain seed namespace, living
+world version and all eligibility thresholds remain unchanged.
+This demonstrates a classifier defect; it does not establish the cause of
+every replacement23 rejection or prove a private atlas is now eligible.
+
+Qualification complete: all seven files / 164 native tests passed in 706.43s,
+including deterministic eligible yield, canonical package replay and tamper
+rejection. Project and
+explicit topography/test types, focused before/after regression, file-size,
+license, public-boundary, diff and redacted secret checks passed. Public
+ordinary-parent-a ordinal 9 remains eligible under its native regression.
+Next: publish and native-synchronize this completed, reviewed checkpoint before
+one fresh bounded private search. Never resume a retired workspace.
+
+Remaining dependency order: eligible atlas package verification/selection;
+owner atlas import/readback and real owner provisioning; authenticated PTR
+journey and device/Alpha acceptance; Cloudflare cutover and rollback readback.
+No provider mutation, owner PTR acceptance or final 0.4 release is claimed.
+
+Previous .40 terminal evidence follows.
+
 Current atlas terminal — 9 October 2026, 00:57 UTC
 
 Reviewed source 679ef07b28a63a1e005fd8c8a2c1bffcc4695dcd / tree
