@@ -1,3 +1,51 @@
+Current release checkpoint — 9 October 2026, 08:48 UTC
+
+Published and native frozen source: 3bd4214342262251be0a08792b9eee45cfd44157
+(tree 47ee7d67a3ff31ce497525e87736d6c47b597c7d).
+PTR update completed with provider acknowledgement and fresh preservation readback:
+installed program 6713e15292fc304ebc971e3bc37b852d81f4ee5507b813682634f6d6d172dae4.
+Schema, retained rows and private configuration were preserved. Owner and atlas
+readiness remain incomplete; this is not authenticated journey acceptance.
+
+Replacement29 started 08:23:51.284 UTC from this exact source. Process monitor
+54638 remained live at 08:46 UTC. Do not change native tracked source/index/refs
+or start another worker before actual closure and authenticated terminal readback.
+Retain its original source provenance even when later operator-only fixes publish.
+
+Windows-only pending patch repairs the demonstrated two-update continuation gap:
+bootstrap ac364d4f... -> first update 95ca5801... -> current program 6713e152....
+Both real immutable inspections and acknowledgements are retained. The operator
+accepts an explicit ordered prior-update-inspections list, verifies each signed
+source/tree and ancestry, preserves historical rows/configuration/schema continuity,
+rereads all journal records after asynchronous boundaries, and still requires fresh
+final installed-program readback. Single-update digest/import markers stay compatible;
+marked imports remain reconciliation-only. Never bypass this check by relabelling
+the bootstrap candidate or rerunning the successful backend update.
+
+Validation: 79 affected tests passed before four additional historical-continuity
+cases; those four passed after correcting the owner fixture to include its anchor.
+Explicit operator/test TypeScript checking, root tsc -b and diff whitespace checks passed.
+Independent read-only review found no reproducible release-blocking patch defect.
+Prepared, not invoked: replacement29 initial-atlas child/run/parent QA adapters.
+They target the actual replacement29 workspace and final inspection 45c7403e...
+with explicit prior inspection 4a78bc2b.... All three syntax checks passed and
+native ignored copies are exclusive UID1000/mode600 files. Their SHA256 values:
+child 38f8f238716b8da8bda170bb530cc02f40c282464cf6c1c21265189b5da21b60
+run 919584b67427d45779297926ff6fe6353f75017a383a78f7eda92311ed46ef21
+parent 92d11f9a6b72baabdac485b69d68a48c1075a82e357526c396a93603ea069ef0
+No credential or provider input was used during preparation. At the 08:50 UTC check, the
+actual worker /proc identity matched recorded birth 86266360 and remained R;
+supervisor and timeout identities also matched. No native tracked mutation.
+Independent read-only review also found no concrete invocation blocker in these
+three adapters; native identity and invocation readback remain runtime checks.
+
+Pending: final local qualification, worker closure/terminal authentication, signed
+publication and native synchronization, actual runtime selection/preparation,
+initial atlas inspect/import/readbacks, owner provisioning and authenticated journey.
+The browser host account is logged in; mini-app secure sign-in remains unverified.
+
+Earlier checkpoint (historical):
+
 Current release checkpoint — 9 October 2026, 08:16 UTC
 
 Published source 11115e7275028dc1149cb6a63b2a4cb395d3bb05 contains the

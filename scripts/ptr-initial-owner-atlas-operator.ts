@@ -20,7 +20,7 @@ import { createPtrInspectionProviderCredentials, disposePtrUpdateProviderCredent
 import { parsePtrUpdateDefinition } from './ptr-update-definition-policy.mjs';
 import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import { executePtrInitialOwnerUpdate, openPtrInitialOwnerUpdateJournal } from './ptr-initial-owner-update-operator';
-import { classifyPtrInitialOwnerUpdateObservation, validatePtrInitialOwnerUpdateInspection,
+import { classifyPtrInitialOwnerUpdateObservation, validatePtrInitialOwnerUpdateInspection, assertPtrInitialOwnerUpdateCandidateSnapshot,
   type PtrInitialOwnerUpdateInspection } from './ptr-initial-owner-update-core.mjs';
 import { assertProductionAdminTrustedAncestors, defaultProductionAdminStateDirectory, ensureCanonicalProductionAdminStateDirectory } from './production-admin-token-budget.mjs';
 import { verifyAuthBridgeRpcRoleAttestation } from './auth-bridge-config-attestation.mjs';
@@ -67,15 +67,55 @@ export function assertPtrInitialAtlasObservation(record: PtrBootstrapInspection,
     snapshotDigest: updateDigest(state), owner: state.owner, atlas: state.atlas, atomicDatabaseSnapshot: false,
     preBootstrapRowEqualityObserved: false, usableOwnerPtrVerified: false, productionAuthorized: false, globalReleaseAuthority: false });
 }
-/** Validate the retained source update chain without inventing missing ACK evidence. */
-export function ptrInitialAtlasUpdateContinuationEvidence(input: Readonly<{
+type UpdateContinuationRecord = Readonly<{
+  update: PtrInitialOwnerUpdateInspection; requestedInspectionDigest: string;
+  submissionMarker: unknown; acknowledgementPresent: boolean; acknowledgementMarker?: unknown;
+}>;
+/** Explicit ordered history only; no journal discovery or inferred authority. */
+export function ptrInitialAtlasUpdateContinuationEvidence(input: UpdateContinuationRecord & Readonly<{
+  bootstrap: PtrBootstrapInspection; priorUpdates?: readonly UpdateContinuationRecord[];
+}>) {
+  const bootstrap = validatePtrBootstrapInspection(input.bootstrap), prior = input.priorUpdates ?? [];
+  if (!Array.isArray(prior) || prior.length > 15) fail('UPDATE_CONTINUATION_CHAIN_INVALID');
+  let predecessor = bootstrap.binding.candidateProgram;
+  const seenPrograms = new Set([predecessor]), seenInspections = new Set<string>();
+  const chain = [];
+  const records = [...prior, input];
+  for (let index = 0; index < records.length; index++) {
+    const entry = records[index]!;
+    const evidence = singleUpdateContinuationEvidence({ ...entry, bootstrap }, predecessor);
+    if (seenPrograms.has(evidence.installedProgram) || seenInspections.has(evidence.updateInspectionDigest)
+      || (index < prior.length && !evidence.acknowledgementPresent)
+      || entry.update.binding.cliDigest !== bootstrap.binding.cliDigest
+      || entry.update.binding.cliConfigDigest !== bootstrap.binding.cliConfigDigest) fail('UPDATE_CONTINUATION_CHAIN_INVALID');
+    seenPrograms.add(evidence.installedProgram); seenInspections.add(evidence.updateInspectionDigest);
+    chain.push(evidence.continuationDigest);
+    const next = records[index + 1];
+    if (next) assertPtrInitialOwnerUpdateCandidateSnapshot(entry.update, {
+      state: next.update.before, configuration: next.update.configuration,
+      installedDescriptionDigest: next.update.preservation.priorDigest });
+    predecessor = evidence.installedProgram;
+  }
+  const final = singleUpdateContinuationEvidence(input, records.length === 1
+    ? bootstrap.binding.candidateProgram : prior[prior.length - 1]!.update.binding.candidateProgram);
+  if (!prior.length) return Object.freeze({ ...final, chain: undefined });
+  const facts = { profile: 'warpkeep-ptr-initial-atlas-update-continuation-v2',
+    bootstrapInspectionDigest: final.bootstrapInspectionDigest, updateInspectionDigest: final.updateInspectionDigest,
+    predecessorProgram: final.predecessorProgram, installedProgram: final.installedProgram,
+    installedSourceCommit: final.installedSourceCommit, installedModuleSha256: final.installedModuleSha256,
+    submissionMarkerDigest: final.submissionMarkerDigest, acknowledgementPresent: final.acknowledgementPresent,
+    acknowledgementDigest: final.acknowledgementDigest, chain: Object.freeze(chain) };
+  return Object.freeze({ ...final, ...facts, continuationDigest: updateDigest(facts) });
+}
+/** Validate one retained update without inventing missing ACK evidence. */
+function singleUpdateContinuationEvidence(input: Readonly<{
   bootstrap: PtrBootstrapInspection; update: PtrInitialOwnerUpdateInspection; requestedInspectionDigest: string;
   submissionMarker: unknown; acknowledgementPresent: boolean; acknowledgementMarker?: unknown;
-}>) {
+}>, expectedPredecessor: string) {
   const bootstrap = validatePtrBootstrapInspection(input.bootstrap), update = validatePtrInitialOwnerUpdateInspection(input.update);
   if (!HASH.test(input.requestedInspectionDigest) || update.inspectionDigest !== input.requestedInspectionDigest
     || update.binding.databaseIdentity !== bootstrap.binding.databaseIdentity
-    || update.before.program !== bootstrap.binding.candidateProgram) fail('UPDATE_CONTINUATION_PREDECESSOR_DIFFERENT');
+    || update.before.program !== expectedPredecessor) fail('UPDATE_CONTINUATION_PREDECESSOR_DIFFERENT');
   const expectedSubmission = { inspectionDigest: update.inspectionDigest, binding: update.binding,
     beforeProgram: update.before.program, submissionState: 'possibly-submitted' };
   if (!input.submissionMarker || typeof input.submissionMarker !== 'object'
@@ -110,6 +150,7 @@ type VerifiedPtrInitialAtlasUpdateContinuation = Omit<ReturnType<typeof ptrIniti
 export function assertPtrInitialAtlasUpdateContinuation(input: Readonly<{
   bootstrap: PtrBootstrapInspection; update: PtrInitialOwnerUpdateInspection; requestedInspectionDigest: string;
   submissionMarker: unknown; acknowledgementPresent: boolean; acknowledgementMarker?: unknown;
+  priorUpdates?: readonly UpdateContinuationRecord[];
   observation: Readonly<{ state: Awaited<ReturnType<typeof inspectPtrInitialOwnerState>>['after'];
     configuration: unknown; installedV10: Uint8Array }>;
 }>): VerifiedPtrInitialAtlasUpdateContinuation {
@@ -171,14 +212,15 @@ export function ptrInitialAtlasImportMarker(input: Readonly<{ bootstrapInspectio
     || !/^[a-f0-9]{40}$/u.test(input.atlasSourceCommit) || !HASH.test(input.releaseSha256)) fail('IMPORT_MARKER_INPUT_INVALID');
   if (input.continuation && (input.continuation.binding.candidateProgram !== input.binding.candidateProgram
     || input.continuation.binding.sourceCommit !== input.binding.sourceCommit
-    || input.continuation.continuationDigest !== updateDigest({ profile: 'warpkeep-ptr-initial-atlas-update-continuation-v1',
+    || input.continuation.continuationDigest !== updateDigest({ profile: input.continuation.profile,
       bootstrapInspectionDigest: input.continuation.bootstrapInspectionDigest,
       updateInspectionDigest: input.continuation.updateInspectionDigest,
       predecessorProgram: input.continuation.predecessorProgram, installedProgram: input.continuation.installedProgram,
       installedSourceCommit: input.continuation.installedSourceCommit, installedModuleSha256: input.continuation.installedModuleSha256,
       submissionMarkerDigest: input.continuation.submissionMarkerDigest,
       acknowledgementPresent: input.continuation.acknowledgementPresent,
-      acknowledgementDigest: input.continuation.acknowledgementDigest }))) fail('IMPORT_MARKER_CONTINUATION_INVALID');
+      acknowledgementDigest: input.continuation.acknowledgementDigest,
+      ...(input.continuation.chain === undefined ? {} : { chain: input.continuation.chain }) }))) fail('IMPORT_MARKER_CONTINUATION_INVALID');
   const common = { bootstrapInspection: input.bootstrapInspection, databaseIdentity: PTR_BOOTSTRAP_TARGET,
     installedModuleSourceCommit: input.binding.sourceCommit, program: input.binding.candidateProgram,
     atlasSourceCommit: input.atlasSourceCommit, releaseSha256: input.releaseSha256, importEpoch: '1' };
@@ -257,17 +299,33 @@ function assertInstalledSource(source: Source, inspection: PtrBootstrapInspectio
   source.assert();
 }
 
+function assertHistoricalUpdateSource(source: Source, previous: PtrInitialOwnerUpdateInspection['binding'],
+  next: PtrInitialOwnerUpdateInspection['binding'], bootstrapCommit?: string) {
+  const git = (args: string[], allowStderr = false) => {
+    const result = runGreaterRealmTrustedGit(args, ROOT);
+    if (result.error || result.status !== 0 || result.signal !== null || (!allowStderr && result.stderr !== '')) fail('INSTALLED_SOURCE_INVALID');
+    return result.stdout.trim();
+  };
+  if (previous.moduleTreeId !== previous.sourceTree
+    || git(['rev-parse', '--verify', `${previous.sourceCommit}^{tree}`]) !== previous.sourceTree) fail('INSTALLED_SOURCE_INVALID');
+  git(['verify-commit', '--raw', previous.sourceCommit], true);
+  if (git(['log', '-1', '--format=%G?%n%GK%n%GS', previous.sourceCommit])
+    !== `G\n${source.facts.signerFingerprint}\n${source.facts.signerIdentity}`) fail('INSTALLED_SIGNATURE_INVALID');
+  if (bootstrapCommit) git(['merge-base', '--is-ancestor', bootstrapCommit, previous.sourceCommit]);
+  git(['merge-base', '--is-ancestor', previous.sourceCommit, next.sourceCommit]);
+}
+
 /** The actual CLI wires only maintained fixed-target factories. No arbitrary token, SQL, endpoint or reducer inputs. */
 export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Command; source: PtrInitialOwnerSource;
   environment: NodeJS.ProcessEnv; workspaceRoot: string; bootstrapInspection?: string; batchHandle?: string;
-  candidateHandle?: string; approvalReference?: string; confirmation?: string; atlasImportReceipt?: string; updateInspection?: string }>) {
+  candidateHandle?: string; approvalReference?: string; confirmation?: string; atlasImportReceipt?: string; updateInspection?: string; priorUpdateInspections?: readonly string[] }>) {
   if (process.platform !== 'linux' || process.arch !== 'x64' || process.getuid?.() !== 1000) fail('PLATFORM_INVALID');
   if (!['select-runtime', 'prepare-runtime', 'inspect', 'import', 'reconcile-import', 'inspect-owner', 'provision-owner'].includes(input.command)
     || !isAbsolute(input.workspaceRoot) || realpathSync(input.workspaceRoot) !== input.workspaceRoot) fail('ARGUMENT_INVALID');
   const source = capturePtrInitialOwnerSource(ROOT, input.source);
   if (input.command === 'select-runtime' || input.command === 'prepare-runtime') {
     if (input.bootstrapInspection !== undefined || input.confirmation !== undefined || input.atlasImportReceipt !== undefined
-      || input.updateInspection !== undefined) fail('ARGUMENT_INVALID');
+      || input.updateInspection !== undefined || input.priorUpdateInspections !== undefined) fail('ARGUMENT_INVALID');
     const runtime = await preparePtrInitialOwnerRuntimeRelease({ command: input.command === 'select-runtime' ? 'select' : 'prepare',
       workspaceRoot: input.workspaceRoot, batchHandle: input.batchHandle ?? '', assertSource: () => source.assert(),
       ...(input.candidateHandle === undefined ? {} : { candidateHandle: input.candidateHandle }),
@@ -281,6 +339,8 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
       ? !HASH.test(input.confirmation ?? '') : input.confirmation !== undefined)
     || (input.command.endsWith('owner') ? !HASH.test(input.atlasImportReceipt ?? '') : input.atlasImportReceipt !== undefined)
     || (input.updateInspection !== undefined && !HASH.test(input.updateInspection))) fail('ARGUMENT_INVALID');
+  if (input.priorUpdateInspections !== undefined && (!input.updateInspection || !Array.isArray(input.priorUpdateInspections)
+    || input.priorUpdateInspections.length > 15 || input.priorUpdateInspections.some(digest => !HASH.test(digest)))) fail('ARGUMENT_INVALID');
   const env = { ...input.environment };
   const configPath = env.WARPKEEP_SPACETIME_CLI_CONFIG_PATH, executable = env.WARPKEEP_SPACETIME_EXECUTABLE ?? env.SPACETIME_BIN;
   const receiptDirectory = env.WARPKEEP_PTR_RECEIPT_DIRECTORY;
@@ -316,14 +376,24 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
     updateAcknowledgement = updateAcknowledgementPresent
       ? updateJournal.read('acknowledgement', updateInspection.inspectionDigest).value : undefined;
   }
+  const loadPriorUpdates = (): UpdateContinuationRecord[] => (input.priorUpdateInspections ?? []).map(digest => {
+    if (!updateJournal) fail('UPDATE_CONTINUATION_CHAIN_INVALID');
+    const update = validatePtrInitialOwnerUpdateInspection(updateJournal!.read('inspection', digest).value);
+    const acknowledgementPresent = updateJournal!.present('acknowledgement', digest);
+    return { update, requestedInspectionDigest: digest,
+      submissionMarker: updateJournal!.read('submission', update.before.program).value, acknowledgementPresent,
+      ...(acknowledgementPresent ? { acknowledgementMarker: updateJournal!.read('acknowledgement', digest).value } : {}) };
+  });
+  const priorUpdates = loadPriorUpdates();
   const continuationEvidence = updateInspection && updateJournal ? ptrInitialAtlasUpdateContinuationEvidence({
-    bootstrap: inspection, update: updateInspection, requestedInspectionDigest: input.updateInspection!,
+    bootstrap: inspection, update: updateInspection, priorUpdates, requestedInspectionDigest: input.updateInspection!,
     submissionMarker: updateSubmission, acknowledgementPresent: updateAcknowledgementPresent,
     ...(updateAcknowledgementPresent ? { acknowledgementMarker: updateAcknowledgement } : {}) }) : undefined;
   const binding = continuationEvidence?.binding ?? inspection.binding;
   const assertContinuationJournal = () => {
     if (!updateJournal || !updateInspection || !input.updateInspection) return;
     updateJournal.assert();
+    if (updateCanonical(loadPriorUpdates()) !== updateCanonical(priorUpdates)) fail('UPDATE_CONTINUATION_RECORD_CHANGED');
     const currentRecord = updateJournal.read('inspection', input.updateInspection).value;
     if (updateCanonical(currentRecord) !== updateCanonical(updateRecord)) fail('UPDATE_CONTINUATION_RECORD_CHANGED');
     const key = updateInspection.before.program;
@@ -334,7 +404,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
     if (acknowledgementPresent !== updateAcknowledgementPresent) fail('UPDATE_CONTINUATION_ACKNOWLEDGEMENT_CHANGED');
     if (acknowledgementPresent && updateCanonical(updateJournal.read('acknowledgement', updateInspection.inspectionDigest).value)
       !== updateCanonical(updateAcknowledgement)) fail('UPDATE_CONTINUATION_ACKNOWLEDGEMENT_CHANGED');
-    const evidence = ptrInitialAtlasUpdateContinuationEvidence({ bootstrap: inspection, update: updateInspection,
+    const evidence = ptrInitialAtlasUpdateContinuationEvidence({ bootstrap: inspection, update: updateInspection, priorUpdates,
       requestedInspectionDigest: input.updateInspection, submissionMarker: updateSubmission,
       acknowledgementPresent: updateAcknowledgementPresent,
       ...(updateAcknowledgementPresent ? { acknowledgementMarker: updateAcknowledgement } : {}) });
@@ -342,6 +412,10 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
   };
   const assert = () => {
     source.assert(); journal.assert(); updateJournal?.assert(); assertContinuationJournal(); assertInstalledSource(source, inspection, binding);
+    for (let i = 0; i < priorUpdates.length; i++) {
+      const previous = priorUpdates[i]!.update.binding, next = priorUpdates[i + 1]?.update.binding ?? binding;
+      assertHistoricalUpdateSource(source, previous, next, i === 0 ? inspection.binding.sourceCommit : undefined);
+    }
     if (updateCanonical(journal.read('inspection', input.bootstrapInspection!).value) !== updateCanonical(record)) fail('BOOTSTRAP_RECORD_CHANGED');
     assertPtrInitialAtlasBootstrapMarker(inspection, journal.read('submission', PTR_BOOTSTRAP_TARGET).value);
     readLocalBindingBoundedFile(configPath, { maximumBytes: 64 * 1024, expectedUid: 1000, expectedMode: 0o600,
@@ -377,7 +451,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
         let continuation: ReturnType<typeof assertPtrInitialAtlasUpdateContinuation> | undefined;
         if (continuationEvidence && updateInspection) {
           if (!afterImport) {
-            continuation = assertPtrInitialAtlasUpdateContinuation({ bootstrap: inspection, update: updateInspection,
+            continuation = assertPtrInitialAtlasUpdateContinuation({ bootstrap: inspection, update: updateInspection, priorUpdates,
               requestedInspectionDigest: input.updateInspection!, submissionMarker: updateSubmission,
               acknowledgementPresent: updateAcknowledgementPresent,
               ...(updateAcknowledgementPresent ? { acknowledgementMarker: updateAcknowledgement } : {}),
@@ -551,7 +625,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
     const [command, ...args] = process.argv.slice(2), values = new Map<string, string>();
-    for (const argument of args) { const match = /^--(source|tree|signer|signer-identity|native-evidence|workspace|batch|candidate|approval-reference|bootstrap-inspection|update-inspection|atlas-import-receipt|confirm|out)=(.+)$/u.exec(argument);
+    for (const argument of args) { const match = /^--(source|tree|signer|signer-identity|native-evidence|workspace|batch|candidate|approval-reference|bootstrap-inspection|update-inspection|prior-update-inspections|atlas-import-receipt|confirm|out)=(.+)$/u.exec(argument);
       if (!match || values.has(match[1]!)) fail('ARGUMENT_INVALID'); values.set(match[1]!, match[2]!); }
     if (['source', 'tree', 'signer', 'signer-identity', 'workspace', 'out'].some(key => !values.has(key))) fail('ARGUMENT_INVALID');
     const output = resolve(values.get('out')!);
@@ -568,6 +642,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         ...(values.has('approval-reference') ? { approvalReference: values.get('approval-reference')! } : {}),
         ...(values.has('bootstrap-inspection') ? { bootstrapInspection: values.get('bootstrap-inspection')! } : {}),
         ...(values.has('update-inspection') ? { updateInspection: values.get('update-inspection')! } : {}),
+        ...(values.has('prior-update-inspections') ? { priorUpdateInspections: values.get('prior-update-inspections')!.split(',') } : {}),
         ...(values.has('atlas-import-receipt') ? { atlasImportReceipt: values.get('atlas-import-receipt')! } : {}),
         ...(values.has('confirm') ? { confirmation: values.get('confirm')! } : {}) });
       const bytes = Buffer.from(`${JSON.stringify(result, null, 2)}\n`), current = fstatSync(fd, { bigint: true }), byPath = lstatSync(output, { bigint: true });

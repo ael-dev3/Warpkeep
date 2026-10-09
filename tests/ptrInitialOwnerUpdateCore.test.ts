@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { PtrInitialOwnerUpdateSnapshot } from '../scripts/ptr-initial-owner-update-core.mjs';
 import { PTR_INITIAL_OWNER_UPDATE_TARGET as target, createPtrInitialOwnerUpdateInspection as prepare,
-  assertPtrInitialOwnerUpdatePreflight as preflight, classifyPtrInitialOwnerUpdateObservation as observe } from '../scripts/ptr-initial-owner-update-core.mjs';
+  assertPtrInitialOwnerUpdatePreflight as preflight, classifyPtrInitialOwnerUpdateObservation as observe, assertPtrInitialOwnerUpdateCandidateSnapshot as historical } from '../scripts/ptr-initial-owner-update-core.mjs';
 import { parsePtrUpdateDefinition } from '../scripts/ptr-update-definition-policy.mjs';
 import { existingUpdateTokenDigest, updateDigest } from '../scripts/sealed-realms-existing-update-protocol.mjs';
 
@@ -52,6 +52,25 @@ function setup() {
   return { prior, candidate, bound, config, before, plan, record, after };
 }
 describe('initial owner PTR pure update observations', () => {
+  it('checks historical continuity without claiming live installation', () => {
+    const f = setup();
+    expect(historical(f.record, { state: f.after, configuration: f.config,
+      installedDescriptionDigest: f.bound.candidateDescriptionDigest })).toEqual({
+      historicalPreservationObserved: true, productionAuthorized: false,
+      globalReleaseAuthority: false, installationProvenByReadback: false });
+  });
+  it.each(['rows', 'addedRows', 'configuration', 'description', 'program'] as const)(
+    'rejects a historical successor with changed %s', change => {
+      const f = setup(), state = copy(f.after), configuration = copy(f.config);
+      let installedDescriptionDigest = f.bound.candidateDescriptionDigest;
+      if (change === 'rows') state.tables.find(table => !table.name.startsWith('gameplay04_'))!.rowsDigest = hash('changed');
+      if (change === 'addedRows') state.tables.find(table => table.name.startsWith('gameplay04_'))!.count = 1;
+      if (change === 'configuration') configuration.notificationDeliveryEnabled = false;
+      if (change === 'description') installedDescriptionDigest = hash('changed-definition');
+      if (change === 'program') state.program = hash('changed-program');
+      expect(() => historical(f.record, { state, configuration, installedDescriptionDigest })).toThrow();
+    });
+
   it('compares actual inner V10 and preserves notification-enabled/PTR-disabled baseline without changing it', () => {
     const f = setup(); expect(f.record.preservation.addedTables).toHaveLength(7);
     expect(f.record.configuration!.notificationDeliveryEnabled).toBe(true);

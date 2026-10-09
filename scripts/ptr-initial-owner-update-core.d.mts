@@ -41,3 +41,8 @@ export function classifyPtrInitialOwnerUpdateObservation(record: PtrInitialOwner
 }>);
 
 export function validatePtrInitialOwnerUpdateInspection(record: unknown): PtrInitialOwnerUpdateInspection;
+
+export function assertPtrInitialOwnerUpdateCandidateSnapshot(record: PtrInitialOwnerUpdateInspection, input: Readonly<{
+  state: PtrInitialOwnerUpdateSnapshot; configuration: AuthBridgeRpcRoleAttestation | null; installedDescriptionDigest: string;
+}>): Readonly<{ historicalPreservationObserved: true; productionAuthorized: false;
+  globalReleaseAuthority: false; installationProvenByReadback: false }>;

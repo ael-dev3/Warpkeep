@@ -168,7 +168,21 @@ export function classifyPtrInitialOwnerUpdateObservation(record, input) {
       || installed.fullDigest !== checked.preservation.priorDigest) fail('PREDECESSOR_STATE_CHANGED');
     return Object.freeze({ ...flags, outcome: 'not-observed-applied', submissionOutcome: 'uncertain' });
   }
-  if (state.program !== checked.binding.candidateProgram || installed.fullDigest !== checked.binding.candidateDescriptionDigest
+  assertPtrInitialOwnerUpdateCandidateSnapshot(checked, { state, configuration: config,
+    installedDescriptionDigest: installed.fullDigest });
+  return Object.freeze({ ...flags, outcome: 'observed-preserved-candidate', installedStateDigest: updateDigest(state),
+    currentConfigurationDigest: config === null ? null : updateDigest(config),
+    privateConfigurationPreservationObserved: config !== null, candidateProgram: state.program, usableOwnerPtrVerified: false });
+}
+
+/** Reuse the live readback preservation rules for a successor's captured pre-update snapshot.
+ * This checks historical continuity only; it cannot prove a currently installed program. */
+export function assertPtrInitialOwnerUpdateCandidateSnapshot(record, input) {
+  const checked = inspection(record);
+  const { state: rawState, configuration: rawConfig, installedDescriptionDigest } =
+    data(input, ['state', 'configuration', 'installedDescriptionDigest']);
+  const state = snapshot(rawState), config = configuration(rawConfig);
+  if (state.program !== checked.binding.candidateProgram || installedDescriptionDigest !== checked.binding.candidateDescriptionDigest
     || !same(config, checked.configuration) || !same(state.owner, checked.before.owner) || !same(state.atlas, checked.before.atlas)
     || !same(state.tables.map(table => table.name), checked.candidateTableNames)) fail('INSTALLED_STATE_CONFLICT');
   const old = new Map(checked.before.tables.map(table => [table.name, table]));
@@ -178,7 +192,6 @@ export function classifyPtrInitialOwnerUpdateObservation(record, input) {
     old.delete(table.name);
   }
   if (old.size) fail('ROWS_NOT_PRESERVED');
-  return Object.freeze({ ...flags, outcome: 'observed-preserved-candidate', installedStateDigest: updateDigest(state),
-    currentConfigurationDigest: config === null ? null : updateDigest(config),
-    privateConfigurationPreservationObserved: config !== null, candidateProgram: state.program, usableOwnerPtrVerified: false });
+  return Object.freeze({ historicalPreservationObserved: true, productionAuthorized: false,
+    globalReleaseAuthority: false, installationProvenByReadback: false });
 }

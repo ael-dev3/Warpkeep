@@ -69,6 +69,27 @@ function continuationSetup(overrides: { sourceCommit?: string } = {}) {
       acknowledgementPresent: true, acknowledgementMarker: acknowledgement, observation, ...overrides } as any);
   return { ...f, installedV9: f.observation.installedV9, update, bound, before, config, submission, acknowledgement, installed, observation, resolve };
 }
+function successiveSetup(mutate?: (before: any, configuration: any) => void) {
+  const first = continuationSetup(), before = structuredClone(first.installed);
+  const configuration = structuredClone(first.config);
+  mutate?.(before, configuration);
+  const candidateProgram = updateDigest('second post-bootstrap module');
+  const binding = { ...first.bound, sourceCommit: 'a'.repeat(40), sourceTree: 'b'.repeat(40), moduleTreeId: 'b'.repeat(40),
+    candidateProgram, candidateSha256: updateDigest('second post-bootstrap bytes') };
+  const plan = fixture('existing-update-plans-2.6.1.json').find((entry: any) => entry.name === 'ptr-no-op').response;
+  plan.AutoMigrate.token = `0x${Buffer.from(existingUpdateTokenDigest(target, before.program, candidateProgram), 'hex').reverse().toString('hex')}`;
+  const update = createPtrInitialOwnerUpdateInspection({ binding, before, configuration,
+    priorV10: first.observation.installedV10, candidateDefinition: JSON.parse(first.observation.installedV10.toString()), planBytes: bytes(plan) });
+  const priorUpdates = [{ update: first.update, requestedInspectionDigest: first.update.inspectionDigest,
+    submissionMarker: first.submission, acknowledgementPresent: true, acknowledgementMarker: first.acknowledgement }];
+  const input = { bootstrap: first.record, update, requestedInspectionDigest: update.inspectionDigest,
+    submissionMarker: { inspectionDigest: update.inspectionDigest, binding: update.binding,
+      beforeProgram: update.before.program, submissionState: 'possibly-submitted' }, acknowledgementPresent: true,
+    acknowledgementMarker: { inspectionDigest: update.inspectionDigest, response: 'fixed-target-update-success',
+      responseSha256: updateDigest('second response') }, priorUpdates,
+    observation: { ...first.observation, state: { ...structuredClone(before), program: candidateProgram } } };
+  return { first, input };
+}
 function receipt(): PtrProductionImportReceipt {
   const body = { schemaVersion: 1, profile: 'warpkeep.ptr.production-import.v1', outcome: 'ready', databaseIdentity: target,
     moduleIdentity: 'warpkeep-ptr-owner-view-v1', moduleSourceCommit: '1'.repeat(40), moduleSha256: '2'.repeat(64),
@@ -143,6 +164,54 @@ describe('initial-quality PTR atlas installed observations', () => {
   });
 });
 describe('retained post-bootstrap PTR update continuation', () => {
+  it('verifies two recorded updates and the final fresh installed observation', () => {
+    const { input } = successiveSetup(), result = assertPtrInitialAtlasUpdateContinuation(input);
+    expect(result).toMatchObject({ profile: 'warpkeep-ptr-initial-atlas-update-continuation-v2',
+      installedProgram: input.update.binding.candidateProgram, installationProvenByReadback: true });
+    expect(result.chain).toHaveLength(2);
+    expect(() => ptrInitialAtlasImportMarker({ bootstrapInspection: input.bootstrap.inspectionDigest,
+      binding: input.update.binding, atlasSourceCommit: 'c'.repeat(40), releaseSha256: 'd'.repeat(64), continuation: result })).not.toThrow();
+  });
+  it.each(['missing', 'duplicate', 'reversed', 'oversized', 'marker', 'ack', 'noAck', 'tool', 'rows', 'configuration', 'program'] as const)(
+    'rejects a successive update chain with %s evidence', change => {
+      const { input } = successiveSetup(), changed: any = structuredClone(input);
+      if (change === 'missing') changed.priorUpdates = [];
+      if (change === 'duplicate') changed.priorUpdates.push(changed.priorUpdates[0]);
+      if (change === 'reversed') { const last = { ...changed }; changed.update = changed.priorUpdates[0].update;
+        changed.requestedInspectionDigest = changed.update.inspectionDigest; changed.priorUpdates = [last]; }
+      if (change === 'oversized') changed.priorUpdates = Array(16).fill(changed.priorUpdates[0]);
+      if (change === 'marker') changed.priorUpdates[0].submissionMarker.beforeProgram = updateDigest('wrong');
+      if (change === 'ack') changed.priorUpdates[0].acknowledgementMarker.inspectionDigest = updateDigest('wrong');
+      if (change === 'noAck') { changed.priorUpdates[0].acknowledgementPresent = false; delete changed.priorUpdates[0].acknowledgementMarker; }
+      if (change === 'tool') changed.priorUpdates[0].update.binding.cliDigest = updateDigest('wrong');
+      if (change === 'rows') changed.update.before.tables[0].rowsDigest = updateDigest('wrong');
+      if (change === 'configuration') changed.update.configuration.notificationDeliveryEnabled = false;
+      if (change === 'program') changed.observation.state.program = updateDigest('wrong');
+      expect(() => assertPtrInitialAtlasUpdateContinuation(changed)).toThrow();
+    });
+  it.each(['rows', 'configuration', 'owner', 'atlas'] as const)(
+    'rejects a correctly sealed successor inspection with changed historical %s', change => {
+      const { input } = successiveSetup((before, configuration) => {
+        if (change === 'rows') before.tables[0].rowsDigest = updateDigest('changed historical rows');
+        if (change === 'configuration') configuration.notificationDeliveryEnabled = false;
+        if (change === 'owner') { before.owner = { state: 'disabled', enabled: false, authEpoch: 1 };
+          const anchor = before.tables.find((table: any) => table.name === 'ptr_owner_anchor_v1');
+          anchor.count = 1; anchor.rowsDigest = updateDigest('unexpected owner'); }
+        if (change === 'atlas') before.atlas = { state: 'unrecognized' };
+      });
+      expect(() => assertPtrInitialAtlasUpdateContinuation(input)).toThrow();
+    });
+  it('retains the original single-update digest serialization', () => {
+    const f = continuationSetup(), result = f.resolve();
+    const facts = { profile: 'warpkeep-ptr-initial-atlas-update-continuation-v1',
+      bootstrapInspectionDigest: f.record.inspectionDigest, updateInspectionDigest: f.update.inspectionDigest,
+      predecessorProgram: f.before.program, installedProgram: f.update.binding.candidateProgram,
+      installedSourceCommit: f.update.binding.sourceCommit, installedModuleSha256: f.update.binding.candidateSha256,
+      submissionMarkerDigest: updateDigest(f.submission), acknowledgementPresent: true,
+      acknowledgementDigest: updateDigest(f.acknowledgement) };
+    expect(result.continuationDigest).toBe(updateDigest(facts));
+  });
+
   it('resolves the exact update inspection and proves preserved pre-import rows/configuration', () => {
     const f = continuationSetup(), value = f.resolve();
     expect(value).toMatchObject({ binding: f.update.binding, continuationDigest: expect.stringMatching(/^[a-f0-9]{64}$/u),
