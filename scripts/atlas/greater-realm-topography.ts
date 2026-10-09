@@ -25,6 +25,12 @@ const PHYSICALLY_COLD_TEMPERATURE_THRESHOLD = 2_000;
 const LANDFORM_PAIR_STRIDE = 32;
 const BIOME = GREATER_REALM_BIOME_ID;
 const LANDFORM = GREATER_REALM_LANDFORM_ID;
+// The lowland classes constrained by complete topographic QA.
+const LOWLAND_BIOMES: ReadonlySet<number> = new Set([
+  BIOME.TEMPERATE_LOWLAND, BIOME.FLOWER_MEADOW, BIOME.OAK_FOREST,
+  BIOME.OLD_GROWTH_FOREST, BIOME.SAVANNA, BIOME.WARM_SCRUB,
+  BIOME.FRESHWATER_MARSH, BIOME.SALT_MARSH, BIOME.COASTAL,
+]);
 
 export type GreaterRealmTopographyMetrics = Readonly<{
   elevationMinimum: number;
@@ -771,6 +777,8 @@ export function deriveGreaterRealmTopography(input: Readonly<{
                 || biomeId[neighbor] === BIOME.TUNDRA
               )
             ) continue;
+            // A valid neighbor lowland cannot reclassify an alpine target.
+            if (elevation[cell]! > 13_500 && LOWLAND_BIOMES.has(biomeId[neighbor]!)) continue;
             biomeCounts[biomeId[neighbor]!] += 1;
             pairCounts[
               biomeId[neighbor]! * LANDFORM_PAIR_STRIDE + landformId[neighbor]!

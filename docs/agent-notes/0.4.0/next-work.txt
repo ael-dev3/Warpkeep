@@ -1,4 +1,47 @@
-Current atlas correction � 9 October 2026
+Current atlas correction — 9 October 2026, 03:52 UTC
+
+Published qualified .42 checkpoint 230e5be249f99e22ae062e5efb73e589fd86dd08 /
+tree f27817b53d46e33b3cd445e5c0144011934935ea completed replacement25.
+Started 02:52:29.732 UTC; finished 03:47:54.418 UTC. Authenticated exhaustion:
+256 rejected attempts (219 geography / 37 proof), no eligible or pending atlas,
+selection or provider write. All proof-rejected attempts failed regional
+hydrogeomorphology QA. Terminal metadata SHA256:
+fb0463b6d4c7f4882c7529966a2e154e02a2ad054e5e430f51bc403153347ac8.
+Source/index/refs and toolchain preserved; no deadline, monitoring failure,
+interruption or signal. Original process/group/supervisor absence verified;
+root seed zeroized, maintained checkpoint abort completed, owned cutoff watch
+stopped. Workspace retired; never resume it.
+
+One bounded exact replay of a topography rejection matched all failure codes:
+Mirefen regional QA, aggregate regional QA, Throneheart smallest passable land
+and complete topography. Its consistency evidence has 24 lowland biomes above
+the alpine ceiling; no water-regime, cold-highland-floor or marsh mismatch.
+This is a different private root from replacement24, not a controlled reduction
+comparison. No seed, ordinal or geometry was exported; production untouched.
+Diagnosis helper SHA256:
+d4db27e234eb43bd16c45788a8b5ed7265444e230fe9952183bbfb44814d019e.
+
+A public regression reproduces another remaining classifier defect: an alpine
+pine transition at elevation 14,000 inherits oak forest from neighboring ground
+at 13,500. Generator .43 excludes the existing QA lowland biome classes from
+neighbor votes above 13,500. The regression fails on .42 and passes with the
+correction; valid smoothing at the ceiling remains permitted. Seed namespace,
+living-world version, protected terrain, final water and eligibility thresholds
+remain unchanged. This does not prove all private failures are repaired.
+
+Focused before/after regression, project/explicit types, license, file-size,
+public-boundary, diff and redacted secret checks pass. Mixed encoding in the
+release notes is corrected to UTF-8. Full native seven-file affected-suite
+qualification is running. Publish this reviewed
+checkpoint; keep the active native qualification source pinned. After successful
+qualification, synchronize exact source before one fresh bounded private search.
+Owner import/provision remains downstream of a verified eligible atlas. Preserve
+Alpha, G001 progress/admission freeze, G002 seal, licensing, rollback and the
+current Actions policy.
+
+Previous .42 qualification and .41 terminal evidence follows.
+
+Current atlas correction — 9 October 2026
 
 Published .41 source ca0e77cd292d5b7d6b2fdcc6bba6166730e5627a / tree
 258d93c9b995c01a554de1ccfa3db008c4e24913 completed replacement24:

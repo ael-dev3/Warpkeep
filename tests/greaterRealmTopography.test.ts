@@ -440,6 +440,20 @@ describe('Greater Realm derived topography', () => {
     elevation[center] = 13_500;
     const forestTransitionAtCeiling = derive();
     expect(forestTransitionAtCeiling.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND);
+    // Lowland forest neighbors cannot vote an alpine pine transition down.
+    elevation.fill(13_500);
+    elevation[center] = 14_000;
+    geomorphicTemperature.fill(4_000);
+    geomorphicTemperature[center] = 1_000;
+    geomorphicTemperature[glacialCell] = 9_000;
+    const alpineNeighborTransition = derive();
+    expect(alpineNeighborTransition.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.PINE_FOREST);
+    elevation[center] = 13_500;
+    const neighborTransitionAtCeiling = derive();
+    expect([
+      GREATER_REALM_BIOME_ID.OAK_FOREST,
+      GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST,
+    ]).toContain(neighborTransitionAtCeiling.biomeId[center]);
 
   });
 });
