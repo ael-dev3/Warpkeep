@@ -1,3 +1,53 @@
+Current atlas terminal — 9 October 2026, 00:57 UTC
+
+Reviewed source 679ef07b28a63a1e005fd8c8a2c1bffcc4695dcd / tree
+ef6647b108bed1cc6610ab41342da9a55f4b0a72 is published and native-synchronized.
+Replacement23 (.40) started 8 October 23:48:45.154 UTC and finished
+9 October 00:56:42.654 UTC. Authenticated exhaustion: 256 rejected attempts,
+214 geography / 42 proof. Two passed regional hydrogeomorphology QA but failed
+remaining graph, coherence, passable-land, gate or complete-topography proofs.
+No eligible or pending atlas exists. Terminal metadata SHA256:
+7a7927e2b8215104797f14e37bbd84ed87198be82b031d4f1d11d053eaccf179.
+Source/index/refs and toolchain preserved; no monitoring failure, interruption,
+deadline or provider write. Root seed zeroized. Two process scans confirmed
+original births/group/supervisor absent. Maintained abort confirmed checkpoint
+aborted and production untouched; owned cutoff watch stopped. Run retired.
+
+Replacement21 stopped at 8 October 23:46:12.371 UTC due to an unclassified
+monitoring failure. Source/index/refs and toolchain remained preserved. No
+checkpoint diagnosis was read and no authenticated exhaustion is claimed.
+Its maintained abort completed after original-process absence verification.
+Fault injection reproduces the old supervisor aborting when /proc reports ESRCH
+for a disappearing process. Supervisor v24 treats ENOENT/ESRCH as absence while
+permission, I/O and other failures still fail closed; bounded OS error codes
+are retained. This is a demonstrated monitor defect, not proof of the exact
+unrecorded replacement21 errno. Targeted tests passed. Replacement22 never
+allocated a workspace or child: v23 preflight rejected an accidentally changed
+Node runtime path. v24 restores the pinned Node 22.22.3 path; replacement23
+completed with all source, toolchain and monitoring guards intact.
+
+Fresh browser retry at approximately 8 October 23:55 UTC again confirms channel
+login but not Warpkeep secure sign-in. Farcaster still displays its separate
+wallet identity check with Continue / mobile Approve and a 30-day browser session.
+User action requested; no wallet authorization, token extraction or authenticated
+owner PTR acceptance is claimed.
+
+Public ordinary-parent-a ordinals 6, 7 and 8 terminate on existing geography
+proofs. Ordinal 10 passes complete topographic QA but has only 14 reviewed gates,
+so its gate graph and route redundancy proofs correctly reject the incomplete
+plan. Independent retained-path checks find no wet endpoint/path, changed region,
+barrier crossing, route intersection or unreviewed cross-tier open edge. Its
+Throneheart passable land also exceeds two outer regions. This fixture does not
+establish a damaged-path or topography defect; do not relax proof thresholds.
+
+Next: reproduce the remaining regional-passable/topography and gate/coherence
+failures using public fixtures, fix only demonstrated defects and qualify the
+change before another fresh bounded private search. Never resume retired runs.
+Keep owner import/provision downstream of a verified eligible atlas. Existing
+Alpha, G001 progress/admission freeze, G002 seal, licensing and rollback preserved.
+
+Previous checkpoint and qualification evidence follows.
+
 Current correction qualification — 8 October 2026, 22:49 UTC
 
 Generator .40 prevents provisional lowland marsh and coastal-cliff classification
@@ -21,8 +71,8 @@ tests passed in 782.52 seconds, including 82 package, 21 generator, 27 living,
 18 topographic QA, four topography, 11 rejection, eight isolated-pocket and one
 independent final-passability test. Project and targeted types, file-size,
 licensing, public boundary and redacted diff secret scan passed.
-Next: publish this reviewed checkpoint, synchronize native source and run one
-fresh bounded private search; never resume retired batches.
+Published and native-synchronized at the source checkpoint above; its fresh
+search is retired. Qualification remains applicable to unchanged .40 source.
 
 Current atlas terminal — 8 October 2026, 22:42 UTC
 
