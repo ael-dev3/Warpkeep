@@ -259,6 +259,7 @@ function isBiomeCompatibleWithPhysicalClimate(
 
 function consolidateGeneratedForestPatches(input: Readonly<{
   grid: IndexedAxialGrid;
+  elevation: Int32Array;
   waterRegime: Uint8Array;
   legacyProtectedCell: Uint8Array;
   biomeId: Uint8Array;
@@ -309,6 +310,8 @@ function consolidateGeneratedForestPatches(input: Readonly<{
       if (tail >= MINIMUM_GENERATED_FOREST_PATCH_CELLS) continue;
       for (let offset = 0; offset < tail; offset += 1) {
         const cell = queue[offset]!;
+        // Alpine forest transitions cannot be consolidated into lowland biomes.
+        if (input.elevation[cell]! > 13_500) continue;
         if (isPhysicallyExtremeClimate(
           input.moisture[cell]!,
           input.temperature[cell]!,
@@ -811,6 +814,7 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     // meadow/heath transitions. The frozen Lowlands surface is never touched.
     consolidateGeneratedForestPatches({
       grid,
+      elevation,
       waterRegime,
       legacyProtectedCell,
       biomeId,

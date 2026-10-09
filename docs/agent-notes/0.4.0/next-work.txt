@@ -1,3 +1,43 @@
+Current atlas correction — 9 October 2026
+
+Published .41 source ca0e77cd292d5b7d6b2fdcc6bba6166730e5627a / tree
+258d93c9b995c01a554de1ccfa3db008c4e24913 completed replacement24:
+started 01:23:40.894 UTC; finished 02:30:35.630 UTC. Authenticated exhaustion:
+256 rejected attempts (216 geography / 40 proof); no eligible or pending atlas,
+selection or provider write. Terminal metadata SHA256:
+79b8b580e4693050a117d4ea2da1b96b1032b44bf8df2c439bb9c56691e40683.
+Source/index/refs and toolchain preserved; no monitoring failure, deadline,
+interruption or signal. Root seed zeroized; original process/group absence
+verified before checkpoint diagnosis and maintained abort. Workspace retired.
+Never resume it.
+
+One attempt passed regional hydrogeomorphology QA and failed only
+TIER_III_SMALLEST_PASSABLE_LAND and TOPOGRAPHIC_QA_COMPLETE. Exact guarded
+replay reproduced those failures and identified 189 lowland biomes above the
+existing alpine ceiling. No water-regime, cold-highland-floor or marsh
+classification mismatch occurred. Private coordinates, root and ordinal remain
+private; production is untouched.
+
+A public synthetic regression reproduces a specific remaining classifier defect:
+a small alpine pine transition beside hot arid terrain becomes temperate lowland
+through forest patch consolidation. Generator .42 passes elevation to that
+cleanup and preserves forests above 13,500; lowland cleanup at exactly 13,500
+remains permitted. The regression failed before the correction and passes after.
+Protected terrain, fixed water, seeds, living-world version and proof thresholds
+remain unchanged. This does not establish that all private inconsistencies are
+resolved or that the separate Throneheart passable-land failure is repaired.
+
+Qualification: project build-mode types, explicit topography/test types,
+Windows topography tests, file-size, license and public-boundary checks pass.
+Native affected-suite qualification is running; do not start a new private
+search until the exact source is qualified, published and native-synchronized.
+Next: complete qualification, publish the reviewed checkpoint, then one fresh
+bounded source-bound search. Owner import/provision remains downstream of a
+verified eligible atlas; preserve Alpha, G001 progress/admission freeze, G002
+seal, licensing, rollback and the current Actions policy.
+
+Previous .41 correction qualification and .40 evidence follows.
+
 Current correction qualification â€” 9 October 2026
 
 Generator .41 prevents cold low ground from inheriting tundra/alpine-snow

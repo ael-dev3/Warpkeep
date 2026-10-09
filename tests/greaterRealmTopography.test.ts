@@ -426,5 +426,20 @@ describe('Greater Realm derived topography', () => {
     const alpineWetGround = derive();
     expect(alpineWetGround.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND);
     expect(alpineWetGround.landformId[center]).toBe(GREATER_REALM_LANDFORM_ID.MOUNTAIN);
+
+    // A small alpine pine transition beside hot arid ground must not become
+    // lowland terrain when the forest patch cleanup removes isolated woods.
+    geomorphicTemperature.fill(1_000);
+    geomorphicMoisture.fill(3_000);
+    geomorphicAridMask[glacialCell] = 1;
+    geomorphicTemperature[glacialCell] = 9_000;
+    const alpineForestTransition = derive();
+    expect(alpineForestTransition.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.PINE_FOREST);
+    expect(alpineForestTransition.biomeId[protectedCell]).toBe(protectedBiomeId[protectedCell]);
+    // At the existing ceiling, lowland patch cleanup remains permitted.
+    elevation[center] = 13_500;
+    const forestTransitionAtCeiling = derive();
+    expect(forestTransitionAtCeiling.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND);
+
   });
 });
