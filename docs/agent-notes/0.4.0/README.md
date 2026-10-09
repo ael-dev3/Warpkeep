@@ -3,8 +3,8 @@ Current release checkpoint — 9 October 2026
 The .41 private search completed with authenticated exhaustion and is retired.
 No eligible atlas, owner import or authenticated owner PTR journey is established.
 Generator .42 corrects a reproduced alpine forest cleanup defect. Focused
-regressions and type/policy checks pass; native affected-suite qualification
-is running. Existing proof thresholds and protections remain.
+regressions, type/policy checks and all 164 affected native tests pass across
+the suite and corrected boundary-fixture rerun. Proof thresholds remain.
 
 See the maintained [next-work brief](next-work.txt) for qualification, exact prior
 terminal evidence and the next executable action. Resolve the current signed

@@ -29,8 +29,15 @@ resolved or that the separate Throneheart passable-land failure is repaired.
 
 Qualification: project build-mode types, explicit topography/test types,
 Windows topography tests, file-size, license and public-boundary checks pass.
-Native affected-suite qualification is running; do not start a new private
-search until the exact source is qualified, published and native-synchronized.
+Native qualification complete: six unaffected suite files passed (160 tests);
+the initial full run also passed three topography tests but exposed an incorrect
+new boundary fixture that changed every cell instead of only the target. The
+corrected fixture is in published source 9a10af4c; all four topography tests
+passed on native rerun in 26.32s. Combined coverage: all seven files / 164 tests
+pass, including eligible yield, canonical replay and tamper rejection. The
+full run took 553.21s; only the corrected topography file was rerun. No
+generator change followed that full run. Do not start a new private search
+until this evidence checkpoint is published and native-synchronized.
 Next: complete qualification, publish the reviewed checkpoint, then one fresh
 bounded source-bound search. Owner import/provision remains downstream of a
 verified eligible atlas; preserve Alpha, G001 progress/admission freeze, G002
