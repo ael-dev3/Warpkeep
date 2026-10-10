@@ -122,7 +122,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.48' as const;
+  'greater-realm-v2-natural-continent-pr-a.49' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -9543,6 +9543,11 @@ export function sealGreaterRealmRepairBarrierPockets(input: Readonly<{
   }
 }
 
+/** Focused, non-production seam for sealed-barrier coherence regressions. */
+export const greaterRealmBarrierCoherenceTestSeams = Object.freeze({
+  reconcileBarrierMeasuredRegionCoherence,
+});
+
 function reconcileBarrierMeasuredRegionCoherence(
   grid: IndexedAxialGrid,
   regionId: Uint8Array,
@@ -9695,6 +9700,13 @@ function reconcileBarrierMeasuredRegionCoherence(
           () => new Set<number>(),
         );
         const topology = passableRegionTopology(grid, regionId, waterRegime, barrier);
+        // Coherence cannot consume the donor's last land advantage over the
+        // throne realm. Measure the same sealed-barrier surface as the final
+        // smallest-passable proof, and keep trying other bounded fragments.
+        if (
+          topology.passableCounts[sourceRegion]! - transferableComponent.length
+            <= topology.passableCounts[TIER_III_REGION_INDEX]!
+        ) continue;
         const availableSwapWater = new Uint32Array(REGION_COUNT);
         for (let cell = 0; cell < grid.cellCount; cell += 1) {
           if (

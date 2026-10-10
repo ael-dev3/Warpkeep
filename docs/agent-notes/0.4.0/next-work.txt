@@ -1,3 +1,54 @@
+Current release checkpoint - 10 October 2026, barrier-coherence qualification
+
+Published source f2f858f008375766adf387ded8393bcd104f7574 (generator .48)
+completed replacement37 at 12:21:23.210 UTC with actual exit 1. Maintained
+terminal validation authenticated exhaustion: 256 rejections (218 geography,
+38 proof). Two candidates passed regional hydrogeomorphology; both failed
+TIER_III_SMALLEST_PASSABLE_LAND, one also failed minor-stream count. No atlas
+was accepted, selected, prepared or imported. Root seed zeroization, source
+preservation and worker/group/supervisor absence were verified. Cutoff monitoring
+was stopped; production was untouched. Credential-free exhaustion receipt:
+artifacts/qa/october-release-atlas37-authenticated-exhaustion-v1.json
+SHA256 4075f8697a52b93f77b60ebb42356c2569ac48d12154dbf62f99750355a41655.
+
+A public synthetic fixture demonstrates an independent coherence defect:
+region1 donates 70 passable cells, falling from 150 to 80 while Throneheart
+stays 100. The smallest-passable proof changes from true to false despite
+population conservation. This does not establish replacement37's private cause.
+The .49 correction skips transfers whose barrier-excluded donor would become
+no larger than Throneheart, continuing existing bounded choices. Regression
+coverage includes below/equal capacity, sealed barriers and permitted transfers.
+No proof threshold, search budget, terrain seed namespace, Lowlands authority,
+licensing, backend installation or deployment changes.
+
+Windows focused tests, explicit TypeScript and build-mode types passed.
+Native Linux passed all 106 tests in the affected package/repair/rejection batch
+in 581.11 seconds, including public ordinal9 and repaired ordinal18 replay,
+tamper rejection and zeroization. The final four focused coherence tests also
+passed separately on both platforms. License, file-size, diff and redacted
+source-secret checks passed. Independent review found no blocker; its sealed-
+barrier test gap was covered. Complete Actions history and a fresh readback at
+12:40:30 UTC confirmed no active runs, unchanged workflows and all four repos
+disabled. Publish this reviewed .49 checkpoint and synchronize exact source
+before rebuilding. The preceding .48 checkpoint remains the historical base.
+
+Farcaster host login was verified. A fresh Alpha Mini App attempt returned
+quick_auth_token_timeout (build 5f77c3c) while Farcaster displayed its separate
+30-day browser-wallet identity prompt. Host login is not QuickAuth acceptance;
+the existing human handoff remains pending. Do not substitute admin access.
+
+Next ordered work, owned by Codex:
+1. Complete .49 qualification, publish the reviewed source, synchronize native.
+2. Run one fresh bounded source-bound atlas and authenticate actual closure;
+   verify/select/prepare only an accepted package. Never reuse exhausted37.
+3. Bind import adapters to accepted evidence and final inspection 45c7403e...
+   with prior 4a78bc2b... and bootstrap ad787790.... Do not reapply backend6713e152....
+4. Provision the real owner and accept gather -> choose -> build -> benefit ->
+   return with mobile checks; preserve Alpha, G001 progress and sealed G002.
+5. Complete frontend/cutover readback and rollback. 0.4 is not shipped.
+
+Historical checkpoint follows; pending statements below are superseded.
+
 Current release checkpoint - 10 October 2026, atlas repair qualification
 
 Published source 9512a86db68b0a4ef6525900fbab0718a6a97079 (generator .47)
