@@ -36,6 +36,73 @@ function counts(regionId: Uint8Array, waterRegime?: Uint8Array, barrier?: Uint8A
   return result;
 }
 
+function approachFixture(pathCount: number, splitFirstCore = false) {
+  const cells: Array<{q: number; r: number}> = [];
+  for (const offset of (splitFirstCore ? [0, 30, 60] : [0, 30])) {
+    for (let q = 0; q < 8; q++) {
+      for (let r = 0; r < 8; r++) cells.push({q: q + offset, r});
+    }
+  }
+  const grid = indexGreaterRealmAxialGrid(cells);
+  const regionId = Uint8Array.from(grid.q, q => q >= 30 && q < 38 ? 6 : 0);
+  const tierId = Uint8Array.from(regionId, region => region === 0 ? 1 : 2);
+  const waterRegime = new Uint8Array(grid.cellCount);
+  const barrier = new Uint8Array(grid.cellCount);
+  const topology = greaterRealmBarrierCoherenceTestSeams.robustRegionTopology(
+    grid, regionId, waterRegime, barrier,
+  );
+  // Derive real biconnected dry cores; do not invent component-size metadata.
+  expect(topology.componentSizes).toEqual(splitFirstCore ? [64, 64, 64] : [64, 64]);
+  const paths = (q: number) => Array.from({length: pathCount}, (_, r) => {
+    const cell = Array.from(grid.q).findIndex((x, i) => x === q && grid.r[i] === r);
+    expect(cell).toBeGreaterThanOrEqual(0);
+    return [cell];
+  });
+  const first = paths(0), second = paths(30);
+  if (splitFirstCore) first[1] = paths(60)[0]!;
+  const option = (ordinal: number) => greaterRealmBarrierCoherenceTestSeams.compatibleGateApproaches(
+    grid, tierId, waterRegime, barrier, topology.componentId, topology.componentSizes,
+    first, second, ordinal,
+  );
+  return {option, first, second, tierId, waterRegime, barrier, topology};
+}
+
+describe('bounded gate approach option enumeration', () => {
+  it('rejects alternate approaches ending in disconnected real cores', () => {
+    const input = approachFixture(2, true);
+    expect(input.option(0)).toBeUndefined();
+  });
+
+  it('does not spend another option on swapping primary and alternate labels', () => {
+    const input = approachFixture(2);
+    const first = input.option(0);
+    expect(first).toBeDefined();
+    expect(first!.first).toEqual(input.first[0]);
+    expect(first!.firstAlternate).toEqual(input.first[1]);
+    expect(first!.second).toEqual(input.second[0]);
+    expect(first!.secondAlternate).toEqual(input.second[1]);
+    expect(input.option(1)).toBeUndefined();
+  });
+
+  it('gives the bounded caller distinct corridor footprints without changing its inputs', () => {
+    const input = approachFixture(3);
+    const before = [input.first, input.second].map(paths => paths.map(path => [...path]));
+    const arrays = [input.tierId, input.waterRegime, input.barrier, input.topology.componentId];
+    const original = arrays.map(array => array.slice());
+    const footprints: string[] = [];
+    // Match the real caller's existing option limit.
+    for (let ordinal = 0; ordinal < 32; ordinal++) {
+      const selected = input.option(ordinal);
+      if (!selected) break;
+      footprints.push(selected.all.flat().slice().sort((a, b) => a - b).join(':'));
+    }
+    expect(footprints).toHaveLength(9);
+    expect(new Set(footprints).size).toBe(footprints.length);
+    expect([input.first, input.second]).toEqual(before);
+    expect(arrays).toEqual(original);
+  });
+});
+
 describe('sealed-barrier region coherence', () => {
   it.each([80, 100])('preserves donor land above Throneheart with a %i-cell main body', donorMain => {
     const input = fixture(donorMain);

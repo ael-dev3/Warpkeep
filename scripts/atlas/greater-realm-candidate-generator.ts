@@ -122,7 +122,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.50' as const;
+  'greater-realm-v2-natural-continent-pr-a.51' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -9050,14 +9050,17 @@ function compatibleGateApproaches(
   all: readonly (readonly number[])[];
 }> | undefined {
   let compatibleOrdinal = 0;
+  // Primary/alternate labels do not change a corridor pair's carved cells or
+  // target core. Count each unordered pair once so bounded callers retain
+  // distinct geometry instead of spending their options on label swaps.
   for (let firstA = 0; firstA < first.length; firstA += 1) {
     for (let secondA = 0; secondA < second.length; secondA += 1) {
       const firstAlternatives = first.map((_, index) => index).filter(index => (
-        index !== firstA
+        index > firstA
         && gateApproachCorridorsDisjoint(first[firstA]!, first[index]!)
       ));
       const secondAlternatives = second.map((_, index) => index).filter(index => (
-        index !== secondA
+        index > secondA
         && gateApproachCorridorsDisjoint(second[secondA]!, second[index]!)
       ));
       for (const firstB of firstAlternatives) {
@@ -9553,6 +9556,8 @@ export function sealGreaterRealmRepairBarrierPockets(input: Readonly<{
 export const greaterRealmBarrierCoherenceTestSeams = Object.freeze({
   reconcileBarrierMeasuredRegionCoherence,
   repairNaturalRegionLandCoherence,
+  compatibleGateApproaches,
+  robustRegionTopology,
 });
 
 function reconcileBarrierMeasuredRegionCoherence(

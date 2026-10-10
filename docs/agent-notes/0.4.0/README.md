@@ -1,3 +1,34 @@
+Current release checkpoint - 10 October 2026, canonical gate approach options (.51)
+
+The .51 generator correction is locally qualified for publication. The real
+compatibleGateApproaches caller counted primary/alternate label swaps as separate
+options, exhausting bounded callers on repeated geometry. Canonical unordered
+pairs retain original option zero and let unchanged finite budgets inspect more
+distinct corridor combinations. All four callers treat both routes symmetrically.
+No sealing, disjointness, core-connectivity proof, search limit or terrain seed
+namespace changed. This does not establish acceptance of an atlas.
+
+Public regressions reproduced the old failure before the correction: two new
+tests failed while the six existing coherence tests passed. The corrected tests
+also reject routes ending in disconnected, genuinely derived dry cores and verify
+input preservation. Windows focused tests: 20 passed, actual session47293 exit 0.
+Linux package/rejection/coherence: 102 passed, original session90837 exit 0,
+598.71 seconds; strait ownership: 10 passed separately, exit 0. Root build-mode
+and explicit generator/test TypeScript, licensing, file-size policy and scoped
+redacted secret scan passed. Independent review found no blocker.
+
+Next: publish and synchronize this reviewed checkpoint, bind one fresh bounded
+replacement40 to its exact commit/tree, and authenticate its actual terminal
+result before selecting/preparing anything. Never reuse exhausted replacement39.
+Only an accepted atlas may proceed to import, actual owner provisioning and PTR
+acceptance, then frontend/cutover. The installed backend must not be reapplied.
+Alpha, G001 progress/admission freeze, sealed G002 and licensing remain preserved.
+Farcaster host login is verified; Warpkeep QuickAuth and the separate 30-day
+browser-wallet confirmation remain unverified. No provider writes or deployment
+were performed by this correction. 0.4 remains unshipped.
+
+Historical checkpoint follows; pending statements below are superseded.
+
 Current release checkpoint - 10 October 2026, authenticated replacement39 exhaustion
 
 The published .50 correction is qualified and synchronized at
