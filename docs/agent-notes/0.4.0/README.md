@@ -1,3 +1,67 @@
+Current release checkpoint - 10 October 2026, planned-parent frontier correction
+
+Replacement38 ran against published source bdf30f484db7380fff058196bbb4704431815f6c
+(tree c355748b03bd95c3562f63703f45e8b9698b52b7, generator .49). Its original
+session97599 closed with exit 1 at 13:53:13.155 UTC. Maintained terminal validation
+authenticated all 256 rejections: 216 geography, 40 proof. One candidate passed
+regional hydrogeomorphology, but failed gate approaches, gate graph, geological
+barrier coverage, natural landmass topology and region graph. No accepted atlas,
+selection, preparation, import or provider write. Source/index/refs, toolchain,
+root-seed zeroization and full worker/group/supervisor absence were verified.
+The cutoff session92310 was stopped after authenticated closure; helper absence
+was verified. Never reuse the exhausted workspace. Credential-free receipt:
+artifacts/qa/october-release-atlas38-authenticated-exhaustion-v1.json
+SHA256 9a70fd0128fcbf8699b70c9f74d8f6176fecbcf3f9bc0f35402fe9bc92960d60.
+
+A source-bound, bounded replay of ordinal192 traced the gate failure to natural
+region coherence repair. The planned region1 -> region7 frontier had 187 dry
+contacts after semantic naming and only 24 after repair. Repair protected a
+1,550-cell foothold with 193 contacts to a different middle realm and transferred
+the 955-cell foothold serving the actual parent. The remaining frontier had no
+outer-side exit from the barrier band: zero approaches, zero cross-sections,
+16 gates and coverage for eight of nine required graph pairs. This is a real
+planned-parent preservation defect, not a reason to increase search budgets.
+
+The .50 correction counts dry tier contacts only with the source region's
+planned graph parents. That rule governs both foothold protection and subsequent
+foothold trimming. The experimental replay retained the correct frontier and
+restored 18 gates, route redundancy, gate approaches, gate graph and geological
+barrier coverage. It still failed land coherence/passable land/region graph and
+natural landmass topology (nine large islands against a maximum of eight).
+The replay is rejected and must not be imported or called accepted. Do not infer
+that this correction resolves all regional failures or establishes release readiness.
+No proof threshold, search budget, terrain seed namespace, Lowlands authority,
+licensing, backend installation or deployment change.
+
+Two public synthetic regressions invoke the real coherence repair with valid
+middle-tier spine authority. Both fail with the previous contact predicate and
+pass with the planned-parent correction; they cover a larger foreign foothold
+and a dominant body touching the wrong parent. They also verify population/tier
+conservation and unchanged caller-owned terrain/water/authority arrays.
+Windows focused checks and explicit generator/test TypeScript passed. Native
+package/repair/rejection qualification is running; record its actual closure
+before claiming it passed. Independent bounded review found no production
+blocker and identified an initially non-reproducing parameter; that fixture was
+corrected and both old-behavior failures were observed. Publish the coherent
+reviewed correction with its actual verification status and synchronize source.
+
+Next ordered work, owned by Codex:
+1. Finish exact .50 qualification and publication; retain truthful rejected38 evidence.
+2. Diagnose demonstrated remaining atlas failures before another bounded build.
+   Verify/select/prepare only an accepted package; never reuse exhausted38.
+3. Bind atlas import to accepted source and final inspection45c7403e..., prior
+   4a78bc2b... and bootstrapad787790.... Do not reapply installed backend6713e152....
+4. Provision the real owner and accept gather -> choose -> build -> benefit ->
+   return on PTR with mobile checks; preserve Alpha, G001 and sealed G002.
+5. Complete frontend/cutover readback and rollback. 0.4 remains unshipped.
+
+Farcaster host login is not QuickAuth acceptance. The previously observed
+quick_auth_token_timeout and separate browser-wallet identity handoff remain
+unverified until actual owner sign-in succeeds. Never replace player access
+with admin credentials or report hosted static delivery as gameplay acceptance.
+
+Historical checkpoint follows; pending statements below are superseded.
+
 Current release checkpoint - 10 October 2026, barrier-coherence qualification
 
 Published source f2f858f008375766adf387ded8393bcd104f7574 (generator .48)

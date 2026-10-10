@@ -122,7 +122,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.49' as const;
+  'greater-realm-v2-natural-continent-pr-a.50' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -6750,6 +6750,11 @@ function repairNaturalRegionLandCoherence(
       .sort((first, second) => second.length - first.length || first[0]! - second[0]!);
     if (components.length <= 1) continue;
     const destinationTier = GREATER_REALM_REGION_SPECS[sourceRegion]!.tier + 1;
+    // A foothold must serve this realm's planned parent. A larger contact with
+    // a different middle realm cannot replace the required gate frontier.
+    const destinationRegions = new Set(strategy.gateGraph
+      .filter(([child]) => child === sourceRegion)
+      .map(([, parent]) => parent));
     const tierContactCount = (component: readonly number[]) => {
       let count = 0;
       for (const cell of component) {
@@ -6759,6 +6764,7 @@ function repairNaturalRegionLandCoherence(
           if (
             neighbor >= 0
             && tierId[neighbor] === destinationTier
+            && destinationRegions.has(regionId[neighbor]!)
             && waterRegime[neighbor] === 0
           ) count += 1;
         }
@@ -9546,6 +9552,7 @@ export function sealGreaterRealmRepairBarrierPockets(input: Readonly<{
 /** Focused, non-production seam for sealed-barrier coherence regressions. */
 export const greaterRealmBarrierCoherenceTestSeams = Object.freeze({
   reconcileBarrierMeasuredRegionCoherence,
+  repairNaturalRegionLandCoherence,
 });
 
 function reconcileBarrierMeasuredRegionCoherence(
