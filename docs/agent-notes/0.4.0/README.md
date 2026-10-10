@@ -38,9 +38,14 @@ middle-tier spine authority. Both fail with the previous contact predicate and
 pass with the planned-parent correction; they cover a larger foreign foothold
 and a dominant body touching the wrong parent. They also verify population/tier
 conservation and unchanged caller-owned terrain/water/authority arrays.
-Windows focused checks and explicit generator/test TypeScript passed. Native
-package/repair/rejection qualification is running; record its actual closure
-before claiming it passed. Independent bounded review found no production
+Windows focused checks, explicit generator/test TypeScript on both platforms,
+root build-mode types, license/file-size policy and redacted outgoing scan passed.
+Native session67958 closed exit 0: 99 tests (82 package, 11 rejection, 6 coherence)
+in 592.81 seconds. Final corrected coherence fixtures also passed separately on
+both platforms. The originally named strait test path matched no file; the actual
+greaterRealmStraitOwnershipRepair.test.ts was then run separately and all 10 tests
+passed. Qualification covers ordinary/repaired public package replay, tamper
+rejection and zeroization; it does not establish private atlas acceptance. Independent bounded review found no production
 blocker and identified an initially non-reproducing parameter; that fixture was
 corrected and both old-behavior failures were observed. Publish the coherent
 reviewed correction with its actual verification status and synchronize source.
