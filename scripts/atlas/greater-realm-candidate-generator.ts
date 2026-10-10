@@ -122,7 +122,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.51' as const;
+  'greater-realm-v2-natural-continent-pr-a.52' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -7169,8 +7169,8 @@ function repairNaturalRegionLandCoherence(
   if (finalTierCounts.some((count, tier) => count !== strategy.tierCounts[tier])) {
     fail('GREATER_REALM_TIER_COHERENCE_BALANCE_FAILED');
   }
-  // Every outer/middle realm must own more traversable land than the compact
-  // throne realm. Grow deficient realms outward from their dominant land body
+  // Outer realms need more traversable land than the compact throne realm.
+  // Grow deficient outer realms outward from their dominant land body
   // through same-tier political boundaries, then exchange an equal number of
   // non-passable ownership cells with each donor. Geometry and tier totals are
   // untouched; only the natural border follows the usable land more closely.
@@ -7198,89 +7198,131 @@ function repairNaturalRegionLandCoherence(
     if (needed <= 0) continue;
     const largestComponent = currentTopology.largestComponentByRegion[targetRegion]!;
     if (largestComponent < 0) continue;
-    const donorCapacity = currentTopology.passableCounts.map((count, region) => (
-      region === targetRegion
-        || GREATER_REALM_REGION_SPECS[region]!.tier
-          !== GREATER_REALM_REGION_SPECS[targetRegion]!.tier
-        ? 0
-        : Math.max(0, count - passableFloor)
-    ));
-    const seen = new Uint8Array(grid.cellCount);
-    const queue = new Uint32Array(grid.cellCount);
-    let head = 0;
-    let tail = 0;
+    // An offshore largest body may have no same-tier donor frontier. Keep
+    // the existing largest-first preference, then try other real bodies rather
+    // than abandoning a safe mainland repair. Every proposal is still complete,
+    // population-balanced and checked against the donor invariants below.
+    const targetComponents = new Set<number>();
     for (let cell = 0; cell < grid.cellCount; cell += 1) {
-      if (currentTopology.componentId[cell] !== largestComponent) continue;
-      seen[cell] = 1;
-      queue[tail++] = cell;
+      if (regionId[cell] === targetRegion && currentTopology.componentId[cell]! >= 0) {
+        targetComponents.add(currentTopology.componentId[cell]!);
+      }
     }
-    const annex: number[] = [];
-    const donorCounts = new Uint32Array(REGION_COUNT);
-    while (head < tail && annex.length < needed) {
-      const cell = queue[head++]!;
-      for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-        const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
-        if (
-          neighbor < 0
-          || seen[neighbor] === 1
-          || tierId[neighbor] !== tierId[cell]
-          || !strategicallyPassableSurface(waterRegime[neighbor]!)
-          || legacyProtectedCell[neighbor] === 1
-          || repairOwnershipImmutable(neighbor)
-        ) continue;
-        const donor = regionId[neighbor]!;
-        if (donor !== targetRegion && donorCapacity[donor]! <= 0) continue;
-        seen[neighbor] = 1;
-        queue[tail++] = neighbor;
-        if (donor !== targetRegion) {
-          annex.push(neighbor);
-          donorCounts[donor] += 1;
-          donorCapacity[donor] -= 1;
-          if (annex.length >= needed) break;
+    const componentOrder = [...targetComponents].sort((first, second) => (
+      Number(second === largestComponent) - Number(first === largestComponent)
+      || currentTopology.componentSizes[second]! - currentTopology.componentSizes[first]!
+      || first - second
+    ));
+    for (const targetComponent of componentOrder) {
+      const donorCapacity = currentTopology.passableCounts.map((count, region) => (
+        region === targetRegion
+          || GREATER_REALM_REGION_SPECS[region]!.tier
+            !== GREATER_REALM_REGION_SPECS[targetRegion]!.tier
+          ? 0
+          : Math.max(0, count - passableFloor)
+      ));
+      const seen = new Uint8Array(grid.cellCount);
+      const queue = new Uint32Array(grid.cellCount);
+      let head = 0;
+      let tail = 0;
+      for (let cell = 0; cell < grid.cellCount; cell += 1) {
+        if (currentTopology.componentId[cell] !== targetComponent) continue;
+        seen[cell] = 1;
+        queue[tail++] = cell;
+      }
+      const annex: number[] = [];
+      const donorCounts = new Uint32Array(REGION_COUNT);
+      while (head < tail && annex.length < needed) {
+        const cell = queue[head++]!;
+        for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+          const neighbor = grid.neighbors[cell * HEX_NEIGHBOR_COUNT + direction]!;
+          if (
+            neighbor < 0
+            || seen[neighbor] === 1
+            || tierId[neighbor] !== tierId[cell]
+            || !strategicallyPassableSurface(waterRegime[neighbor]!)
+            || legacyProtectedCell[neighbor] === 1
+            || repairOwnershipImmutable(neighbor)
+          ) continue;
+          const donor = regionId[neighbor]!;
+          if (donor !== targetRegion && donorCapacity[donor]! <= 0) continue;
+          seen[neighbor] = 1;
+          queue[tail++] = neighbor;
+          if (donor !== targetRegion) {
+            annex.push(neighbor);
+            donorCounts[donor] += 1;
+            donorCapacity[donor] -= 1;
+            if (annex.length >= needed) break;
+          }
         }
       }
-    }
-    if (annex.length < needed) continue;
-    const waterSwaps = new Map<number, number[]>();
-    const reservedWater = new Set<number>();
-    let swapsAvailable = true;
-    for (let donor = 0; donor < REGION_COUNT; donor += 1) {
-      const swapCount = donorCounts[donor]!;
-      if (swapCount === 0) continue;
-      const candidates: number[] = [];
-      for (let cell = 0; cell < grid.cellCount; cell += 1) {
-        if (
-          reservedWater.has(cell)
-          || regionId[cell] !== targetRegion
-          || strategicallyPassableSurface(waterRegime[cell]!)
-          || legacyProtectedCell[cell] === 1
-          || repairOwnershipImmutable(cell)
-        ) continue;
-        candidates.push(cell);
-      }
-      candidates.sort((first, second) => {
-        const contacts = (candidate: number) => {
-          let count = 0;
-          for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
-            const neighbor = grid.neighbors[candidate * HEX_NEIGHBOR_COUNT + direction]!;
-            if (neighbor >= 0 && regionId[neighbor] === donor) count += 1;
+      if (annex.length < needed) continue;
+      // Spare population does not establish donor land coherence. Validate
+      // the complete proposal against the donor margins used by gate-foothold
+      // borrowing below, allowing intentional islands and minor bodies
+      // without carving a deficient donor core to satisfy the target's count.
+      const proposedRegionId = regionId.slice();
+      let donorsPreserved = true;
+      try {
+        for (const cell of annex) proposedRegionId[cell] = targetRegion;
+        const proposedTopology = passableRegionTopology(
+          grid, proposedRegionId, waterRegime, new Uint8Array(grid.cellCount),
+        );
+        for (let donor = 0; donor < REGION_COUNT; donor += 1) {
+          if (donorCounts[donor] === 0) continue;
+          const minimumShare = donor === 4 ? 6_500 : 8_500;
+          if (proposedTopology.largestCounts[donor]! * 10_000
+            < proposedTopology.passableCounts[donor]! * minimumShare) {
+            donorsPreserved = false;
+            break;
           }
-          return count;
-        };
-        return contacts(second) - contacts(first) || first - second;
-      });
-      if (candidates.length < swapCount) {
-        swapsAvailable = false;
-        break;
+        }
+      } finally {
+        proposedRegionId.fill(0);
       }
-      const selected = candidates.slice(0, swapCount);
-      for (const cell of selected) reservedWater.add(cell);
-      waterSwaps.set(donor, selected);
-    }
-    if (!swapsAvailable) continue;
-    for (const cell of annex) regionId[cell] = targetRegion;
-    for (const [donor, cells] of waterSwaps) {
-      for (const cell of cells) regionId[cell] = donor;
+      if (!donorsPreserved) continue;
+      const waterSwaps = new Map<number, number[]>();
+      const reservedWater = new Set<number>();
+      let swapsAvailable = true;
+      for (let donor = 0; donor < REGION_COUNT; donor += 1) {
+        const swapCount = donorCounts[donor]!;
+        if (swapCount === 0) continue;
+        const candidates: number[] = [];
+        for (let cell = 0; cell < grid.cellCount; cell += 1) {
+          if (
+            reservedWater.has(cell)
+            || regionId[cell] !== targetRegion
+            || strategicallyPassableSurface(waterRegime[cell]!)
+            || legacyProtectedCell[cell] === 1
+            || repairOwnershipImmutable(cell)
+          ) continue;
+          candidates.push(cell);
+        }
+        candidates.sort((first, second) => {
+          const contacts = (candidate: number) => {
+            let count = 0;
+            for (let direction = 0; direction < HEX_NEIGHBOR_COUNT; direction += 1) {
+              const neighbor = grid.neighbors[candidate * HEX_NEIGHBOR_COUNT + direction]!;
+              if (neighbor >= 0 && regionId[neighbor] === donor) count += 1;
+            }
+            return count;
+          };
+          return contacts(second) - contacts(first) || first - second;
+        });
+        if (candidates.length < swapCount) {
+          swapsAvailable = false;
+          break;
+        }
+        const selected = candidates.slice(0, swapCount);
+        for (const cell of selected) reservedWater.add(cell);
+        waterSwaps.set(donor, selected);
+      }
+      if (!swapsAvailable) continue;
+      for (const cell of annex) regionId[cell] = targetRegion;
+      for (const [donor, cells] of waterSwaps) {
+        for (const cell of cells) regionId[cell] = donor;
+      }
+      break;
     }
   }
   const noBarrier = new Uint8Array(grid.cellCount);

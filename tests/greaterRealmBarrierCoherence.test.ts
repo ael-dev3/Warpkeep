@@ -201,3 +201,136 @@ describe('planned gate frontier preservation', () => {
     expect([regionId, tierId, waterRegime, passableOwner, spineOwner]).toEqual(original);
   });
 });
+
+describe('natural dry-capacity annex donor preservation', () => {
+  it('uses a smaller Stonewake mainland component when its largest island cannot annex safely', () => {
+    const cells: Array<{q: number; r: number; region: number; water: number; protectedCell: number}> = [];
+    const add = (q: number, r: number, region: number, water = 0, protectedCell = 0) => {
+      cells.push({q, r, region, water, protectedCell});
+    };
+    for (let q = 0; q <= 2000; q++) add(q, 0, 1);
+    for (let q = 0; q < 100; q++) add(q, 1, 4);
+    for (let q = 0; q < 150; q++) add(q, 500, 4);
+    for (let q = 0; q < 400; q++) add(q, 700, 4, 1);
+    for (const region of [0, 2, 3, 5]) {
+      for (let q = 0; q < 612; q++) add(q, 3000 + region * 20, region);
+    }
+    for (const [parent, child, q] of [[6, 0, 0], [7, 2, 20], [8, 4, 40]] as const) {
+      add(q, 999, child, 0, 1);
+      add(q, 1000, parent);
+    }
+    for (let q = 0; q < 100; q++) add(q, 1001, 9);
+    const grid = indexGreaterRealmAxialGrid(cells);
+    const byCoordinate = new Map(cells.map(cell => [`${cell.q}:${cell.r}`, cell]));
+    const ordered = Array.from(grid.q, (q, i) => byCoordinate.get(`${q}:${grid.r[i]}`)!);
+    const regionId = Uint8Array.from(ordered, cell => cell.region);
+    const tierId = Uint8Array.from(regionId, region => region < 6 ? 1 : region < 9 ? 2 : 3);
+    const waterRegime = Uint8Array.from(ordered, cell => cell.water);
+    const legacyProtectedCell = Uint8Array.from(ordered, cell => cell.protectedCell);
+    const passableOwner = Int8Array.from(ordered, cell => cell.region >= 6 && cell.region < 9 ? cell.region : -1);
+    const spineOwner = passableOwner.slice();
+    const regionCounts = counts(regionId);
+    const tierCounts = [0, 0, 0] as [number, number, number];
+    for (const tier of tierId) tierCounts[tier - 1]++;
+    const inputs = [regionId, tierId, waterRegime, legacyProtectedCell, passableOwner, spineOwner];
+    const original = inputs.map(array => array.slice());
+    const noBarrier = new Uint8Array(grid.cellCount);
+    expect(counts(regionId, waterRegime, noBarrier)[4]).toBe(251);
+    const repaired = greaterRealmBarrierCoherenceTestSeams.repairNaturalRegionLandCoherence(
+      grid, {regionId, tierId, regionCounts, tierCounts, semanticPermutation: [0, 1, 2, 3, 4, 5],
+        gateGraph: [[0, 6], [1, 7], [2, 6], [3, 7], [4, 8], [5, 8], [6, 9], [7, 9], [8, 9]]},
+      waterRegime, legacyProtectedCell, passableOwner, spineOwner, undefined, true,
+    );
+    expect(counts(repaired.regionId)).toEqual(regionCounts);
+    expect(repaired.tierId).toEqual(tierId);
+    expect(inputs).toEqual(original);
+    const donor = new Set(ordered.flatMap((cell, i) => (
+      cell.region === 1 && repaired.regionId[i] === 1 && cell.water === 0 ? [i] : []
+    )));
+    expect(donor.size).toBeGreaterThan(612);
+    const queue = [donor.values().next().value!];
+    const seen = new Set(queue);
+    for (let head = 0; head < queue.length; head++) {
+      for (let direction = 0; direction < 6; direction++) {
+        const neighbor = grid.neighbors[queue[head]! * 6 + direction]!;
+        if (donor.has(neighbor) && !seen.has(neighbor)) {
+          seen.add(neighbor);
+          queue.push(neighbor);
+        }
+      }
+    }
+    expect(seen.size).toBe(donor.size);
+    expect(counts(repaired.regionId, waterRegime, noBarrier)[4]).toBe(612);
+  });
+
+  it.each([false, true])('preserves the connected donor core when the annex contact is an endpoint: %s', endpoint => {
+    const cells: Array<{q: number; r: number; region: number; water: number; protectedCell: number}> = [];
+    const add = (q: number, r: number, region: number, water = 0, protectedCell = 0) => {
+      cells.push({q, r, region, water, protectedCell});
+    };
+    // The donor has real spare capacity, but the interior contact is its only
+    // bridge between two 350-cell bodies. The endpoint variant is safe to take.
+    for (let q = endpoint ? 0 : -350; q <= (endpoint ? 700 : 350); q++) {
+      add(q, 0, 1, 0, q === 1 ? 1 : 0);
+    }
+    for (let r = 1; r <= 611; r++) add(0, r, 0);
+    add(2000, 2000, 0, 1);
+    for (let region = 2; region < 6; region++) {
+      for (let q = 0; q < 612; q++) add(q, 3000 + region * 20, region);
+    }
+    // Each actual middle spine touches dry outer and inner cells; the shared
+    // 100-cell throne body makes the repair's dry-capacity floor exactly 612.
+    for (const [parent, child, q] of [[6, 2, 0], [7, 3, 20], [8, 4, 40]] as const) {
+      add(q, 999, child, 0, 1);
+      add(q, 1000, parent);
+    }
+    for (let q = 0; q < 100; q++) add(q, 1001, 9);
+    const grid = indexGreaterRealmAxialGrid(cells);
+    const byCoordinate = new Map(cells.map(cell => [`${cell.q}:${cell.r}`, cell]));
+    const ordered = Array.from(grid.q, (q, i) => byCoordinate.get(`${q}:${grid.r[i]}`)!);
+    const regionId = Uint8Array.from(ordered, cell => cell.region);
+    const tierId = Uint8Array.from(regionId, region => region < 6 ? 1 : region < 9 ? 2 : 3);
+    const waterRegime = Uint8Array.from(ordered, cell => cell.water);
+    const legacyProtectedCell = Uint8Array.from(ordered, cell => cell.protectedCell);
+    const passableOwner = Int8Array.from(ordered, cell => cell.region >= 6 && cell.region < 9 ? cell.region : -1);
+    const spineOwner = passableOwner.slice();
+    const regionCounts = counts(regionId);
+    const tierCounts = [0, 0, 0] as [number, number, number];
+    for (const tier of tierId) tierCounts[tier - 1]++;
+    const inputs = [regionId, tierId, waterRegime, legacyProtectedCell, passableOwner, spineOwner];
+    const original = inputs.map(array => array.slice());
+    const connectedDonor = (ownership: Uint8Array) => {
+      const surviving = ordered.flatMap((cell, i) => (
+        cell.region === 1 && cell.water === 0 && ownership[i] === 1 ? [i] : []
+      ));
+      const allowed = new Set(surviving);
+      const seen = new Set<number>();
+      const queue = surviving.length > 0 ? [surviving[0]!] : [];
+      for (let head = 0; head < queue.length; head++) {
+        const cell = queue[head]!;
+        if (seen.has(cell)) continue;
+        seen.add(cell);
+        for (let direction = 0; direction < 6; direction++) {
+          const neighbor = grid.neighbors[cell * 6 + direction]!;
+          if (allowed.has(neighbor) && !seen.has(neighbor)) queue.push(neighbor);
+        }
+      }
+      return seen.size === surviving.length;
+    };
+    expect(connectedDonor(regionId)).toBe(true);
+    const repaired = greaterRealmBarrierCoherenceTestSeams.repairNaturalRegionLandCoherence(
+      grid, {regionId, tierId, regionCounts, tierCounts, semanticPermutation: [0, 1, 2, 3, 4, 5],
+        gateGraph: [[0, 6], [1, 7], [2, 6], [3, 7], [4, 8], [5, 8], [6, 9], [7, 9], [8, 9]]},
+      waterRegime, legacyProtectedCell, passableOwner, spineOwner,
+    );
+    expect(counts(repaired.regionId)).toEqual(regionCounts);
+    expect(repaired.tierId).toEqual(tierId);
+    expect(inputs).toEqual(original);
+    expect(connectedDonor(repaired.regionId)).toBe(true);
+    if (endpoint) {
+      const contact = ordered.findIndex(cell => cell.q === 0 && cell.r === 0);
+      expect(repaired.regionId[contact]).toBe(0);
+      expect(counts(repaired.regionId, waterRegime, new Uint8Array(grid.cellCount))[0]).toBe(612);
+    }
+  });
+});
