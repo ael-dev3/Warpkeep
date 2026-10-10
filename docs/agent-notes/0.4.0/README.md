@@ -1,3 +1,76 @@
+Current release checkpoint - 10 October 2026, authenticated replacement39 exhaustion
+
+The published .50 correction is qualified and synchronized at
+b9cd1b3d5d4dc6495d79bbdc0023ae32d24deebc
+(tree f33319701526f4f4d5901ef2f71d137bb59d2326). Replacement39 used that exact
+source. Original session28376 started at 14:31:30.698 UTC and closed exit 1 at
+15:38:41.622 UTC, before its cutoff. No timeout, interruption, source-hold or
+toolchain failure. Maintained terminal validation authenticated all 256
+rejections: 217 geography and 39 proof. No accepted atlas, selection, runtime
+preparation, import or provider write. Worker/group/supervisor absence and root
+seed zeroization were verified. Cutoff session86074 was stopped after validation;
+its native helper absence was verified. Never reuse exhausted replacement39.
+Credential-free terminal receipt:
+artifacts/qa/october-release-atlas39-authenticated-terminal-v1.json
+SHA256 54d78a29c2ebb6897a3921b2dfd9b5eb4d65330e3185c5a5ed386c22150f3e06.
+
+One rejected candidate, ordinal72, passed regional hydrogeomorphology and the
+major-river range. A source-bound replay reproduced seven failed proofs: gate
+approaches, gate graph, advanced geomorphology, natural outer boundary, regional
+land coherence, regional passable land and region graph. The planned region2 ->
+region7 connection has no gate, despite 345 barrier cross-sections; the other
+eight planned pairs retain two gates each. This is a reproduced release-blocking
+candidate failure, not yet a demonstrated selector implementation bug.
+
+A second bounded replay used a hash-pinned diagnostic copy of the exact .50
+generator, with aggregate logging only. TypeScript and actual replay exit 0;
+tracked source, private checkpoint, production and proof thresholds were unchanged.
+It measured 743 gate candidates and 83 with approaches on both sides of the
+missing pair. Further tracing must distinguish pair compatibility, sealing,
+regional-core connectivity and fallback selection before claiming a source bug.
+No coordinates, root seed, identity or credentials were disclosed.
+
+Further tracing measured zero usable approaches among the fallback's first 128
+raw edges. An experimental necessary-reachability filter retained the same
+expensive search limits and exposed 83 reachable edges, eight compatible
+single-gate options and no valid two-gate bundle. All 3,328 examined pair options
+failed existing sealing checks: 1,440 expose an unintended entrance and 1,888
+have an approach crossing a selected gate endpoint. The other eight graph arms
+have bundles. The experiment did not restore gates or any failed proof and is
+not a qualified source fix. Keep it out of production; neither relax sealing
+nor infer that removing candidate starvation alone makes this world usable.
+Diagnostic replay sessions7995,45198,31786,91496 and2227 all closed exit 0;
+all diagnostic/experimental code remains ignored, with no provider calls or
+checkpoint writes. Source remains .50. Next diagnosis must inspect approach
+option compatibility and earlier regional land allocation, with a reproducing
+public fixture before modifying the maintained implementation.
+
+The same replay identifies independent rejection causes: no volcanic anchors,
+volcanic tectonic compatibility zero, ridge uplift alignment 8,488 below the
+8,500 requirement, and an aligned outer-boundary run of 112 above the existing
+96 limit. Final passable-land largest-component shares are 7,805 basis points
+for region1 and 5,498 for region5, both below their 8,000 requirement; final
+fragmentation and tendril proofs also fail. Relief structure and natural landmass
+topology pass. These values explain rejection; they do not justify lowering
+thresholds, changing world authority or rerunning the same exhausted search.
+
+Next ordered work, owned by Codex:
+1. Trace the reproduced gate and connectivity failures through the real callers.
+   Fix demonstrated defects with public regressions and qualified source changes
+   before another bounded build. The .50 qualification/publication is complete;
+   do not repeat it or treat Farcaster host login as atlas acceptance.
+2. Verify/select/prepare only an actually accepted package. The replacement39
+   continuation/runtime adapters are prepared and typechecked, never invoked.
+3. Bind import to that accepted source and inspection45c7403e..., prior
+   4a78bc2b... and bootstrapad787790.... Do not reapply installed backend6713e152....
+4. Provision the real owner and accept gather -> choose -> build -> benefit ->
+   return on PTR with mobile checks. Host Farcaster login is verified, but
+   QuickAuth and the separate browser-wallet handoff remain unverified.
+5. Complete frontend/cutover readbacks and rollback. Preserve Alpha, G001 progress
+   and its admission freeze, sealed G002 and existing licensing. 0.4 is unshipped.
+
+Historical checkpoint follows; pending statements below are superseded.
+
 Current release checkpoint - 10 October 2026, planned-parent frontier correction
 
 Replacement38 ran against published source bdf30f484db7380fff058196bbb4704431815f6c
