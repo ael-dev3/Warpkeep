@@ -1,5 +1,7 @@
 import { createHash, createHmac } from 'node:crypto';
 
+import { retireGreaterRealmCandidateBuffers } from './greater-realm-candidate-buffer-cleanup';
+
 import { sealGreaterRealmIsolatedBarrierPockets } from './greater-realm-isolated-barrier-pockets';
 
 import {
@@ -122,7 +124,7 @@ import {
 } from './greater-realm-topography-patch-support';
 
 export const GREATER_REALM_GENERATOR_VERSION =
-  'greater-realm-v2-natural-continent-pr-a.52' as const;
+  'greater-realm-v2-natural-continent-pr-a.53' as const;
 // Package/algorithm revisions must not silently reroll root-seed ordinals.
 // Bump this namespace only for an explicitly approved deterministic world reroll.
 export const GREATER_REALM_TERRAIN_SEED_NAMESPACE =
@@ -1564,6 +1566,7 @@ function macroGeology(
   grid: IndexedAxialGrid,
   candidateSeed: GreaterRealmTerrainSeed,
   domains: readonly GreaterRealmPseudoTectonicDomainSeed[],
+  centeredIslandRifts: boolean,
 ): Readonly<{
   bedrock: Int32Array;
   uplift: Int32Array;
@@ -1665,18 +1668,18 @@ function macroGeology(
         ) % 10_001),
       }));
     }
-    if (arc === 1) {
-      // An off-center extensional rift splits one volcanic chain into a main
-      // island and a meaningful satellite without inflating the reviewed
-      // large-island count. The rift is recorded in bedrock and uplift
-      // authority, and its deep transverse cut survives relaxation as a true
-      // saltwater strait instead of an assignment-only island boundary.
+    if (arc === 1 || centeredIslandRifts) {
+      // The ordinary layout keeps one off-center island/satellite rift.
+      // A bounded geological repair centers cuts across the actual chains
+      // when the ordinary world fails only its island-strait signature.
+      // Both layouts retain bedrock and uplift authority; final topology,
+      // regional signatures and every other release proof still decide eligibility.
       islandRifts.push(Object.freeze({
         q,
         r,
         directionQ: direction.q,
         directionR: direction.r,
-        projection: 19,
+        projection: centeredIslandRifts ? 0 : 19,
       }));
     }
   }
@@ -11974,11 +11977,34 @@ function clearDerivedGreaterRealmTopography(
   topography.landformId.fill(0);
 }
 
-export function generateGreaterRealmCandidate(input: Readonly<{
+type GreaterRealmCandidateGenerationInput = Readonly<{
   rootSeed: Uint8Array;
   candidateOrdinal: number;
   onGateApronSearchLane?: (lane: GreaterRealmGateApronSearchLane) => void;
-}>): GreaterRealmPrivateCandidate {
+}>;
+
+export function generateGreaterRealmCandidate(
+  input: GreaterRealmCandidateGenerationInput,
+): GreaterRealmPrivateCandidate {
+  const ordinary = generateGreaterRealmCandidateLayout(input, false);
+  const failures = ordinary.privateMetrics.eligibilityFailureCodes;
+  // Never reroll an eligible world or repair unrelated rejected geography.
+  // Ownership swaps cannot create a missing physical strait. Try exactly one
+  // geological layout with the same root, ordinal and random namespace when
+  // Stonewake is the only failed regional signature. The codes alone do not
+  // diagnose the physical cause; rebuild all authority and recheck every proof.
+  const missingOnlyStonewakeSignature = failures.length === 2
+    && failures.includes('REGIONAL_HYDROGEOMORPHOLOGY_QA')
+    && failures.includes('REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE');
+  if (!missingOnlyStonewakeSignature) return ordinary;
+  retireGreaterRealmCandidateBuffers(ordinary);
+  return generateGreaterRealmCandidateLayout(input, true);
+}
+
+function generateGreaterRealmCandidateLayout(
+  input: GreaterRealmCandidateGenerationInput,
+  centeredIslandRifts: boolean,
+): GreaterRealmPrivateCandidate {
   const seedMaterial = deriveGreaterRealmCandidateSeedMaterial(
     input.rootSeed,
     input.candidateOrdinal,
@@ -12014,7 +12040,7 @@ export function generateGreaterRealmCandidate(input: Readonly<{
         domainMaterials.clear();
       }
     })();
-    const geology = macroGeology(canvas, candidateSeed, domains);
+    const geology = macroGeology(canvas, candidateSeed, domains, centeredIslandRifts);
     const thermalTalus = geology.resistance.map(value => 700 + Math.floor(value / 8));
     const thermallyShaped = (() => {
       try {

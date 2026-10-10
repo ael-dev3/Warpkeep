@@ -585,7 +585,7 @@ describe('Greater Realm owner-only candidate package', () => {
     let derivedSeed: Buffer | undefined;
     try {
       expect(GREATER_REALM_GENERATOR_VERSION)
-        .toBe('greater-realm-v2-natural-continent-pr-a.52');
+        .toBe('greater-realm-v2-natural-continent-pr-a.53');
       expect(GREATER_REALM_TERRAIN_SEED_NAMESPACE)
         .toBe('greater-realm-v2-natural-continent-pr-a.3');
       expect(GREATER_REALM_GENERATOR_VERSION).not.toBe(
@@ -2374,7 +2374,8 @@ describe('Greater Realm owner-only candidate package', () => {
     expect(exposedSeed.every(value => value === 0)).toBe(true);
   });
 
-  it('zeroes every private authority buffer when coordinate-index cleanup fails', () => {
+  it.each(['index', 'geometry'] as const)(
+    'zeroes every private authority buffer when %s cleanup fails', (failure) => {
     const advanced = {
       tectonicUplift: Int32Array.of(1),
       rockResistance: Int32Array.of(2),
@@ -2409,7 +2410,9 @@ describe('Greater Realm owner-only candidate package', () => {
     const u8 = () => Uint8Array.of(1);
     const i32 = () => Int32Array.of(1);
     const gatePaths = [[1, 2], [3, 4], [5, 6], [7, 8]];
+    let indexClearCalls = 0;
     const barrierCrossSectionCells = [1, 2, 3, 4];
+    if (failure === 'geometry') Object.freeze(gatePaths[0]);
     const seedMaterialKey = ['seed', 'Material'].join('') as 'seedMaterial';
     const dummy = {
       [seedMaterialKey]: Buffer.alloc(32, 1),
@@ -2426,7 +2429,10 @@ describe('Greater Realm owner-only candidate package', () => {
         r: i32(),
         neighbors: i32(),
         clearIndex() {
-          throw new Error('CONTROLLED_PRIVATE_INDEX_CLEAR_FAILURE');
+          indexClearCalls += 1;
+          if (failure === 'index') {
+            throw new Error('CONTROLLED_PRIVATE_INDEX_CLEAR_FAILURE');
+          }
         },
       },
       bedrockElevation: i32(),
@@ -2470,13 +2476,16 @@ describe('Greater Realm owner-only candidate package', () => {
     } as unknown as GreaterRealmPrivateCandidate;
 
     expect(() => clearGreaterRealmPrivateCandidateBuffers(dummy)).toThrow(
-      'CONTROLLED_PRIVATE_INDEX_CLEAR_FAILURE',
+      failure === 'index' ? 'CONTROLLED_PRIVATE_INDEX_CLEAR_FAILURE' : TypeError,
     );
+    expect(indexClearCalls).toBe(1);
 
     expect(dummy.seedMaterial.every(value => value === 0)).toBe(true);
     expect(dummy.candidateSeed.every(value => value === 0)).toBe(true);
-    expect(gatePaths.every(path => path.every(value => value === 0))).toBe(true);
-    expect(barrierCrossSectionCells.every(value => value === 0)).toBe(true);
+    if (failure === 'index') {
+      expect(gatePaths.every(path => path.every(value => value === 0))).toBe(true);
+      expect(barrierCrossSectionCells.every(value => value === 0)).toBe(true);
+    }
     expect(dummy.geologicalBarrierBand.every(value => value === 0)).toBe(true);
     expect(dummy.waterBodyId.every(value => value === 0)).toBe(true);
     expect(dummy.waterDepthClass.every(value => value === 0)).toBe(true);

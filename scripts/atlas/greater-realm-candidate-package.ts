@@ -3,6 +3,8 @@ import { lstatSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, relative, resolve, sep } from 'node:path';
 
+import { retireGreaterRealmCandidateBuffers } from './greater-realm-candidate-buffer-cleanup';
+
 import {
   GREATER_REALM_ATLAS_ID,
 } from './greater-realm-contracts';
@@ -12,7 +14,6 @@ import {
   GREATER_REALM_PRIVATE_PACKAGE_MAGIC,
   GREATER_REALM_REGION_SPECS,
   GREATER_REALM_TERRAIN_SEED_NAMESPACE,
-  clearGreaterRealmCandidateSecret,
   deriveGreaterRealmCandidateSeedMaterial,
   generateGreaterRealmCandidate,
   type GreaterRealmPrivateCandidate,
@@ -2588,38 +2589,7 @@ function expectedThroneAnchorManifest(candidate: GreaterRealmPrivateCandidate) {
 export function clearGreaterRealmPrivateCandidateBuffers(
   candidate: GreaterRealmPrivateCandidate,
 ): void {
-  clearGreaterRealmCandidateSecret(candidate);
-  for (const gate of candidate.gates) {
-    for (const path of [
-      gate.firstApproachPath,
-      gate.firstAlternateApproachPath,
-      gate.secondApproachPath,
-      gate.secondAlternateApproachPath,
-    ]) {
-      (path as number[]).fill(0);
-    }
-  }
-  for (const crossSection of candidate.barrierCrossSections) {
-    (crossSection.cells as number[]).fill(0);
-  }
-  try {
-    candidate.grid.clearIndex?.();
-  } finally {
-    // The lookup is an optional best-effort hook and may fail independently.
-    // Never let that prevent canonical private atlas bytes from being erased.
-    new Uint8Array(
-      candidate.grid.neighbors.buffer,
-      candidate.grid.neighbors.byteOffset,
-      candidate.grid.neighbors.byteLength,
-    ).fill(0);
-    for (const field of privateFields(candidate)) {
-      new Uint8Array(
-        field.array.buffer,
-        field.array.byteOffset,
-        field.array.byteLength,
-      ).fill(0);
-    }
-  }
+  retireGreaterRealmCandidateBuffers(candidate);
 }
 
 function assertPrivateCandidateInventory(

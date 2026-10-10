@@ -1,3 +1,70 @@
+Current release checkpoint - 10 October 2026, bounded .53 Stonewake repair; qualification pending
+
+This signed source checkpoint follows .52 commit
+7723386703c928f450b9bc79d2dd4c6717d4f327. It is development source, not a
+selected atlas or a completed release. Preserve the installed PTR backend,
+Alpha, G001 access/progress and admission freeze, G002 seal, licensing and rollback.
+No provider write or GitHub Actions execution has been performed for this repair.
+
+Replacement41 closed with exit1 at 19:28:48.225 UTC after all 256 attempts:
+206 geography rejections and 50 proof rejections. The original launcher,
+worker group, recorded descendants, supervisor and cutoff are fully closed.
+No interruption, timeout, source hold or toolchain failure caused exhaustion.
+Never resume that exhausted workspace or import its rejected worlds.
+Native credential-free authenticated terminal receipt:
+artifacts/qa/october-release-atlas41-authenticated-terminal-v1.json
+SHA256 fc24c7c5500638107e737571022e6bbfb120feb9390bc125d44074ed13537ed3.
+Failure diagnostics receipt SHA256
+ ae302824a75282e58fd850ccc1e5cc6c990aec9d556e9bfbfe1ffbc6cfc1e9a1.
+
+The exact ordinal102 replay reproduced only regional QA and Stonewake failures.
+Physical island/strait search found no eligible endpoint in its assigned basin.
+Final signatures showed the sole basin satisfying Stonewake also supplied the
+only passing Frostmere signature; distinct regional assignment cannot reuse it.
+Donor budgets, locks, search truncation and missing caller invocation were ruled
+out. A centered-rift diagnostic rebuilt geological authority and passed every
+hard gate; the existing water-only repair then completed the actual strait.
+It remains diagnostic evidence, with no selection, preparation or import authority.
+
+A broad centered-rift source draft regressed six checks in the unchanged public
+and ordinary-world suites, including the gate graph. It was reverted. Mixed and
+single-center drafts also failed existing natural topology/regional proofs and
+were discarded. No fixture root, ordinal, digest or proof was weakened to admit
+these drafts. The actual .53 correction retains the original layout first.
+Only a world failing exactly regional QA plus Stonewake receives one centered-
+chain geological rebuild, with the same root, ordinal and seed namespace .3.
+Every downstream authority and release proof is recomputed; any new failure still
+rejects it. Eligible worlds and unrelated rejected worlds retain their ordinary
+layout. This is a bounded generator repair, not a second unbounded search.
+
+Candidate retirement is shared between generation and packaging through a
+module with only a type import, avoiding a runtime package/generator cycle.
+Secrets are wiped first; typed authority, grid coordinates and neighbors are
+wiped even if mutable geometry or the coordinate-index cleanup throws. The
+existing cleanup regression also covers an intentionally frozen geometry path.
+
+Explicit final generator/package/test TypeScript, root build-mode types, license
+and file-size checks pass. Independent bounded review found no demonstrated
+production blocker; its error-retirement and diagnostic-wording concerns were
+corrected. Native session82959 runs the full package, generator, rejection and
+ordinary-world suites on the intermediate repair. Do not report their results
+before actual closure. Final cleanup changes still need native focused acceptance,
+and the bounded repair needs an exact diagnostic replay. Windows package tests
+failed before execution because the temporary ancestor was untrusted; use the
+existing native workspace rather than weakening private-path checks.
+
+Next executable order: close and evaluate native qualification; synchronize final
+source and check cleanup/coherence/strait regressions; qualify the exact bounded
+repair replay; freeze/publish qualified source; run one fresh bounded release atlas
+search. Only its authenticated accepted package may proceed through import,
+owner provisioning, actual PTR gameplay/mobile acceptance and cutover/readbacks.
+Farcaster web login was verified again, but the MiniApp still showed secure-sign-in
+timeout with a separate wallet confirmation prompt. Web login is not authenticated
+owner PTR gameplay evidence. Keep the pending human wallet handoff separate from
+atlas work; do not create a persistent wallet session automatically.
+
+Historical checkpoint follows; its source and process handles are historical.
+
 Current release checkpoint - 10 October 2026, qualified .52 capacity-annex repair
 
 Candidate source is the signed commit containing this checkpoint. It replaces
