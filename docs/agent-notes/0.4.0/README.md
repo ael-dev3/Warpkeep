@@ -1,3 +1,53 @@
+Current release checkpoint - 10 October 2026, atlas repair qualification
+
+Published source 9512a86db68b0a4ef6525900fbab0718a6a97079 (generator .47)
+remains the remote checkpoint. Replacement35 was interrupted by a native runner
+reboot; no terminal receipt existed, and its checkpoint was safely aborted.
+Do not describe it as completed or exhausted and do not reuse its workspace.
+
+Replacement36 closed with actual exit 1 at 11:01:00.455 UTC. Maintained terminal
+validation authenticated exhaustion of 256 candidates: 220 geography and 36
+proof rejections. All 36 proof candidates failed regional hydrogeomorphology.
+No candidate was accepted, selected, prepared or imported. Source was preserved,
+the root seed zeroized, and worker/group/supervisor absence verified. The cutoff
+monitor was stopped. Production was untouched. Credential-free exhaustion receipt:
+artifacts/qa/october-release-atlas36-authenticated-exhaustion-v1.json
+SHA256 6140a9b3c8162bc076881a37bc0bdd96755bce1d1918eab0a59fdf4c2a1c1b34.
+
+Bounded public diagnosis demonstrated that strait ownership repair returned after
+the first independently rejected threshold-reaching corridor. It could discard
+an accepted alternative within its existing four-plan budget. The .48 correction
+undoes only rejected swaps and donor consumption, retains earlier partial work,
+and continues bounded enumeration. A fixture preserving cell q=6,r=1 rejects
+the first trial and accepts the second; conservation, final Stonewake proof and
+input authority are checked. Preserving the whole q=6 corridor is not claimed.
+This helper defect is reproducible; it does not prove the cause of replacement36.
+Package version advances to .48; terrain seed namespace remains .3. No acceptance
+threshold, search budget, Lowlands lock, licensing or deployment changes.
+
+Windows repair tests (10), rejection tests (11), build-mode types and explicit
+TypeScript passed. Native Linux passed all 103 affected tests (10 repair, 11
+rejection, 82 package) in 509.84 seconds, including deterministic replay, repaired
+semantic-region roundtrip, tamper rejection and cleanup. License, file-size, diff
+and redacted source-secret checks passed. Independent review found no blocker.
+Complete Actions inventory at 11:11:03 UTC found no active runs and all four
+repositories disabled; publication is pending. Do not rebuild or import until
+the corrected source is published and synchronized as an exact checkpoint.
+Owner Farcaster host login is visible; this is not owner PTR QuickAuth acceptance.
+
+Next ordered work, owned by Codex:
+1. Finish package qualification, review and publish the corrected checkpoint;
+   preserve disabled Actions and synchronize the native checkout exactly.
+2. Generate one fresh bounded source-bound atlas, authenticate its actual closure,
+   and verify/select/prepare only an accepted package. Retire exhausted workspaces.
+3. Bind import adapters to the accepted package and final inspection 45c7403e...
+   with prior 4a78bc2b... and bootstrap ad787790.... Do not reapply backend 6713e152....
+4. Provision the real owner, accept authenticated gather -> choose -> build ->
+   benefit -> return with mobile checks, and preserve Alpha and G001/G002 policy.
+5. Complete frontend/cutover readback with rollback preserved. 0.4 is not shipped.
+
+Historical checkpoint follows; pending statements below are superseded.
+
 Current release checkpoint - 9 October 2026, 14:55 UTC
 
 Published source 4ba9899632e8e90266af6262d76dfe19dcaf1c21 (generator .46)

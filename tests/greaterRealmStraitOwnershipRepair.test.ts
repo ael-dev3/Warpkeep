@@ -72,6 +72,26 @@ describe('balanced physical strait ownership repair', () => {
     expect(result.regionId).toEqual(input.regionId);
     expect(result.status).toBe('unchanged');
   });
+  it('tries another bounded corridor after independent acceptance rejects the first', () => {
+    const input = fixture();
+    const before = input.regionId.slice();
+    let calls = 0;
+    const preservedCell = input.grid.q.findIndex((q, cell) => q === 6 && input.grid.r[cell] === 1);
+    expect(preservedCell).toBeGreaterThanOrEqual(0);
+    const result = repairGreaterRealmStraitOwnership({ ...input, accept: trial => {
+      calls += 1;
+      expect(counts(trial)).toEqual(counts(before));
+      return trial[preservedCell] === before[preservedCell];
+    } });
+    expect(calls).toBeGreaterThan(1);
+    expect(calls).toBeLessThanOrEqual(4);
+    expect(result.status).toBe('repaired');
+    expect(result.narrowStraitCellCount).toBeGreaterThanOrEqual(4);
+    expect(finalStonewake(input, result.regionId).proof).toBe(true);
+    expect(counts(result.regionId)).toEqual(counts(before));
+    expect(input.regionId).toEqual(before);
+    expect(result.regionId[preservedCell]).toBe(before[preservedCell]);
+  });
   it('zeroizes a rejected trial even when acceptance throws', () => {
     const input = fixture();
     let retainedTrial: Uint8Array | undefined;

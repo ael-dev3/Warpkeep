@@ -172,7 +172,13 @@ export function repairGreaterRealmStraitOwnership(input: StraitOwnershipRepairIn
       const straits = measure();
       if (straits >= GREATER_REALM_REGIONAL_HYDROGEOMORPHOLOGY_POLICY.stonewakeMinimumNarrowIslandStraitCells) {
         if (!input.accept || input.accept(trial)) return result('repaired', transferred, straits);
-        return result('unchanged', 0, baseline);
+        // A rejected corridor does not disqualify the remaining bounded plans.
+        for (const [cell, donor] of swaps) {
+          trial[cell] = trial[donor]!;
+          trial[donor] = targetRegion;
+        }
+        usedDonors -= swaps.length;
+        transferred -= swaps.length;
       }
     }
     return result('unchanged', 0, baseline);
