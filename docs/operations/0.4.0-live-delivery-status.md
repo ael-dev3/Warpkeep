@@ -1,6 +1,7 @@
-Current release checkpoint - 10 October 2026, bounded .53 Stonewake repair; qualification pending
+Current release checkpoint - 10 October 2026, qualified bounded .53 Stonewake repair
 
-This signed source checkpoint follows .52 commit
+Qualified implementation: f811be86282307439d721c91c3fe08351ab20bd1.
+This signed evidence checkpoint follows .52 commit
 7723386703c928f450b9bc79d2dd4c6717d4f327. It is development source, not a
 selected atlas or a completed release. Preserve the installed PTR backend,
 Alpha, G001 access/progress and admission freeze, G002 seal, licensing and rollback.
@@ -43,20 +44,31 @@ Secrets are wiped first; typed authority, grid coordinates and neighbors are
 wiped even if mutable geometry or the coordinate-index cleanup throws. The
 existing cleanup regression also covers an intentionally frozen geometry path.
 
-Explicit final generator/package/test TypeScript, root build-mode types, license
-and file-size checks pass. Independent bounded review found no demonstrated
-production blocker; its error-retirement and diagnostic-wording concerns were
-corrected. Native session82959 runs the full package, generator, rejection and
-ordinary-world suites on the intermediate repair. Do not report their results
-before actual closure. Final cleanup changes still need native focused acceptance,
-and the bounded repair needs an exact diagnostic replay. Windows package tests
-failed before execution because the temporary ancestor was untrusted; use the
-existing native workspace rather than weakening private-path checks.
+Explicit final generator/package/test TypeScript on Windows and native Linux,
+root build-mode types, license, file-size, scoped redacted secret scan and diff
+checks pass. Bounded independent review found no demonstrated production blocker;
+its retirement-error and diagnostic-wording concerns were corrected.
+Native session82959 closed exit0: 115 passes (82 package, 21 generator, 11 rejection,
+1 ordinary yield). The original public root, ordinal and final digest remain
+unchanged. Final f811be86 source then passed both index/geometry cleanup cases in
+session70148 and all 22 coherence/strait tests in session9261, each closed exit0.
+This covers 138 distinct tests across six files, reusing the unaffected passing
+package/generator evidence rather than repeating their expensive integrity replays.
+Windows package tests failed before execution because the temporary ancestor was
+untrusted; native acceptance passed without weakening private-path checks.
 
-Next executable order: close and evaluate native qualification; synchronize final
-source and check cleanup/coherence/strait regressions; qualify the exact bounded
-repair replay; freeze/publish qualified source; run one fresh bounded release atlas
-search. Only its authenticated accepted package may proceed through import,
+Session53764 closed exit0 on the exact ordinal102 diagnostic. The bounded .53
+implementation preserved the ordinary rejection first, retired it, then rebuilt
+once and passed every hard gate with all regional signatures passing. No release
+selection, preparation or import. Native credential-free diagnostic receipt:
+artifacts/qa/october-release-atlas41-ordinal102-bounded-rift-counterfactual-v1.json
+SHA256 3c1ee2ff2449e82fbee3d191a7dd958a75b572f8cce4969d20ef4b60035f04e6.
+Its private checkpoint remains bound to original .52 source; the hash-held ignored
+.53 diagnostic module mirrors the reviewed production repair. This receipt is
+qualification evidence, never a deployable accepted package.
+
+Next executable order: synchronize and freeze this qualified published source;
+run one fresh bounded release atlas search. Only its authenticated accepted package may proceed through import,
 owner provisioning, actual PTR gameplay/mobile acceptance and cutover/readbacks.
 Farcaster web login was verified again, but the MiniApp still showed secure-sign-in
 timeout with a separate wallet confirmation prompt. Web login is not authenticated
