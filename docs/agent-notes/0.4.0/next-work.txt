@@ -1,3 +1,66 @@
+Current release checkpoint - 10 October 2026, authenticated replacement40 exhaustion
+
+Reviewed .51 source ad7e7233916cd89574270cd5d20b7835deacd205
+(tree abbc72eb8c77706f1811514e4ace9f48425eb43a) was published and synchronized
+before replacement40. Original session22137 started 16:23:35.635 UTC and closed
+exit 1 at 17:26:08.762 UTC. Maintained validation authenticated all 256 rejections:
+208 geography, 48 proof. No timeout, interruption, source/toolchain or monitoring
+failure. Full worker/group/supervisor absence and root-seed zeroization verified.
+Cutoff session26340 stopped after authenticated closure; native helper absence
+verified. Never reuse exhausted replacement40. No accepted atlas, selection,
+runtime preparation, import or provider write. Credential-free terminal receipt:
+artifacts/qa/october-release-atlas40-authenticated-terminal-v1.json
+SHA256 827944d91ff92376879fdd6d764d83c657c376d11303a7d4ee0b4ae7baedda57.
+
+A source-bound replay of the sole regionally eligible rejection, ordinal230,
+reproduced missing Sunscar -> Ironveil (region2 -> region7) gates: that arm
+has no gate while the other
+eight retain two each. Natural boundary, geomorphology, hydrology and geological
+barrier proofs pass. Remaining failures concern gate access/graph, regional land
+coherence/passability, castle capacity/suitability and Throneheart being smallest.
+The .51 enumeration correction remains qualified; it has not produced an accepted
+release world. Do not lower proofs or launch the same-source search again.
+
+A hash-pinned aggregate-only instrumented copy matched the direct replay's final
+diagnostics exactly. Stonewake (region4) already has only 2,891 traversable cells and a
+29.68% dominant land component immediately after natural region coherence repair;
+Throneheart then has 7,047 traversable cells. Before the late strait repair those
+counts are 2,727 and 6,561, with region4's dominant share 31.46%. The strait repair
+returns unchanged, and the pre-sites counts remain identical. Region6 also loses
+its earlier capacity margin after sealing. Trace initial allocation and the
+reachable donor/capacity decisions in natural coherence repair before claiming
+an implementation defect. The measured world remains unusable under existing
+rules. No seed, coordinates, identity or private Realm payload was disclosed.
+Replay sessions23478,85870 and16690 closed exit 0; explicit diagnostic types pass.
+The first eligible-helper preparation exposed a TypeScript union-narrowing error
+in ignored QA code; it was corrected and typechecked. It did not affect the game
+or the authenticated terminal result. Instrumented stage receipt:
+artifacts/qa/october-release-atlas40-ordinal230-stages-v1.jsonl
+SHA256 5ecea7fcf4286d2ea39ce5e47dd706aa6987c700c8136ac8be5b1be249f6233d.
+
+Owner web acceptance advanced: the saved Farcaster session restored on deployed
+frontend BUILD 9EA4821 at https://warpkeep.com/ptr/. The preserved Alpha realm
+rendered the owner's existing keep, showed verified keeper identity, and retained
+that identity on returning to the menu. The directory reports G001 admitted,
+G002 sealed and PTR access unknown. No resource command was performed. This is
+Alpha/web-session evidence, not authenticated PTR gameplay acceptance; PTR uses
+Mini App QuickAuth, whose separate browser-wallet confirmation is still pending.
+Credential-free local observation SHA256:
+e40f8bccaa9d439de7fd62598d746982bd04732a44a0fd08f5589242c98a4b0c.
+
+Next ordered work, owned by Codex:
+1. Diagnose the earlier land allocation/coherence and missing gate route using
+   the actual callers, then reproduce demonstrated defects in public fixtures.
+   Qualify and publish a coherent correction before another bounded atlas build.
+2. Verify/select/prepare only an actually accepted atlas. Replacement40 adapters
+   were prepared and typechecked, never invoked; exhausted work is not acceptance.
+3. Bind import to the accepted source and the existing installed-backend readbacks;
+   do not reapply backend6713e152.... Provision only the actual isolated PTR owner.
+4. Accept gather -> choose -> build -> benefit -> return, mobile comfort and
+   performance through real owner authority, then finish frontend/cutover/rollback.
+Preserve Alpha, G001 progress/admission freeze, sealed G002 and licensing.
+0.4 remains unshipped. Historical checkpoint follows.
+
 Current release checkpoint - 10 October 2026, canonical gate approach options (.51)
 
 The .51 generator correction is locally qualified for publication. The real
