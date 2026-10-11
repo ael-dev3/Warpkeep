@@ -1,3 +1,31 @@
+Atlas .53 prepare-update host readback - 11 October 2026
+
+Published bounded snapshot checkpoint dad826aa075e508ef3c3c8168b26f6ecce523d83,
+tree 6d75d07115a2a061316da42d3b45cc08c80a17af; remote equality and GitHub signature
+verified. Linux 166 affected tests passed; Windows build-mode types, licensing
+and file-size checks passed. Independent pagination review found no blocker.
+
+Actual prepare-update terminated before provider writes with
+PTR_INITIAL_OWNER_UPDATE_HOST_UNSUPPORTED. Source/publication held and managed
+cleanup completed. Terminal summary digest:
+ee13a1a2e66c968e373913d11fd3ce3a1966f9f62e0db2913d8350d6165f3c85.
+Fresh Maincloud health reported spacetimedb-cloud 2.11.1, worker, schedulable,
+git_commit 843bc61. The operator previously recognized 2.10.2/2.11.0 only.
+The narrow correction recognizes this exact observed patch; unknown 2.11.2
+and wrong packages still reject before inspection/plan/marker. Exact V9/V10,
+additive migration plan, source-built artifact and complete preservation proofs
+remain mandatory before apply. Public upstream release/commit lookups returned
+404/422, so no public patch changelog compatibility is claimed. Actual protocol
+compatibility must be established by preparation; health is not replica attestation.
+
+The QA ingress first refused changed Windows powershell.exe/wsl.exe hashes.
+Both actual files had valid Microsoft Windows Authenticode signatures; a new
+ignored OS-refresh ingress pins their exact hashes and preserves all other
+retained tool/child hashes. The original caller remains unchanged. This was
+before credential ingress or native launch; do not weaken hash checks.
+Next: publish the narrow host correction and repeat read-only prepare-update
+using a distinct output stem; no submission occurred to replay.
+
 Atlas .53 bounded preservation snapshots - 11 October 2026
 
 The corrected backend authority passed all 55,102 remaining installed cells in

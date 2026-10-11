@@ -150,7 +150,7 @@ function fixture() {
 
 // Production execution is Linux UID1000; other platforms may still exercise the pure core, not impersonate this host.
 describe.runIf(process.platform === 'linux' && process.arch === 'x64' && process.getuid?.() === 1000)('real initial update operator wiring (mocked provider boundaries)', () => {
-  it.each(['2.10.2', '2.11.0'])('prepares on reviewed host %s from captured signed source and never submits', async version => {
+  it.each(['2.10.2', '2.11.0', '2.11.1'])('prepares on reviewed host %s from captured signed source and never submits', async version => {
     const f = fixture();
     mocks.request.mockImplementationOnce(async () => ({ bytes: encoded({ version, package_name: 'spacetimedb-cloud' }) }));
     const prepared = await f.run('prepare-update');
@@ -166,7 +166,8 @@ describe.runIf(process.platform === 'linux' && process.arch === 'x64' && process
   it.each([
     { version: '2.10.0', package_name: 'spacetimedb-cloud' },
     { version: '2.10.3', package_name: 'spacetimedb-cloud' },
-    { version: '2.11.1', package_name: 'spacetimedb-cloud' },
+    { version: '2.11.2', package_name: 'spacetimedb-cloud' },
+    { version: '2.11.1', package_name: 'different-server' },
     { version: '2.11.0', package_name: 'different-server' },
     { version: '2.10.2', package_name: 'different-server' },
   ])('rejects unsupported host health %j before schema, plan or marker', async health => {
