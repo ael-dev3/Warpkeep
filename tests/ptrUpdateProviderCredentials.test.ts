@@ -182,6 +182,33 @@ function providerSuite<Capability extends object>(
       expect(mocks.spawn).not.toHaveBeenCalled(); expect(f.fetch).not.toHaveBeenCalled();
     });
     if (lane === 'ptr') {
+      it('uses fixed globally unique ordinal inventories and aligned bounded pages including the u32 tail', async () => {
+        const f = fixture(), cap = f.create(); const bodies: string[] = [];
+        f.fetch.mockImplementation(async (url: string, options?: RequestInit) => {
+          bodies.push(Buffer.from(options!.body as Uint8Array).toString());
+          const response = new Response('{}'); Object.defineProperty(response, 'url', { value: url }); return response;
+        });
+        for (const [table, policy] of Object.entries(providers.PTR_INSPECTION_PAGING)) {
+          expect(Object.isFrozen(policy)).toBe(true);
+          await providers.requestPtrInspectionProvider(cap as never, { operation: `ordinals:${table}` as providers.PtrInspectionProviderOperation });
+          await providers.requestPtrInspectionProvider(cap as never, { operation: `page:${table}:0` as providers.PtrInspectionProviderOperation });
+          const tail = 0xffffffff - 0xffffffff % policy.width;
+          await providers.requestPtrInspectionProvider(cap as never, { operation: `page:${table}:${tail}` as providers.PtrInspectionProviderOperation });
+          expect(bodies.splice(0)).toEqual([`SELECT ${policy.column} FROM ${table}`,
+            `SELECT * FROM ${table} WHERE ${policy.column} >= 0 AND ${policy.column} <= ${policy.width - 1}`,
+            `SELECT * FROM ${table} WHERE ${policy.column} >= ${tail} AND ${policy.column} <= 4294967295`]);
+        }
+        expect(Object.isFrozen(providers.PTR_INSPECTION_PAGING)).toBe(true);
+      });
+      it.each(['page:greater_realm_chunk_v1:1', 'page:greater_realm_cell_v1:16',
+        'page:greater_realm_chunk_v1:00', 'page:greater_realm_chunk_v1:-16',
+        'page:greater_realm_chunk_v1:4294967296', 'page:greater_realm_cell_v1:512;DELETE FROM castle',
+        'page:castle:0', 'ordinals:castle', 'page:greater_realm_cell_v1:5e2',
+        'page:greater_realm_cell_v1:512\n'])('rejects malformed or expanded page authority %s before CLI extraction', async operation => {
+        const f = fixture(), cap = f.create();
+        await expect(providers.requestPtrInspectionProvider(cap as never, { operation } as never)).rejects.toThrow(ERROR);
+        expect(mocks.spawn).not.toHaveBeenCalled(); expect(f.fetch).not.toHaveBeenCalled();
+      });
       it('performs only fixed program/table SELECTs and version-9 schema reads using existing credentials', async () => {
         const f = fixture(), cap = f.create(); const captures: { url: string; method: string; body?: string; contentType?: string }[] = [];
         f.fetch.mockImplementation(async (url: string, options?: RequestInit) => {

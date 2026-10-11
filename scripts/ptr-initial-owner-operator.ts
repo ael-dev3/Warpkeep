@@ -10,14 +10,16 @@ import { assertProductionAdminTrustedAncestors } from './production-admin-token-
 import { takePtrProductionAdminSecret } from './ptr-production-admin-token';
 import { verifyAuthBridgeRpcRoleAttestation, type AuthBridgeRpcRoleAttestation } from './auth-bridge-config-attestation.mjs';
 import { createPtrInspectionProviderCredentials, disposePtrUpdateProviderCredentials, requestPtrInspectionProvider,
-  PTR_INSPECTION_TABLES, type PtrInspectionProviderOperation } from './ptr-update-provider-credentials.mjs';
+  PTR_INSPECTION_TABLES, PTR_INSPECTION_PAGING, type PtrInspectionProviderOperation } from './ptr-update-provider-credentials.mjs';
 import { parseExistingUpdateJson, parseExistingUpdateSchema, parseExistingUpdateSql, parseExistingUpdateProgram,
   updateCanonical, updateDigest } from './sealed-realms-existing-update-protocol.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const TARGET = 'c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e';
 const HEX40 = /^[a-f0-9]{40}$/u, HEX64 = /^[a-f0-9]{64}$/u;
-const MAX_TOTAL = 256 * 1024 * 1024;
+// Two complete installed snapshots currently contain about 336 MiB. Individual
+// responses remain limited to 32 MiB; paging does not relax that boundary.
+const MAX_TOTAL = 512 * 1024 * 1024;
 const sha = (value: Uint8Array | string) => createHash('sha256').update(value).digest('hex');
 export class PtrInitialOwnerInspectError extends Error {
   constructor(readonly code: string) { super(code); this.name = 'PtrInitialOwnerInspectError'; }
@@ -144,6 +146,45 @@ export async function inspectPtrInitialOwnerState(dependencies: PtrInitialOwnerR
       dependencies.assertSource(); return parser(bytes);
     } finally { bytes.fill(0); }
   };
+  const paged = async (name: keyof typeof PTR_INSPECTION_PAGING, expectedSchema: unknown,
+    expandedSchema: unknown) => {
+    const policy = PTR_INSPECTION_PAGING[name];
+    const inventory = async () => {
+      const value = await parsed(`ordinals:${name}`, parseExistingUpdateSql);
+      if (updateCanonical(value.schema) !== updateCanonical({ elements: [
+        { name: { some: policy.column }, algebraic_type: { U32: [] } },
+      ] })) fail('ORDINAL_SCHEMA_DIFFERENT');
+      const ordinals = value.rows.map(row => {
+        if (!Array.isArray(row) || row.length !== 1) fail('ORDINAL_ROW_INVALID');
+        return Number(uint(row[0], 0xffff_ffffn));
+      }).sort((a, b) => a - b);
+      if (new Set(ordinals).size !== ordinals.length) fail('ORDINAL_DUPLICATE');
+      return ordinals;
+    };
+    const before = await inventory();
+    const starts = [...new Set(before.map(value => Math.floor(value / policy.width) * policy.width))];
+    if (starts.length > 4096) fail('PAGE_COUNT_BOUND');
+    const expected = new Set(before), observed = new Set<number>(), canonicalRows: string[] = [];
+    let resultSchema: unknown = expectedSchema;
+    for (const start of starts) {
+      const value = await parsed(`page:${name}:${start}`, parseExistingUpdateSql);
+      if (updateCanonical(value.schema) !== updateCanonical(expectedSchema)
+        && updateCanonical(value.schema) !== updateCanonical(expandedSchema)) fail('ROW_SCHEMA_DIFFERENT');
+      if (canonicalRows.length && updateCanonical(resultSchema) !== updateCanonical(value.schema)) fail('PAGE_SCHEMA_CHANGED');
+      resultSchema = value.schema;
+      if (value.count > policy.width) fail('PAGE_ROW_BOUND');
+      for (const row of value.rows) {
+        const ordinal = Number(uint(rowObject(value, row)[policy.column], 0xffff_ffffn));
+        if (ordinal < start || ordinal >= start + policy.width || !expected.has(ordinal)
+          || observed.has(ordinal)) fail('PAGE_COVERAGE_INVALID');
+        observed.add(ordinal); canonicalRows.push(updateCanonical(row));
+      }
+    }
+    if (observed.size !== expected.size || updateCanonical(before) !== updateCanonical(await inventory()))
+      fail('PAGE_INVENTORY_CHANGED');
+    // Identical to parseExistingUpdateSql: complete canonical rows, sorted before hashing.
+    return { schema: resultSchema, rows: [], count: observed.size, rowsDigest: updateDigest(canonicalRows.sort()) };
+  };
   const snapshot = async () => {
     const program = await parsed('program', parseExistingUpdateProgram);
     const schema = await parsed('schema-v9', bytes => {
@@ -169,7 +210,9 @@ export async function inspectPtrInitialOwnerState(dependencies: PtrInitialOwnerR
     });
     const tables = []; let owner, atlas;
     for (const name of schema.policy.names) {
-      const value = await parsed(`rows:${name}` as PtrInspectionProviderOperation, parseExistingUpdateSql);
+      const value = Object.hasOwn(PTR_INSPECTION_PAGING, name)
+        ? await paged(name as keyof typeof PTR_INSPECTION_PAGING, schema.rowSchemas[name], schema.expandedRowSchemas[name])
+        : await parsed(`rows:${name}` as PtrInspectionProviderOperation, parseExistingUpdateSql);
       if (updateCanonical(value.schema) !== updateCanonical(schema.rowSchemas[name])
         && updateCanonical(value.schema) !== updateCanonical(schema.expandedRowSchemas[name])) fail('ROW_SCHEMA_DIFFERENT');
       // Never persist raw table rows. Compare complete count/digest and actual result schema.

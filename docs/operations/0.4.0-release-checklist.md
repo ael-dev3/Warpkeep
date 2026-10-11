@@ -1,3 +1,27 @@
+Atlas .53 bounded preservation snapshots - 11 October 2026
+
+The corrected backend authority passed all 55,102 remaining installed cells in
+read-only local verification. No atlas rebuild is indicated; this is not live
+verification, readiness or a completion receipt. Live cursor remains 53,760.
+Complete provider responses measured 130,213,429 bytes for chunks and 37,518,802
+bytes for cells. Both exceed the maintained 32 MiB single-response bound.
+
+PTR inspection now inventories every globally unique u32 ordinal before and
+after fixed pages (16 chunks / 512 cells), requires exact row/key coverage,
+rejects duplicate/out-of-range/missing rows and schema drift, and hashes all
+canonical rows in the original sorted digest format. Sparse keys and the u32
+endpoint are covered. Individual parser/network bounds remain unchanged; the
+PTR-only total bound is 512 MiB for two complete snapshots (~336 MiB currently).
+G002 and arbitrary SQL/destination restrictions remain unchanged. These are
+sequential observations, not an atomic database snapshot; source/program and
+bridge bracketing and repeated complete state comparisons remain required.
+
+Next: publish this checkpoint, run actual preservation-aware prepare-update,
+apply the exact reviewed backend once, then qualify a verification-only
+continuation retaining all five immutable terrain submissions. Do not replay
+the marked terrain v2, import again, claim readiness, or substitute local tests
+for the authenticated owner journey. Existing Alpha and rollback remain required.
+
 Atlas .53 verification blocker and narrow Lowlands correction - 11 October 2026
 
 Actual d12a695695c2f3c1e22db2d6f0e7455b5f9968f9 terrain v2 continuation ran

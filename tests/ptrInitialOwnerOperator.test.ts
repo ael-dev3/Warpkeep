@@ -161,6 +161,53 @@ describe('initial owner fixed read-only observation', () => {
 });
 
 
+describe('complete bounded PTR table snapshots', () => {
+  function pages(mode = 'valid') {
+    const f = fixture();
+    const rowSchema = { elements: [element('import_ordinal', 'U32'), element('payload', 'String')] };
+    f.state.schema.tables[2]!.name = 'greater_realm_chunk_v1';
+    f.state.schema.typespace.types[2] = { Product: rowSchema };
+    const rows = [[0, 'first'], [15, 'edge'], [32, 'gap'], [4294967295, 'last']];
+    const original = f.request.getMockImplementation()!;
+    let inventories = 0;
+    f.request.mockImplementation(async operation => {
+      let body: Buffer;
+      if (operation === 'ordinals:greater_realm_chunk_v1') {
+        inventories++;
+        const keys = rows.map(row => [row[0]]);
+        if (mode === 'drift' && inventories === 2) keys.pop();
+        if (mode === 'duplicate-inventory') keys.push([0]);
+        body = sql({ elements: [element('import_ordinal', 'U32')] }, keys.reverse());
+      } else if (operation.startsWith('page:greater_realm_chunk_v1:')) {
+        const start = Number(operation.split(':')[2]);
+        let selected = rows.filter(row => Number(row[0]) >= start && Number(row[0]) < start + 16);
+        if (mode === 'missing' && start === 32) selected = [];
+        if (mode === 'duplicate' && start === 0) selected.push(selected[0]!);
+        if (mode === 'outside' && start === 32) selected = [[33, 'unlisted']];
+        body = sql(mode === 'schema' ? CASTLE : rowSchema, selected);
+      } else return original(operation);
+      f.buffers.push(body); return body;
+    });
+    return { ...f, rows, rowSchema };
+  }
+  it('preserves the complete single-response digest across sparse pages and the u32 endpoint', async () => {
+    const f = pages();
+    const result = await inspectPtrInitialOwnerState(f.dependencies);
+    const expected = parseExistingUpdateSql(sql(f.rowSchema, f.rows));
+    expect(result.after.tables.find(table => table.name === 'greater_realm_chunk_v1'))
+      .toMatchObject({ count: expected.count, rowsDigest: expected.rowsDigest });
+    expect(result.preservation.installedStateObservedEqual).toBe(true);
+    expect(f.request.mock.calls.some(([operation]) => operation === 'rows:greater_realm_chunk_v1')).toBe(false);
+    expect(f.buffers.every(buffer => buffer.every(byte => byte === 0))).toBe(true);
+  });
+  it.each(['missing', 'duplicate', 'outside', 'schema', 'drift', 'duplicate-inventory'])
+    ('refuses incomplete or inconsistent evidence: %s', async mode => {
+      const f = pages(mode);
+      await expect(inspectPtrInitialOwnerState(f.dependencies)).rejects.toThrow();
+      expect(f.buffers.every(buffer => buffer.every(byte => byte === 0))).toBe(true);
+    });
+});
+
 describe('local source binding without invented main/full-native authority', () => {
   const source = { sourceCommit: SOURCE, sourceTree: '8'.repeat(40), signerFingerprint: `SHA256:${'A'.repeat(43)}`,
     signerIdentity: 'synthetic-signer@example.invalid' };

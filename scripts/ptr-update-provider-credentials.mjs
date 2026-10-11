@@ -7,7 +7,7 @@ import { attestPinnedSpacetimeCli } from './spacetime-cli-attestation.mjs';
 
 // Each fixed facade owns an independent capability registry and target.
 // Neither policy nor destination is accepted from callers.
-function createFixedUpdateProvider(target, errorCode, readQueries = Object.freeze({})) {
+function createFixedUpdateProvider(target, errorCode, readQueries = Object.freeze({}), resolvePageQuery = () => undefined) {
   const states = new WeakMap();
   const fail = () => { throw Object.assign(new Error(errorCode), { code: errorCode }); };
   const hash = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -120,7 +120,9 @@ function createFixedUpdateProvider(target, errorCode, readQueries = Object.freez
       // Capture data descriptors before touching any caller-selected property.
       const { operation } = data(input, ['operation'], false);
       const options = data(input, operation === 'apply' ? ['operation', 'migrationToken', 'beforeSend'] : ['operation']);
-      const fixedRead = Object.hasOwn(readQueries, operation);
+      const readQuery = typeof operation === 'string' && Object.hasOwn(readQueries, operation)
+        ? readQueries[operation] : resolvePageQuery(operation);
+      const fixedRead = readQuery !== undefined;
       if ((!['metadata', 'schema', 'health', 'plan', 'apply'].includes(operation) && !fixedRead)
         || (state.readOnly && !fixedRead)
         || (operation === 'apply' && (typeof options.migrationToken !== 'string'
@@ -129,7 +131,7 @@ function createFixedUpdateProvider(target, errorCode, readQueries = Object.freez
       ownsBusy = true;
       check(state);
       if (operation === 'plan' || operation === 'apply') body = candidate(state);
-      else if (fixedRead && !['schema-v9', 'schema-v10'].includes(operation)) body = Buffer.from(readQueries[operation]);
+      else if (fixedRead && !['schema-v9', 'schema-v10'].includes(operation)) body = Buffer.from(readQuery);
       credential = extract(state);
       tokenBytes = Buffer.from(credential.token);
       let rejectTimeout;
@@ -185,7 +187,7 @@ function createFixedUpdateProvider(target, errorCode, readQueries = Object.freez
   async function requestRead(capability, input) {
     if (arguments.length !== 2) fail();
     const { operation } = data(input, ['operation']);
-    if (typeof operation !== 'string' || !Object.hasOwn(readQueries, operation)) fail();
+    if (typeof operation !== 'string' || (!Object.hasOwn(readQueries, operation) && resolvePageQuery(operation) === undefined)) fail();
     return requestFixed(capability, input);
   }
   return Object.freeze({ createCredentials, createReadCredentials, requestProvider, requestRead, disposeCredentials });
@@ -225,16 +227,33 @@ export const PTR_INSPECTION_TABLES = Object.freeze([
   'gameplay04_project_v1',
   'gameplay04_schedule_v1',
 ]);
+// Page keys are globally unique unsigned ordinals, independent of atlas identity.
+// The inspector proves full coverage against complete before/after key inventories.
+export const PTR_INSPECTION_PAGING = Object.freeze({
+  greater_realm_chunk_v1: Object.freeze({ column: 'import_ordinal', width: 16 }),
+  greater_realm_cell_v1: Object.freeze({ column: 'release_ordinal', width: 512 }),
+});
+function resolvePtrPageQuery(operation) {
+  if (typeof operation !== 'string') return undefined;
+  const match = /^page:(greater_realm_chunk_v1|greater_realm_cell_v1):(0|[1-9][0-9]{0,9})$/u.exec(operation);
+  if (!match) return undefined;
+  const start = Number(match[2]), policy = PTR_INSPECTION_PAGING[match[1]];
+  if (!Number.isSafeInteger(start) || start > 0xffffffff || start % policy.width !== 0) return undefined;
+  return `SELECT * FROM ${match[1]} WHERE ${policy.column} >= ${start} AND ${policy.column} <= ${Math.min(start + policy.width - 1, 0xffffffff)}`;
+}
 const ptrReadQueries = Object.freeze({
   'schema-v9': '', 'schema-v10': '',
   program: 'SELECT program_hash FROM st_module',
   ...Object.fromEntries(PTR_INSPECTION_TABLES.map(name => [`rows:${name}`, `SELECT * FROM ${name}`])),
+  ...Object.fromEntries(Object.entries(PTR_INSPECTION_PAGING).map(([name, policy]) =>
+    [`ordinals:${name}`, `SELECT ${policy.column} FROM ${name}`])),
 });
 
 const ptr = createFixedUpdateProvider(
   'https://maincloud.spacetimedb.com/v1/database/c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e',
   'PTR_UPDATE_PROVIDER_CREDENTIALS_INVALID',
   ptrReadQueries,
+  resolvePtrPageQuery,
 );
 const g002 = createFixedUpdateProvider(
   'https://maincloud.spacetimedb.com/v1/database/c2003223f6e3c86e988775ddd458c3a45635d0d021e11131551471617c392194',
