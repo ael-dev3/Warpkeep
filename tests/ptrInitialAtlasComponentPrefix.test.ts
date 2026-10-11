@@ -9,9 +9,14 @@ const component = { componentKey: 'component-a', componentOrdinal: 0, regionMask
 const components = [component, { ...component, componentKey: 'component-b', componentOrdinal: 1, rootCellKey: 'cell-b' }];
 function fixture(count = 2) {
   return { atlasId, components, rows: components.slice(0, count).map(row => ptrInitialAtlasComponentPrefixExpectedRow(row, atlasId)),
-    release: { atlas_id: atlasId, component_manifest_json: `${JSON.stringify(components.slice(0, count))}\n`, region_manifest_json: { none: [] } } };
+    // Observed SQL schema orders some(String), none(empty Product); rows encode none as [1, []].
+    release: { atlas_id: atlasId, component_manifest_json: `${JSON.stringify(components.slice(0, count))}\n`, region_manifest_json: [1, []] } };
 }
 describe('retained initialized component prefix', () => {
+  it.each([[0, '[]\n'], [1, ['unexpected']], [1], { none: [] }, null].map(value => [value]))('rejects a noncanonical or present region option: %j', option => {
+    const input = fixture(); (input.release as any).region_manifest_json = option;
+    expect(() => verifyPtrInitialAtlasComponentPrefix(input)).toThrow();
+  });
   it.each([0, 1, 2])('verifies the exact contiguous prefix of %s rows', count => {
     const input = fixture(count);
     expect(verifyPtrInitialAtlasComponentPrefix(input).componentCount).toBe(count);

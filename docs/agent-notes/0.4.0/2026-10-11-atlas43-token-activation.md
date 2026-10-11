@@ -376,3 +376,34 @@ transport tests were rerun in the Linux transport suite). Root build-mode types
 passed on both; license/file-size checks and scoped diff checks passed.
 Independent bounded recovery review found no reproducible blocker. Actual provider
 row acceptance remains the next inspection, not a result inferred from fixtures.
+
+## Recovery inspection v4: actual SQL option representation
+
+Signed component-prefix source 1b16e400088ce91ce2f25d79dd5bd81311d7e957,
+tree efa4221db44c47e418352bd9b95ecb0dfa996e60, ran read-only inspection from
+2026-10-11T05:17:59.912Z to 2026-10-11T05:28:38.117Z. It closed exit 1 with
+PTR_INITIAL_ATLAS_COMPONENT_PREFIX_DIFFERENT. No write, confirmation or completion
+receipt; source/index/refs held, cleanup completed, all owned PIDs absent.
+Summary SHA256 9e5cf3ba9cf2d4ba8bceba5d4384e9fb5f9a44cec06876c667f1d6e76fbae20b.
+
+A source-held diagnostic through the maintained fixed SQL provider compared all
+177 actual component rows against initialized accepted-artifact rows, including
+all mutable fields: zero differing fields. The full canonical component manifest
+also matched. Component response SHA256:
+ef0a822c7452af7fc4083f7b063ea440da61aa46df683ea2f0e070c4126504c7.
+Release response SHA256:
+7c7bc3eada0ad6652f8b7230bcd80f87cc1bfd96e32b56b66a8f15283c064904.
+Response hashes include provider timing, so they identify the read, not a stable
+row digest. No raw table, credential or owner values were retained or printed.
+
+A second fixed read proved region_manifest_json is [1, []]. Its SQL schema is a
+SATS sum ordered some(String), none(empty Product); SQL rows use positional sum
+encoding. The helper incorrectly assumed the named none object representation.
+Response SHA256 0597f5a57687c62f2bf8cc5b67c01286568b341d8e0fddacabd91d1a3a43d3d4.
+The correction compares the exact observed absent variant and rejects present,
+malformed and named-object variants. No status allowance, submission scope,
+backend, atlas or journal behavior changes. Fresh full inspection still precedes
+confirmed continuation and genuine completion; this diagnostic is not acceptance.
+
+The corrected candidate passed 209 affected tests and root build-mode types on
+Windows/Linux. Independent bounded review found no blocker in the option repair.

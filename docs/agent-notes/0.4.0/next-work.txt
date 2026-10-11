@@ -1,4 +1,14 @@
-Current recovery checkpoint - 11 October 2026, retained component-prefix continuation
+Current recovery checkpoint - 11 October 2026, SQL option encoding correction
+
+Published component-prefix checkpoint 1b16e400088ce91ce2f25d79dd5bd81311d7e957,
+tree efa4221db44c47e418352bd9b95ecb0dfa996e60. Inspection v4 ran
+05:17:59.912-05:28:38.117 UTC and safely rejected the SQL optional-value encoding.
+Summary SHA256 9e5cf3ba9cf2d4ba8bceba5d4384e9fb5f9a44cec06876c667f1d6e76fbae20b.
+No write occurred and all owned PIDs are absent. Actual maintained fixed-provider
+reads prove all 177 initialized component rows and the manifest match exactly.
+SQL encodes absent region_manifest_json as [1, []], not a named none object;
+the narrow caller correction uses that observed representation and rejects present
+or malformed variants. No backend, journal or atlas change is needed.
 
 Published token-renewal checkpoint e4f831529a38d0ed5808241997b3621a69afdd51,
 tree 64d273947a9c690cf321e0c66cfd65d1b184468c. Recovery inspection v3 ran

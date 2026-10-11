@@ -31,7 +31,8 @@ export function verifyPtrInitialAtlasComponentPrefix(input: Readonly<{
   const count = input.rows.length;
   if (count > input.components.length || input.release.atlas_id !== input.atlasId
     || input.release.component_manifest_json !== `${JSON.stringify(input.components.slice(0, count))}\n`
-    || updateCanonical(input.release.region_manifest_json) !== updateCanonical({ none: [] })) fail();
+    // SQL's SATS sum representation: variant 1 is none, with an empty product.
+    || updateCanonical(input.release.region_manifest_json) !== updateCanonical([1, []])) fail();
   const ordered = [...input.rows].sort((a, b) => Number(a.component_ordinal) - Number(b.component_ordinal));
   const expected = input.components.slice(0, count).map(component => ptrInitialAtlasComponentPrefixExpectedRow(component, input.atlasId));
   for (let index = 0; index < count; index++) {
