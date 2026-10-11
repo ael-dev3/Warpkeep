@@ -1,3 +1,26 @@
+Pre-marker session timing correction - 11 October 2026
+
+Actual signed 3e5c0fee inspection passed with exact retained prefix: 10 chunks,
+1114 cells, zero passable cells. Inspection summary SHA256
+562e03e617a5696aa9f21ec32704da124beaea3ef70a5cf3462c6d708af491ea.
+The subsequent continuation closed with conservative ambiguous outcome and bounded
+diagnostic PTR_PRODUCTION_TOKEN_REFRESH_REQUIRED. Resume summary SHA256
+8d42fcf69775ed66a1d8253ebd3a8711a974f51c976473ef5cec1eeeee0be83b.
+Reconciliation confirmed unchanged next ordinal 10 and no fourth submission marker;
+all three original markers and their hashes remain intact, with no ACK or receipt.
+This failed before a new durable marker/reducer send. Never replay marked commands.
+
+Complete component/terrain prefix proofs now precede explicit fresh protected
+session acquisition. Fresh SDK status, exact digest/counter comparison, held-source
+checks and unchanged expiry guards precede the durable marker and first reducer.
+Renewal failure or status drift cannot mark or send. No automatic post-marker retry,
+expiry relaxation, journal reset, atlas rebuild or owner acceptance substitution.
+Windows and native Linux: 167 affected tests and root build-mode types passed.
+Independent final review found no blocker. Publish this checkpoint, synchronize
+exact native source, inspect again for a fresh confirmation, then attempt only the
+still-unmarked terrain continuation. Actual completion receipt, authenticated owner
+PTR journey and final cutover remain outstanding. Existing Alpha must remain live.
+
 Actual terrain inspection and SQL field correction - 11 October 2026
 
 The read-only inspect-terrain-recovery on signed source 0939f24d closed exit 1,

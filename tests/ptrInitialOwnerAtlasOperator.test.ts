@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { classifyPtrInitialAtlasFailure, PtrInitialOwnerAtlasError, assertPtrInitialAtlasBootstrapMarker, assertPtrInitialAtlasObservation,
   assertPtrInitialAtlasUpdateContinuation, assertPtrInitialAtlasUpdateReconciliationPair, coordinatePtrInitialAtlasImport, coordinatePtrInitialAtlasRecovery, ptrInitialAtlasRecoveryKey, ptrInitialAtlasRegionRecoveryKey, ptrInitialAtlasTerrainRecoveryKey, ptrInitialAtlasTargets, ptrInitialAtlasConfirmation,
-  ptrInitialAtlasImportMarker, ptrInitialAtlasImportChainVerified } from '../scripts/ptr-initial-owner-atlas-operator';
+  ptrInitialAtlasImportMarker, ptrInitialAtlasImportChainVerified, preparePtrInitialAtlasRecoverySubmission } from '../scripts/ptr-initial-owner-atlas-operator';
 import { createPtrBootstrapInspection, PTR_BOOTSTRAP_TARGET as target, PTR_BOOTSTRAP_PROVIDER_OWNER as owner } from '../scripts/ptr-compatibility-bootstrap-core.mjs';
 import { parsePtrUpdateDefinition } from '../scripts/ptr-update-definition-policy.mjs';
 import { createPtrInitialOwnerUpdateInspection } from '../scripts/ptr-initial-owner-update-core.mjs';
@@ -673,5 +673,33 @@ describe('once-only terrain continuation provenance', () => {
       beforeSend(); return { ...receipt(), importReceiptDigest: '0'.repeat(64) };
     } })).rejects.toThrow('invalid receipt');
     expect([...f.slots.keys()].filter(key => key.startsWith('acknowledgement:'))).toEqual([]);
+  });
+});
+
+
+describe('first recovery send proof and renewal ordering', () => {
+  it('finishes slow proofs before selecting a fresh short-lived session', async () => {
+    const events: string[] = []; let clock = 0, issuedAt = 0;
+    await preparePtrInitialAtlasRecoverySubmission({ assert: () => { events.push('assert'); },
+      inspect: async () => { events.push('inspect'); return 'exact-prefix'; },
+      assertStatus: value => { expect(value).toBe('exact-prefix'); events.push('status'); },
+      verifyPrefix: async () => { events.push('proof'); clock += 90; },
+      prepareFresh: async () => { events.push('fresh'); issuedAt = clock; } });
+    expect(events).toEqual(['assert', 'inspect', 'status', 'assert', 'proof', 'assert', 'fresh', 'assert']);
+    expect(clock - issuedAt).toBe(0);
+  });
+  it('does not admit a fresh submission session when exact prefix proof fails', async () => {
+    const prepareFresh = vi.fn(async () => {});
+    await expect(preparePtrInitialAtlasRecoverySubmission({ assert: () => {}, inspect: async () => ({}), assertStatus: () => {},
+      verifyPrefix: async () => { throw new Error('changed prefix'); }, prepareFresh })).rejects.toThrow('changed prefix');
+    expect(prepareFresh).not.toHaveBeenCalled();
+  });
+  it('rechecks held source after slow proofs and after session renewal', async () => {
+    for (const failureAt of [3, 4]) {
+      let checks = 0; const prepareFresh = vi.fn(async () => {});
+      await expect(preparePtrInitialAtlasRecoverySubmission({ assert: () => { if (++checks === failureAt) throw new Error('changed source'); },
+        inspect: async () => ({}), assertStatus: () => {}, verifyPrefix: async () => {}, prepareFresh })).rejects.toThrow('changed source');
+      expect(prepareFresh).toHaveBeenCalledTimes(failureAt === 3 ? 0 : 1);
+    }
   });
 });

@@ -894,3 +894,50 @@ it('preserves typed token acquisition failure before any atlas reducer or marker
   expect(marker).not.toHaveBeenCalled(); expect(connectDatabase).not.toHaveBeenCalled();
   await transport.close();
 });
+
+
+it('forces a fresh effective session after complete read-only recovery proofs, before the marker', async () => {
+  let now = NOW_SECONDS, requests = 0;
+  const events: string[] = [];
+  const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+    disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => now,
+    requestToken: async () => { requests++; events.push('token'); return atlasJwt({ iat: now, nbf: now, exp: now + 300 }); },
+    connectDatabase: async (_database, _token, session) => {
+      session?.({ issuedAt: now, expiresAt: now + 60, hexIdentity: DATABASE_IDENTITY });
+      return { isDisconnectRequested: false, disconnect: () => { events.push('disconnect'); },
+        procedures: { adminGetGreaterRealmStatusV1: async () => { events.push('status'); return { state: 'importing' }; } },
+        reducers: { adminImportGreaterRealmComponentsV1: async () => { events.push('reducer'); } } } as never;
+    } });
+  await transport.inspect();
+  events.push('complete-prefix-proof'); now += 20;
+  await transport.prepareSubmission(true);
+  await transport.submit('admin_import_greater_realm_components_v1', {}, () => { events.push('marker'); }, async status => {
+    expect(status).toEqual({ state: 'importing' }); events.push('final-proof'); now += 10;
+  });
+  expect(requests).toBe(2);
+  expect(events).toEqual(['token', 'status', 'complete-prefix-proof', 'disconnect', 'token', 'status', 'final-proof', 'marker', 'reducer']);
+  await transport.close();
+});
+
+it.each(['refresh', 'status-drift'] as const)('does not mark after first-send %s failure', async mode => {
+  let requests = 0; const marker = vi.fn(), reducer = vi.fn(async () => undefined);
+  const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+    disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => NOW_SECONDS,
+    requestToken: async () => { requests++; if (mode === 'refresh' && requests === 2)
+      throw new PtrProductionAdminTokenError('PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID'); return atlasJwt(); },
+    connectDatabase: async (_database, _token, session) => {
+      session?.({ issuedAt: NOW_SECONDS, expiresAt: NOW_SECONDS + 60, hexIdentity: DATABASE_IDENTITY });
+      return { isDisconnectRequested: false, disconnect: vi.fn(),
+        procedures: { adminGetGreaterRealmStatusV1: async () => ({ state: 'changed' }) },
+        reducers: { adminImportGreaterRealmComponentsV1: reducer } } as never;
+    } });
+  await transport.inspect();
+  if (mode === 'refresh') await expect(transport.prepareSubmission(true)).rejects.toThrow('PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+  else {
+    await transport.prepareSubmission(true);
+    await expect(transport.submit('admin_import_greater_realm_components_v1', {}, marker,
+      () => { throw new Error('approved prefix status changed'); })).rejects.toThrow();
+  }
+  expect(marker).not.toHaveBeenCalled(); expect(reducer).not.toHaveBeenCalled();
+  await transport.close();
+});

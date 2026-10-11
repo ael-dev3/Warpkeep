@@ -153,7 +153,7 @@ function validTarget(
 
 export type PtrAtlasImportTransport = Readonly<{
   inspect: () => Promise<unknown>;
-  prepareSubmission: () => Promise<void>;
+  prepareSubmission: (freshConnection?: boolean) => Promise<void>;
   submit: (
     reducer: PtrProductionReducer,
     arguments_: Readonly<Record<string, unknown>>,
@@ -278,8 +278,11 @@ export function createPtrAtlasImportTransport(input: Readonly<{
         return fail('PTR_PRODUCTION_INSPECTION_UNAVAILABLE');
       }
     }),
-    prepareSubmission: () => runSerialized(async () => {
+    prepareSubmission: (freshConnection = false) => runSerialized(async () => {
       try {
+        if (typeof freshConnection !== 'boolean') fail('PTR_PRODUCTION_REFRESH_REQUEST_INVALID');
+        // Expensive read-only admission runs before this explicit, pre-marker renewal.
+        if (freshConnection) invalidate();
         void await requireConnection();
         if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
       } catch (error) {

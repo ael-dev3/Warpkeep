@@ -400,6 +400,16 @@ export async function coordinatePtrInitialAtlasRecovery(input: Readonly<{
   input.assert(); journal.assert(); return receipt;
 }
 
+/** Finish read-only prefix proofs before obtaining the short-lived connection used for first send. */
+export async function preparePtrInitialAtlasRecoverySubmission(input: Readonly<{
+  assert: () => void; inspect: () => Promise<unknown>; assertStatus: (value: unknown) => void;
+  verifyPrefix: () => Promise<void>; prepareFresh: () => Promise<void>;
+}>): Promise<void> {
+  input.assert(); input.assertStatus(await input.inspect()); input.assert();
+  await input.verifyPrefix(); input.assert();
+  await input.prepareFresh(); input.assert();
+}
+
 export function ptrInitialAtlasImportChainVerified(command: Command, retained: PtrProductionImportReceipt | null): boolean {
   if (retained !== null) return true;
   if (['reconcile-import', 'inspect-import-recovery', 'resume-import', 'inspect-region-recovery', 'resume-region-import', 'inspect-terrain-recovery', 'resume-terrain-import'].includes(command)) return false;
@@ -798,12 +808,14 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
           }
           if (regionRecovering && ['admin_import_greater_realm_components_v1', 'admin_import_greater_realm_regions_v1'].includes(reducer)) fail('REGION_RECOVERY_PREFIX_REPLAY_FORBIDDEN');
           if (recovering && reducer === 'admin_stage_greater_realm_release_v1') fail('RECOVERY_STAGE_FORBIDDEN');
-          if (recovering && !recoverySubmitted) { assertRecoveryStatus(await active.inspect()); assert(); }
-          await active.submit(reducer, args, () => { beforeSend(); submitted = true; recoverySubmitted = recovering; },
-            recovering && !recoverySubmitted ? async value => { assert(); assertRecoveryStatus(value);
+          if (recovering && !recoverySubmitted) await preparePtrInitialAtlasRecoverySubmission({ assert,
+            inspect: () => active.inspect(), assertStatus: assertRecoveryStatus,
+            verifyPrefix: async () => {
               if (updateCanonical(await readComponentPrefix()) !== updateCanonical(componentPrefix)) fail('RECOVERY_COMPONENT_PREFIX_CHANGED');
               if (terrainRecovering && updateCanonical(await readTerrainPrefix()) !== updateCanonical(terrainPrefix)) fail('RECOVERY_TERRAIN_PREFIX_CHANGED');
-              assert(); } : undefined); assert(); } },
+            }, prepareFresh: () => active.prepareSubmission(true) });
+          await active.submit(reducer, args, () => { beforeSend(); submitted = true; recoverySubmitted = recovering; },
+            recovering && !recoverySubmitted ? async value => { assert(); assertRecoveryStatus(value); assert(); } : undefined); assert(); } },
       assertCanStartWrite: assert });
     const receipt = recovering
       ? await coordinatePtrInitialAtlasRecovery({ journal: importJournal, marker, recovery, ...(regionRecovering ? { priorRecovery } : {}), ...(terrainRecovering ? { priorRegionRecovery } : {}), assert, validateReceipt, execute })
