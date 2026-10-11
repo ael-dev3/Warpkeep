@@ -1,3 +1,20 @@
+Actual terrain inspection and SQL field correction - 11 October 2026
+
+The read-only inspect-terrain-recovery on signed source 0939f24d closed exit 1,
+PTR_INITIAL_ATLAS_TERRAIN_PREFIX_DIFFERENT; source/index/refs were held and cleanup
+completed. Summary SHA256 91a0ab4a7e77080be8accfbe4e53084e6060b2f8c1f61770304469eb45b20621.
+No writes, new submission marker or completed receipt were produced. A bounded
+fixed-provider diagnostic traced the failure to indexed chunk comparison. The
+verifier's camel-to-SQL mapping omitted the digit-to-uppercase boundary: it expected
+lod_0cell_count instead of the backend's actual lod_0_cell_count (and likewise
+levels 1-3). Corrected this mapping without relaxing exact row comparison. A literal
+SQL-name regression also rejects the old malformed spelling. Independent review
+passed; 83 affected verifier tests pass on Windows and Linux. Existing operator,
+core and build-type evidence remains applicable. Preserve the atlas and all markers;
+publish the correction, synchronize exact source, then obtain fresh actual inspection
+and confirmation before any continuation. The prior failed inspection authorizes
+no import. Authenticated gameplay and final release acceptance remain unproven.
+
 Terrain-prefix continuation checkpoint - 11 October 2026
 
 Implemented a distinct inspect-terrain-recovery / resume-terrain-import path for

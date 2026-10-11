@@ -4,7 +4,7 @@ import { updateCanonical, updateDigest, updateSha256 } from './sealed-realms-exi
 type Row = Readonly<Record<string, unknown>>;
 const fail = (): never => { throw Object.assign(new Error('PTR_INITIAL_ATLAS_TERRAIN_PREFIX_DIFFERENT'),
   { code: 'PTR_INITIAL_ATLAS_TERRAIN_PREFIX_DIFFERENT' }); };
-const sqlName = (name: string) => name.replace(/([a-z])([A-Z])/gu, '$1_$2').replace(/([a-z])([0-9])/gu, '$1_$2').toLowerCase();
+const sqlName = (name: string) => name.replace(/([a-z0-9])([A-Z])/gu, '$1_$2').replace(/([a-z])([0-9])/gu, '$1_$2').toLowerCase();
 const optionKeys = ['componentKey', 'ridgeId', 'hydroBodyId', 'hydroFlowDirection', 'routeParentDirection', 'routeDepth'];
 const cellKeys = ('cellKey atlasCoordKey releaseOrdinal atlasId chunkHandle regionId componentKey localQ localR atlasQ atlasR tier passable elevation slope aspect profileCurvature planCurvature ridgeId geologicalBarrierBand biomeClass landformClass yieldClass movementCost sealedBoundaryMask hydroRegime hydroBodyId hydroDepthClass hydroSurfaceMilli hydroFlowDirection flowAccumulation bankVariant hydrologyRevision routeParentDirection routeDepth travelClass wetness exposure coastDistance freshwaterDistance temperature moisture habitatClass canopyBasisPoints groundcoverBasisPoints wildflowerBasisPoints featureClass ambienceClass presentationVariant').split(' ');
 const decimal = (value: unknown): string => {

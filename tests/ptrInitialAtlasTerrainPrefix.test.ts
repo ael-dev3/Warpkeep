@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Sha256, updateLengthFramedSha256 } from '../spacetimedb/ptr/src/sha256';
 import { updateSha256 } from '../scripts/sealed-realms-existing-update-protocol.mjs';
 import { verifyPtrInitialAtlasTerrainPrefix } from '../scripts/ptr-initial-atlas-terrain-prefix';
-const snake = (name: string) => name.replace(/([a-z])([A-Z])/gu, '$1_$2').replace(/([a-z])([0-9])/gu, '$1_$2').toLowerCase();
+const snake = (name: string) => name.replace(/([a-z0-9])([A-Z])/gu, '$1_$2').replace(/([a-z])([0-9])/gu, '$1_$2').toLowerCase();
 function fixture() {
   const cell: Record<string, unknown> = { cellKey: 'WATER:0:0', atlasCoordKey: 'A:0:0', releaseOrdinal: 0,
     atlasId: 'atlas', chunkHandle: 'chunk', regionId: 'WATER', localQ: 0, localR: 0, atlasQ: 0, atlasR: 0,
@@ -97,5 +97,17 @@ describe('retained terrain prefix', () => {
 
 it('rejects timestamps outside the backend signed-microsecond range', () => {
   const input = fixture(); input.chunkRows[0]!.imported_at = ['9223372036854775808'];
+  expect(() => verifyPtrInitialAtlasTerrainPrefix(input)).toThrow();
+});
+
+
+it('matches the actual SQL LOD field names with an underscore after the ordinal', () => {
+  const input = fixture();
+  const row = input.chunkRows[0]!;
+  expect(Object.keys(row).filter(key => key.startsWith('lod_')).sort()).toEqual([
+    'lod_0_cell_count', 'lod_1_cell_count', 'lod_2_cell_count', 'lod_3_cell_count',
+  ]);
+  expect(verifyPtrInitialAtlasTerrainPrefix(input).chunkCount).toBe(1);
+  row.lod_0cell_count = row.lod_0_cell_count; delete row.lod_0_cell_count;
   expect(() => verifyPtrInitialAtlasTerrainPrefix(input)).toThrow();
 });
