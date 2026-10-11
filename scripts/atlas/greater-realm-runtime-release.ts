@@ -324,7 +324,7 @@ type PartitionChunk = {
 export type GreaterRealmRuntimeReleaseWriteResult = 'installed' | 'unchanged';
 
 function fail(code: string): never {
-  throw new Error(code);
+  throw Object.assign(new Error(code), { code });
 }
 
 function sha256(bytes: Uint8Array | string): string {

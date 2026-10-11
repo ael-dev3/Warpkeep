@@ -77,12 +77,13 @@ function providerSuite<Capability extends object>(
             `You are logged in as ${mode === 'bad-identity' ? 'owner' : IDENTITY}\nYour auth token (don't share this!) is ${mode === 'bad-token' ? 'bad token' : TOKEN}\n${mode === 'extra-line' ? 'extra\n' : ''}`),
           stderr: Buffer.from(mode === 'stderr' ? TOKEN : '') };
       });
-      await expect(requestProvider(cap, { operation: 'metadata' })).rejects.toThrow(new Error(ERROR));
+      await expect(requestProvider(cap, { operation: 'metadata' })).rejects.toThrow(Object.assign(new Error(ERROR), { code: ERROR }));
       expect(f.fetch).not.toHaveBeenCalled();
     });
     it('rejects forged capabilities, caller bytes and missing apply marker', async () => {
       const f = fixture(); const cap = f.create();
       await expect(requestProvider({} as never, { operation: 'metadata' })).rejects.toThrow(ERROR);
+      await expect(requestProvider({} as never, { operation: 'metadata' })).rejects.toMatchObject({ code: ERROR, message: ERROR });
       await expect(requestProvider(cap, { operation: 'plan', candidateBytes: f.body } as never)).rejects.toThrow(ERROR);
       await expect(requestProvider(cap, { operation: 'apply', migrationToken: '0x1234' } as never)).rejects.toThrow(ERROR);
       expect(f.fetch).not.toHaveBeenCalled();
@@ -134,7 +135,7 @@ function providerSuite<Capability extends object>(
         if (mode === 'source-change') f.source.mockImplementation(() => { throw Error(TOKEN); });
         return response;
       });
-      await expect(requestProvider(cap, { operation: 'metadata' })).rejects.toThrow(new Error(ERROR));
+      await expect(requestProvider(cap, { operation: 'metadata' })).rejects.toThrow(Object.assign(new Error(ERROR), { code: ERROR }));
     });
     it('bounds a stalled marker and never submits after its late completion', async () => {
       vi.useFakeTimers(); const f = fixture(); const cap = f.create(); let release!: () => void;

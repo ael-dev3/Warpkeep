@@ -9,7 +9,7 @@ import { attestPinnedSpacetimeCli } from './spacetime-cli-attestation.mjs';
 // Neither policy nor destination is accepted from callers.
 function createFixedUpdateProvider(target, errorCode, readQueries = Object.freeze({})) {
   const states = new WeakMap();
-  const fail = () => { throw new Error(errorCode); };
+  const fail = () => { throw Object.assign(new Error(errorCode), { code: errorCode }); };
   const hash = bytes => createHash('sha256').update(bytes).digest('hex');
   function data(value, keys, exact = true) {
     if (types.isProxy(value) || !value || Object.getPrototypeOf(value) !== Object.prototype) fail();

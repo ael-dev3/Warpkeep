@@ -11,8 +11,19 @@ import { createPtrInitialOwnerUpdateInspection } from '../scripts/ptr-initial-ow
 import { existingUpdateTokenDigest, parseExistingUpdateSchema, updateDigest, updateCanonical } from '../scripts/sealed-realms-existing-update-protocol.mjs';
 import { ptrProductionImportReceiptDigest, type PtrProductionImportReceipt } from '../scripts/ptr-production-import-core';
 import { preparePtrInitialOwnerRuntimeRelease } from '../scripts/atlas/greater-realm-cli';
+import { greaterRealmRuntimeReleaseTestSeams } from '../scripts/atlas/greater-realm-runtime-release';
 
 describe('interrupted import chain admission', () => {
+  it('retains the fixed runtime validation code without copying rejected input', () => {
+    const rejected = { toString: () => 'synthetic-private-input' };
+    try {
+      greaterRealmRuntimeReleaseTestSeams.canonicalBytes(rejected);
+      throw new Error('expected validation failure');
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID', message: 'GREATER_REALM_RUNTIME_RELEASE_CANONICAL_JSON_INVALID' });
+      expect(JSON.stringify(error)).not.toContain('synthetic-private-input');
+    }
+  });
   it('permits read-only reconciliation without claiming a verified chain', () => {
     expect(ptrInitialAtlasImportChainVerified('reconcile-import', null)).toBe(false);
   });

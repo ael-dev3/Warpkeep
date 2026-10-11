@@ -146,3 +146,22 @@ read-only reconciliation against the retained marker and actual backend. Diagnos
 the original stage continuation failure from actual bound status before designing
 an explicit, verified recovery. Preserve accepted Atlas43 provenance, the installed
 backend, Alpha, G001 admission freeze/progress, G002 seal, and rollback.
+
+
+## Corrected read-only reconciliation and fixed error codes
+
+Signed `d43544caf7ad9f53d4a8ae38448185bd8755f98e` passed 72 affected tests
+and build-mode types on Windows and native Linux. All 3,469 native Git blobs
+and modes matched that checkpoint; GitHub signature and branch equality passed.
+Corrected reconcile-v2 ran 2026-10-11T02:51:44.578Z to 03:04:53.125Z,
+closed exit 1 with `PROVIDER_OR_PROTOCOL_FAILED`, no timeout, no provider write,
+source/index/ref holds intact, and its complete owned process group absent.
+Summary SHA256: `60911e81688e4b2f3b00929c544905741161e91cd4d5ced8ca13cebf4323a78f`.
+
+Some maintained runtime validators and the fixed provider facade threw plain
+`Error` with a fixed diagnostic message but no `.code`. The outer operator only
+retains `.code`, hiding their reason behind the generic error. The correction
+adds the same fixed code at those producers. It does not copy rejected input,
+provider response text, tokens, stack traces or other arbitrary error messages.
+The original failure remains unclassified until an actual corrected readback;
+do not infer the cause from this reporting fix or resubmit the marked import.
