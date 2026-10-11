@@ -33,7 +33,7 @@ export class PtrInitialOwnerAtlasError extends Error {
   constructor(readonly code: string, readonly submitted = false) { super(`PTR_INITIAL_OWNER_ATLAS_${code}`); this.name = 'PtrInitialOwnerAtlasError'; }
 }
 const fail: (code: string, submitted?: boolean) => never = (code, submitted = false) => { throw new PtrInitialOwnerAtlasError(code, submitted); };
-type Command = 'select-runtime' | 'prepare-runtime' | 'inspect' | 'import' | 'reconcile-import' | 'inspect-import-recovery' | 'resume-import' | 'inspect-owner' | 'provision-owner';
+type Command = 'select-runtime' | 'prepare-runtime' | 'inspect' | 'import' | 'reconcile-import' | 'inspect-import-recovery' | 'resume-import' | 'inspect-region-recovery' | 'resume-region-import' | 'inspect-owner' | 'provision-owner';
 type Source = ReturnType<typeof capturePtrInitialOwnerSource>;
 
 /** Compare real immutable bootstrap records, not a caller-authored publish receipt. */
@@ -269,7 +269,17 @@ export async function coordinatePtrInitialAtlasImport(input: Readonly<{
     if (!stored || typeof stored !== 'object' || Object.keys(stored).sort().join('\0') !== 'markerDigest\0receiptJson'
       || stored.markerDigest !== key || typeof stored.receiptJson !== 'string' || Buffer.byteLength(stored.receiptJson) > 64 * 1024) fail('IMPORT_RECEIPT_INVALID');
     const recoveryKey = ptrInitialAtlasRecoveryKey(input.marker);
-    if (journal.present('submission', recoveryKey)) {
+    const regionKey = ptrInitialAtlasRegionRecoveryKey(input.marker);
+    if (journal.present('submission', regionKey)) {
+      if (!journal.present('submission', recoveryKey) || journal.present('acknowledgement', recoveryKey)) fail('REGION_RECOVERY_PRIOR_MARKER_DIFFERENT');
+      const prior = journal.read('submission', recoveryKey).value, recovery = journal.read('submission', regionKey).value;
+      assertPtrInitialAtlasRegionPrior(input.marker, prior);
+      if (!recovery || typeof recovery !== 'object' || recovery.priorRecoveryKey !== recoveryKey || recovery.priorRecoveryDigest !== updateDigest(prior)) fail('REGION_RECOVERY_BINDING_DIFFERENT');
+      if (!journal.present('acknowledgement', regionKey)) fail('RECOVERY_COMPLETION_MISSING');
+      if (updateCanonical(journal.read('acknowledgement', regionKey).value) !== updateCanonical({
+        profile: 'warpkeep-ptr-initial-atlas-region-recovery-completion-v1', priorRecoveryKey: recoveryKey,
+        priorRecoveryDigest: updateDigest(prior), originalMarkerDigest: key, recoveryDigest: updateDigest(recovery), receiptJson: stored.receiptJson })) fail('RECOVERY_COMPLETION_DIFFERENT');
+    } else if (journal.present('submission', recoveryKey)) {
       if (!journal.present('acknowledgement', recoveryKey)) fail('RECOVERY_COMPLETION_MISSING');
       const recovery = journal.read('submission', recoveryKey).value, completed = journal.read('acknowledgement', recoveryKey).value;
       if (updateCanonical(completed) !== updateCanonical({ profile: 'warpkeep-ptr-initial-atlas-recovery-completion-v1',
@@ -295,22 +305,38 @@ export async function coordinatePtrInitialAtlasImport(input: Readonly<{
 export function ptrInitialAtlasRecoveryKey(marker: unknown): string {
   return updateDigest({ profile: 'warpkeep-ptr-initial-atlas-staged-recovery-v1', originalMarkerDigest: updateDigest(marker) });
 }
+function assertPtrInitialAtlasRegionPrior(marker: unknown, prior: unknown): void {
+  if (!prior || typeof prior !== 'object' || Array.isArray(prior)
+    || (prior as Record<string, unknown>).profile !== 'warpkeep-ptr-initial-atlas-staged-recovery-v1'
+    || (prior as Record<string, unknown>).originalMarkerDigest !== updateDigest(marker)) fail('REGION_RECOVERY_PRIOR_BINDING_DIFFERENT');
+}
+export function ptrInitialAtlasRegionRecoveryKey(marker: unknown): string {
+  return updateDigest({ profile: 'warpkeep-ptr-initial-atlas-region-recovery-v1', originalMarkerDigest: updateDigest(marker), priorRecoveryKey: ptrInitialAtlasRecoveryKey(marker) });
+}
 export function ptrInitialAtlasStagedStatusDigest(status: ReturnType<typeof projectPtrProductionStatus>): string {
   return updateDigest(JSON.parse(JSON.stringify(status, (_key, value) => typeof value === 'bigint' ? value.toString() : value)));
 }
 
 /** A distinct, once-only continuation retains the original ambiguous submission unchanged. */
 export async function coordinatePtrInitialAtlasRecovery(input: Readonly<{
-  journal: ReturnType<typeof openPtrInitialOwnerUpdateJournal>; marker: unknown; recovery: unknown;
+  journal: ReturnType<typeof openPtrInitialOwnerUpdateJournal>; marker: unknown; recovery: unknown; priorRecovery?: unknown;
   assert: () => void; validateReceipt: (value: unknown) => PtrProductionImportReceipt;
   execute: (beforeSend: () => void) => Promise<PtrProductionImportReceipt>;
 }>) {
-  const originalKey = updateDigest(input.marker), key = ptrInitialAtlasRecoveryKey(input.marker), journal = input.journal;
+  const originalKey = updateDigest(input.marker), region = input.priorRecovery !== undefined,
+    priorKey = ptrInitialAtlasRecoveryKey(input.marker), key = region ? ptrInitialAtlasRegionRecoveryKey(input.marker) : priorKey, journal = input.journal;
   let marked = false;
   const check = () => { input.assert(); journal.assert();
     if (!journal.present('submission', originalKey)
       || updateCanonical(journal.read('submission', originalKey).value) !== updateCanonical(input.marker)) fail('RECOVERY_ORIGINAL_MARKER_DIFFERENT');
     if (journal.present('acknowledgement', originalKey)) fail('RECOVERY_ALREADY_COMPLETE');
+    if (region) {
+      assertPtrInitialAtlasRegionPrior(input.marker, input.priorRecovery);
+      if (!journal.present('submission', priorKey) || updateCanonical(journal.read('submission', priorKey).value) !== updateCanonical(input.priorRecovery)) fail('REGION_RECOVERY_PRIOR_MARKER_DIFFERENT');
+      if (journal.present('acknowledgement', priorKey) || (!marked && journal.present('acknowledgement', key))) fail('RECOVERY_ALREADY_COMPLETE');
+      if (!input.recovery || typeof input.recovery !== 'object' || (input.recovery as Record<string, unknown>).priorRecoveryKey !== priorKey
+        || (input.recovery as Record<string, unknown>).priorRecoveryDigest !== updateDigest(input.priorRecovery)) fail('REGION_RECOVERY_BINDING_DIFFERENT');
+    }
     if (marked && (!journal.present('submission', key)
       || updateCanonical(journal.read('submission', key).value) !== updateCanonical(input.recovery))) fail('RECOVERY_MARKER_DIFFERENT', true);
   };
@@ -324,8 +350,8 @@ export async function coordinatePtrInitialAtlasRecovery(input: Readonly<{
   if (!marked) fail('RECOVERY_SUBMISSION_NOT_MARKED');
   check();
   // The executor's chain proves continuation operations only. Persist that provenance before the original ACK.
-  journal.write('acknowledgement', key, { profile: 'warpkeep-ptr-initial-atlas-recovery-completion-v1',
-    originalMarkerDigest: originalKey, recoveryDigest: updateDigest(input.recovery), receiptJson: JSON.stringify(receipt) });
+  journal.write('acknowledgement', key, { profile: region ? 'warpkeep-ptr-initial-atlas-region-recovery-completion-v1' : 'warpkeep-ptr-initial-atlas-recovery-completion-v1',
+    ...(region ? { priorRecoveryKey: priorKey, priorRecoveryDigest: updateDigest(input.priorRecovery) } : {}), originalMarkerDigest: originalKey, recoveryDigest: updateDigest(input.recovery), receiptJson: JSON.stringify(receipt) });
   check();
   journal.write('acknowledgement', originalKey, { markerDigest: originalKey, receiptJson: JSON.stringify(receipt) });
   input.assert(); journal.assert(); return receipt;
@@ -333,7 +359,7 @@ export async function coordinatePtrInitialAtlasRecovery(input: Readonly<{
 
 export function ptrInitialAtlasImportChainVerified(command: Command, retained: PtrProductionImportReceipt | null): boolean {
   if (retained !== null) return true;
-  if (['reconcile-import', 'inspect-import-recovery', 'resume-import'].includes(command)) return false;
+  if (['reconcile-import', 'inspect-import-recovery', 'resume-import', 'inspect-region-recovery', 'resume-region-import'].includes(command)) return false;
   fail('IMPORT_CHAIN_RECEIPT_MISSING');
 }
 function assertInstalledSource(source: Source, inspection: PtrBootstrapInspection, installedBinding = inspection.binding) {
@@ -382,7 +408,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
   environment: NodeJS.ProcessEnv; workspaceRoot: string; bootstrapInspection?: string; batchHandle?: string;
   candidateHandle?: string; approvalReference?: string; confirmation?: string; atlasImportReceipt?: string; updateInspection?: string; priorUpdateInspections?: readonly string[] }>) {
   if (process.platform !== 'linux' || process.arch !== 'x64' || process.getuid?.() !== 1000) fail('PLATFORM_INVALID');
-  if (!['select-runtime', 'prepare-runtime', 'inspect', 'import', 'reconcile-import', 'inspect-import-recovery', 'resume-import', 'inspect-owner', 'provision-owner'].includes(input.command)
+  if (!['select-runtime', 'prepare-runtime', 'inspect', 'import', 'reconcile-import', 'inspect-import-recovery', 'resume-import', 'inspect-region-recovery', 'resume-region-import', 'inspect-owner', 'provision-owner'].includes(input.command)
     || !isAbsolute(input.workspaceRoot) || realpathSync(input.workspaceRoot) !== input.workspaceRoot) fail('ARGUMENT_INVALID');
   const source = capturePtrInitialOwnerSource(ROOT, input.source);
   if (input.command === 'select-runtime' || input.command === 'prepare-runtime') {
@@ -397,7 +423,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
       usableOwnerPtrVerified: false, productionAuthorized: false, globalReleaseAuthority: false });
   }
   if (!HASH.test(input.bootstrapInspection ?? '') || input.batchHandle !== undefined || input.candidateHandle !== undefined
-    || input.approvalReference !== undefined || (input.command === 'import' || input.command === 'resume-import' || input.command === 'provision-owner'
+    || input.approvalReference !== undefined || (input.command === 'import' || (input.command === 'resume-import' || input.command === 'resume-region-import') || input.command === 'provision-owner'
       ? !HASH.test(input.confirmation ?? '') : input.confirmation !== undefined)
     || (input.command.endsWith('owner') ? !HASH.test(input.atlasImportReceipt ?? '') : input.atlasImportReceipt !== undefined)
     || (input.updateInspection !== undefined && !HASH.test(input.updateInspection))) fail('ARGUMENT_INVALID');
@@ -610,10 +636,12 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
       atlasSourceCommit: authority.sourceCommit, ...(continuationEvidence ? { continuationDigest: continuationEvidence.continuationDigest } : {}) });
     transport = createPtrAtlasImportTransport({ ...targets, adminSecret: secret });
     const active = transport, status = projectPtrProductionStatus(await active.inspect()); assert();
-    const recovering = input.command === 'inspect-import-recovery' || input.command === 'resume-import';
+    const regionRecovering = input.command === 'inspect-region-recovery' || input.command === 'resume-region-import';
+    const recovering = input.command === 'inspect-import-recovery' || input.command === 'resume-import' || regionRecovering;
     const originalMarker = ptrInitialAtlasImportMarker({ bootstrapInspection: inspection.inspectionDigest, binding,
       atlasSourceCommit: authority.sourceCommit, releaseSha256: authority.releaseSha256, continuation: continuationEvidence });
     let recovery: Readonly<Record<string, unknown>> | undefined;
+    let priorRecovery: unknown;
     let componentPrefix: ReturnType<typeof verifyPtrInitialAtlasComponentPrefix> | undefined;
     const readComponentPrefix = async () => {
       const readRows = async (name: 'greater_realm_navigation_component_v1' | 'greater_realm_release_v1') => {
@@ -625,17 +653,17 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
       const rows = await readRows('greater_realm_navigation_component_v1');
       const releases = await readRows('greater_realm_release_v1');
       if (releases.length !== 1) fail('RECOVERY_RELEASE_CARDINALITY_DIFFERENT');
-      return verifyPtrInitialAtlasComponentPrefix({ rows, release: releases[0]!, components: authority.components, atlasId: authority.atlasId });
+      return verifyPtrInitialAtlasComponentPrefix({ rows, release: releases[0]!, components: authority.components, atlasId: authority.atlasId, ...(regionRecovering ? { regions: authority.regions } : {}) });
     };
     if (recovering) {
       if (!continuationEvidence || importChainVerified || before.observed.owner.state !== 'ownerless') fail('RECOVERY_NOT_APPLICABLE');
       componentPrefix = await readComponentPrefix();
-      assertPtrProductionInitialStagedStatus(status, authority, componentPrefix.componentCount);
+      assertPtrProductionInitialStagedStatus(status, authority, componentPrefix.componentCount, regionRecovering);
       const second = projectPtrProductionStatus(await active.inspect()); assert();
-      assertPtrProductionInitialStagedStatus(second, authority, componentPrefix.componentCount);
+      assertPtrProductionInitialStagedStatus(second, authority, componentPrefix.componentCount, regionRecovering);
       if (updateCanonical(await readComponentPrefix()) !== updateCanonical(componentPrefix)) fail('RECOVERY_COMPONENT_PREFIX_CHANGED');
       if (ptrInitialAtlasStagedStatusDigest(status) !== ptrInitialAtlasStagedStatusDigest(second)) fail('RECOVERY_STAGED_STATUS_CHANGED');
-      recovery = Object.freeze({ profile: 'warpkeep-ptr-initial-atlas-staged-recovery-v1', originalMarkerDigest: updateDigest(originalMarker),
+      recovery = Object.freeze({ profile: regionRecovering ? 'warpkeep-ptr-initial-atlas-region-recovery-v1' : 'warpkeep-ptr-initial-atlas-staged-recovery-v1', originalMarkerDigest: updateDigest(originalMarker),
         source: source.facts, stagedStatusDigest: ptrInitialAtlasStagedStatusDigest(status), installedSnapshotDigest: before.observed.snapshotDigest,
         bridgeConfigurationDigest: updateDigest(before.actual.afterConfiguration), componentPrefix, confirmationBinding: confirmation });
       confirmation = updateDigest(recovery);
@@ -643,9 +671,18 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
       recoveryJournal.assert();
       if (!recoveryJournal.present('submission', updateDigest(originalMarker))
         || updateCanonical(recoveryJournal.read('submission', updateDigest(originalMarker)).value) !== updateCanonical(originalMarker)) fail('RECOVERY_ORIGINAL_MARKER_DIFFERENT');
-      if (recoveryJournal.present('submission', ptrInitialAtlasRecoveryKey(originalMarker))) fail('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
+      if (regionRecovering) {
+        const priorKey = ptrInitialAtlasRecoveryKey(originalMarker);
+        if (!recoveryJournal.present('submission', priorKey)) fail('REGION_RECOVERY_PRIOR_MARKER_MISSING');
+        priorRecovery = recoveryJournal.read('submission', priorKey).value;
+        assertPtrInitialAtlasRegionPrior(originalMarker, priorRecovery);
+        if (recoveryJournal.present('acknowledgement', updateDigest(originalMarker)) || recoveryJournal.present('acknowledgement', priorKey) || recoveryJournal.present('acknowledgement', ptrInitialAtlasRegionRecoveryKey(originalMarker))) fail('RECOVERY_ALREADY_COMPLETE');
+        recovery = Object.freeze({ ...recovery, priorRecoveryKey: priorKey, priorRecoveryDigest: updateDigest(priorRecovery) });
+        confirmation = updateDigest(recovery);
+        if (recoveryJournal.present('submission', ptrInitialAtlasRegionRecoveryKey(originalMarker))) fail('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
+      } else if (recoveryJournal.present('submission', ptrInitialAtlasRecoveryKey(originalMarker))) fail('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
     }
-    if (input.command === 'inspect' || input.command === 'inspect-import-recovery') return Object.freeze({ profile: 'warpkeep-ptr-initial-owner-atlas-operation-v1', command: input.command,
+    if (input.command === 'inspect' || input.command === 'inspect-import-recovery' || input.command === 'inspect-region-recovery') return Object.freeze({ profile: 'warpkeep-ptr-initial-owner-atlas-operation-v1', command: input.command,
       source: source.facts, installedModuleSourceCommit: binding.sourceCommit, program: binding.candidateProgram,
       atlasSourceCommit: authority.sourceCommit, releaseSha256: authority.releaseSha256, confirmationDigest: confirmation,
       ...(continuationEvidence ? { continuation: { ...continuationEvidence,
@@ -655,7 +692,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
       status: { present: status.present, state: status.state, ready: status.ready, importsExact: status.importsExact,
         ownerProvisioned: status.ownerProvisioned, ownerEnabled: status.ownerEnabled }, commandSucceeded: true,
       providerWritesAttempted: false, usableOwnerPtrVerified: false, productionAuthorized: false, globalReleaseAuthority: false });
-    if ((input.command === 'import' || input.command === 'resume-import') && input.confirmation !== confirmation) fail('CONFIRMATION_DIFFERENT');
+    if ((input.command === 'import' || (input.command === 'resume-import' || input.command === 'resume-region-import')) && input.confirmation !== confirmation) fail('CONFIRMATION_DIFFERENT');
     // Exclusive durable marker precedes the first reducer. A later invocation is read-only, even if its ACK was lost.
     const stateParent = input.command === 'import' ? ensureCanonicalProductionAdminStateDirectory() : defaultProductionAdminStateDirectory();
     const stateRoot = join(stateParent, 'ptr-initial-owner-atlas-v1');
@@ -666,7 +703,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
       || rootStat.uid !== 1000 || (rootStat.mode & 0o7777) !== 0o700) fail('IMPORT_JOURNAL_INVALID');
     const parentFd = openSync(stateParent, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
     try { fsyncSync(parentFd); } finally { closeSync(parentFd); }
-    const importJournal = openPtrInitialOwnerUpdateJournal(stateRoot, input.command === 'import' || input.command === 'resume-import');
+    const importJournal = openPtrInitialOwnerUpdateJournal(stateRoot, input.command === 'import' || (input.command === 'resume-import' || input.command === 'resume-region-import'));
     const marker = ptrInitialAtlasImportMarker({ bootstrapInspection: inspection.inspectionDigest, binding,
       atlasSourceCommit: authority.sourceCommit, releaseSha256: authority.releaseSha256, continuation: continuationEvidence });
     const validateReceipt = (value: unknown) => validatePtrInitialAtlasImportReceipt(value, { binding, authority,
@@ -674,7 +711,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
     let recoverySubmitted = false;
     const assertRecoveryStatus = (value: unknown) => {
       if (recovering && !recoverySubmitted) {
-        const current = projectPtrProductionStatus(value); assertPtrProductionInitialStagedStatus(current, authority, componentPrefix!.componentCount);
+        const current = projectPtrProductionStatus(value); assertPtrProductionInitialStagedStatus(current, authority, componentPrefix!.componentCount, regionRecovering);
         if (ptrInitialAtlasStagedStatusDigest(current) !== ptrInitialAtlasStagedStatusDigest(status)) fail('RECOVERY_STAGED_STATUS_CHANGED');
       }
     };
@@ -685,6 +722,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
         prepareSubmission: async () => { assert(); await active.prepareSubmission(); assert();
           if (recovering && !recoverySubmitted) { assertRecoveryStatus(await active.inspect()); assert(); } },
         submit: async (reducer, args) => { assert(); await assertProgram();
+          if (regionRecovering && ['admin_import_greater_realm_components_v1', 'admin_import_greater_realm_regions_v1'].includes(reducer)) fail('REGION_RECOVERY_PREFIX_REPLAY_FORBIDDEN');
           if (recovering && reducer === 'admin_stage_greater_realm_release_v1') fail('RECOVERY_STAGE_FORBIDDEN');
           if (recovering && !recoverySubmitted) { assertRecoveryStatus(await active.inspect()); assert(); }
           await active.submit(reducer, args, () => { beforeSend(); submitted = true; recoverySubmitted = recovering; },
@@ -693,7 +731,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
               assert(); } : undefined); assert(); } },
       assertCanStartWrite: assert });
     const receipt = recovering
-      ? await coordinatePtrInitialAtlasRecovery({ journal: importJournal, marker, recovery, assert, validateReceipt, execute })
+      ? await coordinatePtrInitialAtlasRecovery({ journal: importJournal, marker, recovery, ...(regionRecovering ? { priorRecovery } : {}), assert, validateReceipt, execute })
       : await coordinatePtrInitialAtlasImport({ command: input.command as 'import' | 'reconcile-import', journal: importJournal,
         marker, assert, validateReceipt, execute });
     assert(); const after = await observe(); assertBridgePreserved(after);

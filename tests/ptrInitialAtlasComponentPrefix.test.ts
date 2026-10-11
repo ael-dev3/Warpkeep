@@ -46,3 +46,39 @@ describe('retained initialized component prefix', () => {
     expect(() => verifyPtrInitialAtlasComponentPrefix(atlas)).toThrow();
   });
 });
+
+
+describe('committed region prefix', () => {
+  const regions = [{ regionId: 'region-a' }, { regionId: 'region-b' }];
+  function regionFixture() {
+    const input = fixture();
+    return { ...input, regions, release: { ...input.release,
+      region_manifest_json: [0, `${JSON.stringify(regions)}\n`],
+      region_verification_json: `${JSON.stringify(regions.map(row => ({ regionId: row.regionId,
+        verifiedCellCount: 0, verifiedPassableCellCount: 0, verifiedChunkCount: 0, verifiedCastleCapacity: 0,
+        verifiedResourceLocationCount: 0, verifiedResourceNodeCount: 0, verifiedFoodNodeCount: 0,
+        verifiedWoodNodeCount: 0, verifiedStoneNodeCount: 0, verifiedGoldNodeCount: 0 })))}\n` } };
+  }
+  it('accepts complete exact regions and initialized counters with a distinct bound digest', () => {
+    const input = regionFixture();
+    const accepted = verifyPtrInitialAtlasComponentPrefix(input);
+    expect(accepted.componentCount).toBe(components.length);
+    expect(accepted.digest).not.toBe(verifyPtrInitialAtlasComponentPrefix(fixture()).digest);
+    expect(() => verifyPtrInitialAtlasComponentPrefix({ ...input, regions: undefined })).toThrow();
+  });
+  it('rejects partial components, changed regions, noncanonical options and missing verification', () => {
+    const input = regionFixture();
+    for (const changes of [{ rows: input.rows.slice(0, 1) }, { regions: [] },
+      { regions: [...regions].reverse() }, { release: { ...input.release, region_manifest_json: [1, []] } },
+      { release: { ...input.release, region_verification_json: undefined } }]) {
+      expect(() => verifyPtrInitialAtlasComponentPrefix({ ...input, ...changes })).toThrow();
+    }
+  });
+  it.each(['verifiedCellCount', 'verifiedPassableCellCount', 'verifiedChunkCount', 'verifiedCastleCapacity',
+    'verifiedResourceLocationCount', 'verifiedResourceNodeCount', 'verifiedFoodNodeCount', 'verifiedWoodNodeCount',
+    'verifiedStoneNodeCount', 'verifiedGoldNodeCount'])('rejects region verification progress in %s', key => {
+    const input = regionFixture(), rows = JSON.parse(input.release.region_verification_json);
+    rows[0][key] = 1; input.release.region_verification_json = `${JSON.stringify(rows)}\n`;
+    expect(() => verifyPtrInitialAtlasComponentPrefix(input)).toThrow();
+  });
+});

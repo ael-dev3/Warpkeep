@@ -535,3 +535,41 @@ it('continues an initialized stage through a genuine ready receipt without sendi
   expect(transport.submissions[0]?.reducer).toBe(PTR_PRODUCTION_IMPORT_REDUCERS.components);
   expect(transport.submissions.some(row => row.reducer === PTR_PRODUCTION_IMPORT_REDUCERS.stage)).toBe(false);
 });
+
+
+it('admits a complete committed region prefix only before terrain and verification', () => {
+  const { authority, status } = stagedFixture();
+  const total = (key: string) => authority.components.reduce((sum, row) => sum + Number(row[key]), 0);
+  const complete = { ...status, componentRows: BigInt(authority.components.length),
+    componentExpectedCellCount: total('expectedCellCount'), componentExpectedSlotCount: total('expectedSlotCount'),
+    componentExpectedResourceNodeCount: ['expectedFoodNodeCount', 'expectedWoodNodeCount', 'expectedStoneNodeCount', 'expectedGoldNodeCount']
+      .reduce((sum, key) => sum + total(key), 0), regionManifestRows: authority.totals.regionCount };
+  const check = (value: Record<string, unknown>, count = authority.components.length) =>
+    assertPtrProductionInitialStagedStatus(projectPtrProductionStatus(value), authority, count, true);
+  expect(() => check(complete)).not.toThrow();
+  expect(() => assertPtrProductionInitialStagedStatus(projectPtrProductionStatus(complete), authority, authority.components.length)).toThrow();
+  expect(() => check(complete, 0)).toThrow();
+  for (const changes of [{ regionManifestRows: 0 }, { chunkRows: 1n }, { cellRows: 1n },
+    { importedPassableCellCount: 1 }, { verifiedComponentCount: 1 }, { verificationCursor: 1n }]) {
+    expect(() => check({ ...complete, ...changes })).toThrow();
+  }
+});
+
+
+it('starts a committed component/region prefix at chunk zero and retains a genuine completion receipt', async () => {
+  const { authority, status } = stagedFixture();
+  const total = (key: string) => authority.components.reduce((sum, row) => sum + Number(row[key]), 0);
+  const transport = transitionTransport({ ...status, componentRows: BigInt(authority.components.length),
+    componentExpectedCellCount: total('expectedCellCount'), componentExpectedSlotCount: total('expectedSlotCount'),
+    componentExpectedResourceNodeCount: ['expectedFoodNodeCount', 'expectedWoodNodeCount', 'expectedStoneNodeCount', 'expectedGoldNodeCount']
+      .reduce((sum, key) => sum + total(key), 0), regionManifestRows: authority.totals.regionCount });
+  const result = await executePtrProductionImport({ artifacts: artifacts(), ...ptrInitialAtlasTargets(G002_IDENTITY),
+    moduleSourceCommit: SOURCE_COMMIT, moduleSha256: MODULE_SHA256, moduleTreeId: MODULE_TREE_ID,
+    dependencyClosureDigest: DEPENDENCY_DIGEST, spacetimeExecutableSha256: SPACETIME_DIGEST,
+    importEpoch: 1n, publicName: 'Warpkeep PTR', transport, assertCanStartWrite: () => {}, testOnlyVerifyArtifacts: () => {} });
+  expect(result.outcome).toBe('ready');
+  expect(result.operationsSubmitted).toBe(transport.submissions.length);
+  expect(transport.submissions[0]?.reducer).toBe(PTR_PRODUCTION_IMPORT_REDUCERS.chunk);
+  expect(transport.submissions.some(row => [PTR_PRODUCTION_IMPORT_REDUCERS.stage,
+    PTR_PRODUCTION_IMPORT_REDUCERS.components, PTR_PRODUCTION_IMPORT_REDUCERS.regions].includes(row.reducer as any))).toBe(false);
+});

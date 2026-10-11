@@ -578,9 +578,10 @@ function assertBoundStatus(
 }
 
 /** Recovery admits an independently verified initialized component prefix, before terrain import. */
-export function assertPtrProductionInitialStagedStatus(status: PtrProductionStatus, authority: Authority, componentPrefixCount = 0): void {
+export function assertPtrProductionInitialStagedStatus(status: PtrProductionStatus, authority: Authority, componentPrefixCount = 0, regionsImported = false): void {
   assertBoundStatus(status, authority, 1n);
-  if (!Number.isSafeInteger(componentPrefixCount) || componentPrefixCount < 0 || componentPrefixCount > authority.components.length)
+  if (!Number.isSafeInteger(componentPrefixCount) || componentPrefixCount < 0 || componentPrefixCount > authority.components.length
+    || typeof regionsImported !== 'boolean' || (regionsImported && componentPrefixCount !== authority.components.length))
     fail('PTR_PRODUCTION_INITIAL_STAGE_DIFFERENT');
   const prefix = authority.components.slice(0, componentPrefixCount);
   const total = (key: string) => prefix.reduce((sum, row) => sum + Number(row[key]), 0);
@@ -590,7 +591,7 @@ export function assertPtrProductionInitialStagedStatus(status: PtrProductionStat
     || status.verificationPhase !== 'components' || status.verificationCursor !== 0n
     || status.verificationDigest !== hash.serialize() || status.ready || status.importsExact
     || !status.importMutationsCompiled || status.activationMutationsCompiled
-    || status.regionManifestRows !== 0
+    || status.regionManifestRows !== (regionsImported ? authority.totals.regionCount : 0)
     || ['verifiedComponentCount', 'verifiedChunkCount', 'verifiedCellCount', 'verifiedSlotCount',
       'verifiedResourceNodeCount', 'importedPassableCellCount'].some(key => status[key as keyof PtrProductionStatus] !== 0)
     || status.componentRows !== BigInt(componentPrefixCount)

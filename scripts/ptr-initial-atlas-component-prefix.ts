@@ -27,12 +27,22 @@ export function verifyPtrInitialAtlasComponentPrefix(input: Readonly<{
   release: Readonly<Record<string, unknown>>;
   components: readonly Readonly<Record<string, unknown>>[];
   atlasId: string;
+  regions?: readonly Readonly<Record<string, unknown>>[];
 }>) {
   const count = input.rows.length;
+  const regionVerificationJson = input.regions === undefined ? undefined : `${JSON.stringify(input.regions.map(row => ({
+    regionId: row.regionId, verifiedCellCount: 0, verifiedPassableCellCount: 0, verifiedChunkCount: 0,
+    verifiedCastleCapacity: 0, verifiedResourceLocationCount: 0, verifiedResourceNodeCount: 0,
+    verifiedFoodNodeCount: 0, verifiedWoodNodeCount: 0, verifiedStoneNodeCount: 0, verifiedGoldNodeCount: 0,
+  })))}\n`;
+  if (input.regions !== undefined && input.release.region_verification_json !== regionVerificationJson) fail();
   if (count > input.components.length || input.release.atlas_id !== input.atlasId
     || input.release.component_manifest_json !== `${JSON.stringify(input.components.slice(0, count))}\n`
     // SQL's SATS sum representation: variant 1 is none, with an empty product.
-    || updateCanonical(input.release.region_manifest_json) !== updateCanonical([1, []])) fail();
+    || (input.regions === undefined
+      ? updateCanonical(input.release.region_manifest_json) !== updateCanonical([1, []])
+      : count !== input.components.length || input.regions.length === 0
+        || updateCanonical(input.release.region_manifest_json) !== updateCanonical([0, `${JSON.stringify(input.regions)}\n`]))) fail();
   const ordered = [...input.rows].sort((a, b) => Number(a.component_ordinal) - Number(b.component_ordinal));
   const expected = input.components.slice(0, count).map(component => ptrInitialAtlasComponentPrefixExpectedRow(component, input.atlasId));
   for (let index = 0; index < count; index++) {
@@ -46,5 +56,6 @@ export function verifyPtrInitialAtlasComponentPrefix(input: Readonly<{
     if (updateCanonical(actual) !== updateCanonical(expected[index])) fail();
   }
   return Object.freeze({ componentCount: count, digest: updateDigest({ rows: expected,
-    componentManifestJson: input.release.component_manifest_json, regionManifestJson: input.release.region_manifest_json }) });
+    componentManifestJson: input.release.component_manifest_json, regionManifestJson: input.release.region_manifest_json,
+    ...(regionVerificationJson === undefined ? {} : { regionVerificationJson }) }) });
 }
