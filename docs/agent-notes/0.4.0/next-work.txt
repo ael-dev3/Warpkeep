@@ -1,3 +1,55 @@
+Qualified token throttling and bounded terrain v2 checkpoint - 11 October 2026
+
+Token acquisition now retries only a trusted 429 mint response, honoring canonical
+Retry-After 1..300 seconds for at most three HTTP attempts. Each attempt has its
+own deadline; waiting is cancellable and atlas transport close aborts it. Successful
+response/claims, protected-session expiry, marker timing and reducer behavior remain
+strict. Deterministic tests use the maintained bridge rate limiter at real renewal
+cadence. This corrects the demonstrated code throughput mismatch; the historical
+failed HTTP response itself was not retained and its exact status remains unknown.
+
+Existing terrain inspection/continuation commands select a distinct v2 profile
+only after the retained v1 terrain marker. All four prior submissions are required
+and unchanged; v2 requires strictly advanced exact terrain prefix and identical
+complete component proof. Its fifth key is fixed across source/prefix changes.
+Fresh confirmation, full prefix proofs and fresh protected SDK status precede its
+first send. Earlier stage/component/region/chunks are forbidden. Once marked, v2
+cannot retry. Genuine completion provenance through the entire retained chain is
+required before original ACK; orphan completion and modified parents reject.
+Windows/native Linux: 213 affected tests and root build-mode types passed with
+identical five-file bytes. Licensing, file-size and diff checks passed. Independent
+review passed; actual v2 inspection, continuation and completion are still pending.
+Publish and synchronize this exact checkpoint before runtime invocation. Preserve
+Alpha, G001 admission freeze/progress, G002 seal, licensing and rollback.
+
+Actual terrain continuation and token mint cadence - 11 October 2026
+
+Signed source 9ada69138a15f44a2070795cf871c68913b609a9 passed fresh inspection
+08:46:32.718-08:58:00.061 UTC; summary SHA256
+7c5065f8242dd379ddfef6607aedea1fdbef45bed9a55ebc82c16d044fbe13f8.
+Actual once-only continuation 08:58:09.866-09:12:21.258 UTC crossed the corrected
+pre-marker timing gate, committed six additional chunks, then closed with
+IMPORT_OUTCOME_AMBIGUOUS_RECONCILE_ONLY and diagnostic
+PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID. Summary SHA256
+7546675c6e1cdcd00bd149cc80190cce030e90cf9fbf63f766e0b92bc6af12b1.
+Source/index/refs remained held and managed cleanup completed. No completion
+receipt or owner acceptance exists. The fourth submission marker is retained:
+key 9c0f9fa21c8c4772cecbd6a6c65840040535649c630f847dd3cca41c16d27e25,
+SHA256 f5e1dbc93ddccce0f638e5893eb6de6dd7a17bed8d221d7054a27461f58cca32.
+All earlier markers remain unchanged; no acknowledgement. Never replay this command.
+Read-only reconciliation verifies exact maintained payload/indexed rows for 16
+chunks and 1960 cells, still zero passable cells, slots and resources. Preserve atlas.
+
+Maintained code identifies a deterministic throughput mismatch: the bridge allows
+six admin-token mints per rolling five minutes, while protected WebSocket renewal
+can mint every thirty seconds. All non-200 responses currently collapse to the
+same invalid-response diagnostic. A fresh metadata-only probe at 09:14:14.978 UTC
+returned 200 with JSON/no-store. This does not prove the failed earlier response
+was 429. Correct bounded token-mint throttling without retrying reducer calls or
+changing provider limits, then qualify a distinct once-only continuation bound to
+the newly verified prefix and all four retained markers. No marked operation may
+be replayed. Actual import completion, owner PTR journey and cutover remain pending.
+
 Pre-marker session timing correction - 11 October 2026
 
 Actual signed 3e5c0fee inspection passed with exact retained prefix: 10 chunks,

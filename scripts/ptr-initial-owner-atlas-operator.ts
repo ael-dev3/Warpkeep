@@ -281,6 +281,8 @@ export async function coordinatePtrInitialAtlasImport(input: Readonly<{
     const recoveryKey = ptrInitialAtlasRecoveryKey(input.marker);
     const regionKey = ptrInitialAtlasRegionRecoveryKey(input.marker);
     const terrainKey = ptrInitialAtlasTerrainRecoveryKey(input.marker);
+    if ((journal.present('submission', ptrInitialAtlasTerrainRecoveryV2Key(input.marker)) || journal.present('acknowledgement', ptrInitialAtlasTerrainRecoveryV2Key(input.marker)))
+      && !journal.present('submission', terrainKey)) fail('TERRAIN_RECOVERY_PRIOR_MARKER_DIFFERENT');
     if (journal.present('submission', terrainKey)) {
       if (!journal.present('submission', recoveryKey) || !journal.present('submission', regionKey)
         || journal.present('acknowledgement', recoveryKey) || journal.present('acknowledgement', regionKey)) fail('TERRAIN_RECOVERY_PRIOR_MARKER_DIFFERENT');
@@ -289,10 +291,23 @@ export async function coordinatePtrInitialAtlasImport(input: Readonly<{
       if (!recovery || typeof recovery !== 'object' || recovery.profile !== 'warpkeep-ptr-initial-atlas-terrain-recovery-v1' || recovery.originalMarkerDigest !== key
         || recovery.priorRecoveryKey !== recoveryKey || recovery.priorRecoveryDigest !== updateDigest(prior)
         || recovery.priorRegionRecoveryKey !== regionKey || recovery.priorRegionRecoveryDigest !== updateDigest(region)) fail('TERRAIN_RECOVERY_BINDING_DIFFERENT');
-      if (!journal.present('acknowledgement', terrainKey)) fail('RECOVERY_COMPLETION_MISSING');
-      if (updateCanonical(journal.read('acknowledgement', terrainKey).value) !== updateCanonical({
-        profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-completion-v1', priorRegionRecoveryKey: regionKey, priorRegionRecoveryDigest: updateDigest(region),
-        priorRecoveryKey: recoveryKey, priorRecoveryDigest: updateDigest(prior), originalMarkerDigest: key, recoveryDigest: updateDigest(recovery), receiptJson: stored.receiptJson })) fail('RECOVERY_COMPLETION_DIFFERENT');
+      const v2Key = ptrInitialAtlasTerrainRecoveryV2Key(input.marker);
+      if (journal.present('acknowledgement', v2Key) && !journal.present('submission', v2Key)) fail('RECOVERY_COMPLETION_DIFFERENT');
+      if (journal.present('submission', v2Key)) {
+        if (journal.present('acknowledgement', terrainKey)) fail('RECOVERY_ALREADY_COMPLETE');
+        const v2 = journal.read('submission', v2Key).value;
+        assertPtrInitialAtlasTerrainV2Binding(input.marker, prior, region, recovery, v2);
+        if (!journal.present('acknowledgement', v2Key)) fail('RECOVERY_COMPLETION_MISSING');
+        if (updateCanonical(journal.read('acknowledgement', v2Key).value) !== updateCanonical({
+          profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-completion-v2', priorTerrainRecoveryKey: terrainKey, priorTerrainRecoveryDigest: updateDigest(recovery),
+          priorRegionRecoveryKey: regionKey, priorRegionRecoveryDigest: updateDigest(region), priorRecoveryKey: recoveryKey, priorRecoveryDigest: updateDigest(prior),
+          originalMarkerDigest: key, recoveryDigest: updateDigest(v2), receiptJson: stored.receiptJson })) fail('RECOVERY_COMPLETION_DIFFERENT');
+      } else {
+        if (!journal.present('acknowledgement', terrainKey)) fail('RECOVERY_COMPLETION_MISSING');
+        if (updateCanonical(journal.read('acknowledgement', terrainKey).value) !== updateCanonical({
+          profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-completion-v1', priorRegionRecoveryKey: regionKey, priorRegionRecoveryDigest: updateDigest(region),
+          priorRecoveryKey: recoveryKey, priorRecoveryDigest: updateDigest(prior), originalMarkerDigest: key, recoveryDigest: updateDigest(recovery), receiptJson: stored.receiptJson })) fail('RECOVERY_COMPLETION_DIFFERENT');
+      }
     } else if (journal.present('submission', regionKey)) {
       if (!journal.present('submission', recoveryKey) || journal.present('acknowledgement', recoveryKey)) fail('REGION_RECOVERY_PRIOR_MARKER_DIFFERENT');
       const prior = journal.read('submission', recoveryKey).value, recovery = journal.read('submission', regionKey).value;
@@ -346,18 +361,44 @@ function assertPtrInitialAtlasTerrainPrior(marker: unknown, staged: unknown, reg
 export function ptrInitialAtlasTerrainRecoveryKey(marker: unknown): string {
   return updateDigest({ profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-v1', originalMarkerDigest: updateDigest(marker), priorRegionRecoveryKey: ptrInitialAtlasRegionRecoveryKey(marker) });
 }
+export function ptrInitialAtlasTerrainRecoveryV2Key(marker: unknown): string {
+  return updateDigest({ profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-v2', originalMarkerDigest: updateDigest(marker),
+    priorTerrainRecoveryKey: ptrInitialAtlasTerrainRecoveryKey(marker) });
+}
+function assertPtrInitialAtlasTerrainV1Binding(marker: unknown, staged: unknown, region: unknown, terrain: unknown): void {
+  assertPtrInitialAtlasTerrainPrior(marker, staged, region);
+  if (!terrain || typeof terrain !== 'object' || Array.isArray(terrain)) fail('TERRAIN_RECOVERY_PRIOR_BINDING_DIFFERENT');
+  const value = terrain as Record<string, unknown>;
+  if (value.profile !== 'warpkeep-ptr-initial-atlas-terrain-recovery-v1' || value.originalMarkerDigest !== updateDigest(marker)
+    || value.priorRecoveryKey !== ptrInitialAtlasRecoveryKey(marker) || value.priorRecoveryDigest !== updateDigest(staged)
+    || value.priorRegionRecoveryKey !== ptrInitialAtlasRegionRecoveryKey(marker) || value.priorRegionRecoveryDigest !== updateDigest(region)) fail('TERRAIN_RECOVERY_PRIOR_BINDING_DIFFERENT');
+}
+function assertPtrInitialAtlasTerrainV2Binding(marker: unknown, staged: unknown, region: unknown, priorTerrain: unknown, recovery: unknown): void {
+  assertPtrInitialAtlasTerrainV1Binding(marker, staged, region, priorTerrain);
+  if (!recovery || typeof recovery !== 'object' || Array.isArray(recovery)) fail('TERRAIN_RECOVERY_BINDING_DIFFERENT');
+  const value = recovery as Record<string, unknown>, prior = priorTerrain as Record<string, unknown>;
+  const prefix = value.terrainPrefix as Record<string, unknown> | undefined, previous = prior.terrainPrefix as Record<string, unknown> | undefined;
+  if (value.profile !== 'warpkeep-ptr-initial-atlas-terrain-recovery-v2'
+    || value.originalMarkerDigest !== updateDigest(marker) || value.priorRecoveryKey !== ptrInitialAtlasRecoveryKey(marker)
+    || value.priorRecoveryDigest !== updateDigest(staged) || value.priorRegionRecoveryKey !== ptrInitialAtlasRegionRecoveryKey(marker)
+    || value.priorRegionRecoveryDigest !== updateDigest(region) || value.priorTerrainRecoveryKey !== ptrInitialAtlasTerrainRecoveryKey(marker)
+    || value.priorTerrainRecoveryDigest !== updateDigest(priorTerrain)
+    || !prefix || !previous || !Number.isSafeInteger(prefix.chunkCount) || !Number.isSafeInteger(previous.chunkCount)
+    || (previous.chunkCount as number) < 1 || (prefix.chunkCount as number) <= (previous.chunkCount as number)
+    || !value.componentPrefix || !prior.componentPrefix || updateCanonical(value.componentPrefix) !== updateCanonical(prior.componentPrefix)) fail('TERRAIN_RECOVERY_BINDING_DIFFERENT');
+}
 export function ptrInitialAtlasStagedStatusDigest(status: ReturnType<typeof projectPtrProductionStatus>): string {
   return updateDigest(JSON.parse(JSON.stringify(status, (_key, value) => typeof value === 'bigint' ? value.toString() : value)));
 }
 
 /** A distinct, once-only continuation retains the original ambiguous submission unchanged. */
 export async function coordinatePtrInitialAtlasRecovery(input: Readonly<{
-  journal: ReturnType<typeof openPtrInitialOwnerUpdateJournal>; marker: unknown; recovery: unknown; priorRecovery?: unknown; priorRegionRecovery?: unknown;
+  journal: ReturnType<typeof openPtrInitialOwnerUpdateJournal>; marker: unknown; recovery: unknown; priorRecovery?: unknown; priorRegionRecovery?: unknown; priorTerrainRecovery?: unknown;
   assert: () => void; validateReceipt: (value: unknown) => PtrProductionImportReceipt;
   execute: (beforeSend: () => void) => Promise<PtrProductionImportReceipt>;
 }>) {
-  const originalKey = updateDigest(input.marker), terrain = input.priorRegionRecovery !== undefined, region = input.priorRecovery !== undefined,
-    priorKey = ptrInitialAtlasRecoveryKey(input.marker), key = terrain ? ptrInitialAtlasTerrainRecoveryKey(input.marker) : region ? ptrInitialAtlasRegionRecoveryKey(input.marker) : priorKey, journal = input.journal;
+  const originalKey = updateDigest(input.marker), terrainV2 = input.priorTerrainRecovery !== undefined, terrain = input.priorRegionRecovery !== undefined, region = input.priorRecovery !== undefined,
+    priorKey = ptrInitialAtlasRecoveryKey(input.marker), key = terrainV2 ? ptrInitialAtlasTerrainRecoveryV2Key(input.marker) : terrain ? ptrInitialAtlasTerrainRecoveryKey(input.marker) : region ? ptrInitialAtlasRegionRecoveryKey(input.marker) : priorKey, journal = input.journal;
   let marked = false;
   const check = () => { input.assert(); journal.assert();
     if (!journal.present('submission', originalKey)
@@ -375,9 +416,15 @@ export async function coordinatePtrInitialAtlasRecovery(input: Readonly<{
       assertPtrInitialAtlasTerrainPrior(input.marker, input.priorRecovery, input.priorRegionRecovery);
       if (!journal.present('submission', regionKey) || updateCanonical(journal.read('submission', regionKey).value) !== updateCanonical(input.priorRegionRecovery)) fail('TERRAIN_RECOVERY_PRIOR_MARKER_DIFFERENT');
       if (journal.present('acknowledgement', regionKey)) fail('RECOVERY_ALREADY_COMPLETE');
-      if (!input.recovery || typeof input.recovery !== 'object' || (input.recovery as Record<string, unknown>).profile !== 'warpkeep-ptr-initial-atlas-terrain-recovery-v1'
+      if (!input.recovery || typeof input.recovery !== 'object' || (input.recovery as Record<string, unknown>).profile !== (terrainV2 ? 'warpkeep-ptr-initial-atlas-terrain-recovery-v2' : 'warpkeep-ptr-initial-atlas-terrain-recovery-v1')
         || (input.recovery as Record<string, unknown>).originalMarkerDigest !== originalKey || (input.recovery as Record<string, unknown>).priorRegionRecoveryKey !== regionKey
         || (input.recovery as Record<string, unknown>).priorRegionRecoveryDigest !== updateDigest(input.priorRegionRecovery)) fail('TERRAIN_RECOVERY_BINDING_DIFFERENT');
+    }
+    if (terrainV2) {
+      const terrainKey = ptrInitialAtlasTerrainRecoveryKey(input.marker);
+      assertPtrInitialAtlasTerrainV2Binding(input.marker, input.priorRecovery, input.priorRegionRecovery, input.priorTerrainRecovery, input.recovery);
+      if (!journal.present('submission', terrainKey) || updateCanonical(journal.read('submission', terrainKey).value) !== updateCanonical(input.priorTerrainRecovery)) fail('TERRAIN_RECOVERY_PRIOR_MARKER_DIFFERENT');
+      if (journal.present('acknowledgement', terrainKey) || (!marked && journal.present('acknowledgement', key))) fail('RECOVERY_ALREADY_COMPLETE');
     }
     if (marked && (!journal.present('submission', key)
       || updateCanonical(journal.read('submission', key).value) !== updateCanonical(input.recovery))) fail('RECOVERY_MARKER_DIFFERENT', true);
@@ -392,7 +439,8 @@ export async function coordinatePtrInitialAtlasRecovery(input: Readonly<{
   if (!marked) fail('RECOVERY_SUBMISSION_NOT_MARKED');
   check();
   // The executor's chain proves continuation operations only. Persist that provenance before the original ACK.
-  journal.write('acknowledgement', key, { profile: terrain ? 'warpkeep-ptr-initial-atlas-terrain-recovery-completion-v1' : region ? 'warpkeep-ptr-initial-atlas-region-recovery-completion-v1' : 'warpkeep-ptr-initial-atlas-recovery-completion-v1',
+  journal.write('acknowledgement', key, { profile: terrainV2 ? 'warpkeep-ptr-initial-atlas-terrain-recovery-completion-v2' : terrain ? 'warpkeep-ptr-initial-atlas-terrain-recovery-completion-v1' : region ? 'warpkeep-ptr-initial-atlas-region-recovery-completion-v1' : 'warpkeep-ptr-initial-atlas-recovery-completion-v1',
+    ...(terrainV2 ? { priorTerrainRecoveryKey: ptrInitialAtlasTerrainRecoveryKey(input.marker), priorTerrainRecoveryDigest: updateDigest(input.priorTerrainRecovery) } : {}),
     ...(terrain ? { priorRegionRecoveryKey: ptrInitialAtlasRegionRecoveryKey(input.marker), priorRegionRecoveryDigest: updateDigest(input.priorRegionRecovery) } : {}),
     ...(region ? { priorRecoveryKey: priorKey, priorRecoveryDigest: updateDigest(input.priorRecovery) } : {}), originalMarkerDigest: originalKey, recoveryDigest: updateDigest(input.recovery), receiptJson: JSON.stringify(receipt) });
   check();
@@ -697,6 +745,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
     let recovery: Readonly<Record<string, unknown>> | undefined;
     let priorRecovery: unknown;
     let priorRegionRecovery: unknown;
+    let priorTerrainRecovery: unknown;
     let terrainPrefix: ReturnType<typeof verifyPtrInitialAtlasTerrainPrefix> | undefined;
     let componentPrefix: ReturnType<typeof verifyPtrInitialAtlasComponentPrefix> | undefined;
     const readRows = async (name: 'greater_realm_navigation_component_v1' | 'greater_realm_release_v1' | 'greater_realm_chunk_v1' | 'greater_realm_cell_v1' | 'greater_realm_castle_slot_v1' | 'greater_realm_resource_node_v1') => {
@@ -758,7 +807,17 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
           if (recoveryJournal.present('acknowledgement', regionKey) || recoveryJournal.present('acknowledgement', ptrInitialAtlasTerrainRecoveryKey(originalMarker))) fail('RECOVERY_ALREADY_COMPLETE');
           recovery = Object.freeze({ ...recovery, priorRegionRecoveryKey: regionKey, priorRegionRecoveryDigest: updateDigest(priorRegionRecovery) });
           confirmation = updateDigest(recovery);
-          if (recoveryJournal.present('submission', ptrInitialAtlasTerrainRecoveryKey(originalMarker))) fail('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
+          const terrainKey = ptrInitialAtlasTerrainRecoveryKey(originalMarker);
+          if (recoveryJournal.present('submission', terrainKey)) {
+            priorTerrainRecovery = recoveryJournal.read('submission', terrainKey).value;
+            recovery = Object.freeze({ ...recovery, profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-v2',
+              priorTerrainRecoveryKey: terrainKey, priorTerrainRecoveryDigest: updateDigest(priorTerrainRecovery) });
+            assertPtrInitialAtlasTerrainV2Binding(originalMarker, priorRecovery, priorRegionRecovery, priorTerrainRecovery, recovery);
+            const v2Key = ptrInitialAtlasTerrainRecoveryV2Key(originalMarker);
+            if (recoveryJournal.present('acknowledgement', v2Key)) fail('RECOVERY_ALREADY_COMPLETE');
+            if (recoveryJournal.present('submission', v2Key)) fail('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
+            confirmation = updateDigest(recovery);
+          }
         } else if (recoveryJournal.present('submission', ptrInitialAtlasRegionRecoveryKey(originalMarker))) fail('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
       } else if (recoveryJournal.present('submission', ptrInitialAtlasRecoveryKey(originalMarker))) fail('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
     }
@@ -818,7 +877,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
             recovering && !recoverySubmitted ? async value => { assert(); assertRecoveryStatus(value); assert(); } : undefined); assert(); } },
       assertCanStartWrite: assert });
     const receipt = recovering
-      ? await coordinatePtrInitialAtlasRecovery({ journal: importJournal, marker, recovery, ...(regionRecovering ? { priorRecovery } : {}), ...(terrainRecovering ? { priorRegionRecovery } : {}), assert, validateReceipt, execute })
+      ? await coordinatePtrInitialAtlasRecovery({ journal: importJournal, marker, recovery, ...(regionRecovering ? { priorRecovery } : {}), ...(terrainRecovering ? { priorRegionRecovery } : {}), ...(priorTerrainRecovery === undefined ? {} : { priorTerrainRecovery }), assert, validateReceipt, execute })
       : await coordinatePtrInitialAtlasImport({ command: input.command as 'import' | 'reconcile-import', journal: importJournal,
         marker, assert, validateReceipt, execute });
     assert(); const after = await observe(); assertBridgePreserved(after);

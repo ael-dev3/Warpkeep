@@ -189,7 +189,8 @@ export function createPtrAtlasImportTransport(input: Readonly<{
   const databaseIdentity = input.databaseIdentity;
   const suppliedAdminSecret = input.adminSecret;
   const disallowedDatabaseIdentities = input.disallowedDatabaseIdentities;
-  const requestToken = input.requestToken ?? requestPtrAtlasProductionAdminToken;
+  const tokenRequestLifetime = new AbortController();
+  const requestToken = input.requestToken ?? (secret => requestPtrAtlasProductionAdminToken(secret, { signal: tokenRequestLifetime.signal }));
   const connectDatabase = input.connectDatabase ?? connectPtrProduction;
   const effectiveSessionRequired = input.connectDatabase === undefined;
   const nowSeconds = input.nowSeconds ?? (() => Math.floor(Date.now() / 1_000));
@@ -325,6 +326,7 @@ export function createPtrAtlasImportTransport(input: Readonly<{
     close: async () => {
       const prior = serialized;
       closed = true;
+      tokenRequestLifetime.abort();
       adminSecret = '';
       await prior;
       invalidate();

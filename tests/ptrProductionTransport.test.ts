@@ -2,6 +2,8 @@
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { AuthRateLimiter } from '../services/auth-bridge/src/rateLimit';
+import type { DurableObjectState, DurableObjectTransaction } from '../services/auth-bridge/src/types';
 import type { BridgeConfig } from '../services/auth-bridge/src/config';
 import { ptrAdminClaims, ptrAtlasAdminClaims } from '../services/auth-bridge/src/jwt';
 
@@ -940,4 +942,135 @@ it.each(['refresh', 'status-drift'] as const)('does not mark after first-send %s
   }
   expect(marker).not.toHaveBeenCalled(); expect(reducer).not.toHaveBeenCalled();
   await transport.close();
+});
+
+
+describe('bounded token mint throttling', () => {
+  const limitedResponse = (retryAfter = '300', overrides: Record<string, string> = {}) => new Response(null, {
+    status: 429, headers: { 'content-type': 'application/json', 'cache-control': 'no-store', 'retry-after': retryAfter, ...overrides },
+  });
+  it('clears each HTTP timeout before waiting and preserves strict bodyless token requests', async () => {
+    vi.useFakeTimers();
+    try {
+      const signals: AbortSignal[] = [], headers: Headers[] = [];
+      const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+        signals.push(init!.signal!); headers.push(init!.headers as Headers);
+        expect(init).toMatchObject({ method: 'POST', cache: 'no-store', credentials: 'omit', redirect: 'error' });
+        expect(init).not.toHaveProperty('body');
+        return signals.length === 1 ? limitedResponse('100') : tokenResponse();
+      });
+      const pending = requestPtrProductionAdminToken(ADMIN_SECRET, { fetchImpl });
+      await vi.advanceTimersByTimeAsync(99_999);
+      expect(fetchImpl).toHaveBeenCalledTimes(1); expect(signals[0]!.aborted).toBe(false);
+      expect(headers[0]!.has('authorization')).toBe(false);
+      await vi.advanceTimersByTimeAsync(1); await expect(pending).resolves.toBe(ADMIN_JWT);
+      expect(fetchImpl).toHaveBeenCalledTimes(2); expect(signals[1]).not.toBe(signals[0]);
+      expect(vi.getTimerCount()).toBe(0); expect(headers[1]!.has('authorization')).toBe(false);
+    } finally { vi.useRealTimers(); }
+  });
+  it('gives the retried HTTP request its own full abort deadline and never retries a timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      let attempts = 0;
+      const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        if (++attempts === 1) return limitedResponse('100');
+        return new Promise((_resolve, reject) => init!.signal!.addEventListener('abort', () => reject(new Error('request aborted')), { once: true }));
+      });
+      const result = requestPtrAtlasProductionAdminToken(ADMIN_SECRET, { fetchImpl }).catch(error => error);
+      await vi.advanceTimersByTimeAsync(107_999); expect(attempts).toBe(2); expect(vi.getTimerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(1); expect(await result).toMatchObject({ code: 'PTR_PRODUCTION_ADMIN_TOKEN_UNAVAILABLE' });
+      expect(attempts).toBe(2); expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+  it('bounds retries and retains only the canonical terminal rate-limit diagnostic', async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchImpl = vi.fn(async () => limitedResponse());
+      const result = requestPtrAtlasProductionAdminToken(ADMIN_SECRET, { fetchImpl }).catch(error => error);
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(await result).toMatchObject({ code: 'PTR_PRODUCTION_ADMIN_TOKEN_RATE_LIMITED', retryAfterSeconds: 300 });
+      expect(fetchImpl).toHaveBeenCalledTimes(3); expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+  it.each(['0', '301', '01', '-1', '1.0', '1e2', 'Sun, 11 Oct 2026 12:00:00 GMT', ''])('rejects invalid Retry-After %s without another mint', async value => {
+    const fetchImpl = vi.fn(async () => limitedResponse(value));
+    await expect(requestPtrAtlasProductionAdminToken(ADMIN_SECRET, { fetchImpl })).rejects.toThrow('PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+  it.each([{ 'cache-control': 'public' }, { 'content-type': 'text/html' }] as Record<string, string>[])('never retries an untrusted 429 response %s', async headers => {
+    const fetchImpl = vi.fn(async () => limitedResponse('1', headers));
+    await expect(requestPtrAtlasProductionAdminToken(ADMIN_SECRET, { fetchImpl })).rejects.toThrow('PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+  it('does not retry another failure or accept malformed success after a rate limit', async () => {
+    vi.useFakeTimers();
+    try {
+      let requests = 0;
+      const fetchImpl = vi.fn(async () => ++requests === 1 ? limitedResponse('1') : new Response('{}', {
+        status: 200, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+      }));
+      const result = requestPtrAtlasProductionAdminToken(ADMIN_SECRET, { fetchImpl }).catch(error => error);
+      await vi.advanceTimersByTimeAsync(1_000); expect(await result).toMatchObject({ code: 'PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID' });
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+    } finally { vi.useRealTimers(); }
+  });
+  it('cancels a Retry-After wait without another request and cleans all timers', async () => {
+    vi.useFakeTimers();
+    try {
+      const controller = new AbortController(), fetchImpl = vi.fn(async () => limitedResponse());
+      const result = requestPtrAtlasProductionAdminToken(ADMIN_SECRET, { fetchImpl, signal: controller.signal }).catch(error => error);
+      await vi.advanceTimersByTimeAsync(1_000); controller.abort();
+      expect(await result).toMatchObject({ code: 'PTR_PRODUCTION_ADMIN_TOKEN_UNAVAILABLE' });
+      await vi.advanceTimersByTimeAsync(300_000); expect(fetchImpl).toHaveBeenCalledTimes(1); expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+  it('closes promptly during the default mint delay without connecting or sending a reducer', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => limitedResponse());
+    const connectDatabase = vi.fn(async () => { throw new Error('must not connect'); });
+    const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], connectDatabase, nowSeconds: () => NOW_SECONDS });
+    try {
+      const result = transport.inspect().catch(error => error);
+      await vi.advanceTimersByTimeAsync(0); expect(fetchImpl).toHaveBeenCalledTimes(1);
+      await transport.close();
+      expect(await result).toMatchObject({ code: 'PTR_PRODUCTION_ADMIN_TOKEN_UNAVAILABLE' });
+      expect(connectDatabase).not.toHaveBeenCalled(); expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(300_000); expect(fetchImpl).toHaveBeenCalledTimes(1);
+    } finally { await transport.close(); fetchImpl.mockRestore(); vi.useRealTimers(); }
+  });
+  it('honors the maintained rolling admin bucket at the observed WebSocket renewal cadence', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(NOW_SECONDS * 1_000);
+    try {
+      const values = new Map<string, unknown>();
+      const transaction: DurableObjectTransaction = {
+        get: async <T>(key: string) => values.get(key) as T | undefined,
+        put: async <T>(key: string, value: T) => { values.set(key, structuredClone(value)); },
+        delete: async (key: string) => values.delete(key),
+      };
+      const guard = new AuthRateLimiter({ storage: { ...transaction, transaction: async <T>(closure: (value: DurableObjectTransaction) => Promise<T>) => closure(transaction),
+        getAlarm: async () => null, setAlarm: async () => {}, deleteAlarm: async () => {}, deleteAll: async () => { values.clear(); } } } as DurableObjectState);
+      let admitted = 0;
+      const fetchImpl = vi.fn(async () => {
+        const response = await guard.fetch(new Request('https://auth-rate-limiter.internal/check/admin-token', { method: 'POST' }));
+        if (response.status === 429) return limitedResponse(response.headers.get('retry-after')!);
+        expect(response.status).toBe(204); admitted++;
+        const now = Math.floor(Date.now() / 1_000);
+        return new Response(JSON.stringify({ token: atlasJwt({ iat: now, nbf: now, exp: now + 300 }), tokenType: 'spacetime-access', expiresIn: 300 }), {
+          headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+        });
+      });
+      for (let index = 0; index < 6; index++) {
+        await requestPtrAtlasProductionAdminToken(ADMIN_SECRET, { fetchImpl });
+        await vi.advanceTimersByTimeAsync(30_000);
+      }
+      expect(admitted).toBe(6);
+      const pending = requestPtrAtlasProductionAdminToken(ADMIN_SECRET, { fetchImpl });
+      await vi.advanceTimersByTimeAsync(119_999); expect(admitted).toBe(6); expect(fetchImpl).toHaveBeenCalledTimes(7);
+      await vi.advanceTimersByTimeAsync(1); const token = await pending;
+      expect(admitted).toBe(7); expect(fetchImpl).toHaveBeenCalledTimes(8);
+      expect(readPtrAtlasImportAuthority(token, Math.floor(Date.now() / 1_000)).expiresAt).toBe(NOW_SECONDS + 600);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
 });

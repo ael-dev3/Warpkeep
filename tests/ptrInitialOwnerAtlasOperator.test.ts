@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { classifyPtrInitialAtlasFailure, PtrInitialOwnerAtlasError, assertPtrInitialAtlasBootstrapMarker, assertPtrInitialAtlasObservation,
-  assertPtrInitialAtlasUpdateContinuation, assertPtrInitialAtlasUpdateReconciliationPair, coordinatePtrInitialAtlasImport, coordinatePtrInitialAtlasRecovery, ptrInitialAtlasRecoveryKey, ptrInitialAtlasRegionRecoveryKey, ptrInitialAtlasTerrainRecoveryKey, ptrInitialAtlasTargets, ptrInitialAtlasConfirmation,
+  assertPtrInitialAtlasUpdateContinuation, assertPtrInitialAtlasUpdateReconciliationPair, coordinatePtrInitialAtlasImport, coordinatePtrInitialAtlasRecovery, ptrInitialAtlasRecoveryKey, ptrInitialAtlasRegionRecoveryKey, ptrInitialAtlasTerrainRecoveryKey, ptrInitialAtlasTerrainRecoveryV2Key, ptrInitialAtlasTargets, ptrInitialAtlasConfirmation,
   ptrInitialAtlasImportMarker, ptrInitialAtlasImportChainVerified, preparePtrInitialAtlasRecoverySubmission } from '../scripts/ptr-initial-owner-atlas-operator';
 import { createPtrBootstrapInspection, PTR_BOOTSTRAP_TARGET as target, PTR_BOOTSTRAP_PROVIDER_OWNER as owner } from '../scripts/ptr-compatibility-bootstrap-core.mjs';
 import { parsePtrUpdateDefinition } from '../scripts/ptr-update-definition-policy.mjs';
@@ -701,5 +701,92 @@ describe('first recovery send proof and renewal ordering', () => {
         inspect: async () => ({}), assertStatus: () => {}, verifyPrefix: async () => {}, prepareFresh })).rejects.toThrow('changed source');
       expect(prepareFresh).toHaveBeenCalledTimes(failureAt === 3 ? 0 : 1);
     }
+  });
+});
+
+
+describe('bounded second terrain continuation', () => {
+  function v2Controls() {
+    const f = controls(), original = updateDigest(f.marker), stagedKey = ptrInitialAtlasRecoveryKey(f.marker),
+      regionKey = ptrInitialAtlasRegionRecoveryKey(f.marker), terrainKey = ptrInitialAtlasTerrainRecoveryKey(f.marker), key = ptrInitialAtlasTerrainRecoveryV2Key(f.marker);
+    const priorRecovery = { profile: 'warpkeep-ptr-initial-atlas-staged-recovery-v1', originalMarkerDigest: original };
+    const priorRegionRecovery = { profile: 'warpkeep-ptr-initial-atlas-region-recovery-v1', originalMarkerDigest: original,
+      priorRecoveryKey: stagedKey, priorRecoveryDigest: updateDigest(priorRecovery) };
+    const priorTerrainRecovery = { profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-v1', originalMarkerDigest: original,
+      priorRecoveryKey: stagedKey, priorRecoveryDigest: updateDigest(priorRecovery), priorRegionRecoveryKey: regionKey,
+      priorRegionRecoveryDigest: updateDigest(priorRegionRecovery), componentPrefix: { componentCount: 177, digest: 'a'.repeat(64) },
+      terrainPrefix: { chunkCount: 10, cellCount: 1114, digest: 'b'.repeat(64) } };
+    const recovery = { ...priorTerrainRecovery, profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-v2',
+      priorTerrainRecoveryKey: terrainKey, priorTerrainRecoveryDigest: updateDigest(priorTerrainRecovery),
+      terrainPrefix: { chunkCount: 16, cellCount: 1600, digest: 'c'.repeat(64) } };
+    for (const [slot, value] of [[original, f.marker], [stagedKey, priorRecovery], [regionKey, priorRegionRecovery], [terrainKey, priorTerrainRecovery]] as const) f.journal.write('submission', slot, value);
+    f.events.length = 0;
+    return { ...f, original, stagedKey, regionKey, terrainKey, key,
+      recoveryInput: { ...f.input, priorRecovery, priorRegionRecovery, priorTerrainRecovery, recovery } };
+  }
+  it('retains all four submissions and validates genuine v2 completion before original ACK', async () => {
+    const f = v2Controls(), result = await coordinatePtrInitialAtlasRecovery(f.recoveryInput);
+    expect(f.events).toEqual(['submission:fsynced', 'reducer', 'acknowledgement:fsynced', 'acknowledgement:fsynced']);
+    for (const key of [f.stagedKey, f.regionKey, f.terrainKey]) expect(f.journal.present('acknowledgement', key)).toBe(false);
+    expect(f.journal.read('submission', f.terrainKey).value).toEqual(f.recoveryInput.priorTerrainRecovery);
+    expect(f.journal.read('acknowledgement', f.key).value).toMatchObject({ profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-completion-v2',
+      priorTerrainRecoveryDigest: updateDigest(f.recoveryInput.priorTerrainRecovery), receiptJson: JSON.stringify(result) });
+    expect(await coordinatePtrInitialAtlasImport({ ...f.input, command: 'reconcile-import' })).toEqual(result);
+  });
+  it('refuses another v2 attempt even after prefix, source and confirmation change', async () => {
+    const f = v2Controls(), execute = vi.fn(async (beforeSend: () => void) => { beforeSend(); throw new Error('ambiguous'); });
+    await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, execute })).rejects.toThrow('ambiguous');
+    await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, execute, recovery: { ...f.recoveryInput.recovery,
+      terrainPrefix: { ...f.recoveryInput.recovery.terrainPrefix, chunkCount: 20 }, source: 'changed', confirmationBinding: 'changed' } })).rejects.toThrow('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY');
+    expect(execute).toHaveBeenCalledTimes(1); expect(f.slots.size).toBe(5);
+    expect(await coordinatePtrInitialAtlasImport({ ...f.input, command: 'reconcile-import' })).toBeNull();
+  });
+  it.each([0, 9, 10, 10.5, NaN])('requires strict new ordinal progress: %s', chunkCount => {
+    const f = v2Controls(); return expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput,
+      recovery: { ...f.recoveryInput.recovery, terrainPrefix: { ...f.recoveryInput.recovery.terrainPrefix, chunkCount } } })).rejects.toThrow('TERRAIN_RECOVERY_BINDING_DIFFERENT');
+  });
+  it.each(['profile', 'originalMarkerDigest', 'priorRecoveryKey', 'priorRecoveryDigest', 'priorRegionRecoveryKey', 'priorRegionRecoveryDigest', 'priorTerrainRecoveryKey', 'priorTerrainRecoveryDigest', 'componentPrefix'])('rejects changed v2 %s before sends', async field => {
+    const f = v2Controls(); await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput,
+      recovery: { ...f.recoveryInput.recovery, [field]: 'changed' } })).rejects.toThrow(); expect(f.execute).not.toHaveBeenCalled();
+  });
+  it.each(['missing', 'changed', 'acknowledged'] as const)('rejects %s prior terrain marker', async mode => {
+    const f = v2Controls();
+    if (mode === 'missing') f.slots.delete(`submission:${f.terrainKey}`);
+    if (mode === 'changed') f.slots.set(`submission:${f.terrainKey}`, {});
+    if (mode === 'acknowledged') f.slots.set(`acknowledgement:${f.terrainKey}`, {});
+    await expect(coordinatePtrInitialAtlasRecovery(f.recoveryInput)).rejects.toThrow(); expect(f.execute).not.toHaveBeenCalled();
+  });
+  it('rereads retained v1 terrain marker after executor before acknowledging', async () => {
+    const f = v2Controls(); await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, execute: async beforeSend => {
+      beforeSend(); f.slots.set(`submission:${f.terrainKey}`, {}); return receipt();
+    } })).rejects.toThrow('TERRAIN_RECOVERY_PRIOR_MARKER_DIFFERENT');
+    expect([...f.slots.keys()].filter(key => key.startsWith('acknowledgement:'))).toEqual([]);
+  });
+  it.each(['missing', 'changed', 'prior-changed', 'prior-missing', 'prior-ack', 'v2-changed'] as const)('rejects %s v2 completion provenance on reconciliation', async mode => {
+    const f = v2Controls(); await coordinatePtrInitialAtlasRecovery(f.recoveryInput);
+    if (mode === 'missing') f.slots.delete(`acknowledgement:${f.key}`);
+    if (mode === 'changed') f.slots.set(`acknowledgement:${f.key}`, {});
+    if (mode === 'prior-changed') f.slots.set(`submission:${f.terrainKey}`, {});
+    if (mode === 'prior-missing') f.slots.delete(`submission:${f.terrainKey}`);
+    if (mode === 'prior-ack') f.slots.set(`acknowledgement:${f.terrainKey}`, {});
+    if (mode === 'v2-changed') f.slots.set(`submission:${f.key}`, {});
+    await expect(coordinatePtrInitialAtlasImport({ ...f.input, command: 'reconcile-import' })).rejects.toThrow();
+    expect(f.execute).toHaveBeenCalledTimes(1);
+  });
+  it('rejects an orphan v2 completion even when v1 completed successfully', async () => {
+    const f = v2Controls(); f.slots.delete(`submission:${f.terrainKey}`);
+    await coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, priorTerrainRecovery: undefined,
+      recovery: f.recoveryInput.priorTerrainRecovery });
+    f.slots.set(`acknowledgement:${f.key}`, {});
+    await expect(coordinatePtrInitialAtlasImport({ ...f.input, command: 'reconcile-import' })).rejects.toThrow('RECOVERY_COMPLETION_DIFFERENT');
+  });
+  it('does not send when the new marker cannot be fsynced', async () => {
+    const f = v2Controls(); f.journal.write = () => { throw new Error('fsync failed'); };
+    await expect(coordinatePtrInitialAtlasRecovery(f.recoveryInput)).rejects.toThrow('fsync failed'); expect(f.events).toEqual([]);
+  });
+  it('does not acknowledge invalid executor receipt', async () => {
+    const f = v2Controls(); await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, execute: async beforeSend => {
+      beforeSend(); return { ...receipt(), importReceiptDigest: '0'.repeat(64) };
+    } })).rejects.toThrow('invalid receipt'); expect([...f.slots.keys()].filter(key => key.startsWith('acknowledgement:'))).toEqual([]);
   });
 });
