@@ -165,3 +165,49 @@ adds the same fixed code at those producers. It does not copy rejected input,
 provider response text, tokens, stack traces or other arbitrary error messages.
 The original failure remains unclassified until an actual corrected readback;
 do not infer the cause from this reporting fix or resubmit the marked import.
+
+
+## Reconciliation timing and redundant caller validation
+
+On signed source `821ab0f3cbe833dda1341c89ac50636cdb06b451`, reconcile-v3
+ran 2026-10-11T03:09:48.751Z to 03:42:27.705Z. Its configured deadline
+retired the worker; no operation receipt was completed. Source/index/refs held,
+cleanup completed, and all recorded worker PIDs were verified absent afterward.
+Summary SHA256: `0e95bce284cfa74fd5bf4e5fd1d9331498effbb2a3ce25d31d84e30fffcfcac0`.
+A missing operation receipt does not prove the operator was never invoked;
+do not treat the launcher's default false field as successful reconciliation.
+
+A credential-free local runtime readback passed in 10,281 ms. Source capture
+passed in 66 ms and a separate source assertion in 10 ms. These measurements
+exclude those isolated checks as sufficient explanations for the whole timeout.
+The instrumented, read-only reconcile-v4 ran 03:45:41.085Z to 03:53:47.045Z.
+It was deliberately retired after seven diagnostic intervals, not declared
+failed from an observation timeout. Birth-bound retirement and complete worker
+absence were verified. Summary SHA256:
+`d29a84c3329321f81cf31f73efb0a9c57d9d811ce0419a626b3b0f3aae9b1696`.
+Its bounded profile retains function names/sample counts only, no variables,
+URLs, bearer data or provider response contents. Profile SHA256:
+`1865110f8f42dea3f356ed0d2191b5a7c5bb6e689cfc8a2236fc4ba462c4defc`.
+A ten-second process sample observed repeated `verify-commit` and `log` calls;
+subprocess spawning dominated retained profiler samples. This demonstrates
+validation cost; it does not establish the original partial-import cause.
+
+The caller supplied the entire source/journal/signature/executable assertion as
+both provider source validation and config validation. Each provider check thus
+repeated the same full assertion, although config validation needs the held
+config file's exact hash, identity, owner, mode and bounds. The correction wires
+that exact config assertion separately and retains the full source assertion.
+The owner-state request wrapper also repeated assertions already performed
+before/after the awaited read by both the maintained inspector and provider;
+that third wrapper is removed. Neither consumer nor provider guard is removed.
+Signatures, ancestry, journals, held source/refs/index, executable checks,
+protected targets, readback comparisons and write admission remain unchanged.
+
+164 affected tests and root build-mode types pass on Windows and Linux.
+License and tracked-file-size checks pass. This qualifies the caller cleanup,
+not runtime recovery or owner acceptance. Publish/synchronize exact source and
+reconcile read-only again; measure the actual result before claiming speedup.
+The sole retained import submission marker still hashes to
+`989d8388ae0a4f5e70df483a6b8fa67910d0530983c1be2e684ead99601724a2`;
+there is no acknowledgement. Never erase it, resubmit blindly, fabricate a
+completion receipt or provision the owner before verified import completion.

@@ -427,6 +427,10 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
       ...(updateAcknowledgementPresent ? { acknowledgementMarker: updateAcknowledgement } : {}) });
     if (evidence.continuationDigest !== continuationEvidence?.continuationDigest) fail('UPDATE_CONTINUATION_CHANGED');
   };
+  const assertCliConfig = () => {
+    readLocalBindingBoundedFile(configPath, { maximumBytes: 64 * 1024, expectedUid: 1000, expectedMode: 0o600,
+      expectedSha256: configSha, expectedIdentity: config.identity }).body.fill(0);
+  };
   const assert = () => {
     source.assert(); journal.assert(); updateJournal?.assert(); assertContinuationJournal(); assertInstalledSource(source, inspection, binding);
     for (let i = 0; i < priorUpdates.length; i++) {
@@ -435,8 +439,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
     }
     if (updateCanonical(journal.read('inspection', input.bootstrapInspection!).value) !== updateCanonical(record)) fail('BOOTSTRAP_RECORD_CHANGED');
     assertPtrInitialAtlasBootstrapMarker(inspection, journal.read('submission', PTR_BOOTSTRAP_TARGET).value);
-    readLocalBindingBoundedFile(configPath, { maximumBytes: 64 * 1024, expectedUid: 1000, expectedMode: 0o600,
-      expectedSha256: configSha, expectedIdentity: config.identity }).body.fill(0);
+    assertCliConfig();
     readLocalBindingBoundedFile(executable, { maximumBytes: 256 * 1024 * 1024, requireExecutable: true, rejectWritableExecutable: true,
       expectedSha256: binarySha, expectedIdentity: binary.identity }).body.fill(0);
   };
@@ -448,7 +451,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
     assert();
     capability = createPtrInspectionProviderCredentials({ credentials: { spacetimeExecutable: executable,
       spacetimeExecutableSha256: binarySha, spacetimeCliRootDirectory: dirname(configPath), spacetimeCliConfigPath: configPath,
-      spacetimeCliConfigSha256: configSha, assertSource: assert, assertCliConfig: assert } });
+      spacetimeCliConfigSha256: configSha, assertSource: assert, assertCliConfig } });
     const held = capability;
     const assertProgram = async () => { assert(); const response = await requestPtrInspectionProvider(held, { operation: 'program' });
       try { assert(); if (parseExistingUpdateProgram(response.bytes) !== binding.candidateProgram) fail('PROGRAM_CHANGED'); } finally { response.bytes.fill(0); } };
@@ -459,7 +462,8 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
       try {
         v10 = await read('schema-v10');
         const actual = await inspectPtrInitialOwnerState({ assertSource: assert,
-          request: async operation => { assert(); const response = await requestPtrInspectionProvider(held, { operation }); assert(); return response.bytes; },
+          // The inspector and provider both assert before/after awaited reads; avoid a third identical wrapper.
+          request: async operation => (await requestPtrInspectionProvider(held, { operation })).bytes,
           configuration: async () => { assert(); const value = await verifyAuthBridgeRpcRoleAttestation({ adminToken: secret }); assert(); return value; } });
         if (!actual.preservation.installedStateObservedEqual) fail('INSTALLED_STATE_CHANGED');
         if (!actual.preservation.privateConfigurationObservedEqual) fail('BRIDGE_CONFIGURATION_CHANGED_OR_UNOBSERVED');

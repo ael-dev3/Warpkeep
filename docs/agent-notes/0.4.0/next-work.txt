@@ -1,3 +1,25 @@
+Current recovery checkpoint - 11 October 2026, Atlas43 read-only reconciliation
+
+Reconcile-v3 hit its owned deadline; reconcile-v4 was deliberately retired after
+collecting a bounded timing trace. Complete worker absence was verified for both.
+No usable reconciliation or import completion receipt was produced. The original
+submission marker remains byte-identical and no acknowledgement exists.
+
+A qualified caller correction removes duplicate full source validation from the
+config callback and an extra wrapper around already guarded owner-state reads.
+All source/journal/signature/executable/protected-target and asynchronous readback
+checks remain. 164 affected tests and root build-mode types pass on Windows and
+Linux; license/file-size checks pass. Detailed timestamps, diagnostic limitations
+and recovery evidence: 2026-10-11-atlas43-token-activation.md.
+
+Next, owned by Codex: publish/synchronize this exact correction, reconcile read-only
+against the retained marker, classify actual backend status and the original
+continuation failure, then implement explicit verified recovery. No blind import
+retry, atlas rebuild, backend reapply or owner provisioning. After verified import
+completion: real owner, bridge/frontend, authenticated journey/mobile/performance,
+cutover and rollback readbacks. Preserve Alpha/G001 freeze/progress/G002 seal.
+0.4 is not shipped. Historical checkpoints below are superseded where conflicting.
+
 Current recovery checkpoint - 11 October 2026, partially staged Atlas43
 
 Import on published 5d6e743c closed with an ambiguous outcome after staging.
