@@ -8,6 +8,18 @@ remain incomplete. Preserve Alpha, G001 progress/admission freeze, the G002 seal
 licensing and rollback. Do not rebuild an already accepted atlas for this
 operator-only transport correction, or reapply the installed backend.
 
+## Bounded diagnostic reporting
+
+Diagnostic reporting correction: the import core now retains bounded submission
+and inspection protocol codes; the operator keeps that diagnostic separate from
+its ambiguous outcome. Typed token-acquisition errors are preserved before send.
+The maintained CLI emits only the validated diagnostic code, never provider bodies
+or exception messages. Windows/native Linux: 199 affected tests and root build-mode
+types passed; independent bounded review passed. This improves future diagnosis;
+it does not recover the lost underlying cause of the completed ten-chunk attempt.
+No provider write was performed for this correction. Next: independently qualify
+actual exact terrain-prefix continuation while retaining all three markers.
+
 ## Retained partial terrain import
 
 Current recovery checkpoint - 11 October 2026, committed terrain prefix retained

@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { assertPtrInitialAtlasBootstrapMarker, assertPtrInitialAtlasObservation,
+import { classifyPtrInitialAtlasFailure, PtrInitialOwnerAtlasError, assertPtrInitialAtlasBootstrapMarker, assertPtrInitialAtlasObservation,
   assertPtrInitialAtlasUpdateContinuation, assertPtrInitialAtlasUpdateReconciliationPair, coordinatePtrInitialAtlasImport, coordinatePtrInitialAtlasRecovery, ptrInitialAtlasRecoveryKey, ptrInitialAtlasRegionRecoveryKey, ptrInitialAtlasTargets, ptrInitialAtlasConfirmation,
   ptrInitialAtlasImportMarker, ptrInitialAtlasImportChainVerified } from '../scripts/ptr-initial-owner-atlas-operator';
 import { createPtrBootstrapInspection, PTR_BOOTSTRAP_TARGET as target, PTR_BOOTSTRAP_PROVIDER_OWNER as owner } from '../scripts/ptr-compatibility-bootstrap-core.mjs';
@@ -572,5 +572,28 @@ describe('once-only region continuation provenance', () => {
     if (mode === 'fake-prior-ack') f.slots.set(`acknowledgement:${f.priorKey}`, {});
     await expect(coordinatePtrInitialAtlasImport({ ...f.input, command: 'reconcile-import' })).rejects.toThrow();
     expect(f.execute).toHaveBeenCalledTimes(1);
+  });
+});
+
+
+describe('private ambiguous import diagnostics', () => {
+  it('retains a known token failure while preserving ambiguous prior writes', () => {
+    const error = classifyPtrInitialAtlasFailure({ code: 'PTR_PRODUCTION_TOKEN_EXPIRED_BEFORE_SEND', message: 'synthetic-private-body' }, true);
+    expect(error).toMatchObject({ code: 'IMPORT_OUTCOME_AMBIGUOUS_RECONCILE_ONLY', submitted: true,
+      diagnosticCode: 'PTR_PRODUCTION_TOKEN_EXPIRED_BEFORE_SEND' });
+    expect(JSON.stringify(error)).not.toContain('synthetic-private-body');
+  });
+  it.each([{ code: 'synthetic-private-token' }, { code: 'PTR_SECRET:private-body' }, new Error('synthetic-private-body')])
+    ('discards unknown messages and rejected diagnostic inputs', raw => {
+      expect(classifyPtrInitialAtlasFailure(raw, true)).toMatchObject({ code: 'IMPORT_OUTCOME_AMBIGUOUS_RECONCILE_ONLY',
+        submitted: true, diagnosticCode: 'PROVIDER_OR_PROTOCOL_FAILED' });
+    });
+  it('does not classify a failed first token request as a submitted write', () => {
+    expect(classifyPtrInitialAtlasFailure({ code: 'PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID' }, false))
+      .toMatchObject({ code: 'PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID', submitted: false });
+  });
+  it('retains explicit operator recovery classification unchanged', () => {
+    const error = new PtrInitialOwnerAtlasError('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
+    expect(classifyPtrInitialAtlasFailure(error, true)).toBe(error);
   });
 });

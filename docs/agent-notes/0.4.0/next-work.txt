@@ -1,5 +1,15 @@
 Current recovery checkpoint - 11 October 2026, committed terrain prefix retained
 
+Diagnostic reporting correction: the import core now retains bounded submission
+and inspection protocol codes; the operator keeps that diagnostic separate from
+its ambiguous outcome. Typed token-acquisition errors are preserved before send.
+The maintained CLI emits only the validated diagnostic code, never provider bodies
+or exception messages. Windows/native Linux: 199 affected tests and root build-mode
+types passed; independent bounded review passed. This improves future diagnosis;
+it does not recover the lost underlying cause of the completed ten-chunk attempt.
+No provider write was performed for this correction. Next: independently qualify
+actual exact terrain-prefix continuation while retaining all three markers.
+
 Signed source 1cd0b209427201eeea340736305b9a8c3808cd6f,
 tree 77ef90fa90ae274045bf0946c23141d3299cd593, passed live
 inspect-region-recovery. Summary SHA256

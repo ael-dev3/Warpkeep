@@ -573,3 +573,16 @@ it('starts a committed component/region prefix at chunk zero and retains a genui
   expect(transport.submissions.some(row => [PTR_PRODUCTION_IMPORT_REDUCERS.stage,
     PTR_PRODUCTION_IMPORT_REDUCERS.components, PTR_PRODUCTION_IMPORT_REDUCERS.regions].includes(row.reducer as any))).toBe(false);
 });
+
+
+it.each(['PTR_PRODUCTION_TOKEN_EXPIRED_BEFORE_SEND', 'synthetic-private-body'])
+  ('retains only sanitized submit failure when reconciliation shows no progress: %s', code => {
+    const transport = transitionTransport();
+    transport.submit = vi.fn(async () => { throw { code, message: 'synthetic-private-body' }; });
+    return expect(executePtrProductionImport({ artifacts: artifacts(), ...ptrInitialAtlasTargets(G002_IDENTITY),
+      moduleSourceCommit: SOURCE_COMMIT, moduleSha256: MODULE_SHA256, moduleTreeId: MODULE_TREE_ID,
+      dependencyClosureDigest: DEPENDENCY_DIGEST, spacetimeExecutableSha256: SPACETIME_DIGEST,
+      importEpoch: 1n, publicName: 'Warpkeep PTR', transport, assertCanStartWrite: () => {}, testOnlyVerifyArtifacts: () => {} }))
+      .rejects.toMatchObject({ code: 'PTR_PRODUCTION_IMPORT_REJECTED_OR_UNCOMMITTED', submitted: true,
+        diagnosticCode: code.startsWith('PTR_') ? code : null });
+  });

@@ -315,7 +315,7 @@ export function createPtrAtlasImportTransport(input: Readonly<{
         await operationTimeout(method(arguments_));
       } catch (error) {
         invalidate();
-        if (error instanceof PtrProductionTransportError) throw error;
+        if (error instanceof PtrProductionTransportError || error instanceof PtrProductionAdminTokenError) throw error;
         return fail('PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS');
       }
     }),

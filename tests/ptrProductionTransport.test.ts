@@ -882,3 +882,15 @@ it.each(['invalid', 'throws'] as const)('cleans up a returned connection when th
   expect(disconnect).toHaveBeenCalledOnce(); expect(marker).not.toHaveBeenCalled(); expect(reducer).not.toHaveBeenCalled();
   await transport.close();
 });
+
+
+it('preserves typed token acquisition failure before any atlas reducer or marker', async () => {
+  const error = new PtrProductionAdminTokenError('PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+  const marker = vi.fn(), connectDatabase = vi.fn();
+  const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY,
+    adminSecret: ADMIN_SECRET, disallowedDatabaseIdentities: [G002_IDENTITY],
+    requestToken: async () => { throw error; }, connectDatabase });
+  await expect(transport.submit('admin_import_greater_realm_chunk_v1', {}, marker)).rejects.toBe(error);
+  expect(marker).not.toHaveBeenCalled(); expect(connectDatabase).not.toHaveBeenCalled();
+  await transport.close();
+});

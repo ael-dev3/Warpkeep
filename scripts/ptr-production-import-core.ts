@@ -144,14 +144,21 @@ const IMPORT_RECEIPT_KEYS = Object.freeze([
 ] as const);
 
 export class PtrProductionImportError extends Error {
-  constructor(readonly code: string, readonly submitted = false) {
+  constructor(readonly code: string, readonly submitted = false, readonly diagnosticCode: string | null = null) {
     super(code);
     this.name = 'PtrProductionImportError';
   }
 }
 
-function fail(code: string, submitted = false): never {
-  throw new PtrProductionImportError(code, submitted);
+export function readPtrImportDiagnosticCode(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const raw = error instanceof PtrProductionImportError && error.diagnosticCode !== null
+    ? error.diagnosticCode : 'code' in error ? error.code : undefined;
+  return typeof raw === 'string' && /^(?:PTR_|GREATER_REALM_)[A-Z0-9_]{1,120}$/u.test(raw) ? raw : null;
+}
+
+function fail(code: string, submitted = false, diagnosticCode: string | null = null): never {
+  throw new PtrProductionImportError(code, submitted, diagnosticCode);
 }
 
 function exactRecord(
@@ -800,7 +807,7 @@ export async function executePtrProductionImport(input: Readonly<{
         submitted
           ? 'PTR_PRODUCTION_IMPORT_OUTCOME_AMBIGUOUS_MANUAL_RECONCILIATION_REQUIRED'
           : 'PTR_PRODUCTION_IMPORT_INSPECTION_UNAVAILABLE',
-        submitted,
+        submitted, readPtrImportDiagnosticCode(error),
       );
     }
   };
@@ -905,6 +912,7 @@ export async function executePtrProductionImport(input: Readonly<{
     });
     await input.transport.prepareSubmission?.();
     let submissionFailed = false;
+    let submissionDiagnostic: string | null = null;
     input.assertCanStartWrite();
     try {
       await input.transport.submit(
@@ -914,8 +922,9 @@ export async function executePtrProductionImport(input: Readonly<{
         submittedArguments,
         input.assertCanStartWrite,
       );
-    } catch {
+    } catch (error) {
       submissionFailed = true;
+      submissionDiagnostic = readPtrImportDiagnosticCode(error);
     }
     operationsSubmitted += 1;
     const after = await inspect(true);
@@ -934,7 +943,7 @@ export async function executePtrProductionImport(input: Readonly<{
         submissionFailed
           ? 'PTR_PRODUCTION_IMPORT_REJECTED_OR_UNCOMMITTED'
           : 'PTR_PRODUCTION_IMPORT_POSTCONDITION_FAILED',
-        true,
+        true, submissionDiagnostic,
       );
     }
     chain = createHash('sha256')

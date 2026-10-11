@@ -12,7 +12,7 @@ import { openExistingGreaterRealmPrivateWorkspace } from './atlas/greater-realm-
 import { readPtrGreaterRealmRuntimeRelease, verifyPtrGreaterRealmRuntimeReleaseArtifacts } from './atlas/greater-realm-runtime-release';
 import { runGreaterRealmTrustedGit } from './atlas/greater-realm-git';
 import { greaterRealmProductionImportEngine } from './greater-realm-production-import-core';
-import { PTR_PRODUCTION_IMPORT_TARGET, assertPtrProductionInitialStagedStatus, executePtrProductionImport, projectPtrProductionStatus, ptrProductionImportReceiptDigest, type PtrProductionImportReceipt } from './ptr-production-import-core';
+import { PTR_PRODUCTION_IMPORT_TARGET, readPtrImportDiagnosticCode, assertPtrProductionInitialStagedStatus, executePtrProductionImport, projectPtrProductionStatus, ptrProductionImportReceiptDigest, type PtrProductionImportReceipt } from './ptr-production-import-core';
 import { createPtrAtlasImportTransport } from './ptr-production-transport';
 import { takePtrProductionAdminSecret } from './ptr-production-admin-token';
 import { writePrivatePtrProductionReceipt } from './ptr-production-receipt-file';
@@ -30,9 +30,18 @@ import { updateCanonical, updateDigest, parseExistingUpdateJson, parseExistingUp
 const ROOT = resolve(import.meta.dirname, '..'), HASH = /^[a-f0-9]{64}$/u;
 const sha = (value: Uint8Array) => createHash('sha256').update(value).digest('hex');
 export class PtrInitialOwnerAtlasError extends Error {
-  constructor(readonly code: string, readonly submitted = false) { super(`PTR_INITIAL_OWNER_ATLAS_${code}`); this.name = 'PtrInitialOwnerAtlasError'; }
+  constructor(readonly code: string, readonly submitted = false, readonly diagnosticCode: string | null = null) { super(`PTR_INITIAL_OWNER_ATLAS_${code}`); this.name = 'PtrInitialOwnerAtlasError'; }
 }
 const fail: (code: string, submitted?: boolean) => never = (code, submitted = false) => { throw new PtrInitialOwnerAtlasError(code, submitted); };
+/** Preserve a bounded protocol code without retaining provider bodies or exception messages. */
+export function classifyPtrInitialAtlasFailure(error: unknown, submitted: boolean): PtrInitialOwnerAtlasError {
+  if (error instanceof PtrInitialOwnerAtlasError) return error;
+  const code = readPtrImportDiagnosticCode(error) ?? 'PROVIDER_OR_PROTOCOL_FAILED';
+  const possiblySubmitted = submitted || (typeof error === 'object' && error !== null && 'submitted' in error && error.submitted === true);
+  return new PtrInitialOwnerAtlasError(possiblySubmitted ? 'IMPORT_OUTCOME_AMBIGUOUS_RECONCILE_ONLY' : code,
+    possiblySubmitted, code);
+}
+
 type Command = 'select-runtime' | 'prepare-runtime' | 'inspect' | 'import' | 'reconcile-import' | 'inspect-import-recovery' | 'resume-import' | 'inspect-region-recovery' | 'resume-region-import' | 'inspect-owner' | 'provision-owner';
 type Source = ReturnType<typeof capturePtrInitialOwnerSource>;
 
@@ -766,11 +775,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
       after: after.observed, commandSucceeded: true, providerWritesAttempted: submitted, retryAuthorized: false, usableOwnerPtrVerified: false,
       productionAuthorized: false, globalReleaseAuthority: false });
   } catch (error) {
-    if (error instanceof PtrInitialOwnerAtlasError) throw error;
-    const code = typeof error === 'object' && error !== null && 'code' in error && typeof error.code === 'string'
-      && /^[A-Z0-9_:-]{3,160}$/u.test(error.code) ? error.code : 'PROVIDER_OR_PROTOCOL_FAILED';
-    const possiblySubmitted = submitted || (typeof error === 'object' && error !== null && 'submitted' in error && error.submitted === true);
-    fail(possiblySubmitted ? 'IMPORT_OUTCOME_AMBIGUOUS_RECONCILE_ONLY' : code, possiblySubmitted);
+    throw classifyPtrInitialAtlasFailure(error, submitted);
   } finally {
     delete input.environment.WARPKEEP_ADMIN_TOKEN_SECRET; delete input.environment.WARPKEEP_PLAYER_CANARY_OWNER_FID;
     delete env.WARPKEEP_ADMIN_TOKEN_SECRET; delete env.WARPKEEP_PLAYER_CANARY_OWNER_FID; delete env.WARPKEEP_PTR_LAUNCH_ENTROPY;
@@ -810,5 +815,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       process.stdout.write(`${JSON.stringify({ path: output, sha256: sha(bytes), commandSucceeded: result.commandSucceeded })}\n`);
       if (!result.commandSucceeded) process.exitCode = 1;
     } finally { closeSync(fd); }
-  } catch (error) { process.stderr.write(`${error instanceof PtrInitialOwnerAtlasError ? error.message : 'PTR_INITIAL_OWNER_ATLAS_FAILED'}\n`); process.exitCode = 1; }
+  } catch (error) {
+    process.stderr.write(`${error instanceof PtrInitialOwnerAtlasError ? error.message : 'PTR_INITIAL_OWNER_ATLAS_FAILED'}\n`);
+    const diagnostic = error instanceof PtrInitialOwnerAtlasError ? error.diagnosticCode : null;
+    if (diagnostic && /^(?:PTR_|GREATER_REALM_)[A-Z0-9_]{1,120}$/u.test(diagnostic))
+      process.stderr.write(`PTR_INITIAL_OWNER_ATLAS_DIAGNOSTIC_${diagnostic}\n`);
+    process.exitCode = 1;
+  }
 }
