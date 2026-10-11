@@ -84,6 +84,118 @@ function tokenResponse(overrides: Partial<Response> = {}): Response {
 }
 
 describe('PTR production admin token and transport', () => {
+  it.each(['atlas', 'owner'] as const)('disconnects a late %s connection after close without starting a command', async kind => {
+    let finish!: (connection: never) => void, notify!: () => void;
+    const pending = new Promise<never>(resolve => { finish = resolve; });
+    const connecting = new Promise<void>(resolve => { notify = resolve; });
+    const disconnect = vi.fn(), command = vi.fn(async () => ({})), assertCanStartWrite = vi.fn();
+    const options = {
+      databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => NOW_SECONDS,
+      requestToken: async () => kind === 'atlas' ? atlasJwt() : adminJwt(),
+      connectDatabase: vi.fn(async () => { notify(); return await pending; }),
+    };
+    const transport = kind === 'atlas' ? createPtrAtlasImportTransport(options) : createPtrOwnerProvisionTransport(options);
+    const operation = 'inspect' in transport ? transport.inspect() : transport.provisionOwner(BigInt(OWNER_FID), assertCanStartWrite);
+    const outcome = operation.then(() => 'unexpected-success', error => error.code);
+    await connecting;
+    const closing = transport.close();
+    finish({ isDisconnectRequested: false, disconnect,
+      procedures: { adminGetGreaterRealmStatusV1: command }, reducers: { adminProvisionPtrOwnerV1: command } } as never);
+    await closing;
+    expect(await outcome).toBe(kind === 'atlas' ? 'PTR_PRODUCTION_SESSION_CLOSED' : 'PTR_PRODUCTION_CONNECTION_UNAVAILABLE');
+    expect(disconnect).toHaveBeenCalledOnce(); expect(command).not.toHaveBeenCalled();
+    expect(assertCanStartWrite).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { iat: NOW_SECONDS + 6, nbf: NOW_SECONDS + 6, exp: NOW_SECONDS + 306 },
+    { iat: NOW_SECONDS + 3, nbf: NOW_SECONDS + 3, exp: NOW_SECONDS + 303, roles: [] },
+    { iat: NOW_SECONDS - 300, nbf: NOW_SECONDS - 300, exp: NOW_SECONDS },
+  ])('rejects invalid atlas claims without waiting or connecting: %j', async overrides => {
+    vi.useFakeTimers(); vi.setSystemTime(NOW_SECONDS * 1_000);
+    const connectDatabase = vi.fn();
+    const transport = createPtrAtlasImportTransport({
+      databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], connectDatabase: connectDatabase as never,
+      requestToken: async () => atlasJwt(overrides),
+    });
+    try {
+      await expect(transport.inspect()).rejects.toThrow('PTR_PRODUCTION_ATLAS_ADMIN_TOKEN_CLAIMS_INVALID');
+      expect(connectDatabase).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { await transport.close(); vi.useRealTimers(); }
+  });
+
+  it.each(['clock-stalled', 'expired', 'closed'] as const)('rechecks atlas authority after waiting: %s', async mode => {
+    vi.useFakeTimers(); vi.setSystemTime(NOW_SECONDS * 1_000);
+    const connectDatabase = vi.fn();
+    const transport = createPtrAtlasImportTransport({
+      databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], connectDatabase: connectDatabase as never,
+      requestToken: async () => atlasJwt({ iat: NOW_SECONDS + 3, nbf: NOW_SECONDS + 3, exp: NOW_SECONDS + 303 }),
+      ...(mode === 'clock-stalled' ? { nowSeconds: () => NOW_SECONDS } : {}),
+    });
+    try {
+      const outcome = transport.inspect().then(() => 'unexpected-success', error => error.code);
+      await vi.advanceTimersByTimeAsync(2_000);
+      const closing = mode === 'closed' ? transport.close() : undefined;
+      if (mode === 'expired') vi.setSystemTime((NOW_SECONDS + 301) * 1_000);
+      await vi.advanceTimersByTimeAsync(3_000);
+      await closing;
+      expect(await outcome).toBe(mode === 'closed' ? 'PTR_PRODUCTION_SESSION_CLOSED' : 'PTR_PRODUCTION_ATLAS_ADMIN_TOKEN_CLAIMS_INVALID');
+      expect(connectDatabase).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { await transport.close(); vi.useRealTimers(); }
+  });
+
+  it('waits for owner token activation before connecting or permitting a reducer', async () => {
+    vi.useFakeTimers(); vi.setSystemTime(NOW_SECONDS * 1_000);
+    const reducer = vi.fn(async () => undefined), assertCanStartWrite = vi.fn();
+    const connectDatabase = vi.fn(async () => ({
+      isDisconnectRequested: false, disconnect: vi.fn(),
+      reducers: { adminProvisionPtrOwnerV1: reducer },
+    }) as never);
+    const transport = createPtrOwnerProvisionTransport({
+      databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], connectDatabase,
+      requestToken: async () => adminJwt({ iat: NOW_SECONDS + 5, nbf: NOW_SECONDS + 5, exp: NOW_SECONDS + 305 }),
+    });
+    try {
+      const outcome = transport.provisionOwner(BigInt(OWNER_FID), assertCanStartWrite);
+      await vi.advanceTimersByTimeAsync(4_000);
+      expect(connectDatabase).not.toHaveBeenCalled(); expect(assertCanStartWrite).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1_000);
+      await expect(outcome).resolves.toEqual({ ownerFid: BigInt(OWNER_FID), ownerAuthEpoch: 7 });
+      expect(connectDatabase).toHaveBeenCalledOnce(); expect(assertCanStartWrite).toHaveBeenCalledOnce();
+      expect(reducer).toHaveBeenCalledOnce();
+    } finally { await transport.close(); vi.useRealTimers(); }
+  });
+
+  it('waits for a slightly future atlas token before connecting', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW_SECONDS * 1_000);
+    const connectDatabase = vi.fn(async () => ({
+      isDisconnectRequested: false,
+      disconnect: vi.fn(),
+      procedures: { adminGetGreaterRealmStatusV1: vi.fn(async () => ({})) },
+    }) as never);
+    const transport = createPtrAtlasImportTransport({
+      databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], connectDatabase,
+      requestToken: async () => atlasJwt({ iat: NOW_SECONDS + 3, nbf: NOW_SECONDS + 3, exp: NOW_SECONDS + 303 }),
+    });
+    try {
+      const result = transport.inspect();
+      const outcome = result.then(value => ({ value }), error => ({ error }));
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(connectDatabase).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(await outcome).toEqual({ value: {} });
+      expect(connectDatabase).toHaveBeenCalledOnce();
+    } finally { await transport.close(); vi.useRealTimers(); }
+  });
+
   it('separates exact ownerless atlas and owner-bearing transport authority', async () => {
     expect(PTR_ATLAS_ADMIN_TOKEN_ENDPOINT)
       .toBe('https://auth.warpkeep.com/v1/admin/ptr-atlas-token');

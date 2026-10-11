@@ -1,3 +1,23 @@
+Current release checkpoint — 11 October 2026, Atlas43 accepted; token activation fix qualified
+
+Atlas43 from signed source 86a24f58a93829d9c4ea04e3d8db1e6c7c6316b2
+passed all 26 maintained proofs and local runtime preparation. Actual backend
+inspection passed. Two import attempts stopped before any atlas submission:
+fresh valid admin tokens were slightly ahead of local time. The transport now
+waits once within a strict bound, then revalidates at actual time before connecting;
+it also prevents pending/late connections from starting commands after close.
+104 affected tests pass on Windows/Linux, with root and explicit strict types.
+Detailed timestamps, receipt hashes and recovery:
+docs/agent-notes/0.4.0/2026-10-11-atlas43-token-activation.md.
+
+Next, owned by Codex: publish/synchronize the operator correction; inspect from
+that exact source; import once only with marker absence and fresh confirmation
+(or reconcile an existing marker); verify readiness, then provision the reviewed
+owner, accept authenticated gameplay/mobile/performance and finish cutover.
+Keep the accepted Atlas43 provenance; do not reapply the installed backend.
+Alpha, G001 progress/admission freeze, G002 seal, licensing and rollback remain.
+0.4 is not shipped. Historical checkpoints below are superseded where conflicting.
+
 Current release checkpoint - 10 October 2026, authenticated replacement40 exhaustion
 
 Reviewed .51 source ad7e7233916cd89574270cd5d20b7835deacd205
