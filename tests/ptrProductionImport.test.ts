@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto';
 
 import { describe, expect, it, vi } from 'vitest';
 
+import { ptrInitialAtlasTargets } from '../scripts/ptr-initial-owner-atlas-operator';
+
 import type { GreaterRealmRuntimeReleaseArtifacts } from '../scripts/atlas/greater-realm-runtime-release';
 import {
   PTR_PRODUCTION_IMPORT_REDUCERS,
@@ -349,10 +351,10 @@ describe('PTR production atlas import core', () => {
 
   it('imports in exact order and adds immutable PTR target args to every atlas reducer', async () => {
     const transport = transitionTransport();
+    const targets = ptrInitialAtlasTargets(G002_IDENTITY);
     const result = await executePtrProductionImport({
       artifacts: artifacts(),
-      databaseIdentity: DATABASE_IDENTITY,
-      disallowedDatabaseIdentities: [G002_IDENTITY],
+      ...targets,
       moduleSourceCommit: SOURCE_COMMIT,
       moduleSha256: MODULE_SHA256,
       moduleTreeId: MODULE_TREE_ID,
@@ -368,7 +370,7 @@ describe('PTR production atlas import core', () => {
       schemaVersion: 1,
       profile: 'warpkeep.ptr.production-import.v1',
       outcome: 'ready',
-      databaseIdentity: DATABASE_IDENTITY,
+      databaseIdentity: targets.databaseIdentity,
       moduleIdentity: 'warpkeep-ptr-owner-view-v1',
       atlasId: 'PTR_GREATER_REALM',
       releaseManifestSha256: createHash('sha256')

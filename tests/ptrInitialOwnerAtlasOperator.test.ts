@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { assertPtrInitialAtlasBootstrapMarker, assertPtrInitialAtlasObservation,
-  assertPtrInitialAtlasUpdateContinuation, assertPtrInitialAtlasUpdateReconciliationPair, coordinatePtrInitialAtlasImport, ptrInitialAtlasConfirmation,
+  assertPtrInitialAtlasUpdateContinuation, assertPtrInitialAtlasUpdateReconciliationPair, coordinatePtrInitialAtlasImport, ptrInitialAtlasTargets, ptrInitialAtlasConfirmation,
   ptrInitialAtlasImportMarker } from '../scripts/ptr-initial-owner-atlas-operator';
 import { createPtrBootstrapInspection, PTR_BOOTSTRAP_TARGET as target, PTR_BOOTSTRAP_PROVIDER_OWNER as owner } from '../scripts/ptr-compatibility-bootstrap-core.mjs';
 import { parsePtrUpdateDefinition } from '../scripts/ptr-update-definition-policy.mjs';
@@ -114,6 +114,19 @@ function controls(marker: any = { program: 'a'.repeat(64), release: 'b'.repeat(6
   return { input, journal, marker, slots, events, execute };
 }
 
+describe('initial atlas protected targets', () => {
+  it.each([undefined, '', 'invented', 'A'.repeat(64), target,
+    'c2001f161d44e50c0a75356d79a4d10fa4a9d77ea4eddd56cda7ac6af50b570e'])('rejects invalid or overlapping G002 identity %s', value => {
+    expect(() => ptrInitialAtlasTargets(value)).toThrow('PTR_INITIAL_OWNER_ATLAS_PROTECTED_TARGET_INVALID');
+  });
+  it('keeps the exact PTR target and a nonempty immutable G002 exclusion', () => {
+    const targets = ptrInitialAtlasTargets('4'.repeat(64));
+    expect(targets.databaseIdentity).toBe(target);
+    expect(targets.disallowedDatabaseIdentities).toEqual(['4'.repeat(64)]);
+    expect(Object.isFrozen(targets.disallowedDatabaseIdentities)).toBe(true);
+  });
+});
+
 describe('initial-quality PTR atlas installed observations', () => {
   it('accepts a ready imported atlas with populated gameplay tables without asserting bootstrap emptiness', () => {
     const f = setup(), result = assertPtrInitialAtlasObservation(f.record, f.observation as never);
@@ -161,6 +174,10 @@ describe('initial-quality PTR atlas installed observations', () => {
       expect(ptrInitialAtlasConfirmation({ ...base, [key]: '0'.repeat(base[key].length) })).not.toBe(digest);
     }
     expect(() => ptrInitialAtlasConfirmation({ ...base, program: 'invented' })).toThrow();
+    const protectedDigest = ptrInitialAtlasConfirmation({ ...base, genesis002DatabaseIdentity: '4'.repeat(64) });
+    expect(protectedDigest).not.toBe(digest);
+    expect(ptrInitialAtlasConfirmation({ ...base, genesis002DatabaseIdentity: '5'.repeat(64) })).not.toBe(protectedDigest);
+    expect(() => ptrInitialAtlasConfirmation({ ...base, genesis002DatabaseIdentity: target })).toThrow();
   });
 });
 describe('retained post-bootstrap PTR update continuation', () => {

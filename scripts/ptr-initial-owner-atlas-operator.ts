@@ -11,7 +11,7 @@ import { openExistingGreaterRealmPrivateWorkspace } from './atlas/greater-realm-
 import { readPtrGreaterRealmRuntimeRelease, verifyPtrGreaterRealmRuntimeReleaseArtifacts } from './atlas/greater-realm-runtime-release';
 import { runGreaterRealmTrustedGit } from './atlas/greater-realm-git';
 import { greaterRealmProductionImportEngine } from './greater-realm-production-import-core';
-import { executePtrProductionImport, projectPtrProductionStatus, ptrProductionImportReceiptDigest, type PtrProductionImportReceipt } from './ptr-production-import-core';
+import { PTR_PRODUCTION_IMPORT_TARGET, executePtrProductionImport, projectPtrProductionStatus, ptrProductionImportReceiptDigest, type PtrProductionImportReceipt } from './ptr-production-import-core';
 import { createPtrAtlasImportTransport } from './ptr-production-transport';
 import { takePtrProductionAdminSecret } from './ptr-production-admin-token';
 import { writePrivatePtrProductionReceipt } from './ptr-production-receipt-file';
@@ -195,11 +195,20 @@ export function assertPtrInitialAtlasUpdateReconciliationPair(input: Readonly<{
     reconciliationCount: 2, acknowledgementPresent: false, providerAckReceived: false,
     installationProvenByReadback: true, productionAuthorized: false, globalReleaseAuthority: false });
 }
+/** Fixed PTR plus the caller's verified sealed G002 identity; never an empty exclusion. */
+export function ptrInitialAtlasTargets(genesis002DatabaseIdentity: unknown) {
+  if (typeof genesis002DatabaseIdentity !== 'string' || !HASH.test(genesis002DatabaseIdentity)
+    || genesis002DatabaseIdentity === PTR_BOOTSTRAP_TARGET
+    || genesis002DatabaseIdentity === PTR_PRODUCTION_IMPORT_TARGET.genesis001DatabaseIdentity) fail('PROTECTED_TARGET_INVALID');
+  return Object.freeze({ databaseIdentity: PTR_BOOTSTRAP_TARGET,
+    disallowedDatabaseIdentities: Object.freeze([genesis002DatabaseIdentity]) });
+}
 export function ptrInitialAtlasConfirmation(input: Readonly<{ bootstrapInspection: string; sourceCommit: string;
-  installedSourceCommit: string; program: string; releaseSha256: string; atlasSourceCommit: string; continuationDigest?: string }>) {
+  installedSourceCommit: string; program: string; releaseSha256: string; atlasSourceCommit: string; continuationDigest?: string; genesis002DatabaseIdentity?: string }>) {
   if (![input.bootstrapInspection, input.program, input.releaseSha256].every(value => HASH.test(value))
     || ![input.sourceCommit, input.installedSourceCommit, input.atlasSourceCommit].every(value => /^[a-f0-9]{40}$/u.test(value))
     || (input.continuationDigest !== undefined && !HASH.test(input.continuationDigest))) fail('CONFIRMATION_INPUT_INVALID');
+  if (input.genesis002DatabaseIdentity !== undefined) ptrInitialAtlasTargets(input.genesis002DatabaseIdentity);
   const { continuationDigest, ...legacy } = input;
   return updateDigest({ profile: 'warpkeep-ptr-initial-atlas-confirmation-v1', databaseIdentity: PTR_BOOTSTRAP_TARGET,
     ...legacy, ...(continuationDigest === undefined ? {} : { continuationDigest }) });
@@ -342,6 +351,8 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
   if (input.priorUpdateInspections !== undefined && (!input.updateInspection || !Array.isArray(input.priorUpdateInspections)
     || input.priorUpdateInspections.length > 15 || input.priorUpdateInspections.some(digest => !HASH.test(digest)))) fail('ARGUMENT_INVALID');
   const env = { ...input.environment };
+  const targets = ptrInitialAtlasTargets(env.WARPKEEP_GENESIS_002_SPACETIMEDB_DATABASE);
+  delete env.WARPKEEP_GENESIS_002_SPACETIMEDB_DATABASE;
   const configPath = env.WARPKEEP_SPACETIME_CLI_CONFIG_PATH, executable = env.WARPKEEP_SPACETIME_EXECUTABLE ?? env.SPACETIME_BIN;
   const receiptDirectory = env.WARPKEEP_PTR_RECEIPT_DIRECTORY;
   if (typeof configPath !== 'string' || !isAbsolute(configPath) || realpathSync(configPath) !== configPath
@@ -539,8 +550,9 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
     }
     const confirmation = ptrInitialAtlasConfirmation({ bootstrapInspection: inspection.inspectionDigest, sourceCommit: source.facts.sourceCommit,
       installedSourceCommit: binding.sourceCommit, program: binding.candidateProgram, releaseSha256: authority.releaseSha256,
+      genesis002DatabaseIdentity: targets.disallowedDatabaseIdentities[0],
       atlasSourceCommit: authority.sourceCommit, ...(continuationEvidence ? { continuationDigest: continuationEvidence.continuationDigest } : {}) });
-    transport = createPtrAtlasImportTransport({ databaseIdentity: PTR_BOOTSTRAP_TARGET, adminSecret: secret, disallowedDatabaseIdentities: [] });
+    transport = createPtrAtlasImportTransport({ ...targets, adminSecret: secret });
     const active = transport, status = projectPtrProductionStatus(await active.inspect()); assert();
     if (input.command === 'inspect') return Object.freeze({ profile: 'warpkeep-ptr-initial-owner-atlas-operation-v1', command: input.command,
       source: source.facts, installedModuleSourceCommit: binding.sourceCommit, program: binding.candidateProgram,
@@ -569,7 +581,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
     const validateReceipt = (value: unknown) => validatePtrInitialAtlasImportReceipt(value, { binding, authority,
       manifestSha256: sha(artifacts.manifestBytes), headerJson: authority.headerJson });
     const receipt = await coordinatePtrInitialAtlasImport({ command: input.command as 'import' | 'reconcile-import', journal: importJournal,
-      marker, assert, validateReceipt, execute: beforeSend => executePtrProductionImport({ artifacts, databaseIdentity: PTR_BOOTSTRAP_TARGET, disallowedDatabaseIdentities: [],
+      marker, assert, validateReceipt, execute: beforeSend => executePtrProductionImport({ artifacts, ...targets,
       moduleSourceCommit: binding.sourceCommit, moduleSha256: binding.candidateSha256, moduleTreeId: binding.moduleTreeId,
       dependencyClosureDigest: binding.dependencyClosureDigest, spacetimeExecutableSha256: binding.cliDigest,
       importEpoch: 1n, publicName: 'Warpkeep PTR', transport: { inspect: async () => { assert(); const r = await active.inspect(); assert(); return r; },

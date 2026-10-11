@@ -74,6 +74,40 @@ explicit strict transport/token/test types passed on native Linux. No unrelated
 game feature or atlas proof changed. Final publication checks and provider
 acceptance remain separate evidence.
 
+## Protected-target caller correction
+
+The token fix was published as signed commit
+9284aa94f80de189146742d43e16ac6767fe98f0 and synchronized to native Git blobs
+and modes. Fresh inspection on that source ran 00:59:35.034–01:18:43.846 UTC,
+closed exit 0 and verified the installed continuation and absent atlas.
+Summary SHA256:
+7252bbb1c66866480c324574643f8afa966d6bb4f6fbb0edb50ec61de89d4ffe.
+
+Import ran 01:19:03.034–01:35:11.835 UTC, closed exit 1 with
+PTR_PRODUCTION_IMPORT_TARGET_IDENTITY_FORBIDDEN. Summary SHA256:
+3e7badb8c9779c38cf1a8d0ac0af6cb4106e8f3a1e2da4114faa60772813053c.
+Source/index/refs held; cleanup completed. Unlike the earlier token failures,
+this attempt created the journal directories. The actual nested journal contains
+zero entries: no submission marker or acknowledgement exists and no reducer ran.
+A directory alone does not establish a submission. Retain it; do not erase it or
+blindly reconcile/replay based on the launcher's conservative failure flag.
+
+The maintained initial-atlas caller supplied an empty exclusion list to the import
+core, which requires a protected non-PTR database. The guard correctly rejected
+that input. A fresh authenticated CLI alias readback resolved G001, PTR and sealed
+G002. The correction requires the verified G002 identity through
+WARPKEEP_GENESIS_002_SPACETIMEDB_DATABASE, validates it before provider operations,
+and supplies the same immutable nonempty exclusion to transport and import.
+Confirmation binds that identity as well as source/module/atlas. Missing, malformed,
+G001-overlapping or PTR-overlapping input fails; the core guard is unchanged.
+Never use an invented exclusion or remove target protection to pass this guard.
+
+111 affected tests pass on Windows and native Linux. The existing full import
+transition test now exercises the fixed-PTR caller's target shape through the real
+import core; additional cases reject invalid/overlapping exclusions and verify
+confirmation binding. Root build-mode types pass on both platforms. Publication,
+new-source inspection and real import remain subsequent evidence.
+
 ## Remaining release order
 
 1. Publish/synchronize this qualified operator correction, retaining Atlas43's
