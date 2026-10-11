@@ -211,3 +211,62 @@ The sole retained import submission marker still hashes to
 `989d8388ae0a4f5e70df483a6b8fa67910d0530983c1be2e684ead99601724a2`;
 there is no acknowledgement. Never erase it, resubmit blindly, fabricate a
 completion receipt or provision the owner before verified import completion.
+
+## Completed reconciliation and explicit staged recovery
+
+Reconcile-v5 executed against signed published `dc3db08944ecfcc579e143105e6cf2ea4d9b3361`
+(tree `29b92770b72335fd5b93aa3dedae9e83fd2ae323`) from **03:58:16.703Z to
+04:22:55.642Z on 11 October 2026 UTC**. It closed with exit 1, no timeout,
+`ATLAS_OPERATION_UNRESOLVED`: actual atlas importing, ownerless, submission uncertain,
+no provider writes. Source/index/refs and credential cleanup passed; owned PIDs
+1367900/1367924/1367935/1367947 were individually confirmed absent.
+
+- Summary SHA256: `322fe2bef91aa97e10066fbcc8a19b6446c305adcb97efc1224eba387f65fefe`.
+- Operation SHA256: `a6516f4397aff9155e41d975961f2f47d5d1cd59435b7c526e5090094023317f`.
+- Actual installed program: `6713e15292fc304ebc971e3bc37b852d81f4ee5507b813682634f6d6d172dae4`.
+- Direct authenticated SQL observed importing, ordinal 0, components phase,
+  passable count 0, epoch 1, source `86a24f58a93829d9c4ea04e3d8db1e6c7c6316b2`,
+  release `db17a790f1ffe47e747030838bf8d85e3ffc498c39333dc378ad0c5069b8b268`.
+  SQL stdout SHA256 `d41607ff18dd50a2b37b9e445995f0845ad4c6a0ff630220ff2f3b0210c037a7`.
+
+The original import submission remains retained without an ACK. Reconciliation
+cannot manufacture a receipt or restart that invocation. The reviewed repair adds
+explicit `inspect-import-recovery` and `resume-import` commands for the **exact
+initialized staging prefix only**. It checks the existing release authority,
+serialized header SHA state (using the actual backend length framing), empty atlas,
+verification and protected population counters, epoch, mutation policy and owner.
+It binds two equal full status reads, installed snapshot, bridge configuration,
+original marker and current signed source into confirmation. First executor and
+pre-send reads must match; a fresh status read inside the serialized transport
+occurs after connection/token activation and before durable marking and reducer.
+Stage is forbidden throughout recovery.
+
+A recovery submission key depends on the original marker rather than source or
+confirmation, preventing a changed checkpoint from authorizing another replay.
+The recovery marker is exclusive and durable before the first reducer; it is
+rechecked before both completion writes. The original marker is never replaced.
+A genuine maintained ready receipt covers **continuation operations only**.
+Separate completion provenance binds that receipt to the original marker and
+approved recovery record; provenance precedes the original completion ACK.
+Original reconciliation requires exact recovery provenance when a recovery marker
+exists. Ambiguous continuation never receives a fabricated ACK or retry grant.
+
+Independent bounded recovery review found two persistence gaps, both corrected
+and tested: post-executor recovery marker mutation and missing/changed provenance
+on original ACK reconciliation. No remaining review blocker. Windows/Linux:
+155 affected tests passed, then the additional continuation-without-stage test
+passed in the 53-test import suite (156 affected total). Root build-mode TypeScript
+passed on both hosts. These are implementation qualification, **not actual import,
+owner authentication, gameplay, frontend cutover or release acceptance**.
+
+Owned QA-only helper versions retain private DPAPI stdin ingress, pinned tooling,
+protected target readback, signed publication, source hold and whole-group cleanup:
+
+- child-v4 SHA256 `f776e959023b7b4d72d73b3aa56edaf0f259137257cd5d076385a9e9b9b7e013`;
+- run-v4 SHA256 `3ce31cf49abf1c44b3dabdaf1ca25317a1c6b3d858bcd022615121f7de8d96e3`;
+- parent-v5 SHA256 `7780f4f524c287b292a7e157c1d91e2537c4957fd2a1ff31d76bf39c591a1cf8`.
+
+Use a fresh ignored QA output stem per command. Inspect is read-only; resume needs
+its exact actual confirmation on the unchanged reviewed checkpoint. Preserve
+Alpha, G001 progress/admission freeze, G002 seal, licensing and rollback. Do not
+rebuild the accepted atlas or reapply the installed backend to bypass recovery.

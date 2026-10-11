@@ -1,6 +1,8 @@
 // @vitest-environment node
 
 import { createHash } from 'node:crypto';
+import { Sha256, updateLengthFramedSha256 } from '../spacetimedb/ptr/src/sha256';
+import { greaterRealmProductionImportEngine } from '../scripts/greater-realm-production-import-core';
 
 import { describe, expect, it, vi } from 'vitest';
 
@@ -11,6 +13,7 @@ import {
   PTR_PRODUCTION_IMPORT_REDUCERS,
   PTR_PRODUCTION_IMPORT_TARGET,
   executePtrProductionImport,
+  assertPtrProductionInitialStagedStatus,
   parsePtrProductionImportArguments,
   projectPtrProductionStatus,
   ptrProductionImportConfirmationDigest,
@@ -156,8 +159,8 @@ function absentStatus() {
   } as const;
 }
 
-function transitionTransport() {
-  let status: Record<string, unknown> = { ...absentStatus() };
+function transitionTransport(initial: Record<string, unknown> = absentStatus()) {
+  let status: Record<string, unknown> = { ...initial };
   let sequence = 0;
   const submissions: Array<Readonly<{
     reducer: string;
@@ -464,4 +467,51 @@ describe('PTR production atlas import core', () => {
       importEpoch: 1n,
     })).not.toBe(digest);
   });
+});
+
+function stagedFixture() {
+  const authority = greaterRealmProductionImportEngine.importAuthority(artifacts(), () => {});
+  const hash = new Sha256().update('warpkeep.greater-realm.release.v1\n');
+  updateLengthFramedSha256(hash, new TextEncoder().encode(authority.headerJson));
+  const status = { ...absentStatus(), present: true, atlasId: authority.atlasId,
+    publicReleaseId: authority.publicReleaseId, publicApprovalReceiptId: authority.publicApprovalReceiptId,
+    sourceCommit: authority.sourceCommit, expectedReleaseSha256: authority.releaseSha256,
+    releaseHeaderSha256: createHash('sha256').update(authority.headerJson).digest('hex'),
+    importEpoch: 1n, state: 'importing', verificationDigest: hash.serialize(),
+    expectedRegionCount: authority.totals.regionCount, expectedComponentCount: authority.totals.componentCount,
+    expectedChunkCount: authority.totals.chunkCount, expectedCellCount: authority.totals.cellCount,
+    expectedSlotCount: authority.totals.castleSlotCount, expectedResourceNodeCount: authority.totals.resourceNodeCount };
+  return { authority, status };
+}
+describe('exact initial staged recovery boundary', () => {
+  it('accepts only the real initialized digest and empty bound import', () => {
+    const { authority, status } = stagedFixture();
+    expect(() => assertPtrProductionInitialStagedStatus(projectPtrProductionStatus(status), authority)).not.toThrow();
+  });
+  it.each(['atlasId', 'publicReleaseId', 'publicApprovalReceiptId', 'sourceCommit', 'expectedReleaseSha256',
+    'releaseHeaderSha256', 'importEpoch', 'state', 'verificationPhase', 'verificationDigest', 'verificationCursor',
+    'expectedRegionCount', 'expectedComponentCount', 'expectedChunkCount', 'expectedCellCount', 'expectedSlotCount',
+    'expectedResourceNodeCount', 'verifiedComponentCount', 'verifiedChunkCount', 'verifiedCellCount', 'verifiedSlotCount',
+    'verifiedResourceNodeCount', 'componentExpectedCellCount', 'componentExpectedSlotCount', 'componentExpectedResourceNodeCount',
+    'importedPassableCellCount', 'regionManifestRows', 'componentRows', 'chunkRows', 'cellRows', 'slotRows', 'resourceRows',
+    'claimRows', 'occupancyRows', 'activationRows', 'publicAtlasRows', 'publicRegionRows', 'workerSystemRows',
+    'importsExact', 'ready', 'importMutationsCompiled', 'activationMutationsCompiled', 'ownerProvisioned', 'ownerEnabled', 'present'])
+    ('rejects changed %s', key => {
+      const { authority, status } = stagedFixture(), changed: any = { ...status }, value = changed[key];
+      changed[key] = typeof value === 'bigint' ? value + 1n : typeof value === 'number' ? value + 1
+        : typeof value === 'boolean' ? !value : 'changed';
+      expect(() => assertPtrProductionInitialStagedStatus(projectPtrProductionStatus(changed), authority)).toThrow();
+    });
+});
+
+it('continues an initialized stage through a genuine ready receipt without sending stage again', async () => {
+  const { status } = stagedFixture(), transport = transitionTransport(status);
+  const result = await executePtrProductionImport({ artifacts: artifacts(), ...ptrInitialAtlasTargets(G002_IDENTITY),
+    moduleSourceCommit: SOURCE_COMMIT, moduleSha256: MODULE_SHA256, moduleTreeId: MODULE_TREE_ID,
+    dependencyClosureDigest: DEPENDENCY_DIGEST, spacetimeExecutableSha256: SPACETIME_DIGEST,
+    importEpoch: 1n, publicName: 'Warpkeep PTR', transport, assertCanStartWrite: () => {}, testOnlyVerifyArtifacts: () => {} });
+  expect(result.outcome).toBe('ready');
+  expect(result.operationsSubmitted).toBe(transport.submissions.length);
+  expect(transport.submissions[0]?.reducer).toBe(PTR_PRODUCTION_IMPORT_REDUCERS.components);
+  expect(transport.submissions.some(row => row.reducer === PTR_PRODUCTION_IMPORT_REDUCERS.stage)).toBe(false);
 });

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { Sha256, updateLengthFramedSha256 } from '../spacetimedb/ptr/src/sha256';
 
 import {
   verifyPtrGreaterRealmRuntimeReleaseArtifacts,
@@ -574,6 +575,23 @@ function assertBoundStatus(
     || status.expectedSlotCount !== authority.totals.castleSlotCount
     || status.expectedResourceNodeCount !== authority.totals.resourceNodeCount
   ) fail('PTR_PRODUCTION_IMPORT_RELEASE_BINDING_INVALID');
+}
+
+/** Recovery is limited to the exact initialized stage, before any atlas rows were imported. */
+export function assertPtrProductionInitialStagedStatus(status: PtrProductionStatus, authority: Authority): void {
+  assertBoundStatus(status, authority, 1n);
+  const hash = new Sha256().update('warpkeep.greater-realm.release.v1\n');
+  updateLengthFramedSha256(hash, new TextEncoder().encode(authority.headerJson));
+  if (!status.present || status.state !== 'importing'
+    || status.verificationPhase !== 'components' || status.verificationCursor !== 0n
+    || status.verificationDigest !== hash.serialize() || status.ready || status.importsExact
+    || !status.importMutationsCompiled || status.activationMutationsCompiled
+    || status.regionManifestRows !== 0
+    || ['verifiedComponentCount', 'verifiedChunkCount', 'verifiedCellCount', 'verifiedSlotCount',
+      'verifiedResourceNodeCount', 'componentExpectedCellCount', 'componentExpectedSlotCount',
+      'componentExpectedResourceNodeCount', 'importedPassableCellCount'].some(key => status[key as keyof PtrProductionStatus] !== 0)
+    || ['componentRows', 'chunkRows', 'cellRows', 'slotRows', 'resourceRows', ...ZERO_BOUNDARY_FIELDS]
+      .some(key => status[key as keyof PtrProductionStatus] !== 0n)) fail('PTR_PRODUCTION_INITIAL_STAGE_DIFFERENT');
 }
 
 function exactReady(

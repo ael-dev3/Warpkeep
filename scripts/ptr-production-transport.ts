@@ -147,6 +147,7 @@ export type PtrAtlasImportTransport = Readonly<{
     reducer: PtrProductionReducer,
     arguments_: Readonly<Record<string, unknown>>,
     assertCanStartWrite: () => void,
+    assertCurrentStatus?: (value: unknown) => void,
   ) => Promise<void>;
   close: () => Promise<void>;
 }>;
@@ -252,7 +253,7 @@ export function createPtrAtlasImportTransport(input: Readonly<{
         return fail('PTR_PRODUCTION_CONNECTION_UNAVAILABLE');
       }
     }),
-    submit: (reducer, arguments_, assertCanStartWrite) => runSerialized(async () => {
+    submit: (reducer, arguments_, assertCanStartWrite, assertCurrentStatus) => runSerialized(async () => {
       const methodName = PTR_PRODUCTION_ATLAS_REDUCER_METHODS[reducer];
       if (typeof methodName !== 'string') {
         fail('PTR_PRODUCTION_REDUCER_FORBIDDEN');
@@ -263,6 +264,12 @@ export function createPtrAtlasImportTransport(input: Readonly<{
         const method = active.reducers[methodName];
         if (typeof method !== 'function') {
           fail('PTR_PRODUCTION_REDUCER_ABI_MISSING');
+        }
+        if (assertCurrentStatus) {
+          const procedure = active.procedures.adminGetGreaterRealmStatusV1;
+          if (typeof procedure !== 'function') fail('PTR_PRODUCTION_STATUS_ABI_MISSING');
+          assertCurrentStatus(await operationTimeout(procedure({})));
+          if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
         }
         assertCanStartWrite();
         await operationTimeout(method(arguments_));

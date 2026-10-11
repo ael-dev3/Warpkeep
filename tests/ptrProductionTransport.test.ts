@@ -710,3 +710,35 @@ describe('PTR production admin token and transport', () => {
     expect(JSON.stringify(error)).not.toContain('123456789');
   });
 });
+
+describe('recovery readback at the actual serialized write boundary', () => {
+  it.each(['changed', 'failure', 'closed'] as const)('prevents marker and reducer on %s readback', async mutation => {
+    const reducer = vi.fn(async () => undefined), beforeSend = vi.fn();
+    let transport: ReturnType<typeof createPtrAtlasImportTransport>;
+    const connection = { isDisconnectRequested: false, disconnect: vi.fn(),
+      procedures: { adminGetGreaterRealmStatusV1: vi.fn(async () => {
+        if (mutation === 'failure') throw new Error('provider failed');
+        if (mutation === 'closed') void transport.close();
+        return { changed: mutation === 'changed' };
+      }) }, reducers: { adminImportGreaterRealmComponentsV1: reducer } };
+    transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], requestToken: async () => atlasJwt(),
+      connectDatabase: async () => connection as never, nowSeconds: () => NOW_SECONDS });
+    await expect(transport.submit('admin_import_greater_realm_components_v1', {}, beforeSend, value => {
+      if ((value as any).changed) throw new Error('changed status');
+    })).rejects.toThrow();
+    expect(beforeSend).not.toHaveBeenCalled(); expect(reducer).not.toHaveBeenCalled();
+    await transport.close();
+  });
+  it('checks fresh status after connection activation before persisting the marker and sending', async () => {
+    const events: string[] = [];
+    const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], requestToken: async () => { events.push('token'); return atlasJwt(); },
+      connectDatabase: async () => ({ isDisconnectRequested: false, disconnect: vi.fn(),
+        procedures: { adminGetGreaterRealmStatusV1: async () => { events.push('read'); return {}; } },
+        reducers: { adminImportGreaterRealmComponentsV1: async () => { events.push('reducer'); } } }) as never,
+      nowSeconds: () => NOW_SECONDS });
+    await transport.submit('admin_import_greater_realm_components_v1', {}, () => { events.push('marker'); }, () => { events.push('validate'); });
+    expect(events).toEqual(['token', 'read', 'validate', 'marker', 'reducer']); await transport.close();
+  });
+});

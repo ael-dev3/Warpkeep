@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { assertPtrInitialAtlasBootstrapMarker, assertPtrInitialAtlasObservation,
-  assertPtrInitialAtlasUpdateContinuation, assertPtrInitialAtlasUpdateReconciliationPair, coordinatePtrInitialAtlasImport, ptrInitialAtlasTargets, ptrInitialAtlasConfirmation,
+  assertPtrInitialAtlasUpdateContinuation, assertPtrInitialAtlasUpdateReconciliationPair, coordinatePtrInitialAtlasImport, coordinatePtrInitialAtlasRecovery, ptrInitialAtlasRecoveryKey, ptrInitialAtlasTargets, ptrInitialAtlasConfirmation,
   ptrInitialAtlasImportMarker, ptrInitialAtlasImportChainVerified } from '../scripts/ptr-initial-owner-atlas-operator';
 import { createPtrBootstrapInspection, PTR_BOOTSTRAP_TARGET as target, PTR_BOOTSTRAP_PROVIDER_OWNER as owner } from '../scripts/ptr-compatibility-bootstrap-core.mjs';
 import { parsePtrUpdateDefinition } from '../scripts/ptr-update-definition-policy.mjs';
@@ -414,5 +414,64 @@ describe('durable initial atlas import coordinator used by the real CLI', () => 
   it('requires a genuine prior marker for reconciliation', async () => {
     const o = controls(); await expect(coordinatePtrInitialAtlasImport({ ...o.input, command: 'reconcile-import' })).rejects.toThrow('IMPORT_SUBMISSION_NOT_MARKED');
     expect(o.execute).not.toHaveBeenCalled(); expect(updateCanonical([...o.slots])).toBe('[]');
+  });
+});
+
+describe('once-only staged continuation provenance', () => {
+  function recoveryControls() {
+    const f = controls(), key = updateDigest(f.marker);
+    f.journal.write('submission', key, f.marker); f.events.length = 0;
+    return { ...f, recoveryInput: { ...f.input, recovery: { sourceCommit: 'c'.repeat(40), stagedStatusDigest: 'd'.repeat(64) } } };
+  }
+  it('persists recovery before reducers and genuine provenance before the original completion ACK', async () => {
+    const f = recoveryControls(), result = await coordinatePtrInitialAtlasRecovery(f.recoveryInput);
+    expect(result.importReceiptDigest).toBe(receipt().importReceiptDigest);
+    expect(f.events).toEqual(['submission:fsynced', 'reducer', 'acknowledgement:fsynced', 'acknowledgement:fsynced']);
+    expect(f.journal.read('submission', updateDigest(f.marker)).value).toEqual(f.marker);
+    expect(f.journal.read('acknowledgement', ptrInitialAtlasRecoveryKey(f.marker)).value).toMatchObject({
+      originalMarkerDigest: updateDigest(f.marker), recoveryDigest: updateDigest(f.recoveryInput.recovery), receiptJson: JSON.stringify(receipt()) });
+    const retained = await coordinatePtrInitialAtlasImport({ ...f.input, command: 'reconcile-import' });
+    expect(retained).toEqual(result);
+  });
+  it('retains both markers without completion after ambiguous continuation and rejects another source checkpoint', async () => {
+    const f = recoveryControls(), execute = vi.fn(async (beforeSend: () => void) => { beforeSend(); throw new Error('ambiguous'); });
+    await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, execute })).rejects.toThrow('ambiguous');
+    expect(f.slots.size).toBe(2);
+    await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, recovery: { sourceCommit: 'e'.repeat(40) } }))
+      .rejects.toThrow('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY');
+    expect(f.execute).not.toHaveBeenCalled();
+  });
+  it('never submits if durable marker persistence fails', async () => {
+    const f = recoveryControls(); f.journal.write = () => { throw new Error('fsync failed'); };
+    await expect(coordinatePtrInitialAtlasRecovery(f.recoveryInput)).rejects.toThrow('fsync failed');
+    expect(f.events).toEqual([]);
+  });
+  it('cannot acknowledge a fabricated continuation receipt', async () => {
+    const f = recoveryControls(), execute = async (beforeSend: () => void) => { beforeSend(); return { ...receipt(), importReceiptDigest: '0'.repeat(64) }; };
+    await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, execute })).rejects.toThrow('invalid receipt');
+    expect(f.slots.size).toBe(2);
+  });
+  it('requires the original retained submission and refuses completed imports', async () => {
+    const f = recoveryControls(); f.slots.clear();
+    await expect(coordinatePtrInitialAtlasRecovery(f.recoveryInput)).rejects.toThrow('RECOVERY_ORIGINAL_MARKER_DIFFERENT');
+    expect(f.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe('retained recovery completion integrity', () => {
+  it('rejects a changed recovery marker after executor completion before acknowledging anything', async () => {
+    const f = controls(), original = updateDigest(f.marker), recovery = { checkpoint: 'first' };
+    f.journal.write('submission', original, f.marker); f.events.length = 0;
+    await expect(coordinatePtrInitialAtlasRecovery({ ...f.input, recovery, execute: async beforeSend => {
+      beforeSend(); f.slots.set(`submission:${ptrInitialAtlasRecoveryKey(f.marker)}`, { checkpoint: 'changed' }); return receipt();
+    } })).rejects.toThrow('RECOVERY_MARKER_DIFFERENT');
+    expect(f.slots.size).toBe(2);
+  });
+  it('requires exact recovery provenance when reconciling its original completion ACK', async () => {
+    const f = controls(), original = updateDigest(f.marker), recovery = { checkpoint: 'first' };
+    f.journal.write('submission', original, f.marker);
+    await coordinatePtrInitialAtlasRecovery({ ...f.input, recovery });
+    f.slots.delete(`acknowledgement:${ptrInitialAtlasRecoveryKey(f.marker)}`);
+    await expect(coordinatePtrInitialAtlasImport({ ...f.input, command: 'reconcile-import' })).rejects.toThrow('RECOVERY_COMPLETION_MISSING');
   });
 });
