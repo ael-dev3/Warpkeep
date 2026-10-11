@@ -1,3 +1,33 @@
+Current recovery checkpoint - 11 October 2026, committed terrain prefix retained
+
+Signed source 1cd0b209427201eeea340736305b9a8c3808cd6f,
+tree 77ef90fa90ae274045bf0946c23141d3299cd593, passed live
+inspect-region-recovery. Summary SHA256
+134d232bd80b1c0e643cc64a9ae34334f6acf2770bf999b434112234e99eda62.
+The once-only resume-region-import ran 07:16:48.562-07:30:39.119 UTC,
+closed exit 1 with IMPORT_OUTCOME_AMBIGUOUS_RECONCILE_ONLY.
+Summary SHA256 2f21bf93cb5d34473e0bb1b4484282fe1677d9e70364f0da8fa55f7bc8ba3a2c;
+operation SHA256 48adba699bab7dd6e04b86cbcf0e7a684f9666f7e6d6b9bbe0eb94b270d3e899.
+Source/index/refs held; cleanup completed and native launchers are absent.
+
+Actual fixed-provider readback proves next_chunk_ordinal=10 and ten terrain chunk
+rows, importing, with zero verification progress. This is committed partial
+progress, not a ready atlas or completed owner PTR. Original, staged-recovery and
+region-recovery markers remain; no completion receipt was returned. Region marker
+key 2011d5bd47cc2409ac2e36d1e40b265254b9e1f2413608c1b26a0443eae08838,
+file SHA256 981de471bb186ab21f92f069c730809b3053b5b9b1868323c99df402db1bd80c,
+created 07:28:38.275 UTC. Backend error readback is unchanged: no new logged
+INVALID_PTR_ATLAS_ADMIN_SESSION. The current failure classification masks its
+underlying cause; do not assert a new backend authentication failure without proof.
+
+Next, Codex: preserve a sanitized underlying diagnostic alongside ambiguous outcome,
+then qualify exact retained terrain-prefix continuation and real completion
+provenance. Never rerun resume-region-import, erase a marker, rebuild/restage or
+replay committed components/regions/chunks. Keep Alpha, G001 progress/admission
+freeze, G002 seal, licensing and rollback. Owner, bridge/frontend, authenticated
+journey, mobile/performance and cutover acceptance remain. 0.4 is not shipped.
+Historical next steps below are superseded by this actual partial import.
+
 Current recovery checkpoint - 11 October 2026, actual session renewal verified
 
 Signed source bd5f1f52f6b169e4b018390f96d079f9e6198042,
