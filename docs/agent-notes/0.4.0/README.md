@@ -1,3 +1,22 @@
+Terrain-prefix continuation checkpoint - 11 October 2026
+
+Implemented a distinct inspect-terrain-recovery / resume-terrain-import path for
+an exact nonpassable prefix with no component membership, slots or resources.
+The read-only verifier compares every retained chunk and indexed cell against
+maintained verified artifact bytes, reconstructs the release hash state and rejects
+missing, extra or changed rows. Two complete readbacks bind the confirmation;
+a fresh prefix check precedes the first send. Earlier stage, component, region and
+chunk operations are forbidden. All three prior markers remain unchanged; a fourth
+once-only marker and genuine completion provenance precede any original ACK.
+This is narrow recovery admission, not owner gameplay or release acceptance.
+Windows and native Linux: 259 affected tests and root build-mode types passed.
+Licensing, file-size, caller syntax and diff checks passed. Independent review
+passed after correcting the signed timestamp bound and QA caller version identity.
+Actual deployment
+inspection and continuation are still pending. Preserve the accepted atlas; do
+not rebuild, restage or replay a previously marked command. New QA caller versions
+retain bounded diagnostic codes without retaining exception messages or credentials.
+
 Current recovery checkpoint - 11 October 2026, committed terrain prefix retained
 
 Diagnostic reporting correction: the import core now retains bounded submission

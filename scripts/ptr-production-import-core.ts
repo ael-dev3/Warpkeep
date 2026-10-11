@@ -609,6 +609,24 @@ export function assertPtrProductionInitialStagedStatus(status: PtrProductionStat
       .some(key => status[key as keyof PtrProductionStatus] !== 0n)) fail('PTR_PRODUCTION_INITIAL_STAGE_DIFFERENT');
 }
 
+/** Admit only a separately verified, ownerless, nonpassable terrain prefix. */
+export function assertPtrProductionInitialTerrainPrefixStatus(
+  status: PtrProductionStatus, authority: Authority, componentCount: number,
+  prefix: Readonly<{ chunkCount: number; cellCount: number; digest: string;
+    verificationDigest: string; initialVerificationDigest: string }>,
+): void {
+  if (!prefix || !Number.isSafeInteger(prefix.chunkCount) || prefix.chunkCount < 1
+    || prefix.chunkCount > authority.totals.chunkCount
+    || !Number.isSafeInteger(prefix.cellCount) || prefix.cellCount < 1
+    || prefix.cellCount > authority.totals.cellCount || !SHA256.test(prefix.digest)
+    || typeof prefix.verificationDigest !== 'string' || typeof prefix.initialVerificationDigest !== 'string'
+    || status.chunkRows !== BigInt(prefix.chunkCount) || status.cellRows !== BigInt(prefix.cellCount)
+    || status.verificationDigest !== prefix.verificationDigest)
+    fail('PTR_PRODUCTION_INITIAL_TERRAIN_PREFIX_DIFFERENT');
+  assertPtrProductionInitialStagedStatus({ ...status, chunkRows: 0n, cellRows: 0n,
+    verificationDigest: prefix.initialVerificationDigest }, authority, componentCount, true);
+}
+
 function exactReady(
   status: PtrProductionStatus,
   authority: Authority,

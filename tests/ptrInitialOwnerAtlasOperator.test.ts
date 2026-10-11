@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { classifyPtrInitialAtlasFailure, PtrInitialOwnerAtlasError, assertPtrInitialAtlasBootstrapMarker, assertPtrInitialAtlasObservation,
-  assertPtrInitialAtlasUpdateContinuation, assertPtrInitialAtlasUpdateReconciliationPair, coordinatePtrInitialAtlasImport, coordinatePtrInitialAtlasRecovery, ptrInitialAtlasRecoveryKey, ptrInitialAtlasRegionRecoveryKey, ptrInitialAtlasTargets, ptrInitialAtlasConfirmation,
+  assertPtrInitialAtlasUpdateContinuation, assertPtrInitialAtlasUpdateReconciliationPair, coordinatePtrInitialAtlasImport, coordinatePtrInitialAtlasRecovery, ptrInitialAtlasRecoveryKey, ptrInitialAtlasRegionRecoveryKey, ptrInitialAtlasTerrainRecoveryKey, ptrInitialAtlasTargets, ptrInitialAtlasConfirmation,
   ptrInitialAtlasImportMarker, ptrInitialAtlasImportChainVerified } from '../scripts/ptr-initial-owner-atlas-operator';
 import { createPtrBootstrapInspection, PTR_BOOTSTRAP_TARGET as target, PTR_BOOTSTRAP_PROVIDER_OWNER as owner } from '../scripts/ptr-compatibility-bootstrap-core.mjs';
 import { parsePtrUpdateDefinition } from '../scripts/ptr-update-definition-policy.mjs';
@@ -595,5 +595,83 @@ describe('private ambiguous import diagnostics', () => {
   it('retains explicit operator recovery classification unchanged', () => {
     const error = new PtrInitialOwnerAtlasError('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
     expect(classifyPtrInitialAtlasFailure(error, true)).toBe(error);
+  });
+});
+
+
+describe('once-only terrain continuation provenance', () => {
+  function terrainControls() {
+    const f = controls(), original = updateDigest(f.marker), stagedKey = ptrInitialAtlasRecoveryKey(f.marker), regionKey = ptrInitialAtlasRegionRecoveryKey(f.marker);
+    const priorRecovery = { profile: 'warpkeep-ptr-initial-atlas-staged-recovery-v1', originalMarkerDigest: original };
+    const priorRegionRecovery = { profile: 'warpkeep-ptr-initial-atlas-region-recovery-v1', originalMarkerDigest: original,
+      priorRecoveryKey: stagedKey, priorRecoveryDigest: updateDigest(priorRecovery) };
+    const recovery = { profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-v1', originalMarkerDigest: original,
+      priorRecoveryKey: stagedKey, priorRecoveryDigest: updateDigest(priorRecovery), priorRegionRecoveryKey: regionKey,
+      priorRegionRecoveryDigest: updateDigest(priorRegionRecovery), terrainPrefix: { chunkCount: 10, cellCount: 640 } };
+    f.journal.write('submission', original, f.marker); f.journal.write('submission', stagedKey, priorRecovery);
+    f.journal.write('submission', regionKey, priorRegionRecovery); f.events.length = 0;
+    return { ...f, original, stagedKey, regionKey, recoveryInput: { ...f.input, priorRecovery, priorRegionRecovery, recovery } };
+  }
+  it('preserves all three prior records and writes genuine fourth completion before original ACK', async () => {
+    const f = terrainControls(), result = await coordinatePtrInitialAtlasRecovery(f.recoveryInput);
+    expect(f.events).toEqual(['submission:fsynced', 'reducer', 'acknowledgement:fsynced', 'acknowledgement:fsynced']);
+    expect(f.journal.present('acknowledgement', f.stagedKey)).toBe(false); expect(f.journal.present('acknowledgement', f.regionKey)).toBe(false);
+    expect(f.journal.read('submission', f.regionKey).value).toEqual(f.recoveryInput.priorRegionRecovery);
+    expect(f.journal.read('acknowledgement', ptrInitialAtlasTerrainRecoveryKey(f.marker)).value).toMatchObject({
+      profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-completion-v1', priorRegionRecoveryDigest: updateDigest(f.recoveryInput.priorRegionRecovery), receiptJson: JSON.stringify(result) });
+    expect(await coordinatePtrInitialAtlasImport({ ...f.input, command: 'reconcile-import' })).toEqual(result); expect(f.execute).toHaveBeenCalledTimes(1);
+  });
+  it('never repeats an ambiguous fourth continuation under changed source/prefix', async () => {
+    const f = terrainControls(), execute = vi.fn(async (beforeSend: () => void) => { beforeSend(); throw new Error('ambiguous'); });
+    await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, execute })).rejects.toThrow('ambiguous');
+    await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, recovery: { ...f.recoveryInput.recovery, source: 'new' }, execute })).rejects.toThrow('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY');
+    expect(execute).toHaveBeenCalledTimes(1); expect(f.slots.size).toBe(4);
+  });
+  it.each(['profile', 'originalMarkerDigest', 'priorRecoveryKey', 'priorRecoveryDigest'] as const)('rejects invalid retained region %s even with recomputed digest', async field => {
+    const f = terrainControls(), priorRegionRecovery = { ...f.recoveryInput.priorRegionRecovery, [field]: 'different' };
+    f.slots.set(`submission:${f.regionKey}`, priorRegionRecovery);
+    await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, priorRegionRecovery,
+      recovery: { ...f.recoveryInput.recovery, priorRegionRecoveryDigest: updateDigest(priorRegionRecovery) } })).rejects.toThrow('TERRAIN_RECOVERY_PRIOR_BINDING_DIFFERENT');
+    expect(f.execute).not.toHaveBeenCalled();
+  });
+  it.each(['missing', 'changed', 'acknowledged'] as const)('rejects %s retained region before sends', async mode => {
+    const f = terrainControls();
+    if (mode === 'missing') f.slots.delete(`submission:${f.regionKey}`);
+    if (mode === 'changed') f.slots.set(`submission:${f.regionKey}`, {});
+    if (mode === 'acknowledged') f.slots.set(`acknowledgement:${f.regionKey}`, {});
+    await expect(coordinatePtrInitialAtlasRecovery(f.recoveryInput)).rejects.toThrow(); expect(f.execute).not.toHaveBeenCalled();
+  });
+  it.each(['profile', 'originalMarkerDigest', 'priorRegionRecoveryKey', 'priorRegionRecoveryDigest'] as const)('rejects invalid fourth marker %s before sends', async field => {
+    const f = terrainControls();
+    await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput,
+      recovery: { ...f.recoveryInput.recovery, [field]: 'different' } })).rejects.toThrow('TERRAIN_RECOVERY_BINDING_DIFFERENT');
+    expect(f.execute).not.toHaveBeenCalled();
+  });
+  it('checks region history after executor completion before acknowledging anything', async () => {
+    const f = terrainControls();
+    await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, execute: async beforeSend => {
+      beforeSend(); f.slots.set(`submission:${f.regionKey}`, {}); return receipt();
+    } })).rejects.toThrow('TERRAIN_RECOVERY_PRIOR_MARKER_DIFFERENT');
+    expect([...f.slots.keys()].filter(key => key.startsWith('acknowledgement:'))).toEqual([]);
+  });
+  it.each(['missing-completion', 'changed-completion', 'changed-region', 'fake-region-ack'] as const)('rejects %s during read-only reconciliation', async mode => {
+    const f = terrainControls(); await coordinatePtrInitialAtlasRecovery(f.recoveryInput);
+    const key = ptrInitialAtlasTerrainRecoveryKey(f.marker);
+    if (mode === 'missing-completion') f.slots.delete(`acknowledgement:${key}`);
+    if (mode === 'changed-completion') f.slots.set(`acknowledgement:${key}`, {});
+    if (mode === 'changed-region') f.slots.set(`submission:${f.regionKey}`, {});
+    if (mode === 'fake-region-ack') f.slots.set(`acknowledgement:${f.regionKey}`, {});
+    await expect(coordinatePtrInitialAtlasImport({ ...f.input, command: 'reconcile-import' })).rejects.toThrow(); expect(f.execute).toHaveBeenCalledTimes(1);
+  });
+  it('does not send if fourth marker cannot be persisted', async () => {
+    const f = terrainControls(); f.journal.write = () => { throw new Error('fsync failed'); };
+    await expect(coordinatePtrInitialAtlasRecovery(f.recoveryInput)).rejects.toThrow('fsync failed'); expect(f.events).toEqual([]);
+  });
+  it('never acknowledges a fabricated fourth receipt', async () => {
+    const f = terrainControls();
+    await expect(coordinatePtrInitialAtlasRecovery({ ...f.recoveryInput, execute: async beforeSend => {
+      beforeSend(); return { ...receipt(), importReceiptDigest: '0'.repeat(64) };
+    } })).rejects.toThrow('invalid receipt');
+    expect([...f.slots.keys()].filter(key => key.startsWith('acknowledgement:'))).toEqual([]);
   });
 });

@@ -14,6 +14,7 @@ import {
   PTR_PRODUCTION_IMPORT_TARGET,
   executePtrProductionImport,
   assertPtrProductionInitialStagedStatus,
+  assertPtrProductionInitialTerrainPrefixStatus,
   parsePtrProductionImportArguments,
   projectPtrProductionStatus,
   ptrProductionImportConfirmationDigest,
@@ -586,3 +587,26 @@ it.each(['PTR_PRODUCTION_TOKEN_EXPIRED_BEFORE_SEND', 'synthetic-private-body'])
       .rejects.toMatchObject({ code: 'PTR_PRODUCTION_IMPORT_REJECTED_OR_UNCOMMITTED', submitted: true,
         diagnosticCode: code.startsWith('PTR_') ? code : null });
   });
+
+
+it('admits only the exact independently verified water terrain prefix with all other boundaries sealed', () => {
+  const { authority, status } = stagedFixture();
+  const total = (key: string) => authority.components.reduce((sum, row) => sum + Number(row[key]), 0);
+  const prefix = { chunkCount: 1, cellCount: 1, digest: 'a'.repeat(64),
+    verificationDigest: 'retained-prefix-state', initialVerificationDigest: String(status.verificationDigest) };
+  const complete = { ...status, chunkRows: 1n, cellRows: 1n, verificationDigest: prefix.verificationDigest,
+    componentRows: BigInt(authority.components.length), componentExpectedCellCount: total('expectedCellCount'),
+    componentExpectedSlotCount: total('expectedSlotCount'),
+    componentExpectedResourceNodeCount: ['expectedFoodNodeCount', 'expectedWoodNodeCount', 'expectedStoneNodeCount', 'expectedGoldNodeCount']
+      .reduce((sum, key) => sum + total(key), 0), regionManifestRows: authority.totals.regionCount };
+  const check = (value: Record<string, unknown>, proof = prefix) =>
+    assertPtrProductionInitialTerrainPrefixStatus(projectPtrProductionStatus(value), authority, authority.components.length, proof);
+  expect(() => check(complete)).not.toThrow();
+  for (const changes of [{ chunkRows: 0n }, { cellRows: 2n }, { verificationDigest: 'different' },
+    { slotRows: 1n }, { resourceRows: 1n }, { importedPassableCellCount: 1 },
+    { verifiedComponentCount: 1 }, { verificationCursor: 1n }, { regionManifestRows: 0 }, { ready: true }])
+    expect(() => check({ ...complete, ...changes })).toThrow();
+  for (const changes of [{ chunkCount: 0 }, { chunkCount: 0.5 }, { cellCount: 0 },
+    { digest: 'invalid' }, { initialVerificationDigest: 'different' }])
+    expect(() => check(complete, { ...prefix, ...changes })).toThrow();
+});
