@@ -283,6 +283,12 @@ export async function coordinatePtrInitialAtlasImport(input: Readonly<{
   journal.write('acknowledgement', key, { markerDigest: key, receiptJson: JSON.stringify(receipt) });
   assertMarker(); return receipt;
 }
+/** Read-only reconciliation may observe a marked import whose completion ACK was lost. */
+export function ptrInitialAtlasImportChainVerified(command: Command, retained: PtrProductionImportReceipt | null): boolean {
+  if (retained !== null) return true;
+  if (command === 'reconcile-import') return false;
+  fail('IMPORT_CHAIN_RECEIPT_MISSING');
+}
 function assertInstalledSource(source: Source, inspection: PtrBootstrapInspection, installedBinding = inspection.binding) {
   const git = (args: string[], allowStderr = false) => {
     const r = runGreaterRealmTrustedGit(args, ROOT);
@@ -545,8 +551,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
         validateReceipt: value => validatePtrInitialAtlasImportReceipt(value, { binding, authority,
           manifestSha256: sha(artifacts.manifestBytes), headerJson: authority.headerJson }),
         execute: async () => fail('IMPORT_CHAIN_EXECUTOR_UNAVAILABLE') });
-      if (!retained) fail('IMPORT_CHAIN_RECEIPT_MISSING');
-      importChainVerified = true;
+      importChainVerified = ptrInitialAtlasImportChainVerified(input.command, retained);
     }
     const confirmation = ptrInitialAtlasConfirmation({ bootstrapInspection: inspection.inspectionDigest, sourceCommit: source.facts.sourceCommit,
       installedSourceCommit: binding.sourceCommit, program: binding.candidateProgram, releaseSha256: authority.releaseSha256,

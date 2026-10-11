@@ -1,3 +1,20 @@
+Current recovery checkpoint - 11 October 2026, partially staged Atlas43
+
+Import on published 5d6e743c closed with an ambiguous outcome after staging.
+The actual journal contains a submission marker and no completion acknowledgement.
+Direct backend reads show importing, no imported chunks, and phase components.
+Read-only reconciliation exposed IMPORT_CHAIN_RECEIPT_MISSING: its prior-chain
+admission guard incorrectly requires completion evidence before reconciliation.
+The qualified correction permits reconciliation with an unverified chain only;
+import retries and owner work remain closed without real completion evidence.
+72 affected tests and root build-mode types pass on Windows. Next: publish and
+synchronize the correction, reconcile read-only against the retained marker,
+diagnose the exact continuation failure, and implement verified recovery before
+owner provisioning and authenticated acceptance. Do not erase the journal,
+restart the atlas, reapply the backend, or claim readiness. Detailed UTC timings
+and evidence hashes are in 2026-10-11-atlas43-token-activation.md.
+Historical checkpoints below are superseded where conflicting. 0.4 is not shipped.
+
 Current release checkpoint — 11 October 2026, Atlas43 retained; protected-target caller fixed
 
 Atlas43 from signed source 86a24f58a93829d9c4ea04e3d8db1e6c7c6316b2

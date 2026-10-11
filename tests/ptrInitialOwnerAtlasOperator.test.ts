@@ -4,13 +4,22 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { assertPtrInitialAtlasBootstrapMarker, assertPtrInitialAtlasObservation,
   assertPtrInitialAtlasUpdateContinuation, assertPtrInitialAtlasUpdateReconciliationPair, coordinatePtrInitialAtlasImport, ptrInitialAtlasTargets, ptrInitialAtlasConfirmation,
-  ptrInitialAtlasImportMarker } from '../scripts/ptr-initial-owner-atlas-operator';
+  ptrInitialAtlasImportMarker, ptrInitialAtlasImportChainVerified } from '../scripts/ptr-initial-owner-atlas-operator';
 import { createPtrBootstrapInspection, PTR_BOOTSTRAP_TARGET as target, PTR_BOOTSTRAP_PROVIDER_OWNER as owner } from '../scripts/ptr-compatibility-bootstrap-core.mjs';
 import { parsePtrUpdateDefinition } from '../scripts/ptr-update-definition-policy.mjs';
 import { createPtrInitialOwnerUpdateInspection } from '../scripts/ptr-initial-owner-update-core.mjs';
 import { existingUpdateTokenDigest, parseExistingUpdateSchema, updateDigest, updateCanonical } from '../scripts/sealed-realms-existing-update-protocol.mjs';
 import { ptrProductionImportReceiptDigest, type PtrProductionImportReceipt } from '../scripts/ptr-production-import-core';
 import { preparePtrInitialOwnerRuntimeRelease } from '../scripts/atlas/greater-realm-cli';
+
+describe('interrupted import chain admission', () => {
+  it('permits read-only reconciliation without claiming a verified chain', () => {
+    expect(ptrInitialAtlasImportChainVerified('reconcile-import', null)).toBe(false);
+  });
+  it.each(['import', 'inspect', 'inspect-owner', 'provision-owner'] as const)('keeps %s closed without completion evidence', command => {
+    expect(() => ptrInitialAtlasImportChainVerified(command, null)).toThrow('IMPORT_CHAIN_RECEIPT_MISSING');
+  });
+});
 
 // Real provider-format fixtures exercise the parser boundary. Synthetic journal/transport controls grant no provider authority.
 const bytes = (value: unknown) => Buffer.from(JSON.stringify(value));

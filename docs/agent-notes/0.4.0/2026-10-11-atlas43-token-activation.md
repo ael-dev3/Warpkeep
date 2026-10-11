@@ -119,3 +119,30 @@ new-source inspection and real import remain subsequent evidence.
 4. Verify bridge/frontend, then accept authenticated gather → choose → build →
    benefit → return, mobile comfort and performance; finish cutover and rollback
    readbacks. Farcaster host login is verified, not owner PTR gameplay acceptance.
+
+
+## Interrupted import and reconciliation admission
+
+On published source `5d6e743cd5fafd8d7c0a0f8c95cae8b93d147394`, import-v4
+ran 2026-10-11T02:02:37.610Z to 02:23:47.332Z and closed exit 1 with
+`IMPORT_OUTCOME_AMBIGUOUS_RECONCILE_ONLY`. Cleanup and source/index/ref holds
+passed. Summary SHA256: `2974d650da3fdd74af4e713699ae63519905148694021e8181e19e284616d979`.
+The actual journal has one submission marker and no acknowledgement. A direct
+read-only backend query confirmed `importing`, next chunk ordinal zero, phase
+`components`, and zero imported passable cells. Do not repeat the import or
+remove its marker. This is partial staging, not atlas readiness or owner acceptance.
+
+Read-only reconcile-v1 ran 2026-10-11T02:24:03.551Z to 02:45:42.270Z,
+closed exit 1 with `IMPORT_CHAIN_RECEIPT_MISSING`, and left its whole owned
+process group absent. Summary SHA256: `183faa6ebe17e7b3bd48e8e864b7827733c27a3b313e2c5ba88ada33eb2544aa`.
+The caller's prior-chain gate demanded a completion acknowledgement before
+reconciliation could report an interrupted import. The correction permits only
+`reconcile-import` to continue read-only with an unverified chain. Missing
+completion evidence still rejects import/inspection admission and owner work;
+no receipt, acknowledgement or permission to resubmit is fabricated.
+
+Next: qualify and publish the correction, synchronize exact native source, then
+read-only reconciliation against the retained marker and actual backend. Diagnose
+the original stage continuation failure from actual bound status before designing
+an explicit, verified recovery. Preserve accepted Atlas43 provenance, the installed
+backend, Alpha, G001 admission freeze/progress, G002 seal, and rollback.
