@@ -188,6 +188,7 @@ export function createPtrAtlasImportTransport(input: Readonly<{
   ) fail('PTR_PRODUCTION_TARGET_INVALID');
   let adminSecret = suppliedAdminSecret;
   let connection: PtrDbConnection | undefined;
+  let connectionExpiresAt = 0;
   let closed = false;
   let serialized = Promise.resolve();
 
@@ -206,19 +207,34 @@ export function createPtrAtlasImportTransport(input: Readonly<{
   const invalidate = (): void => {
     disconnect(connection);
     connection = undefined;
+    connectionExpiresAt = 0;
+  };
+  const currentTime = (): number => {
+    const now = nowSeconds();
+    if (!Number.isSafeInteger(now) || now < 0) fail('PTR_PRODUCTION_CLOCK_INVALID');
+    return now;
   };
   const requireConnection = async (): Promise<DynamicConnection> => {
-    if (connection !== undefined && !connection.isDisconnectRequested) {
+    const now = currentTime();
+    // Refresh before the bounded operation window; never extend the token's server expiry.
+    if (connection !== undefined && !connection.isDisconnectRequested
+      && now >= connectionExpiresAt - 300 && connectionExpiresAt - now > 60) {
       return connection as DynamicConnection;
     }
+    invalidate();
     let token = '';
     try {
       token = await requestToken(adminSecret);
-      await activatedAuthority(now => readPtrAtlasImportAuthority(token, now), nowSeconds);
+      const authority = await activatedAuthority(now => readPtrAtlasImportAuthority(token, now), currentTime);
       if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
       const connected = await connectDatabase(databaseIdentity, token);
       if (closed) { disconnect(connected); fail('PTR_PRODUCTION_SESSION_CLOSED'); }
+      try {
+        const connectedAt = currentTime();
+        if (connectedAt < authority.expiresAt - 300 || authority.expiresAt - connectedAt <= 60) fail('PTR_PRODUCTION_TOKEN_REFRESH_REQUIRED');
+      } catch (error) { disconnect(connected); throw error; }
       connection = connected;
+      connectionExpiresAt = authority.expiresAt;
       return connection as DynamicConnection;
     } finally {
       token = '';
@@ -271,7 +287,11 @@ export function createPtrAtlasImportTransport(input: Readonly<{
           assertCurrentStatus(await operationTimeout(procedure({})));
           if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
         }
+        const beforeWrite = currentTime();
+        if (beforeWrite < connectionExpiresAt - 300 || connectionExpiresAt - beforeWrite <= 60) fail('PTR_PRODUCTION_TOKEN_REFRESH_REQUIRED');
         assertCanStartWrite();
+        const sendingAt = currentTime();
+        if (sendingAt < connectionExpiresAt - 300 || connectionExpiresAt <= sendingAt) fail('PTR_PRODUCTION_TOKEN_EXPIRED_BEFORE_SEND');
         await operationTimeout(method(arguments_));
       } catch (error) {
         invalidate();

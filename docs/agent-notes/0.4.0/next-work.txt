@@ -1,33 +1,34 @@
-Current recovery checkpoint - 11 October 2026, explicit staged Atlas43 continuation
+Current recovery checkpoint - 11 October 2026, atlas transport renewal
 
-Reconcile-v5 on published dc3db08944ecfcc579e143105e6cf2ea4d9b3361 closed
-03:58:16.703Z-04:22:55.642Z without timeout. Source/index/refs and cleanup passed;
-all four owned processes were absent. Actual backend is importing Atlas43,
-ownerless, epoch 1, with no completion ACK. No reducer was sent in reconciliation.
-Summary SHA256: 322fe2bef91aa97e10066fbcc8a19b6446c305adcb97efc1224eba387f65fefe.
-Operation SHA256: a6516f4397aff9155e41d975961f2f47d5d1cd59435b7c526e5090094023317f.
+Published explicit staged recovery: 42935f334ae01760eeb6ee4f7b671b4e0e71ed63,
+tree f185e5a4e2312852d9b62c1d0d9c4e72a23ab961. Actual atlas remains staged,
+ownerless, no completion receipt. Reconcile-v5 proved importing; no rebuild needed.
 
-Explicit recovery now has read-only inspect-import-recovery and once-only
-resume-import. Only the exact bound initialized stage is eligible: real header
-SHA state, empty import/verification/population boundaries, no owner, unchanged
-module/configuration/source and protected targets. Two equal status reads bind
-the confirmation; executor and actual serialized transport recheck before the
-first write. Stage is forbidden. The stable recovery key derives from the original
-submission marker, so changing source cannot authorize another continuation.
-Both markers survive ambiguous outcomes. Genuine continuation receipt/provenance
-is persisted before the original ACK; reconciliation verifies that provenance.
-The continuation chain does not claim to contain the original stage operation.
-Independent bounded recovery review passed; local Windows/Linux qualification
-is recorded in 2026-10-11-atlas43-token-activation.md. Runtime recovery NOT DONE.
+Recovery inspection v1 stopped before writes because a concurrent verification
+refreshed Git index metadata during its hold. Never run a refreshing git status
+alongside held native execution; finish validation first or disable optional locks.
+Inspection v2 was deliberately retired 04:48:57.054Z after a concrete long-import
+blocker was reproduced locally: transport reused expired five-minute JWT authority.
+All owned PIDs are absent, source/index/refs held, no write/retry authorization.
+No completion result was produced. Summary SHA256 b1943efc70f58128d6bf6c8ac57038cbb25aa5e76936c069f916ed65ffd06fad.
 
-Next, owned by Codex: publish and synchronize this reviewed checkpoint; execute
-inspect-import-recovery with owned native helper parent-v5/run-v4/child-v4, then
-resume-import only with its actual confirmation and unchanged signed source.
-Do not rebuild Atlas43, erase journals, repeat import, reapply backend or provision
-owner before a real ready import receipt. After completion: actual owner, bridge,
-frontend, authenticated gather/choose/build/benefit/return, mobile/performance,
-cutover and rollback readbacks. Preserve Alpha, G001 freeze/progress and G002 seal.
-0.4 is not shipped. Historical checkpoints below are superseded where conflicting.
+Reviewed correction refreshes atlas connections before expiry, preserves original
+five-minute token lifetime/issuer/role/target checks, rejects expiry during awaited
+readback or before transmission, and cleans up late connection failures. 164
+affected tests pass Windows/Linux; build-mode types pass both. Maintained import,
+owner and recovery receipt requirements stay intact; actual import is not complete.
+
+Next, Codex: publish/synchronize this correction; run inspect-import-recovery on
+the unchanged signed source with parent-v7/run-v6/child-v5. Then resume-import
+only with its actual matching confirmation. The resume-only QA deadline is bounded
+to twelve hours because the actual prepared release needs hundreds of reducers
+plus verification and guarded reads; inspection remains thirty minutes. Token and
+RPC deadlines are unchanged. Keep source/index/refs fixed throughout the write.
+Never erase original or recovery markers, restage, blindly retry, rebuild accepted
+Atlas43 or reapply the installed backend. Genuine ready receipt/provenance precedes
+owner provisioning, bridge/frontend, authenticated journey/mobile/performance,
+cutover and rollback readbacks. Preserve Alpha, G001 progress/freeze, G002 seal and
+licensing. 0.4 is not shipped. Historical checkpoints below are superseded.
 
 Current recovery checkpoint - 11 October 2026, Atlas43 read-only reconciliation
 

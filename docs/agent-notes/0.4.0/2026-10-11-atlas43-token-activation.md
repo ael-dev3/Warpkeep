@@ -270,3 +270,67 @@ Use a fresh ignored QA output stem per command. Inspect is read-only; resume nee
 its exact actual confirmation on the unchanged reviewed checkpoint. Preserve
 Alpha, G001 progress/admission freeze, G002 seal, licensing and rollback. Do not
 rebuild the accepted atlas or reapply the installed backend to bypass recovery.
+
+## Long import token renewal and owned inspection retirement
+
+Explicit recovery source `42935f334ae01760eeb6ee4f7b671b4e0e71ed63` was signed,
+published and GitHub-verified with tree `f185e5a4e2312852d9b62c1d0d9c4e72a23ab961`.
+All 3469 native tracked blobs matched. Inspection v1 stopped with
+`PTR_INITIAL_OWNER_INSPECT_SOURCE_CHANGED`: a concurrently finishing checkout
+verification refreshed native Git index metadata while the held invocation was
+running. Index bytes remained identical but identity metadata changed. No write
+callback occurred. Finish checkout validation before starting a source hold;
+never use refreshing status/index commands during held execution.
+
+Helper v5 also had mismatched child/summary profile versions; v6 corrected those
+QA-only profile pins. Inspection v2 ran **04:37:51.106Z–04:48:57.054Z UTC** on
+11 October. It was deliberately retired, not timed out, after confirming another
+write blocker. Owned worker 1519786 was birth/UID/executable/parent/group verified
+before SIGTERM. Maintained terminal was exit 143; source/index/refs held and the
+launcher verified complete cleanup. Owner/wrapper/worker 1519753/1519775/1519786
+were independently confirmed absent afterward. Summary SHA256:
+`b1943efc70f58128d6bf6c8ac57038cbb25aa5e76936c069f916ed65ffd06fad`.
+The absent completion receipt means the default `operatorInvoked:false` is not
+proof that the maintained operator never ran. This read-only command never
+permitted reducers and produced no recovery confirmation or import completion.
+
+A credential-free, in-memory reproduction on actual transport code demonstrated
+that a connection minted at synthetic t=1800000000 was reused at t+301. Only one
+token request occurred; `beforeSend` was invoked; the real backend claim validator
+rejected the expired authority. The transport returned
+`PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS`. This was a synthetic regression,
+with no provider/network write, owner identity, private token or new permission.
+It establishes a long-import defect, not the cause of the historical first-stage
+failure. Every actual atlas reducer requires fresh claim expiry validation.
+
+The prepared runtime has 624 chunks, so continuation is a long serialized import,
+not a single short command. The validated atlas authority now carries its actual
+expiry; transport renews before sixty seconds remain. Original strict five-minute
+TTL, issuer/audience/role, activation checks and target exclusions are unchanged.
+Invalid/rolled-back clocks, authority expiry during connection/readback and expiry
+after the durable callback cannot transmit a reducer. Renewals use the existing
+secret privately. Post-connect validation failures disconnect the returned
+connection before ownership transfer; invalidation clears cached expiry.
+
+Independent bounded review identified that late-connection cleanup hole, then
+verified its correction. New tests cover renewal at the margin and after expiry,
+renewal failure before marking, expiry during readback/connection/callback, and
+invalid/throwing post-connect clocks. All 164 affected tests passed on Linux;
+Windows passed the preceding 160-test run and final 37-case transport suite.
+Root build-mode TypeScript passed on both hosts. No actual import completion or
+authenticated owner journey is claimed by local qualification.
+
+QA-only parent-v7/run-v6/child-v5 retains exact source/publication/tool/private
+stdin/target pins and owned process cleanup. Read-only inspection deadline stays
+thirty minutes; only `resume-import` receives a twelve-hour owned deadline for
+hundreds of writes plus verification/readbacks. Token and individual RPC deadlines
+are unchanged. This does not authorize retries or weaken receipt requirements.
+
+- child-v5 SHA256 `780ae7fc8d8f4eb28e9180e70c9e1e4a6f4d826b4a90eedaab12fbd9c3e6c317`;
+- run-v6 SHA256 `c46eb4d76f76904fc46fc716ad8a5f5b5785b7d6fee7d18c09023c1e6bbc2b4f`;
+- parent-v7 SHA256 `f44fad1c648ed83dad3d17ec691fa1633bc28cb7869cde9edd55a24cbfdd58e3`.
+
+Next: publish/synchronize the reviewed renewal fix, inspect recovery on that exact
+unchanged checkpoint, then continue once only with the actual matching confirmation.
+Preserve original marker/provenance, Alpha, G001 freeze/progress, G002 seal,
+licensing and rollback. Owner acceptance/cutover remains incomplete.

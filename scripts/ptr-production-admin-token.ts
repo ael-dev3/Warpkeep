@@ -56,6 +56,7 @@ export type PtrOwnerProvisionAuthority = Readonly<{
 }>;
 
 export type PtrAtlasImportAuthority = Readonly<{
+  expiresAt: number;
   issuer: typeof PTR_ADMIN_ISSUER;
   subject: 'service:hermes';
   audience: readonly [typeof PTR_ADMIN_AUDIENCE];
@@ -141,6 +142,7 @@ export function readPtrAtlasImportAuthority(
       || !/^[A-Za-z0-9_-]{1,128}$/u.test(record.jti)
     ) fail(code);
     return Object.freeze({
+      expiresAt: record.exp as number,
       issuer: PTR_ADMIN_ISSUER,
       subject: 'service:hermes',
       audience: Object.freeze([PTR_ADMIN_AUDIENCE] as const),

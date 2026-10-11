@@ -200,6 +200,7 @@ describe('PTR production admin token and transport', () => {
     expect(PTR_ATLAS_ADMIN_TOKEN_ENDPOINT)
       .toBe('https://auth.warpkeep.com/v1/admin/ptr-atlas-token');
     expect(readPtrAtlasImportAuthority(atlasJwt(), NOW_SECONDS)).toEqual({
+      expiresAt: NOW_SECONDS + 300,
       issuer: 'https://auth.warpkeep.com',
       subject: 'service:hermes',
       audience: ['warpkeep-ptr-spacetimedb'],
@@ -741,4 +742,83 @@ describe('recovery readback at the actual serialized write boundary', () => {
     await transport.submit('admin_import_greater_realm_components_v1', {}, () => { events.push('marker'); }, () => { events.push('validate'); });
     expect(events).toEqual(['token', 'read', 'validate', 'marker', 'reducer']); await transport.close();
   });
+});
+
+describe('atlas connection renewal before expiry', () => {
+  it.each([240, 301])('refreshes the session at +%s seconds before marking or submitting', async elapsed => {
+    let now = NOW_SECONDS, minted: Record<string, unknown> = {}, requests = 0, disconnects = 0;
+    const events: string[] = [];
+    const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => now,
+      requestToken: async () => { requests++; minted = { iat: now, nbf: now, exp: now + 300 }; return atlasJwt(minted); },
+      connectDatabase: async () => {
+        const claims = { ...JSON.parse(Buffer.from(atlasJwt(minted).split('.')[1]!, 'base64url').toString()) };
+        return { isDisconnectRequested: false, disconnect: () => { disconnects++; },
+          procedures: { adminGetGreaterRealmStatusV1: async () => ({}) },
+          reducers: { adminImportGreaterRealmComponentsV1: async () => {
+            expect(Number(claims.exp)).toBeGreaterThan(now); events.push('reducer');
+          } } } as never;
+      } });
+    await transport.inspect(); now += elapsed;
+    await transport.submit('admin_import_greater_realm_components_v1', {}, () => { events.push('marker'); });
+    expect(requests).toBe(2); expect(disconnects).toBe(1); expect(events).toEqual(['marker', 'reducer']);
+    await transport.close();
+  });
+  it('does not mark or submit if renewal fails', async () => {
+    let now = NOW_SECONDS, requests = 0; const marker = vi.fn(), reducer = vi.fn(async () => undefined);
+    const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => now,
+      requestToken: async () => { if (++requests > 1) throw new Error('unavailable'); return atlasJwt(); },
+      connectDatabase: async () => ({ isDisconnectRequested: false, disconnect: vi.fn(),
+        procedures: { adminGetGreaterRealmStatusV1: async () => ({}) }, reducers: { adminImportGreaterRealmComponentsV1: reducer } }) as never });
+    await transport.inspect(); now += 301;
+    await expect(transport.submit('admin_import_greater_realm_components_v1', {}, marker)).rejects.toThrow();
+    expect(marker).not.toHaveBeenCalled(); expect(reducer).not.toHaveBeenCalled(); await transport.close();
+  });
+  it('rejects expiry during the awaited recovery read before marking', async () => {
+    let now = NOW_SECONDS; const marker = vi.fn(), reducer = vi.fn(async () => undefined);
+    const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => now, requestToken: async () => atlasJwt(),
+      connectDatabase: async () => ({ isDisconnectRequested: false, disconnect: vi.fn(),
+        procedures: { adminGetGreaterRealmStatusV1: async () => { now += 301; return {}; } },
+        reducers: { adminImportGreaterRealmComponentsV1: reducer } }) as never });
+    await expect(transport.submit('admin_import_greater_realm_components_v1', {}, marker, () => {}))
+      .rejects.toThrow('PTR_PRODUCTION_TOKEN_REFRESH_REQUIRED');
+    expect(marker).not.toHaveBeenCalled(); expect(reducer).not.toHaveBeenCalled(); await transport.close();
+  });
+});
+
+it('closes a late atlas connection if its authority expires while connecting', async () => {
+  let now = NOW_SECONDS; const disconnect = vi.fn(), marker = vi.fn(), reducer = vi.fn(async () => undefined);
+  const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+    disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => now, requestToken: async () => atlasJwt(),
+    connectDatabase: async () => { now += 301; return { isDisconnectRequested: false, disconnect,
+      procedures: {}, reducers: { adminImportGreaterRealmComponentsV1: reducer } } as never; } });
+  await expect(transport.submit('admin_import_greater_realm_components_v1', {}, marker)).rejects.toThrow('PTR_PRODUCTION_TOKEN_REFRESH_REQUIRED');
+  expect(disconnect).toHaveBeenCalledOnce(); expect(marker).not.toHaveBeenCalled(); expect(reducer).not.toHaveBeenCalled();
+  await transport.close();
+});
+it('prevents reducer transmission if the durable callback consumes the remaining token lifetime', async () => {
+  let now = NOW_SECONDS; const reducer = vi.fn(async () => undefined);
+  const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+    disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => now, requestToken: async () => atlasJwt(),
+    connectDatabase: async () => ({ isDisconnectRequested: false, disconnect: vi.fn(), procedures: {},
+      reducers: { adminImportGreaterRealmComponentsV1: reducer } }) as never });
+  await expect(transport.submit('admin_import_greater_realm_components_v1', {}, () => { now += 301; }))
+    .rejects.toThrow('PTR_PRODUCTION_TOKEN_EXPIRED_BEFORE_SEND');
+  expect(reducer).not.toHaveBeenCalled(); await transport.close();
+});
+
+it.each(['invalid', 'throws'] as const)('cleans up a returned connection when the subsequent clock %s', async mode => {
+  let connected = false; const disconnect = vi.fn(), marker = vi.fn(), reducer = vi.fn(async () => undefined);
+  const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+    disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => {
+      if (connected) { if (mode === 'throws') throw new Error('clock failed'); return NaN; }
+      return NOW_SECONDS;
+    }, requestToken: async () => atlasJwt(), connectDatabase: async () => { connected = true;
+      return { isDisconnectRequested: false, disconnect, procedures: {}, reducers: { adminImportGreaterRealmComponentsV1: reducer } } as never;
+    } });
+  await expect(transport.submit('admin_import_greater_realm_components_v1', {}, marker)).rejects.toThrow();
+  expect(disconnect).toHaveBeenCalledOnce(); expect(marker).not.toHaveBeenCalled(); expect(reducer).not.toHaveBeenCalled();
+  await transport.close();
 });
