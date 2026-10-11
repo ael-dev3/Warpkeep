@@ -22,6 +22,7 @@ import {
   createPtrOwnerProvisionTransport,
 } from '../scripts/ptr-production-transport';
 import { readFreshPtrAdminClaims } from '../spacetimedb/ptr/src/ownerPolicy';
+import { DbConnection } from '../spacetimedb/ptr/generated-bindings';
 
 const ADMIN_SECRET = 's'.repeat(48);
 const DATABASE_IDENTITY = '1'.repeat(64);
@@ -84,6 +85,52 @@ function tokenResponse(overrides: Partial<Response> = {}): Response {
 }
 
 describe('PTR production admin token and transport', () => {
+  it('disconnects an unbound late default connection even after its timeout has settled', async () => {
+    vi.useFakeTimers(); let connected!: (value: never) => void;
+    const builder = { withUri() { return this; }, withDatabaseName() { return this; }, withToken() { return this; },
+      withWSFn() { return this; }, onConnect(callback: typeof connected) { connected = callback; return this; },
+      onConnectError() { return this; }, build() { return { disconnect: vi.fn() }; } };
+    const spy = vi.spyOn(DbConnection, 'builder').mockReturnValue(builder as never);
+    const disconnect = vi.fn();
+    const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => NOW_SECONDS, requestToken: async () => atlasJwt() });
+    try {
+      const pending = transport.inspect().then(() => 'unexpected-success', error => error.code);
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(await pending).toBe('PTR_PRODUCTION_CONNECTION_UNAVAILABLE');
+      connected({ identity: { toHexString: () => G002_IDENTITY }, isDisconnectRequested: false, disconnect } as never);
+      expect(disconnect).toHaveBeenCalledOnce(); await transport.close();
+    } finally { spy.mockRestore(); vi.useRealTimers(); }
+  });
+  it('renews the actual 60-second exchange while the original token is still fresh', async () => {
+    let now = NOW_SECONDS;
+    const disconnect = vi.fn(), inspect = vi.fn(async () => ({}));
+    const connectDatabase = vi.fn(async (_database, _token, session) => {
+      session({ issuedAt: now, expiresAt: now + 60, hexIdentity: DATABASE_IDENTITY });
+      return { isDisconnectRequested: false, disconnect, procedures: { adminGetGreaterRealmStatusV1: inspect } } as never;
+    });
+    const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => now,
+      requestToken: async () => atlasJwt({ iat: now, nbf: now, exp: now + 300 }), connectDatabase });
+    await transport.inspect(); now += 29; await transport.inspect(); expect(connectDatabase).toHaveBeenCalledTimes(1);
+    now += 1; await transport.inspect(); expect(connectDatabase).toHaveBeenCalledTimes(2);
+    expect(disconnect).toHaveBeenCalledOnce(); await transport.close();
+  });
+
+  it('rejects an exchanged session consumed by readback before the durable callback', async () => {
+    let now = NOW_SECONDS;
+    const marker = vi.fn(), reducer = vi.fn(async () => undefined), disconnect = vi.fn();
+    const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => now, requestToken: async () => atlasJwt(),
+      connectDatabase: async (_database, _token, session) => {
+        session?.({ issuedAt: NOW_SECONDS, expiresAt: NOW_SECONDS + 60, hexIdentity: DATABASE_IDENTITY });
+        return { isDisconnectRequested: false, disconnect, procedures: { adminGetGreaterRealmStatusV1: async () => ({}) },
+          reducers: { adminImportGreaterRealmRegionsV1: reducer } } as never;
+      } });
+    await expect(transport.submit('admin_import_greater_realm_regions_v1', {}, marker, async () => { now += 31; }))
+      .rejects.toThrow('PTR_PRODUCTION_TOKEN_REFRESH_REQUIRED');
+    expect(marker).not.toHaveBeenCalled(); expect(reducer).not.toHaveBeenCalled(); await transport.close();
+  });
   it.each(['atlas', 'owner'] as const)('disconnects a late %s connection after close without starting a command', async kind => {
     let finish!: (connection: never) => void, notify!: () => void;
     const pending = new Promise<never>(resolve => { finish = resolve; });
@@ -629,7 +676,7 @@ describe('PTR production admin token and transport', () => {
     expect(PTR_PRODUCTION_ALLOWED_REDUCERS).not.toContain(
       'admin_suspend_ptr_owner_v1',
     );
-    expect(connectDatabase).toHaveBeenCalledWith(DATABASE_IDENTITY, atlasJwt());
+    expect(connectDatabase).toHaveBeenCalledWith(DATABASE_IDENTITY, atlasJwt(), expect.any(Function));
     await transport.close();
     expect(disconnect).toHaveBeenCalledOnce();
   });
@@ -698,7 +745,7 @@ describe('PTR production admin token and transport', () => {
     const transport = createPtrAtlasImportTransport(transportInput);
     transportInput.databaseIdentity = mutatedIdentity;
     await expect(transport.inspect()).resolves.toEqual({ status: 'ok' });
-    expect(connectDatabase).toHaveBeenCalledWith(originalIdentity, atlasJwt());
+    expect(connectDatabase).toHaveBeenCalledWith(originalIdentity, atlasJwt(), expect.any(Function));
     await transport.close();
   });
 

@@ -1,10 +1,54 @@
 # Atlas43 acceptance and PTR token activation recovery
 
-0.4 is not shipped. The accepted atlas is retained; initial import, owner
+0.4 is not shipped. Windows and native Linux qualification passed: 233 affected tests,
+root build-mode types, explicit strict transport/WebSocket types, licensing and
+file-size policy. These checks do not establish runtime completion. The accepted atlas is retained; initial import, owner
 provisioning, authenticated gameplay, mobile/performance acceptance and cutover
 remain incomplete. Preserve Alpha, G001 progress/admission freeze, the G002 seal,
 licensing and rollback. Do not rebuild an already accepted atlas for this
 operator-only transport correction, or reapply the installed backend.
+
+## Effective WebSocket lifetime and retained region prefix
+
+0.4 is not shipped. Source d014d55814d492f5c51a287f6ec1f93fb5940e07
+(tree 370b2e037694fbb2d759f8578c391b9c9bec41df) passed maintained
+recovery inspection v5 at 05:33:35.476-05:45:13.300 UTC. Its summary SHA256
+936846c53616f35feceffcbabddc112610e570bb23132d1348a6321afccc0109.
+The parent reporting predicate was corrected to recognize actual inspection
+confirmation without claiming an already completed import receipt.
+
+The once-only resume ran 05:48:52.475-06:00:15.370 UTC and ended
+IMPORT_OUTCOME_AMBIGUOUS_RECONCILE_ONLY. Summary SHA256
+11fbccdbd641c428c48cf8ec276a11c8856443c88e209461bd6cb463af7dc363.
+Read-only reconcile-v6 ran 06:00:34.892-06:23:46.436 UTC and ended
+ATLAS_OPERATION_UNRESOLVED. Summary SHA256
+ea1af73a41d83da069b866d979f8c333f2f9141946e6a98a3d7bb9eeeb1a0108.
+Source/index/refs held; owned processes are now absent. Both original and recovery
+submission markers remain; no completion ACK or ready receipt exists.
+
+Actual fixed-provider reads prove the canonical region manifest now exactly matches
+the reviewed atlas, with zero terrain chunks and no verification progress. Backend
+logs record INVALID_PTR_ATLAS_ADMIN_SESSION at 06:00:11.784515 UTC. A reviewed,
+bounded private exchange probe proves the original bridge token lasts 300 seconds
+but the SDK's WebSocket exchange lasts 60 seconds. connection.token retains the
+original token, so its expiry cannot establish effective session freshness.
+Evidence SHA256 d6886b174ee11a0ee62d489aeaa5f66250754e9b1a9880d90aebad5dbbc392d5.
+
+The current transport correction privately validates the fixed-host exchange,
+binds its identity to the actual connection, tracks the shorter expiry, preserves
+binary framing/decompression and rejects stale sessions before writes. It does not
+extend backend authority or erase journals. Qualification and publication results
+must be read from the exact checkpoint; this is not runtime completion.
+
+Next, Codex: publish/synchronize the reviewed effective-session correction; verify
+an actual read-only session using it. Implement and independently review a distinct
+continuation admission bound to the exact initialized component AND region prefix,
+retained markers and zero terrain. Never repeat the already committed region write
+or the once-only recovery command. Require genuine ready receipt/provenance, then
+actual owner, bridge/frontend, authenticated gameplay, mobile/performance and
+cutover/rollback acceptance. Preserve Alpha, G001 progress/admission freeze, G002
+seal and licensing. No rebuild, restage, blind replay, new key or backend reapply.
+Historical entries below are superseded where conflicting.
 
 ## Accepted candidate
 
