@@ -147,7 +147,7 @@ export type PtrAtlasImportTransport = Readonly<{
     reducer: PtrProductionReducer,
     arguments_: Readonly<Record<string, unknown>>,
     assertCanStartWrite: () => void,
-    assertCurrentStatus?: (value: unknown) => void,
+    assertCurrentStatus?: (value: unknown) => void | Promise<void>,
   ) => Promise<void>;
   close: () => Promise<void>;
 }>;
@@ -284,7 +284,7 @@ export function createPtrAtlasImportTransport(input: Readonly<{
         if (assertCurrentStatus) {
           const procedure = active.procedures.adminGetGreaterRealmStatusV1;
           if (typeof procedure !== 'function') fail('PTR_PRODUCTION_STATUS_ABI_MISSING');
-          assertCurrentStatus(await operationTimeout(procedure({})));
+          await assertCurrentStatus(await operationTimeout(procedure({})));
           if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
         }
         const beforeWrite = currentTime();

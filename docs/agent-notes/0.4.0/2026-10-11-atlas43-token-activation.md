@@ -334,3 +334,45 @@ Next: publish/synchronize the reviewed renewal fix, inspect recovery on that exa
 unchanged checkpoint, then continue once only with the actual matching confirmation.
 Preserve original marker/provenance, Alpha, G001 freeze/progress, G002 seal,
 licensing and rollback. Owner acceptance/cutover remains incomplete.
+
+## Recovery inspection v3 and retained component prefix
+
+Published source e4f831529a38d0ed5808241997b3621a69afdd51, tree
+64d273947a9c690cf321e0c66cfd65d1b184468c, was inspected read-only from
+2026-10-11T04:55:34.693Z to 2026-10-11T05:06:18.986Z. Exit 1:
+PTR_PRODUCTION_INITIAL_STAGE_DIFFERENT. Summary SHA256:
+2f27d573b69e6a0dba72afa88088e0156d83bcac290d27c286efaa3943351500.
+Operation SHA256:
+f1ee78edd671e3588a44ec7d4cf1df802f923c94a2989049e4cc91297dcf9b40.
+No provider write, confirmation or completion receipt occurred. Source/index/refs
+held and the owned process group was independently confirmed absent afterward.
+
+The guard assumed no component rows had been imported. Actual authenticated SQL
+shows 177 components, expected aggregates 63859 passable cells, 600 slots and
+12000 resource nodes. Next chunk ordinal is zero, region manifest absent, imported
+passable cells zero, all verified counters zero, phase components/cursor zero.
+Release verification digest retains the stage initializer. This corrects the
+previous interpretation of ordinal-zero evidence: it excludes chunks, not components.
+SQL aggregate/digest evidence SHA256:
+8a20f03495003369d97e79cb0f73e1001370b1bb2703e56f98446648cbe9ba83.
+Ordinal/region-manifest evidence SHA256:
+50157f5cce1f6bcf0606571e648a531580600b4f6aa1964f490a1fd66f4408b7.
+Component ordinal query SHA256:
+58f868ebd3c7435680165b634b4394719059678927127bceb7d6968ad3025b89.
+
+The caller correction admits only a contiguous initialized component prefix whose
+complete SQL rows and canonical component manifest match the accepted artifact.
+It verifies mutable counters, component verification digest, region verification
+JSON, inactivity and absent region manifest; aggregate status still excludes all
+terrain/verification/owner progress. Two readbacks bind the prefix digest into the
+source-bound confirmation; a fresh awaited fixed-table check precedes the first
+submission callback. Token lifetime checks run afterward. Stage is forbidden,
+original marker/provenance and once-only recovery behavior remain intact. No
+backend change, atlas rebuild or owner provisioning is justified by this repair.
+Actual inspected prefix acceptance is required before continuation, beyond fixtures.
+
+Qualification: 204 affected tests passed on Windows and Linux (the final two
+transport tests were rerun in the Linux transport suite). Root build-mode types
+passed on both; license/file-size checks and scoped diff checks passed.
+Independent bounded recovery review found no reproducible blocker. Actual provider
+row acceptance remains the next inspection, not a result inferred from fixtures.

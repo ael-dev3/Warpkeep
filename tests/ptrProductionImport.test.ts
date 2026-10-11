@@ -484,6 +484,26 @@ function stagedFixture() {
   return { authority, status };
 }
 describe('exact initial staged recovery boundary', () => {
+  it('binds a verified component prefix to exact aggregate counts and still rejects terrain progress', () => {
+    const { authority, status } = stagedFixture();
+    const component = authority.components[0]!;
+    const prefix = { ...status, componentRows: 1n,
+      componentExpectedCellCount: Number(component.expectedCellCount),
+      componentExpectedSlotCount: Number(component.expectedSlotCount),
+      componentExpectedResourceNodeCount: ['expectedFoodNodeCount', 'expectedWoodNodeCount', 'expectedStoneNodeCount', 'expectedGoldNodeCount']
+        .reduce((sum, key) => sum + Number(component[key]), 0) };
+    expect(() => assertPtrProductionInitialStagedStatus(projectPtrProductionStatus(prefix), authority, 1)).not.toThrow();
+    expect(() => assertPtrProductionInitialStagedStatus(projectPtrProductionStatus(prefix), authority)).toThrow();
+    for (const changes of [{ componentExpectedCellCount: prefix.componentExpectedCellCount + 1 },
+      { componentExpectedSlotCount: prefix.componentExpectedSlotCount + 1 },
+      { componentExpectedResourceNodeCount: prefix.componentExpectedResourceNodeCount + 1 },
+      { chunkRows: 1n }, { cellRows: 1n }, { regionManifestRows: 1 }, { verificationCursor: 1n }]) {
+      expect(() => assertPtrProductionInitialStagedStatus(projectPtrProductionStatus({ ...prefix, ...changes }), authority, 1)).toThrow();
+    }
+    for (const count of [-1, 0.5, 2, Number.NaN]) {
+      expect(() => assertPtrProductionInitialStagedStatus(projectPtrProductionStatus(prefix), authority, count)).toThrow();
+    }
+  });
   it('accepts only the real initialized digest and empty bound import', () => {
     const { authority, status } = stagedFixture();
     expect(() => assertPtrProductionInitialStagedStatus(projectPtrProductionStatus(status), authority)).not.toThrow();

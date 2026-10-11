@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { closeSync, constants, fchmodSync, fsyncSync, fstatSync, lstatSync, mkdirSync, existsSync, openSync, realpathSync, writeSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { capturePtrInitialOwnerSource, inspectPtrInitialOwnerState, type PtrInitialOwnerSource } from './ptr-initial-owner-operator';
+import { capturePtrInitialOwnerSource, inspectPtrInitialOwnerState, ptrInitialOwnerSqlRowObject, type PtrInitialOwnerSource } from './ptr-initial-owner-operator';
+import { verifyPtrInitialAtlasComponentPrefix } from './ptr-initial-atlas-component-prefix';
 import { openPtrCompatibilityBootstrapJournal } from './ptr-compatibility-bootstrap-operator';
 import { validatePtrBootstrapInspection, PTR_BOOTSTRAP_TARGET, type PtrBootstrapInspection } from './ptr-compatibility-bootstrap-core.mjs';
 import { preparePtrInitialOwnerRuntimeRelease } from './atlas/greater-realm-cli';
@@ -24,7 +25,7 @@ import { classifyPtrInitialOwnerUpdateObservation, validatePtrInitialOwnerUpdate
   type PtrInitialOwnerUpdateInspection } from './ptr-initial-owner-update-core.mjs';
 import { assertProductionAdminTrustedAncestors, defaultProductionAdminStateDirectory, ensureCanonicalProductionAdminStateDirectory } from './production-admin-token-budget.mjs';
 import { verifyAuthBridgeRpcRoleAttestation } from './auth-bridge-config-attestation.mjs';
-import { updateCanonical, updateDigest, parseExistingUpdateJson, parseExistingUpdateProgram, parseExistingUpdateSchema } from './sealed-realms-existing-update-protocol.mjs';
+import { updateCanonical, updateDigest, parseExistingUpdateJson, parseExistingUpdateProgram, parseExistingUpdateSchema, parseExistingUpdateSql } from './sealed-realms-existing-update-protocol.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..'), HASH = /^[a-f0-9]{64}$/u;
 const sha = (value: Uint8Array) => createHash('sha256').update(value).digest('hex');
@@ -613,15 +614,30 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
     const originalMarker = ptrInitialAtlasImportMarker({ bootstrapInspection: inspection.inspectionDigest, binding,
       atlasSourceCommit: authority.sourceCommit, releaseSha256: authority.releaseSha256, continuation: continuationEvidence });
     let recovery: Readonly<Record<string, unknown>> | undefined;
+    let componentPrefix: ReturnType<typeof verifyPtrInitialAtlasComponentPrefix> | undefined;
+    const readComponentPrefix = async () => {
+      const readRows = async (name: 'greater_realm_navigation_component_v1' | 'greater_realm_release_v1') => {
+        assert(); const response = await requestPtrInspectionProvider(held, { operation: `rows:${name}` });
+        try { assert(); const parsed = parseExistingUpdateSql(response.bytes);
+          return parsed.rows.map(row => ptrInitialOwnerSqlRowObject(parsed, row));
+        } finally { response.bytes.fill(0); }
+      };
+      const rows = await readRows('greater_realm_navigation_component_v1');
+      const releases = await readRows('greater_realm_release_v1');
+      if (releases.length !== 1) fail('RECOVERY_RELEASE_CARDINALITY_DIFFERENT');
+      return verifyPtrInitialAtlasComponentPrefix({ rows, release: releases[0]!, components: authority.components, atlasId: authority.atlasId });
+    };
     if (recovering) {
       if (!continuationEvidence || importChainVerified || before.observed.owner.state !== 'ownerless') fail('RECOVERY_NOT_APPLICABLE');
-      assertPtrProductionInitialStagedStatus(status, authority);
+      componentPrefix = await readComponentPrefix();
+      assertPtrProductionInitialStagedStatus(status, authority, componentPrefix.componentCount);
       const second = projectPtrProductionStatus(await active.inspect()); assert();
-      assertPtrProductionInitialStagedStatus(second, authority);
+      assertPtrProductionInitialStagedStatus(second, authority, componentPrefix.componentCount);
+      if (updateCanonical(await readComponentPrefix()) !== updateCanonical(componentPrefix)) fail('RECOVERY_COMPONENT_PREFIX_CHANGED');
       if (ptrInitialAtlasStagedStatusDigest(status) !== ptrInitialAtlasStagedStatusDigest(second)) fail('RECOVERY_STAGED_STATUS_CHANGED');
       recovery = Object.freeze({ profile: 'warpkeep-ptr-initial-atlas-staged-recovery-v1', originalMarkerDigest: updateDigest(originalMarker),
         source: source.facts, stagedStatusDigest: ptrInitialAtlasStagedStatusDigest(status), installedSnapshotDigest: before.observed.snapshotDigest,
-        bridgeConfigurationDigest: updateDigest(before.actual.afterConfiguration), confirmationBinding: confirmation });
+        bridgeConfigurationDigest: updateDigest(before.actual.afterConfiguration), componentPrefix, confirmationBinding: confirmation });
       confirmation = updateDigest(recovery);
       const recoveryJournal = openPtrInitialOwnerUpdateJournal(join(defaultProductionAdminStateDirectory(), 'ptr-initial-owner-atlas-v1'), false);
       recoveryJournal.assert();
@@ -658,7 +674,7 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
     let recoverySubmitted = false;
     const assertRecoveryStatus = (value: unknown) => {
       if (recovering && !recoverySubmitted) {
-        const current = projectPtrProductionStatus(value); assertPtrProductionInitialStagedStatus(current, authority);
+        const current = projectPtrProductionStatus(value); assertPtrProductionInitialStagedStatus(current, authority, componentPrefix!.componentCount);
         if (ptrInitialAtlasStagedStatusDigest(current) !== ptrInitialAtlasStagedStatusDigest(status)) fail('RECOVERY_STAGED_STATUS_CHANGED');
       }
     };
@@ -672,7 +688,9 @@ export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Com
           if (recovering && reducer === 'admin_stage_greater_realm_release_v1') fail('RECOVERY_STAGE_FORBIDDEN');
           if (recovering && !recoverySubmitted) { assertRecoveryStatus(await active.inspect()); assert(); }
           await active.submit(reducer, args, () => { beforeSend(); submitted = true; recoverySubmitted = recovering; },
-            recovering && !recoverySubmitted ? value => { assert(); assertRecoveryStatus(value); } : undefined); assert(); } },
+            recovering && !recoverySubmitted ? async value => { assert(); assertRecoveryStatus(value);
+              if (updateCanonical(await readComponentPrefix()) !== updateCanonical(componentPrefix)) fail('RECOVERY_COMPONENT_PREFIX_CHANGED');
+              assert(); } : undefined); assert(); } },
       assertCanStartWrite: assert });
     const receipt = recovering
       ? await coordinatePtrInitialAtlasRecovery({ journal: importJournal, marker, recovery, assert, validateReceipt, execute })

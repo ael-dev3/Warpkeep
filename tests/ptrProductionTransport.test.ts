@@ -745,6 +745,19 @@ describe('recovery readback at the actual serialized write boundary', () => {
 });
 
 describe('atlas connection renewal before expiry', () => {
+  it.each(['reject', 'expire'] as const)('awaits component-prefix verification before marking: %s', async mode => {
+    let now = NOW_SECONDS; const marker = vi.fn(), reducer = vi.fn(async () => undefined);
+    const transport = createPtrAtlasImportTransport({ databaseIdentity: DATABASE_IDENTITY, adminSecret: ADMIN_SECRET,
+      disallowedDatabaseIdentities: [G002_IDENTITY], nowSeconds: () => now, requestToken: async () => atlasJwt(),
+      connectDatabase: async () => ({ isDisconnectRequested: false, disconnect: vi.fn(),
+        procedures: { adminGetGreaterRealmStatusV1: async () => ({}) }, reducers: { adminImportGreaterRealmComponentsV1: reducer } }) as never });
+    await expect(transport.submit('admin_import_greater_realm_components_v1', {}, marker, async () => {
+      await Promise.resolve();
+      if (mode === 'reject') throw new Error('component prefix changed');
+      now += 301;
+    })).rejects.toThrow();
+    expect(marker).not.toHaveBeenCalled(); expect(reducer).not.toHaveBeenCalled(); await transport.close();
+  });
   it.each([240, 301])('refreshes the session at +%s seconds before marking or submitting', async elapsed => {
     let now = NOW_SECONDS, minted: Record<string, unknown> = {}, requests = 0, disconnects = 0;
     const events: string[] = [];

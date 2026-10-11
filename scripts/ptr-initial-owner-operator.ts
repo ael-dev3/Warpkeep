@@ -84,7 +84,7 @@ export function capturePtrInitialOwnerSource(root: string, source: PtrInitialOwn
 }
 
 type ParsedSql = ReturnType<typeof parseExistingUpdateSql>;
-function rowObject(value: ParsedSql, row: unknown): Record<string, unknown> {
+export function ptrInitialOwnerSqlRowObject(value: ParsedSql, row: unknown): Record<string, unknown> {
   const elements = (value.schema as { elements: { name: { some: string } }[] }).elements;
   if (!Array.isArray(elements) || elements.length < 1 || elements.length > 4096
     || elements.some(element => typeof element?.name?.some !== 'string'
@@ -93,6 +93,7 @@ function rowObject(value: ParsedSql, row: unknown): Record<string, unknown> {
     || !Array.isArray(row) || row.length !== elements.length) fail('ROW_SHAPE_INVALID');
   return Object.fromEntries(elements.map((element, index) => [element.name.some, row[index]]));
 }
+const rowObject = ptrInitialOwnerSqlRowObject;
 function uint(value: unknown, maximum: bigint): bigint {
   if (typeof value === 'number') {
     if (!Number.isSafeInteger(value) || value < 0) fail('ROW_INTEGER_INVALID');

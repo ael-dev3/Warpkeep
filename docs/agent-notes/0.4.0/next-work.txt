@@ -1,3 +1,32 @@
+Current recovery checkpoint - 11 October 2026, retained component-prefix continuation
+
+Published token-renewal checkpoint e4f831529a38d0ed5808241997b3621a69afdd51,
+tree 64d273947a9c690cf321e0c66cfd65d1b184468c. Recovery inspection v3 ran
+04:55:34.693-05:06:18.986 UTC, closed exit 1 with
+PTR_PRODUCTION_INITIAL_STAGE_DIFFERENT. No writes, confirmation or completion
+receipt; source/index/refs held and the entire owned group is now absent.
+Summary SHA256 2f27d573b69e6a0dba72afa88088e0156d83bcac290d27c286efaa3943351500.
+
+Actual read-only SQL proves 177 component rows, aggregate expected passable
+cells/slots/resources 63859/600/12000, next chunk ordinal zero, no region manifest,
+no imported passable cells or verification progress. Earlier ordinal-zero evidence
+proved no terrain chunks, not an untouched empty stage. No atlas rebuild is needed.
+The corrected recovery caller verifies every initialized component field and the
+exact retained canonical manifest against the accepted artifact. It binds that
+prefix into confirmation, checks it again before the first durable submission,
+awaits verification, and preserves token expiry checks and original journal history.
+Stage remains forbidden. Invalid rows/manifests, changed counters or terrain
+progress block continuation without a first-send callback.
+
+Next, Codex: finish qualification and publish/synchronize this coherent correction;
+inspect-import-recovery on the exact signed source with parent-v7/run-v6/child-v5.
+Resume once only with the actual matching confirmation. Require genuine ready
+receipt/provenance, then actual owner, bridge/frontend, authenticated gameplay,
+mobile/performance and cutover/rollback acceptance. Preserve Alpha, G001 progress
+and admission freeze, G002 seal and licensing. 0.4 is not shipped. No restaging,
+journal erasure, blind retry, new keys or backend reapplication. Historical entries
+below are superseded where conflicting.
+
 Current recovery checkpoint - 11 October 2026, atlas transport renewal
 
 Published explicit staged recovery: 42935f334ae01760eeb6ee4f7b671b4e0e71ed63,
