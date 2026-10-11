@@ -190,7 +190,11 @@ export function requireGreaterRealmPtrHydrologyLinkV1(
     const isGeneratedRiverIntoFrozenOcean = downstream.flowAccumulation < source.flowAccumulation
       && (source.hydroRegime === HYDRO_REGIME.RIVER
         || source.hydroRegime === HYDRO_REGIME.STREAM)
-      && source.regionId !== LOWLANDS_REGION_ID
+      && (source.regionId !== LOWLANDS_REGION_ID
+        || (legacyTransform !== undefined
+          && matchesLegacyTransform(source, legacyTransform)
+          && source.hydrologyRevision === 1
+          && !isCanonicalWaterCoordinate(source.localQ, source.localR)))
       && isVerifiedFrozenAlphaOceanTerminal(downstream, legacyTransform);
     if (!isDownhillEqualFlow && !isGeneratedRiverIntoFrozenOcean) {
       fail('GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID');

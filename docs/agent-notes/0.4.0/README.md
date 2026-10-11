@@ -1,3 +1,42 @@
+Atlas .53 verification blocker and narrow Lowlands correction - 11 October 2026
+
+Actual d12a695695c2f3c1e22db2d6f0e7455b5f9968f9 terrain v2 continuation ran
+09:33:07.421-13:43:09.748 UTC. All 624 chunks were imported; all 177 component
+and 624 chunk verification checks completed. Cell verification stopped at 53760.
+Terminal diagnostic PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS; no timeout,
+source/index/refs held, managed cleanup complete. Summary SHA256:
+eb216e038c056f638fba18aa981bd7afa9292c0f7661f2e450e4a6c626393f65.
+The fifth durable submission remains marked; no completion receipt or ACK exists.
+Never replay that terrain v2 command or invent its receipt. Keep the installed atlas.
+
+Read-only installed-snapshot reproduction of the next batch processed 63 cells,
+then failed at ordinal 53823 with GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID.
+Generated Lowlands river local(-65,66), atlas(29,27), revision 1, accumulation 1476,
+surface 10076 drains frozen Alpha ocean local(-65,65), atlas(30,26), revision 3,
+accumulation 0, surface 975. Retained transform: rotation 1, offsets (95,26).
+The old gate used region identity as a proxy for frozen-water provenance and
+therefore rejected this generated source within Lowlands. The correction admits
+only revision-1 Lowlands sources matching the retained transform and outside all
+canonical frozen water coordinates, into the existing fully verified frozen ocean
+terminal. Uphill, transition/body checks, frozen Alpha semantics and equal-flow
+rules remain unchanged. Independent bounded review found no blocker.
+
+Windows/native Linux: all 12 affected atlas read-contract tests pass. Root Windows
+build-mode types and native PTR module types pass. Regression covers the installed
+pair plus altered source provenance/transform and altered frozen terminal fields.
+This is a qualified source correction, not an installed backend or release claim.
+Next: verify all installed hydrology links against the corrected authority, prepare
+a preservation-aware exact-source backend update, and qualify a distinct bounded
+verification-only continuation retaining all five prior records. Do not restage,
+reimport earlier terrain, provision an owner before genuine atlas completion, or
+mark the release accepted from these tests. Full owner journey remains pending.
+
+The completed chunk table exceeds the fixed inspection provider's response cap.
+Diagnosis used an isolated bounded read-only SELECT snapshot with pinned CLI,
+config/source assertions, no reducer submission and no raw provider rows or token
+output. Maintained continuation must support bounded complete row evidence;
+do not weaken response limits or substitute partial rows for full proof.
+
 Qualified token throttling and bounded terrain v2 checkpoint - 11 October 2026
 
 Token acquisition now retries only a trusted 429 mint response, honoring canonical

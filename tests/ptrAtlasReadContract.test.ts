@@ -22,6 +22,7 @@ import {
   verifyGreaterRealmBatchV1,
 } from '../spacetimedb/ptr/src/atlasAuthority';
 import { Sha256 } from '../spacetimedb/ptr/src/sha256';
+import { requireGreaterRealmPtrHydrologyLinkV1 } from '../spacetimedb/ptr/src/greaterRealmHydrologyAuthority';
 import {
   PTR_ATLAS_MAX_RESOURCE_CHUNK_HANDLES,
   planPtrTreeRoute,
@@ -38,6 +39,37 @@ const CHUNK_B = `GRK-${'B'.repeat(26)}`;
 const PUBLIC_RELEASE_A = `GRR-${'A'.repeat(26)}`;
 const RESOURCE_LOCATION_A = `GRL-${'A'.repeat(26)}`;
 const COMPONENT_A = `GRC-${'A'.repeat(26)}`;
+
+test('generated Lowlands river can terminate in the exact transformed frozen Alpha ocean', () => {
+  // Installed atlas .53: verification ordinal 53823, observed on 2026-10-11.
+  const source = { regionId: 'T1_LOWLANDS', localQ: -65, localR: 66,
+    atlasQ: 29, atlasR: 27, hydroRegime: 3, hydroDepthClass: 2,
+    hydroSurfaceMilli: 10076, hydroFlowDirection: 1, flowAccumulation: 1476n,
+    hydrologyRevision: 1, passable: false, movementCost: 1_000_000,
+    geologicalBarrierBand: 0, biomeClass: 22, landformClass: 2, yieldClass: 0,
+    hydroBodyId: `GRW-${'A'.repeat(26)}` };
+  const downstream = { ...source, localR: 65, atlasQ: 30, atlasR: 26,
+    hydroRegime: 1, hydroDepthClass: 3, hydroSurfaceMilli: 975,
+    hydroFlowDirection: undefined, flowAccumulation: 0n, hydrologyRevision: 3,
+    biomeClass: 20, landformClass: 16, hydroBodyId: `GRW-${'B'.repeat(26)}` };
+  const transform = { rotation: 1, offsetQ: 95, offsetR: 26 };
+  assert.doesNotThrow(() => requireGreaterRealmPtrHydrologyLinkV1(source, downstream, transform));
+  for (const changed of [
+    { ...source, hydrologyRevision: 3 },
+    { ...source, atlasQ: source.atlasQ + 1 },
+    { ...source, localR: 65, atlasQ: 30, atlasR: 26 },
+  ]) assert.throws(() => requireGreaterRealmPtrHydrologyLinkV1(changed, downstream, transform),
+    /GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID/);
+  assert.throws(() => requireGreaterRealmPtrHydrologyLinkV1(source, downstream),
+    /GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID/);
+  for (const changed of [
+    { ...downstream, hydroDepthClass: 1 },
+    { ...downstream, hydrologyRevision: 1 },
+    { ...downstream, passable: true },
+    { ...downstream, flowAccumulation: 1n },
+  ]) assert.throws(() => requireGreaterRealmPtrHydrologyLinkV1(source, changed, transform),
+    /GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID/);
+});
 const SHA_A = 'a'.repeat(64);
 
 const VALID_RELEASE: GreaterRealmReleaseInputV1 = {
