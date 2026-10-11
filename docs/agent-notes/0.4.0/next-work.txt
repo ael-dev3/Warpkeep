@@ -1,3 +1,67 @@
+Atlas .53 preserved update and verification recovery - 11 October 2026, 15:27 UTC
+
+The exact reviewed backend update completed successfully. Published source:
+2891aee281c6c77be638635a0aecb5e688194320; tree:
+4cd876cd0e25883dd2b1c7dd4a9c8b9c85e58363. Installed program:
+634397f06a0accc7f69f137d584f2df233f786919d427f46646ff97329bcaf5c.
+The once-only apply started at 2026-10-11T14:33:22.080Z and its actual
+exec session 53948 terminated with exit 0, observed at 15:09:56 UTC.
+The provider acknowledgement and preserved-candidate readback are retained;
+all tables/configuration were preserved and managed cleanup completed.
+Inspection: ffa808fe75517f93b2c9701014ffccd98cc4f79878331692020cbb226785ac35.
+Native QA summary: artifacts/qa/october-release-atlas43-host2111-apply-summary.json,
+SHA256 80a69b236ee5536475f5cf8f202a69c32050f53e9d6db39374b8eb166a6209ad.
+Operation receipt SHA256:
+b63a156d0d2a0bcffac56d1a100da5f0c7c29c282c0c617bcc7be8dd884138d7.
+Do not repeat apply: it is complete. Its source hold and cleanup are resolved.
+
+Actual read-only qualification also completed with exit 0 (session 58685).
+The complete installed package matched the actual corrected backend through
+its current partial cell-verification cursor. Prefix proof digest:
+30d51da8ae5def4c95ca4256f556bf7191adabedd643ae7119873c0f8e9c7d89.
+Complete semantic import-audit proof digest:
+ed681850ae197d81b29ff3d13dc2820fd068dc1e6603e97a6dd9b8752ed565f7.
+All six activation/public-world boundaries remained empty. Program/schema and
+source were bracketed; no provider writes or completion receipt were claimed.
+No atlas rebuild is indicated. Audit identifiers have legitimate gaps;
+uniqueness, positivity, complete action order, counters and chronology remain
+required. Identifier contiguity is not a database guarantee (see SpacetimeDB
+transactions/atomicity documentation); no particular restart cause is inferred.
+
+Remaining ordered release path, owned by Codex:
+1. Validate and publish this verification-only recovery checkpoint, then sync
+   the idle native checkout. Reuse the accepted package and retained journals.
+2. Inspect the exact current module continuation and full imported prefix, then
+   use resume-verification with the inspection's confirmation. Only verification
+   batches/finalization may execute. A fixed continuation slot precedes the
+   first send; a marked failure is read-only reconciliation, never replay.
+3. Obtain actual ready readback and completion receipt. Preserve all five old
+   submissions; do not invent historical terrain-recovery acknowledgements.
+4. Provision the reviewed owner; complete real Farcaster owner PTR acceptance
+   for gather -> choose -> build -> benefit -> return.
+5. Finish frontend/mobile acceptance and cutover while preserving Alpha,
+   explicit public licensing, rollback and current GitHub Actions policy.
+
+CLI recovery requires the historical --update-inspection and its prior chain,
+plus --imported-state-update-inspection for the acknowledged preserved module
+update above. inspect-verification-recovery produces the exact confirmation;
+resume-verification consumes it. Owner inspection/provisioning and read-only
+reconcile-import also use this current-module inspection to validate the new
+completion lineage. The historical original marker remains unchanged.
+
+Farcaster host login is observed. A separate wallet confirmation was previously
+pending; it is not authenticated owner PTR acceptance. Do not substitute admin
+identity or claim release acceptance before the actual player journey passes.
+
+Local validation: 304 affected tests passed on Linux; Windows build-mode types,
+license and tracked file-size policies passed. Independent integration review
+found and corrected the bigint/number cursor comparison before any writes.
+The earlier full local verification/finalizer closure also passed with digest
+31d1bba0622f28bf3b6fdd22fbb9a6a1f6abd9dd97a0fd92b430ee49239ac768.
+This remains local simulation evidence, not live completion.
+
+The historical entry below is superseded by the evidence above.
+
 Atlas .53 prepare-update host readback - 11 October 2026
 
 Published bounded snapshot checkpoint dad826aa075e508ef3c3c8168b26f6ecce523d83,

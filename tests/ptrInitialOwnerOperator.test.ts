@@ -4,7 +4,7 @@ const sourceMocks = vi.hoisted(() => ({ git: vi.fn(), read: vi.fn() }));
 vi.mock('../scripts/atlas/greater-realm-git', () => ({ runGreaterRealmTrustedGit: sourceMocks.git }));
 vi.mock('../scripts/local-binding-bounded-file.mjs', () => ({ readLocalBindingBoundedFile: sourceMocks.read }));
 afterEach(() => { vi.clearAllMocks(); });
-import { capturePtrInitialOwnerSource, readPtrInitialOwnerSourceReference, inspectPtrInitialOwnerState, observePtrInitialOwnerAnchor, observePtrInitialOwnerAtlas,
+import { capturePtrInitialOwnerSource, readPtrInitialOwnerSourceReference, inspectPtrInitialOwnerState, observePtrInitialOwnerAnchor, observePtrInitialOwnerAtlas, readPtrInitialOwnerPagedRows,
   type PtrInitialOwnerReadDependencies } from '../scripts/ptr-initial-owner-operator';
 import { parseExistingUpdateSql } from '../scripts/sealed-realms-existing-update-protocol.mjs';
 import type { AuthBridgeRpcRoleAttestation } from '../scripts/auth-bridge-config-attestation.mjs';
@@ -200,6 +200,26 @@ describe('complete bounded PTR table snapshots', () => {
     expect(f.request.mock.calls.some(([operation]) => operation === 'rows:greater_realm_chunk_v1')).toBe(false);
     expect(f.buffers.every(buffer => buffer.every(byte => byte === 0))).toBe(true);
   });
+  it('retains complete private rows for recovery with the same canonical digest', async () => {
+    const f = pages();
+    const parsed = async (operation: Parameters<typeof f.dependencies.request>[0], parser: typeof parseExistingUpdateSql) => {
+      const bytes = await f.dependencies.request(operation);
+      try { return parser(bytes); } finally { bytes.fill(0); }
+    };
+    const value = await readPtrInitialOwnerPagedRows(parsed, 'greater_realm_chunk_v1', f.rowSchema, f.rowSchema, true);
+    expect(value.rows).toEqual(f.rows);
+    expect(value.rowsDigest).toBe(parseExistingUpdateSql(sql(f.rowSchema, f.rows)).rowsDigest);
+    expect(f.buffers.every(buffer => buffer.every(byte => byte === 0))).toBe(true);
+  });
+  it.each(['missing', 'duplicate', 'outside', 'schema', 'drift', 'duplicate-inventory'])
+    ('retained recovery rows also refuse inconsistent coverage: %s', async mode => {
+      const f = pages(mode);
+      const parsed = async (operation: Parameters<typeof f.dependencies.request>[0], parser: typeof parseExistingUpdateSql) => {
+        const bytes = await f.dependencies.request(operation);
+        try { return parser(bytes); } finally { bytes.fill(0); }
+      };
+      await expect(readPtrInitialOwnerPagedRows(parsed, 'greater_realm_chunk_v1', f.rowSchema, f.rowSchema, true)).rejects.toThrow();
+    });
   it.each(['missing', 'duplicate', 'outside', 'schema', 'drift', 'duplicate-inventory'])
     ('refuses incomplete or inconsistent evidence: %s', async mode => {
       const f = pages(mode);

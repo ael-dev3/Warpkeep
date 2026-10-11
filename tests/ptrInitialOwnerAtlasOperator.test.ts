@@ -10,6 +10,7 @@ import { parsePtrUpdateDefinition } from '../scripts/ptr-update-definition-polic
 import { createPtrInitialOwnerUpdateInspection } from '../scripts/ptr-initial-owner-update-core.mjs';
 import { existingUpdateTokenDigest, parseExistingUpdateSchema, updateDigest, updateCanonical } from '../scripts/sealed-realms-existing-update-protocol.mjs';
 import { ptrProductionImportReceiptDigest, type PtrProductionImportReceipt } from '../scripts/ptr-production-import-core';
+import { coordinatePtrInitialAtlasVerificationRecovery, ptrInitialAtlasVerificationRecoveryKey } from '../scripts/ptr-initial-atlas-verification-recovery';
 import { preparePtrInitialOwnerRuntimeRelease } from '../scripts/atlas/greater-realm-cli';
 import { greaterRealmRuntimeReleaseTestSeams } from '../scripts/atlas/greater-realm-runtime-release';
 
@@ -724,6 +725,40 @@ describe('bounded second terrain continuation', () => {
     return { ...f, original, stagedKey, regionKey, terrainKey, key,
       recoveryInput: { ...f.input, priorRecovery, priorRegionRecovery, priorTerrainRecovery, recovery } };
   }
+  function verificationControls() {
+    const f = v2Controls(); f.journal.write('submission', f.key, f.recoveryInput.recovery);
+    const verificationBinding = { currentUpdateInspectionDigest: updateDigest('current installed module update'),
+      currentContinuationDigest: updateDigest('current module continuation') };
+    const recovery = { profile: 'warpkeep-ptr-initial-atlas-verification-recovery-v1' as const,
+      originalMarkerDigest: f.original, priorTerrainRecoveryV2Key: f.key,
+      priorTerrainRecoveryV2Digest: updateDigest(f.recoveryInput.recovery), ...verificationBinding,
+      prefixDigest: updateDigest('complete imported prefix'), auditDigest: updateDigest('complete import audit'),
+      boundaryDigest: updateDigest('qualified imported update boundary'), stagedStatusDigest: updateDigest('initial status') };
+    return { ...f, verificationBinding, verificationKey: ptrInitialAtlasVerificationRecoveryKey(f.marker),
+      verificationInput: { ...f.input, recovery, validatePrior: () => {} } };
+  }
+  it('owner reconciliation accepts a distinct verification completion while retaining all five old submissions without historical ACKs', async () => {
+    const f = verificationControls();
+    const result = await coordinatePtrInitialAtlasVerificationRecovery(f.verificationInput);
+    expect(await coordinatePtrInitialAtlasImport({ ...f.input, command: 'reconcile-import', verificationBinding: f.verificationBinding })).toEqual(result);
+    for (const key of [f.stagedKey, f.regionKey, f.terrainKey, f.key]) {
+      expect(f.journal.present('submission', key)).toBe(true);
+      expect(f.journal.present('acknowledgement', key)).toBe(false);
+    }
+    expect(f.execute).toHaveBeenCalledTimes(1);
+  });
+  it.each(['missing-binding', 'wrong-update', 'wrong-continuation', 'missing-completion', 'changed-old-v2', 'old-v2-ack'])('owner reconciliation rejects %s verification lineage without sending', async mode => {
+    const f = verificationControls(); await coordinatePtrInitialAtlasVerificationRecovery(f.verificationInput);
+    let verificationBinding: typeof f.verificationBinding | undefined = f.verificationBinding;
+    if (mode === 'missing-binding') verificationBinding = undefined;
+    if (mode === 'wrong-update') verificationBinding = { ...f.verificationBinding, currentUpdateInspectionDigest: updateDigest('wrong') };
+    if (mode === 'wrong-continuation') verificationBinding = { ...f.verificationBinding, currentContinuationDigest: updateDigest('wrong') };
+    if (mode === 'missing-completion') f.slots.delete(`acknowledgement:${f.verificationKey}`);
+    if (mode === 'changed-old-v2') f.slots.set(`submission:${f.key}`, { ...f.recoveryInput.recovery, terrainPrefix: {} });
+    if (mode === 'old-v2-ack') f.slots.set(`acknowledgement:${f.key}`, {});
+    await expect(coordinatePtrInitialAtlasImport({ ...f.input, command: 'reconcile-import', verificationBinding })).rejects.toThrow();
+    expect(f.execute).toHaveBeenCalledTimes(1);
+  });
   it('retains all four submissions and validates genuine v2 completion before original ACK', async () => {
     const f = v2Controls(), result = await coordinatePtrInitialAtlasRecovery(f.recoveryInput);
     expect(f.events).toEqual(['submission:fsynced', 'reducer', 'acknowledgement:fsynced', 'acknowledgement:fsynced']);

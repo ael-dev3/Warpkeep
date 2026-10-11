@@ -130,24 +130,9 @@ export function observePtrInitialOwnerAtlas(value: ParsedSql) {
     fullImportStatusAuthority: false as const });
 }
 
-export type PtrInitialOwnerReadDependencies = Readonly<{
-  request: (operation: PtrInspectionProviderOperation) => Promise<Uint8Array>;
-  assertSource: () => void;
-  configuration: () => Promise<AuthBridgeRpcRoleAttestation>;
-}>;
-/** Fixed observations only. No caller-controlled SQL/destination and no write continuation exist. */
-export async function inspectPtrInitialOwnerState(dependencies: PtrInitialOwnerReadDependencies) {
-  let totalBytes = 0;
-  const parsed = async <T>(operation: PtrInspectionProviderOperation, parser: (bytes: Uint8Array) => T) => {
-    dependencies.assertSource(); const bytes = await dependencies.request(operation);
-    try {
-      if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > 32 * 1024 * 1024) fail('RESPONSE_BOUND');
-      totalBytes += bytes.byteLength; if (totalBytes > MAX_TOTAL) fail('RESPONSE_TOTAL_BOUND');
-      dependencies.assertSource(); return parser(bytes);
-    } finally { bytes.fill(0); }
-  };
-  const paged = async (name: keyof typeof PTR_INSPECTION_PAGING, expectedSchema: unknown,
-    expandedSchema: unknown) => {
+/** Complete fixed-range paging; retained rows are private transient verification input only. */
+export async function readPtrInitialOwnerPagedRows(parsed: (operation: PtrInspectionProviderOperation, parser: typeof parseExistingUpdateSql) => Promise<ParsedSql>, name: keyof typeof PTR_INSPECTION_PAGING, expectedSchema: unknown,
+    expandedSchema: unknown, retainRows = false) {
     const policy = PTR_INSPECTION_PAGING[name];
     const inventory = async () => {
       const value = await parsed(`ordinals:${name}`, parseExistingUpdateSql);
@@ -164,7 +149,7 @@ export async function inspectPtrInitialOwnerState(dependencies: PtrInitialOwnerR
     const before = await inventory();
     const starts = [...new Set(before.map(value => Math.floor(value / policy.width) * policy.width))];
     if (starts.length > 4096) fail('PAGE_COUNT_BOUND');
-    const expected = new Set(before), observed = new Set<number>(), canonicalRows: string[] = [];
+    const expected = new Set(before), observed = new Set<number>(), canonicalRows: string[] = [], retainedRows: unknown[] = [];
     let resultSchema: unknown = expectedSchema;
     for (const start of starts) {
       const value = await parsed(`page:${name}:${start}`, parseExistingUpdateSql);
@@ -178,16 +163,16 @@ export async function inspectPtrInitialOwnerState(dependencies: PtrInitialOwnerR
         if (ordinal < start || ordinal >= start + policy.width || !expected.has(ordinal)
           || observed.has(ordinal)) fail('PAGE_COVERAGE_INVALID');
         observed.add(ordinal); canonicalRows.push(updateCanonical(row));
+        if (retainRows) retainedRows.push(row);
       }
     }
     if (observed.size !== expected.size || updateCanonical(before) !== updateCanonical(await inventory()))
       fail('PAGE_INVENTORY_CHANGED');
     // Identical to parseExistingUpdateSql: complete canonical rows, sorted before hashing.
-    return { schema: resultSchema, rows: [], count: observed.size, rowsDigest: updateDigest(canonicalRows.sort()) };
-  };
-  const snapshot = async () => {
-    const program = await parsed('program', parseExistingUpdateProgram);
-    const schema = await parsed('schema-v9', bytes => {
+    return { schema: resultSchema, rows: retainedRows, count: observed.size, rowsDigest: updateDigest(canonicalRows.sort()) };
+}
+
+export function parsePtrInitialOwnerRowSchemas(bytes: Uint8Array) {
       const policy = parseExistingUpdateSchema(bytes), raw = parseExistingUpdateJson(bytes);
       if (policy.names.some(name => !(PTR_INSPECTION_TABLES as readonly string[]).includes(name))
         || !policy.names.includes('ptr_owner_anchor_v1') || !policy.names.includes('greater_realm_release_v1')) fail('TABLE_INVENTORY_UNSUPPORTED');
@@ -207,11 +192,31 @@ export async function inspectPtrInitialOwnerState(dependencies: PtrInitialOwnerR
       };
       return { policy, rowSchemas, expandedRowSchemas: Object.fromEntries(Object.entries(rowSchemas)
         .map(([name, row]) => [name, resolveRefs(row)])) };
-    });
+}
+
+export type PtrInitialOwnerReadDependencies = Readonly<{
+  request: (operation: PtrInspectionProviderOperation) => Promise<Uint8Array>;
+  assertSource: () => void;
+  configuration: () => Promise<AuthBridgeRpcRoleAttestation>;
+}>;
+/** Fixed observations only. No caller-controlled SQL/destination and no write continuation exist. */
+export async function inspectPtrInitialOwnerState(dependencies: PtrInitialOwnerReadDependencies) {
+  let totalBytes = 0;
+  const parsed = async <T>(operation: PtrInspectionProviderOperation, parser: (bytes: Uint8Array) => T) => {
+    dependencies.assertSource(); const bytes = await dependencies.request(operation);
+    try {
+      if (!(bytes instanceof Uint8Array) || bytes.byteLength < 1 || bytes.byteLength > 32 * 1024 * 1024) fail('RESPONSE_BOUND');
+      totalBytes += bytes.byteLength; if (totalBytes > MAX_TOTAL) fail('RESPONSE_TOTAL_BOUND');
+      dependencies.assertSource(); return parser(bytes);
+    } finally { bytes.fill(0); }
+  };
+  const snapshot = async () => {
+    const program = await parsed('program', parseExistingUpdateProgram);
+    const schema = await parsed('schema-v9', parsePtrInitialOwnerRowSchemas);
     const tables = []; let owner, atlas;
     for (const name of schema.policy.names) {
       const value = Object.hasOwn(PTR_INSPECTION_PAGING, name)
-        ? await paged(name as keyof typeof PTR_INSPECTION_PAGING, schema.rowSchemas[name], schema.expandedRowSchemas[name])
+        ? await readPtrInitialOwnerPagedRows(parsed, name as keyof typeof PTR_INSPECTION_PAGING, schema.rowSchemas[name], schema.expandedRowSchemas[name])
         : await parsed(`rows:${name}` as PtrInspectionProviderOperation, parseExistingUpdateSql);
       if (updateCanonical(value.schema) !== updateCanonical(schema.rowSchemas[name])
         && updateCanonical(value.schema) !== updateCanonical(schema.expandedRowSchemas[name])) fail('ROW_SCHEMA_DIFFERENT');
