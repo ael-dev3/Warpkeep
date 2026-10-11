@@ -8,6 +8,31 @@ remain incomplete. Preserve Alpha, G001 progress/admission freeze, the G002 seal
 licensing and rollback. Do not rebuild an already accepted atlas for this
 operator-only transport correction, or reapply the installed backend.
 
+## Host-preserved activation bound
+
+Published session-expiry source a23146be3f16c03ead2654c09067d86f51712682,
+tree 0eb011be80ca31b37c44ce91bf4d1da71ffc5d24, is synchronized and signed.
+The actual read-only live session probe rejected connection before any reducer.
+A bounded private exchange diagnostic confirms the host refreshes iat while
+preserving original nbf; the observed nbf-minus-iat offset was -1 second.
+Requiring equality rejected this genuine exchange. The narrow correction requires
+preserved original nbf and nondecreasing exchanged iat, retaining exact authority,
+identity, activation, expiry and lifetime checks. Windows/Linux: 67 affected tests
+passed. Actual live renewal and import completion are still unproven.
+
+Next: publish/synchronize this correction, require successful actual read-only
+renewal, then independently review continuation from the exact initialized
+component/region prefix. Both original/recovery markers remain. No stage, region
+replay, rebuild, new credentials or backend reapplication. Preserve Alpha, G001
+progress/admission freeze, G002 seal and licensing. 0.4 is not shipped.
+
+Actual exchange diagnostic helper hashes:
+parent 64a0c2f038870a1ab6864de2c70d2e7f068e6718f77fdcf6cad75622ff4f045b;
+child 601b12122beb36445657c5b7c08c398df0a4b38d2e64501b10ffed926e7d2d43.
+The exchange retained issuer/audience/roles, valid identity and jti shapes, and
+an outer response containing only token. All private token values stayed private;
+native probe processes were verified absent before reporting.
+
 ## Effective WebSocket lifetime and retained region prefix
 
 0.4 is not shipped. Source d014d55814d492f5c51a287f6ec1f93fb5940e07

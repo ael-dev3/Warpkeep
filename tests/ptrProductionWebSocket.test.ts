@@ -16,9 +16,13 @@ describe('PTR effective WebSocket session', () => {
     expect(readPtrEffectiveAtlasSession(jwt(original), jwt(effective), NOW))
       .toEqual({ issuedAt: NOW, expiresAt: NOW + 60, hexIdentity: IDENTITY });
   });
+  it('accepts the host-renewed issue time while preserving the original activation bound', () => {
+    expect(readPtrEffectiveAtlasSession(jwt(original), jwt({ ...effective, iat: NOW + 1, exp: NOW + 61 }), NOW + 1))
+      .toEqual({ issuedAt: NOW + 1, expiresAt: NOW + 61, hexIdentity: IDENTITY });
+  });
   it.each([
-    { exp: NOW + 301 }, { exp: NOW }, { exp: NOW + 60.5 }, { iat: NOW + 6, nbf: NOW + 6 },
-    { nbf: NOW - 1 }, { iat: -1, nbf: -1 }, { iss: 'https://other.example' }, { sub: 'farcaster:1' },
+    { exp: NOW + 301 }, { exp: NOW }, { exp: NOW + 60.5 }, { iat: NOW + 6, nbf: NOW + 6 }, { iat: NOW + 6, exp: NOW + 66 },
+    { nbf: NOW - 1 }, { nbf: NOW + 1 }, { iat: NOW - 1 }, { iat: -1, nbf: -1 }, { iss: 'https://other.example' }, { sub: 'farcaster:1' },
     { aud: ['warpkeep-spacetimedb'] }, { roles: ['warpkeep-admin', 'warpkeep-ptr-owner'] },
     { token_type: 'other' }, { hex_identity: 'invalid' }, { jti: 'unsafe space' }, { owner_fid: '1' },
   ])('rejects exchanged authority, shape or lifetime changes: %j', overrides => {

@@ -1,3 +1,21 @@
+Current recovery checkpoint - 11 October 2026, host-preserved activation bound
+
+Published session-expiry source a23146be3f16c03ead2654c09067d86f51712682,
+tree 0eb011be80ca31b37c44ce91bf4d1da71ffc5d24, is synchronized and signed.
+The actual read-only live session probe rejected connection before any reducer.
+A bounded private exchange diagnostic confirms the host refreshes iat while
+preserving original nbf; the observed nbf-minus-iat offset was -1 second.
+Requiring equality rejected this genuine exchange. The narrow correction requires
+preserved original nbf and nondecreasing exchanged iat, retaining exact authority,
+identity, activation, expiry and lifetime checks. Windows/Linux: 67 affected tests
+passed. Actual live renewal and import completion are still unproven.
+
+Next: publish/synchronize this correction, require successful actual read-only
+renewal, then independently review continuation from the exact initialized
+component/region prefix. Both original/recovery markers remain. No stage, region
+replay, rebuild, new credentials or backend reapplication. Preserve Alpha, G001
+progress/admission freeze, G002 seal and licensing. 0.4 is not shipped.
+
 Current recovery checkpoint - 11 October 2026, effective WebSocket session expiry
 
 0.4 is not shipped. Windows and native Linux qualification passed: 233 affected tests,

@@ -50,7 +50,9 @@ export function readPtrEffectiveAtlasSession(originalToken: string, exchangedTok
     || JSON.stringify(original.roles) !== '["warpkeep-admin"]' || original.token_type !== 'spacetime-access'
     || ['iss', 'sub', 'aud', 'roles', 'token_type'].some(key => JSON.stringify(original[key]) !== JSON.stringify(effective[key]))
     || [original.iat, original.nbf, original.exp, effective.iat, effective.nbf, effective.exp].some(value => !Number.isSafeInteger(value) || (value as number) < 0)
-    || original.nbf !== original.iat || effective.nbf !== effective.iat
+    // The host renews iat but preserves the issuer's original activation bound.
+    || original.nbf !== original.iat || effective.nbf !== original.nbf
+    || (effective.iat as number) < (original.iat as number)
     || (original.exp as number) - (original.iat as number) !== 300
     || (effective.exp as number) <= (effective.iat as number)
     || (effective.exp as number) - (effective.iat as number) > 300
