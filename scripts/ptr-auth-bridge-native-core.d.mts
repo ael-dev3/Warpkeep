@@ -1,0 +1,45 @@
+export const PTR_BRIDGE_ACCOUNT: 'c647739b4535010b0b13e6fc296e2c4e';
+export const PTR_BRIDGE_WORKER: 'warpkeep-auth-bridge';
+export const PTR_BRIDGE_DATABASE: 'c200df57bee179af512f05b3c7c328e3d4d7a6074ccc4ed976de84f94fb56d6e';
+export const PTR_BRIDGE_PROFILE: 'warpkeep-ptr-auth-bridge-native-v1';
+export const PTR_BRIDGE_LATEST_UPLOAD_PATH: string;
+export class PtrNativeBridgeError extends Error { readonly code: string; constructor(code: string); }
+export type NativeBridgeSource = Readonly<{ sourceCommit: string; sourceTree: string; signerFingerprint: string; signerIdentity: string }>;
+export type NativeBridgeBinding = Readonly<{ name: string; type: string; text?: string; class_name?: string; namespace_id?: string }>;
+export type NativeBridgeModule = Readonly<{ field: string; name: string; contentType: string; size: number; sha256: string }>;
+export type NativeBridgeSnapshot = Readonly<{ accountId: string; workerName: string; deploymentId: string; versionId: string;
+  versionNumber: number; sourceDigest: string; bindings: readonly NativeBridgeBinding[]; compatibilityDate: string;
+  compatibilityFlags: readonly string[]; migrationTag: string; usageModel?: string;
+  subdomain: Readonly<{ enabled: boolean; previews_enabled: boolean }>; routes: readonly unknown[];
+  domains: readonly Readonly<Record<string, unknown>>[]; settings: Readonly<Record<string, unknown>>;
+  /** Absence is an unobserved provider field, never an inferred disabled setting. */
+  cacheOptions?: Readonly<{ enabled: false; cross_version_cache?: boolean }> }>;
+export type NativeBridgePlan = Readonly<{ schemaVersion: 1; profile: typeof PTR_BRIDGE_PROFILE; source: NativeBridgeSource;
+  before: NativeBridgeSnapshot; bindings: readonly NativeBridgeBinding[]; entrypoint: string; modules: readonly NativeBridgeModule[];
+  sourceDigest: string; toolchainDigest: string; versionTag: string; versionMessage: string; planDigest: string }>;
+export function bridgeCanonical(value: unknown): string;
+export function bridgeDigest(value: unknown): string;
+export function bridgeModuleDigest(modules: readonly NativeBridgeModule[]): string;
+export function normalizeBridgeBinding(binding: unknown): NativeBridgeBinding;
+export function validateBridgeSnapshot(snapshot: unknown): NativeBridgeSnapshot;
+export function createNativeBridgePlan(input: Readonly<{ source: NativeBridgeSource; before: NativeBridgeSnapshot;
+  modules: readonly NativeBridgeModule[]; entrypoint: string; sourceDigest: string; toolchainDigest: string }>): NativeBridgePlan;
+export function validateNativeBridgePlan(plan: unknown): NativeBridgePlan;
+export function assertNativeBridgeVersion(plan: NativeBridgePlan, snapshot: unknown, modules: readonly NativeBridgeModule[],
+  entrypoint: string, annotations: unknown): NativeBridgeSnapshot;
+export function bridgeRedactedMetadataDigest(metadata: unknown): string;
+export function projectNativeBridgeUploadMetadata(plan: NativeBridgePlan, metadata: unknown, ownerFid: string): Readonly<Record<string, unknown>>;
+export function takeNativeBridgeOwnerFid(environment: { WARPKEEP_PLAYER_CANARY_OWNER_FID?: string }): string;
+export function assertNativeBridgeLatestUpload(result: unknown, resultInfo: unknown, versionId: string, versionNumber: number): void;
+export type NativeBridgeJournal = Readonly<{ present(kind: 'submission' | 'inspection', key: string): boolean;
+  read(kind: 'submission' | 'inspection', key: string): { value: unknown };
+  write(kind: 'submission' | 'inspection', key: string, value: unknown): unknown }>;
+export function persistNativeBridgeInspection(plan: NativeBridgePlan, journal: NativeBridgeJournal): Readonly<{ reused: boolean }>;
+export function runNativeBridgeProtocol(input: Readonly<{ command: 'deploy' | 'release' | 'reconcile'; plan: NativeBridgePlan;
+  journal: NativeBridgeJournal; assertSource(): void; observeBefore(): Promise<NativeBridgeSnapshot>;
+  preflight(plan: NativeBridgePlan, candidate: { versionId: string } | null): Promise<void>;
+  upload(plan: NativeBridgePlan): Promise<{ versionId: string }>; findCandidate(plan: NativeBridgePlan): Promise<{ versionId: string } | null>;
+  release(plan: NativeBridgePlan, candidate: { versionId: string }): Promise<unknown>;
+  observeAfter(plan: NativeBridgePlan, candidate: { versionId: string }): Promise<Readonly<{ deployed: boolean; [key: string]: unknown }>>
+}>): Promise<Readonly<{ outcome: 'upload-unresolved' | 'uploaded-not-deployed' | 'deployed-observed'; mutationRetried: false;
+  planDigest: string; versionId?: string; observation?: Readonly<{ deployed: boolean; [key: string]: unknown }> }>>;

@@ -26,6 +26,7 @@ import {
 } from './greater-realm-strategic-audits';
 import {
   GREATER_REALM_TOPOGRAPHIC_QA_VERSION,
+  deriveGreaterRealmTierOneSemanticRegionsFromFinalGeometry,
   measureGreaterRealmTopographicQa,
 } from './greater-realm-topographic-qa';
 import {
@@ -36,6 +37,7 @@ import {
 const PRIVATE_CANVAS_RADIUS = 270;
 const PRIVATE_MINIMUM_CELL_COUNT = 100_000;
 const PRIVATE_MAXIMUM_CELL_COUNT = 150_000;
+const PRIVATE_TIER_ONE_SEMANTIC_REGION_BY_ROLE = Object.freeze([0, 1, 2, 3, 4, 5]);
 const PRIVATE_DOMAIN_KEYS = Object.freeze([
   'age',
   'baseThickness',
@@ -440,7 +442,7 @@ function assertPrivateTopographicQa(
   engineeredWaterClearanceMask: Uint8Array,
 ): void {
   try {
-    const expected = measureGreaterRealmTopographicQa({
+    const qaInput = Object.freeze({
       grid: candidate.grid,
       regionId: candidate.regionId,
       geomorphologyCoastalClass: candidate.geomorphologyCoastalClass,
@@ -461,6 +463,22 @@ function assertPrivateTopographicQa(
       legacyProtectedCell: candidate.legacyLowlandsProtectedCell,
       waterClassificationExemptionMask: engineeredWaterClearanceMask,
       seaLevel: 0,
+    });
+    // Ordinary candidates retain fixed names. Repair candidates must replay
+    // the canonical names derived from their final physical regions.
+    const tierOneSemanticRegionByRole = equalPrivateData(
+      PRIVATE_TIER_ONE_SEMANTIC_REGION_BY_ROLE,
+      candidate.tierOneSemanticRegionByRole,
+    )
+      ? PRIVATE_TIER_ONE_SEMANTIC_REGION_BY_ROLE
+      : deriveGreaterRealmTierOneSemanticRegionsFromFinalGeometry(qaInput);
+    if (!equalPrivateData(
+      tierOneSemanticRegionByRole,
+      candidate.tierOneSemanticRegionByRole,
+    )) fail('GREATER_REALM_PRIVATE_TOPOGRAPHIC_QA_INVALID');
+    const expected = measureGreaterRealmTopographicQa({
+      ...qaInput,
+      tierOneSemanticRegionByRole,
     });
     if (
       expected.version !== GREATER_REALM_TOPOGRAPHIC_QA_VERSION

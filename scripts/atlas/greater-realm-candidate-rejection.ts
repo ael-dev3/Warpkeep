@@ -26,9 +26,24 @@ export const GREATER_REALM_CANDIDATE_REJECTION_CODES = Object.freeze([
   'GREATER_REALM_TIER_TWO_CAPACITY_INVARIANT',
   'GREATER_REALM_TIER_TWO_PASSABLE_COMPONENTS_EMPTY',
   'GREATER_REALM_TIER_TWO_STRATEGIC_COMPONENTS_EMPTY',
+  'GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING',
+  'GREATER_REALM_TIER_TWO_GATE_PARENT_IRONVEIL_SLOT_MISSING',
+  'GREATER_REALM_TIER_TWO_GATE_PARENT_GLASSWATER_SLOT_MISSING',
   'GREATER_REALM_TIER_TWO_GATE_PARENT_SLOT_MISSING',
   'GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING',
+  'GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE',
   'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH',
+  'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_LOWLANDS_REPAIR_CHECK',
+  'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_OWNERSHIP_FOREST',
+  'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_TIER_ONE_REPARTITION',
+  'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK',
+  'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED',
+  'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT',
+  'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT',
+  'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT',
+  'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT',
+  'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT',
+  'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_CAPACITY_ASSIGNMENT_LIMIT',
   'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT',
   'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT',
   'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_PLAN_MISSING',
@@ -73,9 +88,24 @@ export type GreaterRealmCandidateRejectionCode =
 export const GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS = Object.freeze([
   'PASSABLE_COMPONENTS_EMPTY',
   'STRATEGIC_COMPONENTS_EMPTY',
+  'GATE_PARENT_CROWNWOOD_SLOT_MISSING',
+  'GATE_PARENT_IRONVEIL_SLOT_MISSING',
+  'GATE_PARENT_GLASSWATER_SLOT_MISSING',
   'GATE_PARENT_SLOT_MISSING',
   'ASSIGNMENT_MISSING',
+  'CAPACITY_ASSIGNMENT_INFEASIBLE',
   'DRY_GATE_APRON_NO_MATCH',
+  'DRY_GATE_APRON_NO_MATCH_AFTER_LOWLANDS_REPAIR_CHECK',
+  'DRY_GATE_APRON_NO_MATCH_AFTER_OWNERSHIP_FOREST',
+  'DRY_GATE_APRON_NO_MATCH_AFTER_TIER_ONE_REPARTITION',
+  'DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK',
+  'DRY_GATE_APRON_FRONTIER_TRUNCATED',
+  'DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT',
+  'DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT',
+  'DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT',
+  'DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT',
+  'DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT',
+  'DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_CAPACITY_ASSIGNMENT_LIMIT',
   'DRY_GATE_APRON_SEARCH_NODE_LIMIT',
   'DRY_GATE_APRON_COMPLETE_PLAN_LIMIT',
   'DRY_GATE_APRON_PLAN_MISSING',
@@ -115,13 +145,244 @@ export const GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS = Object.freeze([
 export type GreaterRealmTierTwoCapacityRejectionReason =
   typeof GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_REASONS[number];
 
+export type GreaterRealmTierTwoAssignmentLaneDiagnostics = Readonly<{
+  eligibleComponentCountsByParent: readonly number[];
+  infeasibleComponentCombinations: number;
+}>;
+
+export type GreaterRealmTierTwoAssignmentFailureReason =
+  | 'GATE_PARENT_CROWNWOOD_SLOT_MISSING'
+  | 'GATE_PARENT_IRONVEIL_SLOT_MISSING'
+  | 'GATE_PARENT_GLASSWATER_SLOT_MISSING'
+  | 'GATE_PARENT_SLOT_MISSING'
+  | 'ASSIGNMENT_MISSING'
+  | 'CAPACITY_ASSIGNMENT_INFEASIBLE';
+
+const GREATER_REALM_TIER_TWO_PARENT_SLOT_FAILURES = Object.freeze([
+  'GATE_PARENT_CROWNWOOD_SLOT_MISSING',
+  'GATE_PARENT_IRONVEIL_SLOT_MISSING',
+  'GATE_PARENT_GLASSWATER_SLOT_MISSING',
+] as const satisfies readonly GreaterRealmTierTwoAssignmentFailureReason[]);
+
+/**
+ * Distinguish a globally absent gate-parent slot from lane-split coverage.
+ * Any truncated frontier takes precedence: the retained options cannot prove
+ * that a parent slot is truly absent or every assignment is infeasible.
+ */
+export function classifyGreaterRealmTierTwoAssignmentFailure(
+  ordinary: GreaterRealmTierTwoAssignmentLaneDiagnostics,
+  lowlandsRepair: GreaterRealmTierTwoAssignmentLaneDiagnostics,
+  frontierTruncationKind: GreaterRealmTierTwoApronFrontierTruncationKind | null = null,
+): GreaterRealmTierTwoCapacityRejectionReason {
+  const parentCount = ordinary.eligibleComponentCountsByParent.length;
+  if (
+    parentCount !== GREATER_REALM_TIER_TWO_PARENT_SLOT_FAILURES.length
+    || lowlandsRepair.eligibleComponentCountsByParent.length !== parentCount
+    || !Number.isSafeInteger(ordinary.infeasibleComponentCombinations)
+    || ordinary.infeasibleComponentCombinations < 0
+    || !Number.isSafeInteger(lowlandsRepair.infeasibleComponentCombinations)
+    || lowlandsRepair.infeasibleComponentCombinations < 0
+    || ordinary.eligibleComponentCountsByParent.some(
+      count => !Number.isSafeInteger(count) || count < 0,
+    )
+    || lowlandsRepair.eligibleComponentCountsByParent.some(
+      count => !Number.isSafeInteger(count) || count < 0,
+    )
+    || (frontierTruncationKind !== null
+      && !GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS.includes(
+        frontierTruncationKind,
+      ))
+  ) {
+    throw new Error('GREATER_REALM_TIER_TWO_ASSIGNMENT_DIAGNOSTICS_INVALID');
+  }
+  if (frontierTruncationKind !== null) {
+    return classifyGreaterRealmTierTwoApronSearchFailure({
+      outcome: 'no-match',
+      frontierTruncated: true,
+      frontierTruncationKind,
+    });
+  }
+  if (
+    ordinary.infeasibleComponentCombinations > 0
+    || lowlandsRepair.infeasibleComponentCombinations > 0
+  ) {
+    return 'CAPACITY_ASSIGNMENT_INFEASIBLE';
+  }
+  const missingParents = ordinary.eligibleComponentCountsByParent.flatMap(
+    (count, parent) => count === 0
+      && lowlandsRepair.eligibleComponentCountsByParent[parent] === 0
+      ? [parent]
+      : [],
+  );
+  if (missingParents.length === 1) {
+    const reason = GREATER_REALM_TIER_TWO_PARENT_SLOT_FAILURES[missingParents[0]!];
+    if (reason === undefined) {
+      throw new Error('GREATER_REALM_TIER_TWO_ASSIGNMENT_DIAGNOSTICS_INVALID');
+    }
+    return reason;
+  }
+  if (missingParents.length > 1) {
+    return 'GATE_PARENT_SLOT_MISSING';
+  }
+  return 'ASSIGNMENT_MISSING';
+}
+
+export type GreaterRealmTierTwoApronNoMatchStage =
+  | 'LOWLANDS_REPAIR_OWNERSHIP'
+  | 'OWNERSHIP_FOREST'
+  | 'TIER_ONE_REPARTITION'
+  | 'POST_REPARTITION_OWNERSHIP';
+
+export const GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS = Object.freeze([
+  'EDGE_CANDIDATE_LIMIT',
+  'BUNDLE_PAIR_LIMIT',
+  'BUNDLE_OPTION_LIMIT',
+  'LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT',
+  'LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT',
+  'CAPACITY_ASSIGNMENT_LIMIT',
+] as const);
+
+export type GreaterRealmTierTwoApronFrontierTruncationKind =
+  typeof GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS[number];
+
+export function isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds(
+  value: unknown,
+): value is readonly GreaterRealmTierTwoApronFrontierTruncationKind[] {
+  if (
+    !Array.isArray(value)
+    || value.length > GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS.length
+  ) return false;
+  let previousIndex = -1;
+  for (const kind of value) {
+    const currentIndex = GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS.indexOf(kind);
+    if (currentIndex <= previousIndex) return false;
+    previousIndex = currentIndex;
+  }
+  return true;
+}
+
+export function prioritizeGreaterRealmTierTwoApronFrontierTruncation(
+  current: GreaterRealmTierTwoApronFrontierTruncationKind | null,
+  observed: GreaterRealmTierTwoApronFrontierTruncationKind,
+): GreaterRealmTierTwoApronFrontierTruncationKind {
+  const currentPriority = current === null
+    ? Number.POSITIVE_INFINITY
+    : GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS.indexOf(current);
+  const observedPriority = GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS
+    .indexOf(observed);
+  if (currentPriority < 0 || observedPriority < 0) {
+    throw new Error('GREATER_REALM_TIER_TWO_APRON_SEARCH_DIAGNOSTICS_INVALID');
+  }
+  return currentPriority <= observedPriority ? current! : observed;
+}
+
+const GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_REASON_BY_KIND = Object.freeze({
+  EDGE_CANDIDATE_LIMIT: 'DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT',
+  BUNDLE_PAIR_LIMIT: 'DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT',
+  BUNDLE_OPTION_LIMIT: 'DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT',
+  LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT:
+    'DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT',
+  LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT:
+    'DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT',
+  CAPACITY_ASSIGNMENT_LIMIT:
+    'DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_CAPACITY_ASSIGNMENT_LIMIT',
+} as const satisfies Readonly<Record<
+  GreaterRealmTierTwoApronFrontierTruncationKind,
+  GreaterRealmTierTwoCapacityRejectionReason
+>>);
+
+/**
+ * Preserve the distinction between exhausted retained options and a bounded
+ * frontier that discarded viable alternatives before the ranked search.
+ */
+export function classifyGreaterRealmTierTwoApronSearchFailure(input: Readonly<{
+  outcome: 'search-node-limit' | 'complete-plan-limit' | 'no-match';
+  frontierTruncated: boolean;
+  frontierTruncationKind?: GreaterRealmTierTwoApronFrontierTruncationKind | null;
+  deepestNoMatchStage?: GreaterRealmTierTwoApronNoMatchStage;
+}>): GreaterRealmTierTwoCapacityRejectionReason {
+  if (
+    (input.outcome !== 'search-node-limit'
+      && input.outcome !== 'complete-plan-limit'
+      && input.outcome !== 'no-match')
+    || typeof input.frontierTruncated !== 'boolean'
+    || (input.deepestNoMatchStage !== undefined && ![
+      'LOWLANDS_REPAIR_OWNERSHIP',
+      'OWNERSHIP_FOREST',
+      'TIER_ONE_REPARTITION',
+      'POST_REPARTITION_OWNERSHIP',
+    ].includes(input.deepestNoMatchStage))
+    || (input.frontierTruncationKind !== undefined
+      && input.frontierTruncationKind !== null
+      && !GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS.includes(
+        input.frontierTruncationKind,
+      ))
+    || (input.frontierTruncationKind === null && input.frontierTruncated)
+    || (input.frontierTruncationKind !== undefined
+      && input.frontierTruncationKind !== null
+      && !input.frontierTruncated)
+  ) throw new Error('GREATER_REALM_TIER_TWO_APRON_SEARCH_DIAGNOSTICS_INVALID');
+
+  if (input.outcome === 'search-node-limit') return 'DRY_GATE_APRON_SEARCH_NODE_LIMIT';
+  if (input.outcome === 'complete-plan-limit') return 'DRY_GATE_APRON_COMPLETE_PLAN_LIMIT';
+  if (input.frontierTruncated) {
+    return input.frontierTruncationKind === undefined
+      ? 'DRY_GATE_APRON_FRONTIER_TRUNCATED'
+      : GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_REASON_BY_KIND[
+          input.frontierTruncationKind!
+        ];
+  }
+  switch (input.deepestNoMatchStage) {
+    case 'LOWLANDS_REPAIR_OWNERSHIP':
+      return 'DRY_GATE_APRON_NO_MATCH_AFTER_LOWLANDS_REPAIR_CHECK';
+    case 'OWNERSHIP_FOREST':
+      return 'DRY_GATE_APRON_NO_MATCH_AFTER_OWNERSHIP_FOREST';
+    case 'TIER_ONE_REPARTITION':
+      return 'DRY_GATE_APRON_NO_MATCH_AFTER_TIER_ONE_REPARTITION';
+    case 'POST_REPARTITION_OWNERSHIP':
+      return 'DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK';
+    default:
+      return 'DRY_GATE_APRON_NO_MATCH';
+  }
+}
+
 export const GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON =
   Object.freeze({
     PASSABLE_COMPONENTS_EMPTY: 'GREATER_REALM_TIER_TWO_PASSABLE_COMPONENTS_EMPTY',
     STRATEGIC_COMPONENTS_EMPTY: 'GREATER_REALM_TIER_TWO_STRATEGIC_COMPONENTS_EMPTY',
+    GATE_PARENT_CROWNWOOD_SLOT_MISSING:
+      'GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING',
+    GATE_PARENT_IRONVEIL_SLOT_MISSING:
+      'GREATER_REALM_TIER_TWO_GATE_PARENT_IRONVEIL_SLOT_MISSING',
+    GATE_PARENT_GLASSWATER_SLOT_MISSING:
+      'GREATER_REALM_TIER_TWO_GATE_PARENT_GLASSWATER_SLOT_MISSING',
     GATE_PARENT_SLOT_MISSING: 'GREATER_REALM_TIER_TWO_GATE_PARENT_SLOT_MISSING',
     ASSIGNMENT_MISSING: 'GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING',
+    CAPACITY_ASSIGNMENT_INFEASIBLE:
+      'GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE',
     DRY_GATE_APRON_NO_MATCH: 'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH',
+    DRY_GATE_APRON_NO_MATCH_AFTER_LOWLANDS_REPAIR_CHECK:
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_LOWLANDS_REPAIR_CHECK',
+    DRY_GATE_APRON_NO_MATCH_AFTER_OWNERSHIP_FOREST:
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_OWNERSHIP_FOREST',
+    DRY_GATE_APRON_NO_MATCH_AFTER_TIER_ONE_REPARTITION:
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_TIER_ONE_REPARTITION',
+    DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK:
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_POST_REPARTITION_CHECK',
+    DRY_GATE_APRON_FRONTIER_TRUNCATED:
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED',
+    DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT:
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT',
+    DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT:
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT',
+    DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT:
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT',
+    DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT:
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT',
+    DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT:
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT',
+    DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_CAPACITY_ASSIGNMENT_LIMIT:
+      'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_CAPACITY_ASSIGNMENT_LIMIT',
     DRY_GATE_APRON_SEARCH_NODE_LIMIT:
       'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT',
     DRY_GATE_APRON_COMPLETE_PLAN_LIMIT:
@@ -189,28 +450,42 @@ const CANDIDATE_REJECTION_CODE_SET: ReadonlySet<string> = new Set(
 
 export class GreaterRealmCandidateRejectionError extends Error {
   readonly code: GreaterRealmCandidateRejectionCode;
+  readonly frontierTruncationKinds: readonly GreaterRealmTierTwoApronFrontierTruncationKind[];
 
-  constructor(code: GreaterRealmCandidateRejectionCode) {
+  constructor(
+    code: GreaterRealmCandidateRejectionCode,
+    frontierTruncationKinds: readonly GreaterRealmTierTwoApronFrontierTruncationKind[] = [],
+  ) {
     super(code);
     if (!CANDIDATE_REJECTION_CODE_SET.has(code)) {
       throw new Error('GREATER_REALM_CANDIDATE_REJECTION_CODE_INVALID');
     }
+    if (!isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds(frontierTruncationKinds)) {
+      throw new Error('GREATER_REALM_CANDIDATE_REJECTION_DIAGNOSTICS_INVALID');
+    }
     this.name = 'GreaterRealmCandidateRejectionError';
     this.code = code;
+    this.frontierTruncationKinds = Object.freeze(
+      GREATER_REALM_TIER_TWO_APRON_FRONTIER_TRUNCATION_KINDS
+        .filter(kind => frontierTruncationKinds.includes(kind)),
+    );
   }
 }
 
 export function rejectGreaterRealmCandidate(
   code: GreaterRealmCandidateRejectionCode,
+  frontierTruncationKinds: readonly GreaterRealmTierTwoApronFrontierTruncationKind[] = [],
 ): never {
-  throw new GreaterRealmCandidateRejectionError(code);
+  throw new GreaterRealmCandidateRejectionError(code, frontierTruncationKinds);
 }
 
 export function rejectGreaterRealmTierTwoCapacity(
   reason: GreaterRealmTierTwoCapacityRejectionReason,
+  frontierTruncationKinds: readonly GreaterRealmTierTwoApronFrontierTruncationKind[] = [],
 ): never {
   return rejectGreaterRealmCandidate(
     GREATER_REALM_TIER_TWO_CAPACITY_REJECTION_CODE_BY_REASON[reason],
+    frontierTruncationKinds,
   );
 }
 
@@ -221,4 +496,13 @@ export function greaterRealmCandidateRejectionCode(
   return error instanceof GreaterRealmCandidateRejectionError
     ? error.code
     : undefined;
+}
+
+/** Preserve all observed search-frontier cutoffs alongside the primary reason. */
+export function greaterRealmCandidateRejectionFrontierTruncationKinds(
+  error: unknown,
+): readonly GreaterRealmTierTwoApronFrontierTruncationKind[] {
+  return error instanceof GreaterRealmCandidateRejectionError
+    ? error.frontierTruncationKinds
+    : Object.freeze([]);
 }

@@ -68,6 +68,7 @@ describe('rendered WebGL local QA harness', () => {
       contextCreated: false,
       contextState: 'unavailable',
       hidden: false,
+      keepAmbienceActive: false,
       muted: false,
       voiceCap: 16,
       waterAmbienceActive: false,

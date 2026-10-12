@@ -1288,8 +1288,62 @@ describe('disposable connected local QA cleanup lifecycle', () => {
     }
   });
 
+  it.each([0, 3])('retains normal CLI terminal metadata for actual exit %s', async code => {
+    await expect(runDisposableLocalFullstackCli(process.execPath, ['-e', `process.exit(${code})`], {
+      environment: { HOME: tmpdir(), PATH: process.env.PATH ?? '', TMPDIR: tmpdir() },
+      timeout: 5_000,
+    })).resolves.toEqual({ code, signal: null, spawnError: null, timedOut: false, overflow: false });
+  });
+
+  it('rejects a signal-killed CLI instead of reporting it as a normal nonzero denial', async () => {
+    const command = runDisposableLocalFullstackCli(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      environment: { HOME: tmpdir(), PATH: process.env.PATH ?? '', TMPDIR: tmpdir() },
+      timeout: 5_000,
+      onProcess(child) {
+        child?.once('spawn', () => { child.kill('SIGTERM'); });
+      },
+    });
+    await expect(command).rejects.toThrow('Local CLI process did not exit normally.');
+    await expect(command).rejects.toMatchObject({ terminal: {
+      code: null, signal: 'SIGTERM', spawnError: null, timedOut: false, overflow: false,
+    } });
+  });
+
+  it('retains the actual spawn failure without manufacturing a rejection exit code', async () => {
+    const runtimeDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-cli-terminal-test-'));
+    try {
+      const command = runDisposableLocalFullstackCli(join(runtimeDirectory, 'missing-cli'), [], {
+        environment: { HOME: runtimeDirectory, PATH: process.env.PATH ?? '', TMPDIR: runtimeDirectory },
+        timeout: 5_000,
+      });
+      await expect(command).rejects.toThrow('Local CLI process could not start.');
+      await expect(command).rejects.toMatchObject({ terminal: {
+        signal: null, spawnError: 'ENOENT', timedOut: false, overflow: false,
+      } });
+    } finally {
+      rmSync(runtimeDirectory, { force: true, recursive: true });
+    }
+  });
+
+  it('retains deadline failure flags and the actual forced terminal', async () => {
+    let observedTerminal: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+    const command = runDisposableLocalFullstackCli(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+      environment: { HOME: tmpdir(), PATH: process.env.PATH ?? '', TMPDIR: tmpdir() },
+      timeout: 20,
+      onProcess(_child, previous) {
+        if (previous) observedTerminal = { code: previous.exitCode, signal: previous.signalCode };
+      },
+    });
+    await expect(command).rejects.toThrow('Local CLI command exceeded its deadline.');
+    expect(observedTerminal).toBeDefined();
+    // Windows tree retirement can report a normal OS code; retain it alongside timedOut, never treat it as a denial.
+    await expect(command).rejects.toMatchObject({ terminal: {
+      ...observedTerminal, spawnError: null, timedOut: true, overflow: false,
+    } });
+  });
+
   it('turns bounded CLI output overflow into a contained promise rejection', async () => {
-    await expect(runDisposableLocalFullstackCli(
+    const command = runDisposableLocalFullstackCli(
       process.execPath,
       ['-e', 'process.stdout.write("x".repeat(600000));'],
       {
@@ -1300,7 +1354,140 @@ describe('disposable connected local QA cleanup lifecycle', () => {
         },
         timeout: 5_000,
       },
-    )).rejects.toThrow('Local CLI output exceeded its bound.');
+    );
+    await expect(command).rejects.toThrow('Local CLI output exceeded its bound.');
+    await expect(command).rejects.toMatchObject({ terminal: { overflow: true, timedOut: false } });
+  });
+
+  it.each(['initial-throw', 'initial-rejection', 'finish-throw', 'finish-rejection'] as const)(
+    'contains a %s callback failure and retains the actual child terminal',
+    async phase => {
+      let childHandle: Parameters<typeof terminateLocalFullstackProcessGroup>[0];
+      let actualClose: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+      let listenersInstalled = false;
+      let releaseCalls = 0;
+      let releasedChild: typeof childHandle;
+      const callbackSecret = 'callback-detail-must-never-be-retained';
+      const command = runDisposableLocalFullstackCli(process.execPath,
+        ['-e', phase.startsWith('finish-') ? 'process.exit(3)' : 'setInterval(() => {}, 1000)'], {
+          environment: { HOME: tmpdir(), PATH: process.env.PATH ?? '', TMPDIR: tmpdir() },
+          timeout: 5_000,
+          onProcess(child, previous) {
+            if (child) {
+              childHandle = child;
+              listenersInstalled = child.listenerCount('error') > 0 && child.listenerCount('close') > 0;
+              child.once('close', (code, signal) => { actualClose = { code, signal }; });
+              if (phase === 'initial-throw') throw new Error(callbackSecret);
+              if (phase === 'initial-rejection') return Promise.reject(new Error(callbackSecret));
+            } else {
+              releaseCalls += 1;
+              releasedChild = previous;
+              if (phase === 'finish-throw') throw new Error(callbackSecret);
+              if (phase === 'finish-rejection') return Promise.reject(new Error(callbackSecret));
+            }
+          },
+        });
+      try {
+        await expect(command).rejects.toThrow('Local CLI process lifecycle could not be contained.');
+        expect(listenersInstalled).toBe(true);
+        expect(releaseCalls).toBe(1);
+        expect(releasedChild).toBe(childHandle);
+        expect(actualClose).toBeDefined();
+        await expect(command).rejects.toMatchObject({ terminal: { ...actualClose,
+          spawnError: null, timedOut: false, overflow: false },
+          lifecycle: { callbackFailed: true, retirementFailed: false, closeObserved: true } });
+        if (phase.startsWith('finish-')) expect(actualClose).toEqual({ code: 3, signal: null });
+        const error = await command.catch(value => value);
+        expect(String(error)).not.toContain(callbackSecret);
+        expect(JSON.stringify(error)).not.toContain(callbackSecret);
+        await expect(terminateLocalFullstackProcessGroup(childHandle)).resolves.toBeUndefined();
+      } finally { await terminateLocalFullstackProcessGroup(childHandle); }
+    },
+  );
+
+  it.each(['initial', 'finish'] as const)(
+    'bounds a missing %s callback acknowledgement independently of the command deadline',
+    async phase => {
+      let childHandle: Parameters<typeof terminateLocalFullstackProcessGroup>[0];
+      let actualClose: { code: number | null; signal: NodeJS.Signals | null } | undefined;
+      let acknowledgementStarted: bigint | undefined;
+      let releaseCalls = 0;
+      let releasedChild: typeof childHandle;
+      let listenersInstalled = false;
+      const neverAcknowledged = new Promise<void>(() => {});
+      const command = runDisposableLocalFullstackCli(process.execPath,
+        ['-e', phase === 'finish' ? 'process.exit(7)' : 'setInterval(() => {}, 1000)'], {
+          environment: { HOME: tmpdir(), PATH: process.env.PATH ?? '', TMPDIR: tmpdir() },
+          // Finish runs after normal close clears this shorter command timer. Initial
+          // registration instead needs to retire its live child before the longer timer.
+          timeout: phase === 'finish' ? 2_000 : 12_000,
+          onProcess(child, previous) {
+            if (child) {
+              childHandle = child;
+              listenersInstalled = child.listenerCount('error') > 0 && child.listenerCount('close') > 0;
+              child.once('close', (code, signal) => { actualClose = { code, signal }; });
+              if (phase === 'initial') {
+                acknowledgementStarted = process.hrtime.bigint();
+                return neverAcknowledged;
+              }
+            } else {
+              releaseCalls += 1;
+              releasedChild = previous;
+              if (phase === 'finish') {
+                acknowledgementStarted = process.hrtime.bigint();
+                return neverAcknowledged;
+              }
+            }
+          },
+        });
+      try {
+        await expect(command).rejects.toThrow('Local CLI process lifecycle could not be contained.');
+        expect(listenersInstalled).toBe(true);
+        expect(releaseCalls).toBe(1);
+        expect(releasedChild).toBe(childHandle);
+        expect(actualClose).toBeDefined();
+        if (acknowledgementStarted === undefined || childHandle?.pid === undefined) {
+          throw new Error('Actual callback start or owned child PID was not observed.');
+        }
+        const elapsedMilliseconds = Number(process.hrtime.bigint() - acknowledgementStarted) / 1_000_000;
+        expect(elapsedMilliseconds).toBeGreaterThanOrEqual(4_900);
+        expect(elapsedMilliseconds).toBeLessThan(12_000);
+        await expect(command).rejects.toMatchObject({ terminal: { ...actualClose,
+          spawnError: null, timedOut: false, overflow: false },
+          lifecycle: { callbackFailed: true, retirementFailed: false, closeObserved: true } });
+        if (phase === 'finish') expect(actualClose).toEqual({ code: 7, signal: null });
+        // Probe only the exact owned PID/group. This must already be absent before
+        // the defensive finally cleanup; an OS refusal is not proof of retirement.
+        let absence: unknown;
+        try { process.kill(process.platform === 'win32' ? childHandle.pid : -childHandle.pid, 0); }
+        catch (error) { absence = error; }
+        expect(absence).toMatchObject({ code: 'ESRCH' });
+        await expect(terminateLocalFullstackProcessGroup(childHandle)).resolves.toBeUndefined();
+      } finally { await terminateLocalFullstackProcessGroup(childHandle); }
+    },
+    20_000,
+  );
+
+  it('holds the next continuation until an asynchronous registration callback acknowledges', async () => {
+    let acknowledge: (() => void) | undefined;
+    let childClosed: Promise<void> | undefined;
+    let completed = false;
+    const ack = new Promise<void>(done => { acknowledge = done; });
+    const command = runDisposableLocalFullstackCli(process.execPath, ['-e', 'process.exit(7)'], {
+      environment: { HOME: tmpdir(), PATH: process.env.PATH ?? '', TMPDIR: tmpdir() },
+      timeout: 5_000,
+      onProcess(child) {
+        if (child) {
+          childClosed = new Promise(done => child.once('close', () => done()));
+          return ack;
+        }
+      },
+    }).then(result => { completed = true; return result; });
+    // This explicitly does NOT pretend that registration pauses the spawned executable.
+    await childClosed;
+    expect(completed).toBe(false);
+    acknowledge!();
+    await expect(command).resolves.toMatchObject({ code: 7, signal: null, timedOut: false, overflow: false });
   });
 
   it('accepts only ESRCH as proof that a disposable process group stopped', async () => {
@@ -1362,12 +1549,12 @@ describe('disposable connected local QA cleanup lifecycle', () => {
     expect(spacetimeStart).toContain(
       'await terminateLocalFullstackProcessGroup(activeCliProcess);'
     );
-    expect(spacetimeSource).toMatch(
-      /const child = spawn\(executable, arguments_, \{[\s\S]*?detached: true,[\s\S]*?options\.onProcess\?\.\(child\);/
-    );
-    expect(spacetimeSource).toContain(
-      'options.onProcess?.(undefined, child);'
-    );
+    expect(spacetimeSource).toContain('detached: true,');
+    const commandStart = spacetimeSource.indexOf('export async function runDisposableLocalFullstackCli');
+    const terminalListener = spacetimeSource.indexOf("child.once('close',", commandStart);
+    const callbackInvocation = spacetimeSource.indexOf('registration = invokeCallback(child)', commandStart);
+    expect(terminalListener).toBeGreaterThan(commandStart);
+    expect(callbackInvocation).toBeGreaterThan(terminalListener);
 
     const cleanupDeclaration = browserStart.indexOf('let cleanupPromise;');
     const cleanupGuard = browserStart.indexOf(

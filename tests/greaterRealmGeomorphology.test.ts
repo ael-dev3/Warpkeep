@@ -79,6 +79,28 @@ function sum(values: Int32Array): number {
 }
 
 describe("Greater Realm geomorphic shaping", () => {
+  it.each([1, 2, 3, 4, 5])("uses canonical glacial distance for newly exposed coast at distance %i", distance => {
+    const grid = indexGreaterRealmAxialGrid(Array.from({ length: distance + 2 }, (_, q) => ({ q, r: 0 })));
+    const coastalClass = new Uint8Array(grid.cellCount);
+    const waterRegime = new Uint8Array(grid.cellCount);
+    waterRegime[distance + 1] = 1;
+    const glacialMask = new Uint8Array(grid.cellCount);
+    glacialMask[0] = 1;
+    const temperature = new Int32Array(grid.cellCount).fill(2_000);
+    const slope = new Uint16Array(grid.cellCount);
+    slope[distance] = 500;
+    const protectedCell = new Uint8Array(grid.cellCount);
+    const before = [waterRegime.slice(), glacialMask.slice(), temperature.slice(), slope.slice(), protectedCell.slice()];
+    const result = repairGreaterRealmFinalFjordCoastalClass({
+      grid, coastalClass, waterRegime, glacialMask, temperature, slope, protectedCell,
+      dryWaterRegime: 0, oceanWaterRegime: 1, seaWaterRegime: 5,
+    });
+    expect(result.reclassifiedCellCount).toBe(distance <= 4 ? 1 : 0);
+    expect(coastalClass[distance]).toBe(distance <= 4 ? GREATER_REALM_COASTAL_CLASS.glacialFjord : 0);
+    expect(coastalClass[0]).toBe(0);
+    expect([waterRegime, glacialMask, temperature, slope, protectedCell]).toEqual(before);
+  });
+
   it("repairs only post-hydrology coast cells with complete cold-incised glacial evidence", () => {
     const coordinates: AxialCoordinate[] = [];
     for (let system = 0; system < 9; system += 1) {

@@ -20,10 +20,12 @@ only safe Lowlands-owned Tier-I/Tier-II apron contact.
 - The ordinary apron edge set, option ranking, capacity ranking, diagonal
   search order, 20,000-node budget, and 128-complete-plan budget remain
   unchanged.
-- The fallback is constructed only after the ordinary lane returns a complete
-  `no-match`, including the equivalent empty ordinary capacity frontier. A
-  normal match returns before fallback construction. Ordinary node-limit and
-  complete-plan-limit results remain terminal and never widen into fallback.
+- The ordinary lane always has first choice when it returns a match. The
+  separately bounded fallback may run after an ordinary `no-match`,
+  node-limit, or complete-plan-limit result. A fallback match is eligible only
+  through the same final invariant and package proofs as an ordinary match. If
+  fallback does not match after an ordinary limit, preserve the ordinary
+  limit as the candidate's primary rejection reason.
 - `legacyProtectedCell` is immutable and excluded from every endpoint,
   corridor, ownership forest, growth patch, and swap.
 - A reserve endpoint is eligible only for child `0`, only when its original
@@ -51,7 +53,8 @@ ranking and the first successful plan are unchanged.
 
 ### Lane B: bounded Lowlands repair
 
-If and only if Lane A completes with no match:
+If Lane A does not find a match, including a bounded node or complete-plan
+limit:
 
 1. Derive a separate Lowlands-reserve edge set. Each edge has child `0`, a dry
    reserve Tier-I endpoint owned by Lowlands, a dry non-reserve Tier-II
@@ -78,7 +81,9 @@ If and only if Lane A completes with no match:
 Focused tests must prove:
 
 - a normal match never constructs or visits the repair lane;
-- ordinary limit outcomes remain terminal;
+- ordinary node/complete-plan limits allow the separately bounded repair lane
+  to run; a repair match is returned, while repair exhaustion preserves the
+  ordinary limit as the primary failure;
 - only a dry, non-protected, Lowlands-owned reserve endpoint can enter the
   repair edge set;
 - protected cells, Tier-II reserve cells, foreign children, foreign ownership,

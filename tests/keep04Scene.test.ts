@@ -344,15 +344,13 @@ async function mountScheduledHost(quality: 'high' | 'balanced' | 'reduced', redu
   return { frame, renderedAt, queued, mounted, props };
 }
 
-for (const jitter of [false, true]) it.each([
-  ['high', 33.4, 299], ['balanced', 50.05, 239], ['reduced', 75, 149],
-] as const)('paces actual %s host requests over 600 RAF callbacks (jitter=' + jitter + ')', async (quality, p95Limit, minimumRenders) => {
+for (const jitter of [false, true]) it.each(['high', 'balanced', 'reduced'] as const)(
+  'renders actual %s input feedback over 600 RAF callbacks (jitter=' + jitter + ')', async quality => {
   const host = await mountScheduledHost(quality);
   for (let i = 0; i <= 600; i++) host.frame(i * 1000 / 60 + (jitter ? [0, .015, -.015, .005][i % 4] : 0), true);
   const intervals = host.renderedAt.slice(1).map((time, i) => time - host.renderedAt[i]).sort((a, b) => a - b);
-  expect(intervals[Math.ceil(intervals.length * .95) - 1]).toBeLessThanOrEqual(p95Limit);
-  expect(host.renderedAt.length).toBeGreaterThanOrEqual(minimumRenders);
-  expect(host.renderedAt.length).toBeLessThanOrEqual(minimumRenders + 3);
+  expect(intervals[Math.ceil(intervals.length * .95) - 1]).toBeLessThanOrEqual(16.71);
+  expect(host.renderedAt).toHaveLength(601);
   expect(host.queued.size).toBe(0);
 });
 
@@ -361,10 +359,10 @@ it.each(['high', 'balanced', 'reduced'] as const)('resumes %s after idle without
   host.frame(0); expect(host.queued.size).toBe(0);
   const resumedAt = 10013.7; // Deliberately not a multiple of any quality interval.
   host.frame(resumedAt, true); expect(host.renderedAt).toEqual([0, resumedAt]); expect(host.queued.size).toBe(0);
-  host.frame(resumedAt + 1, true); // A new request remains bounded by this fresh phase.
+  host.frame(resumedAt + 1, true); // Explicit feedback does not wait for a decorative deadline.
   for (let i = 1; i <= 10; i++) host.frame(resumedAt + i * 1000 / 60);
   expect(host.renderedAt).toHaveLength(3); expect(host.queued.size).toBe(0);
-  expect(host.renderedAt[2] - resumedAt).toBeGreaterThanOrEqual({ high: 33.3, balanced: 41.6, reduced: 66.6 }[quality]);
+  expect(host.renderedAt[2]).toBe(resumedAt + 1);
 });
 
 it('renders reduced-motion feedback on the next callback without spinning and skips the real completion reveal', async () => {

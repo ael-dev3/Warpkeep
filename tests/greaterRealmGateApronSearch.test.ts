@@ -1,13 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES,
+  GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS,
+  GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS,
   GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS,
   GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT,
   assertGreaterRealmRepairOwnershipUnchanged,
+  chooseGreaterRealmLowlandsRepairSiblingPairs,
   greaterRealmLowlandsRepairGateEdgeEligible,
   measureGreaterRealmStrategicShape,
+  rankGreaterRealmLowlandsRepairBorrowedBundleOptions,
   rankGreaterRealmLowlandsRepairBundleOptions,
+  selectGreaterRealmLowlandsRepairBundleOptions,
+  selectGreaterRealmGateApronChildBundleOptions,
+  pruneGreaterRealmMandatorySiblingConflicts,
+  pruneGreaterRealmIncompatibleSiblingOptions,
+  selectGreaterRealmCompatibleSiblingBundleOptions,
   runGreaterRealmGateApronSearchLanes,
+  selectBalancedGreaterRealmGateApronPairs,
   sealGreaterRealmRepairBarrierPockets,
   searchGreaterRealmRankedSiblingAlternatives,
   type GreaterRealmRankedSiblingSearchOption,
@@ -42,6 +53,306 @@ const descriptor = (
 });
 
 describe('Greater Realm ranked gate-apron search', () => {
+  it('reserves both compatible witnesses before independent caps discard them', () => {
+    const nearby: number[][] = [];
+    for (let q = -3; q <= 3; q += 1) for (let r = -3; r <= 3; r += 1) {
+      if (Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r)) <= 3) nearby.push([q, r]);
+    }
+    const make = (child: number) => Array.from({ length: 257 }, (_, index) => ({
+      ...option(`${child}:${index}`, [child * 10000 + index], [child * 10000 + index + 30000]),
+      child, endpoints: index < 256
+        ? [nearby[Math.floor(index / nearby.length)]!,
+          [20 + nearby[index % nearby.length]![0]!, nearby[index % nearby.length]![1]!]]
+        : [[0, 50], [20, 50]],
+    }));
+    const first = make(1), second = make(2);
+    const distance = (a: readonly number[], b: readonly number[]) => Math.max(
+      Math.abs(a[0]! - b[0]!), Math.abs(a[1]! - b[1]!),
+      Math.abs(a[0]! + a[1]! - b[0]! - b[1]!),
+    );
+    const compatible = (a: typeof first[number], b: typeof first[number]) => a !== b
+      && !a.tierOneCells.some(cell => b.tierOneCells.includes(cell))
+      && !a.tierTwoCells.some(cell => b.tierTwoCells.includes(cell))
+      && a.endpoints.every(x => b.endpoints.every(y => distance(x, y) >= 8));
+    expect(new Set(first.map(value => JSON.stringify(value.endpoints))).size).toBe(257);
+    expect(first.every(value => distance(value.endpoints[0]!, value.endpoints[1]!) >= 4
+      && distance(value.endpoints[0]!, value.endpoints[1]!) <= 48)).toBe(true);
+    const eligible = (a: typeof first, b: typeof first) => pruneGreaterRealmIncompatibleSiblingOptions(
+      pruneGreaterRealmMandatorySiblingConflicts(a, b), b, compatible,
+    );
+    const a = eligible(first, second), b = eligible(second, first);
+    expect([a.length, b.length]).toEqual([257, 257]);
+    const independent = [a, b].map(values => selectGreaterRealmGateApronChildBundleOptions(
+      values, value => value.child, value => value,
+    ));
+    const run = (groups: readonly (readonly typeof first[number][])[]) => searchGreaterRealmRankedSiblingAlternatives(
+      ['component'], () => groups, (_component, plan) => compatible(plan[0]!, plan[1]!),
+      { maximumSearchNodes: 2_000_000, maximumCompletePlans: 100_000 },
+    );
+    expect(run(independent).outcome).toBe('no-match');
+    const joint = selectGreaterRealmCompatibleSiblingBundleOptions(
+      a, b, value => value.child, value => value, compatible,
+      value => value.child === 1, value => value.child === 2,
+    );
+    expect(joint.map(values => values.length)).toEqual([256, 256]);
+    expect(joint[1]).toContain(second[256]);
+    expect(joint[1]).toContain(second[0]);
+    expect(run(joint).outcome).toBe('match');
+    expect(joint).toEqual(selectGreaterRealmCompatibleSiblingBundleOptions(
+      a, b, value => value.child, value => value, compatible,
+      value => value.child === 1, value => value.child === 2,
+    ));
+    for (const [index, values] of joint.entries()) {
+      expect(values.map(value => [a, b][index]!.indexOf(value))).toEqual(
+        values.map(value => [a, b][index]!.indexOf(value)).sort((x, y) => x - y),
+      );
+    }
+  });
+
+  it('keeps joint witness discovery bounded and prioritizes preferred pairs over donors', () => {
+    const first = Array.from({ length: 257 }, (_, index) => ({ ...option(`a${index}`, [index], []), child: 1 }));
+    const second = Array.from({ length: 257 }, (_, index) => ({ ...option(`b${index}`, [1000 + index], []), child: 2 }));
+    const check = vi.fn((a: typeof first[number], b: typeof first[number]) => a === first[0] && b === second[256]);
+    const select = (budget: number) => selectGreaterRealmCompatibleSiblingBundleOptions(
+      first, second, value => value.child, value => value, check, () => true, () => true, budget,
+    );
+    const unresolved = select(256);
+    expect(check).toHaveBeenCalledTimes(256);
+    expect(unresolved[1]).not.toContain(second[256]);
+    check.mockClear();
+    expect(select(257)[1]).toContain(second[256]);
+    expect(check).toHaveBeenCalledTimes(257);
+    check.mockClear();
+    expect(select(0)[1]).toEqual(unresolved[1]);
+    expect(check).not.toHaveBeenCalled();
+    expect(() => select(-1)).toThrow();
+    expect(() => selectGreaterRealmGateApronChildBundleOptions(
+      [first[0]!], value => value.child, value => value, [first[1]!],
+    )).toThrow('GREATER_REALM_GATE_APRON_REQUIRED_OPTION_MISSING');
+    const calls: string[] = [];
+    const donorFirst = [{ ...option('donor', [9999], []), child: 3 }, ...first];
+    const preferred = selectGreaterRealmCompatibleSiblingBundleOptions(
+      donorFirst, second, value => value.child, value => value,
+      (a, b) => { calls.push(a.id); return a === donorFirst[0] || (a === first[255] && b === second[0]); },
+      value => value.child === 1, () => true,
+    );
+    // Use a witness reachable within the existing predicate budget.
+    expect(calls).not.toContain('donor');
+    expect(preferred[0]).toContain(first[255]);
+    expect(preferred[0].length).toBe(256);
+  });
+
+  it('removes fully incompatible separated siblings before the shortlist hides a feasible pair', () => {
+    const distance = (a: readonly number[], b: readonly number[]) => Math.max(
+      Math.abs(a[0]! - b[0]!), Math.abs(a[1]! - b[1]!),
+      Math.abs(a[0]! + a[1]! - b[0]! - b[1]!),
+    );
+    const points: number[][] = [];
+    for (const origin of [0, 30]) for (let q = -7; q <= 7; q += 1) {
+      for (let r = -7; r <= 7; r += 1) {
+        if (distance([q, r], [0, 0]) <= 7) points.push([origin + q, r]);
+      }
+    }
+    const choices = points.slice(0, 256).map((point, index) => ({
+      ...option(String(index), [index], [1000 + index]), child: 0,
+      endpoints: [point, [point[0]!, point[1]! + 20]],
+    }));
+    choices.push({ ...option('good', [8888], [9990]), child: 0, endpoints: [[0, 50], [10, 50]] });
+    const sibling = { ...option('sibling', [7777], [9999]), child: 1, endpoints: [[0, 0], [30, 0]] };
+    const compatible = (first: typeof sibling, second: typeof sibling) => first !== second
+      && !first.tierOneCells.some(cell => second.tierOneCells.includes(cell))
+      && !first.tierTwoCells.some(cell => second.tierTwoCells.includes(cell))
+      && first.endpoints.every(a => second.endpoints.every(b => distance(a, b) >= 8));
+    const run = (selected: readonly typeof sibling[]) => searchGreaterRealmRankedSiblingAlternatives(
+      ['component'], () => [selected, [sibling]],
+      (_component, plan) => compatible(plan[0] as typeof sibling, sibling),
+      { maximumSearchNodes: 1024, maximumCompletePlans: 512 },
+    );
+    const mandatoryEligible = pruneGreaterRealmMandatorySiblingConflicts(choices, [sibling]);
+    const shortlist = (values: readonly typeof sibling[]) => selectGreaterRealmGateApronChildBundleOptions(
+      values, value => value.child, value => value,
+    );
+    expect(run(shortlist(mandatoryEligible)).outcome).toBe('no-match');
+    const kept = pruneGreaterRealmIncompatibleSiblingOptions(mandatoryEligible, [sibling], compatible);
+    expect(kept.map(value => value.id)).toEqual(['good']);
+    expect(run(shortlist(kept)).outcome).toBe('match');
+  });
+
+  it('retains unresolved options at the compatibility budget and counts every check', () => {
+    const choices = [1, 2, 3];
+    const check = vi.fn((first: number, second: number) => first === second);
+    expect(pruneGreaterRealmIncompatibleSiblingOptions(choices, [9, 2], check, 3)).toEqual([2, 3]);
+    expect(check).toHaveBeenCalledTimes(3);
+    expect(pruneGreaterRealmIncompatibleSiblingOptions(choices, [9], check, 0)).toEqual(choices);
+    expect(pruneGreaterRealmIncompatibleSiblingOptions(choices, [], check, 0)).toEqual([]);
+    expect(() => pruneGreaterRealmIncompatibleSiblingOptions(choices, [9], check, -1)).toThrow();
+    expect(pruneGreaterRealmIncompatibleSiblingOptions(choices, [3, 2, 1], check, 9)).toEqual(choices);
+  });
+
+  it('prunes impossible sibling conflicts before the child budget hides a valid pair', () => {
+    const ranked = Object.freeze(Array.from({ length: 257 }, (_, index) => Object.freeze({
+      ...option(String(index), [index < 256 ? index : 999], []), child: 0,
+    })));
+    const sibling = option('sibling', Array.from({ length: 256 }, (_, index) => index), []);
+    const search = (choices: readonly SyntheticOption[]) => searchGreaterRealmRankedSiblingAlternatives(
+      ['component'], () => [choices, [sibling]], () => true,
+      { maximumSearchNodes: 1024, maximumCompletePlans: 4 },
+    );
+    expect(search(selectGreaterRealmGateApronChildBundleOptions(ranked, value => value.child)).outcome)
+      .toBe('no-match');
+    const pruned = pruneGreaterRealmMandatorySiblingConflicts(ranked, [sibling]);
+    expect(pruned).toEqual([ranked[256]]);
+    expect(search(selectGreaterRealmGateApronChildBundleOptions(pruned, value => value.child)).outcome)
+      .toBe('match');
+    expect(ranked[0]?.tierOneCells).toEqual([0]);
+    expect(sibling.tierOneCells).toHaveLength(256);
+  });
+
+  it('uses all raw sibling alternatives and keeps tier footprints separate', () => {
+    const choices = [option('first', [7], [8]), option('second', [8], [7])];
+    const siblings = [option('a', [7, 9], [8, 10]), option('b', [9], [10])];
+    expect(pruneGreaterRealmMandatorySiblingConflicts(choices, siblings)).toEqual(choices);
+    expect(pruneGreaterRealmMandatorySiblingConflicts(choices, [option('cross-tier', [8], [7])]))
+      .toEqual([choices[0]]);
+    expect(pruneGreaterRealmMandatorySiblingConflicts(choices, [])).toEqual([]);
+    expect(pruneGreaterRealmMandatorySiblingConflicts([], siblings)).toEqual([]);
+  });
+
+  it('preserves every feasible pair across small complete tier footprints', () => {
+    const universe = Array.from({ length: 16 }, (_, mask) => option(
+      String(mask), [0, 1].filter(cell => (mask & (1 << cell)) !== 0),
+      [0, 1].filter(cell => (mask & (1 << (cell + 2))) !== 0),
+    ));
+    for (const first of universe) for (const second of universe) {
+      const siblings = [first, second];
+      const kept = pruneGreaterRealmMandatorySiblingConflicts(universe, siblings);
+      for (const candidate of universe) {
+        const feasible = siblings.some(sibling => (
+          !candidate.tierOneCells.some(cell => sibling.tierOneCells.includes(cell))
+          && !candidate.tierTwoCells.some(cell => sibling.tierTwoCells.includes(cell))
+        ));
+        if (feasible) expect(kept).toContain(candidate);
+      }
+    }
+  });
+
+  it('prunes donor lanes against their full raw pool without changing Lowlands authority', () => {
+    const own = Object.freeze({ ...option('own', [1], []), child: 2, score: 0, endpoint: 0 });
+    const donor = Object.freeze({ ...option('donor', [2], []), child: 4, score: 1, endpoint: 1 });
+    const lowlands = Object.freeze({ ...option('lowlands', [3], []), child: 0, score: 2, endpoint: 2 });
+    const rank = (child: number, includeBorrowed: boolean) => rankGreaterRealmLowlandsRepairBundleOptions(
+      [own, donor, lowlands], child, value => value.child, value => value.score,
+      value => value.endpoint, includeBorrowed,
+    );
+    const choices = [option('candidate', [1], [])];
+    expect(pruneGreaterRealmMandatorySiblingConflicts(choices, rank(2, false))).toEqual([]);
+    expect(pruneGreaterRealmMandatorySiblingConflicts(choices, rank(2, true))).toEqual(choices);
+    expect(rank(0, true)).toEqual([lowlands]);
+    expect(rank(2, true)).not.toContain(lowlands);
+  });
+
+  it('balances a bounded bundle frontier across edge endpoints deterministically', () => {
+    const completePairs = Object.freeze(Array.from({ length: 8 }, (_, firstIndex) => firstIndex)
+      .flatMap(firstIndex => Array.from(
+        { length: 7 - firstIndex },
+        (_, offset) => Object.freeze({
+          firstIndex,
+          secondIndex: firstIndex + offset + 1,
+          score: firstIndex * 8 + offset,
+        }),
+      )));
+    const selected = selectBalancedGreaterRealmGateApronPairs(completePairs, 4);
+    const repeated = selectBalancedGreaterRealmGateApronPairs(completePairs, 4);
+    const endpointUse = new Map<number, number>();
+    for (const pair of selected) {
+      endpointUse.set(pair.firstIndex, (endpointUse.get(pair.firstIndex) ?? 0) + 1);
+      endpointUse.set(pair.secondIndex, (endpointUse.get(pair.secondIndex) ?? 0) + 1);
+    }
+    expect(selected).toEqual(repeated);
+    expect(selected).toHaveLength(4);
+    expect(Math.max(...endpointUse.values())).toBe(1);
+    expect([...selected].map(pair => pair.score)).toEqual(
+      [...selected].map(pair => pair.score).sort((first, second) => first - second),
+    );
+  });
+
+  it('retains a physically novel pair beyond the endpoint-only overflow frontier', () => {
+    const edgeCount = 4;
+    const maximumPairs = 4;
+    const pairs = Object.freeze(Array.from({ length: edgeCount - 1 }, (_, firstIndex) => (
+      Array.from({ length: edgeCount - firstIndex - 1 }, (_, offset) => Object.freeze({
+        firstIndex,
+        secondIndex: firstIndex + offset + 1,
+        score: firstIndex * edgeCount + firstIndex + offset + 1,
+      }))
+    )).flat());
+    const endpointOnly = selectBalancedGreaterRealmGateApronPairs(pairs, maximumPairs);
+    expect(pairs).toHaveLength(6);
+    expect(endpointOnly).toHaveLength(maximumPairs);
+
+    const commonFootprint = (_pair: typeof pairs[number], visitCell: (tier: 'tier-one' | 'tier-two', cell: number) => void) => {
+      visitCell('tier-one', 0);
+      visitCell('tier-one', 0);
+    };
+    const endpointAndCommonFootprint = selectBalancedGreaterRealmGateApronPairs(
+      pairs,
+      maximumPairs,
+      commonFootprint,
+    );
+    const endpointAndCommonKeys = new Set(endpointAndCommonFootprint
+      .map(pair => `${pair.firstIndex}:${pair.secondIndex}`));
+    const physicallyNovel = pairs.find(pair => pair.firstIndex === 1 && pair.secondIndex === 3);
+    expect(physicallyNovel).toMatchObject({ firstIndex: 1, secondIndex: 3 });
+    expect(endpointAndCommonKeys.has('1:3')).toBe(false);
+    const visitor = (pair: typeof pairs[number], visitCell: (tier: 'tier-one' | 'tier-two', cell: number) => void) => {
+      visitCell('tier-one', pair === physicallyNovel ? 1 : 0);
+    };
+    const diverse = selectBalancedGreaterRealmGateApronPairs(
+      pairs,
+      maximumPairs,
+      visitor,
+    );
+
+    expect(endpointAndCommonFootprint).not.toContainEqual(physicallyNovel);
+    expect(diverse).toContainEqual(physicallyNovel);
+    expect(pairs[0]).toEqual({ firstIndex: 0, secondIndex: 1, score: 1 });
+    expect(Object.isFrozen(diverse)).toBe(true);
+  });
+
+  it('skips footprint work for untruncated pair frontiers and rejects invalid cells', () => {
+    const pair = Object.freeze({ firstIndex: 0, secondIndex: 1, score: 1 });
+    const unused = vi.fn(() => { throw new Error('UNUSED_PAIR_FOOTPRINT'); });
+    expect(selectBalancedGreaterRealmGateApronPairs([pair], 8_192, unused)).toEqual([pair]);
+    expect(unused).not.toHaveBeenCalled();
+
+    expect(() => selectBalancedGreaterRealmGateApronPairs([
+      pair,
+      Object.freeze({ firstIndex: 0, secondIndex: 2, score: 2 }),
+    ], 1, (_selected, visitCell) => visitCell('tier-one', -1))).toThrow(
+      'GREATER_REALM_GATE_APRON_PAIR_FOOTPRINT_INVALID',
+    );
+  });
+
+  it('widens endpoint capacity only when the viable pair graph has no disjoint continuation', () => {
+    expect(selectBalancedGreaterRealmGateApronPairs(Object.freeze([
+      Object.freeze({ firstIndex: 0, secondIndex: 1, score: 2 }),
+      Object.freeze({ firstIndex: 0, secondIndex: 2, score: 1 }),
+    ]), 2)).toEqual([
+      { firstIndex: 0, secondIndex: 2, score: 1 },
+      { firstIndex: 0, secondIndex: 1, score: 2 },
+    ]);
+  });
+
+  it('rejects duplicate or malformed bundle-pair descriptors', () => {
+    expect(() => selectBalancedGreaterRealmGateApronPairs(Object.freeze([
+      Object.freeze({ firstIndex: 0, secondIndex: 1, score: 1 }),
+      Object.freeze({ firstIndex: 0, secondIndex: 1, score: 2 }),
+    ]))).toThrow('GREATER_REALM_GATE_APRON_PAIR_DUPLICATE');
+    expect(() => selectBalancedGreaterRealmGateApronPairs(Object.freeze([
+      Object.freeze({ firstIndex: 1, secondIndex: 1, score: 1 }),
+    ]))).toThrow('GREATER_REALM_GATE_APRON_PAIR_INVALID');
+  });
+
   it('separates immutable perimeter from passable semantic-interface compactness', () => {
     const coordinates = Array.from({ length: 91 }, (_, index) => {
       const radius = 5;
@@ -368,6 +679,73 @@ describe('Greater Realm ranked gate-apron search', () => {
     expect(exactNodeBoundaryWithEmptyTail).toEqual({ outcome: 'no-match' });
   });
 
+  it('reaches a later ranked option without charging impossible suffix ranks', () => {
+    const choices = Object.freeze([
+      option('first', [1], [11]),
+      option('second', [2], [12]),
+      option('third', [3], [13]),
+    ]);
+    const visited: string[] = [];
+    const result = searchGreaterRealmRankedSiblingAlternatives(
+      Object.freeze(['only']),
+      () => Object.freeze([choices]),
+      (_alternative, selected) => {
+        visited.push(selected[0]!.id);
+        return selected[0] === choices[2];
+      },
+      Object.freeze({ maximumSearchNodes: 3, maximumCompletePlans: 3 }),
+    );
+    expect(result).toEqual({
+      outcome: 'match', alternative: 'only', options: [choices[2]],
+    });
+    expect(visited).toEqual(['first', 'second', 'third']);
+  });
+
+  it('prunes impossible residual ranks through the real sibling-footprint adapter', () => {
+    const choices = Object.freeze([
+      descriptor('first', option('first-footprint', [1], [11])),
+      descriptor('second', option('second-footprint', [2], [12])),
+      descriptor('third', option('third-footprint', [3], [13])),
+    ]);
+    const sibling = descriptor('sibling', option('sibling-footprint', [4], [14]));
+    const result = searchGreaterRealmRankedSiblingAlternatives(
+      Object.freeze(['only']),
+      () => Object.freeze([choices, Object.freeze([sibling])]),
+      (_alternative, selected) => selected[0] === choices[2],
+      Object.freeze({ maximumSearchNodes: 6, maximumCompletePlans: 3 }),
+      value => value.footprints,
+    );
+    expect(result).toEqual({
+      outcome: 'match', alternative: 'only', options: [choices[2], sibling],
+    });
+  });
+
+  it('preserves every feasible plan and its established diagonal traversal order', () => {
+    const first = Object.freeze([
+      option('a0', [1], [11]),
+      option('a1', [2], [12]),
+      option('a2', [3], [13]),
+    ]);
+    const second = Object.freeze([
+      option('b0', [4], [14]),
+      option('b1', [5], [15]),
+    ]);
+    const visited: string[] = [];
+    const result = searchGreaterRealmRankedSiblingAlternatives(
+      Object.freeze(['only']),
+      () => Object.freeze([first, second]),
+      (_alternative, selected) => {
+        visited.push(selected.map(value => value.id).join('+'));
+        return false;
+      },
+      Object.freeze({ maximumSearchNodes: 99, maximumCompletePlans: 99 }),
+    );
+    expect(result).toEqual({ outcome: 'no-match' });
+    expect(visited).toEqual([
+      'a0+b0', 'a0+b1', 'a1+b0', 'a2+b0', 'a1+b1', 'a2+b1',
+    ]);
+  });
+
   it('searches sibling descriptors through their existing bundle footprints', () => {
     const overlapping = descriptor(
       'overlapping',
@@ -408,7 +786,7 @@ describe('Greater Realm ranked gate-apron search', () => {
     expect('tierTwoCells' in fallback).toBe(false);
   });
 
-  it('enters the Lowlands repair lane only after a complete ordinary no-match', () => {
+  it('prefers ordinary matches and lets bounded repair recover a valid plan', () => {
     const ordinaryMatch = vi.fn(() => Object.freeze({
       outcome: 'match' as const,
       alternative: 'ordinary',
@@ -420,15 +798,6 @@ describe('Greater Realm ranked gate-apron search', () => {
       result: { outcome: 'match', alternative: 'ordinary', options: [] },
     });
     expect(repairAfterMatch).not.toHaveBeenCalled();
-
-    for (const terminal of ['search-node-limit', 'complete-plan-limit'] as const) {
-      const repairAfterLimit = vi.fn(() => Object.freeze({ outcome: 'no-match' as const }));
-      expect(runGreaterRealmGateApronSearchLanes(
-        () => Object.freeze({ outcome: terminal }),
-        repairAfterLimit,
-      )).toEqual({ lane: 'ordinary', result: { outcome: terminal } });
-      expect(repairAfterLimit).not.toHaveBeenCalled();
-    }
 
     const repair = vi.fn(() => Object.freeze({
       outcome: 'match' as const,
@@ -443,6 +812,37 @@ describe('Greater Realm ranked gate-apron search', () => {
       result: { outcome: 'match', alternative: 'repair', options: [] },
     });
     expect(repair).toHaveBeenCalledTimes(1);
+
+    for (const terminal of ['search-node-limit', 'complete-plan-limit'] as const) {
+      const repairAfterLimit = vi.fn(() => Object.freeze({
+        outcome: 'match' as const,
+        alternative: 'repair',
+        options: Object.freeze([]),
+      }));
+      expect(runGreaterRealmGateApronSearchLanes(
+        () => Object.freeze({ outcome: terminal }),
+        repairAfterLimit,
+      )).toEqual({
+        lane: 'lowlands-repair',
+        result: { outcome: 'match', alternative: 'repair', options: [] },
+      });
+      expect(repairAfterLimit).toHaveBeenCalledTimes(1);
+
+      const failedRepair = vi.fn(() => Object.freeze({ outcome: 'no-match' as const }));
+      expect(runGreaterRealmGateApronSearchLanes(
+        () => Object.freeze({ outcome: terminal }),
+        failedRepair,
+      )).toEqual({ lane: 'ordinary', result: { outcome: terminal } });
+      expect(failedRepair).toHaveBeenCalledTimes(1);
+
+      const repairLimit = terminal === 'search-node-limit'
+        ? 'complete-plan-limit'
+        : 'search-node-limit';
+      expect(runGreaterRealmGateApronSearchLanes(
+        () => Object.freeze({ outcome: terminal }),
+        () => Object.freeze({ outcome: repairLimit }),
+      )).toEqual({ lane: 'ordinary', result: { outcome: terminal } });
+    }
   });
 
   it('admits only dry child-zero reserve edges with immutable Lowlands ownership', () => {
@@ -510,13 +910,489 @@ describe('Greater Realm ranked gate-apron search', () => {
     ).map(value => value.id)).toEqual(['borrow-a', 'borrow-b', 'own-a', 'own-b']);
   });
 
-  it('caps the repair frontier at the unchanged complete-plan budget', () => {
-    expect(GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS).toBe(16);
+  it('ranks borrowed fallback bundles without reusing the requested child or Lowlands', () => {
+    const bundles = Object.freeze([
+      Object.freeze({ id: 'borrow-b', child: 4, score: 1, endpoint: 8 }),
+      Object.freeze({ id: 'own', child: 2, score: 0, endpoint: 1 }),
+      Object.freeze({ id: 'borrow-a', child: 1, score: 1, endpoint: 3 }),
+      Object.freeze({ id: 'lowlands', child: 0, score: 0, endpoint: 0 }),
+    ]);
+    const rank = (options: typeof bundles, child: number) => (
+      rankGreaterRealmLowlandsRepairBorrowedBundleOptions(
+        options,
+        child,
+        value => value.child,
+        value => value.score,
+        value => value.endpoint,
+      ).map(value => value.id)
+    );
+    expect(rank(bundles, 2)).toEqual(['borrow-a', 'borrow-b']);
+    expect(rank(Object.freeze([...bundles].reverse()), 2)).toEqual([
+      'borrow-a',
+      'borrow-b',
+    ]);
+    expect(rank(bundles, 0)).toEqual([]);
+  });
+
+  it('retains each child own bundles while admitting a sibling donor fallback', () => {
+    const bundles = Object.freeze([
+      Object.freeze({ id: 'borrow-b', child: 4, score: 1, endpoint: 8 }),
+      Object.freeze({ id: 'own', child: 2, score: 0, endpoint: 1 }),
+      Object.freeze({ id: 'borrow-a', child: 1, score: 1, endpoint: 3 }),
+      Object.freeze({ id: 'lowlands', child: 0, score: 0, endpoint: 0 }),
+    ]);
+    const select = (child: number) => (
+      selectGreaterRealmLowlandsRepairBundleOptions(
+        bundles,
+        child,
+        value => value.child,
+        value => value.score,
+        value => value.endpoint,
+        true,
+      ).map(value => value.id)
+    );
+    expect(select(0)).toEqual(['lowlands']);
+    const firstChildOptions = select(2);
+    const secondChildOptions = select(3);
+    expect(firstChildOptions).toEqual(['own', 'borrow-a', 'borrow-b']);
+    expect(secondChildOptions).toEqual(['own', 'borrow-a', 'borrow-b']);
+    const mixedOwnAndDonorPairs = firstChildOptions.flatMap(first => (
+      secondChildOptions
+        .filter(second => first === 'own' && second === 'borrow-b')
+        .map(second => Object.freeze({ first, second }))
+    ));
+    expect(mixedOwnAndDonorPairs).toEqual([
+      Object.freeze({ first: 'own', second: 'borrow-b' }),
+    ]);
+  });
+
+  it('keeps child bundle frontiers deterministic, bounded, and represented by origin', () => {
+    const ranked = Object.freeze(Array.from({ length: 270 }, (_, index) => Object.freeze({
+      child: index < 260 ? 2 : index === 260 ? 4 : 6,
+      score: index,
+    })));
+    const selected = selectGreaterRealmGateApronChildBundleOptions(
+      ranked,
+      option => option.child,
+    );
+    expect(GREATER_REALM_GATE_APRON_MAX_CHILD_BUNDLE_OPTIONS).toBe(256);
+    expect(selected).toHaveLength(256);
+    expect(selected[0]).toBe(ranked[0]);
+    expect(selected).toContain(ranked[260]);
+    expect(selected).toContain(ranked[261]);
+    expect(selected.map(option => option.score)).toEqual(
+      [...selected].map(option => option.score).sort((first, second) => first - second),
+    );
+    expect(Object.isFrozen(selected)).toBe(true);
+
+    expect(() => selectGreaterRealmGateApronChildBundleOptions(
+      Object.freeze(Array.from({ length: 257 }, (_, index) => Object.freeze({
+        child: index === 256 ? -1 : 2,
+      }))),
+      option => option.child,
+    )).toThrow('GREATER_REALM_GATE_APRON_CHILD_OPTION_ORIGIN_INVALID');
+
+    const lowlandsRepair = selectGreaterRealmLowlandsRepairBundleOptions(
+      Array.from({ length: 270 }, (_, score) => Object.freeze({
+        child: 1,
+        score,
+        endpoint: score,
+      })),
+      1,
+      bundle => bundle.child,
+      bundle => bundle.score,
+      bundle => bundle.endpoint,
+    );
+    expect(lowlandsRepair).toHaveLength(256);
+    expect(lowlandsRepair[0]?.score).toBe(0);
+    expect(lowlandsRepair.at(-1)?.score).toBe(255);
+  });
+
+  it.each(['ordinary', 'repair'] as const)(
+    'retains a same-origin compatible footprint through the actual %s child frontier',
+    lane => {
+      const pairs = selectBalancedGreaterRealmGateApronPairs(Object.freeze([
+        ...Array.from({ length: 257 }, (_, index) => Object.freeze({
+          firstIndex: 0,
+          secondIndex: index + 1,
+          score: index + 1,
+        })),
+        Object.freeze({ firstIndex: 1, secondIndex: 258, score: 1000 }),
+      ]));
+      const ranked = Object.freeze(pairs.map(pair => Object.freeze({
+        ...pair,
+        ...option(
+          `pair-${pair.firstIndex}-${pair.secondIndex}`,
+          [pair.firstIndex, pair.secondIndex],
+          [],
+        ),
+        child: 2,
+      })));
+      const compatible = ranked.find(bundle => bundle.firstIndex === 1)!;
+      const competing = option('competing-sibling', [0], [1000]);
+      const search = (frontier: typeof ranked) => searchGreaterRealmRankedSiblingAlternatives(
+        Object.freeze(['same-capacity-assignment']),
+        () => Object.freeze([frontier, Object.freeze([competing])]),
+        (_alternative, selected) => selected[0]?.id === compatible.id,
+        Object.freeze({ maximumSearchNodes: 640_000, maximumCompletePlans: 512 }),
+        bundle => Object.freeze([bundle]),
+      );
+
+      // The raw pair cap already retains this real physical alternative.
+      expect(pairs).toHaveLength(258);
+      const scorePrefix = Object.freeze(ranked.slice(0, 256));
+      expect(search(scorePrefix)).toEqual({ outcome: 'no-match' });
+      const sameBoundControl = Object.freeze([...scorePrefix.slice(0, 255), compatible]);
+      expect(search(sameBoundControl).outcome).toBe('match');
+
+      const selected = lane === 'ordinary'
+        ? selectGreaterRealmGateApronChildBundleOptions(
+          ranked, bundle => bundle.child, bundle => bundle,
+        )
+        : selectGreaterRealmLowlandsRepairBundleOptions(
+          ranked, 2, bundle => bundle.child, bundle => bundle.score,
+          bundle => bundle.firstIndex, false, bundle => bundle,
+        );
+      expect(selected).toHaveLength(256);
+      expect(selected[0]).toBe(ranked[0]);
+      expect(search(selected).outcome).toBe('match');
+      expect(selected.map(bundle => bundle.score)).toEqual(
+        [...selected].map(bundle => bundle.score).sort((first, second) => first - second),
+      );
+      expect(Object.isFrozen(selected)).toBe(true);
+      expect(ranked[0]?.tierOneCells).toEqual([0, 1]);
+      expect(compatible.tierOneCells).toEqual([1, 258]);
+    },
+  );
+
+  it.each(['ordinary', 'repair'] as const)(
+    'retains a feasible %s alternative behind a mandatory same-origin corridor',
+    lane => {
+      const ranked = Object.freeze(Array.from({ length: 257 }, (_, index) => Object.freeze({
+        ...option(String(index), index === 256 ? [0, 999] : [0, 1, index + 2], []),
+        child: 2, score: index, endpoint: index,
+      })));
+      const competing = option('competing', [1], []);
+      const search = (frontier: typeof ranked) => searchGreaterRealmRankedSiblingAlternatives(
+        ['capacity'], () => [frontier, [competing]],
+        (_alternative, selected) => selected[0]?.id === '256',
+        { maximumSearchNodes: 640_000, maximumCompletePlans: 512 },
+        bundle => [bundle],
+      );
+      expect(search(Object.freeze(ranked.slice(0, 256))).outcome).toBe('no-match');
+      const selected = lane === 'ordinary'
+        ? selectGreaterRealmGateApronChildBundleOptions(ranked, bundle => bundle.child, bundle => bundle)
+        : selectGreaterRealmLowlandsRepairBundleOptions(
+          ranked, 2, bundle => bundle.child, bundle => bundle.score,
+          bundle => bundle.endpoint, false, bundle => bundle,
+        );
+      expect(selected).toHaveLength(256);
+      expect(selected[0]).toBe(ranked[0]);
+      expect(selected).toContain(ranked[256]);
+      expect(search(selected).outcome).toBe('match');
+      expect(ranked[0]?.tierOneCells).toEqual([0, 1, 2]);
+    },
+  );
+
+  it('discounts mandatory cells per origin and tier without changing collision authority', () => {
+    const ranked = Object.freeze(Array.from({ length: 270 }, (_, index) => Object.freeze({
+      ...option(String(index),
+        index === 268 ? [5, 1] : index === 269 ? [0, 999] : [0, 1, index + 2],
+        index === 268 ? [0] : [],
+      ),
+      child: index === 268 ? 4 : 2,
+    })));
+    const selected = selectGreaterRealmGateApronChildBundleOptions(
+      ranked, bundle => bundle.child, bundle => bundle,
+    );
+    expect(selected).toHaveLength(256);
+    expect(selected).toContain(ranked[0]);
+    expect(selected).toContain(ranked[268]);
+    expect(selected).toContain(ranked[269]);
+    expect(ranked[268]?.tierOneCells).toEqual([5, 1]);
+    expect(ranked[268]?.tierTwoCells).toEqual([0]);
+    const duplicated = Object.freeze(ranked.map(bundle => Object.freeze({
+      ...bundle,
+      tierOneCells: Object.freeze(bundle.tierOneCells.flatMap(cell => [cell, cell])),
+      tierTwoCells: Object.freeze(bundle.tierTwoCells.flatMap(cell => [cell, cell])),
+    })));
+    expect(selectGreaterRealmGateApronChildBundleOptions(
+      duplicated, bundle => bundle.child, bundle => bundle,
+    ).map(bundle => bundle.id)).toEqual(selected.map(bundle => bundle.id));
+    const collision = searchGreaterRealmRankedSiblingAlternatives(
+      ['capacity'], () => [[ranked[0]!], [ranked[268]!]], () => true,
+      { maximumSearchNodes: 640_000, maximumCompletePlans: 512 }, bundle => [bundle],
+    );
+    expect(collision.outcome).toBe('no-match');
+  });
+
+  it('keeps tiers distinct and treats repeated cells as one physical footprint', () => {
+    const ranked = Object.freeze(Array.from({ length: 270 }, (_, index) => Object.freeze({
+      ...option(String(index), index < 269 ? [0, index + 1] : [], index === 269 ? [0] : []),
+      child: 2,
+    })));
+    const footprint = vi.fn((bundle: typeof ranked[number]) => bundle);
+    const selected = selectGreaterRealmGateApronChildBundleOptions(
+      ranked, bundle => bundle.child, footprint,
+    );
+    expect(selected).toContain(ranked[269]);
+    expect(footprint).toHaveBeenCalledTimes(ranked.length);
+    expect(selected).toHaveLength(256);
+    const duplicated = Object.freeze(ranked.map(bundle => Object.freeze({
+      ...bundle,
+      tierOneCells: Object.freeze(bundle.tierOneCells.flatMap(cell => [cell, cell, cell])),
+      tierTwoCells: Object.freeze(bundle.tierTwoCells.flatMap(cell => [cell, cell, cell])),
+    })));
+    expect(selectGreaterRealmGateApronChildBundleOptions(
+      duplicated, bundle => bundle.child, bundle => bundle,
+    ).map(bundle => bundle.id)).toEqual(selected.map(bundle => bundle.id));
+    expect(duplicated[0]?.tierOneCells).toEqual([0, 0, 0, 1, 1, 1]);
+    expect(ranked[269]?.tierTwoCells).toEqual([0]);
+  });
+
+  it('preserves mandatory origins sharing a corridor while retaining physical alternatives', () => {
+    const ranked = Object.freeze(Array.from({ length: 270 }, (_, index) => Object.freeze({
+      ...option(String(index), index < 269 ? [0, index + 1] : [200, 201], []),
+      child: index === 1 ? 4 : 2,
+    })));
+    const select = () => selectGreaterRealmGateApronChildBundleOptions(
+      ranked, bundle => bundle.child, bundle => bundle,
+    );
+    const selected = select();
+    expect(selected).toContain(ranked[0]);
+    expect(selected).toContain(ranked[1]);
+    expect(selected).toContain(ranked[269]);
+    expect(selected).toHaveLength(256);
+    expect(selected).toEqual(select());
+    expect(selected.map(bundle => Number(bundle.id))).toEqual(
+      selected.map(bundle => Number(bundle.id)).sort((first, second) => first - second),
+    );
+  });
+
+  it('keeps repair authority and own-first order when diverse donors survive overflow', () => {
+    const own = Array.from({ length: 270 }, (_, score) => Object.freeze({
+      ...option(`own-${score}`, [0, score + 1], []), child: 2, score, endpoint: score,
+    }));
+    const donor = Object.freeze({
+      ...option('donor', [200, 201], []), child: 4, score: -2, endpoint: 200,
+    });
+    const lowlands = Object.freeze({
+      ...option('lowlands', [202, 203], []), child: 0, score: -3, endpoint: 202,
+    });
+    const bundles = Object.freeze([...own, donor, lowlands]);
+    const select = (child: number, includeBorrowed: boolean) => (
+      selectGreaterRealmLowlandsRepairBundleOptions(
+        bundles, child, bundle => bundle.child, bundle => bundle.score,
+        bundle => bundle.endpoint, includeBorrowed, bundle => bundle,
+      )
+    );
+    expect(select(2, true)).toHaveLength(256);
+    expect(select(2, true)[0]).toBe(own[0]);
+    expect(select(2, true).at(-1)).toBe(donor);
+    expect(select(2, true)).not.toContain(lowlands);
+    expect(select(2, false).every(bundle => bundle.child === 2)).toBe(true);
+    expect(select(0, true)).toEqual([lowlands]);
+  });
+
+  it('leaves small frontiers unchanged without inspecting unused footprints', () => {
+    const ranked = Object.freeze(Array.from({ length: 256 }, (_, index) => Object.freeze({
+      ...option(String(index), [index], []), child: 2,
+    })));
+    const unused = vi.fn(() => { throw new Error('UNUSED_FOOTPRINT'); });
+    const selected = selectGreaterRealmGateApronChildBundleOptions(
+      ranked, bundle => bundle.child, unused,
+    );
+    expect(selected).toEqual(ranked);
+    expect(selected).not.toBe(ranked);
+    expect(Object.isFrozen(selected)).toBe(true);
+    expect(unused).not.toHaveBeenCalled();
+  });
+
+  it.each([-1, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid physical cell %s without changing the frontier',
+    invalidCell => {
+      const ranked = Object.freeze(Array.from({ length: 257 }, (_, index) => Object.freeze({
+        ...option(String(index), index === 256 ? [invalidCell] : [index], []), child: 2,
+      })));
+      expect(() => selectGreaterRealmGateApronChildBundleOptions(
+        ranked, bundle => bundle.child, bundle => bundle,
+      )).toThrow('GREATER_REALM_GATE_APRON_CHILD_OPTION_FOOTPRINT_INVALID');
+      expect(ranked[0]?.tierOneCells).toEqual([0]);
+      expect(ranked[256]?.tierOneCells[0]).toBe(invalidCell);
+    },
+  );
+
+  it('retains a borrowed pair so global footprint conflicts can be resolved', () => {
+    type Pair = Readonly<{ id: string }>;
+    const ownPair: Pair = Object.freeze({ id: 'own-compatible-pair' });
+    const ownAlternative: Pair = Object.freeze({ id: 'own-compatible-alternative' });
+    const borrowedPairs: readonly Pair[] = Object.freeze([
+      Object.freeze({ id: 'borrowed-first' }),
+      Object.freeze({ id: 'borrowed-second' }),
+      Object.freeze({ id: 'borrowed-overflow' }),
+    ]);
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      Object.freeze([ownPair, ownAlternative]),
+      borrowedPairs,
+    )).toEqual([ownPair, ownAlternative]);
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      Object.freeze([ownPair, ownAlternative]),
+      Object.freeze([]),
+    )).toEqual([ownPair, ownAlternative]);
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      Object.freeze([]),
+      borrowedPairs,
+    )).toEqual(borrowedPairs.slice(0, 2));
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      Object.freeze([]),
+      Object.freeze([]),
+    )).toEqual([]);
+
+    const ownFootprintPair = descriptor(
+      'own',
+      option('own-first', [1], [10]),
+      option('own-second', [2], [20]),
+    );
+    const borrowedFootprintPair = descriptor(
+      'borrowed',
+      option('borrowed-first', [3], [30]),
+      option('borrowed-second', [4], [40]),
+    );
+    const competingParentPair = descriptor(
+      'competing-parent',
+      option('competing-first', [5], [10]),
+      option('competing-second', [6], [50]),
+    );
+    const retainedPairs = chooseGreaterRealmLowlandsRepairSiblingPairs(
+      Object.freeze([ownFootprintPair]),
+      Object.freeze([borrowedFootprintPair]),
+    );
+    const repairedAssignment = searchGreaterRealmRankedSiblingAlternatives(
+      Object.freeze(['same-capacity-assignment']),
+      () => Object.freeze([
+        retainedPairs,
+        Object.freeze([competingParentPair]),
+      ]),
+      (_alternative, selected) => (
+        selected[0]?.id === 'borrowed'
+        && selected[1]?.id === 'competing-parent'
+      ),
+      Object.freeze({ maximumSearchNodes: 32, maximumCompletePlans: 32 }),
+      pair => pair.footprints,
+    );
+    expect(repairedAssignment).toEqual({
+      outcome: 'match',
+      alternative: 'same-capacity-assignment',
+      options: [borrowedFootprintPair, competingParentPair],
+    });
+  });
+
+  it.each(['borrowed', 'own-only'] as const)(
+    'retains a physically distinct repair pair in the bounded %s frontier',
+    lane => {
+      const first = descriptor('first', option('first-corridor', [1], [10]));
+      const duplicate = descriptor('duplicate', option('duplicate-corridor', [1], [10]));
+      const alternative = descriptor('alternative', option('alternative-corridor', [2], [20]));
+      const competitor = descriptor('competitor', option('other-parent', [1], [30]));
+      const own = lane === 'borrowed' ? [first] : [first, duplicate, alternative];
+      const fallback = lane === 'borrowed' ? [duplicate, alternative] : [];
+      const search = (pairs: readonly SyntheticDescriptor[]) => searchGreaterRealmRankedSiblingAlternatives(
+        ['same-capacity-assignment'],
+        () => [pairs, [competitor]],
+        () => true,
+        { maximumSearchNodes: 32, maximumCompletePlans: 32 },
+        pair => pair.footprints,
+      );
+      const rankOnly = chooseGreaterRealmLowlandsRepairSiblingPairs(own, fallback);
+      expect(search(rankOnly)).toEqual({ outcome: 'no-match' });
+      const retained = chooseGreaterRealmLowlandsRepairSiblingPairs(
+        own, fallback, pair => pair.footprints,
+      );
+      expect(retained).toEqual([first, alternative]);
+      expect(retained).toHaveLength(GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT);
+      expect(search(retained)).toMatchObject({ outcome: 'match', options: [alternative, competitor] });
+      expect(Object.isFrozen(retained)).toBe(true);
+      expect(first.footprints[0]?.tierOneCells).toEqual([1]);
+    },
+  );
+
+  it('retains a feasible own repair alternative when a conflicting fallback exists', () => {
+    const first = descriptor('first', option('first-a', [1], []), option('first-b', [2], []));
+    const ownAlternative = descriptor('own-alternative', option('own-a', [3], []), option('own-b', [4], []));
+    const fallback = descriptor('fallback', option('fallback-a', [1], []), option('fallback-b', [5], []));
+    const competitor = descriptor('competitor', option('competitor-a', [1], []), option('competitor-b', [6], []));
+    const search = (pairs: readonly SyntheticDescriptor[]) => searchGreaterRealmRankedSiblingAlternatives(
+      ['capacity'], () => [pairs, [competitor]], () => true,
+      { maximumSearchNodes: 32, maximumCompletePlans: 32 }, pair => pair.footprints,
+    );
+    expect(search([first, fallback]).outcome).toBe('no-match');
+    const retained = chooseGreaterRealmLowlandsRepairSiblingPairs(
+      [first, ownAlternative], [fallback], pair => pair.footprints,
+    );
+    expect(retained).toEqual([first, ownAlternative]);
+    expect(retained).toHaveLength(GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT);
+    expect(search(retained)).toMatchObject({ outcome: 'match', options: [ownAlternative, competitor] });
+  });
+
+  it('prefers own rank on equal overlap but keeps a physically better fallback', () => {
+    const first = descriptor('first', option('first-corridor', [1, 2], []));
+    const own = descriptor('own', option('own-corridor', [1, 3], []));
+    const ownTie = descriptor('own-tie', option('own-tied-corridor', [2, 4], []));
+    const fallbackTie = descriptor('fallback-tie', option('fallback-tied-corridor', [1, 5], []));
+    const fallbackBetter = descriptor('fallback-better', option('fallback-distinct-corridor', [6, 7], []));
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      [first, own, ownTie], [fallbackTie], pair => pair.footprints,
+    )).toEqual([first, own]);
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      [first, own, ownTie], [fallbackTie, fallbackBetter], pair => pair.footprints,
+    )).toEqual([first, fallbackBetter]);
+  });
+
+  it('counts repair pair cells once per tier and preserves ranked overlap ties', () => {
+    const first = descriptor('first', option('first-corridor', [1, 1], [2, 2]));
+    const repeated = descriptor('repeated', option('repeated-cell', [1, 1, 1], []));
+    const tied = descriptor('tied', option('other-tier', [], [2]));
+    const crossTier = descriptor('cross-tier', option('distinct-authority', [2], [1]));
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      [first], [repeated, tied], pair => pair.footprints,
+    )).toEqual([first, repeated]);
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs(
+      [first], [repeated, tied, crossTier], pair => pair.footprints,
+    )).toEqual([first, crossTier]);
+    expect(repeated.footprints[0]?.tierOneCells).toEqual([1, 1, 1]);
+  });
+
+  it('rejects invalid repair pair cells before selecting an alternative', () => {
+    const first = descriptor('first', option('first-corridor', [1], [10]));
+    const invalid = descriptor('invalid', option('invalid-corridor', [-1], []));
+    const alternative = descriptor('alternative', option('alternative-corridor', [2], []));
+    expect(() => chooseGreaterRealmLowlandsRepairSiblingPairs(
+      [first], [invalid, alternative], pair => pair.footprints,
+    )).toThrowError('GREATER_REALM_LOWLANDS_REPAIR_PAIR_FOOTPRINT_INVALID');
+    expect(invalid.footprints[0]?.tierOneCells).toEqual([-1]);
+  });
+
+  it('leaves untruncated repair pairs intact without inspecting footprints', () => {
+    const own = descriptor('own', option('own-corridor', [1], [10]));
+    const fallback = descriptor('fallback', option('fallback-corridor', [2], [20]));
+    const footprints = vi.fn(() => { throw new Error('unused footprint'); });
+    expect(chooseGreaterRealmLowlandsRepairSiblingPairs([own], [fallback], footprints))
+      .toEqual([own, fallback]);
+    expect(footprints).not.toHaveBeenCalled();
+  });
+
+  it('widens bounded gate-apron frontiers after repeated truncation', () => {
+    expect(GREATER_REALM_GATE_APRON_MAX_EDGE_CANDIDATES).toBe(1024);
+    expect(GREATER_REALM_GATE_APRON_MAX_BUNDLE_OPTIONS).toBe(65_536);
+  });
+
+  it('keeps the Lowlands repair frontier within the complete-plan budget', () => {
+    expect(GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS).toBe(32);
     expect(GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT).toBe(2);
     expect(
       GREATER_REALM_LOWLANDS_REPAIR_MAX_CAPACITY_ASSIGNMENTS
       * GREATER_REALM_LOWLANDS_REPAIR_MAX_SIBLING_PAIRS_PER_PARENT ** 3,
-    ).toBe(128);
+    ).toBe(256);
   });
 
   it('rejects every tier or region mutation inside the repair authority mask', () => {

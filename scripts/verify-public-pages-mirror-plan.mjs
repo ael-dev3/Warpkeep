@@ -20,6 +20,7 @@ import {
   checkPublicPagesPayloadManifest,
   verifyPublicPagesPayload,
 } from './verify-public-pages-payload.mjs';
+import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 
 const COMMIT = /^[a-f0-9]{40}$/u;
 const PUBLIC_ORIGIN = 'https://github.com/ael-dev3/Warpkeep-Live.git';
@@ -28,6 +29,10 @@ const REVIEWED_PLAN = 'artifacts/delivery/0.4.0/public-pages-ptr-mirror-plan-v1.
 export const PUBLIC_PAGES_MIRROR_MANIFEST_PATH =
   'docs/releases/0.4.0/public-pages-ptr-payload-v1.json';
 const PTR_PREFIX = 'ptr/';
+export const PUBLIC_PAGES_WORKFLOW_PATH = '.github/workflows/ptr-pages.yml';
+export const PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH = 'config/public-pages-ptr-workflow-v1.yml';
+export const PUBLIC_PAGES_WORKFLOW_TEMPLATE_SHA256 = '7954bbd4ec8e012842d0a9c2059d84c8f1ea90a53032bc33f49bf3ae5de9e667';
+export const PUBLIC_PAGES_WORKFLOW_TEMPLATE_BYTE_LENGTH = 7744;
 const HOST_FILES = new Set(['.nojekyll', '404.html', 'CNAME']);
 const GENERATED_ROOT_FILES = new Set([
   'apple-touch-icon-180-fe27e8dc1c97cc36.png',
@@ -53,6 +58,35 @@ export const SOURCE_PUBLIC_DOCUMENTS = Object.freeze([
   'licenses/legacy/LICENSE-CC0-1.0-v0.2.0',
 ]);
 const PUBLIC_DOCUMENT_SET = new Set([...SOURCE_PUBLIC_DOCUMENTS, 'README.md']);
+/**
+ * Cloudflare Pages serves extensionless files as application/octet-stream.
+ * This file is hosting metadata only: Pages parses it and does not serve it.
+ * It is not one of the preserved Alpha root files, and it does not alter
+ * LICENSE or NOTICE bytes.
+ */
+export const PUBLIC_PAGES_LEGAL_HEADERS_PATH = '_headers';
+/**
+ * Reviewed legal texts whose names have no text media-type suffix.
+ * Cloudflare Pages otherwise serves each of them as application/octet-stream.
+ * Markdown and .txt records already receive a text type and are not listed.
+ */
+export const PUBLIC_PAGES_LEGAL_PLAIN_PATHS = Object.freeze([
+  'LICENSE',
+  'LICENSE-CC-BY-4.0',
+  'NOTICE',
+  'licenses/legacy/LICENSE-0BSD-v0.2.0',
+  'licenses/legacy/LICENSE-CC0-1.0-v0.2.0',
+]);
+const PUBLIC_PAGES_LEGAL_PLAIN_TYPE = 'text/plain; charset=utf-8';
+const PUBLIC_PAGES_LEGAL_HEADERS_TEXT = ''
+  + '# Cloudflare Pages metadata. This file is not a public route.\n'
+  + PUBLIC_PAGES_LEGAL_PLAIN_PATHS.map(path => (
+    `/${path}\n  Content-Type: ${PUBLIC_PAGES_LEGAL_PLAIN_TYPE}\n`
+  )).join('\n');
+
+export function publicPagesLegalHeadersBytes() {
+  return Buffer.from(PUBLIC_PAGES_LEGAL_HEADERS_TEXT, 'utf8');
+}
 
 export class PublicPagesMirrorPlanError extends Error {
   constructor(code) {
@@ -68,6 +102,22 @@ function fail(code) {
 
 function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
+}
+
+export function isPublicPagesWorkflowTemplate(bytes) {
+  return Buffer.isBuffer(bytes) && bytes.length === PUBLIC_PAGES_WORKFLOW_TEMPLATE_BYTE_LENGTH
+    && sha256(bytes) === PUBLIC_PAGES_WORKFLOW_TEMPLATE_SHA256;
+}
+
+export function readPublicPagesWorkflowTemplate(sourceRoot, expectedSourceCommit) {
+  const bytes = readLocalBindingBoundedFile(join(resolve(sourceRoot),
+    PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH), { maximumBytes: 64 * 1024 }).body;
+  const reviewed = git(resolve(sourceRoot),
+    ['show', `${expectedSourceCommit}:${PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH}`], 64 * 1024, null);
+  if (!bytes.equals(reviewed) || !isPublicPagesWorkflowTemplate(bytes)) {
+    fail('PUBLIC_PAGES_MIRROR_WORKFLOW_INVALID');
+  }
+  return bytes;
 }
 
 function git(root, args, maxBuffer = 4 * 1024 * 1024, encoding = 'utf8') {
@@ -107,9 +157,11 @@ export function generatedPath(path) {
   if (parts[0] === '.well-known') return path === '.well-known/farcaster.json';
   if (parts[0] === 'assets') return /\.(?:css|js)$/u.test(name);
   if (parts[0] === 'audio') return /\.mp3$/u.test(name)
-    || path === 'audio/warpkeep-verdant-menu-theme.m4a';
+    || path === 'audio/warpkeep-verdant-menu-theme.m4a'
+    || path === 'audio/warpkeep-genesis-002-theme.m4a';
   if (parts[0] === 'images') return /\.(?:png|webp)$/u.test(name);
-  if (parts[0] === 'models') return /\.glb$/u.test(name);
+  if (parts[0] === 'models') return /\.glb$/u.test(name)
+    || path === 'models/greater-realm/biome-trees/v3/manifest.json';
   if (parts[0] === 'video') return /\.mp4$/u.test(name);
   if (parts[0] === 'legal') return path === 'legal/warpkeep-legal.css';
   return parts.length === 2 && name === 'index.html';
@@ -121,6 +173,8 @@ function approvedPublicPath(path) {
     || HOST_FILES.has(path)
     || PUBLIC_DOCUMENT_SET.has(path)
     || path === PUBLIC_PAGES_MIRROR_MANIFEST_PATH
+    || path === PUBLIC_PAGES_WORKFLOW_PATH
+    || path === PUBLIC_PAGES_LEGAL_HEADERS_PATH
   );
 }
 
@@ -162,6 +216,9 @@ export function inspectPublicMirror(publicRoot, expectedPublicHead) {
       if (state.isDirectory()) {
         walk(fullPath, `${path}/`);
       } else if (state.isFile() && approvedPublicPath(path) && tracked.has(path)) {
+        if (path === PUBLIC_PAGES_WORKFLOW_PATH
+          && !isPublicPagesWorkflowTemplate(git(root,
+            ['show', `${expectedPublicHead}:${path}`], 64 * 1024, null))) fail('PUBLIC_PAGES_MIRROR_WORKFLOW_INVALID');
         seen.add(path);
       } else {
         fail('PUBLIC_PAGES_MIRROR_FILE_BOUNDARY_INVALID');
@@ -230,9 +287,16 @@ export function verifyPublicPagesMirrorPlan({
   publicRoot,
   expectedPublicHead,
   publicationPath = '/ptr/',
+  deploymentMode,
 }) {
   if (publicationPath !== '/ptr/') fail('PUBLIC_PAGES_MIRROR_PUBLICATION_PATH_INVALID');
+  if (deploymentMode !== undefined && deploymentMode !== 'workflow') {
+    fail('PUBLIC_PAGES_MIRROR_DEPLOYMENT_MODE_INVALID');
+  }
   const mirror = inspectPublicMirror(publicRoot, expectedPublicHead);
+  if (deploymentMode !== 'workflow' && mirror.tracked.includes(PUBLIC_PAGES_WORKFLOW_PATH)) {
+    fail('PUBLIC_PAGES_MIRROR_DEPLOYMENT_MODE_INVALID');
+  }
   checkPublicPagesPayloadManifest({
     repositoryRoot: sourceRoot,
     expectedSourceCommit,
@@ -248,6 +312,7 @@ export function verifyPublicPagesMirrorPlan({
   const entries = new Map();
   for (const path of mirror.tracked) {
     if (path.startsWith(PTR_PREFIX) || path === 'README.md'
+      || path === PUBLIC_PAGES_LEGAL_HEADERS_PATH
       || SOURCE_PUBLIC_DOCUMENTS.includes(path) || path === PUBLIC_PAGES_MIRROR_MANIFEST_PATH) continue;
     if (!generatedPath(path) && !HOST_FILES.has(path)) continue;
     // Publication preserves parent Git blobs, not checkout-smudged bytes.
@@ -279,6 +344,7 @@ export function verifyPublicPagesMirrorPlan({
     ['ptr/404.html', readFileSync(join(resolve(sourceRoot), 'dist/index.html'))],
     [PUBLIC_PAGES_MIRROR_MANIFEST_PATH, manifestBytes],
     ['README.md', publicReadme],
+    [PUBLIC_PAGES_LEGAL_HEADERS_PATH, publicPagesLegalHeadersBytes()],
   ]) {
     if (entries.has(path)) fail('PUBLIC_PAGES_MIRROR_TARGET_COLLISION');
     entries.set(path, Object.freeze({
@@ -309,6 +375,13 @@ export function verifyPublicPagesMirrorPlan({
       path, byteLength: bytes.length, sha256: sha256(bytes), origin: 'reviewed-source',
     }));
   }
+  if (deploymentMode === 'workflow') {
+    const bytes = readPublicPagesWorkflowTemplate(sourceRoot, expectedSourceCommit);
+    entries.set(PUBLIC_PAGES_WORKFLOW_PATH, Object.freeze({
+      path: PUBLIC_PAGES_WORKFLOW_PATH, byteLength: bytes.length,
+      sha256: sha256(bytes), origin: 'reviewed-control',
+    }));
+  }
   const sortedEntries = [...entries.values()].sort((a, b) => (
     Buffer.compare(Buffer.from(a.path), Buffer.from(b.path))
   ));
@@ -333,6 +406,7 @@ export function verifyPublicPagesMirrorPlan({
     obsoleteGeneratedPaths: Object.freeze(mirror.tracked.filter(path => (
       path.startsWith(PTR_PREFIX) && generatedPath(path) && !entries.has(path)
     )).sort()),
+    ...(deploymentMode === 'workflow' ? { deploymentMode } : {}),
   });
 }
 
@@ -378,20 +452,23 @@ export function writePublicPagesMirrorPlan(options) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   try {
+    const flags = process.argv.slice(6);
     if (
-      ![6, 7].includes(process.argv.length)
+      ![6, 7, 8].includes(process.argv.length)
       || process.argv[2] !== '--public-root'
       || !COMMIT.test(process.argv[4] ?? '')
       || !COMMIT.test(process.argv[5] ?? '')
-        || (process.argv.length === 7 && process.argv[6] !== '--write-plan')
+      || flags.some(flag => !['--write-plan', '--workflow-deployment'].includes(flag))
+      || new Set(flags).size !== flags.length
     ) fail('PUBLIC_PAGES_MIRROR_ARGUMENT_INVALID');
     const options = {
       sourceRoot: resolve(dirname(fileURLToPath(import.meta.url)), '..'),
       publicRoot: process.argv[3],
       expectedSourceCommit: process.argv[4],
       expectedPublicHead: process.argv[5],
+      ...(flags.includes('--workflow-deployment') ? { deploymentMode: 'workflow' } : {}),
     };
-    if (process.argv.length === 7) {
+    if (flags.includes('--write-plan')) {
       process.stdout.write(`${JSON.stringify(writePublicPagesMirrorPlan(options))}\n`);
     } else {
       const plan = verifyPublicPagesMirrorPlan(options);

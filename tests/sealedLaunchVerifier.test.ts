@@ -2793,7 +2793,7 @@ export function createPtrAtlasImportTransport(`,
 
   it('accepts the reviewed operator-helper refreeze while retaining the historical G001 projection', () => {
     const operatorRefreezeCommit =
-      '580cd588776315de334cd81adddded80f49d06c7';
+      'da3e057ff7fd6a8f5b1a1b2616dff8b3db50cffb';
     const operatorRefreezePaths = [
       'scripts/greater-realm-production-provenance.ts',
       'scripts/greater-realm-production-transport.ts',
@@ -2848,8 +2848,8 @@ export function createPtrAtlasImportTransport(`,
     })).toThrow('SEALED_LAUNCH_ACTIVATION_HISTORY_INVALID');
   });
 
-  it('accepts the signed kernel-birth operator refreeze and rejects byte or mode drift in every reviewed helper', () => {
-    const operatorRefreezeCommit = '580cd588776315de334cd81adddded80f49d06c7';
+  it('accepts the signed mode-preserving operator refreeze and rejects byte or mode drift in every reviewed helper', () => {
+    const operatorRefreezeCommit = 'da3e057ff7fd6a8f5b1a1b2616dff8b3db50cffb';
     const operatorRefreezePaths = [
       'scripts/greater-realm-production-provenance.ts',
       'scripts/greater-realm-production-transport.ts',

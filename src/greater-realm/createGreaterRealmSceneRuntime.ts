@@ -1,4 +1,9 @@
 import * as THREE from 'three';
+import {
+  greaterRealmBoatGeometry,
+  greaterRealmRabbitGeometry,
+  greaterRealmVillagerGeometry
+} from './greaterRealmActorGeometry';
 
 import { createBiomeTreeGeometry } from './biomeTreeGeometry';
 import { loadGreaterRealmBiomeTreePrototype } from './loadGreaterRealmBiomeTreeAssets';
@@ -181,7 +186,7 @@ type AmbientBoatRoute = Readonly<{
 type AmbientBoatResource = Readonly<{
   signature: string;
   mesh: THREE.InstancedMesh;
-  geometry: THREE.BoxGeometry;
+  geometry: THREE.BufferGeometry;
   material: THREE.MeshStandardMaterial;
   routes: readonly AmbientBoatRoute[];
 }>;
@@ -200,9 +205,10 @@ function nowMilliseconds() {
   return globalThis.performance?.now() ?? Date.now();
 }
 
-const GREATER_REALM_BOAT_GEOMETRY_UPLOAD_BYTES = 840;
+/** Exact bytes of the vertex-coloured ambient sailing boat (greaterRealmBoatGeometry). */
+const GREATER_REALM_BOAT_GEOMETRY_UPLOAD_BYTES = 3_024;
 const GREATER_REALM_INSTANCE_MATRIX_UPLOAD_BYTES = 64;
-const GREATER_REALM_LOCAL_VESSEL_UPLOAD_BYTES = GREATER_REALM_BOAT_GEOMETRY_UPLOAD_BYTES;
+const GREATER_REALM_LOCAL_VESSEL_UPLOAD_BYTES = 840;
 
 function stableLaneUnit(domain: 'phase' | 'selection' | 'speed', value: string) {
   let hash = 0x811c9dc5;
@@ -662,17 +668,20 @@ function resourceMeshes(plan: GreaterRealmChunkPresentationPlan, groundPosition:
 function actorGeometry(kind: Exclude<GreaterRealmPresentationActor['kind'], 'canopy'>) {
   if (kind === 'grass') return new THREE.ConeGeometry(0.035, 0.16, 3);
   if (kind === 'flower') return new THREE.ConeGeometry(0.025, 0.12, 4);
-  if (kind === 'npc') return new THREE.CylinderGeometry(0.055, 0.075, 0.28, 5);
-  if (kind === 'wildlife') return new THREE.BoxGeometry(0.16, 0.09, 0.08);
-  return new THREE.BoxGeometry(0.24, 0.07, 0.1);
+  // Readable villagers, rabbits and boats carry their own baked colours.
+  if (kind === 'npc') return greaterRealmVillagerGeometry();
+  if (kind === 'wildlife') return greaterRealmRabbitGeometry();
+  return greaterRealmBoatGeometry();
+}
+
+function actorUsesVertexColors(kind: GreaterRealmPresentationActor['kind']) {
+  return kind === 'canopy' || kind === 'npc' || kind === 'wildlife' || kind === 'boat';
 }
 
 function actorColor(kind: Exclude<GreaterRealmPresentationActor['kind'], 'canopy'>) {
   if (kind === 'grass') return '#6d8b50';
   if (kind === 'flower') return '#d7bd72';
-  if (kind === 'npc') return '#8a654f';
-  if (kind === 'wildlife') return '#826e54';
-  return '#835f45';
+  return '#ffffff';
 }
 
 function actorMeshes(
@@ -714,7 +723,7 @@ function actorMeshes(
           : actorGeometry(kind);
         const material = pendingMaterial = new THREE.MeshStandardMaterial({
           color: kind === 'canopy' ? '#ffffff' : actorColor(kind),
-          vertexColors: kind === 'canopy',
+          vertexColors: actorUsesVertexColors(kind),
           side: kind === 'canopy' ? THREE.DoubleSide : THREE.FrontSide,
           roughness: 0.88,
           fog: true
@@ -1141,12 +1150,13 @@ export function createGreaterRealmSceneRuntime(
     if (ambientBoatResource?.signature === signature) return;
     disposeAmbientBoatResource();
     // Heading yaw is measured from +Z throughout the realm presentation.
-    // Keep the hull's long axis on Z so boats face along their river lane.
-    const geometry = new THREE.BoxGeometry(0.11, 0.065, 0.24);
+    // The sailing boat's hull runs along Z so boats face along their river lane.
+    const geometry = greaterRealmBoatGeometry();
     const material = new THREE.MeshStandardMaterial({
-      color: '#9b6a3e',
+      color: '#ffffff',
+      vertexColors: true,
       emissive: '#352113',
-      emissiveIntensity: 0.16,
+      emissiveIntensity: 0.12,
       roughness: 0.76,
       fog: true
     });
@@ -1379,14 +1389,19 @@ export function createGreaterRealmSceneRuntime(
           if (actor.kind === 'canopy' || actor.kind === 'grass' || actor.kind === 'flower') {
             sway = Math.sin(localTime * 1.4) * (0.02 + livingSample.gust * 0.05);
           } else if (actor.kind === 'npc') {
-            const step = Math.sin(localTime * 1.15) * 0.045;
+            // Stroll a few paces back and forth, always facing the way they walk.
+            const step = Math.sin(localTime * 0.55) * 0.16;
             x += Math.sin(yaw) * step;
             z += Math.cos(yaw) * step;
-            y += Math.abs(Math.sin(localTime * 2.3)) * 0.012;
+            y += Math.abs(Math.sin(localTime * 5.2)) * 0.018;
+            if (Math.cos(localTime * 0.55) < 0) yaw += Math.PI;
           } else if (actor.kind === 'wildlife') {
+            // Rabbits hop slowly round their patch.
             yaw += localTime * 0.18;
-            x += Math.sin(yaw) * 0.075;
-            z += Math.cos(yaw) * 0.075;
+            x += Math.sin(yaw) * 0.11;
+            z += Math.cos(yaw) * 0.11;
+            y += Math.max(0, Math.sin(localTime * 4.4)) * 0.035;
+            yaw += Math.PI / 2;
           } else {
             const glide = Math.sin(localTime * 0.35) * 0.12;
             x += Math.sin(yaw) * glide;

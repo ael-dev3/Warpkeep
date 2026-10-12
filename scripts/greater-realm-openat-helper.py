@@ -61,7 +61,7 @@ def open_parent(root_fd, path):
 
 
 def parse_mode(value):
-    if value not in ('600', '644', '700'):
+    if value not in ('600', '644', '700', '755'):
         die()
     return int(value, 8)
 

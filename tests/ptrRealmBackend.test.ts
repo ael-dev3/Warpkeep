@@ -412,6 +412,8 @@ test('compiled PTR payload contains no shared production graph or forbidden poli
     'src/lifecycle.ts',
     'src/atlasPolicy.ts',
     'src/sha256.ts',
+    'src/greaterRealmFrozenWaterCatalog.ts',
+    'src/greaterRealmHydrologyAuthority.ts',
     'src/atlasAuthority.ts',
     'src/atlasImportReducers.ts',
     'src/ownerReducers.ts',

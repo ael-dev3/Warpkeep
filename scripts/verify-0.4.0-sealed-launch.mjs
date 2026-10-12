@@ -54,7 +54,7 @@ const GENESIS_001_SEALED_LAUNCH_ADOPTION_SOURCE_SHA256 =
 const SEALED_LAUNCH_ACTIVATION_GENERATOR_SOURCE_SHA256 =
   'aea8e6f0373b98e2f76dad34b35bf52a296c5d0631f8079d565d69bf121b8a30';
 const SEALED_LAUNCH_PACKAGE_STRUCTURE_SHA256 =
-  'b4938b0b287315c143b94169bfc68d0b946fda9e0d2ef69e183653eae9250c66';
+  '202c2c968378b4d519560214963ef5be110bc90fdead35999037938fb5ad89c2';
 const SEALED_LAUNCH_LOCK_STRUCTURE_SHA256 =
   '4d8efef0ac6112204a05850a0828b6667b4735e6e71cf85109b77cfd696b1ec8';
 const RELEASE_VERSION_DIGEST_PLACEHOLDER = '<release-version>';
@@ -145,15 +145,15 @@ export const GENESIS_001_ADOPTION_SOURCE_PROJECTION_PATHS = Object.freeze([
   'scripts/greater-realm-downstream-release-policy.ts',
   'docs/operations/greater-realm-production-launch-envelope.sh.txt',
 ]);
-// The original four reviewed operator helpers retain their exact bytes. Three
-// additional operators now use kernel birth to preserve live recovery owners
-// across clock changes. The frozen module and build recipe stay unchanged.
+// The reviewed helpers retain kernel-birth recovery ownership. The provenance
+// helper now preserves reviewed executable modes during source materialization.
+// The frozen module and build recipe stay unchanged.
 // Keep the complete adoption projection above as the historical contract and
 // require all seven helpers to match this signed, reviewed refreeze checkpoint.
 // A later helper change requires another explicit source refreeze; it cannot
 // silently widen the exception or change the frozen G001 contract.
 const GENESIS_001_OPERATOR_REFREEZE_SOURCE_COMMIT =
-  '580cd588776315de334cd81adddded80f49d06c7';
+  'da3e057ff7fd6a8f5b1a1b2616dff8b3db50cffb';
 const GENESIS_001_OPERATOR_REFREEZE_PROJECTION_PATHS = Object.freeze([
   'scripts/greater-realm-production-provenance.ts',
   'scripts/greater-realm-production-transport.ts',
@@ -1516,9 +1516,9 @@ function verifyPtrOwnerAuthority(sources) {
     [sources.ptrProductionReceiptFileSource,
       '2eb39b131a5768e1d9f4b9ba69bc9c53d94bb8d249a5c30af0db0d62ee3c60ab'],
     [sources.ptrOwnerProvisionOperatorSource,
-      '40144be3eba3fb4beb0c3b7eccdba4a2c2fd6c72a09ef158eae31413b52e9f78'],
+      '4cd187125f537b655afb634e26672fe1962a56530c5331c50fa961272d0b41db'],
     [sources.ptrPublisherCoreSource,
-      'e8e456ed0933e2a47ea3c28904606974298b077cfb864211cd19e286ecfbb463'],
+      '648dfced9cb5b296e679cbb6d6946b6182ed2cb9a3d055df949ce56c792d6bb9'],
     [sources.ptrPublisherCliSource,
       '8a261a4e2a23a51f80101060e168107f144a3c9811ce22450ea741b25739afa4'],
   ]) {
@@ -2436,8 +2436,11 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
   const orderedTokens = [
     'const firstEvidence = readImportReceipt({',
     'await inspectStatus()',
-    'const resolved = await resolveOwnerAuthority(ownerFid);',
+    'const resolveOwnerAuthority = dependencies.resolveOwnerAuthority;',
+    'const resolvedFromSource = resolveOwnerAuthority === undefined',
     'ownerToken = await requestOwnerToken(adminSecret);',
+    'const tokenAuthority = validateOwnerToken(ownerToken, ownerFid, nowSeconds);',
+    'const resolved = resolvedFromSource ?? tokenAuthority;',
     'const secondEvidence = readImportReceipt({',
     'const ownerOpaqueProofDigest = deriveOwnerProof({',
     'transport = createOwnerTransport({',
@@ -2599,6 +2602,7 @@ export function verifyPtrOwnerAuthoritySemantics(sources) {
   );
   requireOnce(sealedLiveReceiptKeys, "'ownerProvisionReceiptDigest',", code);
   for (const token of [
+    'tokenAuthority.ownerFid !== resolved.ownerFid',
     'tokenAuthority.ownerAuthEpoch !== resolved.ownerAuthEpoch',
     'ownerAuthEpoch: resolved.ownerAuthEpoch,\n      databaseIdentity',
     'ownerAuthEpoch: resolved.ownerAuthEpoch,\n      ownerOpaqueProofDigest',

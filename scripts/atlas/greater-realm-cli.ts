@@ -27,13 +27,17 @@ import {
 import {
   GREATER_REALM_CANDIDATE_REJECTION_CODES,
   greaterRealmCandidateRejectionCode,
+  greaterRealmCandidateRejectionFrontierTruncationKinds,
+  isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds,
   type GreaterRealmCandidateRejectionCode,
+  type GreaterRealmTierTwoApronFrontierTruncationKind,
 } from './greater-realm-candidate-rejection';
 import {
   abortGreaterRealmAttemptCheckpoint,
   assertGreaterRealmAttemptSelectionReady,
   clearGreaterRealmAttemptCheckpointSecret,
   createGreaterRealmAttemptCheckpoint,
+  isCanonicalGreaterRealmRejectedMajorRiverCount,
   readGreaterRealmAttemptCompletionReceipt,
   reconcileGreaterRealmAttemptCompletion,
   recordGreaterRealmAcceptedAttempt,
@@ -1227,6 +1231,8 @@ async function generateSingleWorldCandidate(
                     kind: 'geography-exhaustion',
                     candidateOrdinal: ordinal,
                     rejectionCode,
+                    frontierTruncationKinds:
+                      greaterRealmCandidateRejectionFrontierTruncationKinds(error),
                   });
                   current = recordGreaterRealmRejectedAttempt({
                     workspace,
@@ -1246,6 +1252,7 @@ async function generateSingleWorldCandidate(
                     candidateOrdinal: ordinal,
                     activeCellCount: candidate.grid.cellCount,
                     failedProofs: candidate.privateMetrics.eligibilityFailureCodes,
+                    majorRiverCount: candidate.aggregate.hydrology.majorRivers,
                   });
                   current = recordGreaterRealmRejectedAttempt({
                     workspace,
@@ -1884,12 +1891,14 @@ export type GreaterRealmPrivateProofRejectedAttempt = Readonly<{
   candidateOrdinal: number;
   activeCellCount: number;
   failedProofs: readonly string[];
+  majorRiverCount?: number;
 }>;
 
 export type GreaterRealmPrivateGeographyRejectedAttempt = Readonly<{
   kind: 'geography-exhaustion';
   candidateOrdinal: number;
   rejectionCode: GreaterRealmCandidateRejectionCode;
+  frontierTruncationKinds?: readonly GreaterRealmTierTwoApronFrontierTruncationKind[];
 }>;
 
 export type GreaterRealmPrivateRejectedAttempt =
@@ -1914,6 +1923,8 @@ export function verifyGreaterRealmPrivateRejectedAttempt(input: Readonly<{
     if (
       candidate.aggregate.eligible
       || candidate.grid.cellCount !== proofAttempt.activeCellCount
+      || (proofAttempt.majorRiverCount !== undefined
+        && candidate.aggregate.hydrology.majorRivers !== proofAttempt.majorRiverCount)
       || actualFailures.length !== proofAttempt.failedProofs.length
       || actualFailures.some((failure, index) => (
         failure !== proofAttempt.failedProofs[index]
@@ -1922,9 +1933,15 @@ export function verifyGreaterRealmPrivateRejectedAttempt(input: Readonly<{
   } catch (error) {
     const actualRejectionCode = greaterRealmCandidateRejectionCode(error);
     if (actualRejectionCode === undefined) throw error;
+    const expectedFrontierKinds = input.rejectedAttempt.kind === 'geography-exhaustion'
+      ? input.rejectedAttempt.frontierTruncationKinds ?? []
+      : [];
+    const actualFrontierKinds = greaterRealmCandidateRejectionFrontierTruncationKinds(error);
     if (
       input.rejectedAttempt.kind !== 'geography-exhaustion'
       || input.rejectedAttempt.rejectionCode !== actualRejectionCode
+      || expectedFrontierKinds.length !== actualFrontierKinds.length
+      || expectedFrontierKinds.some((kind, index) => kind !== actualFrontierKinds[index])
     ) fail('GREATER_REALM_PRIVATE_ATTEMPT_LEDGER_INVALID');
   } finally {
     if (candidate) clearGreaterRealmPrivateCandidateBuffers(candidate);
@@ -2044,12 +2061,23 @@ function readPrivateBatch(
         fail('GREATER_REALM_PRIVATE_BATCH_INVALID');
       }
       const kind = kindDescriptor.value;
+      const hasFrontierTruncationKinds = Object.prototype.hasOwnProperty.call(
+        value,
+        'frontierTruncationKinds',
+      );
+      const hasMajorRiverCount = Object.prototype.hasOwnProperty.call(value, 'majorRiverCount');
       const rejected = exactRecord(
         value,
         kind === 'proof-rejection'
-          ? ['activeCellCount', 'candidateOrdinal', 'failedProofs', 'kind']
+          ? ['activeCellCount', 'candidateOrdinal', 'failedProofs', 'kind',
+            ...(hasMajorRiverCount ? ['majorRiverCount'] : [])]
           : kind === 'geography-exhaustion'
-            ? ['candidateOrdinal', 'kind', 'rejectionCode']
+            ? [
+              'candidateOrdinal',
+              'kind',
+              'rejectionCode',
+              ...(hasFrontierTruncationKinds ? ['frontierTruncationKinds'] : []),
+            ]
             : [],
         'GREATER_REALM_PRIVATE_BATCH_INVALID',
       );
@@ -2074,23 +2102,42 @@ function readPrivateBatch(
             typeof proof !== 'string'
             || !/^[A-Z0-9_:-]{3,160}$/u.test(proof)
           ))
+          || (hasMajorRiverCount && !isCanonicalGreaterRealmRejectedMajorRiverCount(
+            rejected.majorRiverCount,
+            rejected.activeCellCount as number,
+            rejected.failedProofs as string[],
+          ))
         ) fail('GREATER_REALM_PRIVATE_BATCH_INVALID');
         rejectedAttempts.push(Object.freeze({
           kind,
           candidateOrdinal: rejected.candidateOrdinal as number,
           activeCellCount: rejected.activeCellCount as number,
           failedProofs: Object.freeze([...(rejected.failedProofs as string[])]),
+          ...(hasMajorRiverCount ? { majorRiverCount: rejected.majorRiverCount as number } : {}),
         }));
       } else {
         if (
           typeof rejected.rejectionCode !== 'string'
           || !(GREATER_REALM_CANDIDATE_REJECTION_CODES as readonly string[])
             .includes(rejected.rejectionCode)
+          || (
+            hasFrontierTruncationKinds
+            && !isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds(
+              rejected.frontierTruncationKinds,
+            )
+          )
         ) fail('GREATER_REALM_PRIVATE_BATCH_INVALID');
         rejectedAttempts.push(Object.freeze({
           kind,
           candidateOrdinal: rejected.candidateOrdinal as number,
           rejectionCode: rejected.rejectionCode as GreaterRealmCandidateRejectionCode,
+          ...(hasFrontierTruncationKinds
+            ? {
+              frontierTruncationKinds: Object.freeze([
+                ...(rejected.frontierTruncationKinds as readonly GreaterRealmTierTwoApronFrontierTruncationKind[]),
+              ]),
+            }
+            : {}),
         }));
       }
     }
@@ -3081,6 +3128,79 @@ export const greaterRealmPublicEvidenceTestSeams = Object.freeze({
     );
   },
 });
+
+/** Initial owner PTR selection/export from the genuine private generator workflow.
+ * The caller separately holds a clean signed source. This records an explicit
+ * selection, never a global release phase or an automatically invented approval.
+ */
+export async function preparePtrInitialOwnerRuntimeRelease(input: Readonly<{
+  command: 'select' | 'prepare';
+  workspaceRoot: string;
+  batchHandle: string;
+  candidateHandle?: string;
+  approvalReference?: string;
+  assertSource: () => void;
+}>) {
+  if (!['select', 'prepare'].includes(input.command)
+    || !isAbsolute(input.workspaceRoot) || !BATCH_HANDLE.test(input.batchHandle)
+    || (input.command === 'select'
+      ? !CANDIDATE_HANDLE.test(input.candidateHandle ?? '')
+        || !APPROVAL_REFERENCE.test(input.approvalReference ?? '')
+      : input.candidateHandle !== undefined || input.approvalReference !== undefined)) {
+    fail('GREATER_REALM_PTR_INITIAL_ARGUMENT_INVALID');
+  }
+  input.assertSource();
+  const workspace = openGreaterRealmPrivateWorkspace({ repositoryRoot: ROOT, workspaceRoot: input.workspaceRoot });
+  return workspace.withExclusiveLock('locks/generate-candidates.lock', () =>
+    workspace.withExclusiveLock(`locks/${input.batchHandle}.selection.lock`, async () => {
+      input.assertSource();
+      assertGreaterRealmAttemptSelectionReady({ workspace });
+      if (input.command === 'select') {
+        if (workspace.hasFile(selectionRelativePath(input.batchHandle))) fail('GREATER_REALM_SELECTION_INVALID');
+        const { review } = await verifyPrivateReviewBatch(workspace, input.batchHandle);
+        const selected = review.candidates.find(candidate => candidate.candidateHandle === input.candidateHandle && candidate.eligible);
+        if (!selected || review.selectionStatus !== 'pending') fail('GREATER_REALM_SELECTION_INVALID');
+        input.assertSource();
+        const selectedReview = createGreaterRealmSanitizedReview({ generatorVersion: review.generatorVersion,
+          sourceCommit: review.sourceCommit, reviewBatchHandle: review.reviewBatchHandle, selectionStatus: 'selected',
+          selectedCandidateHandle: selected.candidateHandle, candidates: review.candidates.map(candidateSource) });
+        writePrivateJson(workspace, selectionRelativePath(input.batchHandle), {
+          kind: 'warpkeep.greater-realm.private-owner-selection.v1', batchHandle: input.batchHandle,
+          candidateHandle: selected.candidateHandle, approvalReference: input.approvalReference,
+          generatorVersion: GREATER_REALM_GENERATOR_VERSION, sourceReviewDigest: review.reportDigest, selectedReview,
+        });
+        const reopened = readReview(workspace, input.batchHandle);
+        if (reopened.reportDigest !== selectedReview.reportDigest) fail('GREATER_REALM_SELECTION_RECEIPT_INVALID');
+        input.assertSource();
+        return Object.freeze({ command: input.command, selectionRecorded: true, candidateHandle: selected.candidateHandle,
+          sourceReviewDigest: review.reportDigest, selectionBasis: 'eligible-candidate-and-explicit-owner-reference',
+          retainedGlobalOwnerReportAdmission: false, runtimePrepared: false, productionUntouched: true, globalReleaseAuthority: false });
+      }
+      let artifacts: GreaterRealmRuntimeReleaseArtifacts | undefined;
+      const verified = await verifyPrivateReviewBatch(workspace, input.batchHandle, {
+        onVerifiedSelectedCandidate: (candidate, commit) => {
+          input.assertSource();
+          const seed = openOrCreatePtrGreaterRealmRuntimeReleaseSeed(workspace);
+          try { artifacts = createPtrGreaterRealmRuntimeRelease({ source: candidate, sourceCommit: commit, releaseSeed: seed }); }
+          finally { seed.fill(0); }
+        },
+      });
+      if (artifacts === undefined || verified.review.selectionStatus !== 'selected') fail('GREATER_REALM_RUNTIME_RELEASE_SELECTION_REQUIRED');
+      input.assertSource(); verifyPtrGreaterRealmRuntimeReleaseArtifacts(artifacts);
+      const state = await writePtrGreaterRealmRuntimeRelease({ workspace, artifacts });
+      const installed = readPtrGreaterRealmRuntimeRelease(workspace);
+      if (!installed.manifestBytes.equals(artifacts.manifestBytes) || !installed.statusBytes.equals(artifacts.statusBytes)
+        || installed.chunks.length !== artifacts.chunks.length || installed.chunks.some((chunk, index) =>
+          chunk.path !== artifacts!.chunks[index]!.path || !chunk.bytes.equals(artifacts!.chunks[index]!.bytes))) {
+        fail('GREATER_REALM_RUNTIME_RELEASE_REPLAY_MISMATCH');
+      }
+      input.assertSource();
+      return Object.freeze({ command: input.command, runtimePrepared: true, releaseState: state,
+        atlasSourceCommit: installed.manifest.sourceCommit, atlasId: installed.manifest.atlasId,
+        publicReleaseId: installed.manifest.publicReleaseId, releaseSha256: installed.manifest.releaseSha256,
+        productionUntouched: true, globalReleaseAuthority: false });
+    }));
+}
 
 async function main(): Promise<void> {
   const rawArguments = process.argv.slice(2);

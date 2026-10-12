@@ -7,6 +7,11 @@ import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
 import {
   inspectPublicMirror,
   PUBLIC_PAGES_MIRROR_MANIFEST_PATH,
+  PUBLIC_PAGES_WORKFLOW_PATH,
+  PUBLIC_PAGES_WORKFLOW_TEMPLATE_SHA256,
+  PUBLIC_PAGES_WORKFLOW_TEMPLATE_BYTE_LENGTH,
+  PUBLIC_PAGES_LEGAL_HEADERS_PATH,
+  publicPagesLegalHeadersBytes,
   renderPublicPagesMirrorReadme,
   SOURCE_PUBLIC_DOCUMENTS,
 } from './verify-public-pages-mirror-plan.mjs';
@@ -19,7 +24,10 @@ const LIVE_ORIGIN = 'https://warpkeep.com';
 const PUBLIC_REPOSITORY = 'ael-dev3/Warpkeep-Live';
 const PAGES_WORKFLOW_PATH = 'dynamic/pages/pages-build-deployment';
 const PRESERVED_ROOT_HOST_PATHS = Object.freeze(['.nojekyll', '404.html', 'CNAME']);
-const HOSTING_PATHS = Object.freeze(['README.md', PUBLIC_PAGES_MIRROR_MANIFEST_PATH, 'ptr/404.html']);
+const HOSTING_PATHS = Object.freeze([
+  'README.md', PUBLIC_PAGES_MIRROR_MANIFEST_PATH, 'ptr/404.html',
+  PUBLIC_PAGES_LEGAL_HEADERS_PATH,
+]);
 const PRESERVED_ROOT_REQUIRED = Object.freeze(['.nojekyll', '404.html', 'CNAME', 'index.html']);
 const REQUIRED_GENERATED_FILES = Object.freeze([
   '.well-known/farcaster.json',
@@ -94,9 +102,11 @@ export function allowedGeneratedPath(path) {
   const name = parts.at(-1);
   if (parts[0] === 'assets') return /\.(?:css|js)$/u.test(name);
   if (parts[0] === 'audio') return /\.mp3$/u.test(name)
-    || path === 'audio/warpkeep-verdant-menu-theme.m4a';
+    || path === 'audio/warpkeep-verdant-menu-theme.m4a'
+    || path === 'audio/warpkeep-genesis-002-theme.m4a';
   if (parts[0] === 'images') return /\.(?:png|webp)$/u.test(name);
-  if (parts[0] === 'models') return /\.glb$/u.test(name);
+  if (parts[0] === 'models') return /\.glb$/u.test(name)
+    || path === 'models/greater-realm/biome-trees/v3/manifest.json';
   if (parts[0] === 'video') return /\.mp4$/u.test(name);
   return false;
 }
@@ -133,18 +143,89 @@ function githubJson(path) {
 }
 
 /** Read-only default. The CLI never accepts a replacement repository or host. */
-export function readPublicPagesRemoteState(expectedPublicCommit) {
+export function readPublicPagesRemoteState(expectedPublicCommit, { deploymentMode } = {}) {
   if (!COMMIT.test(expectedPublicCommit ?? '')) fail('PUBLIC_PAGES_POSTFLIGHT_COMMIT_INVALID');
   const prefix = `repos/${PUBLIC_REPOSITORY}`;
-  return Object.freeze({
+  const state = {
     main: githubJson(`${prefix}/git/ref/heads/main`),
     pages: githubJson(`${prefix}/pages`),
-    latestBuild: githubJson(`${prefix}/pages/builds/latest`),
     runs: githubJson(`${prefix}/actions/runs?head_sha=${expectedPublicCommit}&per_page=100`),
-  });
+  };
+  if (deploymentMode === 'workflow') {
+    const runs = state.runs?.workflow_runs;
+    if (!Array.isArray(runs) || runs.length !== state.runs.total_count || runs.length > 100) {
+      fail('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
+    }
+    const selected = runs.filter(run => run.path === PUBLIC_PAGES_WORKFLOW_PATH)
+      .sort((a, b) => b.id - a.id)[0];
+    if (!selected || !Number.isSafeInteger(selected.id) || selected.id < 1
+      || !Number.isSafeInteger(selected.run_attempt) || selected.run_attempt < 1) {
+      fail('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
+    }
+    state.commit = githubJson(`${prefix}/git/commits/${expectedPublicCommit}`);
+    state.currentRun = githubJson(`${prefix}/actions/runs/${selected.id}`);
+    state.currentAttempt = githubJson(`${prefix}/actions/runs/${selected.id}/attempts/${selected.run_attempt}`);
+    state.jobs = githubJson(`${prefix}/actions/runs/${selected.id}/attempts/${selected.run_attempt}/jobs?per_page=100`);
+    state.currentRunAfter = githubJson(`${prefix}/actions/runs/${selected.id}`);
+  } else {
+    state.latestBuild = githubJson(`${prefix}/pages/builds/latest`);
+  }
+  return Object.freeze(state);
 }
 
-function verifyRemotePagesState(state, expectedPublicCommit) {
+function verifyRemotePagesState(state, expectedPublicCommit, expectedPublicTree, deploymentMode) {
+  if (deploymentMode === 'workflow') {
+    if (state?.main?.ref !== 'refs/heads/main' || state.main.object?.type !== 'commit'
+      || state.main.object.sha !== expectedPublicCommit || state.pages?.build_type !== 'workflow'
+      || state.pages.html_url !== `${LIVE_ORIGIN}/` || state.pages.status !== 'built'
+      || state.pages.cname !== 'warpkeep.com' || state.pages.https_enforced !== true
+      || state.commit?.sha !== expectedPublicCommit || state.commit.tree?.sha !== expectedPublicTree
+      || state.commit.verification?.verified !== true || state.commit.verification.reason !== 'valid'
+      || !Array.isArray(state.runs?.workflow_runs) || !Number.isSafeInteger(state.runs.total_count)
+      || state.runs.total_count < 1 || state.runs.total_count > 100
+      || state.runs.workflow_runs.length !== state.runs.total_count
+      || new Set(state.runs.workflow_runs.map(run => run.id)).size !== state.runs.total_count) {
+      fail('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
+    }
+    const runs = state.runs.workflow_runs.filter(run => run.path === PUBLIC_PAGES_WORKFLOW_PATH);
+    const validRun = run => Number.isSafeInteger(run?.id) && run.id > 0
+      && Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0
+      && run.name === 'Publish signed public PTR' && run.path === PUBLIC_PAGES_WORKFLOW_PATH
+      && run.event === 'workflow_dispatch' && run.head_branch === 'main'
+      && run.head_sha === expectedPublicCommit && run.repository?.full_name === PUBLIC_REPOSITORY
+      && run.head_repository?.full_name === PUBLIC_REPOSITORY;
+    if (!runs.length || runs.some(run => !validRun(run))) fail('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
+    const latest = runs.reduce((a, b) => a.id > b.id ? a : b);
+    for (const run of [latest, state.currentRun, state.currentAttempt, state.currentRunAfter]) {
+      if (!validRun(run) || run.id !== latest.id || run.run_attempt !== latest.run_attempt
+        || run.status !== 'completed' || run.conclusion !== 'success') {
+        fail('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
+      }
+    }
+    const job = state.jobs?.jobs?.[0];
+    const requiredSteps = ['Validate exact manual main request', 'Check out the exact public commit',
+      'Attest signed tree and stage existing served files', 'Upload the already built site',
+      'Recheck exact current public main', 'Deploy the exact Pages artifact'];
+    if (state.jobs?.total_count !== 1 || !Array.isArray(state.jobs.jobs) || state.jobs.jobs.length !== 1
+      || !Number.isSafeInteger(job?.id) || job.id < 1 || job.run_id !== latest.id
+      || job.run_attempt !== latest.run_attempt || job.name !== 'deploy-pages'
+      || job.status !== 'completed' || job.conclusion !== 'success'
+      || !Number.isSafeInteger(job.runner_id) || job.runner_id < 1
+      || !Array.isArray(job.labels) || !job.labels.includes('ubuntu-24.04')
+      || !Array.isArray(job.steps) || new Set(job.steps.map(step => step.number)).size !== job.steps.length
+      || !Number.isFinite(Date.parse(job.started_at)) || !Number.isFinite(Date.parse(job.completed_at))
+      || Date.parse(job.completed_at) < Date.parse(job.started_at)
+      || requiredSteps.some(name => {
+        const steps = job.steps.filter(step => step.name === name);
+        const step = steps[0];
+        return steps.length !== 1 || step.status !== 'completed' || step.conclusion !== 'success'
+          || !Number.isFinite(Date.parse(step.started_at)) || !Number.isFinite(Date.parse(step.completed_at))
+          || Date.parse(step.started_at) < Date.parse(job.started_at)
+          || Date.parse(step.completed_at) < Date.parse(step.started_at)
+          || Date.parse(step.completed_at) > Date.parse(job.completed_at);
+      })) fail('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
+    return { runId: latest.id, runAttempt: latest.run_attempt, jobId: job.id };
+  }
   if (
     state?.main?.ref !== 'refs/heads/main'
     || state.main.object?.type !== 'commit'
@@ -161,8 +242,8 @@ function verifyRemotePagesState(state, expectedPublicCommit) {
     || !Number.isSafeInteger(state.runs.total_count)
     || state.runs.total_count < 1
     || state.runs.total_count > 100
-    || state.runs.workflow_runs.length < 1
-    || state.runs.workflow_runs.length > 100
+    || state.runs.workflow_runs.length !== state.runs.total_count
+    || new Set(state.runs.workflow_runs.map(run => run.id)).size !== state.runs.total_count
   ) fail('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
   const pagesRuns = state.runs.workflow_runs.filter(run => run?.path === PAGES_WORKFLOW_PATH);
   if (pagesRuns.length < 1 || pagesRuns.some(run => (
@@ -178,7 +259,7 @@ function verifyRemotePagesState(state, expectedPublicCommit) {
   if (latest.status !== 'completed' || latest.conclusion !== 'success') {
     fail('PUBLIC_PAGES_POSTFLIGHT_REMOTE_INVALID');
   }
-  return latest.id;
+  return { runId: latest.id };
 }
 
 function canonicalJson(bytes, maximumBytes, code) {
@@ -201,6 +282,7 @@ function validatePlan(plan, reviewedPlanBytes, expectedReviewedPlanSha256) {
     || plan.schemaVersion !== 2
     || plan.profile !== 'warpkeep-public-pages-ptr-mirror-plan-v1'
     || plan.publicationPath !== '/ptr/'
+    || (plan.deploymentMode !== undefined && plan.deploymentMode !== 'workflow')
     || !COMMIT.test(plan.sourceCommit ?? '')
     || !COMMIT.test(plan.sourceTree ?? '')
     || !COMMIT.test(plan.publicParentCommit ?? '')
@@ -212,7 +294,7 @@ function validatePlan(plan, reviewedPlanBytes, expectedReviewedPlanSha256) {
     || plan.targetEntries.length < HOSTING_PATHS.length + SOURCE_PUBLIC_DOCUMENTS.length
       + REQUIRED_GENERATED_FILES.length + PRESERVED_ROOT_REQUIRED.length + 1
     || plan.targetEntries.length > MAX_FILES + HOSTING_PATHS.length
-      + SOURCE_PUBLIC_DOCUMENTS.length + REQUIRED_GENERATED_FILES.length
+      + SOURCE_PUBLIC_DOCUMENTS.length + REQUIRED_GENERATED_FILES.length + 1
       + PRESERVED_ROOT_REQUIRED.length + 1
     || plan.targetFileCount !== plan.targetEntries.length
     || !Array.isArray(plan.obsoleteGeneratedPaths)
@@ -225,8 +307,9 @@ function validatePlan(plan, reviewedPlanBytes, expectedReviewedPlanSha256) {
       || !Number.isSafeInteger(entry.byteLength) || entry.byteLength < 0
       || entry.byteLength > MAX_FILE_BYTES
       || !DIGEST.test(entry.sha256 ?? '')
-      || !['generated', 'hosting', 'reviewed-source', 'preserved-existing'].includes(entry.origin)
-      || entry.origin !== (HOSTING_PATHS.includes(entry.path) ? 'hosting'
+      || !['generated', 'hosting', 'reviewed-source', 'reviewed-control', 'preserved-existing'].includes(entry.origin)
+      || entry.origin !== (plan.deploymentMode === 'workflow' && entry.path === PUBLIC_PAGES_WORKFLOW_PATH
+        ? 'reviewed-control' : HOSTING_PATHS.includes(entry.path) ? 'hosting'
         : SOURCE_PUBLIC_DOCUMENTS.includes(entry.path) ? 'reviewed-source'
           : allowedPtrGeneratedPath(entry.path) ? 'generated'
             : isPreservedRootPath(entry.path) ? 'preserved-existing' : undefined)
@@ -245,6 +328,13 @@ function validatePlan(plan, reviewedPlanBytes, expectedReviewedPlanSha256) {
     obsolete.add(path);
   }
   const entries = new Map(plan.targetEntries.map(entry => [entry.path, entry]));
+  const control = entries.get(PUBLIC_PAGES_WORKFLOW_PATH);
+  if (plan.deploymentMode === 'workflow') {
+    if (!control || control.byteLength !== PUBLIC_PAGES_WORKFLOW_TEMPLATE_BYTE_LENGTH
+      || control.sha256 !== PUBLIC_PAGES_WORKFLOW_TEMPLATE_SHA256) {
+      fail('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
+    }
+  } else if (control) fail('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
   const preserved = preservedRootEntries(entries);
   if (preserved.length !== plan.preservedRootEntryCount
     || preservedRootManifestSha256(entries) !== plan.preservedRootManifestSha256
@@ -303,7 +393,7 @@ function validateManifest(bytes, plan, entries) {
     || sha256(Buffer.from(JSON.stringify(manifest.files))) !== manifest.contentManifestSha256
     || entries.get('ptr/index.html')?.sha256 !== manifest.rootHtmlSha256
     || generated.size + HOSTING_PATHS.length + SOURCE_PUBLIC_DOCUMENTS.length
-      + preservedRootEntries(entries).length !== entries.size
+      + preservedRootEntries(entries).length + (plan.deploymentMode === 'workflow' ? 1 : 0) !== entries.size
   ) fail('PUBLIC_PAGES_POSTFLIGHT_MANIFEST_INVALID');
   for (const path of HOSTING_PATHS) {
     if (entries.get(path)?.origin !== 'hosting') fail('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
@@ -318,13 +408,18 @@ function validateManifest(bytes, plan, entries) {
     || entries.get(PUBLIC_PAGES_MIRROR_MANIFEST_PATH).sha256 !== sha256(bytes)
   ) fail('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
   const readme = renderPublicPagesMirrorReadme(manifest, sha256(bytes));
+  const legalHeaders = publicPagesLegalHeadersBytes();
   if (
     entries.get('README.md').byteLength !== readme.length
     || entries.get('README.md').sha256 !== sha256(readme)
+    || entries.get(PUBLIC_PAGES_LEGAL_HEADERS_PATH)?.byteLength !== legalHeaders.length
+    || entries.get(PUBLIC_PAGES_LEGAL_HEADERS_PATH)?.sha256 !== sha256(legalHeaders)
   ) fail('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
   for (const [path, entry] of entries) {
     if (!generated.has(path) && !HOSTING_PATHS.includes(path)
-      && !SOURCE_PUBLIC_DOCUMENTS.includes(path) && entry.origin !== 'preserved-existing') {
+      && !SOURCE_PUBLIC_DOCUMENTS.includes(path) && entry.origin !== 'preserved-existing'
+      && !(plan.deploymentMode === 'workflow' && path === PUBLIC_PAGES_WORKFLOW_PATH
+        && entry.origin === 'reviewed-control')) {
       fail('PUBLIC_PAGES_POSTFLIGHT_PLAN_INVALID');
     }
     if (entry.origin === 'preserved-existing' && !isPreservedRootPath(path)) {
@@ -532,8 +627,8 @@ export async function verifyPublicPagesPostflight({
     ['show', `${plan.publicParentCommit}:index.html`], MAX_FILE_BYTES);
   const parentRootHtml = parentRootHtmlBytes.toString('utf8');
   parentRootHtmlBytes.fill(0);
-  const pagesRunId = verifyRemotePagesState(await readRemoteState(expectedPublicCommit),
-    expectedPublicCommit);
+  const pagesProof = verifyRemotePagesState(await readRemoteState(expectedPublicCommit,
+    { deploymentMode: plan.deploymentMode }), expectedPublicCommit, expectedPublicTree, plan.deploymentMode);
   const routes = liveRoutes(manifest, entries, parentRootHtml);
   const deadline = Date.now() + MAX_HTTP_MS;
   let liveByteLength = 0;
@@ -543,15 +638,19 @@ export async function verifyPublicPagesPostflight({
   }
   const after = inspectPublicMirror(publicRoot, expectedPublicCommit);
   if (after.publicTree !== expectedPublicTree) fail('PUBLIC_PAGES_POSTFLIGHT_TREE_INVALID');
-  if (verifyRemotePagesState(await readRemoteState(expectedPublicCommit),
-    expectedPublicCommit) !== pagesRunId) fail('PUBLIC_PAGES_POSTFLIGHT_REMOTE_CHANGED');
+  if (JSON.stringify(verifyRemotePagesState(await readRemoteState(expectedPublicCommit,
+    { deploymentMode: plan.deploymentMode }), expectedPublicCommit, expectedPublicTree, plan.deploymentMode))
+      !== JSON.stringify(pagesProof)) fail('PUBLIC_PAGES_POSTFLIGHT_REMOTE_CHANGED');
   return Object.freeze({
     publicCommit: expectedPublicCommit,
     publicTree: expectedPublicTree,
     sourceCommit: manifest.sourceCommit,
     reviewedPlanSha256: expectedReviewedPlanSha256,
     payloadManifestSha256: plan.payloadManifestSha256,
-    pagesRunId,
+    pagesRunId: pagesProof.runId,
+    ...(plan.deploymentMode === 'workflow'
+      ? { deploymentMode: plan.deploymentMode, pagesRunAttempt: pagesProof.runAttempt,
+        pagesJobId: pagesProof.jobId } : {}),
     liveOrigin: LIVE_ORIGIN,
     verifiedFileCount: manifest.files.length,
     verifiedPreservedRootFileCount: preservedRootEntries(entries).length,

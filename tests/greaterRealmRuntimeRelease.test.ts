@@ -317,6 +317,7 @@ function fullyRehashArtifacts(
     resourceNodeCount: nodes.length,
   };
   const header = greaterRealmRuntimeReleaseTestSeams.releaseHeader({
+    atlasId: manifestSeed.atlasId as Parameters<typeof greaterRealmRuntimeReleaseTestSeams.releaseHeader>[0]['atlasId'],
     publicReleaseId: String(manifestSeed.publicReleaseId),
     publicApprovalReceiptId: String(manifestSeed.publicApprovalReceiptId),
     sourceCommit: String(manifestSeed.sourceCommit),
@@ -537,9 +538,9 @@ describe('Greater Realm declassified runtime release', () => {
     const headerBytes = greaterRealmRuntimeReleaseTestSeams.canonicalBytes(header);
     expect(headerBytes).toHaveLength(1_421);
     expect(greaterRealmRuntimeReleaseTestSeams.sha256(headerBytes))
-      .toBe('28bc815bc7c01d348e49bd09bb0d3c8d7c411272241f712fb759b078a36c94b2');
+      .toBe('a4a92be739a61b7b9dd2a1cc0f188b2755912f2c9abeff75caeda784a79e0625');
     expect(artifacts.manifest.releaseSha256)
-      .toBe('204207de0cdd9635d3a7a79ee46c989e130fe94eb9b8a70c30e337d904adbddf');
+      .toBe('84b4601c80716c4ceb79246fe18f7ca5364fa309fb94e3b6d529ccff69f272e1');
     expect((artifacts.manifest.components as Array<Record<string, unknown>>)[0]!.componentSha256)
       .toBe('31955d3985dd9f906fe881990e4a051d7df3bfb5d24e3aa555870044a0f0a732');
     const slotless = (artifacts.manifest.components as Array<Record<string, number>>)
@@ -645,6 +646,62 @@ describe('Greater Realm declassified runtime release', () => {
         release.statusBytes.fill(0);
         for (const chunk of release.chunks) chunk.bytes.fill(0);
       }
+    }
+  });
+
+  it.each([GREATER_REALM_WATER_REGIME_ID.RIVER, GREATER_REALM_WATER_REGIME_ID.STREAM])(
+    'preserves PTR flowing-water regime %i at a sealed private-tier edge without publishing its target', regime => {
+    const fixture = createGreaterRealmRuntimeReleaseFixtureSource();
+    try {
+      const river = fixture.waterRegime.findIndex((regime, cell) => (
+        regime === GREATER_REALM_WATER_REGIME_ID.RIVER && fixture.regionId[cell] === 1
+      ));
+      expect(river).toBeGreaterThanOrEqual(0);
+      const target = fixture.waterDownstream[river]!;
+      expect(target).toBeGreaterThanOrEqual(0);
+      fixture.waterRegime[river] = regime;
+      fixture.tierId[target] = 2;
+      const ptr = createPtrGreaterRealmRuntimeRelease({
+        source: fixture,
+        sourceCommit: GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
+        releaseSeed: greaterRealmRuntimeReleaseFixtureSeed(),
+      });
+      const cells = ptr.chunks.flatMap(chunk => chunk.payload.cells);
+      const exported = cells.find(cell => (
+        cell.atlasQ === fixture.grid.q[river] && cell.atlasR === fixture.grid.r[river]
+      ))!;
+      const direction = Array.from({ length: 6 }, (_, index) => index)
+        .find(index => fixture.grid.neighbors[river * 6 + index] === target)!;
+      expect(exported.hydroFlowDirection).toBe(direction);
+      expect(exported.sealedBoundaryMask & (1 << direction)).not.toBe(0);
+      expect(cells.some(cell => (
+        cell.atlasQ === fixture.grid.q[target] && cell.atlasR === fixture.grid.r[target]
+      ))).toBe(false);
+      expect(() => verifyPtrGreaterRealmRuntimeReleaseArtifacts(ptr)).not.toThrow();
+      const missingDirection = fullyRehashArtifacts(ptr, draft => {
+        const cell = draft.chunks.flatMap(chunk => (
+          chunk.payload.cells as Array<Record<string, unknown>>
+        )).find(cell => cell.cellKey === exported.cellKey)!;
+        delete cell.hydroFlowDirection;
+      });
+      expect(() => verifyPtrGreaterRealmRuntimeReleaseArtifacts(missingDirection))
+        .toThrow('GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID');
+      const forgedSeal = fullyRehashArtifacts(ptr, draft => {
+        const cell = draft.chunks.flatMap(chunk => (
+          chunk.payload.cells as Array<Record<string, unknown>>
+        )).find(cell => cell.cellKey === exported.cellKey)!;
+        cell.sealedBoundaryMask = Number(cell.sealedBoundaryMask) & ~(1 << direction);
+      });
+      expect(() => verifyPtrGreaterRealmRuntimeReleaseArtifacts(forgedSeal))
+        .toThrow('GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID');
+      // The historical producer keeps its existing closed-public-flow rule.
+      expect(() => createGreaterRealmRuntimeRelease({
+        source: fixture,
+        sourceCommit: GREATER_REALM_RUNTIME_RELEASE_FIXTURE_SOURCE_COMMIT,
+        releaseSeed: greaterRealmRuntimeReleaseFixtureSeed(),
+      })).toThrow('GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID');
+    } finally {
+      fixture.grid.clearIndex?.();
     }
   });
 
@@ -1519,6 +1576,87 @@ describe('Greater Realm declassified runtime release', () => {
     });
     expect(() => verifyGreaterRealmRuntimeReleaseArtifacts(invalidTransition))
       .toThrow('GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID');
+  });
+
+  it('allows only the approved generated-flow accumulation corrections', () => {
+    const template = artifacts.chunks[0]!.payload.cells[0]!;
+    const source: GreaterRealmRuntimeCell = {
+      ...template,
+      regionId: 'T1_FROSTMERE',
+      atlasCoordKey: 'A:699:-311',
+      hydroRegime: GREATER_REALM_WATER_REGIME_ID.RIVER,
+      hydroBodyId: `GRW-${'A'.repeat(26)}`,
+      hydroSurfaceMilli: 1_000,
+      hydroFlowDirection: 0,
+      flowAccumulation: '10',
+    };
+    const equalFlowDownhill: GreaterRealmRuntimeCell = {
+      ...template,
+      regionId: 'T1_FROSTMERE',
+      atlasCoordKey: 'A:700:-311',
+      hydroRegime: GREATER_REALM_WATER_REGIME_ID.RIVER,
+      hydroBodyId: source.hydroBodyId,
+      hydroSurfaceMilli: 999,
+      hydroFlowDirection: 0,
+      flowAccumulation: '10',
+    };
+    const lowlandsLock = {
+      frozenWaterAtlasCoordKeys: new Set<string>(),
+      frozenOceanTerminalAtlasCoordKeys: new Set<string>(),
+    };
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      source,
+      equalFlowDownhill,
+      lowlandsLock,
+    )).toBe(true);
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      source,
+      { ...equalFlowDownhill, hydroSurfaceMilli: source.hydroSurfaceMilli },
+      lowlandsLock,
+    )).toBe(false);
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      source,
+      equalFlowDownhill,
+      {
+        ...lowlandsLock,
+        frozenWaterAtlasCoordKeys: new Set([source.atlasCoordKey]),
+      },
+    )).toBe(false);
+
+    const frozenOcean: GreaterRealmRuntimeCell = {
+      ...template,
+      regionId: 'T1_LOWLANDS',
+      atlasCoordKey: 'A:700:-311',
+      hydroRegime: GREATER_REALM_WATER_REGIME_ID.OCEAN,
+      hydroBodyId: `GRW-${'B'.repeat(26)}`,
+      hydroSurfaceMilli: 975,
+      hydroFlowDirection: undefined,
+      flowAccumulation: '0',
+    };
+    const lockWithOceanTerminal = {
+      ...lowlandsLock,
+      frozenOceanTerminalAtlasCoordKeys: new Set([frozenOcean.atlasCoordKey]),
+    };
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      source,
+      frozenOcean,
+      lockWithOceanTerminal,
+    )).toBe(true);
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      source,
+      frozenOcean,
+      lowlandsLock,
+    )).toBe(false);
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      { ...source, hydroRegime: GREATER_REALM_WATER_REGIME_ID.MARSH },
+      frozenOcean,
+      lockWithOceanTerminal,
+    )).toBe(false);
+    expect(greaterRealmRuntimeReleaseTestSeams.isHydrologyAccumulationValid(
+      source,
+      { ...frozenOcean, hydroFlowDirection: 0 },
+      lockWithOceanTerminal,
+    )).toBe(false);
   });
 
   it('rejects fully rehashed slot relocation, per-region skew, and omission', () => {

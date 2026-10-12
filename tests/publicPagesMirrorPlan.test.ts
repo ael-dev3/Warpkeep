@@ -11,14 +11,15 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 
 // @ts-expect-error Standalone release utility has named test seams.
 import { writePublicPagesPayloadManifest } from '../scripts/verify-public-pages-payload.mjs';
 // @ts-expect-error Standalone release utility has named test seams.
-import { SOURCE_PUBLIC_DOCUMENTS, generatedPath, renderPublicPagesMirrorReadme, verifyPublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
-// @ts-expect-error Production output policy is an executable ESM module.
+import { PUBLIC_PAGES_LEGAL_HEADERS_PATH, PUBLIC_PAGES_LEGAL_PLAIN_PATHS, SOURCE_PUBLIC_DOCUMENTS, PUBLIC_PAGES_WORKFLOW_PATH, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH, generatedPath, inspectPublicMirror, publicPagesLegalHeadersBytes, renderPublicPagesMirrorReadme, verifyPublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
 import { allowedProductionHtmlPaths, expectedProductionCspByPath } from '../scripts/verify-production-dist-exclusions.mjs';
 
+const workflowTemplateBytes = readFileSync(resolve(process.cwd(), PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH));
 const sourceIndex = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
 const sourceOwnerCanary = readFileSync(resolve(process.cwd(), 'owner-canary/index.html'), 'utf8');
 const temporaryRoots: string[] = [];
@@ -63,9 +64,10 @@ function candidate() {
   for (const path of SOURCE_PUBLIC_DOCUMENTS as readonly string[]) {
     write(join(root, path), `source-reviewed ${path}\n`);
   }
+  write(join(root, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH), workflowTemplateBytes);
   const expectedSourceCommit = commit(root, 'Create exact source fixture');
   const dist = join(root, 'dist');
-  for (const path of allowedProductionHtmlPaths as readonly string[]) {
+  for (const path of allowedProductionHtmlPaths) {
     const document = path === 'index.html'
       ? sourceIndex.replace('/src/main.tsx', '/assets/application-reviewed.js')
       : path === 'owner-canary/index.html'
@@ -85,6 +87,9 @@ function candidate() {
   write(join(dist, 'warpkeep-boot.css'), 'body{background:black}');
   write(join(dist, 'warpkeep-noscript.css'), 'noscript{display:block}');
   write(join(dist, 'models/keep.glb'), Buffer.from([0x67, 0x6c, 0x54, 0x46]));
+  write(join(dist, 'audio/warpkeep-genesis-002-theme.m4a'), 'reviewed Genesis 002 soundtrack');
+  write(join(dist, 'models/greater-realm/biome-trees/v3/manifest.json'),
+    '{"schema":"warpkeep-greater-realm-biome-trees.runtime.v1"}');
   writePublicPagesPayloadManifest({ repositoryRoot: root, expectedSourceCommit, publicationPath: '/ptr/' });
   return { root, dist, expectedSourceCommit };
 }
@@ -100,6 +105,8 @@ function publicMirror(source: ReturnType<typeof candidate>) {
   write(join(root, 'index.html'), '<!doctype html><title>Old Alpha</title>');
   write(join(root, '404.html'), '<!doctype html><title>Old Alpha</title>');
   write(join(root, 'assets/application-old.js'), 'console.info("old Alpha");');
+  write(join(root, 'audio/warpkeep-genesis-002-theme.m4a'), 'preserved Genesis 002 soundtrack');
+  write(join(root, 'models/greater-realm/biome-trees/v3/manifest.json'), '{"preserved":true}');
   write(join(root, 'README.md'), 'Old Alpha public host\n');
   for (const path of SOURCE_PUBLIC_DOCUMENTS as readonly string[]) {
     write(join(root, path), `prior-reviewed ${path}\n`);
@@ -109,11 +116,12 @@ function publicMirror(source: ReturnType<typeof candidate>) {
   return {
     root,
     expectedPublicHead,
-    plan: () => verifyPublicPagesMirrorPlan({
+    plan: (deploymentMode?: 'workflow') => verifyPublicPagesMirrorPlan({
       sourceRoot: source.root,
       expectedSourceCommit: source.expectedSourceCommit,
       publicRoot: root,
       expectedPublicHead,
+      ...(deploymentMode ? { deploymentMode } : {}),
     }),
   };
 }
@@ -123,7 +131,69 @@ afterEach(() => {
 });
 
 describe('read-only public Pages mirror plan', () => {
-  it('recognizes the exact reviewed menu M4A without broadening the audio boundary', () => {
+  it('adds the exact source-reviewed control only through explicit workflow opt-in', () => {
+    const source = candidate();
+    const mirror = publicMirror(source);
+    const legacy = mirror.plan();
+    expect(legacy).not.toHaveProperty('deploymentMode');
+    expect(legacy.targetEntries.some((entry: { path: string }) => entry.path.startsWith('.github/'))).toBe(false);
+    const controlled = mirror.plan('workflow');
+    expect(controlled.deploymentMode).toBe('workflow');
+    expect(controlled.targetEntries.find((entry: { path: string }) => entry.path === PUBLIC_PAGES_WORKFLOW_PATH))
+      .toEqual({ path: PUBLIC_PAGES_WORKFLOW_PATH, origin: 'reviewed-control',
+        byteLength: workflowTemplateBytes.length, sha256: sha(workflowTemplateBytes) });
+    expect(controlled.preservedRootManifestSha256).toBe(legacy.preservedRootManifestSha256);
+    expect(controlled.payloadManifestSha256).toBe(legacy.payloadManifestSha256);
+    const workflow = parse(workflowTemplateBytes.toString('utf8'));
+    expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch']);
+    expect(Object.keys(workflow.jobs)).toEqual(['deploy-pages']);
+    expect(workflow.jobs['deploy-pages']['timeout-minutes']).toBe(3);
+    expect(workflow.jobs['deploy-pages'].steps.filter((step: { uses?: string }) => step.uses)
+      .map((step: { uses: string }) => step.uses)).toEqual([
+      'actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0',
+      'actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9',
+      'actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128',
+    ]);
+    expect(workflow.jobs['deploy-pages'].steps.filter((step: { run?: string }) => step.run)
+      .every((step: { run: string }) => !step.run.includes('${{'))).toBe(true);
+    expect(git(mirror.root, ['rev-parse', 'HEAD'])).toBe(mirror.expectedPublicHead);
+  }, 30_000);
+
+  it('accepts only the exact committed template and never silently removes an existing workflow', () => {
+    const source = candidate();
+    const mirror = publicMirror(source);
+    write(join(mirror.root, PUBLIC_PAGES_WORKFLOW_PATH), workflowTemplateBytes);
+    const publicHead = commit(mirror.root, 'Install exact fixture control');
+    expect(inspectPublicMirror(mirror.root, publicHead).tracked).toContain(PUBLIC_PAGES_WORKFLOW_PATH);
+    const options = { sourceRoot: source.root, expectedSourceCommit: source.expectedSourceCommit,
+      publicRoot: mirror.root, expectedPublicHead: publicHead };
+    expect(() => verifyPublicPagesMirrorPlan(options)).toThrow('PUBLIC_PAGES_MIRROR_DEPLOYMENT_MODE_INVALID');
+    expect(verifyPublicPagesMirrorPlan({ ...options, deploymentMode: 'workflow' }).deploymentMode).toBe('workflow');
+    write(join(mirror.root, PUBLIC_PAGES_WORKFLOW_PATH), Buffer.concat([workflowTemplateBytes, Buffer.from('# unreviewed\n')]));
+    const changed = commit(mirror.root, 'Mutate fixture control');
+    expect(() => inspectPublicMirror(mirror.root, changed)).toThrow('PUBLIC_PAGES_MIRROR_WORKFLOW_INVALID');
+  }, 30_000);
+
+  it.each(['.github/workflows/other.yml', '.github/WORKFLOWS/ptr-pages.yml', '.github/workflows/nested/ptr-pages.yml'])(
+    'rejects a copied control at %s', path => {
+      const source = candidate();
+      const mirror = publicMirror(source);
+      write(join(mirror.root, path), workflowTemplateBytes);
+      const changed = commit(mirror.root, 'Copy fixture control to an unapproved path');
+      expect(() => inspectPublicMirror(mirror.root, changed)).toThrow('PUBLIC_PAGES_MIRROR_FILE_BOUNDARY_INVALID');
+    }, 30_000,
+  );
+
+  it.each(['legacy', 'workflow-v2', null])('rejects unsupported explicit deployment mode %s', deploymentMode => {
+    const source = candidate();
+    const mirror = publicMirror(source);
+    expect(() => verifyPublicPagesMirrorPlan({ sourceRoot: source.root,
+      expectedSourceCommit: source.expectedSourceCommit, publicRoot: mirror.root,
+      expectedPublicHead: mirror.expectedPublicHead, deploymentMode }))
+      .toThrow('PUBLIC_PAGES_MIRROR_DEPLOYMENT_MODE_INVALID');
+  });
+
+  it('recognizes only the reviewed M4A tracks and exact tree metadata at root and PTR paths', () => {
     expect(generatedPath('ptr/assets/../application.js')).toBe(false);
     expect(generatedPath('ptr/ptr/assets/application.js')).toBe(false);
     expect(generatedPath('audio/warpkeep-verdant-menu-theme.m4a')).toBe(true);
@@ -131,6 +201,24 @@ describe('read-only public Pages mirror plan', () => {
     expect(generatedPath('audio/other.m4a')).toBe(false);
     expect(generatedPath('audio/nested/warpkeep-verdant-menu-theme.m4a')).toBe(false);
     expect(generatedPath('audio/warpkeep-verdant-menu-theme.M4A')).toBe(false);
+    for (const path of [
+      'audio/warpkeep-genesis-002-theme.m4a',
+      'models/greater-realm/biome-trees/v3/manifest.json',
+    ]) {
+      expect(generatedPath(path)).toBe(true);
+      expect(generatedPath(`ptr/${path}`)).toBe(true);
+      expect(generatedPath(`ptr/ptr/${path}`)).toBe(false);
+    }
+    for (const path of [
+      'audio/other.m4a', 'audio/nested/warpkeep-genesis-002-theme.m4a',
+      'audio/warpkeep-genesis-002-theme.M4A', 'audio/../warpkeep-genesis-002-theme.m4a',
+      'models/other/manifest.json', 'models/greater-realm/biome-trees/v2/manifest.json',
+      'models/greater-realm/biome-trees/v3/manifest.JSON',
+      'models/greater-realm/biome-trees/v3/../manifest.json',
+    ]) {
+      expect(generatedPath(path)).toBe(false);
+      expect(generatedPath(`ptr/${path}`)).toBe(false);
+    }
   });
 
   it('plans only verified dist, exact hosting files, and current-source legal records', () => {
@@ -146,6 +234,15 @@ describe('read-only public Pages mirror plan', () => {
       obsoleteGeneratedPaths: [],
     });
     expect(plan.targetFileCount).toBe(plan.targetEntries.length);
+    for (const path of [
+      'audio/warpkeep-genesis-002-theme.m4a',
+      'models/greater-realm/biome-trees/v3/manifest.json',
+    ]) {
+      expect(plan.targetEntries.find((entry: { path: string }) => entry.path === `ptr/${path}`))
+        .toMatchObject({ origin: 'generated', sha256: sha(readFileSync(join(source.dist, path))) });
+      expect(plan.targetEntries.find((entry: { path: string }) => entry.path === path))
+        .toMatchObject({ origin: 'preserved-existing', sha256: sha(readFileSync(join(mirror.root, path))) });
+    }
     expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'ptr/404.html').sha256)
       .toBe(sha(readFileSync(join(source.dist, 'index.html'))));
     expect(plan.targetEntries.find((entry: { path: string }) => entry.path === 'index.html'))
@@ -169,6 +266,18 @@ describe('read-only public Pages mirror plan', () => {
           sourceTree: plan.sourceTree,
         }, plan.payloadManifestSha256)),
       });
+    const legalHeaders = publicPagesLegalHeadersBytes();
+    expect(plan.targetEntries.find((entry: { path: string }) => entry.path === PUBLIC_PAGES_LEGAL_HEADERS_PATH))
+      .toMatchObject({ origin: 'hosting', byteLength: legalHeaders.length, sha256: sha(legalHeaders) });
+    const headerText = legalHeaders.toString('utf8');
+    expect(headerText).toContain('Content-Type: text/plain; charset=utf-8');
+    for (const path of PUBLIC_PAGES_LEGAL_PLAIN_PATHS as readonly string[]) {
+      expect(headerText).toContain(`/${path}\n  Content-Type: text/plain; charset=utf-8\n`);
+    }
+    for (const path of PUBLIC_PAGES_LEGAL_PLAIN_PATHS as readonly string[]) {
+      expect(plan.targetEntries.find((entry: { path: string }) => entry.path === path))
+        .toMatchObject({ origin: 'reviewed-source', sha256: sha(`source-reviewed ${path}\n`) });
+    }
     expect(plan.targetEntries.find((entry: { path: string }) => (
       entry.path === 'docs/releases/0.4.0/public-pages-ptr-payload-v1.json'
     ))).toMatchObject({ origin: 'hosting', sha256: plan.payloadManifestSha256 });
@@ -197,6 +306,38 @@ describe('read-only public Pages mirror plan', () => {
       expectedPublicHead: newest,
     })).toThrow('PUBLIC_PAGES_MIRROR_FILE_BOUNDARY_INVALID');
   });
+
+  it('serves extensionless legal files as text through hosting metadata without preserving or rewriting them', () => {
+    const source = candidate();
+    const mirror = publicMirror(source);
+    const before = mirror.plan();
+    write(join(mirror.root, '_redirects'), '/ /ptr/ 302\n');
+    const redirected = commit(mirror.root, 'Add an unapproved headers sibling');
+    expect(() => verifyPublicPagesMirrorPlan({
+      sourceRoot: source.root,
+      expectedSourceCommit: source.expectedSourceCommit,
+      publicRoot: mirror.root,
+      expectedPublicHead: redirected,
+    })).toThrow('PUBLIC_PAGES_MIRROR_FILE_BOUNDARY_INVALID');
+    rmSync(join(mirror.root, '_redirects'));
+    write(join(mirror.root, PUBLIC_PAGES_LEGAL_HEADERS_PATH), 'not the reviewed rule\n');
+    const replaced = commit(mirror.root, 'Replace generated legal headers');
+    const plan = verifyPublicPagesMirrorPlan({
+      sourceRoot: source.root,
+      expectedSourceCommit: source.expectedSourceCommit,
+      publicRoot: mirror.root,
+      expectedPublicHead: replaced,
+    });
+    const legalHeaders = publicPagesLegalHeadersBytes();
+    expect(plan.preservedRootEntryCount).toBe(before.preservedRootEntryCount);
+    expect(plan.preservedRootManifestSha256).toBe(before.preservedRootManifestSha256);
+    expect(plan.targetEntries.find((entry: { path: string }) => entry.path === PUBLIC_PAGES_LEGAL_HEADERS_PATH))
+      .toMatchObject({ origin: 'hosting', sha256: sha(legalHeaders) });
+    for (const path of PUBLIC_PAGES_LEGAL_PLAIN_PATHS as readonly string[]) {
+      expect(plan.targetEntries.find((entry: { path: string }) => entry.path === path))
+        .toMatchObject({ origin: 'reviewed-source', sha256: sha(readFileSync(join(source.root, path))) });
+    }
+  }, 30_000);
 
   it('refuses hosting drift and a changed saved candidate manifest', () => {
     const source = candidate();

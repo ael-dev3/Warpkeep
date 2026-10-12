@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactElement } from 'react';
 import type { Building04, Resource04 } from '../../../spacetimedb/gameplay04/policy';
 import type { Placement04 } from '../../../spacetimedb/gameplay04/placement';
 import type { Controller04, Snapshot04 } from '../../ptr/gameplay04/createGameplay04Controller';
@@ -8,10 +8,13 @@ import { BUILDING_NAMES04, Keep04BuildingPanel, RESOURCES04 } from './Keep04Buil
 import { activeKeep04LoopStage04, isKeep04FirstJourney04, Keep04LoopRail } from './Keep04LoopRail';
 import { Keep04Schematic } from './Keep04Schematic';
 import { Keep04SceneHost, type Keep04SceneHostProps } from './Keep04SceneHost';
-import type { VisualState04 } from './createKeep04Scene';
+import type { Keep04WorkerVisual, VisualState04 } from './createKeep04Scene';
 import { evaluatePlacement04 } from '../../../spacetimedb/gameplay04/placement';
 import { constructionProgress04 } from './constructionProgress04';
 import { estimatedTime04, Keep04WorkerPanel } from './Keep04WorkerPanel';
+import { keep04NextStep04 } from './keep04NextStep';
+import { emitWarpkeepSfx } from '../audio/sfxEvents';
+import { GAMEPLAY04_SFX_BUILDING } from '../../ptr/gameplay04/gameplay04Sfx';
 import './Keep04Screen.css';
 
 export type Keep04UiSelection = Readonly<{
@@ -23,6 +26,8 @@ export type Keep04ScreenProps = Readonly<{
   quality: 'high' | 'balanced' | 'reduced'; reducedMotion: boolean;
   onFindResources: (resource: Resource04 | null, workerOrdinal?: number) => void; onReturnToWorld: () => void;
   onSceneObservation?: Keep04SceneHostProps['onObservation']; qaFault?: Keep04SceneHostProps['qaFault'];
+  /** Development QA only: a fixed local hour for the scene's daylight mood. */
+  daylightHour?: number;
 }>;
 
 function samePlacement04(first: Placement04 | null, second: Placement04 | null): boolean {
@@ -30,9 +35,75 @@ function samePlacement04(first: Placement04 | null, second: Placement04 | null):
     && first.kind === second.kind && first.x === second.x && first.z === second.z && first.rotation === second.rotation);
 }
 
+const micros04 = (value: bigint | undefined) => value === undefined ? null : Number(value / 1000n);
+
+// Small decorative glyphs drawn inline (no network bytes). Labels stay the accessible names.
+const RESOURCE_ICON04: Readonly<Record<Resource04, ReactElement>> = {
+  food: <g fill="currentColor"><path d="M10 18.5V6.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" /><ellipse cx="10" cy="4.2" rx="1.6" ry="2.7" /><ellipse cx="7.5" cy="8" rx="1.6" ry="2.8" transform="rotate(-30 7.5 8)" /><ellipse cx="12.5" cy="8" rx="1.6" ry="2.8" transform="rotate(30 12.5 8)" /><ellipse cx="7.6" cy="12.4" rx="1.5" ry="2.6" transform="rotate(-34 7.6 12.4)" /><ellipse cx="12.4" cy="12.4" rx="1.5" ry="2.6" transform="rotate(34 12.4 12.4)" /></g>,
+  wood: <g><rect x="2.5" y="7" width="12.5" height="7" rx="1.4" fill="currentColor" /><circle cx="15" cy="10.5" r="4" fill="currentColor" /><circle cx="15" cy="10.5" r="2.4" fill="none" stroke="#2a1d14" strokeOpacity=".55" /><circle cx="15" cy="10.5" r=".8" fill="#2a1d14" fillOpacity=".55" /></g>,
+  stone: <g><path d="M3.5 13.5 6 6.5l6-2.5 5 4 .5 6-5 3.5-6-.5z" fill="currentColor" /><path d="M6 6.5 9.5 11l7.5-2.5M9.5 11l2.5 6.5" fill="none" stroke="#1c2a26" strokeOpacity=".45" /></g>,
+  gold: <g><circle cx="10" cy="10" r="7" fill="currentColor" /><circle cx="10" cy="10" r="4.6" fill="none" stroke="#5a3d0c" strokeOpacity=".5" strokeWidth="1.1" /><path d="M10 6.8 11 9.2h2.5l-2 1.5.8 2.4L10 11.6l-2.3 1.5.8-2.4-2-1.5H9z" fill="#5a3d0c" fillOpacity=".55" /></g>,
+};
+
+function Keep04ResourceIcon({ resource }: Readonly<{ resource: Resource04 }>) {
+  return <svg className="keep04-resource-icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">{RESOURCE_ICON04[resource]}</svg>;
+}
+
+/** Small inline glyphs for the construction and steward cards (CSS may not reference url() assets). */
+function Keep04HammerIcon() {
+  return <svg className="keep04-card-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+    <path d="M2.5 13.5 9 7" stroke="#e9cf98" strokeWidth="2" strokeLinecap="round" /><path d="M7.5 3.5 10 1l4.5 4.5L12 8z" fill="#e9cf98" />
+  </svg>;
+}
+
+function Keep04ScrollIcon() {
+  return <svg className="keep04-card-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+    <path d="M3 2.5h8.5a2 2 0 0 1 2 2v9H5a2 2 0 0 1-2-2z" fill="#d9bf82" />
+    <path d="M5.5 5.5h5.5M5.5 8h5.5M5.5 10.5h3.5" stroke="#243a33" strokeWidth="1.1" strokeLinecap="round" />
+  </svg>;
+}
+
+/** The Verdant Citadel mark: pale towers, teal roofs and one restrained warp accent on a brass-edged shield. */
+function Keep04Crest() {
+  return <svg className="keep04-crest" viewBox="0 0 40 46" aria-hidden="true" focusable="false">
+    <path d="M20 2 37 8v14c0 11-7.5 18.5-17 22C10.5 40.5 3 33 3 22V8z" fill="#183a33" stroke="#c9ab64" strokeWidth="2" />
+    <path d="M9 34V17h6v17zm16 0V17h6v17zM15 34V22h10v12z" fill="#e6dec4" />
+    <path d="M16 34V19h8v15z" fill="#d6ceb3" />
+    <path d="M8.5 17 12 11.5l3.5 5.5zm16 0L28 11.5l3.5 5.5zm-9 2L20 13l4.5 6z" fill="#3f8380" />
+    <path d="M18 34v-4.5a2 2 0 0 1 4 0V34z" fill="#3e3128" />
+    <circle cx="20" cy="9.6" r="1.4" fill="#c7a6ff" />
+  </svg>;
+}
+
+/** Confirmed journey phases only: no yields, balances or route targets reach the scene. */
+export function keep04WorkerVisuals(view: Snapshot04['view']): readonly Keep04WorkerVisual[] {
+  if (!view) return [];
+  return view.state.workers.map(worker => {
+    const assignment = worker.assignment;
+    const phase = (assignment?.phase ?? 'idle') as Keep04WorkerVisual['phase'];
+    const started = phase === 'outbound' ? assignment?.dispatchedAt : phase === 'gathering' ? assignment?.arrivesAt
+      : phase === 'returning' ? assignment?.recalledAt ?? assignment?.gatheringStopsAt : undefined;
+    const ends = phase === 'outbound' ? assignment?.arrivesAt : phase === 'gathering' ? assignment?.gatheringStopsAt
+      : phase === 'returning' ? assignment?.returnsAt : undefined;
+    // An outbound recall returns with an empty cart; only confirmed earnings can give it cargo.
+    const resource = phase === 'returning' && assignment?.earned === 0n ? null : assignment?.resource ?? null;
+    return Object.freeze({ ordinal: worker.ordinal, phase, resource: resource as Keep04WorkerVisual['resource'],
+      phaseStartedAtMs: micros04(started), phaseEndsAtMs: micros04(ends) });
+  });
+}
+
+function sameWorkers04(first: readonly Keep04WorkerVisual[] = [], second: readonly Keep04WorkerVisual[] = []) {
+  return first.length === second.length && first.every((worker, index) => {
+    const next = second[index];
+    return worker.ordinal === next.ordinal && worker.phase === next.phase && worker.resource === next.resource
+      && worker.phaseStartedAtMs === next.phaseStartedAtMs && worker.phaseEndsAtMs === next.phaseEndsAtMs;
+  });
+}
+
 function sameSceneVisual04(first: VisualState04, second: VisualState04): boolean {
   if (first.selectedKind !== second.selectedKind || first.draftValid !== second.draftValid
-    || !samePlacement04(first.draft, second.draft) || first.buildings.length !== second.buildings.length) return false;
+    || !samePlacement04(first.draft, second.draft) || first.buildings.length !== second.buildings.length
+    || !sameWorkers04(first.workers, second.workers)) return false;
   return first.buildings.every((building, index) => {
     const next = second.buildings[index];
     return building.kind === next.kind && samePlacement04(building.placement, next.placement)
@@ -42,7 +113,7 @@ function sameSceneVisual04(first: VisualState04, second: VisualState04): boolean
   });
 }
 
-export function Keep04Screen({ snapshot, controller, selection, onSelectionChange, onBack, quality, reducedMotion, onFindResources, onReturnToWorld, onSceneObservation, qaFault }: Keep04ScreenProps) {
+export function Keep04Screen({ snapshot, controller, selection, onSelectionChange, onBack, quality, reducedMotion, onFindResources, onReturnToWorld, onSceneObservation, qaFault, daylightHour }: Keep04ScreenProps) {
   const { view, phase, problem } = snapshot;
   const panelId = useId();
   const [nowMs, setNowMs] = useState(Date.now);
@@ -63,12 +134,14 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   const visible = (phase === 'ready' || phase === 'refreshing' || phase === 'pending') && view !== null;
   const firstIdleWorker = view?.workers.find(worker => worker.phase === 'idle');
   const showFirstJourney = visible && view !== null && isKeep04FirstJourney04(view);
+  // One clear next step for a returning Keeper, after the first journey card.
+  const nextStep = visible && view !== null && !showFirstJourney ? keep04NextStep04(view, nowMs) : null;
   const constructionStatuses = view?.buildings.filter(building => building.phase === 'constructing').map(building => {
     const construction = building.startsAtMicros !== null && building.completesAtMicros !== null
       ? constructionProgress04(building.startsAtMicros, building.completesAtMicros, nowMs)
       : null;
     return <section key={building.kind} className="keep04-construction" aria-label={`${BUILDING_NAMES04[building.kind]} construction`}>
-      <p><strong>{BUILDING_NAMES04[building.kind]}</strong> · Constructing level {building.targetLevel} · Estimated time remaining: <span>{construction?.remaining ?? estimatedTime04(building.completesAtMicros!, nowMs)}</span></p>
+      <p><Keep04HammerIcon /><strong>{BUILDING_NAMES04[building.kind]}</strong> · Constructing level {building.targetLevel} · Estimated time remaining: <span>{construction?.remaining ?? estimatedTime04(building.completesAtMicros!, nowMs)}</span></p>
       {construction && <div className="keep04-construction-progress">
         <div className="keep04-construction-progress-track" role="progressbar" aria-label={`${BUILDING_NAMES04[building.kind]} scene construction progress`}
           aria-valuemin={0} aria-valuemax={100} aria-valuenow={construction.percent} aria-valuetext={construction.label}>
@@ -79,13 +152,14 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
     </section>;
   }) ?? [];
   const sceneBuildings = view?.buildings;
+  const sceneWorkers = useMemo(() => keep04WorkerVisuals(view), [view]);
   const previousSceneVisual = useRef<VisualState04 | null>(null);
   // Countdown text updates once a second; only actual placement/structure changes
   // should reconcile the 3D scene or wake its renderer.
   const sceneVisual = useMemo(() => {
     const buildings = sceneBuildings ?? [];
     const candidate = selection.panel === 'buildings' ? selection.draft : null;
-    const next: VisualState04 = { buildings, selectedKind: selection.selectedKind,
+    const next: VisualState04 = { buildings, selectedKind: selection.selectedKind, workers: sceneWorkers,
       draft: candidate,
       draftValid: candidate !== null && evaluatePlacement04(candidate,
         buildings.filter(building => building.kind !== candidate.kind).map(building => building.placement)).valid };
@@ -93,7 +167,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       return previousSceneVisual.current;
     }
     return next;
-  }, [sceneBuildings, selection.selectedKind, selection.draft, selection.panel]);
+  }, [sceneBuildings, sceneWorkers, selection.selectedKind, selection.draft, selection.panel]);
   useLayoutEffect(() => { previousSceneVisual.current = sceneVisual; }, [sceneVisual]);
   const wasVisible = useRef(visible);
   const activeTimer = visible && (view.state.project !== undefined || view.workers.some(worker => worker.phase !== 'idle'));
@@ -160,9 +234,18 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       opener.current = (active instanceof HTMLElement || active instanceof SVGElement) && active !== document.body && root.current?.contains(active) ? active : buildingsButton.current;
     }
     const existing = view.buildings.find(building => building.kind === kind);
+    if (selection.selectedKind !== kind) emitWarpkeepSfx({ kind: 'keep-building-selected', building: GAMEPLAY04_SFX_BUILDING[kind] });
     if (selection.selectedKind !== kind || selection.panel !== 'buildings') selectionNavigation.current = kind;
     onSelectionChange({ panel: 'buildings', selectedKind: kind,
       draft: existing?.placement ?? (selection.draft?.kind === kind ? selection.draft : initialPlacement04(kind, view.buildings.map(building => building.placement))) });
+  }
+  function placeDraft(draft: Placement04) {
+    // A short tock on open ground, a muted thud where the site is blocked.
+    if (view && !samePlacement04(draft, selection.draft)) {
+      const valid = evaluatePlacement04(draft, view.buildings.filter(building => building.kind !== draft.kind).map(building => building.placement)).valid;
+      emitWarpkeepSfx({ kind: valid ? 'keep-placement-valid' : 'keep-placement-blocked' });
+    }
+    onSelectionChange({ ...selection, draft });
   }
   function alignAndFocus(element: HTMLElement | SVGSVGElement | null) {
     element?.scrollIntoView?.({ block: 'start', behavior: 'instant' }); element?.focus({ preventScroll: true });
@@ -178,6 +261,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
   }}>
     <header className="keep04-header">
       <button ref={backButton} type="button" onClick={onBack}>Back</button>
+      <Keep04Crest />
       <div><p className="keep04-eyebrow">VERDANT CITADEL</p><h1>Your keep</h1></div>
     </header>
     <p className="keep04-reentry">Progress saved in the Realm. Resources become available when Workers return.</p>
@@ -197,8 +281,8 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
             const label = resource[0].toUpperCase() + resource.slice(1);
             const available = view.balances[resource].toString();
             const incoming = view.pending[resource].toString();
-            return <div key={resource} data-pending={pending ? 'true' : undefined}>
-              <span>{label}</span>
+            return <div key={resource} data-resource={resource} data-pending={pending ? 'true' : undefined}>
+              <span><Keep04ResourceIcon resource={resource} />{label}</span>
               <strong aria-label={`${label}: ${available} available`}>{available}</strong>
               {pending && <small className="keep04-resource-pending" aria-label={`${label}: ${incoming} pending and not spendable`}>Pending {incoming}</small>}
             </div>;
@@ -222,19 +306,28 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
           <summary>{constructionStatuses.length} constructions underway · View progress</summary>
           {constructionStatuses}
         </details> : null}
+      {/* After construction progress, which stays in the first phone view. */}
+      {nextStep && <section className="keep04-next-step" aria-label="Next step" data-next-step={nextStep.kind}>
+        <p className="keep04-eyebrow"><Keep04ScrollIcon />STEWARD&apos;S ADVICE</p>
+        <h2>{nextStep.title}</h2>
+        <p>{nextStep.detail}</p>
+        {nextStep.kind === 'build' && <button type="button" onClick={() => selectBuilding(nextStep.building)}>Review {BUILDING_NAMES04[nextStep.building]}</button>}
+        {nextStep.kind === 'gather' && <button type="button" onClick={() => onFindResources(nextStep.resource, nextStep.workerOrdinal)}>Start gathering {nextStep.resource}</button>}
+      </section>}
       {problem === 'capacity' && <p className="keep04-problem" role="status">That resource location is full. Find another location.</p>}
       {problem === 'target' && <p className="keep04-problem" role="status">That resource location changed. Choose a current Realm location.</p>}
       <div className="keep04-workspace" data-panel-open={selection.panel !== null}>
         <div className="keep04-scene-region">
           {visible && <Keep04SceneHost quality={quality} reducedMotion={reducedMotion} onMode={setSceneMode}
-            onObservation={onSceneObservation} {...(import.meta.env.DEV ? { qaFault } : {})}
+            ambientLife={quality !== 'reduced' && !reducedMotion}
+            onObservation={onSceneObservation} {...(import.meta.env.DEV ? { qaFault, daylightHour } : {})}
             visual={sceneVisual}
-            onSelect={selectBuilding} onPlacement={draft => onSelectionChange({ ...selection, draft })} />}
+            onSelect={selectBuilding} onPlacement={placeDraft} />}
           {sceneMode === 'fallback' && <p role="status">3D graphics are unavailable. Your keep and commands remain available in the placement schematic.</p>}
           <details ref={schematic} open>
             <summary style={{ cursor: 'pointer', padding: '12px 0', minHeight: 44 }}>Placement schematic and keyboard controls</summary>
             <Keep04Schematic buildings={view.buildings} draft={selection.panel === 'buildings' ? selection.draft : null} selectedKind={selection.selectedKind}
-              onSelect={selectBuilding} onChange={draft => onSelectionChange({ ...selection, draft })}
+              onSelect={selectBuilding} onChange={placeDraft}
               onReview={selection.panel === 'buildings' ? focusReview : undefined} />
           </details>
         </div>
@@ -255,7 +348,7 @@ export function Keep04Screen({ snapshot, controller, selection, onSelectionChang
       </div>
       <Keep04LoopRail stage={activeKeep04LoopStage04(selection, view)} />
       <nav className="keep04-dock" aria-label="Keep commands">
-        {view.workers.map(worker => <button key={worker.ordinal} type="button" onClick={event => openPanel('workers', event.currentTarget)} aria-expanded={selection.panel === 'workers'}>Worker {worker.ordinal + 1} · {worker.phase}</button>)}
+        {view.workers.map(worker => <button key={worker.ordinal} type="button" data-phase={worker.phase} onClick={event => openPanel('workers', event.currentTarget)} aria-expanded={selection.panel === 'workers'}>Worker {worker.ordinal + 1} · {worker.phase}</button>)}
         <button ref={buildingsButton} type="button" onClick={event => openPanel('buildings', event.currentTarget)} aria-expanded={selection.panel === 'buildings'}>Buildings</button>
         <button type="button" onClick={() => onFindResources(null)}>Find resources</button>
         <button type="button" onClick={onReturnToWorld}>Return to world</button>

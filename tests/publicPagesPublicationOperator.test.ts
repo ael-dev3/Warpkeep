@@ -9,16 +9,16 @@ import { afterEach, describe, expect, it } from 'vitest';
 // @ts-expect-error Standalone release utility exposes named test seams.
 import { writePublicPagesPayloadManifest } from '../scripts/verify-public-pages-payload.mjs';
 // @ts-expect-error Standalone release utility exposes named test seams.
-import { SOURCE_PUBLIC_DOCUMENTS, writePublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
+import { inspectPublicMirror, PUBLIC_PAGES_LEGAL_HEADERS_PATH, PUBLIC_PAGES_LEGAL_PLAIN_PATHS, publicPagesLegalHeadersBytes, SOURCE_PUBLIC_DOCUMENTS, PUBLIC_PAGES_WORKFLOW_PATH, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH, writePublicPagesMirrorPlan } from '../scripts/verify-public-pages-mirror-plan.mjs';
 import {
   preparePublicPagesPublication,
   preparePublicPagesRollback,
   publishPublicPagesPublication,
   publishPublicPagesRollback,
 } from '../scripts/public-pages-publication-operator.mjs';
-// @ts-expect-error Production output policy is an executable ESM module.
 import { allowedProductionHtmlPaths, expectedProductionCspByPath } from '../scripts/verify-production-dist-exclusions.mjs';
 
+const workflowTemplateBytes = readFileSync(resolve(process.cwd(), PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH));
 const sourceIndex = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
 const sourceOwnerCanary = readFileSync(resolve(process.cwd(), 'owner-canary/index.html'), 'utf8');
 const temporaryRoots: string[] = [];
@@ -41,7 +41,7 @@ function command(binary: string, args: string[], cwd: string) {
 
 const git = (root: string, args: string[]) => command('git', args, root);
 
-function fixture() {
+function fixture(workflowDeployment = false) {
   const source = mkdtempSync(join(tmpdir(), 'warpkeep-pages-operator-source-'));
   const publicRoot = mkdtempSync(join(tmpdir(), 'warpkeep-pages-operator-public-'));
   const signer = mkdtempSync(join(tmpdir(), 'warpkeep-pages-operator-signer-'));
@@ -66,11 +66,12 @@ function fixture() {
   for (const path of SOURCE_PUBLIC_DOCUMENTS as readonly string[]) {
     write(join(source, path), `source-reviewed ${path}\n`);
   }
+  write(join(source, PUBLIC_PAGES_WORKFLOW_TEMPLATE_PATH), workflowTemplateBytes);
   git(source, ['add', '--all']);
   git(source, ['commit', '--quiet', '-m', 'Exact signed source fixture']);
   const sourceCommit = git(source, ['rev-parse', 'HEAD']);
   const dist = join(source, 'dist');
-  for (const path of allowedProductionHtmlPaths as readonly string[]) {
+  for (const path of allowedProductionHtmlPaths) {
     const document = path === 'index.html'
       ? sourceIndex.replace('/src/main.tsx', '/assets/application-reviewed.js')
       : path === 'owner-canary/index.html'
@@ -90,6 +91,9 @@ function fixture() {
   write(join(dist, 'warpkeep-boot.css'), 'body{background:black}');
   write(join(dist, 'warpkeep-noscript.css'), 'noscript{display:block}');
   write(join(dist, 'models/keep.glb'), Buffer.from([0x67, 0x6c, 0x54, 0x46]));
+  write(join(dist, 'audio/warpkeep-genesis-002-theme.m4a'), 'reviewed Genesis 002 soundtrack');
+  write(join(dist, 'models/greater-realm/biome-trees/v3/manifest.json'),
+    '{"schema":"warpkeep-greater-realm-biome-trees.runtime.v1"}');
   writePublicPagesPayloadManifest({ repositoryRoot: source, expectedSourceCommit: sourceCommit,
     publicationPath: '/ptr/' });
 
@@ -99,6 +103,8 @@ function fixture() {
   write(join(publicRoot, 'index.html'), '<!doctype html><title>Old Alpha</title>');
   write(join(publicRoot, '404.html'), '<!doctype html><title>Old Alpha</title>');
   write(join(publicRoot, 'assets/application-old.js'), 'console.info("old Alpha");');
+  write(join(publicRoot, 'audio/warpkeep-genesis-002-theme.m4a'), 'preserved Genesis 002 soundtrack');
+  write(join(publicRoot, 'models/greater-realm/biome-trees/v3/manifest.json'), '{"preserved":true}');
   write(join(publicRoot, 'README.md'), 'Old Alpha public host\n');
   for (const path of SOURCE_PUBLIC_DOCUMENTS as readonly string[]) {
     write(join(publicRoot, path), `prior-reviewed ${path}\n`);
@@ -109,7 +115,8 @@ function fixture() {
   const parentTree = git(publicRoot, ['rev-parse', 'HEAD^{tree}']);
   git(publicRoot, ['branch', '-M', 'main']);
   const savedPlan = writePublicPagesMirrorPlan({ sourceRoot: source,
-    expectedSourceCommit: sourceCommit, publicRoot, expectedPublicHead: parent });
+    expectedSourceCommit: sourceCommit, publicRoot, expectedPublicHead: parent,
+    ...(workflowDeployment ? { deploymentMode: 'workflow' } : {}) });
   const planBytes = readFileSync(savedPlan.path);
   expect(savedPlan.planSha256).toBe(sha(planBytes));
   const signerFingerprint = git(source, ['log', '-1', '--format=%GK']);
@@ -128,6 +135,56 @@ afterEach(() => {
 });
 
 describe('signed public Pages publication and rollback operator', () => {
+  it('prepares and publishes the source-bound workflow control while preserving Alpha and PTR bytes', () => {
+    const f = fixture(true);
+    const prepared = preparePublicPagesPublication({ ...f.common, sourceRoot: f.source });
+    expect(git(f.publicRoot, ['rev-parse', 'HEAD'])).toBe(f.parent);
+    let remote = f.parent;
+    const pushCommit = (_root: string, commit: string) => { remote = commit; };
+    publishPublicPagesPublication({ ...f.common, expectedPublicCommit: prepared.publicCommit,
+      readRemoteHead: () => remote, pushCommit });
+    expect(readFileSync(join(f.publicRoot, PUBLIC_PAGES_WORKFLOW_PATH)))
+      .toEqual(workflowTemplateBytes);
+    expect(inspectPublicMirror(f.publicRoot, prepared.publicCommit).tracked).toContain(PUBLIC_PAGES_WORKFLOW_PATH);
+    for (const path of ['index.html', '404.html', 'CNAME', 'assets/application-old.js',
+      'audio/warpkeep-genesis-002-theme.m4a', 'models/greater-realm/biome-trees/v3/manifest.json']) {
+      expect(git(f.publicRoot, ['rev-parse', `${prepared.publicCommit}:${path}`]))
+        .toBe(git(f.publicRoot, ['rev-parse', `${f.parent}:${path}`]));
+    }
+    expect(readFileSync(join(f.publicRoot, PUBLIC_PAGES_LEGAL_HEADERS_PATH)))
+      .toEqual(publicPagesLegalHeadersBytes());
+    for (const path of PUBLIC_PAGES_LEGAL_PLAIN_PATHS as readonly string[]) {
+      expect(readFileSync(join(f.publicRoot, path))).toEqual(Buffer.from(`source-reviewed ${path}\n`));
+    }
+    expect(readFileSync(join(f.publicRoot, 'ptr/index.html'), 'utf8')).toContain('/ptr/assets/');
+    expect(JSON.parse(readFileSync(join(f.publicRoot,
+      'docs/releases/0.4.0/public-pages-ptr-payload-v1.json'), 'utf8')).files
+      .some((entry: { path: string }) => entry.path.startsWith('.github/'))).toBe(false);
+  }, 60_000);
+
+  it('rejects changed, copied or incorrectly declared workflow controls before a source or signer read', () => {
+    const f = fixture(true);
+    for (const change of [
+      (plan: { deploymentMode?: string }) => { plan.deploymentMode = 'workflow-v2'; },
+      (plan: { deploymentMode?: string }) => { delete plan.deploymentMode; },
+      (plan: { targetEntries: { path: string; sha256: string }[] }) => {
+        plan.targetEntries.find(entry => entry.path === PUBLIC_PAGES_WORKFLOW_PATH)!.sha256 = '0'.repeat(64);
+      },
+      (plan: { targetEntries: { path: string }[] }) => {
+        plan.targetEntries.find(entry => entry.path === PUBLIC_PAGES_WORKFLOW_PATH)!.path = '.github/workflows/other.yml';
+      },
+    ]) {
+      const plan = JSON.parse(f.common.reviewedPlanBytes.toString('utf8'));
+      change(plan);
+      plan.targetEntries.sort((a: { path: string }, b: { path: string }) => Buffer.compare(Buffer.from(a.path), Buffer.from(b.path)));
+      const bytes = Buffer.from(`${JSON.stringify(plan)}\n`);
+      expect(() => preparePublicPagesPublication({ ...f.common, sourceRoot: join(f.source, 'missing-source'),
+        reviewedPlanBytes: bytes, expectedReviewedPlanSha256: sha(bytes) }))
+        .toThrow('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
+    }
+    expect(git(f.publicRoot, ['rev-parse', 'HEAD'])).toBe(f.parent);
+  }, 60_000);
+
   it('prepares the signed LF parent CNAME from a clean CRLF checkout without changing the public ref', () => {
     const f = fixture();
     const workingCname = join(f.publicRoot, 'CNAME');
@@ -184,8 +241,43 @@ describe('signed public Pages publication and rollback operator', () => {
       .toBe('console.info("old Alpha");');
     expect(readFileSync(join(f.publicRoot, 'ptr/index.html'), 'utf8'))
       .toContain('/ptr/assets/application-reviewed.js');
+    expect(readFileSync(join(f.publicRoot, 'ptr/audio/warpkeep-genesis-002-theme.m4a'), 'utf8'))
+      .toBe('reviewed Genesis 002 soundtrack');
+    expect(readFileSync(join(f.publicRoot, 'audio/warpkeep-genesis-002-theme.m4a'), 'utf8'))
+      .toBe('preserved Genesis 002 soundtrack');
+    expect(readFileSync(join(f.publicRoot, 'ptr/models/greater-realm/biome-trees/v3/manifest.json'), 'utf8'))
+      .toBe('{"schema":"warpkeep-greater-realm-biome-trees.runtime.v1"}');
+    expect(readFileSync(join(f.publicRoot, 'models/greater-realm/biome-trees/v3/manifest.json'), 'utf8'))
+      .toBe('{"preserved":true}');
+    expect(inspectPublicMirror(f.publicRoot, prepared.publicCommit).tracked).toEqual(expect.arrayContaining([
+      'ptr/audio/warpkeep-genesis-002-theme.m4a',
+      'ptr/models/greater-realm/biome-trees/v3/manifest.json',
+    ]));
     expect(publishPublicPagesPublication(options).localHead).toBe(prepared.publicCommit);
     expect(pushed).toEqual([prepared.publicCommit]);
+  }, 60_000);
+
+  it('rejects arbitrary audio and model metadata in canonical plans before reading source or signer authority', () => {
+    const f = fixture();
+    for (const [originalPath, substitutedPath] of [
+      ['ptr/audio/warpkeep-genesis-002-theme.m4a', 'ptr/audio/other.m4a'],
+      ['ptr/models/greater-realm/biome-trees/v3/manifest.json', 'ptr/models/other/manifest.json'],
+      ['ptr/audio/warpkeep-genesis-002-theme.m4a', 'ptr/ptr/audio/warpkeep-genesis-002-theme.m4a'],
+    ]) {
+      const plan = JSON.parse(f.common.reviewedPlanBytes.toString('utf8'));
+      const entry = plan.targetEntries.find((candidate: { path: string }) => candidate.path === originalPath);
+      expect(entry).toBeDefined();
+      entry.path = substitutedPath;
+      plan.targetEntries.sort((a: { path: string }, b: { path: string }) => (
+        Buffer.compare(Buffer.from(a.path), Buffer.from(b.path))
+      ));
+      const reviewedPlanBytes = Buffer.from(`${JSON.stringify(plan)}\n`);
+      expect(() => preparePublicPagesPublication({ ...f.common,
+        sourceRoot: join(f.source, 'source-root-that-does-not-exist'),
+        reviewedPlanBytes, expectedReviewedPlanSha256: sha(reviewedPlanBytes),
+      })).toThrow('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
+    }
+    expect(git(f.publicRoot, ['rev-parse', 'HEAD'])).toBe(f.parent);
   }, 60_000);
 
   it('rejects reviewed-plan, source/build, public checkout and signer drift before publication', () => {
@@ -286,4 +378,28 @@ describe('signed public Pages publication and rollback operator', () => {
       remoteHead: rollback.rollbackCommit });
     expect(git(f.publicRoot, ['status', '--porcelain=v1', '--untracked-files=all'])).toBe('');
   }, 90_000);
+
+  it('accepts its documented argument names on the command line in every mode', () => {
+    // The CLI once rejected `--plan-sha256` (a digit in the name), so no mode could run.
+    const root = mkdtempSync(join(tmpdir(), 'warpkeep-pages-operator-cli-'));
+    temporaryRoots.push(root);
+    const plan = join(root, 'plan.json');
+    write(plan, '{}\n');
+    const signer = ['--signer-fingerprint', `SHA256:${'A'.repeat(43)}`, '--signer-identity', 'fixture@example.invalid'];
+    const modes: Array<[string, string[]]> = [
+      ['prepare', ['--source-root', root, '--public-root', root]],
+      ['publish', ['--public-root', root, '--commit', 'a'.repeat(40)]],
+      ['prepare-rollback', ['--public-root', root, '--published-commit', 'a'.repeat(40)]],
+      ['publish-rollback', ['--public-root', root, '--published-commit', 'a'.repeat(40), '--commit', 'b'.repeat(40)]],
+    ];
+    for (const [mode, args] of modes) {
+      const result = spawnSync(process.execPath, [
+        resolve(process.cwd(), 'scripts/public-pages-publication-operator.mjs'), mode,
+        ...args, '--plan', plan, '--plan-sha256', '0'.repeat(64), ...signer,
+      ], { encoding: 'utf8', windowsHide: true, timeout: 30_000 });
+      // Argument parsing passes; the deliberately wrong plan digest is what fails.
+      expect(result.status).toBe(1);
+      expect(result.stderr.trim()).toBe('PUBLIC_PAGES_PUBLICATION_PLAN_INVALID');
+    }
+  }, 60_000);
 });

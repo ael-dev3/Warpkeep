@@ -16,6 +16,7 @@ CI snapshots or release completion status.
 | G002 module | Separate private schema, atlas ingestion and deliberately closed gameplay interface | [Module root](../../../spacetimedb/genesis002/src/index.ts), [closed keep procedures](../../../spacetimedb/genesis002/src/gameplayKeep.ts) |
 | New keep frontend | Validated 0.4 state, decisions, schematic fallback and renderer | [Surface host](../../../src/ptr/PtrGameplay04SurfaceHost.tsx), [Keep04Screen](../../../src/components/keep04/Keep04Screen.tsx) |
 | Greater Realm frontend | Atlas reads, chunk streaming, world rendering and 0.4 water | [Scene runtime](../../../src/greater-realm/createGreaterRealmSceneRuntime.ts) |
+| Greater Realm release hydrology | Frozen Alpha water catalog, source-bound candidate proof and matching shared/PTR authority gates | [Frozen catalog](../../../spacetimedb/src/greaterRealmFrozenWaterCatalog.ts), [candidate verifier](../../../scripts/atlas/greater-realm-runtime-release.ts), [shared authority](../../../spacetimedb/src/greaterRealmV17LegacyAuthority.ts), [PTR authority](../../../spacetimedb/ptr/src/greaterRealmHydrologyAuthority.ts) |
 | Identity service | Farcaster proof exchange, sessions, scoped claims and admission/notification boundaries | [Auth bridge README](../../../services/auth-bridge/README.md), [app](../../../services/auth-bridge/src/app.ts) |
 | Release/recovery | Source/artifact preparation, provider effects, workflow identity and durable authorization | [Release route map below](#release-and-recovery-routes) |
 

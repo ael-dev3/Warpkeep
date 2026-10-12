@@ -13,6 +13,19 @@ import {
   type GreaterRealmSceneRuntime,
   type GreaterRealmSceneTelemetry
 } from '../../greater-realm/createGreaterRealmSceneRuntime';
+import {
+  createGreaterRealmAtmosphere,
+  GREATER_REALM_ATMOSPHERE_MAXIMUM_DRAW_CALLS,
+  GREATER_REALM_ATMOSPHERE_MAXIMUM_INSTANCES,
+  GREATER_REALM_SKY,
+  type GreaterRealmAtmosphere
+} from '../../greater-realm/greaterRealmAtmosphere';
+import {
+  createGreaterRealmJourneyLayer,
+  GREATER_REALM_JOURNEY_MAXIMUM_DRAW_CALLS,
+  GREATER_REALM_JOURNEY_MAXIMUM_INSTANCES,
+  type GreaterRealmJourney
+} from '../../greater-realm/greaterRealmJourneyLayer';
 import type {
   GreaterRealmClientSnapshot
 } from '../../greater-realm/greaterRealmClientRuntime';
@@ -25,6 +38,7 @@ import {
   greaterRealmRegionPresentation
 } from '../../greater-realm/greaterRealmPresentationPlan';
 import { GREATER_REALM_GRAPHICS_BUDGETS } from '../../greater-realm/greaterRealmRuntimePolicy';
+import { verdantDaylightAt, verdantDaylightKey, verdantLocalHour, verdantSunDirection } from '../../greater-realm/verdantDaylight';
 import {
   greaterRealmWindowCastleTopologySignature
 } from './greaterRealmWorldSnapshotAuthority';
@@ -40,11 +54,16 @@ type GreaterRealmRenderer = Readonly<{
 /** Voxel castle buffers plus 600 matrix/color instance attributes. */
 export const GREATER_REALM_CASTLE_UPLOAD_RESERVE_BYTES = 65_536 as const;
 export const GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES = 98_304 as const;
-export const GREATER_REALM_HOST_DRAW_CALL_RESERVE = 6 as const;
+/** Castle, region and four resource layers, the atmosphere and the own-journey layer. */
+export const GREATER_REALM_HOST_DRAW_CALL_RESERVE = (
+  6 + GREATER_REALM_ATMOSPHERE_MAXIMUM_DRAW_CALLS + GREATER_REALM_JOURNEY_MAXIMUM_DRAW_CALLS
+);
 export const GREATER_REALM_HOST_INSTANCE_RESERVE = (
   GREATER_REALM_PUBLIC_LIMITS.maximumCastlesPerWindow
   + GREATER_REALM_PUBLIC_LIMITS.maximumResourceLocations
   + 6
+  + GREATER_REALM_ATMOSPHERE_MAXIMUM_INSTANCES
+  + GREATER_REALM_JOURNEY_MAXIMUM_INSTANCES
 );
 
 type GreaterRealmWorldSelectionBase = Readonly<{
@@ -81,6 +100,8 @@ export type GreaterRealmWorldCanvasHost = Readonly<{
   getLocalVesselState: () => GreaterRealmLocalVesselState;
   schedule: () => void;
   getTelemetry: () => GreaterRealmWorldCanvasTelemetry;
+  /** Draw the owner's confirmed Worker journeys; presentation only. */
+  setJourneys?: (journeys: readonly GreaterRealmJourney[]) => void;
   dispose: () => void;
 }>;
 
@@ -103,6 +124,8 @@ export type CreateGreaterRealmWorldCanvasHostOptions = Readonly<{
   sceneRuntimeFactory?: (
     options: CreateGreaterRealmSceneRuntimeOptions
   ) => GreaterRealmSceneRuntime;
+  /** Local hour for the daylight mood; defaults to the device clock. Presentation only. */
+  daylightHour?: () => number;
 }>;
 
 type GreaterRealmSelectionTarget = Readonly<{
@@ -118,11 +141,14 @@ type CastleGroundingRow = Readonly<{
   target: GreaterRealmSelectionTarget;
 }>;
 
+const CASTLE_TINT_WHITE = new THREE.Color('#ffffff');
+
 function createPublicCastleLayer(
   options: CreateGreaterRealmWorldCanvasHostOptions,
   getPolicy: () => GreaterRealmWorldViewPolicy
 ) {
   const group = new THREE.Group();
+  const uploads = createHostUploadTracker(group);
   group.name = 'greater-realm-public-castles';
   let count = 0;
   let appliedSignature: string | undefined;
@@ -200,7 +226,9 @@ function createPublicCastleLayer(
   return Object.freeze({
     group,
     get count() { return count; },
-    get pendingUploadBytes() { return pendingUploadBytes; },
+    get pendingUploadBytes() { return uploads.pendingUploadBytes(); },
+    prepareForUpload: uploads.prepareForUpload,
+    invalidateUploads: uploads.invalidateUploads,
     get voxelTriangleCount() { return voxelTriangleCount; },
     get voxelQuadCount() { return voxelQuadCount; },
     get voxelUploadBytes() { return voxelUploadBytes; },
@@ -208,8 +236,8 @@ function createPublicCastleLayer(
     get targets() { return targets; },
     refreshGrounding,
     consumePendingUploadBytes: () => {
-      const value = pendingUploadBytes;
-      pendingUploadBytes = 0;
+      const value = uploads.consumePendingUploadBytes();
+      pendingUploadBytes = uploads.pendingUploadBytes();
       return value;
     },
     applySnapshot: (snapshot: GreaterRealmClientSnapshot) => {
@@ -303,9 +331,11 @@ function createPublicCastleLayer(
         nextMesh.setMatrixAt(index, matrix);
         const cell = cellsByCoordinate.get(`${castle.atlasQ},${castle.atlasR}`);
         const regionColor = greaterRealmRegionPresentation(cell?.regionId ?? '').accent;
+        // The region accent tints the pale masonry and teal roofs instead of
+        // painting the whole keep; the player's own castle stays warm gold.
         nextMesh.setColorAt(index, new THREE.Color(
           castle.castleId === ownCastleId ? '#f0d58c' : regionColor
-        ));
+        ).lerp(CASTLE_TINT_WHITE, castle.castleId === ownCastleId ? 0.35 : 0.6));
         const target = Object.freeze({
           selection: Object.freeze({
             kind: 'castle',
@@ -354,8 +384,52 @@ function geometryUploadBytes(geometry: THREE.BufferGeometry) {
   );
 }
 
+function createHostUploadTracker(group: THREE.Group) {
+  let uploadedVersions = new WeakMap<THREE.BufferAttribute, number>();
+  const observedAttributes = new WeakSet<THREE.BufferAttribute>();
+  let uploadedThisFrame = 0;
+  const attributes = (frustum?: THREE.Frustum, layers?: THREE.Layers) => {
+    const values: THREE.BufferAttribute[] = [];
+    group.traverse(object => {
+      if (!(object instanceof THREE.Mesh) || !object.visible) return;
+      if (layers && !object.layers.test(layers)) return;
+      if (frustum && object.frustumCulled && !frustum.intersectsObject(object)) return;
+      values.push(...Object.values(object.geometry.attributes) as THREE.BufferAttribute[]);
+      if (object.geometry.index) values.push(object.geometry.index);
+      if (object instanceof THREE.InstancedMesh) {
+        values.push(object.instanceMatrix);
+        if (object.instanceColor) values.push(object.instanceColor);
+      }
+    });
+    return values;
+  };
+  const pending = (values = attributes()) => values.reduce((bytes, attribute) =>
+    bytes + (uploadedVersions.get(attribute) === attribute.version ? 0 : attribute.array.byteLength), 0);
+  return Object.freeze({
+    pendingUploadBytes: () => pending(),
+    // Use Three's same frustum/layer test without disabling existing culling.
+    // A skipped attribute remains dirty until its real onUpload callback fires.
+    prepareForUpload: (frustum: THREE.Frustum, layers: THREE.Layers) => {
+      const values = attributes(frustum, layers);
+      for (const attribute of values) {
+        if (observedAttributes.has(attribute)) continue;
+        observedAttributes.add(attribute);
+        const previous = attribute.onUploadCallback;
+        attribute.onUpload(() => {
+          previous.call(attribute); uploadedVersions.set(attribute, attribute.version);
+          uploadedThisFrame += attribute.array.byteLength;
+        });
+      }
+      return pending(values);
+    },
+    consumePendingUploadBytes: () => { const value = uploadedThisFrame; uploadedThisFrame = 0; return value; },
+    invalidateUploads: () => { uploadedVersions = new WeakMap(); uploadedThisFrame = 0; }
+  });
+}
+
 function createPublicResourceLayer() {
   const group = new THREE.Group();
+  const uploads = createHostUploadTracker(group);
   group.name = 'greater-realm-public-resource-markers';
   let appliedSignature: string | undefined;
   let count = 0;
@@ -379,11 +453,14 @@ function createPublicResourceLayer() {
   return Object.freeze({
     group,
     get count() { return count; },
+    get pendingUploadBytes() { return uploads.pendingUploadBytes(); },
+    prepareForUpload: uploads.prepareForUpload,
+    invalidateUploads: uploads.invalidateUploads,
     get drawCallCount() { return drawCallCount; },
     get targets() { return targets; },
     consumePendingUploadBytes: () => {
-      const value = pendingUploadBytes;
-      pendingUploadBytes = 0;
+      const value = uploads.consumePendingUploadBytes();
+      pendingUploadBytes = uploads.pendingUploadBytes();
       return value;
     },
     applySnapshot: (snapshot: GreaterRealmClientSnapshot) => {
@@ -468,6 +545,7 @@ function createPublicResourceLayer() {
 
 function createVisibleRegionLayer() {
   const group = new THREE.Group();
+  const uploads = createHostUploadTracker(group);
   group.name = 'greater-realm-visible-region-landmarks';
   let appliedSignature: string | undefined;
   let count = 0;
@@ -491,10 +569,13 @@ function createVisibleRegionLayer() {
   return Object.freeze({
     group,
     get count() { return count; },
+    get pendingUploadBytes() { return uploads.pendingUploadBytes(); },
+    prepareForUpload: uploads.prepareForUpload,
+    invalidateUploads: uploads.invalidateUploads,
     get targets() { return targets; },
     consumePendingUploadBytes: () => {
-      const value = pendingUploadBytes;
-      pendingUploadBytes = 0;
+      const value = uploads.consumePendingUploadBytes();
+      pendingUploadBytes = uploads.pendingUploadBytes();
       return value;
     },
     applySnapshot: (snapshot: GreaterRealmClientSnapshot) => {
@@ -654,11 +735,14 @@ export function createGreaterRealmWorldCanvasHost(
   const scene = new THREE.Scene();
   const worldGroup = new THREE.Group();
   worldGroup.name = 'greater-realm-world';
-  scene.background = new THREE.Color('#11171b');
+  // Daylight haze rather than a black void: the returned window reads as the
+  // known land rising from cloud, matching the keep's Verdant Citadel light.
+  scene.background = new THREE.Color(GREATER_REALM_SKY.background);
   const normalFogDensity = 0.0075;
-  const fog = new THREE.FogExp2('#172126', normalFogDensity);
+  const fog = new THREE.FogExp2(GREATER_REALM_SKY.fog, normalFogDensity);
   scene.fog = fog;
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 2_000);
+  const uploadFrustum = new THREE.Frustum(); const uploadProjection = new THREE.Matrix4();
   const center = axialToWorld({ q: options.atlasQ, r: options.atlasR }, 1);
   let span = Math.max(32, (currentPolicy.radius * 2 + 1) * 15 * 1.08);
   const cameraTarget = new THREE.Vector3(center.x, 0, center.z);
@@ -668,6 +752,7 @@ export function createGreaterRealmWorldCanvasHost(
   const minimumCameraDistance = 4;
   let maximumCameraDistance = Math.max(96, span * 4);
   let normalViewDistance = Math.hypot(span * 0.48, span * 0.72, span * 0.74);
+  let atmosphere: GreaterRealmAtmosphere | undefined;
   const applyCamera = () => {
     const horizontal = Math.cos(cameraPitch) * cameraDistance;
     camera.position.set(
@@ -691,18 +776,49 @@ export function createGreaterRealmWorldCanvasHost(
     maximumCameraDistance = Math.max(maximumCameraDistance, cameraDistance);
     cameraYaw = Math.atan2(offsetX, offsetZ);
     cameraPitch = Math.atan2(offsetY, Math.hypot(offsetX, offsetZ));
+    atmosphere?.setFrame(center.x, center.z, viewSpan);
     applyCamera();
   };
   frameCamera(span);
 
-  scene.add(new THREE.HemisphereLight('#dcecff', '#38402d', 1.55));
+  const skylight = new THREE.HemisphereLight('#e2f0ff', '#46513a', 1.7);
+  scene.add(skylight);
   const sunlight = new THREE.DirectionalLight('#ffe4b0', 2.2);
   sunlight.position.set(center.x - 25, 48, center.z + 18);
   scene.add(sunlight, worldGroup);
+  // The player's local hour sets the same mood as the keep. By day the world
+  // keeps its own pale sky; toward night it shares the keep's haze and moon.
+  const daySky = new THREE.Color(GREATER_REALM_SKY.background); const dayFog = new THREE.Color(GREATER_REALM_SKY.fog);
+  const sunTarget = new THREE.Vector3(); let daylightApplied = -1;
+  const applyDaylight = () => {
+    const hour = options.daylightHour?.() ?? verdantLocalHour(Date.now());
+    const moodKey = verdantDaylightKey(hour); if (moodKey === daylightApplied) return;
+    daylightApplied = moodKey; const mood = verdantDaylightAt(hour);
+    // The world keeps a little of its pale day sky even at night: moonlit, never a void.
+    const shared = (1 - mood.day) * .8;
+    (scene.background as THREE.Color).copy(daySky).lerp(mood.hazeColor, shared);
+    fog.color.copy(dayFog).lerp(mood.hazeColor, shared);
+    skylight.color.copy(mood.skyColor); skylight.groundColor.copy(mood.groundColor);
+    skylight.intensity = mood.hemisphereIntensity * (1.7 / 1.82) * (1 + mood.night * .55);
+    sunlight.color.copy(mood.sunColor); sunlight.intensity = mood.sunIntensity * (2.2 / 3.05) * (1 + mood.night * .45);
+    // Swing the original sun bearing a little through the day at the mood's elevation.
+    const bearing = Math.atan2(-25, 18) + mood.sunSwing * .6; const reach = Math.hypot(25, 18, 48);
+    verdantSunDirection(mood, bearing, bearing, sunTarget);
+    sunlight.position.set(center.x + sunTarget.x * reach, sunTarget.y * reach, center.z + sunTarget.z * reach);
+    atmosphere?.setDaylight(mood);
+  };
   const castleLayer = createPublicCastleLayer(options, () => currentPolicy);
   const resourceLayer = createPublicResourceLayer();
   const regionLayer = createVisibleRegionLayer();
   worldGroup.add(castleLayer.group, resourceLayer.group, regionLayer.group);
+  // Outside the fitted world group: it never changes bounds, picking or fit.
+  atmosphere = createGreaterRealmAtmosphere({ profile: currentPolicy.graphicsProfile, reducedMotion: currentPolicy.reducedMotion });
+  atmosphere.setFrame(center.x, center.z, span);
+  scene.add(atmosphere.group);
+  const journeyLayer = createGreaterRealmJourneyLayer({ reducedMotion: () => currentPolicy.reducedMotion,
+    maximumUploadBytes: GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES - atmosphere.maximumUploadBytes });
+  scene.add(journeyLayer.group);
+  let journeys: readonly GreaterRealmJourney[] = Object.freeze([]);
   let selectionTargets: readonly GreaterRealmSelectionTarget[] = Object.freeze([]);
   let selectedTargetIndex = -1;
   let selectedSelection: GreaterRealmWorldSelection | undefined;
@@ -722,15 +838,21 @@ export function createGreaterRealmWorldCanvasHost(
     }
   };
 
+  // Observer reads retain the latest completed frame upload counters.
+  let lastHostUploadBytesThisFrame = 0; let lastCastleUploadBytesThisFrame = 0;
   const publishTelemetry = (
     sceneTelemetry = activeRuntime!.getTelemetry(),
-    hostUploadBytesThisFrame = 0,
-    castleUploadBytesThisFrame = 0
+    hostUploadBytesThisFrame = lastHostUploadBytesThisFrame,
+    castleUploadBytesThisFrame = lastCastleUploadBytesThisFrame
   ) => {
+    lastHostUploadBytesThisFrame = hostUploadBytesThisFrame;
+    lastCastleUploadBytesThisFrame = castleUploadBytesThisFrame;
     const castleDrawCalls = castleLayer.count > 0 ? 1 : 0;
     const regionDrawCalls = regionLayer.count > 0 ? 1 : 0;
-    const hostDrawCalls = castleDrawCalls + regionDrawCalls + resourceLayer.drawCallCount;
-    const hostInstances = castleLayer.count + regionLayer.count + resourceLayer.count;
+    const hostDrawCalls = castleDrawCalls + regionDrawCalls + resourceLayer.drawCallCount
+      + (atmosphere?.drawCalls() ?? 0) + journeyLayer.drawCalls();
+    const hostInstances = castleLayer.count + regionLayer.count + resourceLayer.count
+      + (atmosphere?.instanceCount() ?? 0) + journeyLayer.instanceCount();
     const voxelFallbackReasons = Object.freeze([
       ...(sceneTelemetry.voxelFallbackReasons ?? []),
       ...castleLayer.voxelFallbackReasons
@@ -827,6 +949,15 @@ export function createGreaterRealmWorldCanvasHost(
       ));
       const telemetry = runtimeForFrame.getTelemetry();
       if (
+        journeyGroundingPending
+        && !telemetry.contextLost
+        && telemetry.uploadedChunkCount > 0
+        && telemetry.pendingUploadCount === 0
+      ) {
+        journeyLayer.setJourneys(journeys, journeySurfaceY());
+        journeyGroundingPending = false;
+      }
+      if (
         fitRequested
         && !telemetry.contextLost
         && telemetry.uploadedChunkCount > 0
@@ -851,17 +982,35 @@ export function createGreaterRealmWorldCanvasHost(
       let castleUploadBytesThisFrame = 0;
       let hostUploadBytesThisFrame = 0;
       if (!telemetry.contextLost) {
+        applyDaylight();
+        atmosphere?.update(performance.now() / 1000);
+        journeyLayer.update(Date.now());
+        scene.updateMatrixWorld(); camera.updateMatrixWorld();
+        uploadFrustum.setFromProjectionMatrix(uploadProjection.copy(camera.projectionMatrix).multiply(camera.matrixWorldInverse), camera.coordinateSystem);
+        const mandatoryUploadBytes = castleLayer.prepareForUpload(uploadFrustum, camera.layers)
+          + resourceLayer.prepareForUpload(uploadFrustum, camera.layers)
+          + regionLayer.prepareForUpload(uploadFrustum, camera.layers);
+        if (mandatoryUploadBytes > GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES) {
+          throw new Error('GREATER_REALM_HOST_UPLOAD_BUDGET_EXCEEDED');
+        }
+        // Optional decoration waits when this frame's existing host uploads
+        // fill the reservation. Hidden groups cannot send their dirty arrays.
+        const skyUploadBytes = atmosphere?.prepareForUpload(GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES - mandatoryUploadBytes) ?? 0;
+        journeyLayer.prepareForUpload(GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES - mandatoryUploadBytes - skyUploadBytes);
         activeRenderer.render(scene, camera);
         castleUploadBytesThisFrame = castleLayer.consumePendingUploadBytes();
         hostUploadBytesThisFrame = castleUploadBytesThisFrame
           + resourceLayer.consumePendingUploadBytes()
-          + regionLayer.consumePendingUploadBytes();
+          + regionLayer.consumePendingUploadBytes()
+          + (atmosphere?.consumePendingUploadBytes() ?? 0)
+          + journeyLayer.consumePendingUploadBytes();
         if (hostUploadBytesThisFrame > GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES) {
           throw new Error('GREATER_REALM_HOST_UPLOAD_BUDGET_EXCEEDED');
         }
       }
       publishTelemetry(telemetry, hostUploadBytesThisFrame, castleUploadBytesThisFrame);
-      if (!telemetry.contextLost && telemetry.pendingUploadCount > 0) schedule();
+      if (!telemetry.contextLost && (telemetry.pendingUploadCount > 0
+        || atmosphere?.group.visible === false || !journeyLayer.group.visible)) schedule();
     } catch {
       failHost();
     }
@@ -895,6 +1044,8 @@ export function createGreaterRealmWorldCanvasHost(
     try { castleLayer.dispose(); } catch { /* Continue teardown. */ }
     try { resourceLayer.dispose(); } catch { /* Continue teardown. */ }
     try { regionLayer.dispose(); } catch { /* Continue teardown. */ }
+    try { atmosphere?.dispose(); } catch { /* Continue teardown. */ }
+    try { journeyLayer.dispose(); } catch { /* Continue teardown. */ }
     try { scene.clear(); } catch { /* Teardown is complete. */ }
     notifyFailure();
     return undefined;
@@ -1163,6 +1314,27 @@ export function createGreaterRealmWorldCanvasHost(
   };
   let latestSnapshot: GreaterRealmClientSnapshot | undefined;
   let pendingPolicy: GreaterRealmWorldViewPolicy | undefined;
+  /** Ground own-journey route cells on the currently returned public terrain. */
+  const journeySurfaceY = () => {
+    const cells = new Map<string, Readonly<{ chunkHandle: string; cell: GreaterRealmPublicCellDto }>>();
+    for (const { chunk } of latestSnapshot?.chunks ?? []) {
+      for (const cell of [...chunk.coreCells, ...chunk.apronCells]) {
+        cells.set(`${cell.atlasQ},${cell.atlasR}`, Object.freeze({ chunkHandle: chunk.chunkHandle, cell }));
+      }
+    }
+    return (q: number, r: number) => {
+      const entry = cells.get(`${q},${r}`);
+      if (entry === undefined) return undefined;
+      return activeRuntime.getTerrainSurfaceY?.(entry.chunkHandle, entry.cell) ?? entry.cell.elevation / 1_000;
+    };
+  };
+  // Ground again on the uploaded voxel surface once the current window settles.
+  let journeyGroundingPending = false;
+  const applyJourneys = () => {
+    journeyLayer.setJourneys(journeys, journeySurfaceY());
+    journeyGroundingPending = journeys.length > 0;
+    schedule();
+  };
   const applySnapshot = (snapshot: GreaterRealmClientSnapshot) => {
     if (
       disposed
@@ -1188,6 +1360,7 @@ export function createGreaterRealmWorldCanvasHost(
         });
         appliedSignature = signature;
         publishLocalVesselState(activeRuntime.getLocalVesselState());
+        if (journeys.length > 0) applyJourneys();
       }
       selectionTargets = Object.freeze([
         ...regionLayer.targets,
@@ -1269,6 +1442,7 @@ export function createGreaterRealmWorldCanvasHost(
       maximumCameraDistance = Math.max(96, span * 4);
       normalViewDistance = Math.hypot(span * 0.48, span * 0.72, span * 0.74);
       camera.userData.greaterRealmReducedMotion = currentPolicy.reducedMotion;
+      atmosphere?.configure(policy.graphicsProfile, policy.reducedMotion);
       appliedSignature = undefined;
       try { previousRuntime.stopAnimation(); } catch { /* Continue replacement. */ }
       try { previousRuntime.dispose(); } catch { /* Continue replacement. */ }
@@ -1289,8 +1463,11 @@ export function createGreaterRealmWorldCanvasHost(
     }
   };
   const applyPendingPolicyAfterContextRestore = () => {
+    castleLayer.invalidateUploads(); resourceLayer.invalidateUploads(); regionLayer.invalidateUploads();
+    atmosphere?.invalidateUploads(); journeyLayer.invalidateUploads();
     const policy = pendingPolicy;
     if (policy !== undefined) updatePolicy(policy);
+    schedule();
   };
   const visibilityChange = () => {
     if (disposed || terminalFailure) return;
@@ -1348,6 +1525,8 @@ export function createGreaterRealmWorldCanvasHost(
     try { castleLayer.dispose(); } catch { /* Continue teardown. */ }
     try { resourceLayer.dispose(); } catch { /* Continue teardown. */ }
     try { regionLayer.dispose(); } catch { /* Continue teardown. */ }
+    try { atmosphere?.dispose(); } catch { /* Continue teardown. */ }
+    try { journeyLayer.dispose(); } catch { /* Continue teardown. */ }
     try { scene.clear(); } catch { /* Continue teardown. */ }
     try { activeRenderer.dispose(); } catch { /* Teardown is complete. */ }
   };
@@ -1410,6 +1589,11 @@ export function createGreaterRealmWorldCanvasHost(
     getLocalVesselState: () => activeRuntime.getLocalVesselState(),
     schedule,
     getTelemetry: publishTelemetry,
+    setJourneys: (next) => {
+      if (disposed || terminalFailure) return;
+      journeys = Object.freeze([...next]);
+      try { applyJourneys(); } catch { failHost(); }
+    },
     dispose
   });
 }

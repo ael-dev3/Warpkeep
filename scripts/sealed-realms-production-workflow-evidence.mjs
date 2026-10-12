@@ -2,8 +2,10 @@ import { execFileSync } from 'node:child_process';
 import { types } from 'node:util';
 import { attestSealedRealmsProductionRetainedFixtureRuntime } from './sealed-realms-production-linux-preflight.mjs';
 import { parseWorkflowEvidenceJson } from './sealed-realms-production-workflow-evidence-json.mjs';
+import { requireCompleteNativeSourceVerificationEvidence } from './native-source-verification-evidence.mjs';
 
 const COMMIT = /^[0-9a-f]{40}$/u;
+const SHA256 = /^[0-9a-f]{64}$/u;
 const POSITIVE = /^[1-9][0-9]{0,19}$/u;
 const REPOSITORY = 'ael-dev3/Warpkeep';
 const API = `https://api.github.com/repos/${REPOSITORY}`;
@@ -11,6 +13,7 @@ const VERIFY_PATH = '.github/workflows/verify.yml';
 const WORKFLOW_PATH = '.github/workflows/sealed-realms-production.yml';
 const scopes = new WeakMap();
 const retainedScopes = new WeakMap();
+const nativeIncomplete = Symbol('native source verification incomplete');
 const GIT = process.platform === 'win32' ? 'git' : String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 47, 103, 105, 116);
 const NULL_PATH = String.fromCodePoint(47, 100, 101, 118, 47, 110, 117, 108, 108);
 const FIXED_PATH = String.fromCodePoint(47, 117, 115, 114, 47, 98, 105, 110, 58, 47, 98, 105, 110);
@@ -88,7 +91,14 @@ function context(commit) {
     || typeof token !== 'string' || !/^\S{20,4096}$/u.test(token)) {
     fail('SEALED_REALMS_WORKFLOW_EVIDENCE_CONTEXT_INVALID');
   }
-  return { runId, runAttempt, token, operation, job };
+  const sourceVerification = process.env.WARPKEEP_SOURCE_VERIFICATION ?? 'github-verify';
+  const nativeSourceEvidence = process.env.WARPKEEP_NATIVE_SOURCE_EVIDENCE;
+  if (!['github-verify', 'native-full'].includes(sourceVerification)
+    || (sourceVerification === 'native-full' ? !SHA256.test(nativeSourceEvidence ?? '') : nativeSourceEvidence !== undefined)) {
+    fail('SEALED_REALMS_WORKFLOW_EVIDENCE_CONTEXT_INVALID');
+  }
+  return { runId, runAttempt, token, operation, job, sourceVerification,
+    nativeSourceEvidence: nativeSourceEvidence ?? null };
 }
 
 function record(value) {
@@ -214,6 +224,22 @@ async function load(state) {
     if (repo.name !== 'Warpkeep' || repo.default_branch !== 'main' || repo.archived !== false || repo.disabled !== false) fail();
     await current();
     const proofs = await Promise.all(state.commits.map(async commit => {
+      if (!state.retained && state.identity.sourceVerification === 'native-full') {
+        // The current reader checks the fixed locator and source envelope,
+        // then rejects. Authenticated full report reconstruction is deferred;
+        // an unexpected return also cannot establish source authority.
+        try {
+          await bounded(Promise.resolve().then(() => requireCompleteNativeSourceVerificationEvidence(
+            state.identity.nativeSourceEvidence, commit)));
+        } catch (error) {
+          if (!types.isProxy(error) && error instanceof Error
+            && Object.getOwnPropertyDescriptor(error, 'message')?.value === 'NATIVE_SOURCE_VERIFICATION_INCOMPLETE') {
+            throw nativeIncomplete;
+          }
+          throw error;
+        }
+        throw nativeIncomplete;
+      }
       const selected = await discover(commit);
       const latest = runIdentity(await request(`/actions/runs/${selected.id}`), commit, VERIFY_PATH, 'Verify', 'push');
       const attempt = runIdentity(await request(`/actions/runs/${selected.id}/attempts/${selected.run_attempt}`), commit, VERIFY_PATH, 'Verify', 'push');
@@ -225,7 +251,10 @@ async function load(state) {
     }));
     await current();
     return new Set(proofs);
-  } catch { fail('SEALED_REALMS_WORKFLOW_EVIDENCE_UNAVAILABLE'); }
+  } catch (error) {
+    if (error === nativeIncomplete) throw error;
+    fail('SEALED_REALMS_WORKFLOW_EVIDENCE_UNAVAILABLE');
+  }
   finally { clearTimeout(timer); controller.abort(); state.controller = undefined; }
 }
 
@@ -235,7 +264,8 @@ function scopeState(scope) {
   return state;
 }
 
-/** Only genuine fixed GitHub readback can populate a synchronous evidence scope. */
+/** Genuine dispatch readback is always required. Hosted Verify is the default;
+ * explicitly selected native diagnostics cannot populate authority yet. */
 export async function createSealedRealmsProductionWorkflowEvidence(input) {
   if (arguments.length !== 1) fail();
   const commit = exactInput(input);
@@ -267,7 +297,10 @@ export async function refreshSealedRealmsProductionWorkflowEvidence(scope) {
       || JSON.stringify(localSource(state.commit)) !== JSON.stringify(state.commits)) fail();
     state.proofs = proofs;
     state.freshUntil = performance.now() + 30_000;
-  } catch { fail('SEALED_REALMS_WORKFLOW_EVIDENCE_UNAVAILABLE'); }
+  } catch (error) {
+    fail(error === nativeIncomplete ? 'SEALED_REALMS_WORKFLOW_EVIDENCE_NATIVE_INCOMPLETE'
+      : 'SEALED_REALMS_WORKFLOW_EVIDENCE_UNAVAILABLE');
+  }
   finally { state.refreshing = false; }
 }
 

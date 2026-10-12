@@ -73,6 +73,8 @@ export function Keep04QaHarness() {
   const [quality, setQuality] = useState<Quality04>(params.get('quality') === 'balanced' ? 'balanced' : params.get('quality') === 'reduced' ? 'reduced' : 'high');
   const [fault, setFault] = useState<Keep04SceneHostProps['qaFault']>(initial === 'fallback' ? 'webgl-unavailable' : 'none');
   const [requestedReducedMotion] = useState(params.get('motion') === 'reduced');
+  // Optional fixed local hour (0-24) so captures can compare daylight moods.
+  const [daylightHour] = useState(() => { const raw = params.get('hour'); const value = raw === null ? NaN : Number(raw); return Number.isFinite(value) ? value : undefined; });
   const [mounted, setMounted] = useState(true);
   const [readinessArmed, setReadinessArmed] = useState(false);
   const [syntheticPending, setSyntheticPending] = useState(false);
@@ -197,7 +199,7 @@ export function Keep04QaHarness() {
     </details>
     <p role="status" style={{ padding: '0 12px' }}>{message}</p>
     {mounted && <Keep04Screen snapshot={snapshot} controller={controller} selection={selection} onSelectionChange={setSelection} quality={quality}
-      onSceneObservation={observe} qaFault={fault} reducedMotion={reducedMotion}
+      onSceneObservation={observe} qaFault={fault} reducedMotion={reducedMotion} daylightHour={daylightHour}
       onBack={() => changeMount(false)} onFindResources={() => setMessage('Synthetic controller: no Realm resource queries or dispatch targets.')}
       onReturnToWorld={() => setMessage('Synthetic controller: no world connection. Use Unmount keep for keep-only cleanup.')} />}
   </main>;

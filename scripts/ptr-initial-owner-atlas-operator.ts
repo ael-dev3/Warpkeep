@@ -1,0 +1,1139 @@
+// Initial owner PTR continuation. Quality source is not accepted-main or global release authority.
+import { createHash } from 'node:crypto';
+import { closeSync, constants, fchmodSync, fsyncSync, fstatSync, lstatSync, mkdirSync, existsSync, openSync, realpathSync, writeSync } from 'node:fs';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { capturePtrInitialOwnerSource, inspectPtrInitialOwnerState, ptrInitialOwnerSqlRowObject, readPtrInitialOwnerPagedRows, parsePtrInitialOwnerRowSchemas, type PtrInitialOwnerSource } from './ptr-initial-owner-operator';
+import { verifyPtrInitialAtlasTerrainPrefix } from './ptr-initial-atlas-terrain-prefix';
+import { verifyPtrInitialAtlasComponentPrefix } from './ptr-initial-atlas-component-prefix';
+import { verifyPtrInitialAtlasVerificationPrefix } from './ptr-initial-atlas-verification-prefix';
+import { verifyPtrInitialAtlasImportAudit } from './ptr-initial-atlas-import-audit';
+import { assertPtrInitialAtlasImportedUpdateBoundary } from './ptr-initial-atlas-update-boundary';
+import { coordinatePtrInitialAtlasVerificationRecovery, reconcilePtrInitialAtlasVerificationRecovery,
+  ptrInitialAtlasVerificationRecoveryKey, assertPtrInitialAtlasVerificationReducer,
+  type PtrInitialAtlasVerificationRecovery } from './ptr-initial-atlas-verification-recovery';
+import type { GreaterRealmComponentInputV1, GreaterRealmReleaseInputV1 } from '../spacetimedb/ptr/src/atlasPolicy';
+import type { GreaterRealmRegionImportV1 } from '../spacetimedb/ptr/src/atlasAuthority';
+import { openPtrCompatibilityBootstrapJournal } from './ptr-compatibility-bootstrap-operator';
+import { validatePtrBootstrapInspection, PTR_BOOTSTRAP_TARGET, type PtrBootstrapInspection } from './ptr-compatibility-bootstrap-core.mjs';
+import { preparePtrInitialOwnerRuntimeRelease } from './atlas/greater-realm-cli';
+import { openExistingGreaterRealmPrivateWorkspace } from './atlas/greater-realm-private-workspace';
+import { readPtrGreaterRealmRuntimeRelease, verifyPtrGreaterRealmRuntimeReleaseArtifacts } from './atlas/greater-realm-runtime-release';
+import { runGreaterRealmTrustedGit } from './atlas/greater-realm-git';
+import { greaterRealmProductionImportEngine } from './greater-realm-production-import-core';
+import { PTR_PRODUCTION_IMPORT_TARGET, readPtrImportDiagnosticCode, assertPtrProductionInitialTerrainPrefixStatus, assertPtrProductionInitialStagedStatus, executePtrProductionImport, projectPtrProductionStatus, ptrProductionImportReceiptDigest, type PtrProductionImportReceipt } from './ptr-production-import-core';
+import { createPtrAtlasImportTransport } from './ptr-production-transport';
+import { takePtrProductionAdminSecret } from './ptr-production-admin-token';
+import { writePrivatePtrProductionReceipt } from './ptr-production-receipt-file';
+import { executePtrOwnerProvisionOperator } from './ptr-owner-provision-operator';
+import { createPtrInspectionProviderCredentials, disposePtrUpdateProviderCredentials, requestPtrInspectionProvider, PTR_INSPECTION_TABLES, PTR_INSPECTION_PAGING, type PtrInspectionProviderOperation } from './ptr-update-provider-credentials.mjs';
+import { parsePtrUpdateDefinition } from './ptr-update-definition-policy.mjs';
+import { readLocalBindingBoundedFile } from './local-binding-bounded-file.mjs';
+import { executePtrInitialOwnerUpdate, openPtrInitialOwnerUpdateJournal } from './ptr-initial-owner-update-operator';
+import { classifyPtrInitialOwnerUpdateObservation, validatePtrInitialOwnerUpdateInspection, assertPtrInitialOwnerUpdateCandidateSnapshot,
+  type PtrInitialOwnerUpdateInspection } from './ptr-initial-owner-update-core.mjs';
+import { assertProductionAdminTrustedAncestors, defaultProductionAdminStateDirectory, ensureCanonicalProductionAdminStateDirectory } from './production-admin-token-budget.mjs';
+import { verifyAuthBridgeRpcRoleAttestation } from './auth-bridge-config-attestation.mjs';
+import { updateCanonical, updateDigest, parseExistingUpdateJson, parseExistingUpdateProgram, parseExistingUpdateSchema, parseExistingUpdateSql } from './sealed-realms-existing-update-protocol.mjs';
+
+const ROOT = resolve(import.meta.dirname, '..'), HASH = /^[a-f0-9]{64}$/u;
+const sha = (value: Uint8Array) => createHash('sha256').update(value).digest('hex');
+export class PtrInitialOwnerAtlasError extends Error {
+  constructor(readonly code: string, readonly submitted = false, readonly diagnosticCode: string | null = null) { super(`PTR_INITIAL_OWNER_ATLAS_${code}`); this.name = 'PtrInitialOwnerAtlasError'; }
+}
+const fail: (code: string, submitted?: boolean) => never = (code, submitted = false) => { throw new PtrInitialOwnerAtlasError(code, submitted); };
+/** Preserve a bounded protocol code without retaining provider bodies or exception messages. */
+export function classifyPtrInitialAtlasFailure(error: unknown, submitted: boolean): PtrInitialOwnerAtlasError {
+  if (error instanceof PtrInitialOwnerAtlasError) return error;
+  const code = readPtrImportDiagnosticCode(error) ?? 'PROVIDER_OR_PROTOCOL_FAILED';
+  const possiblySubmitted = submitted || (typeof error === 'object' && error !== null && 'submitted' in error && error.submitted === true);
+  return new PtrInitialOwnerAtlasError(possiblySubmitted ? 'IMPORT_OUTCOME_AMBIGUOUS_RECONCILE_ONLY' : code,
+    possiblySubmitted, code);
+}
+
+type Command = 'select-runtime' | 'prepare-runtime' | 'inspect' | 'import' | 'reconcile-import' | 'inspect-import-recovery' | 'resume-import' | 'inspect-region-recovery' | 'resume-region-import' | 'inspect-terrain-recovery' | 'resume-terrain-import' | 'inspect-verification-recovery' | 'resume-verification' | 'inspect-owner' | 'provision-owner';
+type Source = ReturnType<typeof capturePtrInitialOwnerSource>;
+
+/** Compare real immutable bootstrap records, not a caller-authored publish receipt. */
+export function assertPtrInitialAtlasBootstrapMarker(inspection: PtrBootstrapInspection, marker: unknown) {
+  if (updateCanonical(marker) !== updateCanonical({ inspectionDigest: inspection.inspectionDigest, binding: inspection.binding,
+    programBefore: null, rowsBefore: null, submissionState: 'possibly-submitted' })) fail('BOOTSTRAP_MARKER_DIFFERENT');
+}
+/** A fresh observed program/schema is required even when the successful bootstrap is retained. */
+export function assertPtrInitialAtlasObservation(record: PtrBootstrapInspection, input: Readonly<{
+  state: Awaited<ReturnType<typeof inspectPtrInitialOwnerState>>['after']; installedV9: Uint8Array; installedV10: Uint8Array;
+}>, installedBinding: PtrBootstrapInspection['binding'] = validatePtrBootstrapInspection(record).binding) {
+  const inspection = validatePtrBootstrapInspection(record), v9 = parseExistingUpdateSchema(input.installedV9),
+    v10 = parsePtrUpdateDefinition(input.installedV10), state = input.state, names = [...PTR_INSPECTION_TABLES].sort();
+  if (installedBinding.databaseIdentity !== inspection.binding.databaseIdentity
+    || state.program !== installedBinding.candidateProgram || state.schemaDigest !== v9.digest
+    || state.definitionPolicy !== v9.definitionPolicy || v10.fullDigest !== installedBinding.candidateDescriptionDigest
+    || updateCanonical(v9.names) !== updateCanonical(names) || updateCanonical(state.tables.map(table => table.name)) !== updateCanonical(names)
+    || !state.owner || !['ownerless', 'enabled', 'disabled'].includes(state.owner.state)
+    || !state.atlas || !['absent', 'importing', 'verifying', 'ready'].includes(state.atlas.state)) fail('INSTALLED_STATE_INVALID');
+  if (state.owner.state === 'ownerless'
+    ? state.owner.enabled !== false || state.owner.authEpoch !== null || state.tables.find(row => row.name === 'ptr_owner_anchor_v1')?.count !== 0
+    : state.owner.enabled !== (state.owner.state === 'enabled') || !Number.isSafeInteger(state.owner.authEpoch)
+      || Number(state.owner.authEpoch) < 1 || Number(state.owner.authEpoch) > 0xffff_ffff
+      || state.tables.find(row => row.name === 'ptr_owner_anchor_v1')?.count !== 1) fail('INSTALLED_OWNER_INVALID');
+  for (const row of state.tables) {
+    if (!Number.isSafeInteger(row.count) || row.count < 0 || row.count > 500_000 || !HASH.test(row.rowsDigest)
+      || (row.count === 0 && row.rowsDigest !== updateDigest([]))
+      || !HASH.test(row.schemaDigest) || row.installedTableSchemaDigest !== v9.tableSchemas[row.name]) fail('INSTALLED_ROWS_INVALID');
+  }
+  // Atlas import and owner provisioning intentionally populate tables. Initial bootstrap emptiness is historical evidence only.
+  return Object.freeze({ outcome: 'observed-installed-candidate', candidateProgram: state.program, tableCount: names.length,
+    snapshotDigest: updateDigest(state), owner: state.owner, atlas: state.atlas, atomicDatabaseSnapshot: false,
+    preBootstrapRowEqualityObserved: false, usableOwnerPtrVerified: false, productionAuthorized: false, globalReleaseAuthority: false });
+}
+type UpdateContinuationRecord = Readonly<{
+  update: PtrInitialOwnerUpdateInspection; requestedInspectionDigest: string;
+  submissionMarker: unknown; acknowledgementPresent: boolean; acknowledgementMarker?: unknown;
+}>;
+/** Explicit ordered history only; no journal discovery or inferred authority. */
+export function ptrInitialAtlasUpdateContinuationEvidence(input: UpdateContinuationRecord & Readonly<{
+  bootstrap: PtrBootstrapInspection; priorUpdates?: readonly UpdateContinuationRecord[];
+}>) {
+  const bootstrap = validatePtrBootstrapInspection(input.bootstrap), prior = input.priorUpdates ?? [];
+  if (!Array.isArray(prior) || prior.length > 15) fail('UPDATE_CONTINUATION_CHAIN_INVALID');
+  let predecessor = bootstrap.binding.candidateProgram;
+  const seenPrograms = new Set([predecessor]), seenInspections = new Set<string>();
+  const chain = [];
+  const records = [...prior, input];
+  for (let index = 0; index < records.length; index++) {
+    const entry = records[index]!;
+    const evidence = singleUpdateContinuationEvidence({ ...entry, bootstrap }, predecessor);
+    if (seenPrograms.has(evidence.installedProgram) || seenInspections.has(evidence.updateInspectionDigest)
+      || (index < prior.length && !evidence.acknowledgementPresent)
+      || entry.update.binding.cliDigest !== bootstrap.binding.cliDigest
+      || entry.update.binding.cliConfigDigest !== bootstrap.binding.cliConfigDigest) fail('UPDATE_CONTINUATION_CHAIN_INVALID');
+    seenPrograms.add(evidence.installedProgram); seenInspections.add(evidence.updateInspectionDigest);
+    chain.push(evidence.continuationDigest);
+    const next = records[index + 1];
+    if (next) assertPtrInitialOwnerUpdateCandidateSnapshot(entry.update, {
+      state: next.update.before, configuration: next.update.configuration,
+      installedDescriptionDigest: next.update.preservation.priorDigest });
+    predecessor = evidence.installedProgram;
+  }
+  const final = singleUpdateContinuationEvidence(input, records.length === 1
+    ? bootstrap.binding.candidateProgram : prior[prior.length - 1]!.update.binding.candidateProgram);
+  if (!prior.length) return Object.freeze({ ...final, chain: undefined });
+  const facts = { profile: 'warpkeep-ptr-initial-atlas-update-continuation-v2',
+    bootstrapInspectionDigest: final.bootstrapInspectionDigest, updateInspectionDigest: final.updateInspectionDigest,
+    predecessorProgram: final.predecessorProgram, installedProgram: final.installedProgram,
+    installedSourceCommit: final.installedSourceCommit, installedModuleSha256: final.installedModuleSha256,
+    submissionMarkerDigest: final.submissionMarkerDigest, acknowledgementPresent: final.acknowledgementPresent,
+    acknowledgementDigest: final.acknowledgementDigest, chain: Object.freeze(chain) };
+  return Object.freeze({ ...final, ...facts, continuationDigest: updateDigest(facts) });
+}
+/** Validate one retained update without inventing missing ACK evidence. */
+function singleUpdateContinuationEvidence(input: Readonly<{
+  bootstrap: PtrBootstrapInspection; update: PtrInitialOwnerUpdateInspection; requestedInspectionDigest: string;
+  submissionMarker: unknown; acknowledgementPresent: boolean; acknowledgementMarker?: unknown;
+}>, expectedPredecessor: string) {
+  const bootstrap = validatePtrBootstrapInspection(input.bootstrap), update = validatePtrInitialOwnerUpdateInspection(input.update);
+  if (!HASH.test(input.requestedInspectionDigest) || update.inspectionDigest !== input.requestedInspectionDigest
+    || update.binding.databaseIdentity !== bootstrap.binding.databaseIdentity
+    || update.before.program !== expectedPredecessor) fail('UPDATE_CONTINUATION_PREDECESSOR_DIFFERENT');
+  const expectedSubmission = { inspectionDigest: update.inspectionDigest, binding: update.binding,
+    beforeProgram: update.before.program, submissionState: 'possibly-submitted' };
+  if (!input.submissionMarker || typeof input.submissionMarker !== 'object'
+    || updateCanonical(input.submissionMarker) !== updateCanonical(expectedSubmission)) fail('UPDATE_CONTINUATION_SUBMISSION_INVALID');
+  let acknowledgementDigest: string | null = null;
+  if (input.acknowledgementPresent) {
+    const raw = input.acknowledgementMarker;
+    if (!raw || typeof raw !== 'object') fail('UPDATE_CONTINUATION_ACKNOWLEDGEMENT_INVALID');
+    const acknowledgement = raw as Record<string, unknown>;
+    if (Object.keys(acknowledgement).sort().join('\0') !== 'inspectionDigest\0response\0responseSha256'
+      || acknowledgement.inspectionDigest !== update.inspectionDigest
+      || acknowledgement.response !== 'fixed-target-update-success'
+      || typeof acknowledgement.responseSha256 !== 'string' || !HASH.test(acknowledgement.responseSha256))
+      fail('UPDATE_CONTINUATION_ACKNOWLEDGEMENT_INVALID');
+    acknowledgementDigest = updateDigest(acknowledgement);
+  } else if (input.acknowledgementMarker !== undefined) fail('UPDATE_CONTINUATION_ACKNOWLEDGEMENT_INVALID');
+  const continuationFacts = { profile: 'warpkeep-ptr-initial-atlas-update-continuation-v1',
+    bootstrapInspectionDigest: bootstrap.inspectionDigest, updateInspectionDigest: update.inspectionDigest,
+    predecessorProgram: update.before.program, installedProgram: update.binding.candidateProgram,
+    installedSourceCommit: update.binding.sourceCommit, installedModuleSha256: update.binding.candidateSha256,
+    submissionMarkerDigest: updateDigest(expectedSubmission), acknowledgementPresent: input.acknowledgementPresent,
+    acknowledgementDigest };
+  return Object.freeze({ binding: update.binding, continuationDigest: updateDigest(continuationFacts),
+    ...continuationFacts, acknowledgementPresent: input.acknowledgementPresent,
+    providerAckReceived: input.acknowledgementPresent, installationProvenByReadback: false,
+    productionAuthorized: false, globalReleaseAuthority: false });
+}
+/** Resolve the post-bootstrap module only from the real update inspection, predecessor marker and provider readback. */
+type VerifiedPtrInitialAtlasUpdateContinuation = Omit<ReturnType<typeof ptrInitialAtlasUpdateContinuationEvidence>, 'installationProvenByReadback'> & {
+  installationProvenByReadback: true; preservedRowsDigest: string; configurationDigest: string;
+};
+export function assertPtrInitialAtlasUpdateContinuation(input: Readonly<{
+  bootstrap: PtrBootstrapInspection; update: PtrInitialOwnerUpdateInspection; requestedInspectionDigest: string;
+  submissionMarker: unknown; acknowledgementPresent: boolean; acknowledgementMarker?: unknown;
+  priorUpdates?: readonly UpdateContinuationRecord[];
+  observation: Readonly<{ state: Awaited<ReturnType<typeof inspectPtrInitialOwnerState>>['after'];
+    configuration: unknown; installedV10: Uint8Array }>;
+}>): VerifiedPtrInitialAtlasUpdateContinuation {
+  const evidence = ptrInitialAtlasUpdateContinuationEvidence(input), update = validatePtrInitialOwnerUpdateInspection(input.update);
+  const configuration = input.observation.configuration as Awaited<ReturnType<typeof inspectPtrInitialOwnerState>>['afterConfiguration'];
+  const updateObservation = classifyPtrInitialOwnerUpdateObservation(update, { state: input.observation.state as never,
+    configuration, installedV10: input.observation.installedV10 });
+  if (updateObservation.outcome !== 'observed-preserved-candidate' || configuration === null
+    || !configuration.ptrEnabled || configuration.ptrSpacetimeDbDatabase !== PTR_BOOTSTRAP_TARGET
+    || configuration.ptrAudience !== 'warpkeep-ptr-spacetimedb' || updateObservation.currentConfigurationDigest === null)
+    fail('UPDATE_CONTINUATION_READBACK_INVALID');
+  return Object.freeze({ ...evidence,
+    installationProvenByReadback: true, preservedRowsDigest: updateObservation.installedStateDigest,
+    configurationDigest: updateObservation.currentConfigurationDigest, productionAuthorized: false, globalReleaseAuthority: false });
+}
+/** A missing provider ACK is recoverable only from two fresh, successful read-only reconciliations. */
+export function assertPtrInitialAtlasUpdateReconciliationPair(input: Readonly<{
+  continuation: VerifiedPtrInitialAtlasUpdateContinuation; first: unknown; second: unknown;
+}>) {
+  const check = (raw: unknown) => {
+    if (!raw || typeof raw !== 'object') fail('UPDATE_CONTINUATION_RECONCILIATION_INVALID');
+    const receipt = raw as Record<string, unknown>, result = receipt.result as Record<string, unknown> | null;
+    if (receipt.profile !== 'warpkeep-ptr-initial-owner-update-operation-v1' || receipt.command !== 'reconcile'
+      || receipt.inspectionDigest !== input.continuation.updateInspectionDigest || receipt.commandSucceeded !== true
+      || receipt.operationComplete !== true || receipt.resolutionComplete !== true || receipt.candidateInstallationObserved !== true
+      || receipt.sourcePreserved !== true || receipt.cleanupCompleted !== true || receipt.privateConfigurationObserved !== true
+      || receipt.acknowledgementReceived !== false || !result || result.outcome !== 'observed-preserved-candidate'
+      || result.candidateProgram !== input.continuation.installedProgram || result.privateConfigurationPreservationObserved !== true
+      || !HASH.test(String(result.installedStateDigest)) || !HASH.test(String(result.currentConfigurationDigest)))
+      fail('UPDATE_CONTINUATION_RECONCILIATION_INVALID');
+    return { installedStateDigest: result.installedStateDigest as string,
+      currentConfigurationDigest: result.currentConfigurationDigest as string };
+  };
+  if (input.continuation.acknowledgementPresent || input.continuation.providerAckReceived) fail('UPDATE_CONTINUATION_RECONCILIATION_INVALID');
+  const first = check(input.first), second = check(input.second);
+  if (first.installedStateDigest !== second.installedStateDigest || first.currentConfigurationDigest !== second.currentConfigurationDigest
+    || first.installedStateDigest !== input.continuation.preservedRowsDigest
+    || first.currentConfigurationDigest !== input.continuation.configurationDigest) fail('UPDATE_CONTINUATION_RECONCILIATION_CHANGED');
+  return Object.freeze({ profile: 'warpkeep-ptr-initial-atlas-update-readback-reconciliation-v1',
+    inspectionDigest: input.continuation.updateInspectionDigest, candidateProgram: input.continuation.installedProgram,
+    installedStateDigest: first.installedStateDigest, currentConfigurationDigest: first.currentConfigurationDigest,
+    reconciliationCount: 2, acknowledgementPresent: false, providerAckReceived: false,
+    installationProvenByReadback: true, productionAuthorized: false, globalReleaseAuthority: false });
+}
+/** Fixed PTR plus the caller's verified sealed G002 identity; never an empty exclusion. */
+export function ptrInitialAtlasTargets(genesis002DatabaseIdentity: unknown) {
+  if (typeof genesis002DatabaseIdentity !== 'string' || !HASH.test(genesis002DatabaseIdentity)
+    || genesis002DatabaseIdentity === PTR_BOOTSTRAP_TARGET
+    || genesis002DatabaseIdentity === PTR_PRODUCTION_IMPORT_TARGET.genesis001DatabaseIdentity) fail('PROTECTED_TARGET_INVALID');
+  return Object.freeze({ databaseIdentity: PTR_BOOTSTRAP_TARGET,
+    disallowedDatabaseIdentities: Object.freeze([genesis002DatabaseIdentity]) });
+}
+export function ptrInitialAtlasConfirmation(input: Readonly<{ bootstrapInspection: string; sourceCommit: string;
+  installedSourceCommit: string; program: string; releaseSha256: string; atlasSourceCommit: string; continuationDigest?: string; genesis002DatabaseIdentity?: string }>) {
+  if (![input.bootstrapInspection, input.program, input.releaseSha256].every(value => HASH.test(value))
+    || ![input.sourceCommit, input.installedSourceCommit, input.atlasSourceCommit].every(value => /^[a-f0-9]{40}$/u.test(value))
+    || (input.continuationDigest !== undefined && !HASH.test(input.continuationDigest))) fail('CONFIRMATION_INPUT_INVALID');
+  if (input.genesis002DatabaseIdentity !== undefined) ptrInitialAtlasTargets(input.genesis002DatabaseIdentity);
+  const { continuationDigest, ...legacy } = input;
+  return updateDigest({ profile: 'warpkeep-ptr-initial-atlas-confirmation-v1', databaseIdentity: PTR_BOOTSTRAP_TARGET,
+    ...legacy, ...(continuationDigest === undefined ? {} : { continuationDigest }) });
+}
+export function ptrInitialAtlasImportMarker(input: Readonly<{ bootstrapInspection: string; binding: PtrBootstrapInspection['binding'];
+  atlasSourceCommit: string; releaseSha256: string;
+  continuation?: Omit<ReturnType<typeof ptrInitialAtlasUpdateContinuationEvidence>, 'installationProvenByReadback'> & {
+    installationProvenByReadback: boolean; preservedRowsDigest?: string; configurationDigest?: string | null } }>) {
+  if (!HASH.test(input.bootstrapInspection) || input.binding.databaseIdentity !== PTR_BOOTSTRAP_TARGET
+    || !/^[a-f0-9]{40}$/u.test(input.atlasSourceCommit) || !HASH.test(input.releaseSha256)) fail('IMPORT_MARKER_INPUT_INVALID');
+  if (input.continuation && (input.continuation.binding.candidateProgram !== input.binding.candidateProgram
+    || input.continuation.binding.sourceCommit !== input.binding.sourceCommit
+    || input.continuation.continuationDigest !== updateDigest({ profile: input.continuation.profile,
+      bootstrapInspectionDigest: input.continuation.bootstrapInspectionDigest,
+      updateInspectionDigest: input.continuation.updateInspectionDigest,
+      predecessorProgram: input.continuation.predecessorProgram, installedProgram: input.continuation.installedProgram,
+      installedSourceCommit: input.continuation.installedSourceCommit, installedModuleSha256: input.continuation.installedModuleSha256,
+      submissionMarkerDigest: input.continuation.submissionMarkerDigest,
+      acknowledgementPresent: input.continuation.acknowledgementPresent,
+      acknowledgementDigest: input.continuation.acknowledgementDigest,
+      ...(input.continuation.chain === undefined ? {} : { chain: input.continuation.chain }) }))) fail('IMPORT_MARKER_CONTINUATION_INVALID');
+  const common = { bootstrapInspection: input.bootstrapInspection, databaseIdentity: PTR_BOOTSTRAP_TARGET,
+    installedModuleSourceCommit: input.binding.sourceCommit, program: input.binding.candidateProgram,
+    atlasSourceCommit: input.atlasSourceCommit, releaseSha256: input.releaseSha256, importEpoch: '1' };
+  return Object.freeze(input.continuation ? { profile: 'warpkeep-ptr-initial-atlas-possibly-submitted-v2', ...common,
+    updateInspection: input.continuation.updateInspectionDigest, continuationDigest: input.continuation.continuationDigest,
+    providerAckReceived: input.continuation.providerAckReceived } :
+    { profile: 'warpkeep-ptr-initial-atlas-possibly-submitted-v1', ...common });
+}
+function validatePtrInitialAtlasImportReceipt(value: unknown, input: Readonly<{ binding: PtrBootstrapInspection['binding'];
+  authority: ReturnType<typeof greaterRealmProductionImportEngine.importAuthority>; manifestSha256: string; headerJson: string }>) {
+  if (!value || typeof value !== 'object' || !('importReceiptDigest' in value)) fail('IMPORT_RECEIPT_INVALID');
+  const receipt = value as PtrProductionImportReceipt, { importReceiptDigest, ...body } = receipt;
+  if (ptrProductionImportReceiptDigest(body) !== importReceiptDigest || receipt.databaseIdentity !== PTR_BOOTSTRAP_TARGET
+    || receipt.moduleSourceCommit !== input.binding.sourceCommit || receipt.moduleSha256 !== input.binding.candidateSha256
+    || receipt.moduleTreeId !== input.binding.moduleTreeId || receipt.dependencyClosureDigest !== input.binding.dependencyClosureDigest
+    || receipt.spacetimeExecutableSha256 !== input.binding.cliDigest || receipt.atlasSourceCommit !== input.authority.sourceCommit
+    || receipt.publicReleaseId !== input.authority.publicReleaseId || receipt.expectedReleaseSha256 !== input.authority.releaseSha256
+    || receipt.releaseManifestSha256 !== input.manifestSha256 || receipt.releaseHeaderSha256 !== sha(Buffer.from(input.headerJson))
+    || receipt.importEpoch !== '1') fail('IMPORT_RECEIPT_BINDING_DIFFERENT');
+  return receipt;
+}
+/** A marked invocation can only read its real retained receipt; it never invokes the import executor again. */
+export async function coordinatePtrInitialAtlasImport(input: Readonly<{
+  command: 'import' | 'reconcile-import'; journal: ReturnType<typeof openPtrInitialOwnerUpdateJournal>;
+  marker: unknown; assert: () => void; validateReceipt: (value: unknown) => PtrProductionImportReceipt;
+  execute: (beforeSend: () => void) => Promise<PtrProductionImportReceipt>;
+  verificationBinding?: Readonly<{ currentUpdateInspectionDigest: string; currentContinuationDigest: string }>;
+}>) {
+  const key = updateDigest(input.marker), journal = input.journal;
+  const assertMarker = () => { input.assert(); journal.assert();
+    if (journal.present('submission', key) && updateCanonical(journal.read('submission', key).value) !== updateCanonical(input.marker)) fail('IMPORT_MARKER_DIFFERENT'); };
+  assertMarker(); const marked = journal.present('submission', key);
+  if (input.command === 'reconcile-import') {
+    if (!marked) fail('IMPORT_SUBMISSION_NOT_MARKED');
+    if (!journal.present('acknowledgement', key)) return null;
+    const stored = journal.read('acknowledgement', key).value;
+    if (!stored || typeof stored !== 'object' || Object.keys(stored).sort().join('\0') !== 'markerDigest\0receiptJson'
+      || stored.markerDigest !== key || typeof stored.receiptJson !== 'string' || Buffer.byteLength(stored.receiptJson) > 64 * 1024) fail('IMPORT_RECEIPT_INVALID');
+    const verificationKey = ptrInitialAtlasVerificationRecoveryKey(input.marker);
+    if (journal.present('submission', verificationKey) || journal.present('acknowledgement', verificationKey)) {
+      if (!journal.present('submission', verificationKey) || !input.verificationBinding) fail('VERIFICATION_RECOVERY_BINDING_MISSING');
+      const recovery = journal.read('submission', verificationKey).value as PtrInitialAtlasVerificationRecovery;
+      if (recovery.currentUpdateInspectionDigest !== input.verificationBinding.currentUpdateInspectionDigest
+        || recovery.currentContinuationDigest !== input.verificationBinding.currentContinuationDigest) fail('VERIFICATION_RECOVERY_BINDING_DIFFERENT');
+      const prior = readPtrInitialAtlasVerificationPrior(journal, input.marker);
+      if (recovery.priorTerrainRecoveryV2Digest !== updateDigest(prior.v2)) fail('VERIFICATION_RECOVERY_PRIOR_DIFFERENT');
+      return reconcilePtrInitialAtlasVerificationRecovery({ journal, marker: input.marker, recovery, assert: input.assert,
+        validateReceipt: input.validateReceipt, validatePrior: () => {
+          if (updateCanonical(readPtrInitialAtlasVerificationPrior(journal, input.marker)) !== updateCanonical(prior)) fail('VERIFICATION_RECOVERY_PRIOR_CHANGED');
+        } });
+    }
+    const recoveryKey = ptrInitialAtlasRecoveryKey(input.marker);
+    const regionKey = ptrInitialAtlasRegionRecoveryKey(input.marker);
+    const terrainKey = ptrInitialAtlasTerrainRecoveryKey(input.marker);
+    if ((journal.present('submission', ptrInitialAtlasTerrainRecoveryV2Key(input.marker)) || journal.present('acknowledgement', ptrInitialAtlasTerrainRecoveryV2Key(input.marker)))
+      && !journal.present('submission', terrainKey)) fail('TERRAIN_RECOVERY_PRIOR_MARKER_DIFFERENT');
+    if (journal.present('submission', terrainKey)) {
+      if (!journal.present('submission', recoveryKey) || !journal.present('submission', regionKey)
+        || journal.present('acknowledgement', recoveryKey) || journal.present('acknowledgement', regionKey)) fail('TERRAIN_RECOVERY_PRIOR_MARKER_DIFFERENT');
+      const prior = journal.read('submission', recoveryKey).value, region = journal.read('submission', regionKey).value, recovery = journal.read('submission', terrainKey).value;
+      assertPtrInitialAtlasTerrainPrior(input.marker, prior, region);
+      if (!recovery || typeof recovery !== 'object' || recovery.profile !== 'warpkeep-ptr-initial-atlas-terrain-recovery-v1' || recovery.originalMarkerDigest !== key
+        || recovery.priorRecoveryKey !== recoveryKey || recovery.priorRecoveryDigest !== updateDigest(prior)
+        || recovery.priorRegionRecoveryKey !== regionKey || recovery.priorRegionRecoveryDigest !== updateDigest(region)) fail('TERRAIN_RECOVERY_BINDING_DIFFERENT');
+      const v2Key = ptrInitialAtlasTerrainRecoveryV2Key(input.marker);
+      if (journal.present('acknowledgement', v2Key) && !journal.present('submission', v2Key)) fail('RECOVERY_COMPLETION_DIFFERENT');
+      if (journal.present('submission', v2Key)) {
+        if (journal.present('acknowledgement', terrainKey)) fail('RECOVERY_ALREADY_COMPLETE');
+        const v2 = journal.read('submission', v2Key).value;
+        assertPtrInitialAtlasTerrainV2Binding(input.marker, prior, region, recovery, v2);
+        if (!journal.present('acknowledgement', v2Key)) fail('RECOVERY_COMPLETION_MISSING');
+        if (updateCanonical(journal.read('acknowledgement', v2Key).value) !== updateCanonical({
+          profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-completion-v2', priorTerrainRecoveryKey: terrainKey, priorTerrainRecoveryDigest: updateDigest(recovery),
+          priorRegionRecoveryKey: regionKey, priorRegionRecoveryDigest: updateDigest(region), priorRecoveryKey: recoveryKey, priorRecoveryDigest: updateDigest(prior),
+          originalMarkerDigest: key, recoveryDigest: updateDigest(v2), receiptJson: stored.receiptJson })) fail('RECOVERY_COMPLETION_DIFFERENT');
+      } else {
+        if (!journal.present('acknowledgement', terrainKey)) fail('RECOVERY_COMPLETION_MISSING');
+        if (updateCanonical(journal.read('acknowledgement', terrainKey).value) !== updateCanonical({
+          profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-completion-v1', priorRegionRecoveryKey: regionKey, priorRegionRecoveryDigest: updateDigest(region),
+          priorRecoveryKey: recoveryKey, priorRecoveryDigest: updateDigest(prior), originalMarkerDigest: key, recoveryDigest: updateDigest(recovery), receiptJson: stored.receiptJson })) fail('RECOVERY_COMPLETION_DIFFERENT');
+      }
+    } else if (journal.present('submission', regionKey)) {
+      if (!journal.present('submission', recoveryKey) || journal.present('acknowledgement', recoveryKey)) fail('REGION_RECOVERY_PRIOR_MARKER_DIFFERENT');
+      const prior = journal.read('submission', recoveryKey).value, recovery = journal.read('submission', regionKey).value;
+      assertPtrInitialAtlasRegionPrior(input.marker, prior);
+      if (!recovery || typeof recovery !== 'object' || recovery.priorRecoveryKey !== recoveryKey || recovery.priorRecoveryDigest !== updateDigest(prior)) fail('REGION_RECOVERY_BINDING_DIFFERENT');
+      if (!journal.present('acknowledgement', regionKey)) fail('RECOVERY_COMPLETION_MISSING');
+      if (updateCanonical(journal.read('acknowledgement', regionKey).value) !== updateCanonical({
+        profile: 'warpkeep-ptr-initial-atlas-region-recovery-completion-v1', priorRecoveryKey: recoveryKey,
+        priorRecoveryDigest: updateDigest(prior), originalMarkerDigest: key, recoveryDigest: updateDigest(recovery), receiptJson: stored.receiptJson })) fail('RECOVERY_COMPLETION_DIFFERENT');
+    } else if (journal.present('submission', recoveryKey)) {
+      if (!journal.present('acknowledgement', recoveryKey)) fail('RECOVERY_COMPLETION_MISSING');
+      const recovery = journal.read('submission', recoveryKey).value, completed = journal.read('acknowledgement', recoveryKey).value;
+      if (updateCanonical(completed) !== updateCanonical({ profile: 'warpkeep-ptr-initial-atlas-recovery-completion-v1',
+        originalMarkerDigest: key, recoveryDigest: updateDigest(recovery), receiptJson: stored.receiptJson })) fail('RECOVERY_COMPLETION_DIFFERENT');
+    }
+    const bytes = Buffer.from(stored.receiptJson);
+    try { const receipt = input.validateReceipt(parseExistingUpdateJson(bytes)); assertMarker(); return receipt; }
+    finally { bytes.fill(0); }
+  }
+  if (marked) fail('IMPORT_SUBMISSION_ALREADY_MARKED_RECONCILE_ONLY', true);
+  let submitted = false;
+  const receipt = input.validateReceipt(await input.execute(() => {
+    assertMarker();
+    if (!submitted) { journal.write('submission', key, input.marker); submitted = true; }
+    assertMarker();
+  }));
+  if (!submitted) fail('IMPORT_SUBMISSION_NOT_MARKED');
+  // JSON text preserves the maintained receipt's strict field order across canonical journal serialization.
+  journal.write('acknowledgement', key, { markerDigest: key, receiptJson: JSON.stringify(receipt) });
+  assertMarker(); return receipt;
+}
+/** Read-only reconciliation may observe a marked import whose completion ACK was lost. */
+export function ptrInitialAtlasRecoveryKey(marker: unknown): string {
+  return updateDigest({ profile: 'warpkeep-ptr-initial-atlas-staged-recovery-v1', originalMarkerDigest: updateDigest(marker) });
+}
+function assertPtrInitialAtlasRegionPrior(marker: unknown, prior: unknown): void {
+  if (!prior || typeof prior !== 'object' || Array.isArray(prior)
+    || (prior as Record<string, unknown>).profile !== 'warpkeep-ptr-initial-atlas-staged-recovery-v1'
+    || (prior as Record<string, unknown>).originalMarkerDigest !== updateDigest(marker)) fail('REGION_RECOVERY_PRIOR_BINDING_DIFFERENT');
+}
+export function ptrInitialAtlasRegionRecoveryKey(marker: unknown): string {
+  return updateDigest({ profile: 'warpkeep-ptr-initial-atlas-region-recovery-v1', originalMarkerDigest: updateDigest(marker), priorRecoveryKey: ptrInitialAtlasRecoveryKey(marker) });
+}
+function assertPtrInitialAtlasTerrainPrior(marker: unknown, staged: unknown, region: unknown): void {
+  assertPtrInitialAtlasRegionPrior(marker, staged);
+  if (!region || typeof region !== 'object' || Array.isArray(region)) fail('TERRAIN_RECOVERY_PRIOR_BINDING_DIFFERENT');
+  const value = region as Record<string, unknown>;
+  if (value.profile !== 'warpkeep-ptr-initial-atlas-region-recovery-v1' || value.originalMarkerDigest !== updateDigest(marker)
+    || value.priorRecoveryKey !== ptrInitialAtlasRecoveryKey(marker) || value.priorRecoveryDigest !== updateDigest(staged)) fail('TERRAIN_RECOVERY_PRIOR_BINDING_DIFFERENT');
+}
+export function ptrInitialAtlasTerrainRecoveryKey(marker: unknown): string {
+  return updateDigest({ profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-v1', originalMarkerDigest: updateDigest(marker), priorRegionRecoveryKey: ptrInitialAtlasRegionRecoveryKey(marker) });
+}
+export function ptrInitialAtlasTerrainRecoveryV2Key(marker: unknown): string {
+  return updateDigest({ profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-v2', originalMarkerDigest: updateDigest(marker),
+    priorTerrainRecoveryKey: ptrInitialAtlasTerrainRecoveryKey(marker) });
+}
+function assertPtrInitialAtlasTerrainV1Binding(marker: unknown, staged: unknown, region: unknown, terrain: unknown): void {
+  assertPtrInitialAtlasTerrainPrior(marker, staged, region);
+  if (!terrain || typeof terrain !== 'object' || Array.isArray(terrain)) fail('TERRAIN_RECOVERY_PRIOR_BINDING_DIFFERENT');
+  const value = terrain as Record<string, unknown>;
+  if (value.profile !== 'warpkeep-ptr-initial-atlas-terrain-recovery-v1' || value.originalMarkerDigest !== updateDigest(marker)
+    || value.priorRecoveryKey !== ptrInitialAtlasRecoveryKey(marker) || value.priorRecoveryDigest !== updateDigest(staged)
+    || value.priorRegionRecoveryKey !== ptrInitialAtlasRegionRecoveryKey(marker) || value.priorRegionRecoveryDigest !== updateDigest(region)) fail('TERRAIN_RECOVERY_PRIOR_BINDING_DIFFERENT');
+}
+function assertPtrInitialAtlasTerrainV2Binding(marker: unknown, staged: unknown, region: unknown, priorTerrain: unknown, recovery: unknown): void {
+  assertPtrInitialAtlasTerrainV1Binding(marker, staged, region, priorTerrain);
+  if (!recovery || typeof recovery !== 'object' || Array.isArray(recovery)) fail('TERRAIN_RECOVERY_BINDING_DIFFERENT');
+  const value = recovery as Record<string, unknown>, prior = priorTerrain as Record<string, unknown>;
+  const prefix = value.terrainPrefix as Record<string, unknown> | undefined, previous = prior.terrainPrefix as Record<string, unknown> | undefined;
+  if (value.profile !== 'warpkeep-ptr-initial-atlas-terrain-recovery-v2'
+    || value.originalMarkerDigest !== updateDigest(marker) || value.priorRecoveryKey !== ptrInitialAtlasRecoveryKey(marker)
+    || value.priorRecoveryDigest !== updateDigest(staged) || value.priorRegionRecoveryKey !== ptrInitialAtlasRegionRecoveryKey(marker)
+    || value.priorRegionRecoveryDigest !== updateDigest(region) || value.priorTerrainRecoveryKey !== ptrInitialAtlasTerrainRecoveryKey(marker)
+    || value.priorTerrainRecoveryDigest !== updateDigest(priorTerrain)
+    || !prefix || !previous || !Number.isSafeInteger(prefix.chunkCount) || !Number.isSafeInteger(previous.chunkCount)
+    || (previous.chunkCount as number) < 1 || (prefix.chunkCount as number) <= (previous.chunkCount as number)
+    || !value.componentPrefix || !prior.componentPrefix || updateCanonical(value.componentPrefix) !== updateCanonical(prior.componentPrefix)) fail('TERRAIN_RECOVERY_BINDING_DIFFERENT');
+}
+/** All five immutable submissions remain evidence; none of the four old recovery ACKs is invented. */
+function readPtrInitialAtlasVerificationPrior(journal: ReturnType<typeof openPtrInitialOwnerUpdateJournal>, marker: unknown) {
+  journal.assert();
+  const originalKey = updateDigest(marker), stagedKey = ptrInitialAtlasRecoveryKey(marker), regionKey = ptrInitialAtlasRegionRecoveryKey(marker),
+    terrainKey = ptrInitialAtlasTerrainRecoveryKey(marker), v2Key = ptrInitialAtlasTerrainRecoveryV2Key(marker);
+  for (const key of [originalKey, stagedKey, regionKey, terrainKey, v2Key])
+    if (!journal.present('submission', key)) fail('VERIFICATION_RECOVERY_PRIOR_MISSING');
+  for (const key of [stagedKey, regionKey, terrainKey, v2Key])
+    if (journal.present('acknowledgement', key)) fail('VERIFICATION_RECOVERY_PRIOR_ACK_DIFFERENT');
+  if (updateCanonical(journal.read('submission', originalKey).value) !== updateCanonical(marker)) fail('VERIFICATION_RECOVERY_ORIGINAL_DIFFERENT');
+  const staged = journal.read('submission', stagedKey).value, region = journal.read('submission', regionKey).value,
+    terrain = journal.read('submission', terrainKey).value, v2 = journal.read('submission', v2Key).value;
+  assertPtrInitialAtlasTerrainV2Binding(marker, staged, region, terrain, v2);
+  return { staged, region, terrain, v2 };
+}
+export function ptrInitialAtlasStagedStatusDigest(status: ReturnType<typeof projectPtrProductionStatus>): string {
+  return updateDigest(JSON.parse(JSON.stringify(status, (_key, value) => typeof value === 'bigint' ? value.toString() : value)));
+}
+
+/** A distinct, once-only continuation retains the original ambiguous submission unchanged. */
+export async function coordinatePtrInitialAtlasRecovery(input: Readonly<{
+  journal: ReturnType<typeof openPtrInitialOwnerUpdateJournal>; marker: unknown; recovery: unknown; priorRecovery?: unknown; priorRegionRecovery?: unknown; priorTerrainRecovery?: unknown;
+  assert: () => void; validateReceipt: (value: unknown) => PtrProductionImportReceipt;
+  execute: (beforeSend: () => void) => Promise<PtrProductionImportReceipt>;
+}>) {
+  const originalKey = updateDigest(input.marker), terrainV2 = input.priorTerrainRecovery !== undefined, terrain = input.priorRegionRecovery !== undefined, region = input.priorRecovery !== undefined,
+    priorKey = ptrInitialAtlasRecoveryKey(input.marker), key = terrainV2 ? ptrInitialAtlasTerrainRecoveryV2Key(input.marker) : terrain ? ptrInitialAtlasTerrainRecoveryKey(input.marker) : region ? ptrInitialAtlasRegionRecoveryKey(input.marker) : priorKey, journal = input.journal;
+  let marked = false;
+  const check = () => { input.assert(); journal.assert();
+    if (!journal.present('submission', originalKey)
+      || updateCanonical(journal.read('submission', originalKey).value) !== updateCanonical(input.marker)) fail('RECOVERY_ORIGINAL_MARKER_DIFFERENT');
+    if (journal.present('acknowledgement', originalKey)) fail('RECOVERY_ALREADY_COMPLETE');
+    if (region) {
+      assertPtrInitialAtlasRegionPrior(input.marker, input.priorRecovery);
+      if (!journal.present('submission', priorKey) || updateCanonical(journal.read('submission', priorKey).value) !== updateCanonical(input.priorRecovery)) fail('REGION_RECOVERY_PRIOR_MARKER_DIFFERENT');
+      if (journal.present('acknowledgement', priorKey) || (!marked && journal.present('acknowledgement', key))) fail('RECOVERY_ALREADY_COMPLETE');
+      if (!input.recovery || typeof input.recovery !== 'object' || (input.recovery as Record<string, unknown>).priorRecoveryKey !== priorKey
+        || (input.recovery as Record<string, unknown>).priorRecoveryDigest !== updateDigest(input.priorRecovery)) fail('REGION_RECOVERY_BINDING_DIFFERENT');
+    }
+    if (terrain) {
+      const regionKey = ptrInitialAtlasRegionRecoveryKey(input.marker);
+      assertPtrInitialAtlasTerrainPrior(input.marker, input.priorRecovery, input.priorRegionRecovery);
+      if (!journal.present('submission', regionKey) || updateCanonical(journal.read('submission', regionKey).value) !== updateCanonical(input.priorRegionRecovery)) fail('TERRAIN_RECOVERY_PRIOR_MARKER_DIFFERENT');
+      if (journal.present('acknowledgement', regionKey)) fail('RECOVERY_ALREADY_COMPLETE');
+      if (!input.recovery || typeof input.recovery !== 'object' || (input.recovery as Record<string, unknown>).profile !== (terrainV2 ? 'warpkeep-ptr-initial-atlas-terrain-recovery-v2' : 'warpkeep-ptr-initial-atlas-terrain-recovery-v1')
+        || (input.recovery as Record<string, unknown>).originalMarkerDigest !== originalKey || (input.recovery as Record<string, unknown>).priorRegionRecoveryKey !== regionKey
+        || (input.recovery as Record<string, unknown>).priorRegionRecoveryDigest !== updateDigest(input.priorRegionRecovery)) fail('TERRAIN_RECOVERY_BINDING_DIFFERENT');
+    }
+    if (terrainV2) {
+      const terrainKey = ptrInitialAtlasTerrainRecoveryKey(input.marker);
+      assertPtrInitialAtlasTerrainV2Binding(input.marker, input.priorRecovery, input.priorRegionRecovery, input.priorTerrainRecovery, input.recovery);
+      if (!journal.present('submission', terrainKey) || updateCanonical(journal.read('submission', terrainKey).value) !== updateCanonical(input.priorTerrainRecovery)) fail('TERRAIN_RECOVERY_PRIOR_MARKER_DIFFERENT');
+      if (journal.present('acknowledgement', terrainKey) || (!marked && journal.present('acknowledgement', key))) fail('RECOVERY_ALREADY_COMPLETE');
+    }
+    if (marked && (!journal.present('submission', key)
+      || updateCanonical(journal.read('submission', key).value) !== updateCanonical(input.recovery))) fail('RECOVERY_MARKER_DIFFERENT', true);
+  };
+  check();
+  if (journal.present('submission', key)) fail('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
+  const receipt = input.validateReceipt(await input.execute(() => {
+    check();
+    if (!marked) { journal.write('submission', key, input.recovery); marked = true; }
+    if (updateCanonical(journal.read('submission', key).value) !== updateCanonical(input.recovery)) fail('RECOVERY_MARKER_DIFFERENT', true);
+  }));
+  if (!marked) fail('RECOVERY_SUBMISSION_NOT_MARKED');
+  check();
+  // The executor's chain proves continuation operations only. Persist that provenance before the original ACK.
+  journal.write('acknowledgement', key, { profile: terrainV2 ? 'warpkeep-ptr-initial-atlas-terrain-recovery-completion-v2' : terrain ? 'warpkeep-ptr-initial-atlas-terrain-recovery-completion-v1' : region ? 'warpkeep-ptr-initial-atlas-region-recovery-completion-v1' : 'warpkeep-ptr-initial-atlas-recovery-completion-v1',
+    ...(terrainV2 ? { priorTerrainRecoveryKey: ptrInitialAtlasTerrainRecoveryKey(input.marker), priorTerrainRecoveryDigest: updateDigest(input.priorTerrainRecovery) } : {}),
+    ...(terrain ? { priorRegionRecoveryKey: ptrInitialAtlasRegionRecoveryKey(input.marker), priorRegionRecoveryDigest: updateDigest(input.priorRegionRecovery) } : {}),
+    ...(region ? { priorRecoveryKey: priorKey, priorRecoveryDigest: updateDigest(input.priorRecovery) } : {}), originalMarkerDigest: originalKey, recoveryDigest: updateDigest(input.recovery), receiptJson: JSON.stringify(receipt) });
+  check();
+  journal.write('acknowledgement', originalKey, { markerDigest: originalKey, receiptJson: JSON.stringify(receipt) });
+  input.assert(); journal.assert(); return receipt;
+}
+
+/** Finish read-only prefix proofs before obtaining the short-lived connection used for first send. */
+export async function preparePtrInitialAtlasRecoverySubmission(input: Readonly<{
+  assert: () => void; inspect: () => Promise<unknown>; assertStatus: (value: unknown) => void;
+  verifyPrefix: () => Promise<void>; prepareFresh: () => Promise<void>;
+}>): Promise<void> {
+  input.assert(); input.assertStatus(await input.inspect()); input.assert();
+  await input.verifyPrefix(); input.assert();
+  await input.prepareFresh(); input.assert();
+}
+
+export function ptrInitialAtlasImportChainVerified(command: Command, retained: PtrProductionImportReceipt | null): boolean {
+  if (retained !== null) return true;
+  if (['reconcile-import', 'inspect-import-recovery', 'resume-import', 'inspect-region-recovery', 'resume-region-import', 'inspect-terrain-recovery', 'resume-terrain-import', 'inspect-verification-recovery', 'resume-verification'].includes(command)) return false;
+  fail('IMPORT_CHAIN_RECEIPT_MISSING');
+}
+function assertInstalledSource(source: Source, inspection: PtrBootstrapInspection, installedBinding = inspection.binding) {
+  const git = (args: string[], allowStderr = false) => {
+    const r = runGreaterRealmTrustedGit(args, ROOT);
+    if (r.error || r.status !== 0 || r.signal !== null || (!allowStderr && r.stderr !== '')) fail('INSTALLED_SOURCE_INVALID');
+    return r.stdout.trim();
+  };
+  source.assert();
+  const b = inspection.binding, installed = installedBinding;
+  if (b.databaseIdentity !== PTR_BOOTSTRAP_TARGET || installed.databaseIdentity !== PTR_BOOTSTRAP_TARGET
+    || installed.moduleTreeId !== installed.sourceTree
+    || git(['rev-parse', '--verify', `${b.sourceCommit}^{tree}`]) !== b.sourceTree
+    || git(['rev-parse', '--verify', `${installed.sourceCommit}^{tree}`]) !== installed.sourceTree) fail('INSTALLED_SOURCE_INVALID');
+  for (const commit of new Set([b.sourceCommit, installed.sourceCommit])) {
+    git(['verify-commit', '--raw', commit], true);
+    if (git(['log', '-1', '--format=%G?%n%GK%n%GS', commit])
+      !== `G\n${source.facts.signerFingerprint}\n${source.facts.signerIdentity}`) fail('INSTALLED_SIGNATURE_INVALID');
+  }
+  git(['merge-base', '--is-ancestor', b.sourceCommit, installed.sourceCommit]);
+  git(['merge-base', '--is-ancestor', installed.sourceCommit, source.facts.sourceCommit]);
+  // The exact installed module implementation remains current; later operator/tests-only edits are permitted.
+  git(['diff', '--quiet', '--no-ext-diff', '--no-textconv', installed.sourceCommit, source.facts.sourceCommit,
+    '--', 'spacetimedb', 'package.json', 'package-lock.json']);
+  source.assert();
+}
+
+function assertHistoricalUpdateSource(source: Source, previous: PtrInitialOwnerUpdateInspection['binding'],
+  next: PtrInitialOwnerUpdateInspection['binding'], bootstrapCommit?: string) {
+  const git = (args: string[], allowStderr = false) => {
+    const result = runGreaterRealmTrustedGit(args, ROOT);
+    if (result.error || result.status !== 0 || result.signal !== null || (!allowStderr && result.stderr !== '')) fail('INSTALLED_SOURCE_INVALID');
+    return result.stdout.trim();
+  };
+  if (previous.moduleTreeId !== previous.sourceTree
+    || git(['rev-parse', '--verify', `${previous.sourceCommit}^{tree}`]) !== previous.sourceTree) fail('INSTALLED_SOURCE_INVALID');
+  git(['verify-commit', '--raw', previous.sourceCommit], true);
+  if (git(['log', '-1', '--format=%G?%n%GK%n%GS', previous.sourceCommit])
+    !== `G\n${source.facts.signerFingerprint}\n${source.facts.signerIdentity}`) fail('INSTALLED_SIGNATURE_INVALID');
+  if (bootstrapCommit) git(['merge-base', '--is-ancestor', bootstrapCommit, previous.sourceCommit]);
+  git(['merge-base', '--is-ancestor', previous.sourceCommit, next.sourceCommit]);
+}
+
+/** The actual CLI wires only maintained fixed-target factories. No arbitrary token, SQL, endpoint or reducer inputs. */
+export async function executePtrInitialOwnerAtlas(input: Readonly<{ command: Command; source: PtrInitialOwnerSource;
+  environment: NodeJS.ProcessEnv; workspaceRoot: string; bootstrapInspection?: string; batchHandle?: string;
+  candidateHandle?: string; approvalReference?: string; confirmation?: string; atlasImportReceipt?: string; updateInspection?: string;
+  priorUpdateInspections?: readonly string[]; importedStateUpdateInspection?: string }>) {
+  if (process.platform !== 'linux' || process.arch !== 'x64' || process.getuid?.() !== 1000) fail('PLATFORM_INVALID');
+  if (!['select-runtime', 'prepare-runtime', 'inspect', 'import', 'reconcile-import', 'inspect-import-recovery', 'resume-import', 'inspect-region-recovery', 'resume-region-import', 'inspect-terrain-recovery', 'resume-terrain-import', 'inspect-verification-recovery', 'resume-verification', 'inspect-owner', 'provision-owner'].includes(input.command)
+    || !isAbsolute(input.workspaceRoot) || realpathSync(input.workspaceRoot) !== input.workspaceRoot) fail('ARGUMENT_INVALID');
+  const source = capturePtrInitialOwnerSource(ROOT, input.source);
+  if (input.command === 'select-runtime' || input.command === 'prepare-runtime') {
+    if (input.bootstrapInspection !== undefined || input.confirmation !== undefined || input.atlasImportReceipt !== undefined
+      || input.updateInspection !== undefined || input.priorUpdateInspections !== undefined || input.importedStateUpdateInspection !== undefined) fail('ARGUMENT_INVALID');
+    const runtime = await preparePtrInitialOwnerRuntimeRelease({ command: input.command === 'select-runtime' ? 'select' : 'prepare',
+      workspaceRoot: input.workspaceRoot, batchHandle: input.batchHandle ?? '', assertSource: () => source.assert(),
+      ...(input.candidateHandle === undefined ? {} : { candidateHandle: input.candidateHandle }),
+      ...(input.approvalReference === undefined ? {} : { approvalReference: input.approvalReference }) });
+    source.assert(); return Object.freeze({ profile: 'warpkeep-ptr-initial-owner-atlas-operation-v1', source: source.facts,
+      command: input.command, runtime, commandSucceeded: true, providerWritesAttempted: false,
+      usableOwnerPtrVerified: false, productionAuthorized: false, globalReleaseAuthority: false });
+  }
+  if (!HASH.test(input.bootstrapInspection ?? '') || input.batchHandle !== undefined || input.candidateHandle !== undefined
+    || input.approvalReference !== undefined || (input.command === 'import' || (input.command === 'resume-import' || input.command === 'resume-region-import' || input.command === 'resume-terrain-import' || input.command === 'resume-verification') || input.command === 'provision-owner'
+      ? !HASH.test(input.confirmation ?? '') : input.confirmation !== undefined)
+    || (input.command.endsWith('owner') ? !HASH.test(input.atlasImportReceipt ?? '') : input.atlasImportReceipt !== undefined)
+    || (input.updateInspection !== undefined && !HASH.test(input.updateInspection))) fail('ARGUMENT_INVALID');
+  if (input.priorUpdateInspections !== undefined && (!input.updateInspection || !Array.isArray(input.priorUpdateInspections)
+    || input.priorUpdateInspections.length > 15 || input.priorUpdateInspections.some(digest => !HASH.test(digest)))) fail('ARGUMENT_INVALID');
+  if (input.importedStateUpdateInspection !== undefined && (!HASH.test(input.importedStateUpdateInspection)
+    || !input.updateInspection || !['inspect-verification-recovery', 'resume-verification', 'reconcile-import', 'inspect-owner', 'provision-owner'].includes(input.command))) fail('ARGUMENT_INVALID');
+  if (['inspect-verification-recovery', 'resume-verification'].includes(input.command)
+    && input.importedStateUpdateInspection === undefined) fail('ARGUMENT_INVALID');
+  const env = { ...input.environment };
+  const targets = ptrInitialAtlasTargets(env.WARPKEEP_GENESIS_002_SPACETIMEDB_DATABASE);
+  delete env.WARPKEEP_GENESIS_002_SPACETIMEDB_DATABASE;
+  const configPath = env.WARPKEEP_SPACETIME_CLI_CONFIG_PATH, executable = env.WARPKEEP_SPACETIME_EXECUTABLE ?? env.SPACETIME_BIN;
+  const receiptDirectory = env.WARPKEEP_PTR_RECEIPT_DIRECTORY;
+  if (typeof configPath !== 'string' || !isAbsolute(configPath) || realpathSync(configPath) !== configPath
+    || typeof executable !== 'string' || !isAbsolute(executable) || realpathSync(executable) !== executable
+    || typeof receiptDirectory !== 'string' || !isAbsolute(receiptDirectory)
+    || ['WARPKEEP_SPACETIMEDB_URI', 'WARPKEEP_SPACETIMEDB_DATABASE', 'WARPKEEP_PTR_SPACETIMEDB_DATABASE', 'WARPKEEP_AUTH_BRIDGE_URL']
+      .some(key => env[key] !== undefined)) fail('ENVIRONMENT_INVALID');
+  assertProductionAdminTrustedAncestors(dirname(configPath)); assertProductionAdminTrustedAncestors(dirname(executable));
+  const config = readLocalBindingBoundedFile(configPath, { minimumBytes: 1, maximumBytes: 64 * 1024, expectedUid: 1000, expectedMode: 0o600 });
+  const configSha = sha(config.body); config.body.fill(0);
+  const binary = readLocalBindingBoundedFile(executable, { minimumBytes: 1, maximumBytes: 256 * 1024 * 1024,
+    requireExecutable: true, rejectWritableExecutable: true });
+  const binarySha = sha(binary.body); binary.body.fill(0);
+  const journal = openPtrCompatibilityBootstrapJournal(false);
+  const record = journal.read('inspection', input.bootstrapInspection!).value;
+  const inspection = validatePtrBootstrapInspection(record);
+  if (inspection.inspectionDigest !== input.bootstrapInspection || inspection.binding.cliDigest !== binarySha
+    || inspection.binding.cliConfigDigest !== configSha) fail('BOOTSTRAP_TOOLS_DIFFERENT');
+  assertPtrInitialAtlasBootstrapMarker(inspection, journal.read('submission', PTR_BOOTSTRAP_TARGET).value);
+  const updateJournal = input.updateInspection === undefined ? undefined
+    : openPtrInitialOwnerUpdateJournal(defaultProductionAdminStateDirectory(), false);
+  let updateRecord: unknown, updateInspection: PtrInitialOwnerUpdateInspection | undefined,
+    updateSubmission: unknown, updateAcknowledgement: unknown, updateAcknowledgementPresent = false;
+  if (updateJournal && input.updateInspection) {
+    updateRecord = updateJournal.read('inspection', input.updateInspection).value;
+    updateInspection = validatePtrInitialOwnerUpdateInspection(updateRecord);
+    if (updateInspection.inspectionDigest !== input.updateInspection) fail('UPDATE_CONTINUATION_INSPECTION_DIFFERENT');
+    const predecessorKey = updateInspection.before.program;
+    if (!updateJournal.present('submission', predecessorKey)) fail('UPDATE_CONTINUATION_SUBMISSION_MISSING');
+    updateSubmission = updateJournal.read('submission', predecessorKey).value;
+    updateAcknowledgementPresent = updateJournal.present('acknowledgement', updateInspection.inspectionDigest);
+    updateAcknowledgement = updateAcknowledgementPresent
+      ? updateJournal.read('acknowledgement', updateInspection.inspectionDigest).value : undefined;
+  }
+  const loadPriorUpdates = (): UpdateContinuationRecord[] => (input.priorUpdateInspections ?? []).map(digest => {
+    if (!updateJournal) fail('UPDATE_CONTINUATION_CHAIN_INVALID');
+    const update = validatePtrInitialOwnerUpdateInspection(updateJournal!.read('inspection', digest).value);
+    const acknowledgementPresent = updateJournal!.present('acknowledgement', digest);
+    return { update, requestedInspectionDigest: digest,
+      submissionMarker: updateJournal!.read('submission', update.before.program).value, acknowledgementPresent,
+      ...(acknowledgementPresent ? { acknowledgementMarker: updateJournal!.read('acknowledgement', digest).value } : {}) };
+  });
+  const priorUpdates = loadPriorUpdates();
+  const continuationEvidence = updateInspection && updateJournal ? ptrInitialAtlasUpdateContinuationEvidence({
+    bootstrap: inspection, update: updateInspection, priorUpdates, requestedInspectionDigest: input.updateInspection!,
+    submissionMarker: updateSubmission, acknowledgementPresent: updateAcknowledgementPresent,
+    ...(updateAcknowledgementPresent ? { acknowledgementMarker: updateAcknowledgement } : {}) }) : undefined;
+  // Preserve the historical chain and original import marker. The post-import
+  // module update has its own retained journal and must be qualified separately.
+  const loadImportedUpdate = (): UpdateContinuationRecord | undefined => {
+    if (!input.importedStateUpdateInspection) return undefined;
+    if (!updateJournal || !continuationEvidence) fail('UPDATE_CONTINUATION_CHAIN_INVALID');
+    const digest = input.importedStateUpdateInspection;
+    const update = validatePtrInitialOwnerUpdateInspection(updateJournal.read('inspection', digest).value);
+    if (update.inspectionDigest !== digest || !updateJournal.present('submission', update.before.program)
+      || !updateJournal.present('acknowledgement', digest)) fail('IMPORTED_UPDATE_JOURNAL_INCOMPLETE');
+    return { update, requestedInspectionDigest: digest,
+      submissionMarker: updateJournal.read('submission', update.before.program).value,
+      acknowledgementPresent: true, acknowledgementMarker: updateJournal.read('acknowledgement', digest).value };
+  };
+  const importedUpdateRecord = loadImportedUpdate();
+  const importedContinuation = importedUpdateRecord && continuationEvidence
+    ? singleUpdateContinuationEvidence({ ...importedUpdateRecord, bootstrap: inspection }, continuationEvidence.installedProgram) : undefined;
+  const binding = importedContinuation?.binding ?? continuationEvidence?.binding ?? inspection.binding;
+  const verificationBinding = importedUpdateRecord && importedContinuation ? {
+    currentUpdateInspectionDigest: importedUpdateRecord.update.inspectionDigest,
+    currentContinuationDigest: importedContinuation.continuationDigest } : undefined;
+  const assertContinuationJournal = () => {
+    if (!updateJournal || !updateInspection || !input.updateInspection) return;
+    updateJournal.assert();
+    if (updateCanonical(loadPriorUpdates()) !== updateCanonical(priorUpdates)) fail('UPDATE_CONTINUATION_RECORD_CHANGED');
+    const currentRecord = updateJournal.read('inspection', input.updateInspection).value;
+    if (updateCanonical(currentRecord) !== updateCanonical(updateRecord)) fail('UPDATE_CONTINUATION_RECORD_CHANGED');
+    const key = updateInspection.before.program;
+    if (!updateJournal.present('submission', key)
+      || updateCanonical(updateJournal.read('submission', key).value) !== updateCanonical(updateSubmission))
+      fail('UPDATE_CONTINUATION_SUBMISSION_CHANGED');
+    const acknowledgementPresent = updateJournal.present('acknowledgement', updateInspection.inspectionDigest);
+    if (acknowledgementPresent !== updateAcknowledgementPresent) fail('UPDATE_CONTINUATION_ACKNOWLEDGEMENT_CHANGED');
+    if (acknowledgementPresent && updateCanonical(updateJournal.read('acknowledgement', updateInspection.inspectionDigest).value)
+      !== updateCanonical(updateAcknowledgement)) fail('UPDATE_CONTINUATION_ACKNOWLEDGEMENT_CHANGED');
+    const evidence = ptrInitialAtlasUpdateContinuationEvidence({ bootstrap: inspection, update: updateInspection, priorUpdates,
+      requestedInspectionDigest: input.updateInspection, submissionMarker: updateSubmission,
+      acknowledgementPresent: updateAcknowledgementPresent,
+      ...(updateAcknowledgementPresent ? { acknowledgementMarker: updateAcknowledgement } : {}) });
+    if (evidence.continuationDigest !== continuationEvidence?.continuationDigest) fail('UPDATE_CONTINUATION_CHANGED');
+    if (updateCanonical(loadImportedUpdate()) !== updateCanonical(importedUpdateRecord)) fail('IMPORTED_UPDATE_JOURNAL_CHANGED');
+  };
+  const assertCliConfig = () => {
+    readLocalBindingBoundedFile(configPath, { maximumBytes: 64 * 1024, expectedUid: 1000, expectedMode: 0o600,
+      expectedSha256: configSha, expectedIdentity: config.identity }).body.fill(0);
+  };
+  const assert = () => {
+    source.assert(); journal.assert(); updateJournal?.assert(); assertContinuationJournal(); assertInstalledSource(source, inspection, binding);
+    for (let i = 0; i < priorUpdates.length; i++) {
+      const previous = priorUpdates[i]!.update.binding, next = priorUpdates[i + 1]?.update.binding ?? continuationEvidence!.binding;
+      assertHistoricalUpdateSource(source, previous, next, i === 0 ? inspection.binding.sourceCommit : undefined);
+    }
+    if (importedContinuation && continuationEvidence) {
+      if (binding.cliDigest !== binarySha || binding.cliConfigDigest !== configSha) fail('IMPORTED_UPDATE_TOOLS_DIFFERENT');
+      if (!updateInspection) fail('IMPORTED_UPDATE_JOURNAL_INCOMPLETE');
+      assertHistoricalUpdateSource(source, updateInspection.binding, importedContinuation.binding);
+    }
+    if (updateCanonical(journal.read('inspection', input.bootstrapInspection!).value) !== updateCanonical(record)) fail('BOOTSTRAP_RECORD_CHANGED');
+    assertPtrInitialAtlasBootstrapMarker(inspection, journal.read('submission', PTR_BOOTSTRAP_TARGET).value);
+    assertCliConfig();
+    readLocalBindingBoundedFile(executable, { maximumBytes: 256 * 1024 * 1024, requireExecutable: true, rejectWritableExecutable: true,
+      expectedSha256: binarySha, expectedIdentity: binary.identity }).body.fill(0);
+  };
+  let capability: ReturnType<typeof createPtrInspectionProviderCredentials> | undefined;
+  let transport: ReturnType<typeof createPtrAtlasImportTransport> | undefined;
+  let secret = '', submitted = false;
+  try {
+    secret = takePtrProductionAdminSecret(input.environment); delete env.WARPKEEP_ADMIN_TOKEN_SECRET;
+    assert();
+    capability = createPtrInspectionProviderCredentials({ credentials: { spacetimeExecutable: executable,
+      spacetimeExecutableSha256: binarySha, spacetimeCliRootDirectory: dirname(configPath), spacetimeCliConfigPath: configPath,
+      spacetimeCliConfigSha256: configSha, assertSource: assert, assertCliConfig } });
+    const held = capability;
+    const assertProgram = async () => { assert(); const response = await requestPtrInspectionProvider(held, { operation: 'program' });
+      try { assert(); if (parseExistingUpdateProgram(response.bytes) !== binding.candidateProgram) fail('PROGRAM_CHANGED'); } finally { response.bytes.fill(0); } };
+    const read = async (operation: 'schema-v9' | 'schema-v10') => { assert();
+      const response = await requestPtrInspectionProvider(held, { operation }); assert(); return response.bytes; };
+    const observeOnce = async () => {
+      const v9 = await read('schema-v9'); let v10: Uint8Array | undefined;
+      try {
+        v10 = await read('schema-v10');
+        const actual = await inspectPtrInitialOwnerState({ assertSource: assert,
+          // The inspector and provider both assert before/after awaited reads; avoid a third identical wrapper.
+          request: async operation => (await requestPtrInspectionProvider(held, { operation })).bytes,
+          configuration: async () => { assert(); const value = await verifyAuthBridgeRpcRoleAttestation({ adminToken: secret }); assert(); return value; } });
+        if (!actual.preservation.installedStateObservedEqual) fail('INSTALLED_STATE_CHANGED');
+        if (!actual.preservation.privateConfigurationObservedEqual) fail('BRIDGE_CONFIGURATION_CHANGED_OR_UNOBSERVED');
+        if (!actual.afterConfiguration?.ptrEnabled || actual.afterConfiguration.ptrSpacetimeDbDatabase !== PTR_BOOTSTRAP_TARGET) fail('BRIDGE_NOT_READY');
+        const afterImport = actual.after.atlas?.state !== 'absent' || actual.after.owner?.state !== 'ownerless';
+        let continuation: ReturnType<typeof assertPtrInitialAtlasUpdateContinuation> | undefined;
+        if (continuationEvidence && updateInspection) {
+          if (!afterImport) {
+            continuation = assertPtrInitialAtlasUpdateContinuation({ bootstrap: inspection, update: updateInspection, priorUpdates,
+              requestedInspectionDigest: input.updateInspection!, submissionMarker: updateSubmission,
+              acknowledgementPresent: updateAcknowledgementPresent,
+              ...(updateAcknowledgementPresent ? { acknowledgementMarker: updateAcknowledgement } : {}),
+              observation: { state: actual.after, configuration: actual.afterConfiguration, installedV10: v10 } });
+          } else assertContinuationJournal();
+        }
+        const observed = assertPtrInitialAtlasObservation(inspection, { state: actual.after, installedV9: v9, installedV10: v10 }, binding);
+        return { observed, actual, continuation, afterImport };
+      } finally { v9.fill(0); v10?.fill(0); }
+    };
+    const observe = async () => {
+      // The acknowledged current module still requires the inspector's two full
+      // preservation reads. An additional outer pair is reserved for historical
+      // unacknowledged update reconciliation; it adds no evidence here.
+      if (!continuationEvidence || importedContinuation) return observeOnce();
+      const first = await observeOnce(), second = await observeOnce();
+      if (first.afterImport !== second.afterImport || first.observed.snapshotDigest !== second.observed.snapshotDigest
+        || updateCanonical(first.actual.afterConfiguration) !== updateCanonical(second.actual.afterConfiguration)
+        || first.continuation?.continuationDigest !== second.continuation?.continuationDigest)
+        fail('UPDATE_CONTINUATION_READBACK_CHANGED');
+      return second;
+    };
+    const before = await observe();
+    let updateReadbackReconciliation: ReturnType<typeof assertPtrInitialAtlasUpdateReconciliationPair> | undefined;
+    if (continuationEvidence && !updateAcknowledgementPresent && before.continuation) {
+      env.WARPKEEP_ADMIN_TOKEN_SECRET = secret;
+      try {
+        const first = await executePtrInitialOwnerUpdate({ command: 'reconcile', source: input.source, environment: env,
+          inspectionDigest: updateInspection!.inspectionDigest });
+        const second = await executePtrInitialOwnerUpdate({ command: 'reconcile', source: input.source, environment: env,
+          inspectionDigest: updateInspection!.inspectionDigest });
+        updateReadbackReconciliation = assertPtrInitialAtlasUpdateReconciliationPair({ continuation: before.continuation, first, second });
+      } finally { delete env.WARPKEEP_ADMIN_TOKEN_SECRET; }
+    }
+    const assertBridgePreserved = (after: Awaited<ReturnType<typeof observe>>) => {
+      if (updateCanonical(before.actual.afterConfiguration) !== updateCanonical(after.actual.afterConfiguration)) fail('BRIDGE_CONFIGURATION_CHANGED');
+    };
+    if (input.command.endsWith('owner')) {
+      if (continuationEvidence) {
+        const workspace = openExistingGreaterRealmPrivateWorkspace({ repositoryRoot: ROOT, workspaceRoot: input.workspaceRoot });
+        const artifacts = readPtrGreaterRealmRuntimeRelease(workspace);
+        verifyPtrGreaterRealmRuntimeReleaseArtifacts(artifacts);
+        const authority = greaterRealmProductionImportEngine.importAuthority(artifacts, verifyPtrGreaterRealmRuntimeReleaseArtifacts);
+        const lineage = runGreaterRealmTrustedGit(['merge-base', '--is-ancestor', authority.sourceCommit, source.facts.sourceCommit], ROOT);
+        if (lineage.error || lineage.status !== 0 || lineage.signal !== null || lineage.stderr !== '') fail('ATLAS_SOURCE_ANCESTRY_INVALID');
+        const marker = ptrInitialAtlasImportMarker({ bootstrapInspection: inspection.inspectionDigest, binding: continuationEvidence.binding,
+          atlasSourceCommit: authority.sourceCommit, releaseSha256: authority.releaseSha256, continuation: continuationEvidence });
+        const stateRoot = join(defaultProductionAdminStateDirectory(), 'ptr-initial-owner-atlas-v1');
+        const importJournal = openPtrInitialOwnerUpdateJournal(stateRoot, false);
+        const retained = await coordinatePtrInitialAtlasImport({ command: 'reconcile-import', journal: importJournal, marker, assert, verificationBinding,
+          validateReceipt: value => validatePtrInitialAtlasImportReceipt(value, { binding, authority,
+            manifestSha256: sha(artifacts.manifestBytes), headerJson: authority.headerJson }),
+          execute: async () => fail('OWNER_IMPORT_CHAIN_EXECUTOR_UNAVAILABLE') });
+        if (!retained || retained.importReceiptDigest !== input.atlasImportReceipt) fail('OWNER_IMPORT_CHAIN_UNVERIFIED');
+      }
+      assert();
+      env.WARPKEEP_ADMIN_TOKEN_SECRET = secret;
+      const result = await executePtrOwnerProvisionOperator({ arguments: [input.command === 'inspect-owner' ? 'inspect' : 'provision',
+        `--database-identity=${PTR_BOOTSTRAP_TARGET}`, `--module-source-commit=${binding.sourceCommit}`,
+        `--module-sha256=${binding.candidateSha256}`, `--atlas-import-receipt-digest=${input.atlasImportReceipt}`,
+        ...(input.command === 'provision-owner' ? [`--confirm=${input.confirmation}`] : [])], environment: env });
+      assert(); const after = await observe(); assertBridgePreserved(after);
+      return Object.freeze({ profile: 'warpkeep-ptr-initial-owner-atlas-operation-v1', source: source.facts,
+        command: input.command, installedModuleSourceCommit: binding.sourceCommit, result, after: after.observed,
+        ...(continuationEvidence ? { continuation: { ...continuationEvidence, installationProvenByReadback: before.continuation?.installationProvenByReadback ?? false,
+          ...(updateReadbackReconciliation ? { updateReadbackReconciliation } : {}), importChainVerified: true } } : {}),
+        commandSucceeded: true, usableOwnerPtrVerified: false, productionAuthorized: false, globalReleaseAuthority: false });
+    }
+    if (input.command === 'import' && before.observed.owner.state !== 'ownerless') fail('OWNER_ALREADY_PRESENT');
+    const workspace = openExistingGreaterRealmPrivateWorkspace({ repositoryRoot: ROOT, workspaceRoot: input.workspaceRoot });
+    const artifacts = readPtrGreaterRealmRuntimeRelease(workspace);
+    verifyPtrGreaterRealmRuntimeReleaseArtifacts(artifacts);
+    const authority = greaterRealmProductionImportEngine.importAuthority(artifacts, verifyPtrGreaterRealmRuntimeReleaseArtifacts);
+    const lineage = runGreaterRealmTrustedGit(['merge-base', '--is-ancestor', authority.sourceCommit, source.facts.sourceCommit], ROOT);
+    if (lineage.error || lineage.status !== 0 || lineage.signal !== null || lineage.stderr !== '') fail('ATLAS_SOURCE_ANCESTRY_INVALID');
+    let importChainVerified = false;
+    if (continuationEvidence && before.afterImport) {
+      const stateRoot = join(defaultProductionAdminStateDirectory(), 'ptr-initial-owner-atlas-v1');
+      const importJournal = openPtrInitialOwnerUpdateJournal(stateRoot, false);
+      const marker = ptrInitialAtlasImportMarker({ bootstrapInspection: inspection.inspectionDigest, binding: continuationEvidence.binding,
+        atlasSourceCommit: authority.sourceCommit, releaseSha256: authority.releaseSha256, continuation: continuationEvidence });
+      const retained = await coordinatePtrInitialAtlasImport({ command: 'reconcile-import', journal: importJournal, marker, assert, verificationBinding,
+        validateReceipt: value => validatePtrInitialAtlasImportReceipt(value, { binding, authority,
+          manifestSha256: sha(artifacts.manifestBytes), headerJson: authority.headerJson }),
+        execute: async () => fail('IMPORT_CHAIN_EXECUTOR_UNAVAILABLE') });
+      importChainVerified = ptrInitialAtlasImportChainVerified(input.command, retained);
+    }
+    let confirmation = ptrInitialAtlasConfirmation({ bootstrapInspection: inspection.inspectionDigest, sourceCommit: source.facts.sourceCommit,
+      installedSourceCommit: binding.sourceCommit, program: binding.candidateProgram, releaseSha256: authority.releaseSha256,
+      genesis002DatabaseIdentity: targets.disallowedDatabaseIdentities[0],
+      atlasSourceCommit: authority.sourceCommit, ...(continuationEvidence ? { continuationDigest: continuationEvidence.continuationDigest } : {}) });
+    transport = createPtrAtlasImportTransport({ ...targets, adminSecret: secret });
+    const active = transport, status = projectPtrProductionStatus(await active.inspect()); assert();
+    const verificationRecovering = input.command === 'inspect-verification-recovery' || input.command === 'resume-verification';
+    const terrainRecovering = input.command === 'inspect-terrain-recovery' || input.command === 'resume-terrain-import';
+    const regionRecovering = input.command === 'inspect-region-recovery' || input.command === 'resume-region-import' || terrainRecovering;
+    const recovering = input.command === 'inspect-import-recovery' || input.command === 'resume-import' || regionRecovering || verificationRecovering;
+    const originalMarker = ptrInitialAtlasImportMarker({ bootstrapInspection: inspection.inspectionDigest, binding: continuationEvidence?.binding ?? binding,
+      atlasSourceCommit: authority.sourceCommit, releaseSha256: authority.releaseSha256, continuation: continuationEvidence });
+    let recovery: Readonly<Record<string, unknown>> | undefined;
+    let priorRecovery: unknown;
+    let priorRegionRecovery: unknown;
+    let priorTerrainRecovery: unknown;
+    let terrainPrefix: ReturnType<typeof verifyPtrInitialAtlasTerrainPrefix> | undefined;
+    let componentPrefix: ReturnType<typeof verifyPtrInitialAtlasComponentPrefix> | undefined;
+    let verificationProof: Awaited<ReturnType<typeof readVerificationPrefix>> | undefined;
+    let verificationPrior: ReturnType<typeof readPtrInitialAtlasVerificationPrior> | undefined;
+    const footprints = new Map<string, PtrInitialOwnerUpdateInspection['before']['tables'][number]>();
+    let recoveryReadBytes = 0;
+    const parsedRecovery = async <T>(operation: PtrInspectionProviderOperation, parser: (bytes: Uint8Array) => T) => {
+      assert(); const response = await requestPtrInspectionProvider(held, { operation });
+      try {
+        assert();
+        if (response.bytes.byteLength < 1 || response.bytes.byteLength > 32 * 1024 * 1024) fail('RECOVERY_RESPONSE_BOUND');
+        recoveryReadBytes += response.bytes.byteLength;
+        if (recoveryReadBytes > 512 * 1024 * 1024) fail('RECOVERY_RESPONSE_TOTAL_BOUND');
+        return parser(response.bytes);
+      } finally { response.bytes.fill(0); }
+    };
+    const readRows = async (name: typeof PTR_INSPECTION_TABLES[number]) => {
+      await assertProgram();
+      const schema = await parsedRecovery('schema-v9', parsePtrInitialOwnerRowSchemas);
+      const parsed = Object.hasOwn(PTR_INSPECTION_PAGING, name)
+        ? await readPtrInitialOwnerPagedRows(parsedRecovery, name as keyof typeof PTR_INSPECTION_PAGING,
+          schema.rowSchemas[name], schema.expandedRowSchemas[name], true)
+        : await parsedRecovery(`rows:${name}`, parseExistingUpdateSql);
+      if (updateCanonical(parsed.schema) !== updateCanonical(schema.rowSchemas[name])
+        && updateCanonical(parsed.schema) !== updateCanonical(schema.expandedRowSchemas[name])) fail('RECOVERY_ROW_SCHEMA_DIFFERENT');
+      const afterSchema = await parsedRecovery('schema-v9', parsePtrInitialOwnerRowSchemas);
+      if (schema.policy.digest !== afterSchema.policy.digest) fail('RECOVERY_SCHEMA_CHANGED');
+      await assertProgram();
+      footprints.set(name, { name, count: parsed.count, rowsDigest: parsed.rowsDigest,
+        schemaDigest: updateDigest(parsed.schema), installedTableSchemaDigest: schema.policy.tableSchemas[name] });
+      return parsed.rows.map(row => ptrInitialOwnerSqlRowObject(parsed, row));
+    };
+    const readComponentPrefix = async () => {
+      const rows = await readRows('greater_realm_navigation_component_v1');
+      const releases = await readRows('greater_realm_release_v1');
+      if (releases.length !== 1) fail('RECOVERY_RELEASE_CARDINALITY_DIFFERENT');
+      return verifyPtrInitialAtlasComponentPrefix({ rows, release: releases[0]!, components: authority.components, atlasId: authority.atlasId, ...(regionRecovering ? { regions: authority.regions } : {}) });
+    };
+    const readTerrainPrefix = async () => {
+      const chunkRows = await readRows('greater_realm_chunk_v1'), cellRows = await readRows('greater_realm_cell_v1');
+      const slotRows = await readRows('greater_realm_castle_slot_v1'), resourceRows = await readRows('greater_realm_resource_node_v1');
+      const releases = await readRows('greater_realm_release_v1');
+      if (releases.length !== 1) fail('RECOVERY_RELEASE_CARDINALITY_DIFFERENT');
+      return verifyPtrInitialAtlasTerrainPrefix({ chunkRows, cellRows, slotRows, resourceRows, release: releases[0]!,
+        atlasId: authority.atlasId, releaseHeaderJson: authority.headerJson,
+        chunks: artifacts.chunks.map(chunk => ({ payloadJson: chunk.bytes.toString('utf8'), payloadSha256: sha(chunk.bytes) })) });
+    };
+    const readVerificationPrefix = async () => {
+      if (!importedUpdateRecord || !updateInspection) fail('IMPORTED_UPDATE_JOURNAL_INCOMPLETE');
+      const releases = await readRows('greater_realm_release_v1');
+      if (releases.length !== 1) fail('RECOVERY_RELEASE_CARDINALITY_DIFFERENT');
+      const componentRows = await readRows('greater_realm_navigation_component_v1');
+      const chunkRows = await readRows('greater_realm_chunk_v1'), cellRows = await readRows('greater_realm_cell_v1');
+      const slotRows = await readRows('greater_realm_castle_slot_v1'), resourceRows = await readRows('greater_realm_resource_node_v1');
+      const auditRows = await readRows('admin_audit');
+      const boundaries = ['greater_realm_activation_v1', 'greater_realm_castle_claim_v1',
+        'greater_realm_cell_occupancy_v1', 'realm_atlas_v1', 'realm_atlas_visible_region_v1', 'realm_worker_system_v2'] as const;
+      const emptyBoundaryCounts = {} as Record<typeof boundaries[number], number>;
+      for (const name of boundaries) emptyBoundaryCounts[name] = (await readRows(name)).length;
+      if (updateCanonical(await readRows('greater_realm_release_v1')) !== updateCanonical(releases)) fail('RECOVERY_RELEASE_CHANGED');
+      const m = artifacts.manifest;
+      const releaseInput: GreaterRealmReleaseInputV1 = { atlasId: authority.atlasId,
+        publicReleaseId: authority.publicReleaseId, publicApprovalReceiptId: authority.publicApprovalReceiptId,
+        sourceCommit: authority.sourceCommit, generatorVersion: m.generatorVersion as string, sourceFormatVersion: m.sourceFormatVersion as string,
+        livingWorldVersion: m.livingWorldVersion as string, runtimePartitionVersion: m.runtimePartitionVersion as string,
+        rendererContractVersion: m.rendererContractVersion as string, expectedRegionCount: authority.totals.regionCount,
+        expectedComponentCount: authority.totals.componentCount, expectedChunkCount: authority.totals.chunkCount,
+        expectedCellCount: authority.totals.cellCount, expectedSlotCount: authority.totals.castleSlotCount,
+        expectedResourceNodeCount: authority.totals.resourceNodeCount, expectedReleaseSha256: authority.releaseSha256, importEpoch: 1n };
+      const prefix = verifyPtrInitialAtlasVerificationPrefix({ releaseInput, releaseHeaderJson: authority.headerJson,
+        // These verified wire inputs are validated again by the real backend replay below.
+        components: authority.components.map(row => ({ ...row, atlasId: authority.atlasId })) as GreaterRealmComponentInputV1[],
+        regions: authority.regions as unknown as GreaterRealmRegionImportV1[],
+        chunks: artifacts.chunks.map(chunk => ({ payloadJson: chunk.bytes.toString('utf8'), payloadSha256: sha(chunk.bytes) })),
+        release: releases[0]!, componentRows, chunkRows, cellRows, slotRows, resourceRows, emptyBoundaryCounts });
+      const audit = verifyPtrInitialAtlasImportAudit({ rows: auditRows, atlasId: authority.atlasId,
+        componentCount: prefix.componentCount, regionCount: authority.totals.regionCount,
+        chunkCount: prefix.chunkCount, verificationCursor: prefix.verificationCursor });
+      const importedTables = ['admin_audit', 'greater_realm_release_v1', 'greater_realm_navigation_component_v1',
+        'greater_realm_chunk_v1', 'greater_realm_cell_v1', 'greater_realm_castle_slot_v1', 'greater_realm_resource_node_v1']
+        .map(name => { const table = footprints.get(name); if (!table) fail('RECOVERY_FOOTPRINT_MISSING'); return table; });
+      const boundary = assertPtrInitialAtlasImportedUpdateBoundary({ historicalUpdate: updateInspection,
+        currentUpdate: importedUpdateRecord.update, prefix, audit, importedTables });
+      return Object.freeze({ prefix, audit, boundary });
+    };
+    const assertPrefixStatus = (value: ReturnType<typeof projectPtrProductionStatus>) => {
+      if (verificationRecovering) {
+        const prefix = verificationProof?.prefix;
+        if (!prefix || !value.present || value.state !== 'verifying' || value.verificationPhase !== 'cells'
+          || value.verificationCursor !== BigInt(prefix.verificationCursor) || value.verificationDigest !== prefix.verificationDigest
+          || value.importEpoch !== 1n || value.expectedReleaseSha256 !== authority.releaseSha256
+          || value.ownerProvisioned || value.ownerEnabled || !value.importsExact
+          || value.verifiedComponentCount !== prefix.componentCount || value.verifiedChunkCount !== prefix.chunkCount
+          || value.verifiedCellCount !== prefix.verificationCursor) fail('RECOVERY_VERIFICATION_STATUS_DIFFERENT');
+      } else if (terrainRecovering) assertPtrProductionInitialTerrainPrefixStatus(value, authority, componentPrefix!.componentCount, terrainPrefix!);
+      else assertPtrProductionInitialStagedStatus(value, authority, componentPrefix!.componentCount, regionRecovering);
+    };
+    if (verificationRecovering) {
+      if (!continuationEvidence || !verificationBinding || !importedUpdateRecord || importChainVerified
+        || before.observed.owner.state !== 'ownerless') fail('RECOVERY_NOT_APPLICABLE');
+      const fresh = await read('schema-v10');
+      try {
+        const observed = classifyPtrInitialOwnerUpdateObservation(importedUpdateRecord.update, {
+          state: before.actual.after as PtrInitialOwnerUpdateInspection['before'], configuration: before.actual.afterConfiguration, installedV10: fresh });
+        if (observed.outcome !== 'observed-preserved-candidate') fail('IMPORTED_UPDATE_NOT_PRESERVED');
+      } finally { fresh.fill(0); }
+      verificationProof = await readVerificationPrefix();
+      assertPrefixStatus(status);
+      const second = projectPtrProductionStatus(await active.inspect()); assert(); assertPrefixStatus(second);
+      if (ptrInitialAtlasStagedStatusDigest(status) !== ptrInitialAtlasStagedStatusDigest(second)) fail('RECOVERY_STAGED_STATUS_CHANGED');
+      const recoveryJournal = openPtrInitialOwnerUpdateJournal(join(defaultProductionAdminStateDirectory(), 'ptr-initial-owner-atlas-v1'), false);
+      verificationPrior = readPtrInitialAtlasVerificationPrior(recoveryJournal, originalMarker);
+      const key = ptrInitialAtlasVerificationRecoveryKey(originalMarker);
+      if (recoveryJournal.present('submission', key)) fail('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
+      if (recoveryJournal.present('acknowledgement', key) || recoveryJournal.present('acknowledgement', updateDigest(originalMarker))) fail('RECOVERY_ALREADY_COMPLETE');
+      recovery = Object.freeze({ profile: 'warpkeep-ptr-initial-atlas-verification-recovery-v1',
+        originalMarkerDigest: updateDigest(originalMarker), priorTerrainRecoveryV2Key: ptrInitialAtlasTerrainRecoveryV2Key(originalMarker),
+        priorTerrainRecoveryV2Digest: updateDigest(verificationPrior.v2), ...verificationBinding,
+        prefixDigest: verificationProof.prefix.digest, auditDigest: verificationProof.audit.digest,
+        boundaryDigest: verificationProof.boundary.digest, stagedStatusDigest: ptrInitialAtlasStagedStatusDigest(status) });
+      confirmation = updateDigest(recovery);
+    } else if (recovering) {
+      if (!continuationEvidence || importChainVerified || before.observed.owner.state !== 'ownerless') fail('RECOVERY_NOT_APPLICABLE');
+      componentPrefix = await readComponentPrefix();
+      if (terrainRecovering) terrainPrefix = await readTerrainPrefix();
+      assertPrefixStatus(status);
+      const second = projectPtrProductionStatus(await active.inspect()); assert();
+      assertPrefixStatus(second);
+      if (terrainRecovering && updateCanonical(await readTerrainPrefix()) !== updateCanonical(terrainPrefix)) fail('RECOVERY_TERRAIN_PREFIX_CHANGED');
+      if (updateCanonical(await readComponentPrefix()) !== updateCanonical(componentPrefix)) fail('RECOVERY_COMPONENT_PREFIX_CHANGED');
+      if (ptrInitialAtlasStagedStatusDigest(status) !== ptrInitialAtlasStagedStatusDigest(second)) fail('RECOVERY_STAGED_STATUS_CHANGED');
+      recovery = Object.freeze({ profile: terrainRecovering ? 'warpkeep-ptr-initial-atlas-terrain-recovery-v1' : regionRecovering ? 'warpkeep-ptr-initial-atlas-region-recovery-v1' : 'warpkeep-ptr-initial-atlas-staged-recovery-v1', originalMarkerDigest: updateDigest(originalMarker),
+        source: source.facts, stagedStatusDigest: ptrInitialAtlasStagedStatusDigest(status), installedSnapshotDigest: before.observed.snapshotDigest,
+        bridgeConfigurationDigest: updateDigest(before.actual.afterConfiguration), componentPrefix, ...(terrainRecovering ? { terrainPrefix } : {}), confirmationBinding: confirmation });
+      confirmation = updateDigest(recovery);
+      const recoveryJournal = openPtrInitialOwnerUpdateJournal(join(defaultProductionAdminStateDirectory(), 'ptr-initial-owner-atlas-v1'), false);
+      recoveryJournal.assert();
+      if (!recoveryJournal.present('submission', updateDigest(originalMarker))
+        || updateCanonical(recoveryJournal.read('submission', updateDigest(originalMarker)).value) !== updateCanonical(originalMarker)) fail('RECOVERY_ORIGINAL_MARKER_DIFFERENT');
+      if (regionRecovering) {
+        const priorKey = ptrInitialAtlasRecoveryKey(originalMarker);
+        if (!recoveryJournal.present('submission', priorKey)) fail('REGION_RECOVERY_PRIOR_MARKER_MISSING');
+        priorRecovery = recoveryJournal.read('submission', priorKey).value;
+        assertPtrInitialAtlasRegionPrior(originalMarker, priorRecovery);
+        if (recoveryJournal.present('acknowledgement', updateDigest(originalMarker)) || recoveryJournal.present('acknowledgement', priorKey) || recoveryJournal.present('acknowledgement', ptrInitialAtlasRegionRecoveryKey(originalMarker))) fail('RECOVERY_ALREADY_COMPLETE');
+        recovery = Object.freeze({ ...recovery, priorRecoveryKey: priorKey, priorRecoveryDigest: updateDigest(priorRecovery) });
+        confirmation = updateDigest(recovery);
+        if (terrainRecovering) {
+          const regionKey = ptrInitialAtlasRegionRecoveryKey(originalMarker);
+          if (!recoveryJournal.present('submission', regionKey)) fail('TERRAIN_RECOVERY_PRIOR_MARKER_MISSING');
+          priorRegionRecovery = recoveryJournal.read('submission', regionKey).value;
+          assertPtrInitialAtlasTerrainPrior(originalMarker, priorRecovery, priorRegionRecovery);
+          if (recoveryJournal.present('acknowledgement', regionKey) || recoveryJournal.present('acknowledgement', ptrInitialAtlasTerrainRecoveryKey(originalMarker))) fail('RECOVERY_ALREADY_COMPLETE');
+          recovery = Object.freeze({ ...recovery, priorRegionRecoveryKey: regionKey, priorRegionRecoveryDigest: updateDigest(priorRegionRecovery) });
+          confirmation = updateDigest(recovery);
+          const terrainKey = ptrInitialAtlasTerrainRecoveryKey(originalMarker);
+          if (recoveryJournal.present('submission', terrainKey)) {
+            priorTerrainRecovery = recoveryJournal.read('submission', terrainKey).value;
+            recovery = Object.freeze({ ...recovery, profile: 'warpkeep-ptr-initial-atlas-terrain-recovery-v2',
+              priorTerrainRecoveryKey: terrainKey, priorTerrainRecoveryDigest: updateDigest(priorTerrainRecovery) });
+            assertPtrInitialAtlasTerrainV2Binding(originalMarker, priorRecovery, priorRegionRecovery, priorTerrainRecovery, recovery);
+            const v2Key = ptrInitialAtlasTerrainRecoveryV2Key(originalMarker);
+            if (recoveryJournal.present('acknowledgement', v2Key)) fail('RECOVERY_ALREADY_COMPLETE');
+            if (recoveryJournal.present('submission', v2Key)) fail('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
+            confirmation = updateDigest(recovery);
+          }
+        } else if (recoveryJournal.present('submission', ptrInitialAtlasRegionRecoveryKey(originalMarker))) fail('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
+      } else if (recoveryJournal.present('submission', ptrInitialAtlasRecoveryKey(originalMarker))) fail('RECOVERY_ALREADY_MARKED_RECONCILE_ONLY', true);
+    }
+    if (input.command === 'inspect' || input.command === 'inspect-import-recovery' || input.command === 'inspect-region-recovery' || input.command === 'inspect-terrain-recovery' || input.command === 'inspect-verification-recovery') return Object.freeze({ profile: 'warpkeep-ptr-initial-owner-atlas-operation-v1', command: input.command,
+      source: source.facts, installedModuleSourceCommit: binding.sourceCommit, program: binding.candidateProgram,
+      atlasSourceCommit: authority.sourceCommit, releaseSha256: authority.releaseSha256, confirmationDigest: confirmation,
+      ...(verificationRecovering ? { verificationRecovery: recovery } : {}),
+      ...(continuationEvidence ? { continuation: { ...continuationEvidence,
+        installationProvenByReadback: before.continuation?.installationProvenByReadback ?? false,
+        ...(updateReadbackReconciliation ? { updateReadbackReconciliation } : {}),
+        ...(importChainVerified ? { importChainVerified } : {}) } } : {}),
+      status: { present: status.present, state: status.state, ready: status.ready, importsExact: status.importsExact,
+        ownerProvisioned: status.ownerProvisioned, ownerEnabled: status.ownerEnabled }, commandSucceeded: true,
+      providerWritesAttempted: false, usableOwnerPtrVerified: false, productionAuthorized: false, globalReleaseAuthority: false });
+    if ((input.command === 'import' || (input.command === 'resume-import' || input.command === 'resume-region-import' || input.command === 'resume-terrain-import' || input.command === 'resume-verification')) && input.confirmation !== confirmation) fail('CONFIRMATION_DIFFERENT');
+    // Exclusive durable marker precedes the first reducer. A later invocation is read-only, even if its ACK was lost.
+    const stateParent = input.command === 'import' ? ensureCanonicalProductionAdminStateDirectory() : defaultProductionAdminStateDirectory();
+    const stateRoot = join(stateParent, 'ptr-initial-owner-atlas-v1');
+    if (!existsSync(stateRoot) && input.command === 'import') mkdirSync(stateRoot, { mode: 0o700 });
+    if (!existsSync(stateRoot)) fail('IMPORT_JOURNAL_ABSENT');
+    const rootStat = lstatSync(stateRoot);
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink() || realpathSync(stateRoot) !== stateRoot
+      || rootStat.uid !== 1000 || (rootStat.mode & 0o7777) !== 0o700) fail('IMPORT_JOURNAL_INVALID');
+    const parentFd = openSync(stateParent, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    try { fsyncSync(parentFd); } finally { closeSync(parentFd); }
+    const importJournal = openPtrInitialOwnerUpdateJournal(stateRoot, input.command === 'import' || (input.command === 'resume-import' || input.command === 'resume-region-import' || input.command === 'resume-terrain-import' || input.command === 'resume-verification'));
+    const marker = ptrInitialAtlasImportMarker({ bootstrapInspection: inspection.inspectionDigest, binding: continuationEvidence?.binding ?? binding,
+      atlasSourceCommit: authority.sourceCommit, releaseSha256: authority.releaseSha256, continuation: continuationEvidence });
+    const validateReceipt = (value: unknown) => validatePtrInitialAtlasImportReceipt(value, { binding, authority,
+      manifestSha256: sha(artifacts.manifestBytes), headerJson: authority.headerJson });
+    let recoverySubmitted = false;
+    const assertRecoveryStatus = (value: unknown) => {
+      if (recovering && !recoverySubmitted) {
+        const current = projectPtrProductionStatus(value); assertPrefixStatus(current);
+        if (ptrInitialAtlasStagedStatusDigest(current) !== ptrInitialAtlasStagedStatusDigest(status)) fail('RECOVERY_STAGED_STATUS_CHANGED');
+      }
+    };
+    const execute = (beforeSend: () => void) => executePtrProductionImport({ artifacts, ...targets,
+      moduleSourceCommit: binding.sourceCommit, moduleSha256: binding.candidateSha256, moduleTreeId: binding.moduleTreeId,
+      dependencyClosureDigest: binding.dependencyClosureDigest, spacetimeExecutableSha256: binding.cliDigest,
+      importEpoch: 1n, publicName: 'Warpkeep PTR', transport: { inspect: async () => { assert(); const r = await active.inspect(); assert(); assertRecoveryStatus(r); return r; },
+        prepareSubmission: async () => { assert(); await active.prepareSubmission(); assert();
+          if (recovering && !recoverySubmitted) { assertRecoveryStatus(await active.inspect()); assert(); } },
+        submit: async (reducer, args) => { assert();
+          if (verificationRecovering) assertPtrInitialAtlasVerificationReducer(reducer);
+          await assertProgram();
+          if (terrainRecovering && reducer === 'admin_import_greater_realm_chunk_v1') {
+            const payload = JSON.parse(args.payloadJson as string) as { importOrdinal?: unknown };
+            if (!Number.isSafeInteger(payload.importOrdinal) || (payload.importOrdinal as number) < terrainPrefix!.chunkCount) fail('TERRAIN_RECOVERY_PREFIX_REPLAY_FORBIDDEN');
+          }
+          if (regionRecovering && ['admin_import_greater_realm_components_v1', 'admin_import_greater_realm_regions_v1'].includes(reducer)) fail('REGION_RECOVERY_PREFIX_REPLAY_FORBIDDEN');
+          if (recovering && reducer === 'admin_stage_greater_realm_release_v1') fail('RECOVERY_STAGE_FORBIDDEN');
+          if (recovering && !recoverySubmitted) await preparePtrInitialAtlasRecoverySubmission({ assert,
+            inspect: () => active.inspect(), assertStatus: assertRecoveryStatus,
+            verifyPrefix: async () => {
+              if (verificationRecovering) {
+                if (updateCanonical(await readVerificationPrefix()) !== updateCanonical(verificationProof)) fail('RECOVERY_VERIFICATION_PREFIX_CHANGED');
+              } else if (updateCanonical(await readComponentPrefix()) !== updateCanonical(componentPrefix)) fail('RECOVERY_COMPONENT_PREFIX_CHANGED');
+              if (terrainRecovering && updateCanonical(await readTerrainPrefix()) !== updateCanonical(terrainPrefix)) fail('RECOVERY_TERRAIN_PREFIX_CHANGED');
+            }, prepareFresh: () => active.prepareSubmission(true) });
+          await active.submit(reducer, args, () => { beforeSend(); submitted = true; recoverySubmitted = recovering; },
+            recovering && !recoverySubmitted ? async value => { assert(); assertRecoveryStatus(value); assert(); } : undefined); assert(); } },
+      assertCanStartWrite: assert });
+    const receipt = verificationRecovering
+      ? await coordinatePtrInitialAtlasVerificationRecovery({ journal: importJournal, marker,
+        recovery: recovery as PtrInitialAtlasVerificationRecovery, assert, validateReceipt, execute,
+        validatePrior: () => {
+          if (updateCanonical(readPtrInitialAtlasVerificationPrior(importJournal, marker)) !== updateCanonical(verificationPrior)) fail('RECOVERY_PRIOR_CHANGED');
+        } })
+      : recovering
+      ? await coordinatePtrInitialAtlasRecovery({ journal: importJournal, marker, recovery, ...(regionRecovering ? { priorRecovery } : {}), ...(terrainRecovering ? { priorRegionRecovery } : {}), ...(priorTerrainRecovery === undefined ? {} : { priorTerrainRecovery }), assert, validateReceipt, execute })
+      : await coordinatePtrInitialAtlasImport({ command: input.command as 'import' | 'reconcile-import', journal: importJournal,
+        marker, assert, verificationBinding, validateReceipt, execute });
+    assert(); const after = await observe(); assertBridgePreserved(after);
+    if (receipt === null) return Object.freeze({ profile: 'warpkeep-ptr-initial-owner-atlas-operation-v1', command: input.command,
+       source: source.facts, after: after.observed, commandSucceeded: false, submissionOutcome: 'uncertain',
+       ...(continuationEvidence ? { continuation: { ...continuationEvidence,
+        installationProvenByReadback: before.continuation?.installationProvenByReadback ?? false,
+        ...(updateReadbackReconciliation ? { updateReadbackReconciliation } : {}) } } : {}),
+      providerWritesAttempted: false, retryAuthorized: false, usableOwnerPtrVerified: false, productionAuthorized: false, globalReleaseAuthority: false });
+    if (((input.command === 'import' || recovering) && after.observed.owner.state !== 'ownerless') || after.observed.atlas.state !== 'ready')
+      fail('IMPORT_POSTCONDITION_INVALID', input.command === 'import' || recovering);
+    const ready = projectPtrProductionStatus(await active.inspect()); assert();
+    if (ready.expectedReleaseSha256 !== receipt.expectedReleaseSha256 || ready.sourceCommit !== receipt.atlasSourceCommit
+      || ready.publicReleaseId !== receipt.publicReleaseId || ready.releaseHeaderSha256 !== receipt.releaseHeaderSha256
+      || ready.verificationDigest !== receipt.verificationDigest || ready.importEpoch?.toString() !== receipt.importEpoch
+      || !greaterRealmProductionImportEngine.readyPostcondition(ready, authority, 1n)
+      || ready.verifiedComponentCount !== authority.totals.componentCount || ready.verifiedChunkCount !== authority.totals.chunkCount
+      || ready.verifiedCellCount !== authority.totals.cellCount || ready.verifiedSlotCount !== authority.totals.castleSlotCount
+      || ready.verifiedResourceNodeCount !== authority.totals.resourceNodeCount
+      || ready.componentExpectedCellCount !== ready.importedPassableCellCount
+      || ready.componentExpectedSlotCount !== authority.totals.castleSlotCount
+      || ready.componentExpectedResourceNodeCount !== authority.totals.resourceNodeCount) fail('IMPORT_POSTCONDITION_INVALID', true);
+    const installed = writePrivatePtrProductionReceipt({ directory: receiptDirectory, repositoryRoot: ROOT, kind: 'atlas-import', receipt });
+    assert();
+    return Object.freeze({ profile: 'warpkeep-ptr-initial-owner-atlas-operation-v1', command: input.command, source: source.facts,
+      installedModuleSourceCommit: binding.sourceCommit, program: binding.candidateProgram, receipt, receiptFileSha256: installed.receiptFileSha256,
+      ...(continuationEvidence ? { continuation: { ...continuationEvidence,
+        installationProvenByReadback: before.continuation?.installationProvenByReadback ?? false,
+        ...(updateReadbackReconciliation ? { updateReadbackReconciliation } : {}),
+        ...(importChainVerified ? { importChainVerified } : {}),
+        atlasImportReceiptDigest: receipt.importReceiptDigest } } : {}),
+      after: after.observed, commandSucceeded: true, providerWritesAttempted: submitted, retryAuthorized: false, usableOwnerPtrVerified: false,
+      productionAuthorized: false, globalReleaseAuthority: false });
+  } catch (error) {
+    throw classifyPtrInitialAtlasFailure(error, submitted);
+  } finally {
+    delete input.environment.WARPKEEP_ADMIN_TOKEN_SECRET; delete input.environment.WARPKEEP_PLAYER_CANARY_OWNER_FID;
+    delete env.WARPKEEP_ADMIN_TOKEN_SECRET; delete env.WARPKEEP_PLAYER_CANARY_OWNER_FID; delete env.WARPKEEP_PTR_LAUNCH_ENTROPY;
+    secret = '';
+    try { await transport?.close(); } finally { if (capability !== undefined) disposePtrUpdateProviderCredentials(capability); assert(); }
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  try {
+    const [command, ...args] = process.argv.slice(2), values = new Map<string, string>();
+    for (const argument of args) { const match = /^--(source|tree|signer|signer-identity|native-evidence|workspace|batch|candidate|approval-reference|bootstrap-inspection|update-inspection|prior-update-inspections|imported-state-update-inspection|atlas-import-receipt|confirm|out)=(.+)$/u.exec(argument);
+      if (!match || values.has(match[1]!)) fail('ARGUMENT_INVALID'); values.set(match[1]!, match[2]!); }
+    if (['source', 'tree', 'signer', 'signer-identity', 'workspace', 'out'].some(key => !values.has(key))) fail('ARGUMENT_INVALID');
+    const output = resolve(values.get('out')!);
+    if (dirname(output) !== join(ROOT, 'artifacts', 'qa') || !/^[A-Za-z0-9-]+\.json$/u.test(output.slice(dirname(output).length + 1))) fail('OUTPUT_PATH_INVALID');
+    assertProductionAdminTrustedAncestors(dirname(output));
+    const fd = openSync(output, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600);
+    try {
+      fchmodSync(fd, 0o600); const reserved = fstatSync(fd, { bigint: true });
+      if (!reserved.isFile() || reserved.nlink !== 1n || reserved.size !== 0n || reserved.uid !== 1000n) fail('OUTPUT_IDENTITY_INVALID');
+      const result = await executePtrInitialOwnerAtlas({ command: command as Command, source: { sourceCommit: values.get('source')!,
+        sourceTree: values.get('tree')!, signerFingerprint: values.get('signer')!, signerIdentity: values.get('signer-identity')!,
+        ...(values.has('native-evidence') ? { nativeEvidence: values.get('native-evidence')! } : {}) }, environment: process.env, workspaceRoot: values.get('workspace')!,
+        ...(values.has('batch') ? { batchHandle: values.get('batch')! } : {}), ...(values.has('candidate') ? { candidateHandle: values.get('candidate')! } : {}),
+        ...(values.has('approval-reference') ? { approvalReference: values.get('approval-reference')! } : {}),
+        ...(values.has('bootstrap-inspection') ? { bootstrapInspection: values.get('bootstrap-inspection')! } : {}),
+        ...(values.has('update-inspection') ? { updateInspection: values.get('update-inspection')! } : {}),
+        ...(values.has('prior-update-inspections') ? { priorUpdateInspections: values.get('prior-update-inspections')!.split(',') } : {}),
+        ...(values.has('imported-state-update-inspection') ? { importedStateUpdateInspection: values.get('imported-state-update-inspection')! } : {}),
+        ...(values.has('atlas-import-receipt') ? { atlasImportReceipt: values.get('atlas-import-receipt')! } : {}),
+        ...(values.has('confirm') ? { confirmation: values.get('confirm')! } : {}) });
+      const bytes = Buffer.from(`${JSON.stringify(result, null, 2)}\n`), current = fstatSync(fd, { bigint: true }), byPath = lstatSync(output, { bigint: true });
+      if (bytes.length > 256 * 1024 || byPath.isSymbolicLink() || ['dev', 'ino', 'mode', 'uid', 'gid', 'nlink', 'size', 'mtimeNs', 'ctimeNs']
+        .some(key => current[key as keyof typeof current] !== reserved[key as keyof typeof reserved] || byPath[key as keyof typeof byPath] !== reserved[key as keyof typeof reserved])) fail('OUTPUT_CHANGED');
+      for (let offset = 0; offset < bytes.length;) { const count = writeSync(fd, bytes, offset, bytes.length - offset); if (count < 1) fail('OUTPUT_WRITE_FAILED'); offset += count; }
+      fsyncSync(fd); readLocalBindingBoundedFile(output, { maximumBytes: 256 * 1024, expectedMode: 0o600, expectedUid: 1000, expectedSha256: sha(bytes) }).body.fill(0);
+      process.stdout.write(`${JSON.stringify({ path: output, sha256: sha(bytes), commandSucceeded: result.commandSucceeded })}\n`);
+      if (!result.commandSucceeded) process.exitCode = 1;
+    } finally { closeSync(fd); }
+  } catch (error) {
+    process.stderr.write(`${error instanceof PtrInitialOwnerAtlasError ? error.message : 'PTR_INITIAL_OWNER_ATLAS_FAILED'}\n`);
+    const diagnostic = error instanceof PtrInitialOwnerAtlasError ? error.diagnosticCode : null;
+    if (diagnostic && /^(?:PTR_|GREATER_REALM_)[A-Z0-9_]{1,120}$/u.test(diagnostic))
+      process.stderr.write(`PTR_INITIAL_OWNER_ATLAS_DIAGNOSTIC_${diagnostic}\n`);
+    process.exitCode = 1;
+  }
+}

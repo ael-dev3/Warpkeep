@@ -1,5 +1,12 @@
 declare const workflowEvidence: unique symbol;
 export type SealedRealmsProductionWorkflowEvidence = Readonly<{ [workflowEvidence]: true }>;
+/** Uses hosted Verify by default. WARPKEEP_SOURCE_VERIFICATION=native-full
+ * requires a SHA-only WARPKEEP_NATIVE_SOURCE_EVIDENCE locator and rejects
+ * incomplete native diagnostics; it cannot create a scope in this tranche.
+ * The current reader checks only the locator and source envelope; full
+ * authenticated report reconstruction is deferred. Known missing coverage
+ * rejects with SEALED_REALMS_WORKFLOW_EVIDENCE_NATIVE_INCOMPLETE.
+ * Genuine workflow dispatch context is required in either mode. */
 export function createSealedRealmsProductionWorkflowEvidence(input: Readonly<{
   workflowInputSha: string;
 }>): Promise<SealedRealmsProductionWorkflowEvidence>;

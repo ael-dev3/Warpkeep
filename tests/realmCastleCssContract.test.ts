@@ -79,7 +79,7 @@ describe('compact Realm CSS contract', () => {
   });
 
   it('removes the decorative zone legend from the narrow mobile overlay stack', () => {
-    const narrowMap = block(MAP, '@media (width < 760px) {');
+    const narrowMap = block(MAP, '@media (width < 760px), (height < 700px) {');
     const narrowZoneLegend = block(narrowMap, '.greater-realm-world__zone-legend {');
 
     expect(narrowZoneLegend).toContain('display: none;');

@@ -1,8 +1,249 @@
 # 0.4 performance acceptance contract
 
 Established 2026-09-06 before final visual implementation/measurement.
-Status: **budgets established; bounded menu and DEV Keep diagnostics recorded; final production acceptance incomplete**.
+Status: **Bounded World/Keep evidence retained; final production acceptance incomplete**.
+
+## Current public publication repair checkpoint preparation — 2 October 2026
+
+The two-existing-asset publication-policy mismatch is repaired in reviewed local
+predicates. Original four-file baseline42 retained19pass/23fail. First repaired
+42 retained40pass/2fail (4fc33cc2), not acceptance. Postflight fixture corrected
+HTML-referenced root-route expectations and separated two added negative cases
+without raising the30s case budget. Only revised Postflight13 reran and passed
+without failures/skips/pending, child0 (ce7759e5). The unchanged Mirror10,
+Payload14 and Publication7 already passed31 in the earlier run: composed31+13
+evidence, not one Windows44 full run. Nativefourfile44 remains required.
+Source/index and exact candidates are retained; all tests use fixtures/mocks.
+Purefixed d15387db accepts all446 members in its actual predicate lanes and every
+generated path within800totalplanentries, keeps eight+two negatives, and advances
+the real parser only to deliberately absent source ENOENT/lstat. This is validator
+maintenance, not source/signature/preparation/publication acceptance.
+
+R53edd619/tree4cb5ce3d remains signed/published with native212 in six files and
+zero-finding outgoing scan. Superseded RVerify36942137986attempt1 is terminal
+cancelled00:06:57UTC2October:14success/2cancelled/aggregatefailure. Retain
+raw722cedcc/archiveaa7e33b6/summary207f6a12 and partial outputs without promoting
+them to acceptance or inferring product failure. Main remainscb282bab; the new
+signed repair child and operating S are not established by this snapshot.
+
+These publication tests cannot satisfy production R06. Compiler212/five bundles
+and protected1250 closure f34982a2 stay unchanged: affected scripts/tests/four
+notes are excluded; no compilation or16-output projection is needed. Require
+the child's own normal PR acceptance and actual resulting-main Verify/Pages
+before S freeze/provider preparation/exact F/activation/A/public PTR. Initial
+realm updates/adoptions precede later activation's internal bridge establishment.
+Preserve original performance budgets, all measured-source scopes and history.
+
+## Completed World and mobile Keep diagnostics — 1 October 2026
+
+The measured production-component source remains W028b1e4b/treebd87f443.
+W's normal PR Verify36931509836 passed17 at22:55:04UTC; it does not attest R or
+the new public repair. Three eligible60-second samples in each World profile
+retain the original strict nominal results:
+
+| Profile | CPU-first-GL interval p95 | Unchanged nominal ceiling | Strict result |
+| --- | --- | --- | --- |
+| Desktop high | 50.8 / 50.8 / 50.8ms | 50ms | All three miss |
+| Portrait balanced | 67.3 / 67.4 / 67.3ms | 66.7ms | All three miss |
+| Portrait reduced | 84.5 / 84.4 / 84.5ms | 83.4ms | All three miss |
+| Landscape balanced | 67.2 / 67.3 / 67.3ms | 66.7ms | All three miss |
+
+W corrected the bounded reduced extra-six-reference-callback recurrence,
+0/0/0 gaps versus H2's143/148/154; actual render-RAF p95 remains83.7ms. Actual
+callback/CPU submission clocks are separate from physical refresh/GPU completion.
+No additional product defect is established by the residual strict misses.
+A variable-clock expectation must precede grading per the
+[existing per-path ruling](#per-path-cadence-ruling--2026-10-01); never relabel
+nominal misses or change caps/ceilings for this publication repair.
+
+| Mobile Keep profile | CPU-first-GL interval p95 | Unchanged ceiling | Bounded result |
+| --- | --- | --- | --- |
+| Portrait balanced | 34.4 / 32.2 / 31.0ms | 50ms | Meets this workload's cadence ceiling |
+| Portrait reduced | 33.2 / 32.5 / 33.4ms | 75ms | Meets this workload's cadence ceiling |
+| Landscape balanced | 34.9 / 33.3 / 33.8ms | 50ms | Meets this workload's cadence ceiling |
+
+Nine W captures exceed60 seconds on browser clock and join actual current-
+generation SceneHost/GL/RAF. Trusted keyboard changes SVG drafts, but screenshots
+do not establish paired visible-pixel latency or touch/basic-control acceptance.
+Retain H2 desktop33.6/33.3/17.1 versus33.4ms and its first miss; no W desktop
+rerun. Retain original W balanced59998.7ms sample as ineligible/ungraded. The
+QA browser-clock wait repair did not change product budgets or>=60000ms gate.
+SceneHost resource counters do not cover whole-Screen timers/listeners, heap or
+GPU allocations. World fixtures use two small synthetic chunks. Final-A cold
+bootstrap/max-world/switching/owner/physical-phone and full R06 remain open.
+
+World final summary `fa09d70e` and Keep final summary `738e5ba8` retain exact
+source/run/sample/cleanup evidence. See [local operations](local-operations.md#completed-world-and-mobile-keep-diagnostics--1-october-2026).
+The earlier dated sections below are byte-identical historical snapshots.
+
+## World phase repair and current acceptance limits — 1 October 2026, 21:26 UTC
+
+This snapshot follows local validation and precedes the new signed checkpoint.
+The measured source is H2 `a903e78e`, tree `344f5768`; the new scheduler edit is
+not yet published. H2's normal PR Verify `36920400660`, attempt 1, passed all
+17 jobs at 21:20:49 UTC. That result does not attest the later scheduler edit.
+
+The genuine optimized World fixture uses the production client and renderer,
+with a small two-chunk synthetic window. It establishes a lower-bound diagnostic,
+not maximum-window, authenticated-owner, final-A, GPU or physical-phone acceptance.
+Three 60-second samples per completed profile gave these CPU-first-GL intervals:
+
+| Profile | Submission interval p95 | Unchanged nominal 60Hz ceiling |
+| --- | --- | --- |
+| Desktop high | 50.8 / 50.8 / 50.8ms | 50ms |
+| Portrait balanced | 67.3 / 67.2 / 67.3ms | 66.7ms |
+| Portrait reduced | 100.5 / 100.2 / 100.4ms | 83.4ms |
+
+All captures were eligible, with normal owned-process cleanup and unchanged
+native source/index. Eligibility is not a budget pass. Desktop/balanced clock
+variation and callback phase contribute to their narrow misses; reduced mode
+also contains a real extra-display-tick pattern. Landscape World remains unmeasured.
+
+An isolated model executes the exact original scheduler and production host's
+next-RAF queue closure. It reproduces an arithmetic defect: an accepted early
+step can leave nearly a whole period after `%`, causing an extra next-tick update.
+The repaired scheduler carries signed early debt, permits at most 1ms of early
+deadline tolerance (also bounded to half a period), and still discards whole
+missed periods after a stall. The 24/18/12Hz caps, visibility/activity gates,
+simulation-time clamp and single pending RAF remain. It adds no rendering feature.
+
+The original isolated model fails five regression scenarios; its in-memory
+candidate passes all twelve. Captured reduced-clock replay improves modeled RAF
+p95 from 100.2ms to 83.7ms, which still exceeds the nominal 83.4ms ceiling.
+Replay does not reconstruct the unknown live accumulator or establish a live fix.
+Do not raise caps, round away misses, relabel these results, or call full R06 passed.
+Before grading a variable-clock production run, state its clock expectation as
+required by the existing per-path ruling below; preserve nominal results separately.
+
+The actual repaired source passes 18 scheduler tests and 153 production-runtime,
+canvas-host and legacy-cleanup tests, with zero failures/skips; app noEmit types
+pass. The original five scheduler cases remain. An intermediate 16-pass/2-fail
+attempt exposed a test's same-cap reset assumption and missing failure teardown;
+only the tests were corrected, and its failed receipt is retained.
+
+Four H2 Keep-only lifecycle profiles (balanced/reduced, normal/reduced-motion
+prop) each completed three warmups, twenty post-GC remounts and three actual
+context recoveries. Heap growth was 1,078,296–1,105,392 bytes; fitted growth was
+48,408–49,726 bytes/cycle. All existing memory/resource limits passed. These are
+component and whole-page V8 observations, not whole-app switching or GPU bytes.
+Desktop placement remains a separate open timing result: 33.6 / 33.3 / 17.1ms
+against 33.4ms. The first sample's miss is retained.
+
+Local receipts live in the existing ignored `artifacts/qa/` directory:
+
+- `october-release-r06-world-scheduler-phase-model-20261001T211139490Z-ba8707c5.json`, SHA-256 `89072e9a4ee0276d42e3f0c8ec881c3871401c82448d912a2970ad4cef24bef2`.
+- `october-world-scheduler-signed-retry-20261001T212022304Z-f466e782.json`, SHA-256 `b90686268a457c2d4c2c975089bf60d207d43486aa26f216baee90152434719e`.
+- `october-world-scheduler-real-callers-receipt.json` and `october-world-scheduler-app-types.json`, actual terminal exits 0.
+- `october-release-r06-a903e78e-keep-lifecycle-summary.json`, SHA-256 `52378f25173f01f270aeaf7ac876276cfd67f75f6e51a64e46363c15b71edf3d`.
+
+Sign, scan and publish the coherent source/notes/derived-closure checkpoint;
+then measure a genuine build of the repaired World source. Final production
+R06, owner journey, physical-device acceptance and PTR publication remain open.
 Scope: final production-build 0.4 world/keep path, not a standalone demo.
+
+## Repaired Keep production-component measurements — 2026-10-01
+
+Signed repair source `0d36f06c7f2b1d65169be64e3aecc88b9e27096b` (H), tree
+`c548e407d92b8cf7560452fcb9432af0c938f118`, is a direct child of the G baseline
+below. Its genuine production-optimized Keep fixture uses the real components,
+synthetic all-six-level-five presentation and trusted existing camera controls.
+It does not grant player authority or replace the final-A application build.
+This notes snapshot follows the final H run at 20:02:51.443 UTC and precedes
+notes-checkpoint H2 signing/publication; resolve actual Git/PR evidence for continuation.
+
+| Profile | Actual CPU GL submission interval p95, three 60-second samples | Unchanged ceiling | Result |
+| --- | --- | --- | --- |
+| Desktop high | 17.1 / 17.1 / 17.1ms | 33.4ms | Meets this workload's cadence budget |
+| Portrait balanced | 17.5 / 17.6 / 34.0ms | 50ms | Meets this workload's cadence budget |
+| Portrait reduced | 17.4 / 34.3 / 17.6ms | 75ms | Meets this workload's cadence budget |
+| Landscape balanced | 17.4 / 18.8 / 34.2ms | 50ms | Meets this workload's cadence budget |
+
+Desktop completes 19:34:23.617–19:38:01.595 UTC and portrait balanced completes
+19:39:14.115–19:42:59.551 UTC. Portrait reduced completes
+19:43:59.255–19:47:42.829 UTC, and landscape balanced completes
+19:59:05.689–20:02:51.443 UTC. Each actual outer tool exits 0. All twelve samples
+are cadence-eligible, have exact application-RAF/GL-burst pairing, no measurement
+failure and no driver-limited result. The receipts retain actual Chrome
+154.0.8037.58, GPU and viewport/DPR diagnostics. Desktop uses 1440×900/DPR 1;
+portrait uses 390×844/DPR 3 with the prescribed CPU/network shaping.
+Owned Chrome/profile and native server cleanup pass, and native H source/index
+remain unchanged. The [local evidence record](local-operations.md#keep-feedback-repair-and-production-component-measurements--1-october-2026)
+owns exact receipt hashes and process/build provenance.
+
+Visible feedback now consumes the next display RAF, including promotion of an
+already queued decorative frame. Autonomous reveal retains the 30/24/15fps phase,
+one pending RAF and the bounded 1ms tolerance for reproduced deadline jitter.
+The affected Windows suite passes 139 tests, native checks pass 50 tests, app
+types pass and outgoing scanning finds no secrets. These checks and measured
+submission cadence address the reproduced defect without changing the budgets.
+
+The separate fixture build is bound to H; reused static assets remain bound to
+the earlier `6e9f50bf` build. CPU submission cadence is not completed GPU work or
+physical-phone evidence. Placement and basic controls, World workloads,
+production world/keep and realm cycles, final-A cold
+bootstrap, transfer/resource/heap acceptance and actual-owner/device testing
+remain open. No full R06 or published 0.4 claim follows from these four profiles.
+The first landscape attempt fails before timing because the synthetic fixture's
+canvas is below the short viewport. The successful retry uses ordinary scrolling
+into view before timing and records before/after geometry; profile, WebGL and all
+measurement gates remain unchanged. This corrects the ignored measurement setup,
+not product rendering. Both attempts retain their separate actual receipts.
+The following baseline and earlier diagnostics retain their original source and
+pre-repair state; their pending language is historical.
+
+## Production-component Keep feedback baseline — 2026-10-01
+
+Signed preparation source `a8feb8c4c8fc723d35124222999b72120f03009c`, tree
+`96507e3f848196474d28c4a08bf4da69c664cdf8`, completes three 60-second
+camera workloads per tested profile in a genuinely production-optimized,
+separate Keep component fixture. Actual Chrome 154.0.8037.58 uses NVIDIA
+RTX 3080 Ti through ANGLE/D3D11. Desktop uses 1440×900/DPR 1; portrait
+uses 390×844/DPR 3 and 4× CPU slowdown. The balanced backing canvas is
+546×456 for a 364×304 CSS region, confirming the quality pixel cap.
+
+| Profile | Actual CPU GL submission interval p95, three samples | Existing ceiling |
+| --- | --- | --- |
+| Desktop high | 50.5 / 50.1 / 34.4ms | 33.4ms |
+| Portrait balanced | 51.0 / 51.0 / 51.1ms | 50ms |
+| Portrait reduced | 83.8 / 83.3 / 83.9ms | 75ms |
+
+Each sample has exact correspondence between actual application RAF timestamps
+and GL submission bursts, with eligible input delivery and no runtime failure.
+Paired desktop application intervals independently reproduce the unevenness;
+replay of the actual callbacks reproduces the existing scheduling decisions.
+Camera feedback shares the decorative cap, and callbacks arriving 0.066–0.566ms
+before its deadline can be rejected by the 0.05ms rounding tolerance. Low
+render work alone therefore does not establish smooth interaction. Repair and
+measure this behavior before accepting the release; keep the budgets unchanged.
+
+The narrow repair separates visible feedback from decorative continuation:
+input, zoom, inspection and reconciliation request the next display RAF,
+including promotion of an already queued decorative frame. Autonomous reveal
+continuation retains the 30/24/15fps phase and one pending RAF; a bounded 1ms
+tolerance admits the reproduced sub-millisecond deadline jitter. Idle, hidden,
+reduced-motion, disposal and context-restoration behavior remain covered.
+The first feedback regression baseline fails all 22 added cases; the separate
+ambient baseline fails three actual-host reveal cases. The corrected affected
+suite passes 139 tests, zero failures/skips, at 19:14:49.502 UTC, with app
+types and independent source review passing. Production remeasurement is still
+required; unit regressions are not a measured speedup or an acceptance pass.
+
+All three runs close their owned Chrome actors/profiles and native server
+groups, preserve tracked source/index and retain raw receipts under
+`artifacts/qa/october-release-r06-a8feb8c4-<profile>-advanced-wasm-20261001T183645336350Z-*`.
+Desktop completes 18:40:21.877–18:44:00.554 UTC, portrait balanced
+18:49:07.130–18:52:50.170 UTC, and reduced 18:56:28.632–19:00:11.243 UTC.
+Retain the earlier fixture failure separately: its CSP omitted WebAssembly
+permission; correcting that ignored fixture permission allowed the genuine
+production decoder to run without changing product CSP or the measurement driver.
+
+These observations use synthetic completed buildings and real existing camera
+controls, without player authority. Static assets are byte-verified reuse from
+the earlier `6e9f50bf` production build; they are not a new final-source build.
+CPU submission intervals are not GPU completion or physical-phone measurements.
+Placement, landscape, production world/keep switching, final-A cold bootstrap,
+owner play and device acceptance remain open. This is a reproduced defect and
+bounded baseline, not a full R06 pass or evidence that 0.4 has been published.
 
 ## Bounded DEV Keep heap lifecycle — 2026-10-01
 
@@ -114,7 +355,7 @@ identity. Hardware observations do not establish acceptance or change budgets.
 | Mobile reduced | 390x844 / reduced | Same emulation shaping | <=15 seconds | <=75ms | <=83.4ms |
 | Mobile landscape | 844x390 / balanced | Same emulation shaping | <=15 seconds | <=50ms | <=66.7ms |
 
-Reduced rendering is intentionally capped at 15fps by the existing keep plan.
+Autonomous reduced rendering is intentionally capped at 15fps by the existing keep plan.
 Ruling: use 75ms p95 for that profile rather than the plan's blanket mobile 50ms,
 which contradicts its 66.7ms scheduling interval. This resolves the specification
 conflict before measurement, not in response to a failed result. Cost if wrong:

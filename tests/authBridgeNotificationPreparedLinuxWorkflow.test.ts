@@ -202,3 +202,210 @@ describe('prepared Linux production workflow', () => {
     );
   });
 });
+
+// Run the real CLI module in an isolated VM. Only its fixed host/source/tool
+// attestations and authenticated entrypoint are stubbed; no provider is called.
+const preparedLinuxRunnerDriver = String.raw`
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { posix } from 'node:path';
+import { SourceTextModule, SyntheticModule, createContext } from 'node:vm';
+
+const fixture = JSON.parse(readFileSync(0, 'utf8'));
+const source = readFileSync(fixture.runnerPath, 'utf8');
+const repositoryRoot = '/home/warpkeep/actions-runner/_work/Warpkeep/Warpkeep';
+const commit = 'a'.repeat(40);
+const publicBodies = new Map(fixture.publicFiles.map(([path, body]) => [
+  posix.resolve(repositoryRoot, path), Buffer.from(body, 'base64'),
+]));
+const tools = new Map([
+  ['/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/pnpm',
+    '60e9225a0e34ea09a78feda05282faf5bb1feb808c16a71df3ed58a684ba6edd'],
+  ['/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/package/bin/pnpm.cjs',
+    '67b035e322203961795e8e34ca63a08c37a4386eda94107fb3d28f3246d882ad'],
+  ['/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/package/bin/pnpm.mjs',
+    'ff3224d46b47fbb24a7e9fe15fededef7e00892d07d4e376b6762d4899906bfd'],
+  ['/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/pnpm-v11.11.0-linux-x64/package/dist/pnpm.mjs',
+    'e8abc02d5fbffb8f9d8817d44d6eee84c379ea8d5006dd5aa8694bb5e4428d8a'],
+]);
+const observed = { stdout: '', stderr: '', exitCode: 0, deployCalls: 0, recoveryCalls: 0, githubReads: [] };
+let finish;
+const finished = new Promise(resolve => { finish = resolve; });
+const fakeProcess = {
+  platform: 'linux', arch: 'x64',
+  execPath: '/home/warpkeep/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node',
+  getuid: () => 1000, getgid: () => 1000, cwd: () => repositoryRoot,
+  env: {
+    WARPKEEP_EXPECTED_SOURCE_COMMIT: commit, GITHUB_ACTIONS: 'true',
+    GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_REF: 'refs/heads/main',
+    GITHUB_REPOSITORY: 'ael-dev3/Warpkeep', GITHUB_SHA: commit,
+    GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/notification-bridge-prepared-linux.yml@refs/heads/main',
+    GITHUB_RUN_ID: '123', GITHUB_RUN_ATTEMPT: '1', GITHUB_TOKEN: 'synthetic-caller-token',
+    WARPKEEP_AUTH_BRIDGE_PREPARED_INSTALLED_TOOLCHAIN_PROFILE: 'linux-x64',
+    WARPKEEP_PREPARED_LINUX_INSTALLED_TOOLCHAIN_MANIFEST_SHA256: fixture.installedSha,
+    WARPKEEP_PREPARED_SOURCE_CLOSURE_MANIFEST_SHA256: fixture.closureSha,
+    WARPKEEP_OPERATION: fixture.operation,
+  },
+  stdout: { write: value => { observed.stdout += value; finish(); } },
+  stderr: { write: value => { observed.stderr += value; finish(); } },
+  exitCode: 0,
+};
+const context = createContext({
+  process: fakeProcess, Buffer, TextDecoder, AbortController, setTimeout, clearTimeout,
+  fetch: async url => {
+    observed.githubReads.push(url);
+    let value;
+    if (url === 'https://api.github.com/repos/ael-dev3/Warpkeep/branches/main') {
+      value = { name: 'main', protected: true, commit: { sha: commit } };
+    } else if (url === 'https://api.github.com/repos/ael-dev3/Warpkeep/actions/runs/123') {
+      value = { id: 123, run_attempt: 1, event: 'workflow_dispatch', status: 'in_progress',
+        conclusion: null, head_branch: 'main', head_sha: commit,
+        path: '.github/workflows/notification-bridge-prepared-linux.yml',
+        repository: { full_name: 'ael-dev3/Warpkeep' } };
+    } else throw new Error('unexpected fixture network request');
+    return new Response(JSON.stringify(value), { status: 200 });
+  },
+});
+const mocks = {
+  'node:child_process': { execFileSync: (path, args) => {
+    if (path !== '/usr/bin/git') throw new Error('unexpected fixture executable');
+    const call = JSON.stringify(args);
+    if (call === JSON.stringify(['rev-parse', '--verify', 'HEAD^{commit}'])) return commit;
+    if (call === JSON.stringify(['remote', 'get-url', 'origin'])) return 'https://github.com/ael-dev3/Warpkeep';
+    if (call === JSON.stringify(['status', '--porcelain=v1', '--untracked-files=all'])) return '';
+    throw new Error('unexpected fixture git read');
+  } },
+  'node:crypto': { createHash: algorithm => {
+    const chunks = [];
+    return { update(value) { chunks.push(Buffer.from(value)); return this; }, digest(encoding) {
+      const body = Buffer.concat(chunks);
+      const tool = tools.get(body.toString('utf8'));
+      return tool ?? createHash(algorithm).update(body).digest(encoding);
+    } };
+  } },
+  'node:fs': { lstatSync: path => {
+    if (!tools.has(path) && !publicBodies.has(path)) throw new Error('unexpected fixture metadata read');
+    return { isFile: () => true, isSymbolicLink: () => false, nlink: 1, uid: 1000, mode: 0o600 };
+  }, readFileSync: (path, encoding) => {
+    const body = tools.has(path) ? Buffer.from(path) : publicBodies.get(path);
+    if (body === undefined) throw new Error('unexpected fixture file read');
+    return encoding === 'utf8' ? body.toString('utf8') : Buffer.from(body);
+  } },
+  'node:os': { userInfo: () => ({ username: 'warpkeep' }) },
+  'node:path': { resolve: posix.resolve },
+  './auth-bridge-notification-prepared-deploy-closure.mjs': {
+    verifyAuthBridgeNotificationPreparedDeployClosure: () => ({ manifestSha256: fixture.closureSha }),
+  },
+  './auth-bridge-notification-prepared-installed-toolchain.mjs': {
+    verifyAuthBridgeNotificationPreparedInstalledToolchain: () => ({
+      profile: 'warpkeep-auth-bridge-notification-prepared-installed-toolchain-linux-x64-v1',
+    }),
+  },
+  './verify-auth-bridge-notification-prepared-policy.mjs': {
+    verifyAuthBridgeNotificationPreparedStaticPolicy: () => ({ guardedRecoveryRequired: true }),
+  },
+  './auth-bridge-notification-prepared-deploy.mjs': {
+    runAuthBridgeNotificationPreparedDeploy: async () => {
+      observed.deployCalls += 1;
+      return fixture.publication;
+    },
+    runAuthBridgeNotificationPreparedReadOnlyRecovery: async () => {
+      observed.recoveryCalls += 1;
+      return fixture.recovery;
+    },
+  },
+};
+const module = new SourceTextModule(source, { context, identifier: 'file:///synthetic/runner.mjs' });
+await module.link(async specifier => {
+  const values = mocks[specifier];
+  if (values === undefined) throw new Error('unexpected fixture module import');
+  return new SyntheticModule(Object.keys(values), function() {
+    for (const [name, value] of Object.entries(values)) this.setExport(name, value);
+  }, { context });
+});
+let timer;
+try {
+  await module.evaluate({ timeout: 1000 });
+  await Promise.race([finished, new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error('bounded runner fixture timed out')), 3000);
+  })]);
+  await new Promise(resolve => setImmediate(resolve));
+  observed.exitCode = fakeProcess.exitCode;
+  process.stdout.write(JSON.stringify(observed));
+} finally { clearTimeout(timer); }
+`;
+
+function exercisePreparedLinuxRunner(publication: unknown, operation = 'deploy', recovery: unknown = {
+  outcome: 'verified-read-only-recovery',
+}) {
+  const publicPaths = [manifestPath, installedToolchainManifestPath,
+    'scripts/auth-bridge-notification-prepared-deploy-closure-v1.json'];
+  const bodies = publicPaths.map(path => [path, readFileSync(path)] as const);
+  const result = execFileSync(process.execPath, [
+    '--experimental-vm-modules', '--input-type=module', '--eval', preparedLinuxRunnerDriver,
+  ], {
+    input: JSON.stringify({
+      runnerPath, publication, operation, recovery,
+      publicFiles: bodies.map(([path, body]) => [path, body.toString('base64')]),
+      installedSha: createHash('sha256').update(bodies[1][1]).digest('hex'),
+      closureSha: createHash('sha256').update(bodies[2][1]).digest('hex'),
+    }),
+    encoding: 'utf8', timeout: 10_000, maxBuffer: 64 * 1024, windowsHide: true,
+    env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '', NODE_NO_WARNINGS: '1' },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+  return JSON.parse(result) as {
+    stdout: string; stderr: string; exitCode: number;
+    deployCalls: number; recoveryCalls: number; githubReads: string[];
+  };
+}
+
+describe('prepared Linux deployment result consumer', () => {
+  const receiptDigest = 'c'.repeat(64);
+  const path = `/home/warpkeep/.warpkeep/private/production-admin-v1/bridge-prepared-receipts-v1/auth-bridge-notification-prepared-${receiptDigest}.json`;
+
+  it.each(['installed', 'unchanged'])('accepts the actual %s receipt-publication API shape', result => {
+    const observed = exercisePreparedLinuxRunner({ path, receiptDigest, result });
+    expect(observed).toMatchObject({
+      stdout: 'auth-bridge prepared Linux deployment verified\n', stderr: '', exitCode: 0,
+      deployCalls: 1, recoveryCalls: 0,
+    });
+    expect(observed.githubReads).toEqual([
+      'https://api.github.com/repos/ael-dev3/Warpkeep/branches/main',
+      'https://api.github.com/repos/ael-dev3/Warpkeep/actions/runs/123',
+    ]);
+  });
+
+  it.each([
+    ['missing publication', undefined],
+    ['unrelated publisher outcome', { outcome: 'published' }],
+    ['relative private path', { path: 'receipt.json', receiptDigest, result: 'installed' }],
+    ['foreign private directory', { path: path.replace('production-admin-v1', 'other-profile'), receiptDigest, result: 'installed' }],
+    ['filename/digest disagreement', { path: path.replace(receiptDigest, 'd'.repeat(64)), receiptDigest, result: 'installed' }],
+    ['invalid digest', { path, receiptDigest: 'z'.repeat(64), result: 'installed' }],
+    ['unsupported publication result', { path, receiptDigest, result: 'published' }],
+  ])('rejects %s without retrying the deployment', (_name, publication) => {
+    const observed = exercisePreparedLinuxRunner(publication);
+    expect(observed).toMatchObject({
+      stdout: '', stderr: 'AUTH_BRIDGE_PREPARED_LINUX_RUNNER_DEPLOY_INVALID\n', exitCode: 1,
+      deployCalls: 1, recoveryCalls: 0,
+    });
+    expect(observed.githubReads).toHaveLength(2);
+  });
+
+  it('retains the actual read-only recovery result contract', () => {
+    expect(exercisePreparedLinuxRunner(undefined, 'recover-expired-authority-read-only')).toMatchObject({
+      stdout: 'auth-bridge prepared Linux recovery verified\n', stderr: '', exitCode: 0,
+      deployCalls: 0, recoveryCalls: 1,
+    });
+  });
+
+  it('rejects a publication shape as a read-only recovery outcome', () => {
+    expect(exercisePreparedLinuxRunner(undefined, 'recover-expired-authority-read-only', {
+      path, receiptDigest, result: 'installed',
+    })).toMatchObject({
+      stdout: '', stderr: 'AUTH_BRIDGE_PREPARED_LINUX_RUNNER_RECOVERY_INVALID\n', exitCode: 1,
+      deployCalls: 0, recoveryCalls: 1,
+    });
+  });
+});

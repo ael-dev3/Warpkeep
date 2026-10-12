@@ -128,6 +128,12 @@ export type PtrRealmProviderRuntime = Readonly<{
   closeSession: (session: PtrRealmConnectionSession | undefined) => void;
 }>;
 
+/**
+ * Minimum spacing between automatic reconnections after a dropped socket. A
+ * transport that keeps failing sooner waits for the player's explicit retry.
+ */
+export const PTR_TRANSPORT_RECOVERY_INTERVAL_MILLISECONDS = 30_000;
+
 const DEFAULT_PTR_REALM_PROVIDER_RUNTIME: PtrRealmProviderRuntime = Object.freeze({
   now: Date.now,
   createAuthClient: config => createPtrRealmAuthClient({
@@ -284,6 +290,7 @@ export function PtrRealmProvider({
   }> | undefined>(undefined);
   const expireAuthorityRef = useRef<(authority: PtrRealmAuthority) => void>(() => undefined);
   const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const lastTransportRecoveryRef = useRef<number | undefined>(undefined);
   const latestHostRef = useRef(host);
   const latestConfigRef = useRef(config);
   const latestRuntimeRef = useRef(runtime);
@@ -372,6 +379,30 @@ export function PtrRealmProvider({
 
   const handleTransportFailure = useCallback((generation: number) => {
     if (!mountedRef.current || generationRef.current !== generation) return;
+    const authority = authorityRef.current;
+    if (
+      snapshotRef.current.phase === 'ready'
+      && continuationRef.current !== null
+      && authority !== undefined
+    ) {
+      // A socket dropped during play (a backgrounded phone, a network switch)
+      // continues exactly as an expired lease does: fresh Quick Auth, the same
+      // fid/database/epoch scope, and no replayed command. One automatic attempt
+      // per interval keeps a flapping transport from looping.
+      const now = latestRuntimeRef.current.now();
+      const last = lastTransportRecoveryRef.current;
+      if (
+        Number.isSafeInteger(now)
+        && (last === undefined || now - last >= PTR_TRANSPORT_RECOVERY_INTERVAL_MILLISECONDS)
+      ) {
+        lastTransportRecoveryRef.current = now;
+        expireAuthorityRef.current(authority);
+        return;
+      }
+      invalidatePrivateState(true);
+      publish(publicSnapshot('renewal-error', { failure: 'transport-unavailable' }));
+      return;
+    }
     const renewing = snapshotRef.current.phase === 'renewing';
     if (!renewing) continuationRef.current = null;
     invalidatePrivateState(true);
@@ -755,6 +786,7 @@ export function PtrRealmProvider({
     continuationRef.current = readPtrRealmAuthorityScope(
       authorityRef.current, latestRuntimeRef.current.now(),
     );
+    lastTransportRecoveryRef.current = undefined;
   }, [baseline, invalidatePrivateState, publish]);
 
   const leave = useCallback(() => {

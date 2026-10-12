@@ -126,6 +126,111 @@ describe('PTR owner-provision operator', () => {
     expect(JSON.stringify(result)).not.toContain(OWNER_FID.toString());
   });
 
+  it('closes the default atlas status session after inspection without requesting owner authority', async () => {
+    const close = vi.fn(async () => undefined);
+    const environment = env();
+    const createStatusTransport = vi.fn(() => ({
+      inspect: vi.fn(async () => status(false)),
+      prepareSubmission: vi.fn(), submit: vi.fn(), close,
+    }));
+    const result = await executePtrOwnerProvisionOperator({
+      arguments: args('inspect'), environment,
+      dependencies: {
+        readImportReceipt: vi.fn(() => ({ receipt: receipt() })),
+        createStatusTransport,
+        requestOwnerToken: vi.fn(async () => { throw new Error('OWNER_TOKEN_NOT_REQUESTED'); }),
+      } as never,
+    });
+    expect(result).toMatchObject({ profile: 'warpkeep.ptr.owner-provision-inspection.v1' });
+    expect(createStatusTransport).toHaveBeenCalledTimes(1);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(environment.WARPKEEP_ADMIN_TOKEN_SECRET).toBeUndefined();
+    expect(environment.WARPKEEP_PLAYER_CANARY_OWNER_FID).toBe(OWNER_FID.toString());
+  });
+
+  it('closes the default atlas status session when its first inspection fails', async () => {
+    const close = vi.fn(async () => undefined);
+    const createStatusTransport = vi.fn(() => ({
+      inspect: vi.fn(async () => { throw new Error('STATUS_UNAVAILABLE'); }),
+      prepareSubmission: vi.fn(), submit: vi.fn(), close,
+    }));
+    await expect(executePtrOwnerProvisionOperator({
+      arguments: args('inspect'), environment: env(),
+      dependencies: { readImportReceipt: vi.fn(() => ({ receipt: receipt() })), createStatusTransport } as never,
+    })).rejects.toMatchObject({ code: 'PTR_OWNER_PROVISION_FAILED', submitted: false });
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses one genuine owner token for default authority and the provision session', async () => {
+    const statuses = [status(false), status(false), status(true)];
+    const environment = env();
+    const statusClose = vi.fn(async () => undefined);
+    const ownerClose = vi.fn(async () => undefined);
+    const requestOwnerToken = vi.fn(async () => 'owner.jwt.token');
+    const validateOwnerToken = vi.fn(() => ({ ownerFid: OWNER_FID, ownerAuthEpoch: 7 }));
+    const ownerTokenUsed: string[] = [];
+    const confirmation = ptrOwnerProvisionConfirmationDigest({
+      databaseIdentity: DATABASE_IDENTITY, moduleSourceCommit: SOURCE_COMMIT,
+      moduleSha256: MODULE_SHA256, atlasImportReceiptDigest: receipt().importReceiptDigest,
+      status: status(false),
+    });
+    const result = await executePtrOwnerProvisionOperator({
+      arguments: args('provision', confirmation), environment,
+      dependencies: {
+        readImportReceipt: vi.fn(() => ({ receipt: receipt() })),
+        createStatusTransport: vi.fn(() => ({
+          inspect: vi.fn(async () => statuses.shift()),
+          prepareSubmission: vi.fn(), submit: vi.fn(), close: statusClose,
+        })),
+        requestOwnerToken, validateOwnerToken,
+        deriveOwnerProof: vi.fn(() => '7'.repeat(64)),
+        createOwnerTransport: vi.fn((input: { requestToken: () => Promise<string> }) => ({
+          provisionOwner: vi.fn(async () => {
+            ownerTokenUsed.push(await input.requestToken());
+            return { ownerFid: OWNER_FID, ownerAuthEpoch: 7 };
+          }),
+          close: ownerClose,
+        })),
+        writeReceipt: vi.fn(),
+        nowSeconds: () => 1_800_000_000,
+      } as never,
+    });
+    expect(result).toMatchObject({ privacySafe: true });
+    expect(requestOwnerToken).toHaveBeenCalledTimes(1);
+    expect(validateOwnerToken).toHaveBeenCalledTimes(1);
+    expect(ownerTokenUsed).toEqual(['owner.jwt.token']);
+    expect(statusClose).toHaveBeenCalledTimes(1);
+    expect(ownerClose).toHaveBeenCalledTimes(1);
+    expect(environment.WARPKEEP_ADMIN_TOKEN_SECRET).toBeUndefined();
+    expect(environment.WARPKEEP_PLAYER_CANARY_OWNER_FID).toBeUndefined();
+    expect(environment.WARPKEEP_PTR_LAUNCH_ENTROPY).toBeUndefined();
+  });
+
+  it('rejects a default owner token for a different FID before provisioning', async () => {
+    const close = vi.fn(async () => undefined);
+    const createOwnerTransport = vi.fn();
+    const confirmation = ptrOwnerProvisionConfirmationDigest({
+      databaseIdentity: DATABASE_IDENTITY, moduleSourceCommit: SOURCE_COMMIT,
+      moduleSha256: MODULE_SHA256, atlasImportReceiptDigest: receipt().importReceiptDigest,
+      status: status(false),
+    });
+    await expect(executePtrOwnerProvisionOperator({
+      arguments: args('provision', confirmation), environment: env(),
+      dependencies: {
+        readImportReceipt: vi.fn(() => ({ receipt: receipt() })),
+        createStatusTransport: vi.fn(() => ({
+          inspect: vi.fn(async () => status(false)),
+          prepareSubmission: vi.fn(), submit: vi.fn(), close,
+        })),
+        requestOwnerToken: vi.fn(async () => 'owner.jwt.token'),
+        validateOwnerToken: vi.fn(() => ({ ownerFid: OWNER_FID + 1n, ownerAuthEpoch: 7 })),
+        createOwnerTransport,
+      } as never,
+    })).rejects.toMatchObject({ code: 'PTR_OWNER_PROVISION_OWNER_AUTHORITY_INVALID', submitted: false });
+    expect(createOwnerTransport).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
   it('orders receipt/status, owner authority, second reopen, proof, one mutation, and receipts', async () => {
     const order: string[] = [];
     const statuses = [status(false), status(false), status(true)];

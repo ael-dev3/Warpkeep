@@ -8,6 +8,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 const policyNativeFixture = vi.hoisted(() => ({ prepare: vi.fn(), execute: vi.fn(), dispose: vi.fn(), handles: new WeakSet<object>() }));
+const nativeSourceFixture = vi.hoisted(() => ({ requireComplete: vi.fn() }));
+vi.mock('../scripts/native-source-verification-evidence.mjs', () => ({
+  requireCompleteNativeSourceVerificationEvidence: nativeSourceFixture.requireComplete,
+}));
 vi.mock('../scripts/genesis001-linux-policy-native.mjs', () => ({
   prepareFixedLinuxG001PolicyObservation: policyNativeFixture.prepare,
   executeFixedLinuxG001PolicyObservation: policyNativeFixture.execute,
@@ -97,6 +101,8 @@ function fixture(activated = false, includePolicy = false) {
     GITHUB_REF: 'refs/heads/main', GITHUB_SHA: commit, GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_JOB: 'operate_readonly', WARPKEEP_OPERATION: 'preflight',
     GITHUB_WORKFLOW: 'Sealed Realms Production', GITHUB_WORKFLOW_REF: 'ael-dev3/Warpkeep/.github/workflows/sealed-realms-production.yml@refs/heads/main',
     GITHUB_RUN_ID: '7001', GITHUB_RUN_ATTEMPT: '1', GITHUB_TOKEN: 'fixture-' + 'x'.repeat(32) })) vi.stubEnv(key, value);
+  vi.stubEnv('WARPKEEP_SOURCE_VERIFICATION', undefined);
+  vi.stubEnv('WARPKEEP_NATIVE_SOURCE_EVIDENCE', undefined);
   const operation = run(commit, 7001, 30, true);
   const main = { name: 'main', protected: false, commit: { sha: commit } };
   const runs = new Map<string, ReturnType<typeof run>[]>([[commit, [run(commit, 4001, 21)]]]);
@@ -130,6 +136,7 @@ afterEach(() => {
   process.chdir(INITIAL_CWD); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals();
   vi.doUnmock('../scripts/sealed-realms-production-workflow-private-state.mjs');
   vi.doUnmock('../scripts/sealed-realms-production-linux-preflight.mjs'); vi.resetModules();
+  nativeSourceFixture.requireComplete.mockReset();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, ...(EVIDENCE_FIXTURE_HOST === 'win32' ? { maxRetries: 1, retryDelay: 1000 } : {}) });
 });
 
@@ -326,6 +333,71 @@ describe.sequential('retained Verify evidence derived from a live activation sco
 });
 
 describe.sequential('fixed workflow Verify evidence', () => {
+  it('preserves explicit hosted Verify mode without invoking the native reader', async () => {
+    const f = fixture();
+    vi.stubEnv('WARPKEEP_SOURCE_VERIFICATION', 'github-verify');
+    const scope = await create({ workflowInputSha: f.commit });
+    expect(verify(scope, f.commit)).toEqual({ verifiedSha: f.commit });
+    expect(nativeSourceFixture.requireComplete).not.toHaveBeenCalled();
+    expect(f.fetch.mock.calls.some(([url]) => String(url).includes('/actions/workflows/verify.yml/runs?'))).toBe(true);
+    revoke(scope);
+  }, EVIDENCE_FIXTURE_HOST === 'win32' ? 60_000 : 10_000);
+  it.each([
+    ['native-full', undefined], ['native-full', ''], ['native-full', 'A'.repeat(64)],
+    ['native-full', '../artifacts/qa/proof.json'], ['native-full', 'a'.repeat(63)],
+    ['github-verify', 'a'.repeat(64)], ['', undefined], ['arbitrary', undefined],
+  ])('rejects invalid source mode/locator before reads: %s/%s', async (mode, locator) => {
+    const f = fixture();
+    vi.stubEnv('WARPKEEP_SOURCE_VERIFICATION', mode);
+    vi.stubEnv('WARPKEEP_NATIVE_SOURCE_EVIDENCE', locator);
+    await expect(create({ workflowInputSha: f.commit })).rejects.toThrow('CONTEXT_INVALID');
+    expect(f.fetch).not.toHaveBeenCalled();
+    expect(nativeSourceFixture.requireComplete).not.toHaveBeenCalled();
+  }, EVIDENCE_FIXTURE_HOST === 'win32' ? 60_000 : 10_000);
+  it.each([
+    ['NATIVE_SOURCE_VERIFICATION_INCOMPLETE', 'SEALED_REALMS_WORKFLOW_EVIDENCE_NATIVE_INCOMPLETE'],
+    ['NATIVE_SOURCE_VERIFICATION_EVIDENCE_SOURCE_INVALID', 'SEALED_REALMS_WORKFLOW_EVIDENCE_UNAVAILABLE'],
+    ['unexpected private diagnostic', 'SEALED_REALMS_WORKFLOW_EVIDENCE_UNAVAILABLE'],
+  ])('calls the owned native reader and denies %s without hosted fallback', async (code, publicCode) => {
+      const f = fixture(); const locator = 'a'.repeat(64);
+      vi.stubEnv('WARPKEEP_SOURCE_VERIFICATION', 'native-full');
+      vi.stubEnv('WARPKEEP_NATIVE_SOURCE_EVIDENCE', locator);
+      nativeSourceFixture.requireComplete.mockImplementationOnce(() => { throw new Error(code); });
+      await expect(create({ workflowInputSha: f.commit })).rejects.toMatchObject({ code: publicCode, message: publicCode });
+      expect(nativeSourceFixture.requireComplete).toHaveBeenCalledExactlyOnceWith(locator, f.commit);
+      expect(f.fetch.mock.calls.map(([url]) => String(url))).toEqual([
+        API, `${API}/branches/main`, `${API}/actions/runs/7001`,
+      ]);
+      expect(() => verify({} as never, f.commit)).toThrow('SCOPE_INVALID');
+    }, EVIDENCE_FIXTURE_HOST === 'win32' ? 60_000 : 10_000);
+  it('rejects an unexpected undefined reader result without creating a scope or hosted fallback', async () => {
+    const f = fixture(); const locator = 'a'.repeat(64);
+    vi.stubEnv('WARPKEEP_SOURCE_VERIFICATION', 'native-full');
+    vi.stubEnv('WARPKEEP_NATIVE_SOURCE_EVIDENCE', locator);
+    nativeSourceFixture.requireComplete.mockResolvedValueOnce(undefined);
+    await expect(create({ workflowInputSha: f.commit })).rejects.toMatchObject({
+      code: 'SEALED_REALMS_WORKFLOW_EVIDENCE_NATIVE_INCOMPLETE',
+      message: 'SEALED_REALMS_WORKFLOW_EVIDENCE_NATIVE_INCOMPLETE',
+    });
+    expect(nativeSourceFixture.requireComplete).toHaveBeenCalledExactlyOnceWith(locator, f.commit);
+    expect(f.fetch.mock.calls.map(([url]) => String(url))).toEqual([
+      API, `${API}/branches/main`, `${API}/actions/runs/7001`,
+    ]);
+    expect(() => verify({} as never, f.commit)).toThrow('SCOPE_INVALID');
+  }, EVIDENCE_FIXTURE_HOST === 'win32' ? 60_000 : 10_000);
+  it.each([
+    ['native-full', 'a'.repeat(64)], ['github-verify', 'a'.repeat(64)], ['arbitrary', undefined],
+  ])('invalidates hosted proof when its captured mode or locator changes: %s/%s', async (mode, locator) => {
+    const f = fixture(); const scope = await create({ workflowInputSha: f.commit });
+    const reads = f.fetch.mock.calls.length;
+    vi.stubEnv('WARPKEEP_SOURCE_VERIFICATION', mode);
+    vi.stubEnv('WARPKEEP_NATIVE_SOURCE_EVIDENCE', locator);
+    expect(() => verify(scope, f.commit)).toThrow(/WORKFLOW_EVIDENCE/u);
+    await expect(refresh(scope)).rejects.toThrow('WORKFLOW_EVIDENCE_UNAVAILABLE');
+    expect(f.fetch).toHaveBeenCalledTimes(reads);
+    expect(nativeSourceFixture.requireComplete).not.toHaveBeenCalled();
+    revoke(scope);
+  }, EVIDENCE_FIXTURE_HOST === 'win32' ? 60_000 : 10_000);
   it.each([
     ['ptr-state-inspect', 'operate_readonly'],
     ['ptr-state-inspect', 'operate_ptr'],
@@ -708,6 +780,7 @@ describe.sequential('Linux materialization before fresh workflow authority', () 
 
 it('shares the genuine evidence WeakMap with the compiled native credential boundary', async () => {
   const f = fixture(); vi.stubEnv('WARPKEEP_OPERATION', 'g001-policy-observe');
+  const fixtureHome = join(f.root, 'native-home');
   const adminSecret = 'synthetic-workflow-admin-credential-000000';
   const source = { sourceCommit: f.commit, sourceTree: 'b'.repeat(40), operatorBlob: 'c'.repeat(40), operatorSha256: 'd'.repeat(64) };
   const built = { bundleSha256: 'e'.repeat(64), bundleBytes: 1, sourceClosureSha256: 'f'.repeat(64), dependencyClosureSha256: '1'.repeat(64) };
@@ -731,7 +804,7 @@ it('shares the genuine evidence WeakMap with the compiled native credential boun
   // preparation state machine and workflow-evidence implementation are real and
   // compiled together; no scope/receipt-shaped object is accepted as authority.
   const boundary = `import f from 'node:warpkeep-identity-fixture';
-    export const G001_POLICY_HOME='/fixture-home', G001_POLICY_ROOT='/fixture-home/private', G001_POLICY_NODE='/fixture-home/node', G001_POLICY_NODE_SHA='${'3'.repeat(64)}',G001_POLICY_ENV={};
+    export const G001_POLICY_HOME=${JSON.stringify(fixtureHome)}, G001_POLICY_ROOT=${JSON.stringify(join(fixtureHome, 'private'))}, G001_POLICY_NODE=${JSON.stringify(join(fixtureHome, 'node'))}, G001_POLICY_NODE_SHA='${'3'.repeat(64)}',G001_POLICY_ENV={};
     export const attestPolicyHost=()=>({}),attestPolicySource=f.attest,cleanupPolicyRun=f.cleanup;
     export const policyDigest=()=>'',policyDirectory=()=>({}),policyOwnedRun=()=>{},policyPrivateAncestors=()=>{},policyGit=()=>Buffer.from('x'),policyFail=()=>{throw Error('G001_LINUX_POLICY_NATIVE_FAILED')};`;
   const mocks: Record<string, string> = {

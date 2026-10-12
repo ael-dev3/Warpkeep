@@ -3,7 +3,6 @@ import { chmodSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import {
-  inspectGreaterRealmPublishSupervisor,
   planGreaterRealmPublishSupervisor,
 } from '../../scripts/publish-spacetime-dev.mjs';
 
@@ -46,13 +45,9 @@ if (!crashAfterSpawnAuthorized) process.stdout.write(`${JSON.stringify(plan.iden
 if (mode === 'post-gate' || crashBoundary !== undefined) {
   await plan.release();
 }
-if (mode === 'post-gate') {
-  for (;;) {
-    const inspection = inspectGreaterRealmPublishSupervisor(plan.identity);
-    if (inspection.status.state === 'gate-consumed') break;
-    await delay(10);
-  }
-}
+// The parent waits for the durable gate and live group before killing this
+// fixture. A concurrent phase inventory read here can race link/unlink and
+// terminate the fixture before that intentional crash boundary.
 if (crashBoundary !== undefined) {
   for (;;) {
     if (plan.executionState().closed !== undefined || plan.executionState().error !== undefined) {

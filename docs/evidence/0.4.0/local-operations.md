@@ -1,6 +1,5823 @@
 # Local operations evidence
 
-Dated local and authenticated inventory. **Not deployment evidence.**
+Dated local checks and authenticated operating observations. Each record states
+its scope; local checks alone are not deployment or release acceptance evidence.
+
+## Verified .44 candidate; sealed hydrology projection correction — 9 October 2026
+
+The .44 search at signed de8b7663802c327ed6f71a14447345547df707c5
+completed successfully at 06:00:26.567 UTC. Its private package was canonically
+verified, all 26 eligibility proofs passed, and explicit owner selection was
+recorded. Preserve replacement27 as evidence; it has not been imported.
+
+Runtime preparation failed with GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID.
+A read-only verified-package reproduction identifies the missing-direction
+branch: 12 flowing Tier 1 cells drain into hidden tiers. The exporter omitted
+those directions. The actual PTR import verifier also required a public target,
+so changing export alone would not unblock deployment.
+
+The correction retains direction only for PTR river/stream flow through a sealed
+edge. Both runtime verification and the actual PTR backend recompute the complete
+seal; present downstream targets retain transition, slope, body and accumulation
+checks. No hidden cells or navigable routes are added. Historical G001 and G002
+producers retain their previous behavior, and schemas/licensing are unchanged.
+
+The regression failed before the correction. Native qualification covers all 39
+runtime cases (36 passed in the full run; three repaired/new cases passed on the
+focused rerun), 90 PTR read/import/update cases and three hydrology cases. Actual
+PTR cell verification accepts river/stream exits and rejects forged complete seals
+before counter mutation. Project, explicit source/test and PTR module types pass;
+the pinned CLI builds the module (its missing local tsc warning is covered by the
+separate explicit compiler check). Independent bounded review found no blocker.
+The full run also exposed stale generator-version contract vectors and a test
+rehash helper that defaulted PTR artifacts to G001. These test issues are corrected;
+published and corrected G001 fixture exports were independently byte-identical.
+
+Next ordered work, owned by Codex:
+1. Publish and synchronize this reviewed fix; retain the source checkpoint exactly.
+2. Generate/verify/select a fresh source-bound atlas, then prepare its runtime once.
+   Existing provenance checks cover scripts/atlas, so do not relabel or reuse the
+   old candidate under changed source, weaken that check, or blindly replay it.
+3. Inspect the real PTR deployment, install/read back the schema-compatible backend
+   correction, import/read back the atlas, and provision the real owner.
+4. Accept the authenticated owner journey, mobile/device and Alpha preservation,
+   then complete Cloudflare cutover/readback with rollback retained.
+
+Farcaster host login is verified, but a fresh Warpkeep Mini App retry still reaches
+its separate wallet identity approval with a stated 30-day browser session. That
+approval has not been confirmed as completed. No owner acceptance or 0.4 release
+is claimed. No provider writes occurred during this correction. Preserve Alpha,
+G001 progress/admission freeze, G002 sealing and current Actions policy.
+
+Evidence retained privately/under ignored QA: replacement27 terminal metadata
+392ce54f67e99dda05e1c3165daa37861a78b05800a22acf2a4c2c436e036181;
+canonical comparison report a4db4f24736a354a3145e6677166c7c0482386dad36b442f8b4d03b66d627256;
+selection operation d8025abdb9cb74fd06887b4894c1e1314b0940171b93968115e9d39ab4c8f552.
+Runtime preparation session 81189 exited 1. Verified-package diagnostic 13485
+exited 0 and identified validator line 3255; aggregate diagnostic 40863 exited 0
+and counted 12 hidden-tier links, no non-neighbor links. Corrected isolated
+projection experiment 73409 exited 0 after canonical package verification; no
+runtime artifact was installed. Actual PTR runtime directory is absent; its
+persisted seed control exists and must be retained for reconciliation.
+
+Pre-fix targeted regression session 31129 exited 1 with the same flow error.
+Full runtime session 75816: 36 passed, two test failures, 289.55 seconds; focused
+rerun 72010: three passed, 31.16 seconds, correcting the snapshot and realm-aware
+rehash issues without changing production source. PTR operator/read/update run
+54447: 88 passed; actual verifier additions subsequently pass 11 read-contract
+cases (two additional cases). Node hydrology: three passed. Project types, explicit
+source/test types and explicit PTR module types exit 0. Pinned 2.6.1 CLI build
+exits 0; no publication or deployment implied. Historical vector comparison
+proves both published and corrected producers retain header SHA a4a92be739a61b7b9dd2a1cc0f188b2755912f2c9abeff75caeda784a79e0625
+and release SHA 84b4601c80716c4ceb79246fe18f7ca5364fa309fb94e3b6d529ccff69f272e1
+under the current .44 generator version. License and file-size checks pass.
+
+GET-only full Actions inventory 06:56:34.392–07:00:49.686 UTC:
+723e537db765eabeab87dfe243d5b42e54617c0b971ed3ee505d6aa6e59e3ac2.
+All four repositories remain disabled, none active; all pages and rerun attempts
+were inspected. No Actions execution or provider mutation is part of this evidence.
+
+## Third .36 search retired; rejection measurements qualified - 8 October 2026, 13:47 UTC
+
+Signed 7f6379d1c4d28680ba12a8ca3cf58fae6110bc85 / tree
+45f295d872e83030955fecfe36fd0eb30bdb3ff2 was published and synchronized
+before the single fresh replacement13 search. Actual start:
+2026-10-08T12:31:58.686Z; terminal finish: 2026-10-08T13:36:19.108Z.
+Session 88744 exited 1, without signal, deadline, monitoring, interruption,
+source-hold or toolchain failure. Watcher 86197 remained live until terminal.
+Two full /proc scans each found 48 processes and no original immutable worker
+birth, group or supervisor before the bound reader accessed authenticated state.
+Start receipt SHA-256: da651a2237a9d968b41f53739278756687f7dd838337b2be6e72ff2f497d1ae3.
+Bound reader SHA-256: 5faf095e48cb4080c65a5e7318677e841ac0d2a6ed47e0fbe2571930003ae146.
+Authenticated terminal metadata SHA-256:
+382d096b3aa929b40231d558207a8de526dd0d7a3d0094281da8cf84ef55048d.
+
+The reader authenticated 256 rejected attempts: 212 geography / 44 proof.
+No completion, accepted-pending candidate, atlas, package, selection or provider
+write. Source preservation and root-seed zeroization passed. Geography counts:
+active grid 21, body surface 1, legacy placement 7, complete-plan 11, bundle-option
+frontier 114, bundle-pair frontier 9, search-node 21, undersized primary 20,
+empty strategic components 1 and forbidden throne repair 7. Overlapping regional
+failures: Frostmere 37, Mirefen 23, Stonewake 24, combined QA 43. The sole
+regionally passing attempt failed HYDROLOGY_MAJOR_RIVERS_48_72 and
+PROOF_GEOLOGICAL_HIGHLAND_BARRIERS. Counts do not identify a source defect.
+Maintained abort returned checkpointAborted:true,productionUntouched:true;
+then the owned watcher was stopped. Replacement13 is retired; never resume it.
+No raw private log or seed was read or printed.
+
+The next correction fixes missing diagnostic evidence, not hydrology eligibility.
+Fresh proof rejections retain optional majorRiverCount from the actual final
+aggregate in encrypted checkpoints and private batch records. Strict validators
+require a nonnegative safe integer bounded by active cells, with range-failure
+consistency. Historical records without the property remain valid. Actual private
+batch replay checks the value against regenerated candidate authority; cleanup
+and exact-shape rejection remain intact. Completion receipts retain the count.
+Sanitized/public outputs, generator .36, seed namespace .3, geometry, discharge
+144 and every existing quality proof remain unchanged.
+
+Red-first regressions for counts 47 and 73 both failed with checkpoint-invalid
+before implementation. Final checkpoint suite passes 27 cases, including 48/72
+inclusive boundaries, encrypted resume/completion and invalid/inconsistent values
+without append. Full CLI security passes 28 cases, including historical replay,
+actual retained counts and tampered counts/proofs checked through six complete
+public-fixture generations (141.655 seconds for that test; 149.45-second combined
+run). Total current affected coverage: 55 passing cases. The initial combined run
+contained 25 checkpoint cases; the final 27-case suite supersedes it. Project
+build-mode types and explicit strict CLI/checkpoint typechecking both pass, as do
+file-size, licensing and public-boundary checks (3463 tracked/1928 scanned).
+The explicit TypeScript command initially required --ignoreConfig because input
+files were supplied; the corrected scoped command exits 0. Bounded independent
+review found no release blocker. Publish/synchronize this coherent source, then
+run one fresh guarded batch and inspect only authenticated aggregate measurements.
+
+## Second .36 search exhausted and retired - 8 October 2026, 12:27 UTC
+
+Signed source 460dedddcfac18ef27c9d6fee842ef709fc2f5d7, tree
+cbfb549930e66a3fe6592c351ddd4d32c9c5bd98, retains qualified .36 code from
+c80b46d7 with retirement/replay documentation only. Windows, native and PR #385
+matched before generation. Repository-wide Actions remained disabled; complete
+11:26 inventory and fresh activity/attempt/ref readbacks are reused for publication.
+
+The fresh one-slot window began 11:27 UTC with the original fixed stop 16:19 UTC.
+Actual worker start: 2026-10-08T11:28:29.857Z; terminal finish:
+2026-10-08T12:26:17.360Z. Session 78099 exited 1, no signal, deadline,
+monitoring, source-hold, toolchain or interruption failure. Persistent watcher
+3909 was live until terminal. Two independent full /proc scans (48 processes)
+found all immutable worker births, group and supervisor absent before reading.
+Start receipt SHA-256: 4517ee9f73c5c0bd559b90134bea604506655282c0f2d133832bdfc52edb83b1.
+Initial bound reader SHA-256:
+85812b7dd39d2fed39d4dca6736311d796c3f86370982242b9c06c2672da16ed.
+Authenticated terminal metadata SHA-256:
+b0946789dd06db116490f621584de6d955ac4f0f4b5659655550c13a67bb3496.
+
+The reader authenticated 256 rejections: 221 geography / 35 proof, no completion,
+accepted-pending candidate, eligible atlas, package, selection or provider write.
+Root seed zeroization and source preservation are confirmed. Geography counts:
+active grid 23, legacy placement 6, complete-plan 12, bundle-option frontier 117,
+bundle-pair frontier 15, search-node limit 20, undersized primary component 22,
+forbidden throne repair 6. Overlapping regional failures: Frostmere 27, Mirefen
+12, Stonewake 26 and combined regional QA 33.
+
+An exclusive bound reader v2 preserved every source/process/toolchain check and
+added only aggregation of public failure-code combinations for proof attempts
+which passed combined regional QA. Its SHA-256:
+bc7182da42f3198c40b4a277de2b9444374bf55ffa5df94f32bc181dba01b087.
+One such attempt failed only HYDROLOGY_MAJOR_RIVERS_48_72 and
+TOPOGRAPHIC_QA_COMPLETE. The other failed CASTLE_SUITABILITY,
+LIVING_WORLD_DORMANT_CAPACITY, PROOF_ADVANCED_GEOMORPHOLOGY,
+PROOF_CASTLE_CAPACITY, PROOF_GATE_APPROACHES, PROOF_GATE_GRAPH,
+PROOF_REGION_GRAPH, PROOF_REGION_LAND_COHERENCE and
+TIER_III_SMALLEST_PASSABLE_LAND. This is genuine partial proof evidence,
+not acceptance or proof of a caller defect. No seed, raw private log, candidate
+handle or coordinate was printed. The maintained abort returned
+checkpointAborted:true,productionUntouched:true, then the watcher was stopped.
+Replacement12 is exhausted/retired and must never resume. A bounded public
+ordinary-parent ordinal-10 replay on exact native 460deddd finished exit 0
+(session 97734): constructor majorRiverCount 66, finalHydrology.majorRivers 66,
+independent connected components 66, mask cells 4258. All use the same nonlegacy,
+above-sea-level, discharge-at-least-144 predicate; accumulation is preserved.
+No counting discrepancy is demonstrated. Rejection receipts retain failed proof
+codes rather than river counts, so they cannot reveal below-range versus above-
+range direction. Do not tune calibration from failure codes alone. Retain the
+qualified .36 implementation and requirements for one fresh bounded search.
+
+## .36 exhausted and retired - 8 October 2026, 11:21 UTC
+
+Signed source c80b46d752d22b3e3521a22236185d5aab4cddff, tree
+f612596296a3ec102c0e0705e8292fbb3535e405, generator .36, was clean and
+synchronized across Windows, WSL and draft PR #385 before this single fresh
+search. Qualification passed 200 affected tests and the existing type/policy
+checks. The fixed window was 10:19-16:19 UTC; actual start was
+2026-10-08T10:19:44.011Z and terminal finish 2026-10-08T11:20:33.706Z.
+Worker session 47619 returned exit 1, no signal, source/toolchain preservation
+true, and deadline, monitoring, interruption and source-hold failure false.
+No provider write occurred. Watcher session 16747 was verified live until terminal.
+
+Two independent full /proc scans (48 processes each) found every recorded worker
+birth, process group and supervisor absent before the bound reader ran. Start
+receipt SHA-256: 1530e9490d0c68d54e1ce3ca7d5a7c3cc5a123a7c6759b1355f6e8e76c6c8d9b.
+Reader SHA-256: 9e6b39f22ffa50a7721b319854876a04ff1cf265d3f630c45396afcb016bd4af.
+Authenticated terminal metadata SHA-256:
+994f7431c64682cc353e3a43c7a2ae299a5d269455400d33ec0a89be016830ef.
+
+The reader authenticated 256 rejected attempts, 212 geography / 44 proof;
+no completion, accepted-pending candidate, eligible atlas, package, selection
+or provider write. Root seed zeroization was confirmed. Geography counts:
+active grid 27, legacy placement 6, complete-plan limit 7, bundle-option frontier
+119, bundle-pair frontier 5, search-node limit 30, undersized primary component
+13 and forbidden throne repair 5. Overlapping proof counts include Frostmere 42,
+Mirefen 22, Stonewake 35, region graph 25, land coherence 24, dormant capacity 22,
+smallest Tier-III passable land 31 and topographic QA 32. All 44 proof rejections
+failed the combined regional requirement. These counts do not identify a sole
+cause and cannot authorize reduced quality criteria.
+
+The pinned maintained generate-candidates --abort-checkpoint operation returned
+checkpointAborted:true,productionUntouched:true. The exhausted workspace
+suffix c80b46d7-20261008T101900Z-parallel01-replacement11 is retired; never resume
+it. The owned watcher was stopped after retirement. No raw private log or seed
+was read. Bounded read-only public follow-ups found no additional proven caller
+bug. A synthetic final-assignment replay correctly selected the passing eight-cell,
+two-system Frostmere basin over a failing 100-cell, one-system basin. The existing
+ordinary-parent ordinal-10 replay passed Frostmere (26 cells/six systems), but failed
+Mirefen (63 wetland cells) and Stonewake (one island/no strait). Giving the diagnostic
+all physical saltwater showed only its Frostmere basin had eligible Stonewake
+island/strait geometry; this is not proof of simultaneous full regional eligibility
+or a repair-lane defect. No tracked code, private state or provider was changed.
+After publishing/synchronizing this evidence, run one fresh bounded search with
+the qualified .36 generator and unchanged requirements. Actual owner/device
+acceptance and release completion remain open.
+
+## .32 exhausted and retired; child-option diversity defect reproduced — 8 October 2026, 06:02 UTC
+
+Signed `.32` source `51b41e2bd8dced229387e84f0195953ff0319ed0`, tree
+`66acff5ba768f86ec7563239151a18942701339d`, was published after signature,
+outgoing secret scan and repository-wide Actions inspection; Windows, WSL and
+remote release branch matched cleanly. No Actions run started. Its fresh slot
+`greater-realm-candidate-51b41e2b-20261008T050000Z-parallel01-replacement06`
+started `2026-10-08T05:00:15.081Z` and finished `2026-10-08T05:57:19.253Z`,
+exit 1 without signal, deadline breach, source-hold or toolchain failure.
+Two full process/group/supervisor absence scans preceded authenticated reading.
+Start receipt SHA-256: `1cf27e3a7053b03e11045ea250261c7308abcd35ab57d704c7ff388c7e739713`;
+terminal: `3fb8a1c4a2698f201cbad528636f894471dcc7524ee15cfa41928791090a352d`;
+reader: `43f5abd764268f95c619de073ab4cdb3cd1a930e12d8a181c6ca5669066420ff`.
+
+The bound reader proved 256 rejected attempts, 216 geography / 40 proof, no
+completion or accepted-pending candidate, no package, selection or provider write,
+and root-seed zeroization. Maintained abort returned checkpointAborted:true and
+productionUntouched:true; the persistent watcher was stopped afterward. Never
+resume this workspace. Geography rejections: active-cell count 25, legacy
+placement 4, complete-plan limit 9, bundle-option frontier 118, bundle-pair
+frontier 11, search-node limit 28, undersized primary component 16 and forbidden
+throne repair 5. Overlapping frontier counts are bundle option 182, bundle pair
+14, repair bundle option 174 and repair sibling pair 174. Regional proof counts
+include Frostmere 32, Mirefen 18 and Stonewake 28; all 40 proof rejections failed
+the combined regional requirement. Counts do not establish sole causation.
+
+Two bounded diagnostic runs used the existing public ordinary-parent fixture,
+ordinal 10, with the real pinned toolchain. Final regional naming alone did not
+make its terrain eligible: Mirefen wetland coverage and Stonewake straits still
+failed. These public-fixture observations are not private-search acceptance.
+
+A bounded independent review reproduced a selector defect with public synthetic
+data and actual exported selectors/search. Of 257 same-origin bundles, the first
+256 use Tier-I [0,1,index+2], and the last uses [0,999]. A competing sibling uses
+[1]. Mandatory cell 0 suppresses diversity scans; rank filling drops the only
+compatible last bundle. Both ordinary and repair selectors return no-match;
+retaining the last option under the same 256 cap permits match. The next
+correction must discount origin-mandatory cells only for diversity scoring,
+preserve their actual collision authority, and qualify the real callers.
+No production change or eligible atlas is claimed.
+
+## .31 exhausted and retired; .32 repair-pair correction locally qualified — 8 October 2026, 04:43 UTC
+
+The `.31` one-slot search bound signed source
+`222e64bc8d969a90c38b832d43e0aa11d149429b`, tree
+`f7fb70526a4463ccc17421edb7a3b7e7dbc9f127`, generator
+`greater-realm-v2-natural-continent-pr-a.31`, Linux x64 Node 22.22.3 and the
+existing trusted toolchain. Window `20261008T033000Z` used fresh workspace
+`greater-realm-candidate-222e64bc-20261008T033000Z-parallel01-replacement05`.
+It started at `2026-10-08T03:34:05.016Z` and terminated at
+`2026-10-08T04:37:46.075Z`, exit 1, no signal or deadline/source-hold failure.
+The persistent watcher was verified live until normal completion. After two
+independent identity-bound observations found all recorded workers, group and
+supervisor absent, the exact bound reader authenticated the terminal receipt:
+`98cb6c6accb999632e900a459e08472d27a72f6b0507da6d63e86fd5d29fd2e2`.
+The reader SHA-256 was
+`82ad3442696c134f76f638c1c57c668f9016732f0579bcde5c54a8be7a4a21e0`;
+start receipt SHA-256 was
+`c85b5ee82d37ae048f7bb1881107c02e01b3a38a055d873f5c38ceb5005f99ad`.
+The first reader invocation refused the distro's default root UID before
+accessing private state. Reinvoking explicitly with `wsl -u warpkeep` satisfied
+the fixed UID 1000 contract. Use that explicit user for tests, readers, builds
+and Git; the distro default is root. No runtime check was weakened.
+
+The authenticated checkpoint contained 256/256 rejections: 226 geography and
+30 proof. No completion or accepted-pending candidate, package, selection,
+atlas or owner resulted; the seed was zeroized and production untouched.
+Maintained `generate-candidates --abort-checkpoint` returned
+`checkpointAborted:true,productionUntouched:true`. The exhausted workspace
+is retired and must never resume. The owned watcher session was closed;
+its native cutoff process was then confirmed absent. No raw log was read.
+
+Geography codes: active-cell count 29; legacy Lowlands placement 5; complete-plan
+limit 11; bundle-option frontier 138; bundle-pair frontier 13; search-node
+limit 21; undersized primary component 6; forbidden throne repair 3.
+Overlapping frontier counts: bundle option 189, bundle pair 13, Lowlands repair
+bundle option 186 and Lowlands repair sibling pair 186. These establish reached
+bounds, not that widening a cap alone will produce a valid world.
+
+Local `.32` fixes a concrete bounded-selector defect: the first own pair and
+first fallback (or first two own pairs) can share the same corridor, dropping
+a later alternative compatible with another parent's fixed footprint. Two
+deterministic public regressions reproduced no-match on `.31` and match after
+the fix. On overflow the selector keeps the first preferred pair and retains
+the alternative with minimum shared physical cells, counting each cell once
+per tier and resolving ties by existing rank. Its actual repair caller supplies
+the existing bundle footprints. The two-pair cap and every other cap, ownership,
+terrain geometry, proofs and seed namespace `.3` are unchanged. This correction
+is not evidence that a full candidate will pass.
+
+Pinned Linux tests pass: gate-apron 40/40, rejection 11/11, generator 21/21;
+the combined run was 72/72 in 72.97 seconds. Pinned Node 22.22.3 typecheck
+also passed. The private-package suite passed 82/82 in 524.33 seconds, including
+its seed-bound fixture and all tamper/zeroization replays. Total affected coverage
+is 154 passing cases. File-size, license and public-boundary checks also pass.
+A credential-free
+stress fixture scanned 65,536 ranked alternatives and retained the sole
+disjoint last option in 20.09 ms; RSS before/after was 170,217,472 / 183,717,888
+bytes. This is selector-only evidence, not a sampled memory peak or full-world
+generation. New assertions also cover repeated cells, distinct tier authority,
+rank ties, invalid cells and untouched untruncated inputs.
+
+Current live root/PTR HTML and their referenced JS/CSS return HTTP 200, matching
+the accepted HTML hashes recorded in deployment evidence. Current records now
+distinguish the immutable static PTR deployment from outstanding atlas/owner
+acceptance and route 0.4 delivery through direct Cloudflare Pages upload.
+Farcaster's actual client shows Login and the mobile sync-channel error;
+Cloudflare's existing production-account route shows sign-in. No owner/device
+acceptance or new provider write is claimed. Actions remains disabled.
+
+Before publication, the read-only repository-wide inventory completed at
+`2026-10-08T04:55:17.014851+00:00`: Warpkeep 3,807 completed runs and 57
+rerun attempts, Live 8 completed runs, Assets 226 completed runs, Water Engine
+no runs. All pages and rerun jobs were inspected; no active run exists and
+Actions is disabled in all four repositories. Receipt SHA-256:
+`c926a70847aa1c11be9141aa0a9f135d5de477b422b623bd7c486cf23f3269b3`.
+Inspected main workflow definitions retain Verify main-push/PR triggers and
+its main-only Pages completion chain; four production workflows are manual.
+Assets Verify/CodeQL use main-push/PR, with manual CodeQL also available.
+Live and Water Engine have no workflow files. Publication must leave repository
+Actions disabled and must not dispatch any downstream workflow.
+
+## .30 exhausted; `.31` correction published and locally qualified — 8 October 2026, 03:26 UTC
+
+The fresh one-slot `.30` search used source `4e4fdc857d1ea8dec5177afed50d62d95d3016ff`,
+tree `c3f1cc47119561b632921db7c26c1bb97bbfb81b`, generator
+`greater-realm-v2-natural-continent-pr-a.30`, and the pinned Linux x64 Node
+22.22.3 toolchain. Window `20261008T020000Z`, private workspace
+`greater-realm-candidate-4e4fdc85-20261008T020000Z-parallel01-replacement04`,
+was bounded to 256 attempts with no automatic restart or provider writes.
+
+Started receipt SHA-256:
+`787bec6fee9ba2b9190fa63fd5e3a2eacbd5cb15f20e25f5bf095d717baccb18`.
+The runner began at `2026-10-08T02:00:08.718Z`; the terminal receipt records
+`2026-10-08T02:51:32.919Z`, exit code 1, no signal or spawn error, and no
+deadline, interruption, monitoring or source-hold failure. Terminal receipt
+SHA-256 is
+`089008af660517ae06588241b5a1b2beacc794f34022899a74932cb520d09618`.
+Its 41-byte private log digest is
+`1c33f77505a6828a9acadf7b5aae8c01e4be8dad48fb9ced3bce88e8fa02c1f1`; the
+raw log was not read. Receipt monotonic elapsed time is 2,777,552 ms, while
+the UTC timestamps span 3,084,201 ms. Preserve the discrepancy; do not use
+monotonic duration as wall time.
+
+The first native cutoff helper ran without a persistent stdin and exited on
+EOF after printing readiness; it never armed, read a checkpoint, or signalled
+a process. It was replaced immediately with the same reviewed helper in a
+persistent PTY. The armed watcher then remained attached through normal worker
+completion and was closed after authenticated process retirement. Future
+watchers must use a persistent session and verify genuine armed readiness
+before relying on coverage.
+
+After the generation launcher closed, two identity-bound process/group
+observations 15 seconds apart found the exact recorded process, group and
+supervisor absent. Only then did the single-use source-bound safe reader
+authenticate the terminal receipt and checkpoint: searching, ordinal 256,
+256 rejected attempts (227 geography / 29 proof), no candidate or completion,
+no package or selection, no atlas or owner action, no provider write, and
+production untouched. The root seed was zeroized. The private workspace is
+retired and must not be resumed or reused.
+
+Geography rejection codes were: active-cell count out of range 24; legacy
+Lowlands placement 10; dry gate-apron complete-plan limit 17; pair frontier
+truncated at bundle-option limit 85; pair limit 44; search-node limit 33;
+Tier-II primary component undersized 8; throne repair forbidden 6. Overlapping
+frontier-kind counts were bundle-option limit 187, bundle-pair limit 59,
+Lowlands repair bundle-option limit 184, and Lowlands repair sibling-pair
+limit 184. These counts identify reached bounds, not proof that any one bound
+alone caused exhaustion.
+
+The evidence-directed `.31` source correction widens only the reached bounded
+search capacities: raw pair cap 32,768 to 65,536; per-child bundle cap 128 to
+256; search-node cap 320,000 to 640,000; complete-plan cap 256 to 512. The
+generator identifier advances to `.31`; deterministic terrain-seed namespace
+`.3`, geometry, proof policy and admissions remain unchanged.
+
+Pinned Linux Node 22.22.3 typecheck passed. The focused gate-apron suite passed
+35/35 after replacing its oversized frontier fixture with a deterministic
+six-pair physical-diversity case; the rejection suite passed 11/11 and the
+generator suite passed 21/21. The private candidate-package suite passed
+82/82 in 566.72 seconds, including the seed-bound candidate fixture and its
+package verification replays. A synthetic maximum-edge selector benchmark
+retained 65,536 of 523,776 pairs in 6,038 ms; initial/final/sampled-peak RSS
+were 189,448,192 / 216,395,776 / 230,035,456 bytes. Its selected digest is
+`bc4b2b32b0ae3aa7643a564c1e3d2156d2c64bcc776c6474bdba077415176f67`. This is
+selector and local package evidence, not full candidate-generation evidence.
+The signed source/evidence checkpoint is commit
+`8b093c2c082e10830ae941fe562d5717ce372b6e`, tree
+`a7db61e67b1f6eae5bc48324b537e202b7d92b98`, direct child of `.30` commit
+`4e4fdc857d1ea8dec5177afed50d62d95d3016ff`. SSH signature verification
+passed. Pinned Gitleaks 8.30.1 scanned the one-commit outgoing range: 12,399
+bytes, no findings. The non-forced push advanced only the existing
+`release/0.4-living-realm-quality` branch. PR #385 remains open and draft with
+head `8b093c2c`. Both Windows and pinned WSL checkouts are clean at that exact
+head. No `.31` search has started; next create one fresh, exact-source-bound
+window. Current state and actions are recorded at the top of
+`docs/agent-notes/0.4.0/next-work.txt`.
+
+Before the proposed branch update, paginated GitHub inventory returned 3,807
+workflow runs across all branches/events: all completed, none queued or
+running. Event totals were pull request 2,703, push 699, workflow run 239,
+workflow dispatch 156 and dynamic 10. The latest run was created 2 October;
+none was created on 8 October. All 28 run records with rerun attempts were
+enumerated at the run-attempt jobs endpoint: 57/57 attempts, with every
+attempt's reported job total matched to returned jobs and no incomplete page
+or API error. Repository Actions permission is `enabled:false`. The local
+Actions hold check also reported disabled settings and zero active runs for
+Warpkeep, Warpkeep-Live, Warpkeep-Assets and Warpkeep-Water-Engine; its
+account-wide daily-minute total is unavailable.
+
+Trigger review confirms Verify listens to pull requests and pushes to `main`;
+Deploy GitHub Pages only follows a successful Verify for a `main` push. The
+four production workflows are dispatch-only. A release-branch PR update would
+match Verify's PR trigger if Actions were enabled, but the repository setting
+remains disabled. No Actions run was started, dispatched, rerun or enabled for
+this checkpoint. After the push, repository-wide total remained 3,807, the
+latest run remained the 2 October completion, and querying exact head
+`8b093c2c` returned zero runs.
+
+Pinned Gitleaks 8.30.1 at `/usr/bin/gitleaks` matched the maintained binary
+SHA-256 `88f91962aa2f93ac6ab281d553b9e125f5197bbbce38f9f2437f7299c32e5509`.
+Its scanner regression passed 49 positive and 98 negative fixtures. The final
+outgoing signed-commit range was scanned once before publication.
+
+## .29 candidate exhausted; .30 pair frontier qualified locally - 8 October 2026, 01:39 UTC
+
+The one-candidate window 20261008T003000Z ran against signed source
+eae5d82e0a8521f9ee155f0c3f8c8a81da2d2a13, tree
+9de5f4e1aa3261ef352d6cf4f1627360c661d016, generator
+greater-realm-v2-natural-continent-pr-a.29, and pinned Linux x64 Node 22.22.3
+toolchain sha256:20b2eb07baaefe0c61fd2e87396f04751c7b9df6cdb8b117832baaa689ad2ac7.
+Startup receipt SHA-256:
+4fbc8b120218f5814245d17f72321c64ffd76bd4441c030fb1993941ad2de0b2.
+
+The launcher started at 00:30:01.551 UTC and its terminal receipt records
+01:17:26.687 UTC, exit code 1 and no signal. Deadline, interrupt, kill,
+monitoring failure, spawn error and source-hold failure were all false. The
+terminal receipt SHA-256 is
+c5385c27af067578062e6a5ec17d1f8b1f759cf6f66d13cf745ec7bf995eb538. Its
+41-byte log digest is
+1c33f77505a6828a9acadf7b5aae8c01e4be8dad48fb9ced3bce88e8fa02c1f1; raw log
+contents remain private. The receipt monotonic elapsedMilliseconds is
+2,562,800; its UTC start/finish timestamps span 2,845,136 ms. Preserve both:
+they differ by 282,336 ms, so monotonic time must not be reported as elapsed
+wall time.
+
+The controller first reported NO_TERMINAL_EVENT. No raw log or private
+workspace was opened. After launcher-session closure, two native observations
+ten seconds apart found no process in PGID/SID 1929271 and none of the exact
+recorded births: 1929271 timeout group leader, 1929272 bootstrap, 1929285 tsx,
+1929296 CLI, supervisor 1929170. Cutoff watcher 1930351 was also absent. The
+exact-source safe reader checked the start-receipt hash and authenticated
+terminal metadata and checkpoint. It reported phase searching, next ordinal
+256, all 256 attempts rejected (219 geography, 37 proof), no completion or
+success candidate, recovered root seed zeroized, source references and
+toolchain preserved, provider writes false, selection false and production
+untouched. The terminal receipt recorded the original process and group absent.
+
+Rejection-code counts included
+GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT 99,
+GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT 32,
+GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT 27,
+GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE 27,
+GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED 11,
+GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED 9,
+GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT 9 and
+GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN 5.
+Frontier-kind counts were pair 124, ordinary bundle option 178, Lowlands repair
+bundle option 171 and Lowlands repair sibling pair 171; counts overlap when an
+attempt records multiple truncations. No candidate, private package, atlas,
+owner selection, atlas import or provider write resulted.
+
+The maintained generate-candidates --abort-checkpoint operation returned
+checkpointAborted:true and productionUntouched:true. The exhausted private
+workspace and seed are retired and must never be resumed or reused.
+
+The signed .30 correction is code commit
+6b9ccc3ae6a6a8b393c8757e33da0dea4e621e80, tree
+d8c7d83bd89d61b793b36e5fc92f819ffa38be25, parent eae5d82. It widens only
+the bounded raw apron-pair cap from 16,384 to 32,768 and advances generator
+version to .30. Edge/child caps, search and complete-plan budgets, geometry,
+proofs, admission rules and terrain-seed namespace .3 are unchanged. SSH
+signature verification passed.
+
+Pinned Linux Node 22.22.3 typecheck passed. Apron search, rejection and
+generator suites passed 67/67 after updating the deterministic repair test to
+assert BUNDLE_OPTION_LIMIT, the frontier reached under .30. Candidate-package
+tests passed 82/82. The first combined run was 148/149 because the generator
+test still expected BUNDLE_PAIR_LIMIT. After correcting that assertion, the
+generator suite passed 21/21 and apron/rejection suites passed 46/46. All 149
+relevant cases therefore have passing evidence across those runs.
+
+The reproducible .30 selector benchmark used the 1,024-edge cap's complete
+523,776-pair frontier and selected 32,768 pairs. It completed in 2,512 ms;
+sampled peak process RSS was 227,897,344 bytes and final RSS was 213,516,288.
+The selected digest was
+9a6f7546761a681e41973ccba0997e9dace40ef4024e09a2b7d95e378be8b89f. This
+synthetic selector result is not a full candidate-generation benchmark. No
+.30 candidate has started. Publish its signed source checkpoint first, then
+use one new source-bound window, workspace and seed.
+
+Immediately before publication, paginated repository-wide Actions inventory
+found 3,807 runs, all completed, with no queued/running work. Event counts:
+2,703 pull_request, 699 push, 239 workflow_run, 156 workflow_dispatch and 10
+dynamic. All attempts for 28 rerun workflows were enumerated: 57/57, with 18
+success, 24 failure, 15 cancelled and no errors. Repository Actions permission
+is enabled:false. Trigger review confirmed Verify on pull_request and main
+push, Pages deployment only after successful Verify for a main push, and
+manual dispatch-only production workflows. No setting change or dispatch is
+needed. PR #385 is open/draft with head eae5d82 before the pending combined
+code/documentation push.
+
+## .29 signed checkpoint published and native source synchronized — 8 October 2026, 00:01 UTC
+
+Signed commit `ffa72f44f454711107be11e949578e48e0432946`, tree
+`8034e2829f23c26be0fb5600c137db154b4cfaa6`, was pushed to
+`release/0.4-living-realm-quality` and is the current head of open draft PR #385.
+The pre-push `git ls-remote` value was the expected parent
+`af471f32c8b4fd29a9e69c031d94295c3ddaf961`; the push advanced only that branch.
+GitHub confirmed PR #385 head equals the commit. The signed commit verified
+locally and GitHub reported no Actions run for the branch after publication.
+
+Immediately before the push, paginated repository-wide inventory contained
+3,807 workflow runs, all completed, none queued or running. It counted 2,703
+pull-request, 699 push, 239 workflow-run, 156 workflow-dispatch and 10 dynamic
+events. Every attempt for all 28 workflows with rerun attempts was enumerated:
+57 total, 18 success, 24 failure and 15 cancelled, with no enumeration errors.
+Repository Actions permission is `enabled:false`. Trigger inspection found
+`Verify` on `main` pushes and PR events, Pages deployment on successful Verify
+for a `main` push, and separate dispatch-only production operations. No
+workflow was enabled, dispatched, rerun or triggered by the release-branch
+push.
+
+Native `/home/warpkeep/Warpkeep-0.4` was fetched from the same remote. Its four
+pre-existing working-tree edits matched the exact contents of commit `ffa72f4`
+byte-for-byte before synchronization. The tracked tree is now clean and HEAD
+equals the published commit. Ignored `artifacts/qa/*029*` evidence was retained.
+No candidate process was started as part of this synchronization.
+
+## .28 candidate search authenticated exhausted; .29 correction qualified locally — 7 October 2026, 23:55 UTC
+
+The one-candidate window 20261007T224500Z ran against signed source
+acad76d18ced8761aea3d64dc94c75cf6f8cc784, tree
+9e353605005e94c95e5c375e3c769f518462662a, generator
+greater-realm-v2-natural-continent-pr-a.28, and pinned Linux x64 Node 22.22.3
+toolchain sha256:20b2eb07baaefe0c61fd2e87396f04751c7b9df6cdb8b117832baaa689ad2ac7.
+Startup receipt SHA-256:
+1c8120bb8bc0ee434a9328b7ee9faa4e409ccc6d7078c686301cddcc7bcebfbb.
+
+The actual start was 22:45:08.180 UTC; the terminal receipt reports finish at
+23:26:10.472 UTC, exit code 1, and no signal, deadline, interrupt, kill,
+monitoring failure, spawn error or source-hold failure. Terminal metadata
+SHA-256 is 08cb9d5342ebe6d62ad2efc109ff7c5bc5971239afc005d146bec7d3cbf5ec5d;
+the 41-byte log digest is
+1c33f77505a6828a9acadf7b5aae8c01e4be8dad48fb9ced3bce88e8fa02c1f1.
+The receipt's monotonic elapsedMilliseconds is 2,219,376; its UTC start/finish
+timestamps span 2,462,292 ms. Preserve both fields: they differ by 242,916 ms,
+so the monotonic value must not be reported as elapsed wall time.
+
+After the generation exec actually closed, independent native observations
+10 seconds apart found no process in PGID/SID 1703052 and none of the recorded
+worker/supervisor PIDs 1703052, 1703053, 1703066, 1703077 or 1702956. The
+exact-start-bound safe reader then authenticated source, tree, toolchain,
+window, terminal receipt and checkpoint. It reported phase searching, next
+ordinal 256, all 256 attempts rejected (235 geography, 21 proof), no completion
+or success candidate, root seed zeroized, source references and toolchain
+preserved, selection false, provider writes false and production untouched.
+Rejection-code counts included BUNDLE_PAIR_LIMIT 133,
+GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE 34,
+GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT 35,
+GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED 8 and
+GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT 9.
+Frontier-kind counts were pair 175, ordinary bundle option 190, Lowlands
+repair bundle option 186 and Lowlands repair sibling pair 186; counts overlap
+when an attempt records multiple truncations.
+
+The maintained generate-candidates --abort-checkpoint operation returned
+checkpointAborted:true and productionUntouched:true. The exhausted private
+workspace and seed are retired and must never be resumed. No private atlas,
+package, shortlist, selection, import, owner provisioning or provider write
+resulted.
+
+The locally qualified correction is generator .29: the bounded
+apron pair cap changes from 8,192 to 16,384. The edge/child caps, search and
+complete-plan caps, geometry, proofs, admission rules and terrain-seed
+namespace remain fixed. Windows typecheck passed; 67/67 tests passed across
+apron search, rejection and deterministic generator files. Pinned Linux
+Node22.22.3 typecheck passed. The full four-file Linux run reported 148/149:
+all three other files passed, and 81/82 private-package tests passed. Its
+single failure was a version assertion still expecting .28. After changing
+that assertion to .29, the isolated case passed 1/1; all 149 cases therefore
+have passing evidence across the full run and the focused rerun.
+
+A synthetic selector benchmark used the 1,024-edge cap's complete 523,776-pair
+frontier and selected 16,384 pairs. It completed in 1,316 ms; a 20 ms sampler
+observed peak process RSS of 254,844,928 bytes. This measures the bounded pair
+selector on a deterministic synthetic footprint, not full atlas generation.
+The next fresh .29 search must continue to record its own runtime and memory.
+After exact signed .29 source is published and synchronized, use one genuinely
+fresh workspace and seed window; do not replay .28 state.
+
+## Fresh .28 bounded atlas search started — 7 October 2026, 22:45 UTC
+
+The clean native checkout is held at signed source
+`acad76d18ced8761aea3d64dc94c75cf6f8cc784`, tree
+`9e353605005e94c95e5c375e3c769f518462662a`, generator
+`greater-realm-v2-natural-continent-pr-a.28`, and verified linux-x64 toolchain
+`sha256:20b2eb07baaefe0c61fd2e87396f04751c7b9df6cdb8b117832baaa689ad2ac7`.
+The fresh one-candidate batch started at 22:45:08.180 UTC in fixed window
+`20261007T224500Z` (22:45 UTC 7 October–04:45 UTC 8 October). Maximum attempts
+256, one slot, no automatic restart, no provider writes. Startup receipt SHA-256
+`1c8120bb8bc0ee434a9328b7ee9faa4e409ccc6d7078c686301cddcc7bcebfbb` binds the
+exact source, generator, toolchain, window and four UID1000 worker roles plus
+their supervisor. The separately hash-pinned host/native cutoff guard reached
+READY at 22:45:27.577 UTC; launcher SHA-256 is
+`47424d46f2435c261e5a9098181149690c884fcfb6932b9e23301bea031f69d0`, native
+helper SHA-256 is
+`d4ae81caf04b676d4725e7cba9300b0d9e9711b0519d3d8f55ecab6b04449a8e`. TERM is
+fixed for 04:44:00 and KILL for 04:44:45 UTC, before the 04:45:00 stop. The
+guard reports one bound process group and `privateCheckpointRead:false`. The
+root generation execution and guard remain
+active. No terminal result, candidate, package, atlas or owner is established.
+
+Do not inspect the private checkpoint or generation log while the execution is
+active. After the root execution actually exits, independently prove every
+recorded process birth, its PGID/SID and the supervisor absent twice, then use
+the exact-start-bound `.28` terminal reader. If a candidate is found, verify its
+package, shortlist and selection separately before any atlas import. The prior
+`.27` workspace and its still-running old-identity cutoff watcher are untouched.
+
+Read-only public checks at 22:49 UTC returned HTTP 200 for
+`https://warpkeep.com/`, `https://warpkeep.com/ptr/`, and
+`https://auth.warpkeep.com/healthz`; the bridge reports `warpkeep-auth-v2` and
+`publicAuthEnabled:true`. The PTR directory was visible in the ordinary browser,
+but Farcaster's web tab showed its logged-out landing page and PTR access remained
+`UNKNOWN`. This is no authenticated-owner or gameplay acceptance evidence.
+
+## Native .28 synchronization and qualification — 7 October 2026, 22:33 UTC
+
+The clean native checkout /home/warpkeep/Warpkeep-0.4 is detached at signed
+source acad76d18ced8761aea3d64dc94c75cf6f8cc784, tree
+9e353605005e94c95e5c375e3c769f518462662a. Its worktree is clean. Pinned Node
+22.22.3 SHA-256 is
+e6ec2c188d83d813f81f2de8aea084d74dce603ac1abedd0a30ad941b10087b2; npm is
+10.9.8. Native npm run typecheck exited0. The full affected Vitest closure
+passed all 149 tests across four files: 35 apron-search, 11 rejection, 21
+generator, and 82 private-package tests. Duration was 533.48s; no failure was
+reported. This native result resolves the Windows-only
+GREATER_REALM_PRIVATE_PATH_UNTRUSTED_ANCESTOR ACL failure recorded below.
+
+The prior .27 process identities and whole group are absent; its private
+workspace remains retired. Its old root guard remains idle and bound only to
+the old identities/cutoff. Do not signal it broadly or reuse its window.
+Next executable step: prepare fresh .28-bound source/index/start receipts,
+launcher and exact-root guard, then run one new fresh-seed maximum-256 search
+with no automatic restart and no provider writes. No .28 candidate result
+exists yet.
+
+## Historical operating checkpoint — 7 October 2026, 22:17 UTC
+
+### `.27` terminal and maintained retirement
+
+The single fresh `.27` batch ended without an eligible candidate. Root exec55823
+closed exit1. Actual UTC interval was21:01:11.913–21:44:13.989; the launcher
+reported monotonic elapsed2,340,034ms. These are separate clocks; do not infer
+an exact suspension interval. The fixed window was20:57–02:57 UTC, with no
+automatic restart. Terminal metadata SHA-256
+`f4f8ed312a37ad5b4fea19a4b0990b0f7afec581e58de6692b0b4394caa922e7`, log
+SHA-256 `1c33f77505a6828a9acadf7b5aae8c01e4be8dad48fb9ced3bce88e8fa02c1f1`
+(41 bytes), startup SHA-256
+`e19b7285e5e5f5f4ffd0a825911277f9bb45b753b59c7b6de6c389a55cc9fc7d`.
+All five recorded native births and their PGID/SID were absent in two root
+probes. The reviewed reader SHA-256
+`25ee42affaa59f9d315ab485fc2b40c8a2e138cea525da0b57587dd44cb5302e`
+authenticated `searching`, ordinal256, attempts256, rejections256 (geography229,
+proof27), no candidate, no private package, and production untouched. The
+maintained abort returned `checkpointAborted:true` and
+`productionUntouched:true`; this private workspace is retired and must not be
+replayed. `BUNDLE_PAIR_LIMIT` was a repeated nonexclusive frontier signal, not
+an acceptance failure or a cap to relax.
+
+### `.28` physical-pair correction
+
+Signed commit `acad76d18ced8761aea3d64dc94c75cf6f8cc784`, tree
+`9e353605005e94c95e5c375e3c769f518462662a`, advances the generator to
+`greater-realm-v2-natural-continent-pr-a.28`. It adds bounded physical-footprint
+diversity scans after the endpoint-balanced frontier overflows. Existing pair
+caps, truncation signal, acceptance proofs, admission policy and terrain seed
+namespace `.3` remain unchanged. Deterministic overflow and validation coverage
+was added. `npm run typecheck`, the whole apron/rejection suites (46/46), the
+whole generator suite (21/21), and `git diff --check` passed on Windows. The
+Windows package suite retains one environment failure at
+`GREATER_REALM_PRIVATE_PATH_UNTRUSTED_ANCESTOR` (private-parent ownership/ACL
+capability); rerun it on the pinned native Linux runner before a fresh search.
+
+Before publication, a repository-wide GitHub Actions inventory paginated all
+3,807 Warpkeep runs and read all29 additional rerun attempts: 0 active; 2,491
+success, 496 failure, 801 cancelled, 19 skipped. Actions were disabled before
+and after; push, PR, and `workflow_run` chains were inspected. Commit
+`acad76d1` is now on the release branch and draft PR #385, signature verified
+by GitHub, with zero runs for that commit. Main remains `cb282bab`.
+
+### Current custom-domain static result and owner gate
+
+The maintained Cloudflare Pages postflight used the accepted immutable plan SHA-256
+`370f84ab66f4e7bdb1f9f7026fb40a68ddf860bd6a30ce6e96fa2e7e3bf94861` and
+origin `https://warpkeep.com`. It verified all800 planned files and both
+Alpha/PTR fallback routes. The source is `9ea4821a`, public artifact
+`3634aa82`, deployment `8a469929`; its complete byte result, including
+`/ptr/index.html`, matches the reviewed plan. The root and `/ptr/` now both
+return HTTP200; this supersedes older Alpha200/PTR404 observations. A
+PowerShell-only byte read differed, while the maintained Node verifier and
+Node runtime returned the exact planned bytes; do not use that PowerShell
+read as deployment evidence. This postflight was completed during the 7 October
+release session before the fresh Actions inventory at22:16:18 UTC.
+
+The in-app browser renders build `9EA4821` and the realm directory. G001 remains
+0.3.43, G002 is sealed, and PTR `0.4.0-PTR.1` displays `ACCESS UNKNOWN` until
+Farcaster Mini App Quick Auth yields server authority. Selecting PTR returned
+the explicit no-connection notice. The current Farcaster web tab shows Login;
+an ordinary browser opened with `?miniApp=true` does not provide the required
+Mini App host context. This is not evidence of a bridge outage, owner denial,
+or successful owner authentication. Do not claim the authenticated journey.
+The exact license, CC-BY license and NOTICE bytes are present in the accepted
+800-file artifact; `.28` changes no license terms. They are currently served
+as `application/octet-stream`, so browsers may download them instead of
+rendering inline; content and fallback checks pass, but response metadata has
+not passed the newer legal-header guard.
+
+Next: synchronize exact `.28` source to the pinned native Linux checkout, rerun
+the package and full affected test closure, then start one fresh guarded
+maximum-256 search. Authenticate terminal closure before private inspection.
+Only a valid winner permits package/selection, atlas import/readback and owner
+provisioning. Then test owner sign-in and the real keep/gather/build/return
+journey inside the Farcaster Mini App and regress Alpha. To unblock that final
+test, the human action is: open the signed-in Warpkeep Mini App at
+`https://warpkeep.com/ptr/?miniApp=true` and tell Codex when the realm directory
+is visible. No QR, token, or credential should be pasted into chat.
+
+## Cutoff qualification and fresh search — 7 October 2026, 21:03 UTC
+
+The reviewed public fixture exercised the corrected real host/native transport
+with four truthful sleeping Node roles and no private generation. Actual window
+20:50:05–20:52:05 UTC: host TERM20:51:05.000, acknowledgement20:51:05.129,
+KILL20:51:50.004 and terminal observation20:51:50.118. Actual grace was44.875s;
+all deadline flags were false. Root-owned fixture exec91264 and watcher22123
+genuinely closed0. No fallback or survivor was reported. Native terminal SHA-256
+`d61093451cc7a5e68c540754cf1e105fd18fb4278801f1df58e96246b31fd9d2`;
+host receipt SHA-256
+`8fe73ab65ccfee7eb12e329909162f61cb8ed6c44a2f2f170c96d3e45baef50d`.
+Root independently rechecked all four recorded births, their supervisor and
+the entire PGID/SID absent at20:54:42.509 UTC, with native d1ab/tree7b551 and
+index4265 still held. This public short-window result does not rewrite the old
+failed cutoff records or prove private eligibility or every future timer.
+
+Final fresh launcher SHA-256
+`403ad39c386553cd4a50da74f8116ca5a8d0e8800fcae2abbd945c279fc6addf`;
+native guard SHA-256
+`3d4fc7449a812d8ca770486fe6ca412a5b0f67e10bcc9bc917079e537aa6ec5a`;
+host watcher SHA-256
+`2f935c6e1d5857a17294094d51b4d21f677fcfe4cfcd4677678f54fc79179314`.
+Independent review verified only final source/window/boot bindings changed
+from the reviewed templates. Pinned syntax/PowerShell parsing passed. The
+approved launcher and native guard were exclusively staged as UID/GID1000,
+mode0600, single-link regular files with exact hashes. Initial inline staging
+hit Windows' command-length limit before the launcher copy; bounded exact-file
+reading corrected it. No search was started by either staging operation.
+
+Root-owned exec55823 then started actual fresh `.27` generation21:01:11.913 UTC
+from signed `d1ab2b217ebef4dee504b61d5098d9719c553f35`, tree
+`7b551a8cafef6c15e0abe678480d43a8b4b85594`, with unchanged toolchain20b2.
+The new window is `20261007T205700Z`,20:57 UTC7 October–02:57 UTC8 October;
+this is a separate post-correction run, never an extension of the old boundary.
+One fresh count1/maximum256 batch, no automatic restart or provider write.
+Public startup receipt SHA-256
+`e19b7285e5e5f5f4ffd0a825911277f9bb45b753b59c7b6de6c389a55cc9fc7d`.
+Root-owned host guard exec89976 emitted genuine READY21:01:29.401 UTC, binding
+that exact receipt, launcher, source, boot and window; TERM02:56:00 and
+KILL02:56:45, with at least10 seconds after actual TERM acknowledgement.
+
+Root independently authenticated the bounded public startup and observed all
+five actual roles present on CPU7 at21:02:32.732 UTC. Supervisor1478208/birth
+74400436; leader1478312/birth74400552, bootstrap1478313/same birth,
+tsx1478326/birth74400567, cli1478339/birth74400573, all under boot
+`b838a6fd-94ef-43a6-9d58-ed8f2141dd66`. Worker PGID/SID1478312 and UID1000.
+Root probe receipt SHA-256
+`76a9129c1b04861b286376916e197d9c4fee702b5af8ac2a892cc61290b5ac1c`.
+Source-capture refs3e433477/index4265 remain the exact startup authorities.
+Do not fetch/sync or mutate the active native checkout. A documentation-only
+descendant on GitHub does not change this operating source.
+
+The terminal reader is independently reviewed but remains unexecuted; bind a
+separate copy only to genuine startup identities and root session55823. Actual
+root exec closure, exact terminal/source/toolchain holds and repeated whole
+group/recorded-role/supervisor absence must precede private authentication.
+No completion, eligible package, selection, atlas, owner or deployment success
+is inferred from readiness. Winner verification/runtime, exact PTR atlas
+import/readback, actual owner, bridge/frontend rechecks, existing production
+Cloudflare SSO/cutover, canonical authenticated acceptance and Alpha regression
+remain ordered next. Prior private material and failed evidence stay untouched.
+
+## Published correction and native synchronization — 7 October 2026, 20:38 UTC
+
+Signed source `d1ab2b217ebef4dee504b61d5098d9719c553f35`, tree
+`7b551a8cafef6c15e0abe678480d43a8b4b85594`, is published on the release
+branch and draft PR #385. GitHub's commit, signature, branch and PR readback,
+local HEAD and tracking ref all match. The outgoing eight-file checkpoint
+passed the secret scan: receipt SHA-256
+`320ff670c9a8ab42a2dd7c30594448fdfdbf5dca9cf3ed7c6ac5dcb70a815343`.
+
+The publisher genuinely exited 1 after its single successful push because its
+post-push ancestry comparison applied the outgoing eight-file scope to older
+documentation changes since 7ae. A separate read-only readback established the
+exact signed publication and older docs-only ancestry; no repeat push occurred.
+Reconciliation receipt `october-release-d1ab2b21-published-reconciled-v1.json`,
+SHA-256 `7f2b300d836cf5e4176e02d8f53fb15123115dcc38ec5baab981c932aa8ba160`,
+preserves that original failure. Fresh paginated Actions inventory completed
+20:29:24.155 UTC; all four repositories stayed disabled with unchanged run
+totals and no active runs. This source push consumed no new Actions run.
+
+Native synchronization then genuinely completed as UID 1000 at 20:33:45.842 UTC.
+The clean detached checkout now holds exact signed d1ab/tree7b551, generator
+`.27`, unchanged pinned Node22.22.3/linux-x64 toolchain20b2 and genuine prior
+backend/bootstrap records. The normal index is regular, single-link, UID/GID1000,
+mode0644, SHA-256
+`4265ba3992fd1251f3550288319d0da466b2a41c17eac8c16c3e8598ccc7b062`.
+Source-capture refs digest remains3e433477. Root read the full safe source-ready
+receipt and independently matched its Windows/native SHA-256
+`594aa100d48a06048a44171c3560ff74198e7773b6a59cf22011cf52ac05cecb`.
+No private records, provider operation or search was started by synchronization.
+Native qualification then genuinely passed: build-mode types, all69 tests in
+apron/rejection/generator/owner-connectivity, and the changed package namespace
+assertion (1 passed,81 intentionally skipped). Exact operating source, index,
+refs and toolchain held after every check; no installs or provider/private
+operator action occurred. Receipt
+`october-release-d1ab2b21-native-qualification-v1.json`, SHA-256
+`069c84b1cf46e7c5d02e4bf5abeb5aff6e67fa8498bac88f03155c863d58f501`,
+binds actual commands, successful exits, counts and logs through20:40:01.516 UTC.
+Root read the receipt/logs and matched Windows/native hashes. These are selected
+local checks, not full-root-suite or owner acceptance. Keep this operating
+source pinned. A truthful public process fixture will exercise the
+corrected cutoff before any fresh private generation. No new search deadline
+has been bound yet.
+
+## Child-frontier correction — 7 October 2026, 20:23 UTC
+
+The proposed truncation case below was executed against the actual ordinary and
+repair helpers. Both failed with `no-match` before the correction. In each case,
+the unchanged raw-pair selector retained all130 choices; replacing one of the128
+retained star choices with the discarded compatible choice made the maintained
+sibling search succeed under the same node/plan limits. This establishes a real
+frontier defect, not the cause of every rejected private world.
+
+Generator `.27` adds an optional actual-footprint callback to the child selector
+and repair wrapper, used by both production callers. First ranked origin
+representatives are mandatory. Two fixed diversity scans use their maximum
+physical-cell occupancy and then one greater occupancy, followed by rank fill.
+Final ordering remains original rank; Tier I/II cells have separate authorities.
+Footprints are validated, deduplicated and cached once; scratch arrays/maps are
+cleared on success or failure without mutating inputs. Two-argument and small
+frontiers keep their existing behavior. Terrain-seed namespace `.3`, Lowlands
+ownership, eligibility proofs, search/repair limits and truncation diagnostics
+are unchanged. Independent review cleared exact generator bytes SHA-256
+`93ff6a8f833f4d4403189916e906500794acfd0645354fe4554cbac4a9310191`.
+
+Pinned Windows Node22.22.3 passed all33 apron tests and build-mode typechecking.
+The full deterministic generator and capacity suites also passed; the first
+rejection run found an assertion pinned to `.26`, which was updated to `.27`
+alongside the package-version assertion. The rejection rerun passed11/11 with
+JSON report `october-release-27-rejection-vitest-v1.json`. Native package
+qualification is recorded separately when complete; do not infer it from an
+edited assertion. The pinned deterministic candidate's existing digest passed.
+
+An independent public synthetic qualification used8192 options,64 cells each,
+six origins and three iterations per mode. Actual corrected selection took
+210.49–253.01ms, retained128 choices deterministically and preserved all inputs;
+callback evaluation occurred once per option. Temporary measured heap growth
+was18.6–19.2MB. The baseline two-argument selector took2.52–4.17ms. Receipt
+`october-release-27-child-frontier-public-performance-v1-receipt.json`, SHA-256
+`0fea91489bc9211edc0e94a167a55bdf47d121870c7c7658253e070bb9f1a8e4`,
+binds the actual source and pinned runtime. This measures synthetic selector
+cost, not full generation throughput, production memory or eligible-world yield.
+
+The native source remains clean7ae until this reviewed checkpoint is published
+and synchronized. All prior searches remain closed; their `.26` checkpoints
+cannot be resumed or relabeled as `.27`. A separate future cutoff pair is
+prepared in ignored Windows QA only, with unarmable source/tree/boot/workspace
+and new-deadline placeholders. It does not extend the old19:32:47 boundary.
+
+The installed PTR backend needs no repeat deployment: the maintained operator
+accepts a signed descendant when `spacetimedb/`, package.json and package-lock
+are unchanged. Preserve the genuine7ae installed source/update inspection4a78.
+Fresh generator/native-source/caller bindings, cutoff readiness and a genuine
+verified winner are required before atlas import and actual-owner acceptance.
+
+## Search boundary and authenticated final state — 7 October 2026, 19:38 UTC
+
+### Reproduced cutoff correction — 19:46 UTC
+
+Independent diagnosis and root byte review confirmed two separate causes.
+Generic v1 `proc()` rejected valid unrelated PGID/SID zero before filtering
+the owned group; actual PID2/8 made every group scope ambiguous. The retained
+guard instead found its already-retired group absent, but classified on-time
+host TERM35.516 as late using native UTC36.218. Its host timing flags were
+false; native clock later shifted backwards. Preserve both actual failures.
+
+Separate ignored QA `october-release-7ae-single-slot-host-cutoff-native-v2.mjs`,
+SHA-256 `c3282a985d6a2bab6a6a8b6d99dfe62edd40ddb1db94da88d6ed5d6d51d863c1`,
+changes only SELF leaf, inventory numeric validation and TERM classification
+using validated hostMs. Root reviewed the full diff and actual hash. Inventory
+accepts PID>0 with unrelated PPID/PGID/SID>=0; matched owned members still need
+exact UID/session/birth/recorded membership. Missing ACK never establishes
+grace, KILL still needs prior TERM, and final absence checks are unchanged.
+
+Public fixture `october-release-7ae-cutoff-public-fixtures-v1.mjs`, SHA-256
+`0a729e5f4d92ae1d18469ee74885c10ac16dcf4e433e094b7cf524c79954beb7`,
+runs extracted actual old/new functions with mocked process inventory/signals.
+All9 tests passed at19:46:45.433 UTC; root independently reran and passed9/9.
+Original ambiguity reproduces, corrected inventory resolves owned/absent
+groups, malformed or mismatched identities fail closed, prior TERM and actual
+ACK+10-second grace remain strict, and shifted native-clock TERM classification
+reproduces. Syntax passed. Actual fixture receipt SHA-256
+`10c8f6e2c929fa7670418b4f05cda5e49162b34d86acde584d660782a29dd809`.
+No operator entrypoint, real process signal, checkpoint or provider was invoked.
+
+This corrected helper is prepared in Windows QA only, unarmed. Existing
+watch-v1 still selects native-v1. Future use requires a matching watcher and
+actual source/start/boundary binding reviewed before staging and readiness.
+Original helpers and failed receipts are unchanged. Native final STOP/reap
+clock checks remain unchanged; these fixtures do not prove a complete timer
+redesign or a successful future cutoff. No new search deadline was granted.
+
+Final same-source parallel aggregate
+`october-release-7ae-public-pool-throughput-final-v1.json`, SHA-256
+`bbe6c7886cb07515ee447124081ec5d16110d34660a0d6d6898efa4b004b0f15`,
+covers29 unique authenticated 7ae/.26 batches:24 exhausted and5 interrupted,
+6,639 committed rejects=5,758 geography+881 proof, zero candidates or accepted
+pending. Root independently matched every input report's hash, exact binding,
+authenticated counts and terminal authority, then recomputed totals and interval
+union. Scope excludes the original preparallel worker and distinct retained
+replay, recorded separately. The actual13:32:47.677–19:34:40.829 UTC span includes
+late cleanup:1,100.734 attempts per whole UTC elapsed hour;1,124.899 per union
+of observed active-search UTC intervals. Both include VM suspend. Neither is
+an exact within-six-hour count, an eligible-world rate or a release ETA.
+Pair-limit rejection3093 and regional QA failure872/881 proof survivors identify
+diagnostic pressure; overlapping proof/frontier counts must not be added as
+independent attempts or treated as proven causal defects.
+
+The next bounded public reproduction targets the real child-option truncation
+seam in `selectGreaterRealmGateApronChildBundleOptions`, used by
+`bundleOptionsFor` in `scripts/atlas/greater-realm-candidate-generator.ts`.
+Construct129 same-child star pairs(0,i), scores1–129, plus disjoint pair(1,130)
+at score1000. The maintained pair frontier retains all130 at its unchanged cap;
+the child frontier retains128 stars. A sibling occupying cell0 conflicts with
+every retained option, while the discarded disjoint pair is compatible.
+Combine the existing origin-retention and sibling-footprint fixtures in
+`tests/greaterRealmGateApronSearch.test.ts` before changing production ranking.
+This was a source-traced proposal at19:38 UTC; the later executed regression and
+correction are recorded above. It is not an actual failed-world diagnosis or
+proof of improved yield. Regional QA aggregates
+lack the individual metric deficits needed to establish a hydrology defect.
+
+At this no-world boundary, the available paths are a deterministic construction
+correction with unchanged proofs/caps, or a separately bounded search after
+measuring resources and validating the cutoff correction. Codex recommends
+the first path. Do not silently extend the completed boundary, increase caps
+from aggregate pressure alone, relabel an old package or claim an ETA from
+rejected-attempt throughput. Only genuine package/atlas/owner acceptance can
+advance the remaining release steps.
+
+Full safe incident/reconciliation receipt
+`october-release-7ae-host-cutoff-failure-reconciliation-v1.json`, SHA-256
+`6b6c4267406fe08d5aab64956a8140eed5fc052c4671feac20e5ccf74b64ec53`,
+preserves original failed guard receipts, exact corrective observations and
+all final terminal references. Root read it and matched the hash. At19:41:01.855
+UTC, an independent public-only root probe found all six random group leaders
+and the retained owner absent, with no member of their PGID/SID groups.
+Native source7ae/tree0cbb was clean; index SHA-25605cc1530 and common refs
+SHA-2565af86b95 matched the held source. No signals or private reads occurred.
+
+The absolute boundary was 19:32:47 UTC, unchanged by replacements or VM suspend.
+The current single-slot guards failed closed with ambiguous identity and did
+not deliver native TERM. They are not successful cutoff evidence. After exact
+startup-receipt hash, boot, birth, UID1000, PGID/SID and recorded-member
+attestation, corrective TERM was delivered only to groups1210604/1211692/1212789
+at19:34:40.320–19:34:40.331 UTC. Groups1257446/1262798 were already absent.
+After at least10 seconds of actual host-observed grace, all three signaled
+groups were absent; no corrective KILL was required. Deadline breach remains
+explicit. No successor, broad signal or provider mutation occurred.
+
+All six final generation execs genuinely closed1. Exact reviewed maintained
+terminal readers then authenticated state after whole worker-group,
+recorded-descendant and supervisor absence; finally cleared recovered seeds;
+source/index/refs/toolchain held. Root read the full safe reports and matched
+their hashes. No completion, accepted-pending candidate, success manifest,
+package verification, selection, retirement or provider write occurred.
+
+| Final slot / replacement | Actual finish UTC | Committed rejects: geography / proof | Result | Safe authenticated report SHA-256 |
+| --- | --- | --- | --- | --- |
+| 01 / 05 | 19:33:54.049 | 54: 44 / 10 | Relative timeout124; cutoff breached | `889e5b2ced810c2a1d9b7ad76ed38a154217ee42555aa6d11bda82ba049671d9` |
+| 02 / 04 | 19:34:40.812 | 148: 126 / 22 | Corrective SIGTERM; cutoff breached | `f91046542ec48bfb3e29f0a1995d88552ac46f561e0f3d4f4106dbfed44ba150` |
+| 03 / 04 | 19:34:40.824 | 133: 112 / 21 | Corrective SIGTERM; cutoff breached | `1df20faf923d35b9f38477f6758d240a97c01d1da243a5a3cd2503124413e8be` |
+| 04 / 04 | 19:22:04.438 | 256: 221 / 35 | Genuine maximum-256 exhaustion | `669c6a037954ea41bb689ca5d78d2300ea4e8b539dbc92d5452e24bec6175082` |
+| 05 / 04 | 19:34:40.829 | 128: 111 / 17 | Corrective SIGTERM; cutoff breached | `871f7707c483c4323c080686162558f75bb7f8032c24a7b806f39c83c7105868` |
+| 06 / 03 | 19:33:43.074 | 32: 25 / 7 | Relative timeout124; cutoff breached | `58948a3173a1c3d53e717b8566afc1237e1111a581b16dfe07650f8ee1341592` |
+
+Final six total751 committed rejects:639 geography /112 proof. Five interrupted
+searches total495:418/77; they are not256 exhaustions. Preserve their encrypted
+checkpoints. Counts exclude uncommitted in-flight work. Recorded UTC rates
+include VM suspend and staggered starts; native monotonic time is separate.
+The earlier pool rate is not the full-session rate or measured candidate yield.
+
+Last fresh01/06 starts were19:19:01.543 /19:21:16.776 UTC, generation exec51025 /
+10231 and guard exec72734 /20950, owned by `/root/generator_failure`. Root read
+full startup/readiness receipts and matched hashes:01 startup89949b86,
+readiness166cf0d7;06 startup0831cbc0, readiness6817b26d. Exact01/06 terminal
+reader SHA-256 pins are `ff32733b765c52e691b041eb322f93661f8e5183e19de01c25573a2f58309bca`
+and `e5feb01993c43d09da62a5721e157b08a28563893be2e871afd7fbacf9ce6034`.
+Root reviewed full narrow actual-binding diffs and matched native/Windows
+bytes, UID/GID1000, mode0600, single link and pinned esbuild syntax0 before use.
+No old reader was relabeled and no retired checkpoint was reopened.
+
+The separate retained host guard exec15771 also genuinely closed1:
+`QA_HOST_NATIVE_CLEANUP_NOT_CONFIRMED`. Its original group had already
+completed and been retired; actual TERM/KILL probes skipped the absent group,
+but native terminal counts retained deadlineBreach:true. Root read actual
+receipt SHA-256 `2416709bae14aea8b1af849cac0b97be90e1406c26e736e47cfd897b5b4fc8e6`
+and failure SHA-256 `1ef28262df4ed63b9f6f03844bf513af1383c52f91b25374391c5b0185cc98b5`.
+Host TERM19:32:35.516/ACK35.765, KILL45.812 and terminal observation45.954 are
+preserved as actual events; no successful bounded-cleanup claim is made.
+Correct the guard using deterministic fixtures before another timed search;
+retain failed originals and identity/grace/absence checks.
+
+## Retained replay authenticated exhaustion and retirement — 7 October 2026
+
+Root inspected the genuinely closed replay once with reviewed caller SHA-256
+`a302494d0c599afc6add9ff2e18c46ad6c3b6fcba990f70655be20074ff8e038`.
+Inspection exec47896 actually closed0; observed by19:20:47 UTC. Safe receipt
+SHA-256 `332c22c30378de104b1738c4faa2a882b3d957db443a1f298af3c674c8ebbc39`
+authenticates256=234 geography/22 proof rejects, null completion, no accepted
+pending candidate and true exhaustion. Pair-limit rejects131, node-limit25
+and complete-plan-limit19 identify bounded search pressure; all22 proof
+rejects include regional hydrogeomorphology QA. These aggregates identify
+diagnostic targets, not a proven causal defect or permission to weaken proofs.
+
+Root retirement exec81617 then actually closed0, observed by19:22:37 UTC.
+Safe receipt SHA-256 `b6dba97b4eb42b0e35f831586b7aae503f03a46f754def242c2c9ac8b7aa9a65`
+confirms the locked inspected checkpoint digest, null completion, exhausted256,
+maintained abort, cleared secrets, full replay-group/supervisor absence and
+source/index/refs preservation. Root read full safe native/Windows receipts
+and matched unchanged bytes. Only the fresh recovery workspace was retired;
+original encrypted9ea material was untouched. No accepted/completed state was
+retired. Never resume this recovery workspace or execute its prepared success
+callers. No provider operation occurred.
+
+## Retained replay terminal and fresh search authorities — 7 October 2026, 19:10 UTC
+
+Root-owned generation exec30095 genuinely closed1. Actual safe summary
+`october-release-private-atlas-retained-aux-7ae-recovery-generation-v2-summary.json`
+has SHA-256 `def7835eabd2ba5cac0de6ab486caa6daec4759244d6eaaab2d5b265b3c92d31`;
+finish19:08:50.109 UTC. Preflight/readiness passed0. Generate closed1 at
+19:08:48.944 UTC with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`, without timeout,
+signal, spawn error, remaining child, cleanup signal or source-hold failure.
+Generated/verified/compared/review are null; later phases did not execute.
+Source/index/refs held and the shared import journal stayed unsubmitted.
+Root read the full safe summary, matched its digest and copied unchanged bytes
+to existing Windows QA. At19:10:16.673 and19:10:16.781 UTC, direct public process
+probes found owner1129447/birth73529722 and all three recorded phase children
+absent, with whole PGID/SID group empty. No active checkpoint read occurred.
+Do not infer private attempt counts from the error string. Matching terminal
+authentication/retirement must be reviewed separately. Original encrypted
+9ea material remains preserved. No retry, runtime export or provider effect
+is authorized by this failure receipt.
+
+Slot01 replacement04 maintained retirement completed once at19:00:51.912 UTC,
+after exact exhausted256/null completion and locked digest were reauthenticated.
+Safe retirement receipt SHA-256
+`d05794434942cea544a5a23e604cfe46de6f82d1e25d135e4408bb98c8b59529`
+confirms abort/seed zeroization/full group-descendant-supervisor absence and
+source/index/refs/toolchain preservation. Root read the full safe receipt and
+matched the hash. No accepted/completed checkpoint was retired; no successor
+was claimed from retirement.
+
+Exactly one fresh replacement04 started per retired slot02/03/05 via reviewed
+launcher v11 SHA-256
+`ca79df90f3ad070484d98c34c8966eb81d858678425bb4be57680cdc83e9d2c5`.
+Each immediate guard binds its actual startup, recorded births and unchanged
+single-slot guard pair. Root read all six full safe startup/readiness receipts
+and matched their hashes. Eight CPUs and at least17.206GB observed available
+memory passed launch preflight; source/gates/caps and original cutoff held.
+
+| Slot | Actual start UTC | Generation / guard exec | PGID / birth | Startup SHA-256 | Guard ready UTC / receipt SHA-256 |
+| --- | --- | --- | --- | --- | --- |
+| 02 | 18:57:49.869 | 41780 / 18708 | 1210604 / 73728004 | `135c2dba93d0564c402fc5e55281f795c89f958bc85606b100c81a608a852b55` | 18:57:59.807 / `7fb1151fe54d71cde46c6a80d562a8e6a0747454756acd7a19ecfd15ddbe3a63` |
+| 03 | 18:58:16.459 | 7500 / 5005 | 1211692 / 73730342 | `1edf87e3dcd23da68e36523312d72f2483d91680192839c9ee28492ba856ca64` | 18:58:26.035 / `d57b2c9da974a9f9942555364408e7813e567a2e51092e6805b2ce72d50a7672` |
+| 05 | 18:58:39.800 | 96091 / 70101 | 1212789 / 73732676 | `b87da2c4526fb19ee42cb9e3c4048c86bb702ceab140f0a6a9afa9f2daf2feef` | 18:58:52.846 / `9f45db7376b9a6f8693193445b24692b8f3e82aeaadf684bba4af7c333148e31` |
+
+All execs in that table belong to `/root/generator_failure`. Slot04's current
+replacement04 binding is in the record below. Exact matching02/03/05 terminal
+pool reader v4 SHA-256
+`fba5c162d023752636c41cf09b01545306c4da833835252155384e81c0f673e6`
+passed root full narrow-diff, actual Win/native pins/modes and syntax review.
+Metadata while live reads no checkpoint; private authentication needs genuine
+terminal and full absence. Root and independent review cleared current-four
+comparison/runtime v8, respectively
+`6c5d97ad8f0180ed11e7aa2d18b1e62eba2999de2060949644ff2cb721e8dc5d` /
+`41d99bfe91e65fe6916f8a4eb6ce837c2b686e00b2b8adb6ff0e0ce3fc38b20e`.
+Only exact02/03/04/05 replacement04 rows/selector/suffix changed; maintained
+terminal/package/comparison/selection/runtime gates stayed unchanged. Root
+owns execution; preparation proves no package or release.
+
+The separate retained runtime v1 was never executed. Independent review caught
+its inspection claiming package verification before authenticating the actual
+package-to-completion binding. Separate v2 SHA-256
+`5a5962abc155d4ad5b98f4d20e97325cd1a773cc6fab5aee147f37a6cf8a95d1`
+closes that gate with the maintained package verifier and held atlas/manifest,
+ordinal/performance/rejection lineage. Root and independent byte review, actual
+Win/native pins/UID1000/0600/single-link and syntax pass. It remains unexecuted
+and cannot operate against the failed replay above. Retained-workspace atlas
+child/run/parent clones are separately prepared: exact workspace/name/pin
+changes only, unchanged originals, no guessed confirmation or import digests.
+No provider step is claimed. These prepared operations require a genuinely
+verified selected/runtime-prepared winner and actual maintained inspection.
+
+## Latest authenticated search lifecycle — 7 October 2026, 18:50 UTC
+
+All four slots02–05 replacement03 completed their unchanged maximum-256 bounds
+with no eligible candidate, completion or accepted pending finalization. Each
+reviewed maintained terminal reader authenticated its checkpoint only after
+the genuine execution terminal and whole group/descendant/supervisor absence.
+Source/index/refs/toolchain held; in-memory recovered secrets were cleared.
+No interruption, deadline, source-hold failure, selection or provider write
+was observed. These are genuine exhausted searches, not package verification.
+
+| Slot | Actual finish UTC | Geography / proof rejects | Safe authenticated terminal report SHA-256 |
+| --- | --- | --- | --- |
+| 02 | 18:30:03.338 | 216 / 40 | `491f786eb342edf0a184b76ddea2cc7016668395d2a4fd4ea3342e864e00415d` |
+| 03 | 18:31:57.742 | 225 / 31 | `96d621ea80d870236178f0bc766750d2ffef60260b37f51b40288d7552c54484` |
+| 04 | 18:24:06.814 | 229 / 27 | `ee5aaf377841adbe0d42b47001d9dba51ae8c0f5f9a5ff5bf536f56a939c912c` |
+| 05 | 18:34:00.024 | 222 / 34 | `5af572033e52037bd24acc18075188b1ad45ad674c55bc2ff7de8e045f7d3e5a` |
+
+The four authenticated reports total1,024 rejects: 892 geography / 132 proof.
+Root read and matched these safe receipts. Slot04 retirement is recorded below.
+Separately reviewed retirement callers for02/03/05 have matching Windows/native
+bytes, UID/GID1000, mode0600, one link, and pinned Node syntax passed. Their exact
+SHA-256 pins are `3e92790e4a58d755674922535e921c236a961ee50fd995a4b6691e2149256f5f`,
+`abd35608d897cd044bb01d4719f71549a2128f651e30f31041fa832126c90214` and
+`cb349ff604ab5351af00e4102eeab963cc932edc73aa36f7553f45fea8ffc565`.
+The three maintained retirements then genuinely completed once each, exit0:
+02 at18:52:46.011 UTC,03 at18:52:57.303 UTC,05 at18:53:04.423 UTC. Their safe
+retirement receipt SHA-256 digests are respectively
+`6050e412f6508351df1b07fe26201319726c5a7d7d6a9e7eda9ddb482e2d6f88`,
+`87f9d11865c050496e0e17d5697e49c930402a142d8a65f41b53fe1915661f14`,
+`67da1b2bf6b3f42e075266ce50b66b3b259c8f5d43ec39d38f018b2cd6716890`.
+Root read all three full safe receipts and matched their hashes. Each confirms
+exhausted256/null completion and exact checkpoint digest under the generation
+lock, maintained abort, seed zeroization, full absence and source/toolchain
+holds. No accepted/completed checkpoint was retired. They must not be reopened.
+Fresh successor startup remains a separate authority.
+
+Slot01 replacement04 genuinely closed1 at18:44:50.958 UTC. The exact approved
+reader authenticated256 rejects (232 geography / 24 proof), no accepted pending
+candidate/completion, whole group/descendant/supervisor absence and preserved
+source/index/refs/toolchain. Its safe report ending
+`parallel01-replacement04-authenticated-terminal-report-v1.json` has SHA-256
+`b4e0dfd2bc8dee7fb444568ebce014a13d1fa83fb86db4ec1f43313612aba955`;
+actual terminal metadata SHA-256 is
+`e7318a798a226d5e24fea2f5d68dd6562180b006f2841fcb0e065994a7521a1e`.
+Root read its full safe report and matched the hash. Retirement is not claimed
+from terminal authentication alone; a separate exact caller must be reviewed.
+
+After the actual slot04 retirement below, fresh slot04 replacement04 started
+18:32:12.768 UTC in generator-owned exec49404, PGID/SID1153542,
+birth73588043. Reviewed launcher v9 SHA-256
+`8fec02832535899ae9106cff20cd34283368f9b9c8f2d720be7a96b0ba2bee32`
+retains source7ae/tree0cbb, generator.26, count1/maximum256 and every gate/cap.
+Actual safe startup receipt SHA-256 is
+`b7dd08780b07410c275004a62cd94c85d287f910ce6b46873bdf7f8d7d50956d`.
+Separate host watchdog exec74212, host39920/birth18:32:19.075 UTC, emitted native
+readiness18:32:22.944 UTC. Safe readiness receipt SHA-256 is
+`c5ee109c26535949a5368461db72805758fe0e8c7426327ac0dfafcb9273fa83`.
+Root read/matched both. Matching terminal reader v1 SHA-256
+`c1d10f7c57c6a46e508d26a74c3f497562729acb8a8a936d29534a54978cbd82`
+passed root full narrow-diff review, actual native/Windows pins/modes and syntax.
+Only metadata may be read while live; private authentication requires genuine
+terminal and whole-group absence. Earlier comparison/runtime v7 bindings are
+historical and cannot authorize this fresh successor.
+
+All birth-bound guards remain unchanged. Successors retain the original
+19:32:47 UTC stop/options boundary; machine suspend and replacement starts
+never extend it. No package, runtime export, atlas import, owner provisioning,
+DNS/cutover or authenticated owner release acceptance is claimed here.
+
+## Slot04 replacement03 terminal — 7 October 2026, 18:24 UTC
+
+Generation exec34322 genuinely exited1 at18:24:06.814 UTC after start
+17:32:34.190 UTC. The reviewed pool-v3 reader authenticated exhausted256:
+229 geography / 27 proof rejects, no completion, candidate or accepted pending
+finalization. Full worker group/recorded descendants/supervisor were absent;
+source/index/refs/toolchain held and the recovered in-memory secret was cleared.
+No interruption, deadline, gate/source failure, selection or provider effect
+was observed. The safe authenticated terminal report
+`october-release-7ae-parallel04-replacement03-authenticated-terminal-report-v1.json`
+has SHA-256 `ee5aaf377841adbe0d42b47001d9dba51ae8c0f5f9a5ff5bf536f56a939c912c`;
+actual supervisor terminal metadata has SHA-256
+`b6165bad1bcd26de72a33e85031215483b838bdcdfcd126873691348f5eb844a`.
+Root read the full report and matched its hash. Maintained retirement then
+completed exactly once at18:30:36.879 UTC, after exhausted state/digest and
+null completion were reauthenticated under the generation lock. Safe
+`october-release-7ae-parallel04-replacement03-retirement-v1.json` has SHA-256
+`3a64eb640fd909bd97bdc93ab8a437a0fd5f539f071a1434ee2077769007bce1`;
+root read it and matched the hash. Checkpoint abort, in-memory seed zeroization,
+full absence and source/toolchain holds passed; no accepted/completed checkpoint
+was retired. It must not be reopened. Its original birth-bound guard remains
+unchanged. Its successor startup is separately recorded above. Earlier live
+snapshots below describe their observation times; the newest lifecycle record
+owns current state. The retained-entropy replay retains its distinct authority
+and absolute stop/options boundary.
+
+## Current-source retained-entropy replay — 7 October 2026, 18:22 UTC
+
+The owner approved all replays and delegated release decisions. The retained
+original auxiliary checkpoint is distinct from every retired search recorded
+below. Its historical replay passed private-package/aggregate gates on source
+`19b3422`, then failed runtime hydrology validation. That flow rule was already
+corrected by signed `aaf4d90e` and remains corrected in current source7ae; the
+historical failure is not a new release blocker. An old-source package still
+cannot be imported or relabeled as current source.
+
+Root and independent review cleared a separate full current-source replay.
+Three actual prelaunch defects were corrected: stale native-origin ancestry
+was replaced by root's verified publication receipt; tracked snapshots use the
+unchanged reviewed UID0/1000 helper while private readers remain UID1000; and
+a separate replay owner/phase-child host cutoff guard preserves the cleanup
+reserve. Independent review then caught the guard rejecting `/proc/1`'s valid
+PPID0. Only unrelated inventory numeric domains changed; strict owned group,
+birth, UID, executable and lineage checks remain intact. Historical prepared
+review-v2 bytes were retained. The separate final native preflight receipt
+`october-release-private-atlas-retained-aux-7ae-recovery-final-preflight-v1.json`
+has SHA-256 `8cbf95a6ae5904faf6d88037315a212e8a175eb822be5d136efca5494346b09c`.
+
+Final reviewed programs in the existing QA directory:
+
+- Retained recovery initializer v2: `634c8a5dd340b75aeec7b0d72d78bf5b9707be23551224a36505c203a5c7860c`.
+- Retained recovery generation v2: `c458d384f1ba9165a8ee0faaa66cc457d189b7f8bd9021b4f65366c089e4b915`.
+- Retained recovery aggregate v2: `ef0677b92674402c3a24f48db1af61f5f68bfbdd5736cb897420ce52cadfbc1f`.
+- Replay-specific native cutoff guard v1: `64767d28371d40589dcbc4e0fcd2a86eb608867b2ce2d024abf09130021d15bd`.
+- Replay-specific host watchdog v1: `d880616e49efa7aa0abfd028adc6d4c6cb6997d96376af7fb1ef643cdd7519d6`.
+
+Root independently matched actual Windows/native bytes; native programs and
+publication receipt are UID/GID1000, mode0600, single-link. Pinned Node syntax
+and PowerShell parsing pass. Native source/index/refs stayed held; no fetch or
+tracked-source ownership change occurred. Eight CPUs and available memory
+support five random searches plus this one-CPU replay. CPU7 is explicitly
+selected; existing searches advertise affinity0–7, so no exclusively unused
+affinity core is claimed.
+
+Root executed the initializer exactly once. Its claim was written at
+18:20:33.089 UTC by owner1127184, birth73524411; child1127333 had birth73524667.
+Actual root tool exit0 and maintained receipt
+`october-release-private-atlas-retained-aux-7ae-recovery-initialize-v2.json`,
+SHA-256 `2e87f7ac971bd453180adde130ba4db03a19ef0eedc06d9cc43c29604abe3846`,
+confirm authenticated original entropy, a fresh current `.26` sequence0 /
+ordinal0 checkpoint, empty current rejection history and fresh maintained
+handles. Original encrypted inventory/key stayed unchanged, in-memory seeds were cleared,
+and the child/group/source holds passed. Original source9ea / current source7ae
+dual provenance, seed-derived data and genuine handles remain private. No old
+eligibility claim was copied. The initializer completed before host guard arming;
+it is not a live search and must not be blindly repeated.
+
+Full maintained generation started at 18:21:28.521 UTC in root-owned exec30095,
+isolated PGID/SID1129447, birth73529722, singleton affinity7. Actual safe startup
+receipt ending `-generation-v2-started.json` has SHA-256
+`f7371837274178e85b2fa0955587f99e8afe2c8699a0eb3bdfe68b28465afb88`.
+It binds genuine initializer receipt2e87, source7ae/tree0cbb, generator `.26`,
+terrain namespace `.3`, count1/maximum256, existing toolchain and fixed workspace
+`/home/warpkeep/.warpkeep/private/greater-realm-release-7ae-retained-9ea-aux-recovery-v1`.
+Required phases remain authenticated readiness → generation → maintained
+private-package verification → comparison/shortlist → aggregate review.
+Initialization and generation startup do not establish eligible yield.
+
+Root armed separate host watchdog exec15771, observed host PID22344 with birth
+18:22:50.900 UTC. Actual native readiness was emitted at 18:22:54.382 UTC,
+binding the genuine owner startup and preflight child receipt SHA-256
+`4c873e1bb35e18eb342a09b762fb366a77dbea461d034433dd2d451c33097800`.
+Root's safe `-generation-v2-host-cutoff-readiness-v1.json` has SHA-256
+`b113100450cd4750d6a2950413cff2bddd3dcb5937d9650a09b836d1998ab50c`.
+Host TERM reserve is 19:32:35.500 UTC; KILL requires actual TERM ACK plus ten
+seconds, with original stop/options boundary19:32:47 UTC. Guard scope is this
+actual replay owner and recorded phase-child lineages, distinct from the four
+fixed search-worker roles. Readiness claims no signal, private checkpoint read
+or successful future cleanup. Root owns both execs; another agent's unknown
+handle cannot establish terminal state or authorize restart.
+
+Independent post-terminal observation at18:27:47.134 UTC confirmed initializer
+owner/child and its whole PGID/SID absent twice, exact full tracked-source
+identity/OID snapshot, index and refs unchanged. The current generation owner,
+generate phase-child, singleton CPU7, native guard1132710/birth73537414 and
+Windows watchdog22344/birth18:22:50.900 UTC match their genuine recorded
+authorities. Preflight/readiness children are absent; generate is present at
+that observation. Safe independent post receipt
+`october-release-private-atlas-retained-aux-7ae-recovery-initializer-independent-post-v1.json`
+has SHA-256 `94a73a3fd19679090a037ed218a5ed62c8104c7d4fbf0e44c3c6e737bb43d23f`.
+It made no private checkpoint/package read, execution poll, signal or provider
+call. Root read its actual safe bytes and matched its hash.
+
+No verified current package, selection, runtime export, atlas import, owner
+provisioning, DNS/cutover or authenticated owner acceptance is claimed yet.
+Only the first genuinely verified winner may advance through the existing
+maintained runtime/atlas/owner gates. Alpha/G001, admission policy, G002 seal,
+accepted frontend, bridge and rollback are preserved.
+
+## Five-search continuation and completed retirement — 7 October 2026
+
+Slot01 replacement03 and slot06 replacement02 passed maintained retirement at
+17:46:45.238 and 17:47:22.360 UTC respectively. Their authentic exhausted
+checkpoints were locked, aborted and seed-zeroized; full original groups,
+recorded descendants and supervisors were absent, with source/index/refs and
+toolchain held. Safe retirement receipts ending in `-retirement-v1.json`:
+
+- Slot01 replacement03: `26eeb661dcf736c4e38dd577438ee8ecc257abb269c26af74f3b39694beb1991`.
+- Slot06 replacement02: `7e42e9fc39c51b05d20e11b2ea3bf213c256cf999f79d71e32a846913153f109`.
+
+All six members of the previously closed pool are now retired. None may be
+resumed. Slot06 has no fresh random successor; its capacity is reserved for
+the separate current-source retained-entropy recovery.
+
+Exactly one fresh slot01 replacement04 began at 17:48:06.993 UTC, through
+reviewed launcher v8, SHA-256
+`a78db321344471a2f0f5837da39a4b1758156aedf39e581f59619705bf6bec96`.
+Its actual startup receipt
+`october-release-7ae-parallel01-replacement04-started-v1.json` has SHA-256
+`bf643897d8eb281cbbef93a10e9fc2a2b9ef2f4d22698dcc2ce1ecdbdcce3919`.
+PGID/SID is 1055210, birth tick 73346967; generation exec 45072 belongs to
+`/root/generator_failure`. Source7ae/tree0cbb, generator `.26`, pinned Linux
+Node/toolchain, count1/maximum256 and every eligibility gate remain unchanged.
+
+Its separate host cutoff watcher exec34636, host PID11416, began at
+17:48:23.691 UTC and was armed at 17:48:25.088 UTC. Actual native readiness
+was emitted at 17:48:28.206 UTC. The safe readiness receipt
+`october-release-7ae-parallel01-replacement04-host-cutoff-readiness-v1.json`
+has SHA-256 `9e1cec73c0ef0d29f32f7c40bf3101dd18217d1e0b2bdf865faed29c3d347ed7`.
+Root matched actual Windows/native bytes. This completes cutoff coverage for
+all five fresh random searches recorded here and in the preceding four-slot
+record below. The absolute 19:32:47 UTC stop/options boundary is unchanged;
+readiness does not claim a signal or future cleanup.
+
+Root cleared the matching terminal readers; root and independent review cleared
+the actual Windows/native current-five comparison/runtime callers. Native files
+are UID/GID1000, mode0600 and single-link:
+
+- Slot01 replacement04 terminal reader v1: `7c41c97df335f44a89b57eb98cb826d18f4f68d6afa73b652cfcf35de7c423be`.
+- Slot02–05 replacement03 pool terminal reader v3: `2a0dbd218c6344f168b9f736beac1ecb0a1bc822dae248f9b9f906e273614079`.
+- Parallel continuation reader v7: `c4ec2b449daec5aaedd3f57045dcf30c5a6f8b7238dda530345e935682fc4162`.
+- Parallel runtime caller v7: `c4025ca37a127493d2b1501db95bb7792416bee8898b2ddb115c151471c35338`.
+
+The narrow diffs bind only genuine current startup authorities and exclude
+retired slot06. Maintained absence/source/private-package/comparison/shortlist/
+selection/runtime logic is unchanged. Matching terminal readers may authenticate
+private state only after genuine terminal and full recorded-process absence;
+metadata probes while live do not read checkpoints. Root owns comparison,
+selection and runtime and accepts only the first verified winner. These prepared
+callers have not established an eligible package or provider result.
+
+## Four fresh searches with separate cutoff guards — 7 October 2026
+
+Exactly one fresh replacement03 started for each retired slot02–05 through
+reviewed launcher v7, SHA-256
+`4137d69cc4f048fbccadbca6883cd4f656cea48d1821f50f4779a174220e8930`.
+Each retained source `7ae40a6f` / tree `0cbb69dd`, generator `.26`, pinned Linux
+Node/toolchain, count 1 / maximum 256, an isolated fresh private namespace,
+unchanged gates and the absolute 19:32:47 UTC cutoff. Each actual startup was
+followed by its own reviewed single-slot host guard and genuine native readiness.
+
+| Slot | Actual generation start UTC | PGID/SID / birth tick | Generation exec | Guard exec / host PID | Native guard ready UTC |
+| --- | --- | --- | --- | --- | --- |
+| 02 | 17:29:54.246 | 1014173 / 73247264 | 66684 | 35317 / 49236 | 17:30:52.930 |
+| 03 | 17:32:14.069 | 1019284 / 73259781 | 38773 | 31645 / 35936 | 17:32:23.821 |
+| 04 | 17:32:34.190 | 1020222 / 73261793 | 34322 | 32701 / 42780 | 17:32:47.342 |
+| 05 | 17:33:52.416 | 1023318 / 73268989 | 14055 | 44290 / 49464 | 17:34:05.403 |
+
+These exec handles belong to `/root/generator_failure`. Root read and matched
+Windows/native safe receipt bytes; an actual process observation confirmed all
+four generation chains and Windows guards present. This is a dated observation,
+not a permanent assertion of activity. Startup receipt SHA-256 values for
+`october-release-7ae-parallelXX-replacement03-started-v1.json` are:
+
+- 02: `9321710174d6c3773d71a5a060a974e5247216bbff964597ba3caa83f9a510db`.
+- 03: `0e70bde76cbb4a0afeb05bac114ff9a9bfd13fc0ad70710a40154dc2232bc381`.
+- 04: `c293fefb66ca266d789a688938b759417c529b74fef03a3d66ed75fd859aa66c`.
+- 05: `5e41ae458a4e41a0ca69c21236190e1aede53cbc3bea123fd958889e9cf78c54`.
+
+Corresponding actual guard readiness receipts end in
+`-replacement03-host-cutoff-readiness-v1.json`:
+
+- 02: `e7d25047075418703d54fee8ceb1b5f6ec1bc74a8680ad6b292aecaf277e6dc3`.
+- 03: `d05312728a8455cd63a32df8715306e8baf7d7561de2a2da5dd816596ecc0f19`.
+- 04: `67063d7148122713a8192381ba09d46fbf73b1c4db9e852aa3095815ed9801e0`.
+- 05: `b88dbabbb61c3c2af72a35ba93c11f5f7d706f45863d31286ff89f0681de86ad`.
+
+Each binds its exact actual startup digest and reviewed launcher/helper pins;
+host UTC controls the original deadline. Readiness claims no signal, private
+checkpoint read, provider operation or successful future cleanup. Preserve the
+armed bytes. New terminal/continuation callers need these actual bindings;
+closed-pool readers and comparison/runtime v6 cannot authorize these workers.
+Slot01's next replacement is not started at this checkpoint. Slot06 capacity is
+reserved for a separately reviewed current-source retained-seed replay; no
+replay, recovered eligibility or provider result is claimed from preparation.
+
+## Closed replacement pool — 7 October 2026, 17:22 UTC
+
+All six previously recorded workers genuinely exhausted their bounds without an
+eligible atlas on frozen source `7ae40a6f` / tree `0cbb69dd`. Maintained readers
+authenticated 1,536 rejected attempts: 1,332 geography and 204 proof rejects.
+Each recovered seed was cleared in `finally`; source/index/refs/toolchain and
+provider state were preserved. No completion, verified package, selection,
+runtime export, import or owner provisioning resulted.
+
+| Slot / replacement | Actual finish UTC | Geography | Proof | Maintained retirement UTC |
+| --- | --- | ---: | ---: | --- |
+| 01 / 03 | 17:22:07.810 | 225 | 31 | Pending |
+| 02 / 02 | 17:16:37.938 | 221 | 35 | 17:28:05.833 |
+| 03 / 02 | 17:17:17.897 | 219 | 37 | 17:28:16.131 |
+| 04 / 02 | 17:08:51.599 | 226 | 30 | 17:21:02.263 |
+| 05 / 02 | 17:10:05.829 | 220 | 36 | 17:21:07.837 |
+| 06 / 02 | 17:19:34.147 | 221 | 35 | Pending |
+
+Slot06's agent-scoped exec handle was unavailable. Its outcome was established
+by the matching maintained reader, hash-bound actual terminal metadata and full
+original group/descendant/supervisor absence, rather than inferred from that
+handle error. Other terminal records retain their actual exec evidence.
+
+Root's credential-free aggregate
+`october-release-7ae-closed-pool-terminal-aggregate-v1.json`, SHA-256
+`031abcdc746f492ccfc8205b0f454c00a789cc6bef6ad9853a9df26451fff284`,
+binds all six full safe report digests. Its measured terminal-pool throughput is
+1,077.27 attempts per UTC wall-clock hour over 15:56:34.849–17:22:07.810 UTC.
+That window includes staggered starts and VM suspend; it neither estimates live
+checkpoint progress nor establishes eligible yield. UTC and native monotonic
+elapsed values remain separate.
+
+The four completed retirements revalidated exhausted state/digest and null
+completion under the maintained generation lock, then aborted and zeroized it.
+They confirm full original-process absence and source/toolchain preservation;
+no accepted checkpoint was retired. Receipt digests for
+`october-release-7ae-parallelXX-replacement02-retirement-v1.json`:
+
+- 02: `a150da9a1360e5f45201b69541f1d497bb94fdae33596509607b237ab7cf7c4a`.
+- 03: `390ba10e39b6c6d4a8d5f91703b8d93b833691f1e654414bc0a9347e0d93ec47`.
+- 04: `ae8ab35150057a174bbc88545b8bfe5837f7af983da64e1c0eeb44165a483a28`.
+- 05: `cf874d18d65a7c5d391382227d2887899fc333242c124e329a18d2a5791b31fa`.
+
+Any successor keeps the same source/gates/caps and the original 19:32:47 UTC
+stop/options boundary. Root and independent review passed the separate
+single-slot host/native cutoff pair, binding an explicitly supplied genuine
+startup receipt digest and reviewed launcher digest. Native helper SHA-256 is
+`18e025fc0c48099ed538bc4b075b721370e068cf161c7b7e63b8ea76836692e7`;
+Windows watcher SHA-256 is
+`3cd6b1a8c8764e040a1cf7b0e90e1806918e9223e0320937bd210456815c0d76`.
+The exact ASCII receipt leaf, source/tree/boot, pinned Node/toolchain, workspace,
+caps, roles and UID/group must match. Signals, grace and explicit no-ACK failure
+semantics retain the reviewed host-clock behavior below. Windows/native bytes,
+native mode 600 / UID/GID 1000 / single link, native syntax and PowerShell 7.6.4
+parsing pass. Prepared coverage alone is not actual arming or cleanup evidence.
+The original armed watcher bytes remain unchanged; its six old births must
+never be relabeled for successors.
+
+## First host-clock search cutoff armed — 7 October 2026
+
+VM suspend pauses WSL monotonic time, so relative timeouts alone cannot enforce
+the original absolute search boundary. Root and independent review checked
+the ignored host/native cutoff pair. Review corrected native-clock vetoes,
+message-schema/date parsing, grace acknowledgment and no-ACK cleanup before
+arming. Signals remain restricted to the six exact startup receipts, boot,
+UID 1000 process births and owned groups, with fresh scope checks and prior
+successful TERM before KILL. Package comparison, providers, source/index/refs
+and unrelated processes are outside its signal scope.
+
+- `october-release-7ae-host-cutoff-native-v1.mjs`: SHA-256
+  `7cec6a432fbcab18d51945c88c640605ef8d89eb5e66b93335fe3922d8ac7576`.
+- `october-release-7ae-host-cutoff-watch-v1.ps1`: SHA-256
+  `f024a3d820b20223341618554a43ba4dc39d8de9906c65da8409f1beb3419430`.
+
+Windows/native bytes match; native copies are regular, single-link, mode 600,
+UID/GID 1000. Native syntax and PowerShell 7.6.4 parsing pass. The watcher
+started once at 16:56:37.303 UTC, host PID 14456 / birth 16:56:35.878 UTC,
+agent-scoped exec session 57261. Genuine native readiness reached the host at
+16:56:38.093 UTC. Exclusive sanitized start receipt
+`october-release-7ae-host-cutoff-watch-v1-started-v1.json` has SHA-256
+`892e185cf153b4d9e71e5efc1ddeee544fb32f32dae44bc6bcfd2f4d8648039a`.
+Actual readiness receipt `october-release-7ae-host-cutoff-actual-readiness-v1.json`
+has SHA-256 `a9b94f13ae4e0802715a64e96c71a7ca4562072591b980eb299c883eff82d663`.
+It binds native helper PID/PGID/SID 939755, boot `b838a6fd` and birth tick
+73064981, alongside all six genuine search-start authorities. Native/Windows
+receipt bytes match; no signal or private checkpoint read occurred.
+
+The nominal host TERM is 19:32:35.500 UTC; KILL is due no earlier than
+19:32:45.500 and ten seconds after actual TERM acknowledgment. The original
+19:32:47 UTC boundary is unchanged. No-ACK cleanup sends a bounded fallback
+request but retains explicit failure evidence and cannot claim established
+grace. Late acknowledgment or process absence does not erase that failure.
+Unresponsive transport or late cleanup requires independent verification of
+the recorded births/groups before corrective scoped cleanup. The watcher
+records `cleanupSuccessClaimed: false` at startup; no signal or future cleanup
+success is implied by readiness. Active bytes must stay unchanged. Any fresh
+successor needs separate reviewed cutoff coverage, never relabeled old births.
+No private checkpoint read, provider mutation or release acceptance occurred.
+
+## Replacement01 cohort retired; current replacement pool — 7 October 2026
+
+All five parallel02–06-replacement01 batches genuinely closed incomplete on
+operating source `7ae40a6f` / tree `0cbb69dd`, generator `.26`, pinned Linux
+Node/toolchain and unchanged count 1 / maximum 256. Maintained readers
+authenticated each only after complete group, recorded descendants and
+supervisor absence. Each exhausted 256 attempts; this five-slot cohort totals
+1,280 authenticated attempts, 1,094 geography / 186 proof rejects, no candidate.
+
+| Slot | Actual finish UTC | Geography | Proof | Maintained retirement UTC |
+| --- | --- | ---: | ---: | --- |
+| 02 | 15:55:11.182 | 222 | 34 | 16:04:03.487 |
+| 03 | 15:57:40.486 | 213 | 43 | 16:04:19.630 |
+| 04 | 15:56:10.596 | 211 | 45 | 16:04:38.550 |
+| 05 | 15:51:29.806 | 228 | 28 | 15:55:57.397 |
+| 06 | 15:56:28.469 | 220 | 36 | 16:04:57.818 |
+
+Full safe reports are
+`october-release-7ae-parallelXX-replacement01-authenticated-terminal-report-v1.json`:
+
+- 02: SHA-256 `c6b037021458a61769ccc5a4faa4490604658888a72aff06d2b240904bbc7f82`.
+- 03: SHA-256 `71022a6e4675c7c2889fd3f975e148b2989d5500bf4417c269a256bd964de731`.
+- 04: SHA-256 `bfc752e5fcc35fe1a45fe02c3c3e2adceb400733ddefdc9f5e6758db90627d53`.
+- 05: SHA-256 `6811db6b5c6d35d8e7e7e40ea2b4ee69fc162c859f3fce3c2ad8896216873929`.
+- 06: SHA-256 `8116914ec366ad2dbf5be9a3ad3145d68b977d221f12e7e74b291185e2b8fe2c`.
+
+Reviewed maintained abort-only helpers revalidated exact exhausted state/digest
+and null completion under each generation lock, then confirmed checkpoint
+aborted and root seed zeroized. Source/index/refs/toolchain and other live
+workers were preserved. Receipt SHA-256 values for
+`october-release-7ae-parallelXX-replacement01-retirement-v1.json` are:
+
+- 02: `312c33300bbbeb3523ee63fe18131d517996e6533955664fcaa006bf57f35451`.
+- 03: `fa6a5ee79be9eeb975dfbc9723d63ad9ca0a4c740e16dd685b32a517380c56bb`.
+- 04: `903c00419efe70a6ad4060697ab8d30e07990396c0701a6b987f97fdfeb7a6a6`.
+- 05: `0cac546af5c537cc2c4000a3d32a3e3fd1c0326762b45bbe32c2c14625304d85`.
+- 06: `55b3b70d64ed084f62975dcdbfe2d40c4acd780f3c00c7171653abe34d2fdd63`.
+
+Exactly one fresh replacement02 per exhausted slot followed its own retirement,
+namespace-absence and fresh capacity checks. Slot05 began 15:56:34.849 UTC;
+02/03/04/06 began 16:04:06.127 / 16:04:22.542 / 16:04:42.374 /
+16:05:03.997 UTC. Together with the already-live slot01-replacement02, six
+actual replacement02 sessions were observed at that snapshot. Coherent safe
+startup/retirement receipt `october-release-7ae-replacement02-pool-start-review-v1.json`
+has SHA-256 `d8e6f9230a8677085a859a45ef86d4010a4566ce0b20c233420cdda908ee652f`.
+It records actual process births, owned groups, UID 1000 chains and distinct
+private workspaces; it is not a permanent assertion of six live sessions.
+
+Subsequently slot01-replacement02 closed incomplete at 16:05:59.009 UTC:
+256 attempts, 225 geography / 31 proof rejects, no candidate. Its matching
+maintained reader authenticated complete process absence and unchanged source
+before private reading. Full safe report
+`october-release-7ae-parallel01-replacement02-authenticated-terminal-report-v1.json`
+has SHA-256 `1f3383910f05a589cde04301aa16162a28d7bb3343864a668634a1742e91b948`.
+The reviewed maintained abort completed once at 16:15:10.826 UTC: exhausted
+state and null completion revalidated, checkpoint aborted, root seed zeroized,
+complete original group/descendants/supervisor absent, source/index/refs/toolchain
+preserved. Receipt `october-release-7ae-parallel01-replacement02-retirement-v1.json`
+has SHA-256 `e33857702149502160841e8469469b3cd5d39d6233ec2900a172fd4c1a5209b7`.
+Exactly one fresh slot01-replacement03 started at 16:15:37.462 UTC after fresh
+namespace/capacity checks, using reviewed launcher v6. Actual session 98343,
+PGID/SID 849108, birth tick 72839987, supervisor 848985 and UID 1000 child chain
+are recorded in `october-release-7ae-parallel01-replacement03-started-v1.json`,
+SHA-256 `1f93ae655e2a3be7fdcb43f23ff37fb6532446e74a8ec6cdf349f5e4ef11a03d`.
+Its separate root-reviewed reader has SHA-256
+`655a3a461a627f9dc8b7a9c1b40db9e15cadef3133b7fc34bf4dc085457c4dec`;
+only the actual binding, reviewed launcher pin and replacement03 suffix differ
+from the retired reader. Native/Windows bytes match; native mode 600, UID/GID
+1000, one link and syntax verification pass. The five other workers were
+preserved. This supersedes the preceding slot01 live observation.
+
+Root also reviewed separate v6 comparison/runtime callers. The only changes
+from preserved v5 are slot01's actual process/start/launcher authority and its
+replacement03 suffix; the other five replacement02 bindings and maintained
+verification/runtime logic are unchanged. Native/Windows bytes, mode 600,
+UID/GID 1000, single-link identity and syntax checks pass:
+
+- `october-release-7ae-parallel-continuation-reader-v6.ts`: SHA-256
+  `a467cffbbae50311e2d5aa6d45db6171ca4b28acbd1eeef7de2ab0cebef696ca`.
+- `october-release-7ae-parallel-runtime-caller-v6.ts`: SHA-256
+  `a4e85fe8986d8268da966e5c9e356d9fdeeffa1f7f7f87790120972118a43c38`.
+
+They are prepared, not executed. Never invoke an older caller on a retired
+slot01 authority; genuine terminal success and maintained package verification
+remain prerequisites for selection/runtime and subsequent atlas/provider work.
+
+For completed slot05, separate observed UTC61m03.961s / monotonic56m49.126s
+intervals give 251.53 / 270.33 attempts/hour. VM suspend pauses monotonic time;
+neither rate is total active-pool throughput or candidate yield. Proof and
+truncation code counts overlap. No active checkpoint counts were inferred.
+All fresh workers retain the original absolute 19:32:47 UTC cutoff; no
+replacement resets it. No replay, selection, runtime preparation, atlas import,
+owner provisioning, cutover or release acceptance was performed. Product,
+assets, licensing, accepted frontend, existing PTR update, Alpha/G001/admission
+policy and G002 are unchanged.
+
+## Parallel cohort retired and fresh slots restored — 7 October 2026
+
+The five original parallel slots bound to signed operating source `7ae40a6f` /
+tree `0cbb69dd` all closed incomplete. The maintained source/toolchain-bound
+readers authenticated their actual terminal records after complete worker,
+recorded descendants, group and supervisor absence. None yielded a candidate.
+
+| Original slot | Actual finish UTC | Geography rejects | Proof rejects |
+| --- | --- | ---: | ---: |
+| 02 | 14:42:51.052 | 222 | 34 |
+| 03 | 14:41:09.951 | 223 | 33 |
+| 04 | 14:32:33.782 | 236 | 20 |
+| 05 | 14:46:39.250 | 213 | 43 |
+| 06 | 14:46:07.287 | 229 | 27 |
+
+Each observed 256 attempts: 1,280 in this completed five-slot cohort, with
+1,123 geography and 157 proof rejects. Proof/truncation code occurrences overlap;
+these counts do not establish causation or predict candidate yield. Full safe
+reports are `october-release-7ae-parallelXX-authenticated-terminal-report-v1.json`
+in existing Windows/native QA. Their SHA-256 values, by slot, are:
+
+- 02: `769fb20ff41a89527da286ae19fc08e7bbd421ce0d0e08cae0727cb1ef13f8f7`.
+- 03: `b5ec06f2fb19856ab4cc95715e13568d900ad8dee1febac495f4f5364ef3770f`.
+- 04: `1ff1cd22a101209e25e10f89ef1ebad8ede5e29462e107c4922dd251646644e9`.
+- 05: `46ad96254d4b9f83a9e1a564172b7ade6fb888e6b4a4b6aad76216fad87fbf62`.
+- 06: `7f1a8c2c9fcb3c370fd1c2cf7a2ba116c791d4b6a25dae61841d498aac3150e9`.
+
+All five then passed maintained abort-only retirement under the generation lock,
+with exact exhausted digest/null-completion revalidation and seed zeroization.
+Source/index/refs and toolchain remained held; no replay, selection or provider
+write occurred. Retirement receipt SHA-256 values, by slot, are:
+
+- 02: `b35010b34f61b16c13c275fdc22270cd4b749bd826271c3d3c2acf44823bc60f`.
+- 03: `a02fdee64b0cc549b2210c1c5e15dd92a07ed22d7b68460c49856e8f1d9444e9`.
+- 04: `d5a9733d78133f0f53f2fba7e8f1880bc709dd6097848de6e76e9379832e0456`.
+- 05: `987a24f5fceb79bcc4a9462baeeea475003f6c53e00c79b403e3abbab59dade2`.
+- 06: `880d2c0b93ac77ba8d04411990efd259f2029a72be4c6759c46134b8305862eb`.
+
+Exactly one fresh replacement per slot started with unchanged source, generator
+`.26`, pinned Linux Node/toolchain, count 1, maximum 256, capacity gates and
+the existing absolute 19:32:47 UTC boundary. Slot04 began 14:42:05.696 UTC;
+02/03/05/06 began 14:49:51.680 / 14:50:10.435 / 14:50:25.845 /
+14:50:45.256 UTC. Real UID 1000 timeout/bootstrap/tsx/CLI birth chains were
+attested in distinct private parallelXX-replacement01 workspaces. Source remains
+frozen; no active launcher was modified. Coherent startup/retirement/review
+receipt `october-release-7ae-replacement-pool-start-review-v1.json` has SHA-256
+`70581a3f1644374a70a8bca14b2071f8cd09fa3c1564ff775073699f5fc5fc5f`.
+
+The first slot01 replacement closed incomplete at 14:56:33.788 UTC: 256
+attempts, 221 geography / 35 proof rejects, no candidate. Its authenticated
+safe report SHA-256 is
+`c32e37781d59d6bddac1b55e445bd8e7e46921e143e6f4952393eda3633f3b48`.
+Maintained abort-only retirement passed at 15:02:06.149 UTC, receipt SHA-256
+`b1f0d0b012cdf9451c04393bdbfca217a0e088813969ef89372a84b11e5a970d`.
+One fresh slot01-replacement02 started 15:03:40.097 UTC; actual start receipt
+SHA-256 is `820ef676989221e186b9081eee19a302ed3b7f7102ccdfe44f20817868a9723a`.
+The other five remained active; six scoped sessions are restored. No retired
+workspace was resumed. Current source-bound readers are listed in the handoff.
+
+UTC and monotonic observed intervals differ because VM suspend pauses monotonic
+time; both remain in the authentic reports. For example, original slot04's
+59m43.495s UTC interval gives 257.18 attempts/hour, whereas its separate
+56m02.754s monotonic interval gives 274.06. Neither is total active-pool
+throughput; active attempt counts remain unknown. Relative timeouts must not
+extend the absolute cutoff. No candidate/package verification, selection,
+runtime preparation, atlas import, owner provision or full release pass follows
+from these exhausted searches or prepared callers. Product source, assets,
+licensing, existing PTR update, frozen frontend, Alpha/G001 and G002 are unchanged.
+
+## First corrected batch retired; fresh replacement started — 7 October 2026
+
+The original exact-source `7ae40a6f` batch closed with actual process exit 1.
+The reviewed terminal reader then passed with original process/group absent
+and source/index/refs unchanged. Its authenticated `.26` / Linux x64 / pinned
+Node `22.22.3` / toolchain binding retained count 1 and maximum 256 attempts.
+The checkpoint was searching at sequence/ordinal 256: 256 rejected attempts,
+225 geography and 31 proof rejections, no eligible candidate or completion.
+The recovered seed was zeroized. These independent-seed counts do not prove
+whether the search correction changed candidate yield.
+
+The priority geography counts were active-grid range 39, legacy Lowlands
+placement 5, complete-plan limit 5, bundle-option limit 10, bundle-pair limit
+119, search-node limit 28, primary-component undersized 13 and forbidden
+throne-component repair 6. Proof and frontier-truncation occurrences overlap;
+the complete safe aggregate is retained in the retirement receipt below.
+The first active observation was 12:54:03.016 UTC; terminal stderr mtime was
+13:35:27.915 UTC. That observed window is 41 minutes 24.899 seconds, or about
+370.88 attempts/hour. Exact birth/exit UTC is unavailable, so this is an
+observed-window rate, not exact lifetime or six-worker throughput. New active
+workers' attempt counts must wait for authenticated terminal records.
+
+At 13:45:32.675 UTC, the maintained abort-only call completed with exit 0 under
+the generation lock. It revalidated the genuine authenticated record digest,
+source/toolchain binding, searching phase and absent completion. Process/group
+absence, seed zeroization and source/index/refs preservation passed. There was
+no replay, generation, selection or provider write. Native receipt
+`october-release-7ae-original-retirement-v1.json` has SHA-256
+`8bff82d6d54a272eca9097d6f05c0ac826c527a4c919608a3e33262339ffbb64`.
+Never resume that retired checkpoint.
+
+One fresh replacement actually started at 13:48:33.239 UTC in distinct private
+workspace `greater-realm-candidate-7ae40a6f-20261007-parallel01-replacement01`.
+It keeps source/tree, generator, toolchain, count and cap unchanged. Its
+separate caller `october-release-7ae-replacement-launcher-v1.ts` has SHA-256
+`8ed609709ab6fb7e5cf7f4af9c2a95db55f738c7e2ae3c9a063590a5ef1f2ad6`;
+the five existing workers' original caller bytes/hash remain unchanged.
+The replacement uses only remaining time to the original 19:32:47 UTC boundary,
+reserving eleven seconds for TERM/KILL cleanup. This does not restart a
+six-hour window. Its actual UID 1000 timeout/bootstrap/tsx/CLI birth chain was
+attested. Native start receipt
+`october-release-7ae-parallel01-replacement01-started-v1.json` has SHA-256
+`4a6770452a6b7f8b5a0e4529c2f254c05630daf9aa2a08e34baba88079bfb325`.
+Root independently matched both receipt hashes and observed all six actual
+process groups alive at 13:49:31.103 UTC. The new search makes no provider write;
+only a genuinely eligible verified result can proceed to atlas/owner operations.
+
+## Frozen frontend readback and parallel search startup — 7 October 2026
+
+At 13:30:07.892-13:30:17.688 UTC, the accepted immutable deployment
+`https://8a469929.warpkeep.pages.dev` passed all 800 served-file checks and both
+nearest-SPA 404 fallbacks against its unchanged original reviewed plan
+`370f84ab66f4e7bdb1f9f7026fb40a68ddf860bd6a30ce6e96fa2e7e3bf94861`.
+Public commit remains `3634aa82acace39d7db7c48be6f8bb0a97f95b01`, with
+application source `9ea4821ad3fda90694ccc80dfe3bc81fc96c6646` and deployment
+`8a469929-355d-4caf-967a-f090e03c6a60`. Frontend, auth-bridge, public files
+and root package manifests are unchanged from that source through operating
+source `7ae40a6f`.
+
+The current verifier failed locally with `CLOUDFLARE_PAGES_POSTFLIGHT_PLAN_INVALID`
+before any HTTP request: a later revision added the `_headers` legal-route
+requirement. Parsing the original canonical plan still passes; the old plan
+has all five legal files but no `_headers`. The actual failed-current receipt
+`october-release-accepted-frontend-7ae-readback-v1.json` retains SHA-256
+`09c24d8cb1cab44c25d083460d92a5010f8163bfe488eb73c7cb24405f65f7eb`.
+No plan was rewritten, no current guard weakened and no new artifact built.
+
+The read-only diagnostic used the exact maintained verifier Git blob at the
+accepted source, SHA-256
+`27f1477a04120017928ada40cd81c2a7a0bc7f33dfec9cc034711aea2c2ccff6`,
+matching the prior acceptance receipt. Its unchanged file/fallback verification
+passed with actual exit 0. The five legal routes independently returned 200
+and exact reviewed bytes, with `application/octet-stream` and no
+Content-Disposition. This is the existing optional presentation issue
+[#395](https://github.com/ael-dev3/Warpkeep/issues/395), not absent licensing
+content or an observed gameplay failure. The current newer metadata criterion
+has not passed. Diagnostic receipt
+`october-release-p3-9ea-accepted-postflight-diagnostic-20261007T133017688Z.json`
+has SHA-256
+`b4b4b657fd7509f1cdce47f92c22bb76c26a4e59d53d3b3154bb71332944c051`.
+There were no provider/DNS/configuration writes. Actual owner acceptance and
+final domain postflight remain due.
+
+At 13:36:52.721 UTC, public bridge `GET /healthz` returned 200 with
+`ok: true` and `publicAuthEnabled: true`. PTR exchange `OPTIONS` returned 204,
+allowed the exact `https://warpkeep.com` origin and included `authorization`
+and `content-type` in allowed headers. Receipt
+`october-release-bridge-public-preflight-20261007T133652721Z.json` has SHA-256
+`f228dd9ebc904178d1d06418cec91b95006b65859d2bcf4b64086dea5be5fb1e`.
+This is public route/CORS readiness, not an authenticated owner exchange or
+player acceptance. Owner provisioning must not create substitute Alpha Terms
+records; the PTR menu follows its distinct server-verified owner entry path.
+
+The original source-bound fresh private batch remains active. Five additional
+isolated fresh batches started at 13:32:47-51 UTC, all on signed source
+`7ae40a6f` / tree `0cbb69dd`, pinned Linux Node `22.22.3`, generator `.26`,
+maximum 256 attempts and count 1. Each uses a distinct parallel02 through
+parallel06 sibling inside the existing owner-only private root. The launcher
+SHA-256 is `b2c251b213ab9bee859dc4b83465963b90dd0ff892cf8b445371c2d475751a9e`.
+Independent review and a non-generating two-second fixture verified owned
+`setsid -> timeout -> Node -> child` group cleanup, including a TERM-ignoring
+child. Startup attested the actual UID 1000 timeout/bootstrap/tsx/CLI chain
+for each worker, with separate process groups and private logs.
+
+At 13:34:24.679 UTC, all six actual groups were present. Their combined resident
+memory was about 3.69 GiB; WSL retained about 15.35 GiB available of 19.53 GiB.
+The six CLI processes averaged about 6.95 CPUs together on eight exposed CPUs.
+This is startup capacity evidence, not a lifetime maximum or throughput claim.
+Each terminal must be authenticated separately; completed attempts per elapsed
+hour must come from genuine aggregate results. Preserve native source/index/refs
+while any worker is active. Use only the first verified winner, retire other
+searches and retain their authenticated disposition. No eligibility gate, bound,
+rank, seed namespace or production state changed in this expansion.
+The full-parallel six-hour stop/options boundary is 19:32:47 UTC; there is no
+indefinite replacement loop and no permission to silently extend that boundary.
+
+## Exact-source PTR backend update — 7 October 2026
+
+Signed source `7ae40a6f4ba44188f7935f7dbcaf6f920f4eb36f`, tree
+`0cbb69dd6258533a84e851d0929d70a43765e8ea`, was published on the release
+branch and synchronized to the clean native operating checkout. GitHub verified
+its signature. A fresh repository-wide Actions inventory retained all branch,
+event and rerun history; all four configured repositories remained disabled
+with no active run. Publication started no Actions run.
+
+Actual fixed-target PTR inspection completed with only `OWNER_NOT_ENABLED` and
+`ATLAS_READY_NOT_OBSERVED`. Bridge and private configuration were observed;
+bootstrap and credential recovery did not need repeating. Inspection receipt
+`october-release-ptr-7ae40a6f-20261007-inspect-v1-operation.json` has SHA-256
+`e47a5fe0595b7b3ad96ba2f84fc605eb116fcfff66b9682a2ddfde962988136b`.
+
+The first update preparation failed locally before provider build/transport.
+The outer `PTR_INITIAL_OWNER_UPDATE_PROVIDER_BUILD_OR_PROTOCOL_FAILED` was
+reproduced in the source-clone guard as
+`PTR_PRODUCTION_SOURCE_CLONE_INVENTORY_INVALID`: a previous root-run Git import
+left 103 object files owned by root. A scoped ownership repair at
+12:59:41.019 UTC restored UID/GID 1000 while retaining object bytes, modes,
+index, refs and source. Its receipt is
+`october-release-native-object-ownership-7ae40a6f-v1.json`. No provider write
+occurred in that failed preparation or repair. The prevention/unblock path is
+in [development synchronization](../../operations/0.4.0-development-sync.md#native-synchronization-ownership-preflight).
+
+Preparation then passed. Inspection digest
+`4a78bc2b6d4ef9bc4a7f0bc9762081dcb94744c30ddbbf0e7e589694983dc433`
+binds the exact source, artifact, predecessor, schema and preservation snapshot.
+All 31 tables are preserved with no additions. Existing row commitments, owner,
+atlas and private configuration remain required postconditions. Its operation
+receipt SHA-256 is
+`d63218fbfd9c086522476812bb7c3003cba11e9c8b1d8a8f468d6aeb6997114e`.
+
+The maintained apply ran from 13:06:52.882 to 13:12:58.948 UTC and completed
+with normal exit 0. It recorded the exclusive submission marker, received the
+fixed-target acknowledgement and verified installed state with repeated schema
+and full state/configuration observations. Outcome is
+`observed-preserved-candidate`; program
+`95ca580103ed96b0b9cdb283cc69a0d813a2cc70d20fee80807f130ad57755c8`
+is installed. Existing table rows, owner/atlas state and private configuration
+are preserved. This is repeated-observation evidence, not an atomic database
+snapshot. Source/index/refs and owned-process cleanup passed; reconciliation is
+not required and retry is not authorized. The predecessor program commitment
+and journals remain retained for recovery.
+
+Apply receipt `october-release-ptr-7ae40a6f-20261007-apply-v1-operation.json`
+has SHA-256
+`680fe2914d87291c85be2e3fd968e8c2190796b358e3ed4c46fd3dfe438090d6`;
+its independently bounded caller summary has SHA-256
+`7cff1fc6e3106f5b0e64114b43dbf7f52aac00e8df207489403b29f7a73f7bf7`.
+Independent review matched those actual receipt hashes to the validated
+preparation journal and confirmed the preservation classification and retained
+acknowledgement without making another provider call.
+These actual backend deployment results do not establish usable owner PTR,
+authentication or release acceptance. Only owner and atlas readiness remain
+missing in this observation; Alpha/G001 were outside the mutation target.
+
+The separate fresh candidate batch began on frozen source `7ae40a6f`
+in the existing private root's distinct workspace
+`greater-realm-candidate-7ae40a6f-20261007`. The default workspace was refused
+with `GREATER_REALM_ATTEMPT_CHECKPOINT_EXISTS` before generation; its older
+checkpoint was retained. Do not overwrite it or infer completion from file
+counts. That batch later exhausted and was retired as recorded above; six
+fresh successors now run. Authenticate their terminal results before selection/runtime
+and current-update atlas continuation. Generation itself makes no provider
+write; the successful backend update above is a separate operation.
+
+## Exact-rank search-budget correction — 7 October 2026
+
+Review of signed source `867b3abe23a676b691690cce1a41d90cb47bc97f`
+reproduced a bounded-search false negative: the diagonal search charged nodes
+for option prefixes whose remaining groups could not supply the residual exact
+rank. A single three-option group exhausted its node budget before considering
+the accepted third option. The actual sibling-footprint adapter reproduced the
+same failure. Both regression tests failed before the correction.
+
+The correction bounds the chosen option index using the remaining groups'
+maximum rank sum and rejects mathematically impossible residual ranks. It
+retains MRV group selection, every feasible complete plan's established order,
+all production node/plan/frontier caps, footprint checks, ownership, terrain
+seed namespace and downstream eligibility proofs. Independent review found no
+blocking issue. An exhaustive small-group regression asserts the same six
+feasible complete plans in the same order.
+
+After the correction, Windows apron tests passed 24/24. Pinned native Linux
+Node `22.22.3`, running as UID 1000, passed build-mode typechecking and all
+60 tests in the apron (24), rejection (11), candidate-generator (21) and
+owner-connectivity (4) suites. Existing pinned candidate digests passed.
+`git diff --check` passed. These are local source checks; they do not establish
+a production candidate, backend update or authenticated owner acceptance.
+
+This code, tests and canonical handoff are published as signed `7ae40a6f`.
+The first fresh source-bound private batch exhausted and was retired; six fresh
+successors run under the unchanged 256-attempt bound as recorded above.
+The previous `ac6d85ee` batch below remains retired. Current-source PTR
+inspection and nonbreaking update have completed independently; atlas import
+and owner provisioning still require an eligible sealed atlas.
+
+## Exact-source candidate batch after connected-lobe correction — 7 October 2026
+
+One fresh-seed `generate-candidates --count 1 --maximum-attempts 256` run on
+signed source `ac6d85ee8f10ab0515b7111f02d228b9d5cbbd00` returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE` after about 34 minutes. The
+authenticated completion receipt was absent. The checkpoint remained in the
+`searching` phase at sequence 256 / ordinal 256: all 256 attempts were
+rejections, comprising 224 geography rejections and 32 proof-rejection
+attempts. The binding was generator
+`greater-realm-v2-natural-continent-pr-a.26`, pinned Node `22.22.3`, verified
+`linux-x64`, and toolchain receipt
+`sha256:20b2eb07baaefe0c61fd2e87396f04751c7b9df6cdb8b117832baaa689ad2ac7`.
+
+Geography rejection codes below are the one priority-selected terminal code
+per attempt:
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 128 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 33 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 26 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 12 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 9 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 4 |
+| `GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED` | 1 |
+| **Total geography rejections** | **224** |
+
+Proof-code occurrences across those 32 rejected attempts can overlap because an
+attempt may fail several proofs:
+
+| Failed proof code | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 8 |
+| `HYDROLOGY_LAKES_48_96` | 1 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 6 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 2 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 16 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 4 |
+| `PROOF_BIOME_DIVERSITY` | 1 |
+| `PROOF_CASTLE_CAPACITY` | 8 |
+| `PROOF_GATE_APPROACHES` | 7 |
+| `PROOF_GATE_GRAPH` | 7 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 2 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 2 |
+| `PROOF_REGION_GRAPH` | 13 |
+| `PROOF_REGION_LAND_COHERENCE` | 23 |
+| `PROOF_REGION_PASSABLE_LAND` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 21 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 13 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 22 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 3 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 18 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 24 |
+
+Frontier truncations overlap terminal geography outcomes:
+
+| Truncation kind | Attempts |
+| --- | ---: |
+| `BUNDLE_OPTION_LIMIT` | 179 |
+| `BUNDLE_PAIR_LIMIT` | 164 |
+| `LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT` | 178 |
+| `LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT` | 178 |
+
+The maintained authenticated reader emitted only the binding and these
+aggregates, then zeroized the recovered root seed. The maintained abort returned
+`checkpointAborted: true` and `productionUntouched: true`. No candidate,
+completion receipt, package, shortlist, selection, atlas, provider request or
+production mutation resulted. The private temporary reader and generation log
+were removed. These priority codes and overlapping frontier counts do not prove
+that any bounded-off frontier contains a fully eligible candidate; do not
+replay this retired batch or raise search limits based on the counts alone.
+Reproduce a deterministic downstream-valid search gap before changing ranking
+or bounds. On the pinned runner, invoke WSL as `--user warpkeep`; its default
+root identity fails the private-workspace trust preflight, while the owner
+identity passed the pinned toolchain verification.
+
+## Deterministic regional-proof comparison on corrected source — 7 October 2026
+
+To avoid repeating a private batch, the checked-in deterministic test root
+`greater-realm-ordinary-parent-a` was generated at the two adjacent ordinals
+already used by the candidate-generator suite on signed source `ac6d85ee`.
+Ordinal 9 has no eligibility failures and passes all regional proofs: Frostmere
+13 fjord cells / 5 systems; Mirefen 109 marsh, 140 wetland-complex, 37 delta
+estuary and 37 braided-proxy counts; Sunscar 539 arid-land basis points across
+4 biome classes, 738 seasonal-channel cells, 11 oasis-margin cells and 9
+systems; Stonewake 3 meaningful islands and 82 narrow-strait cells; Tier II's
+minimum highland-channel source count is 18; Throneheart channel density is
+966 basis points with a 9,932-basis-point largest navigable component. Its
+topographic consistency report has zero inconsistent, high-gradient-marsh or
+marsh-classification-mismatch cells.
+
+Ordinal 10 is rejected by multiple independent proofs, including castle
+capacity/suitability, gate approaches/graph, geological highland barriers,
+region land coherence/graph and Tier III smallest passable land. Its topographic
+consistency report still has zero inconsistencies. Regional measurements
+isolate two shortfalls: Mirefen has 60 marsh and 63 wetland-complex cells
+(minimum 64), while Stonewake has 1 meaningful island (minimum 3) and 0
+narrow-strait cells (minimum 4). Frostmere, Sunscar, Tier II and Throneheart
+pass on this ordinal. These deterministic test roots are public regression
+fixtures, not production entropy, and neither ordinal 10 nor its metrics imply
+that the retired private batch can be replayed. The accepted ordinal shows the
+regional contract is reachable; keep its thresholds intact and fix only a
+reproduced generator defect. The public bundle-pair diagnostic and this proof
+comparison are complete; do not repeat them as the next step.
+
+## Bounded public-root feasibility diagnostic — 7 October 2026
+
+Sixteen deterministic public test roots were generated at candidate ordinal 0
+on `ac6d85ee`. Their root values used
+`sha256("greater-realm-test-root\0" + String(index))` for indexes 0–15. Three
+reached proof evaluation and zero were fully eligible; the
+other 13 stopped in geography. Their terminal geography codes were active-grid
+range 1, complete-plan limit 2, bundle-option limit 2, bundle-pair limit 6,
+and search-node limit 2. Across the three proof-evaluated roots, regional QA
+failed in all three, Frostmere failed in all three, and Mirefen, Throneheart,
+and Tier-III smallest-passable-land each failed once. Other proof failures
+included river range, dormant capacity, region graph/coherence, gate, castle,
+and highland proofs. Full private-map data and seeds were not retained. This
+small fixed public regression sample is for failure localization only; do not
+use it to estimate production acceptance probability or as candidate entropy.
+
+Public root index 0 / ordinal 0 was checked with temporary 4x edge, bundle,
+child-option, repair-assignment and repair-pair bounds plus 100x search-node
+and complete-plan bounds. It still ended at
+`GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT`, with bundle-option
+and Lowlands-repair option/pair truncations remaining. A preceding 10x probe
+also reached its search-node limit after removing the bundle-pair truncation.
+Both overlays were restored byte-for-byte; no candidate or production state
+was created. These probes are inconclusive about the remaining unvisited
+frontier and do not justify changing production limits or ranking. Stop
+escalating diagnostic bounds on this root; diagnose the specific retained
+option frontiers or find a different reproducible downstream-valid case.
+
+## Selector-balance probe on public root index 0 — 7 October 2026
+
+The planned source-level selector check compared public root index 0 / ordinal
+0 on corrected source `ac6d85ee`, first with the checked-in selector and then
+with a temporary round-robin retention policy for the existing 128-child-option
+cap. Both runs used the normal production bounds. Both ended at
+`GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` with the same
+`BUNDLE_PAIR_LIMIT`, `BUNDLE_OPTION_LIMIT`,
+`LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT`, and
+`LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT` frontier kinds. The experiment produced no
+complete plan or eligibility result and therefore does not establish that
+round-robin retention improves feasibility. Keep the checked-in ranking,
+limits and proofs unchanged; do not repeat this selector variant or root as a
+release experiment.
+
+The public test root was not private candidate entropy. The temporary WSL
+overlay and probe were removed, and the generator source hash returned to
+`2540f8403385caee47221bedfca7aa5bace8973fd8940e86d4d6cf47080c6464`. No
+private candidate, package, selection, atlas or production state was created.
+
+## Exact-source candidate batch after the Lowlands fallback repair — 7 October 2026
+
+One fresh-seed `generate-candidates --count 1 --maximum-attempts 256` run
+against signed source `15682cb2dcceb06d592efb0de17895ff55a15169` returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Its authenticated checkpoint used
+generator `greater-realm-v2-natural-continent-pr-a.26`, pinned Node `22.22.3`,
+the verified `linux-x64` profile, and toolchain receipt
+`sha256:20b2eb07baaefe0c61fd2e87396f04751c7b9df6cdb8b117832baaa689ad2ac7`.
+All 256 attempts were recorded: 226 geography rejections and 30 proof-rejection
+attempts. There was no eligible candidate, package, shortlist, or selection.
+
+Geography rejection codes (one priority-selected code per attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 120 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 32 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 30 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 14 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 9 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+| **Total geography rejections** | **226** |
+
+Frontier truncations are non-exclusive and overlap terminal rejections:
+
+| Truncation kind | Attempts |
+| --- | ---: |
+| `BUNDLE_PAIR_LIMIT` | 172 |
+| `BUNDLE_OPTION_LIMIT` | 186 |
+| `LOWLANDS_REPAIR_BUNDLE_OPTION_LIMIT` | 178 |
+| `LOWLANDS_REPAIR_SIBLING_PAIR_LIMIT` | 178 |
+
+The maintained authenticated reader printed only source/toolchain identity and
+aggregate counts, then zeroized the recovered seed. The maintained abort
+returned `checkpointAborted: true` and `productionUntouched: true`; the
+selection-readiness assertion passed. No provider request or production write
+occurred. These overlapping truncation counts do not establish which bound, if
+any, hid a valid plan. Do not replay or relabel this retired search. Trace a
+deterministic local counterexample before changing ranking or limits.
+
+## Fixed public rejection fixture — bounded-search depth diagnostics — 7 October 2026
+
+Temporary diagnostics ran on the public deterministic fixture
+`greater-realm-secondary-fixture` / ordinal 19 against source
+`15682cb2`; release-branch successor `d7c2ec34` changed documentation only.
+With the checked-in 320,000-node and 256-plan bounds, ordinary search used all
+320,000 nodes by rank diagonal `122:0`, evaluated no complete plan, and
+recorded 310,620 empty-compatible-group prunes plus 1,856 footprint conflicts.
+The separately bounded Lowlands-repair lane completed with no match. These
+counters explain the limit result, but do not establish that the unvisited
+frontier contains a candidate.
+
+Two isolated local probes widened only the ordinary lane's temporary ceilings;
+the checked-in values and eligibility proofs were restored unchanged after
+each run. At 3.2 million search nodes with the original 256 complete-plan cap,
+the fixture advanced to `COMPLETE_PLAN_LIMIT` and still produced no candidate.
+At 3.2 million nodes and 2,560 plans, the ordinary lane found an internal
+gate-apron match after 816 failed tier-one repartitions, but the full fixture
+then failed the later `PRIMARY_COMPONENT_UNDERSIZED` proof. It was not an
+eligible candidate and no package or selection was made. Both temporary runs
+restored the generator byte-for-byte (SHA-256
+`570535e4a3dc0b2b07f523964cdeb27b27fa698039d2f4a6e4018ac80b3b3dfe`) and
+removed their temporary test file.
+
+This rejection fixture is not evidence for increasing the production limits
+or changing ranking: deeper search reaches a later failure on this rejected
+root, and does not show a downstream-valid plan. Keep the 320,000-node and
+256-plan bounds and do not reuse this fixture as a release candidate.
+
+## Exact owner connectivity and connected-lobe correction — 7 October 2026
+
+The deeper public-fixture trace exposed a false negative in the primary-region
+fringe repair. Its local six-neighbour run heuristic rejected 14 donor cells
+even though removing each cell left the full donor territory connected. The
+allocator now verifies global connectivity with a reusable, zeroized BFS
+scratch area. When a true articulation blocks a single-cell move, a deterministic
+connected-lobe fallback may move the articulation cell with one or more
+adjacent donor components, leaving one connected donor component behind. Both
+the target and donor remain connected; strategic spine/apron cells, protected
+and reserve cells, donor contact floors, the minimum primary-cell floor, target
+capacity, geometry and all candidate proofs remain enforced. Search-node and
+complete-plan bounds are unchanged.
+
+On the fixed public root with temporary diagnostic apron ceilings only, the
+exact check increased Lowlands passable ownership from 4,180 to 4,906. One
+connected-lobe transfer then raised it to 5,098 against a required 5,724;
+the generator correctly retained `PRIMARY_COMPONENT_UNDERSIZED`. No candidate,
+package, selection or production mutation resulted. The public root remains a
+rejection fixture, not a release candidate. All temporary search/source
+overlays were restored byte-for-byte and their temporary test files removed.
+
+Pinned Linux Node `22.22.3` typecheck passed; the full focused gate-apron,
+candidate-rejection, candidate-generator and owner-connectivity files passed
+57/57. The new topology tests cover globally connected removal across separated
+local neighbour runs, a true bridge, a contact-preserving lobe transfer, and
+refusal when every possible donor remainder would move fixed authority. The
+next candidate attempt must use the signed source checkpoint containing this
+correction and a fresh seed; the diagnostic fixture and retired private
+checkpoints are not replayable release candidates.
+
+## Lazy Lowlands-repair preparation — 7 October 2026
+
+Source review found `lowlandsRepairSiblingPairsFor` was used to build the
+repair capacity frontier before the ordinary allocator search. That call lazily
+derives repair bundles and scans the full grid even for a candidate whose
+ordinary lane already succeeds. Repair assignment construction is now memoized
+inside the repair callback passed to the two-lane sequencer. Ordinary matches
+therefore skip the repair derivation; ordinary no-match and bounded-limit
+results still enter the same bounded repair search. Ordinary ordering, repair
+limits, candidate eligibility, ownership and final proofs are unchanged.
+
+Pinned Linux Node `22.22.3` typecheck passed. Focused apron-search,
+candidate-rejection, and candidate-generator suites passed 53/53. The public
+deterministic candidate retained its exact final digest and visited only the
+ordinary lane; the deterministic rejection fixture continued through both
+lanes. On the same runner, the candidate-generator suite took 70.12 seconds
+with deferred repair versus 71.45 seconds using the prior implementation.
+Because this is one run per version and the difference is small, it is not
+evidence of a meaningful end-to-end speedup. The temporary test overlay in the
+pinned Linux checkout was restored; that checkout is clean at `abb1832d`.
+The lazy preparation change is signed and published as source commit
+`3650021a1c9a3baf5b294231a4bc001a791e6f19` on draft PR #385.
+No private candidate batch, completion receipt, package, selection, or
+production mutation was created.
+
+## Per-child own-first Lowlands fallback — 7 October 2026
+
+The fallback option selector previously switched both non-Lowlands siblings to
+donor-only bundles whenever no compatible own/own pair existed. That discarded
+an available own bundle for a child whose sibling had no compatible own bundle,
+despite the repair policy's per-child own-first rule. The fallback now retains
+that child's own bundles before appending non-Lowlands donor alternatives.
+Lowlands is still never a donor. Pair ranking, frontier caps, protected and
+reserve ownership, the 512-cell count-balanced repartition, and all final
+eligibility proofs remain in force.
+
+The new synthetic regression failed against the prior implementation because
+the own option was absent from the fallback list. Pinned Linux Node `22.22.3`
+typecheck and the focused apron-search, candidate-rejection, and full candidate
+generator suites then passed (53/53). The fixed public rejection fixture still
+visits both lanes and rejects at the same ordinary search-node limit; it did
+not recover an eligible candidate. No cap expansion, private batch, candidate
+package, selection, or production mutation was performed. The temporary Linux
+overlay was restored, leaving its checkout clean at `abb1832d`.
+
+## Repair lane after ordinary search limits — 7 October 2026 — source `c855c79b`
+
+Signed source `c855c79bbf573809fdc1ac0f7e658f27b60d2a22` changes the bounded
+Lowlands repair lane sequencing. An ordinary match still wins immediately;
+after an ordinary no-match, node limit, or complete-plan limit, the separately
+capped repair lane now runs. A repair match still uses the common allocator
+commit path and complete candidate proofs. If repair fails after an ordinary
+limit, that ordinary typed limit remains the primary rejection. No edge
+authority, option ranking, frontier cap, geometry, ownership rule, final proof,
+or terrain-seed namespace changed.
+
+The checked-in fixed rejection fixture confirms both `ordinary` and
+`lowlands-repair` lanes are visited after its ordinary node limit. The fixture
+still rejects with the typed node-limit code and all four frontier truncations;
+it does not prove a larger frontier would help.
+
+One fresh-seed private `generate-candidates --count 1 --maximum-attempts 256`
+batch on this exact source ran for about 36 minutes and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. It used pinned Linux Node `22.22.3`,
+the verified `linux-x64` profile, and all 11 locked toolchain packages. Its
+authenticated checkpoint matched the source and toolchain, reached sequence
+256 / next ordinal 256, and recorded 229 geography rejections and 27
+proof-rejection attempts. No candidate or package was accepted.
+
+Geography rejection codes (one priority-selected code per attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 133 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 27 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 27 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 11 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 8 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 1 |
+| **Total geography rejections** | **229** |
+
+The co-occurring frontier record shows the four pair/option/Lowlands-repair
+limits together in 180 attempts; option plus both Lowlands-repair limits
+without pair truncation in 10; and no frontier truncation in 39. Across the 229
+geography attempts, pair truncation occurred 180 times, while bundle-option
+and each Lowlands-repair cutoff occurred 190 times. These cutoffs are not proof
+that a wider frontier would produce a valid complete plan.
+
+Proof-rejection occurrences are nonexclusive across the 27 attempts: regional
+hydrogeomorphology QA (26), Tier III passable-land minimum (15), region graph
+(15), region land coherence (19), region passable-land (7), Frostmere (19),
+Mirefen (10), Stonewake (19), Sunscar (6), Throneheart (6), Tier-II QA (2),
+topographic QA completion (20), living-world dormant capacity (10), gate
+approaches (9), gate graph (8), castle capacity (8), castle suitability (8),
+inner-gate/throne redundancy (7), lakes (3), major rivers (6), geological
+barriers (6), biome diversity (2), mountain composition (2), advanced
+geomorphology (1), natural-land silhouette (1), natural landmass topology (3),
+Tier-I balance (1), and tier-potential density (1).
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; the maintained selection-readiness check then
+passed. No completion receipt, package, shortlist, selection, Atlas publication,
+provider request, or production mutation resulted. The checkpoint reader
+zeroized its recovered root-seed buffer; private seed, handles, coordinates,
+and candidate bytes were not emitted. Code source `c855c79b` was pushed to
+open draft PR #385 before generation; this result is recorded by a docs-only
+successor. The full Actions inventory was 3,807 completed runs across five
+event types with 28 rerun records and no queued/running runs; Actions remains
+disabled, and no run was created for the code source.
+
+This correction prevents a bounded ordinary search from suppressing a valid
+repair plan, but it did not yield an Atlas candidate in this fresh sample. Do
+not widen limits or repeat a blind seed batch. Next inspect Lowlands-repair
+ranking/retention with a deterministic case that demonstrates an eligible
+plan being pruned; all proof checks and current limits remain fixed meanwhile.
+
+## Fifth independent `.26` candidate run and diagnostic validation — 7 October 2026 — source `7219b8de`
+
+The signed exact source was
+`7219b8deb7753d1c2a7b7fdc6f122a44bf1a3ecf`. The run used
+`greater-realm-v2-natural-continent-pr-a.26`, pinned Linux Node `22.22.3`,
+verified `linux-x64`, and all 11 locked toolchain packages. The workflow-faithful
+root `npm ci`, frozen auth-bridge pnpm install, and `npm run typecheck` passed.
+Windows typecheck and focused rejection/apron/generator tests passed 53/53;
+six pinned-Linux suites passed 178/178, including the ACL-sensitive attempt
+checkpoint suite and full candidate-package suite.
+
+A fresh-seed private batch exhausted all 256 attempts with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no candidate was accepted. The
+authenticated maintained checkpoint matched the exact source and toolchain.
+It recorded 227 geography rejections and 29 proof-rejection attempts.
+
+Geography rejection codes retain one priority-selected terminal code per
+attempt:
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 128 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 35 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 29 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 6 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 1 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 12 |
+| **Total geography rejections** | **227** |
+
+The new diagnostic fields show which cutoffs co-occurred on each geography
+rejection:
+
+| Observed frontier truncations | Attempts |
+| --- | ---: |
+| Bundle-pair, bundle-option, Lowlands-repair bundle-option, and Lowlands-repair sibling-pair limits | 169 |
+| Bundle-option and both Lowlands-repair limits, without bundle-pair truncation | 17 |
+| No frontier truncation recorded | 41 |
+
+Across geography attempts, bundle-pair truncation occurred 169 times;
+bundle-option and each Lowlands-repair cutoff occurred 186 times. The primary
+rejection code named the pair cutoff only 128 times, so priority-based counts
+concealed substantial overlap. These are observed search cutoffs, not proof
+that any one cap caused rejection or that a wider frontier would pass geometry,
+ownership, or candidate proofs. Do not widen caps or relax proof rules without
+a deterministic counterexample.
+
+Proof occurrences are nonexclusive across the 29 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 29 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 19 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 26 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 22 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 22 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 16 |
+| `PROOF_REGION_LAND_COHERENCE` | 15 |
+| `PROOF_REGION_GRAPH` | 15 |
+| `PROOF_GATE_APPROACHES` | 13 |
+| `PROOF_GATE_GRAPH` | 12 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 10 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 8 |
+| `PROOF_CASTLE_CAPACITY` | 7 |
+| `PROOF_REGION_PASSABLE_LAND` | 7 |
+| `CASTLE_SUITABILITY` | 7 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 7 |
+| `HYDROLOGY_LAKES_48_96` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 6 |
+| `PROOF_BIOME_DIVERSITY` | 4 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 3 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 3 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 2 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 2 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 2 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `HYDROLOGY_MAJOR_OCEAN_SEA_BODIES_4_6` | 1 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. No package, shortlist, selection, atlas
+publication, provider request, or production mutation resulted. Across the
+five independent `.26` batches, 1,280 attempts produced no accepted
+candidate (1,136 geography and 144 proof-rejection attempts). The first four
+batches recorded 464 pair-limit priority codes; this batch recorded 128 such
+priority codes but 169 actual pair-limit observations. Do not treat the
+combined priority count as the total pair-frontier occurrence count.
+
+The root dependency audit found zero production (`--omit=dev`) vulnerabilities.
+The full development-tool audit reported two high findings: pinned `sharp`
+`0.35.4`, affected by CVE-2026-96889 / GHSA-wq5f-xc86-pv6w (fixed upstream in
+`0.35.5`), and `source-map-js` `1.2.1`, affected by GHSA-68fv-2mgg-jv7q (fixed
+in `1.2.2`). These packages are absent from shipped production dependencies and
+are follow-up toolchain maintenance, not evidence of a live runtime exposure.
+Actions remain disabled; these local results are not hosted CI or deployment
+evidence.
+
+## Exact-source fallback-correction batch — 7 October 2026 — source `3c1456cf`
+
+The pinned Linux runner executed one fresh-seed batch on exact signed source
+`3c1456cf0dbe298d615b2bc2d06a7b087180b504`, generator
+`greater-realm-v2-natural-continent-pr-a.26`, Node `22.22.3`, verified
+`linux-x64` profile, and all 11 locked toolchain packages. It exhausted all 256
+attempts with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated
+aggregate-only read matched the exact source and toolchain, recorded phase
+`searching`, sequence/next ordinal 256, and 256 rejected attempts. The recovered
+root-seed buffer was zeroized; no seed, candidate handle, coordinates, or
+candidate bytes were emitted.
+
+Geography codes below are mutually exclusive, with one terminal code selected
+per attempt:
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 133 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 25 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 22 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 11 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 23 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 9 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 4 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 3 |
+| **Total geography rejections** | **230** |
+
+Frontier observations are nonexclusive across the geography attempts: bundle
+pair limit (181), bundle option limit (200), Lowlands-repair bundle option
+limit (197), and Lowlands-repair sibling-pair limit (197). These records show
+where the bounded search truncated; they do not prove that a wider frontier
+would yield an eligible plan.
+
+Proof rejection occurrences are nonexclusive across 26 attempts:
+
+| Failed proof | Occurrences | Failed proof | Occurrences |
+| --- | ---: | --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 26 | `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 21 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 21 | `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 21 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 18 | `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 17 |
+| `PROOF_REGION_LAND_COHERENCE` | 14 | `PROOF_REGION_GRAPH` | 13 |
+| `PROOF_GATE_APPROACHES` | 12 | `PROOF_GATE_GRAPH` | 12 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 11 | `PROOF_CASTLE_CAPACITY` | 10 |
+| `CASTLE_SUITABILITY` | 10 | `LIVING_WORLD_DORMANT_CAPACITY` | 7 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 | `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 4 |
+| `PROOF_REGION_PASSABLE_LAND` | 5 | `HYDROLOGY_LAKES_48_96` | 3 |
+| `PROOF_BIOME_DIVERSITY` | 3 | `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 3 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 3 | `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 3 |
+| `TIER_I_REGION_BALANCE` | 2 | `TIER_POTENTIAL_DENSITY` | 2 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 5 | `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 1 | `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |  |  |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; the maintained selection-readiness check passed.
+No accepted candidate, package, completion receipt, shortlist, selection,
+atlas publication, provider request, or production mutation resulted. This
+checkpoint is retired and must not be resumed. Actions remained disabled.
+
+## Lowlands fallback retention correction — 7 October 2026
+
+The exact-source profile above contained no Lowlands parent-slot failure, but
+the source review found a separate deterministic retention gap. For each
+repair parent, an own-terrain pair can be locally compatible yet conflict with
+another parent's already selected footprints. The prior pair selector then
+dropped every borrowed alternative, so the bounded global search could not
+recover even when a permitted non-Lowlands donor pair avoided that conflict.
+
+The correction keeps the best own-terrain pair first and one compatible
+non-Lowlands donor pair second under the unchanged two-pair cap. It removes
+own-only duplicates from the fallback set and preserves the original top-two
+behavior when there is no own pair or no donor alternative. Lowlands is never a
+donor; geometry, ownership, counts, proof rules, and all search caps are
+unchanged. A deterministic regression feeds the same ranked footprint search
+an own pair that conflicts with another parent's footprint and a donor pair
+that completes the assignment; the prior retention rejected the assignment,
+while the corrected retention finds the complete plan.
+
+Windows `npm run typecheck` and the focused apron-search suite passed. On the
+pinned Linux runner, toolchain preflight verified all 11 packages, `tsc -b`
+passed, and the apron, rejection, and full generator suites passed 53/53. This
+threshold-preserving correction was signed and published as
+`e2488c735971a34283810ea6a063e211f1e552de`. Its one fresh exact-source batch
+is recorded next.
+
+## Corrected-source Lowlands fallback batch — 7 October 2026 — source `e2488c73`
+
+The pinned Linux runner used Node `22.22.3`, profile `linux-x64`, all 11 locked
+toolchain packages, generator `greater-realm-v2-natural-continent-pr-a.26`,
+and exact signed source `e2488c735971a34283810ea6a063e211f1e552de`. One fresh
+seed was searched once with the maintained 256-attempt bound. It ran for about
+42 minutes 45 seconds and ended with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated aggregate reader
+matched the exact source, generator, toolchain receipt/profile, Node version,
+and attempt bound; it read phase `searching`, sequence/next ordinal 256, and
+256 rejected attempts. The recovered root-seed buffer was zeroized in
+`finally`. No seed, candidate handle, coordinates, or candidate bytes were
+printed.
+
+Geography rejection codes are mutually exclusive, with one terminal code per
+attempt:
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 123 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 26 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 5 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 29 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 14 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 8 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| `GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED` | 1 |
+| **Total geography rejections** | **222** |
+
+Frontier observations are nonexclusive: bundle pair limit (167), bundle option
+limit (179), Lowlands-repair bundle option limit (171), and Lowlands-repair
+sibling-pair limit (171). These observations describe bounded search
+truncation; they do not prove that a wider frontier or any individual change
+would produce an eligible map.
+
+Proof rejection occurrences are also nonexclusive across 34 attempts:
+
+| Failed proof | Occurrences | Failed proof | Occurrences |
+| --- | ---: | --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 34 | `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 28 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 23 | `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 25 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 26 | `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 17 |
+| `PROOF_REGION_LAND_COHERENCE` | 25 | `PROOF_REGION_GRAPH` | 27 |
+| `PROOF_GATE_APPROACHES` | 23 | `PROOF_GATE_GRAPH` | 19 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 9 | `PROOF_CASTLE_CAPACITY` | 15 |
+| `CASTLE_SUITABILITY` | 15 | `LIVING_WORLD_DORMANT_CAPACITY` | 13 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 | `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 12 |
+| `PROOF_REGION_PASSABLE_LAND` | 14 | `HYDROLOGY_LAKES_48_96` | 9 |
+| `PROOF_BIOME_DIVERSITY` | 2 | `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 3 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 5 | `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 7 |
+| `TIER_I_REGION_BALANCE` | 1 | `TIER_POTENTIAL_DENSITY` | 3 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 8 | `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 | `PROOF_NATURAL_LAND_SILHOUETTE` | 2 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |  |  |
+
+This is an independent fresh-seed sample, not a paired experiment with the
+`3c1456cf` batch. Do not attribute changes in rejection counts to the
+correction. No candidate, package, completion receipt, shortlist, selection,
+atlas publication, provider request, or production mutation resulted. The
+maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; the maintained selection-readiness check passed.
+The checkpoint is retired and must not be resumed. Its owner-only workspace
+`/home/warpkeep/.warpkeep/private/greater-realm-candidate-e2488c73-20261007`
+contains one 32 KiB file after retirement. Actions remained disabled, and no
+workflow run was created for the pushed source.
+
+## Fourth independent `.26` candidate run — 7 October 2026 — source `21cb97fd`
+
+The run used exact signed source
+`21cb97fd4ff71fa92d78f7cf4c5348901245c75f`, generator
+`greater-realm-v2-natural-continent-pr-a.26`, pinned Linux Node `22.22.3`,
+verified `linux-x64`, and all 11 locked toolchain packages. A fresh-seed private
+batch exhausted 256 attempts in about 34 minutes with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no candidate was accepted.
+
+The authenticated checkpoint matched the exact source and toolchain. Geography
+rejections (one priority-selected terminal code per attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 125 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 31 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 26 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 16 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 13 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 8 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 7 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+| **Total geography rejections** | **230** |
+
+The other 26 attempts ended in proof rejection. Proof occurrences are
+nonexclusive across those attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 26 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 24 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 23 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 21 |
+| `PROOF_REGION_LAND_COHERENCE` | 16 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 18 |
+| `PROOF_REGION_GRAPH` | 12 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 11 |
+| `PROOF_GATE_APPROACHES` | 10 |
+| `PROOF_GATE_GRAPH` | 10 |
+| `PROOF_CASTLE_CAPACITY` | 8 |
+| `CASTLE_SUITABILITY` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 8 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 7 |
+| `PROOF_REGION_PASSABLE_LAND` | 6 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 5 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 3 |
+| `HYDROLOGY_LAKES_48_96` | 3 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 3 |
+| `PROOF_BIOME_DIVERSITY` | 3 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 3 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 3 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+| `HYDROLOGY_MAJOR_OCEAN_SEA_BODIES_4_6` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; selection readiness passed without a completion
+receipt. Across all four independent `.26` batches, none of 1,024 attempts
+produced a candidate. The pair-frontier terminal was priority-selected in
+464/909 geography rejections. This repeated aggregate does not prove that the
+pair cap alone caused the failures: each persisted rejection kept only the
+earliest-priority cutoff and could hide co-occurring option, repair, or
+assignment limits.
+
+The bounded diagnostic correction now records every observed frontier
+truncation alongside the existing primary rejection. It does not change the
+search cap, ranking, geometry, ownership, proof rules, or accepted-world
+format. Validate this change on pinned Linux before another candidate run.
+
+## Third independent `.26` candidate run — 7 October 2026 — source `e4fb6a46`
+
+The exact-source run used signed documentation successor
+`e4fb6a4690dfa7a6206c7e789fe0f2d9bd2544eb`; generator `.26` is unchanged from
+`93c9b54a`. The pinned Linux Node `22.22.3` runner verified profile
+`linux-x64` and all 11 locked toolchain packages. A fresh-seed private
+candidate batch exhausted all 256 attempts in about 30 minutes with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no candidate was accepted.
+
+The authenticated checkpoint matched the source and toolchain. Geography
+rejections (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 115 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 34 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 35 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 16 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 7 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 8 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 5 |
+| **Total geography rejections** | **231** |
+
+The other 25 attempts ended in proof rejection. Proof occurrences are
+nonexclusive across those attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 25 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 20 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 18 |
+| `PROOF_REGION_GRAPH` | 16 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 16 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 15 |
+| `PROOF_GATE_APPROACHES` | 13 |
+| `PROOF_REGION_LAND_COHERENCE` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 11 |
+| `PROOF_GATE_GRAPH` | 11 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 9 |
+| `PROOF_CASTLE_CAPACITY` | 9 |
+| `CASTLE_SUITABILITY` | 9 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 7 |
+| `HYDROLOGY_LAKES_48_96` | 7 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 |
+| `PROOF_REGION_PASSABLE_LAND` | 4 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 4 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 4 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 2 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_BIOME_DIVERSITY` | 1 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; selection readiness passed without a completion
+receipt. No candidate package, shortlist, selection, provider request, or
+production mutation resulted. No raw checkpoint, seed, coordinates, candidate
+handle, or private package bytes were emitted.
+
+## Second independent `.26` candidate run — 7 October 2026 — source `6b7a576f`
+
+The signed documentation successor
+`6b7a576f3817fb87d30a36228f9b07bd59cdf8d9` leaves the `.26` generator
+unchanged from `93c9b54a`. On this exact source, the pinned Linux Node
+`22.22.3` runner verified the `linux-x64` profile and all 11 locked toolchain
+packages. A fresh-seed private candidate batch exhausted all 256 attempts in
+about 36 minutes with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no candidate
+was accepted.
+
+The authenticated checkpoint matched the exact source and toolchain. Geography
+rejections (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 102 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 32 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 27 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 22 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 16 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 12 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 9 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+| **Total geography rejections** | **224** |
+
+The other 32 attempts ended in proof rejection. Proof occurrences below are
+nonexclusive across those attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 32 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 29 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 29 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 28 |
+| `PROOF_REGION_LAND_COHERENCE` | 23 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 21 |
+| `PROOF_REGION_GRAPH` | 18 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 15 |
+| `PROOF_CASTLE_CAPACITY` | 14 |
+| `CASTLE_SUITABILITY` | 14 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 11 |
+| `PROOF_REGION_PASSABLE_LAND` | 10 |
+| `PROOF_GATE_APPROACHES` | 10 |
+| `PROOF_GATE_GRAPH` | 10 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 8 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 7 |
+| `TIER_POTENTIAL_DENSITY` | 6 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 6 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 5 |
+| `HYDROLOGY_LAKES_48_96` | 5 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 3 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 2 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 2 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `PROOF_BIOME_DIVERSITY` | 1 |
+
+The pair-frontier limit remained the largest single geography code. Across the
+two independent `.26` batches it occurred in 224/448 geography rejections; the
+priority projection can conceal concurrent truncations, and neither batch
+proves that an omitted pair would form an eligible complete plan. No geometry,
+ownership, or proof rule was relaxed. The maintained abort returned
+`checkpointAborted: true` and `productionUntouched: true`; selection readiness
+passed with no completion receipt. No candidate package, selection, provider
+request, or production mutation resulted.
+
+## Exact-source `.26` candidate run — 7 October 2026 — source `93c9b54a`
+
+The signed `.26` source
+`93c9b54a8745bbb9b3f16fc98c0ca2e7526ff690` passed Windows typecheck and the
+focused apron, rejection, and generator suites (52/52). On the pinned Linux
+Node `22.22.3` runner, the verified `linux-x64` profile and all 11 locked
+toolchain packages, the four focused suites passed 134/134 and the
+workflow-faithful exact-source typecheck passed. The source changes only the
+per-child retained bundle-pair frontier from 4,096 to 8,192; other search
+bounds, geometry, ownership, proofs, seed namespace, and eligibility are
+unchanged.
+
+A fresh-seed private `generate-candidates --count 1 --maximum-attempts 256`
+batch exhausted all 256 attempts in about 31 minutes with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no candidate was accepted. The
+authenticated checkpoint matched the exact source and toolchain. Geography
+rejections (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 122 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 37 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 18 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 18 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 9 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 7 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 6 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED` | 1 |
+| **Total geography rejections** | **224** |
+
+The other 32 attempts ended in proof rejection. The pair-frontier terminal
+remained the largest single geography code at 122/224. The `.26` batch used an
+independent seed from `.25`, so the lower count does not establish that the cap
+change caused improvement. Rejection storage keeps only the earliest-priority
+frontier code, so this count can mask simultaneous option or repair truncations
+and does not identify a sole cause. Source review traced the deterministic
+edge-pair selection, endpoint-balanced retention, and later sibling
+overlap/separation checks; no reproducible incorrect pruning was established.
+Keep the current bounds and do not raise the cap again without a deterministic
+counterexample or stronger paired evidence.
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; selection readiness passed with no completion
+receipt. No candidate, package, shortlist, selection, provider request, or
+production mutation resulted. The summary was read through the maintained
+checkpoint API; no raw checkpoint, seed, coordinates, candidate handle, or
+private package bytes were emitted. This is local validation, not a hosted CI,
+deployment, or release result.
+
+## Exact-source `.25` candidate run — 7 October 2026 — source `a10a7d1f`
+
+The signed `.25` source
+`a10a7d1feae63bf31712bfcf1661c1f30cfdedbc` passed all four focused Linux
+suites (134/134) on Node `22.22.3`, verified `linux-x64`, with all 11 locked
+toolchain packages. Its exact-source typecheck passed in a disposable clone
+after the workflow's root `npm ci` and nested auth-bridge `pnpm@11.11.0`
+install. The clone was removed after verification. The candidate run used a
+fresh seed and the maintained private generator, exhausting all 256 attempts in
+about 35 minutes without an accepted candidate.
+
+The authenticated checkpoint matched the exact commit and toolchain. It
+recorded 229 geography rejections and 27 proof-rejection attempts:
+
+| Geography rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 152 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 29 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 18 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 12 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 2 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 1 |
+| **Total** | **229** |
+
+Proof occurrences are nonexclusive across the 27 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 25 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 20 |
+| `PROOF_REGION_LAND_COHERENCE` | 19 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 19 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 18 |
+| `PROOF_REGION_GRAPH` | 16 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 15 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 14 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 14 |
+| `PROOF_GATE_APPROACHES` | 13 |
+| `PROOF_GATE_GRAPH` | 13 |
+| `PROOF_REGION_PASSABLE_LAND` | 7 |
+| `PROOF_CASTLE_CAPACITY` | 6 |
+| `CASTLE_SUITABILITY` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 6 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 5 |
+| `PROOF_BIOME_DIVERSITY` | 4 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 4 |
+| `HYDROLOGY_LAKES_48_96` | 3 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 3 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 3 |
+| `TIER_I_REGION_BALANCE` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 1 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; selection readiness passed with no completion
+receipt. The root-seed buffer was zeroized after aggregation. No seed, candidate
+handle, coordinates, private package bytes, or raw checkpoint was emitted. No
+candidate, package, shortlist, selection, provider request, or production
+mutation resulted.
+
+The pair cap was still the terminal geography code in 152/229 attempts. The
+sample is independent of the `.24` batches, so the count change is not a paired
+causal comparison. The exact-source `.26` validation and candidate result are
+recorded above.
+
+The disposable typecheck install reported two high-severity development-tree
+advisories: [sharp/librsvg GHSA-wq5f-xc86-pv6w](https://github.com/advisories/GHSA-wq5f-xc86-pv6w)
+and [source-map-js GHSA-68fv-2mgg-jv7q](https://github.com/advisories/GHSA-68fv-2mgg-jv7q).
+`npm audit --omit=dev` found zero production-dependency vulnerabilities. No
+dependency or lockfile was changed; track these as a toolchain follow-up, not a
+production runtime finding.
+
+## Exact-source `.24` candidate run — 6 October UTC / 7 October Budapest
+
+On exact signed source `41146ecaedbbc9464503934e0adb01d02529739e`, one fresh-seed
+private candidate run used generator
+`greater-realm-v2-natural-continent-pr-a.24`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The four focused
+Linux suites passed 134/134 (533.90 seconds wall, 599.89 seconds summed test
+time); the exact-source typecheck also passed after installing the nested
+auth-bridge dependencies as the Verify workflow does. The fresh batch exhausted
+256 attempts in about 39 minutes with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no candidate was accepted.
+
+The authenticated maintained checkpoint matched the exact source and toolchain.
+It recorded 219 geography rejections and 37 proof-rejection attempts. Geography
+counts (one terminal code per geography rejection):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 136 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 27 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 26 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 16 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 9 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 4 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 1 |
+| **Total** | **219** |
+
+Proof occurrences are nonexclusive across the 37 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 37 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 32 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 30 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 30 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 22 |
+| `PROOF_REGION_LAND_COHERENCE` | 22 |
+| `PROOF_REGION_GRAPH` | 20 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 19 |
+| `PROOF_CASTLE_CAPACITY` | 14 |
+| `CASTLE_SUITABILITY` | 14 |
+| `PROOF_GATE_APPROACHES` | 14 |
+| `PROOF_GATE_GRAPH` | 12 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 11 |
+| `PROOF_REGION_PASSABLE_LAND` | 10 |
+| `HYDROLOGY_LAKES_48_96` | 9 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 9 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 6 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 5 |
+| `PROOF_BIOME_DIVERSITY` | 3 |
+| `TIER_POTENTIAL_DENSITY` | 3 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; the maintained selection-readiness check passed.
+Abort success also confirms that no accepted generation receipt was present.
+The root-seed buffer was zeroized after the safe aggregation. No seed, candidate
+handle, coordinates, private package bytes, or raw checkpoint was emitted. No
+candidate, package, shortlist, selection, Atlas publication, provider request,
+or production mutation resulted.
+
+The dominant terminal code is the existing bundle-pair frontier cap; this
+single-code projection can mask simultaneous bundle-option truncation. This
+first independent seed did not alone establish a useful cap adjustment; the
+second exact-source run below tested whether that truncation recurred.
+
+## Independent `.24` candidate run — 7 October 2026 — source `f8d5b4af`
+
+A second fresh-seed batch on exact signed source
+`f8d5b4afdfe5868c9d4bc3624028b9f3cad7d4bc` used the same pinned generator
+`.24`, Node `22.22.3`, verified `linux-x64` profile, and 11 locked packages.
+It exhausted 256 attempts in about 37 minutes with no accepted candidate and
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Its authenticated checkpoint
+matched the full source/toolchain and recorded 219 geography rejections plus
+40 proof-rejection attempts.
+
+Geography rejections (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 132 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 34 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 20 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 10 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 3 |
+| **Total** | **219** |
+
+Proof occurrences are nonexclusive across those 40 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 38 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 34 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 29 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 27 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 26 |
+| `PROOF_REGION_LAND_COHERENCE` | 20 |
+| `PROOF_REGION_GRAPH` | 19 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 19 |
+| `PROOF_GATE_APPROACHES` | 16 |
+| `PROOF_GATE_GRAPH` | 16 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 16 |
+| `HYDROLOGY_LAKES_48_96` | 12 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 11 |
+| `PROOF_CASTLE_CAPACITY` | 9 |
+| `CASTLE_SUITABILITY` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 8 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 7 |
+| `PROOF_BIOME_DIVERSITY` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 6 |
+| `PROOF_REGION_PASSABLE_LAND` | 6 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 5 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 5 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 2 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 2 |
+| `TIER_POTENTIAL_DENSITY` | 2 |
+| `PROOF_DORMANT_THRONE_ANCHOR` | 1 |
+| `TIER_I_REGION_BALANCE` | 1 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; selection readiness passed and no completion
+receipt was present. Secret seed material was zeroized after aggregation. No
+candidate, package, shortlist, selection, provider request, or production
+mutation resulted.
+
+Across both independent `.24` batches, the pair frontier was the terminal
+geography code in 268 of 438 geography rejections. This repeated truncation is
+measured evidence for one bounded adjustment. The `.25` successor raises only
+the retained per-child bundle-pair frontier from 2,048 to 4,096. The separate
+128 child-option bound, 320,000 search-node bound, 256 complete-plan bound,
+geometry, ownership, proofs, and candidate eligibility remain unchanged. It
+does not claim that a higher cap alone guarantees a candidate. On the `.25`
+working tree, `npm run typecheck` and the three focused Windows apron-search,
+rejection, and generator suites pass (52/52). The fourth private-package suite
+still requires the pinned Linux profile; no `.25` candidate batch has run.
+Next validate the signed `.25` source on that profile before generating another
+candidate.
+
+## Independent `.23` candidate run — 6 October 2026 — source `387f6b81`
+
+One fresh-seed private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact signed source
+`387f6b81d69a82c985613b652333ec648061d493` completed in about 35 minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.23`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained CLI
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; the authenticated
+checkpoint contained 225 geography rejections and 31 proof-rejection attempts.
+No seed, candidate handle, coordinates, package bytes, or raw log were emitted;
+the root-seed buffer was zeroized after aggregation.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 31 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 7 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 17 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 126 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 27 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 12 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| **Total** | **225** |
+
+Proof occurrences are nonexclusive across the 31 proof-rejection attempts:
+castle suitability (10), lakes 48–96 (4), major rivers 48–72 (2), minor
+streams 120–240 (1), inner-gate/throne redundancy (5), dormant capacity (16),
+advanced geomorphology (4), biome diversity (4), castle capacity (10), gate
+approaches (12), gate graph (11), geological barriers (7), mountain-system
+composition (1), natural-land topology (1), region graph (15), region land
+coherence (17), passable-land region (4), regional hydrogeomorphology
+(Frostmere 26, Mirefen 22, QA 30, Stonewake 23, Sunscar 5, Throneheart 12,
+Tier II 2), smallest passable Tier III (25), tier-potential density (1), and
+topographic QA completion (21).
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. Readiness remained true with no completion
+receipt; the owner-private workspace contained one file, seven directories,
+and 70 bytes. No package, shortlist, selection, atlas operation, provider
+request, or production mutation occurred. This is an independent seed, not a
+paired causal comparison with source `483ac590`.
+
+Both `.23` batches exhausted 256 attempts. The bundle-pair limit was the
+terminal code in 127/220 and 126/225 geography attempts, respectively; the
+complete-plan limit was 17 in each, with 24 and 27 search-node-limit outcomes.
+The rejection API keeps only the highest-priority truncation kind, so a pair
+terminal does not show whether the downstream child-option cap also fired.
+Do not infer that the child-option cap is harmless from its low terminal count.
+Source review separately found that the globally ranked child-option prefix
+can omit every alternative from other child origins when the requested child's
+own options fill the 128-entry cap. Generator `.24` now preserves one ranked
+representative per origin within the same fixed cap, then fills remaining
+slots in the existing score order. Geometry, ownership, proofs, budgets, and
+eligibility remain unchanged. The deterministic regression and two other
+platform-neutral focused suites pass (52/52 total), as does Windows typecheck;
+the private candidate-
+package fixture remains for pinned Linux because the Windows temporary-folder
+ACL does not satisfy its guard. No further private batch ran before this source
+correction is signed and synchronized.
+
+## Expanded-search candidate run — 6 October 2026 — source `483ac590`
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact signed source
+`483ac590cbb3ae7febc3fb093ad143744ec413d2` completed in about 40½ minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.23`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained CLI
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; the authenticated
+checkpoint contained 220 geography rejections and 36 proof-rejection attempts.
+No seed, candidate handle, coordinates, package bytes, or raw log were emitted.
+The maintained aggregation zeroized its root-seed buffer after reading.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 19 |
+| `GREATER_REALM_HYDROLOGY_BODY_SURFACE_GEOGRAPHY_EXHAUSTED` | 1 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 10 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 17 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_OPTION_LIMIT` | 1 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 127 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 24 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 14 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 7 |
+| **Total** | **220** |
+
+Proof occurrences are nonexclusive across the 36 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 9 |
+| `HYDROLOGY_LAKES_48_96` | 4 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 8 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 15 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 6 |
+| `PROOF_BIOME_DIVERSITY` | 2 |
+| `PROOF_CASTLE_CAPACITY` | 9 |
+| `PROOF_GATE_APPROACHES` | 16 |
+| `PROOF_GATE_GRAPH` | 14 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 8 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_REGION_GRAPH` | 23 |
+| `PROOF_REGION_LAND_COHERENCE` | 24 |
+| `PROOF_REGION_PASSABLE_LAND` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 30 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 10 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 35 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 28 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 7 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 24 |
+| `TIER_POTENTIAL_DENSITY` | 3 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 23 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. Readiness remained true with no completion
+receipt; the owner-private workspace contained one file, seven directories,
+and 70 bytes. `acceptedCandidate` was false. No package, shortlist, selection,
+atlas operation, provider request, or production mutation occurred.
+
+The independent `.22` batch recorded the pair-limit terminal in 134 of 221
+geography attempts and the search-node limit in 29; the first `.23` batch
+recorded 127 of 220, one child-option-limit terminal, and 24 node-limit
+terminals. See the independent `.23` successor run above. These fresh-seed
+samples are descriptive, not paired causal comparisons.
+
+## Expanded-search candidate run — 6 October 2026 — source `fb55117a`
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact source
+`fb55117ac3fa13f17daf3eb38083719bc6e3fff6` completed in about 39 minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.22`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained CLI
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; the authenticated
+checkpoint recorded 221 geography rejections and 35 proof-rejection attempts.
+No seed, candidate handle, coordinates, package bytes, or raw log were emitted;
+the root-seed buffer was zeroized after aggregation.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 19 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 7 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 17 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 134 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 29 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 12 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 3 |
+| **Total** | **221** |
+
+Proof occurrences are nonexclusive across the 35 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 13 |
+| `HYDROLOGY_LAKES_48_96` | 8 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 5 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 7 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 14 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 1 |
+| `PROOF_BIOME_DIVERSITY` | 2 |
+| `PROOF_CASTLE_CAPACITY` | 13 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_GATE_APPROACHES` | 18 |
+| `PROOF_GATE_GRAPH` | 16 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 9 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 5 |
+| `PROOF_REGION_GRAPH` | 20 |
+| `PROOF_REGION_LAND_COHERENCE` | 24 |
+| `PROOF_REGION_PASSABLE_LAND` | 10 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 18 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 35 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 13 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 6 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 24 |
+| `TIER_POTENTIAL_DENSITY` | 6 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 31 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. Readiness remained true with no completion
+receipt; the owner-private workspace contained one file, seven directories,
+and 70 bytes. `acceptedCandidate` was false. No package, shortlist, selection,
+atlas operation, provider request, or production mutation occurred.
+
+The `.21` fresh-seed run recorded 124 bundle-pair-frontier terminals in 221
+geography attempts; `.22` recorded 134 in 221, so this independent-seed sample
+does not support a material improvement from doubling the pair cap. Source
+review found a separate per-child option cutoff of 64 in both ordinary and
+Lowlands repair search. Revision `.23` raises that bounded cutoff to 128 while
+retaining the 2,048-pair cap, search-node and complete-plan limits, proofs,
+ownership rules, and terrain-seed namespace. The first `.23` candidate run and
+its exact source-bound metrics are recorded above. Its Windows typecheck and 52
+focused tests passed; the four focused pinned-Linux suites passed 134/134 in
+554.87 seconds with all 11 locked toolchain packages verified. Runtime was
+about 5.5% above `.22`'s 525.89-second run; no proof or ownership bound changed.
+
+## Expanded-search candidate run — 6 October 2026 — source `3ad208d0`
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact signed source
+`3ad208d02c10971ddb49fc80f43d42310fe350d1` completed in about 37 minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.21`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained CLI
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Its authenticated
+checkpoint contained 221 geography rejections and 35 proof-rejection
+attempts. No seed, candidate handle, coordinates, package bytes, or raw log
+were emitted; the root-seed buffer was zeroized after aggregation.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 32 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 4 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 19 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 124 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 30 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 8 |
+| `GREATER_REALM_TIER_TWO_STRATEGIC_COMPONENTS_EMPTY` | 1 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 3 |
+| **Total** | **221** |
+
+Proof occurrences are nonexclusive across the 35 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 17 |
+| `HYDROLOGY_LAKES_48_96` | 6 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 3 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 2 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 9 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 4 |
+| `PROOF_BIOME_DIVERSITY` | 5 |
+| `PROOF_CASTLE_CAPACITY` | 17 |
+| `PROOF_GATE_APPROACHES` | 15 |
+| `PROOF_GATE_GRAPH` | 13 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 5 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 2 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 3 |
+| `PROOF_NATURAL_STRATEGIC_REGIONS` | 1 |
+| `PROOF_REGION_GRAPH` | 16 |
+| `PROOF_REGION_LAND_COHERENCE` | 22 |
+| `PROOF_REGION_PASSABLE_LAND` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 29 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 20 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 35 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 27 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 4 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 4 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 28 |
+| `TIER_I_REGION_BALANCE` | 2 |
+| `TIER_POTENTIAL_DENSITY` | 4 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 25 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. Separate maintained checks confirmed selection
+readiness, no completion receipt, and an owner-only workspace containing one
+file, seven directories, and 70 bytes. There is no candidate package,
+shortlist, selection, atlas operation, provider request, or production
+mutation.
+
+The `.20` run reached the 512-pair frontier in 128 of 224 geography attempts.
+After `.21` doubled the cap to 1,024, the frontier remained terminal in 124 of
+221 geography attempts; other bounded-search terminals were the 320,000-node
+limit in 30 and the 256-plan limit in 19. The cap change did not materially
+reduce frontier truncation. Revision `.22` therefore raises only bundle pairs
+`1,024 → 2,048`; edge candidates remain 1,024, search nodes 320,000, complete
+plans 256, Lowlands assignments 32, and sibling pairs per parent 2. The
+compatible-footprint traversal, proofs, ownership rules, and seed namespace
+`.3` remain unchanged. The subsequent `.22` run and results are recorded above.
+The `.21` implementation in signed commit
+`435586b766fb55514b9197f8438561dde448ba4f` passed all four focused suites,
+133/133, on pinned Linux Node `22.22.3`. The failed batch was bound to the
+documentation-only signed successor
+`3ad208d02c10971ddb49fc80f43d42310fe350d1`, with generator and test bytes
+unchanged. Exact signed `.22` implementation
+`5c04108565086c8a413ca11abaa2ad0bf10b6e44` passed all four focused suites,
+133/133, on pinned Linux Node `22.22.3` in 525.89 seconds with all 11 locked
+packages verified; the Windows 51-test subset and typechecking passed too.
+
+## Expanded-search candidate run — 6 October 2026 — source `9d3cf8b6`
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact source
+`9d3cf8b69b8f4a5f9dd1a879c5d2570f0ac4b416` completed in about 34 minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.20`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained
+checkpoint read returned 256 attempts: 224 geography rejections and 32
+proof-rejection attempts. No seed, candidate handle, coordinates, package
+bytes, or raw log were emitted; the authenticated root-seed buffer was
+zeroized after aggregation.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 24 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 5 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 15 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 128 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 35 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 16 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 1 |
+| **Total** | **224** |
+
+Proof occurrences are nonexclusive across the 32 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 9 |
+| `HYDROLOGY_LAKES_48_96` | 4 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 8 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 2 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 12 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `PROOF_BIOME_DIVERSITY` | 2 |
+| `PROOF_CASTLE_CAPACITY` | 9 |
+| `PROOF_GATE_APPROACHES` | 7 |
+| `PROOF_GATE_GRAPH` | 5 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 2 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_NATURAL_STRATEGIC_REGIONS` | 1 |
+| `PROOF_REGION_GRAPH` | 12 |
+| `PROOF_REGION_LAND_COHERENCE` | 20 |
+| `PROOF_REGION_PASSABLE_LAND` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 25 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 18 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 26 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 6 |
+| `STRATEGIC_REGION_BOUNDARY_ALIGNMENT` | 1 |
+| `TIER_I_REGION_BALANCE` | 2 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 21 |
+| `TIER_POTENTIAL_DENSITY` | 4 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 27 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. Separate maintained readiness checks confirmed
+selection readiness and no completion receipt. There is no candidate package,
+shortlist, selection, atlas operation, provider request, or production
+mutation. The private workspace contains 70 bytes across one file and seven
+directories.
+
+Bundle-pair truncation remains the terminal geography rejection in 128
+attempts at the 512-pair cap. The node limit was terminal in 35 attempts and
+the 256-plan limit in 15. No `EDGE_CANDIDATE_LIMIT` terminal geography
+rejection was recorded. The measured next change raises only bundle pairs
+`512 → 1,024`. Keep edge candidates
+at 1,024, search nodes at 320,000, complete plans at 256, Lowlands assignments
+at 32, sibling pairs per parent at 2, and all ownership rules and proofs
+unchanged. The dynamic compatibility-aware rank traversal remains in place;
+generator revision `.21` records the cap correction, with seed namespace `.3`
+unchanged. The deterministic generator fixture, all 51 focused tests, and
+TypeScript checking pass on Windows Node `24.19.0`. Exact signed source
+`435586b766fb55514b9197f8438561dde448ba4f` passes all four focused suites,
+133/133, on pinned Linux Node `22.22.3` with all 11 locked packages verified;
+the run took 524.32 seconds. The `.21` candidate result is recorded above.
+
+## Expanded-search candidate run — 6 October 2026 — source `99184f66`
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact source
+`99184f667d35bd540a10439349a61b46dacaeead` completed in about 36 minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained
+checkpoint read returned 256 attempts: 227 geography rejections and 29
+proof-rejection attempts. No seed, candidate handle, coordinates, package
+bytes, or raw log were emitted.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 29 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 8 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 128 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 37 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 8 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 6 |
+| **Total** | **227** |
+
+Proof occurrences are nonexclusive across the 29 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 11 |
+| `HYDROLOGY_LAKES_48_96` | 1 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 5 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 2 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 11 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `PROOF_BIOME_DIVERSITY` | 1 |
+| `PROOF_CASTLE_CAPACITY` | 11 |
+| `PROOF_GATE_APPROACHES` | 14 |
+| `PROOF_GATE_GRAPH` | 14 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 6 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 2 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_REGION_GRAPH` | 18 |
+| `PROOF_REGION_LAND_COHERENCE` | 19 |
+| `PROOF_REGION_PASSABLE_LAND` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 25 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 15 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 29 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 23 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 7 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 1 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 17 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 24 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. A separate maintained readiness check confirmed
+there is no active checkpoint and no completion receipt. The run produced no
+candidate package, shortlist, selection, atlas operation, provider request, or
+production mutation. The retired private workspace is 32 KiB.
+
+The edge cap `1,024` was not reached. The 256 bundle-pair cap remained the
+terminal geography rejection in 128 attempts; 37 attempts reached the
+320,000-node limit and 11 reached the 256-plan limit. A local deterministic
+fixture showed that simply raising bundle pairs to 512 destabilized the
+existing bounded traversal: it hit the typed search-node limit at both 320,000
+and 640,000 nodes. The correction keeps the same rank diagonal and node budget,
+but reselects the next sibling group from its currently compatible choices,
+pruning groups made impossible by already chosen footprints. Group-index ties
+remain deterministic; footprints, ownership rules, and proofs are unchanged.
+With generator revision `.20`, bundle pairs at 512, edge candidates at 1,024,
+nodes at 320,000, complete plans at 256, Lowlands assignments at 32, and
+sibling pairs per parent at 2,
+the deterministic generator fixture and all 51 focused tests pass; TypeScript
+checking also passes on Windows Node `24.19.0`. The exact signed source
+`2b72a6850c30ee59e55d4c6614b1bd554be88c3d` passed all 133 tests in the four
+focused suites on pinned Linux Node `22.22.3`, including the owner-only package
+suite. The equivalent Windows package-suite setup rejects Windows `stat` mode
+`0666` at its POSIX ancestor check; use Linux for that suite. No fresh
+candidate batch has yet been run on this successor. Generation remains pinned
+to Linux Node `22.22.3`; run the next batch only on the exact signed successor.
+
+## Pair-frontier candidate search — 6 October 2026 — source `57013881`
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact source
+`57013881a95136bacfe336d55a9300e85481c0eb` completed in about 35 minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained
+checkpoint read returned 256 attempts: 225 geography rejections and 31
+proof-rejection attempts. No seed, candidate handle, coordinates, package
+bytes, or raw log were emitted.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 28 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 4 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 4 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 143 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 2 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 27 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 13 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+| **Total** | **225** |
+
+Proof occurrences are nonexclusive across the 31 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 12 |
+| `HYDROLOGY_LAKES_48_96` | 6 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 5 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 3 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 18 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 1 |
+| `PROOF_BIOME_DIVERSITY` | 2 |
+| `PROOF_CASTLE_CAPACITY` | 12 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_GATE_APPROACHES` | 10 |
+| `PROOF_GATE_GRAPH` | 8 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 2 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_REGION_GRAPH` | 13 |
+| `PROOF_REGION_LAND_COHERENCE` | 19 |
+| `PROOF_REGION_PASSABLE_LAND` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 23 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 14 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 29 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 23 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 3 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 2 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 21 |
+| `TIER_POTENTIAL_DENSITY` | 2 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 27 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. A separate maintained readiness check confirmed
+there is no active checkpoint and no completion receipt. The run produced no
+candidate package, shortlist, selection, atlas operation, provider request, or
+production mutation. The retired private workspace is 32 KiB.
+
+The pair cap `128` was still the terminal geography rejection in 143 attempts;
+the edge cap `512` was reached twice. The 40,000-node limit also blocked the
+existing deterministic candidate fixture after the larger pair/edge frontiers
+were tried. That same fixture still reached the typed node-limit rejection at
+80,000 and 160,000 nodes, then passed at 320,000. Raise only those measured
+frontiers to 256 bundle pairs, 1,024 edge candidates, and 320,000 search nodes.
+Keep the 256 complete-plan limit, Lowlands capacity assignments at 32, sibling
+pairs per parent at 2, topology, ownership, world-size range, and every quality
+proof unchanged. The higher ceilings do not relax candidate acceptance.
+
+After this correction, the three focused gate-apron, rejection, and generator
+suites pass 51/51 on Windows Node `24.19.0`; Windows `tsc -b` and
+`git diff --check` pass. The dedicated Linux Node `22.22.3` toolchain preflight
+verifies all 11 pinned packages, but its checkout lacks Vitest, so no Linux
+focused-suite result is claimed. Run the next candidate batch only on the exact
+signed successor.
+
+## Corrected-frontier candidate search — 6 October 2026 — source `f5ee3cda`
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run against exact source
+`f5ee3cda6d7595bfb654edee6322fd92f6bc31e6` completed in about 40 minutes
+without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The final maintained
+checkpoint read returned 256 attempts: 214 geography rejections and 42
+proof-rejection attempts. No seed, candidate handle, coordinates, package
+bytes, or raw log were emitted.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 32 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 7 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 9 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 125 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 23 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 13 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| **Total** | **214** |
+
+No attempt reached the edge-candidate truncation code. Proof occurrences are
+nonexclusive across the 42 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 14 |
+| `HYDROLOGY_LAKES_48_96` | 9 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 8 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 8 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 21 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `PROOF_BIOME_DIVERSITY` | 2 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_CASTLE_CAPACITY` | 14 |
+| `PROOF_GATE_APPROACHES` | 20 |
+| `PROOF_GATE_GRAPH` | 17 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 9 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 4 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 2 |
+| `PROOF_NATURAL_STRATEGIC_REGIONS` | 1 |
+| `PROOF_REGION_GRAPH` | 26 |
+| `PROOF_REGION_LAND_COHERENCE` | 28 |
+| `PROOF_REGION_PASSABLE_LAND` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 37 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 17 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 42 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 33 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 5 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 5 |
+| `TIER_I_REGION_BALANCE` | 1 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 29 |
+| `TIER_POTENTIAL_DENSITY` | 2 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 29 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. A separate maintained readiness check confirmed
+there is no active checkpoint and no completion receipt. The run made no
+candidate package, shortlist, selection, atlas operation, provider request, or
+production mutation. Its isolated workspace peaked at about 5.6 MiB.
+
+The previous correction eliminated observed edge-candidate truncation, but the
+balanced bundle-pair frontier remained the terminal geography rejection in 125
+attempts. Apply only the measured next correction: raise bundle pairs `64 →
+128`. Keep the 512 edge cap, 40,000 search-node limit, 256 complete-plan limit,
+32 Lowlands capacity-assignment limit, sibling-pair limit, topology,
+ownership, world-size range, and every quality proof unchanged. This evidence
+does not establish that any previously omitted route would pass all proofs.
+The cap-only change, frontier assertion, and zeroization fixture pass the three
+focused suites 51/51 on Windows Node `24.19.0`; `tsc -b` and `git diff --check`
+also pass. The dedicated Linux Node `22.22.3` toolchain preflight verifies its
+11 pinned packages, but that checkout has no Vitest binary, so no Linux
+focused-suite result is claimed. Run the next batch only against the exact
+signed successor.
+
+## Repeated cap-256 candidate search — 6 October 2026 — source `cda5c24b`
+
+One fresh-seed `generate-candidates --count 1 --maximum-attempts 256` run on
+the exact release source `cda5c24b45f8e7fbddbd9b9d8fc1c83d28e6627e` completed
+after about 39 minutes without an eligible candidate. It used generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3`, the verified
+`linux-x64` profile, and all 11 locked toolchain packages. The maintained,
+source-bound checkpoint read found 256 rejections: 212 geography rejections
+and 44 proof-rejection attempts. The root-seed buffer was zeroized; no seed,
+candidate handle, coordinates, package bytes, or raw log were emitted.
+
+Exact geography rejection counts (one terminal code per geography attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 18 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 94 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 47 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 22 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 9 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| **Total** | **212** |
+
+Proof occurrences are nonexclusive across the 44 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 16 |
+| `HYDROLOGY_LAKES_48_96` | 8 |
+| `HYDROLOGY_MAJOR_OCEAN_SEA_BODIES_4_6` | 1 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 4 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 19 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `PROOF_BIOME_DIVERSITY` | 3 |
+| `PROOF_CASTLE_CAPACITY` | 16 |
+| `PROOF_GATE_APPROACHES` | 11 |
+| `PROOF_GATE_GRAPH` | 10 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 5 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_REGION_GRAPH` | 25 |
+| `PROOF_REGION_LAND_COHERENCE` | 26 |
+| `PROOF_REGION_PASSABLE_LAND` | 15 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 36 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 19 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 44 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 37 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 5 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 27 |
+| `TIER_POTENTIAL_DENSITY` | 3 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 37 |
+
+The maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. A subsequent maintained readiness check confirmed
+there is no active generation checkpoint or completion receipt. The batch
+created no candidate package, shortlist, selection, atlas operation, provider
+request, or production mutation.
+
+This was a second independent cap-256 sample: the preceding source-`9bfdf181`
+run recorded 51 edge-frontier, 74 bundle-pair, 28 node, and 13 complete-plan
+terminal rejections. The current run again hit all four bounds (47, 94, 22, and
+11 respectively). Edge truncation has diagnostic priority over pair
+truncation, so those counts are not total occurrences of each internal limit.
+These results show repeated search-budget exhaustion; they do not prove that
+any omitted route would pass the unchanged ownership and quality proofs.
+
+The local correction widens only the four repeatedly reached ceilings:
+edge candidates `256 → 512`, balanced bundle pairs `32 → 64`, search nodes
+`20,000 → 40,000`, and complete plans `128 → 256`. Lowlands repair capacity
+assignments increase `16 → 32` to keep the documented assignment/pair frontier
+aligned with the 256-plan ceiling. Sibling-pair count, eligibility, world-size
+range, topology, ownership, and all public quality proofs stay unchanged.
+Focused gate-apron, rejection, and candidate-generator tests pass 51/51 under
+the pinned Linux Node 22 toolchain; Windows typecheck and full production build
+also pass. The build retains the known 677.52 kB `RealmMapScreen` chunk warning.
+
+The `cda5c24b` run predates the correction. The signed successor containing
+this evidence carries the correction; bind the next generation run to that
+exact source. GitHub Actions remain disabled. Current live check: the Alpha
+root is HTTP 200 and `/ptr/` is HTTP 404. No PTR cutover or 0.4 release is
+claimed.
+
+## Full Linux suite and exact-source generation — 6 October 2026 — source `1c24e3da`
+
+The published, signed source `1c24e3da1d764d857adcc993c6e542b41a6c9714`
+(`release/0.4-living-realm-quality`, draft PR #385) scopes long-span apron
+pairs to the Lowlands repair lane. Ordinary frontiers retain their 48-cell
+separation bound, and Lowlands repair retains the existing geometry, ownership,
+capacity floor, search budgets and proofs.
+
+The full pinned Linux run on that exact source completed successfully on Node
+`22.22.3` / `linux-x64`: 1,466 of 1,466 suites passed; 13,720 tests passed,
+97 were pending, and none failed or were marked todo. The Vitest JSON report
+records a 17:56.55 suite range from `2026-10-06 10:39:13.546 UTC` through
+`10:57:10.096 UTC`. The earlier invalid root-owned WSL run and the run using the
+Windows SpacetimeDB executable remain failed/inconclusive evidence; this clean
+run used the matching Linux x86_64 SpacetimeDB CLI v2.6.1.
+
+One fresh-seed, private `generate-candidates --count 1 --maximum-attempts 256`
+run then exhausted all 256 attempts with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. It ran on exact source
+`1c24e3da1d764d857adcc993c6e542b41a6c9714`, generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3`, profile
+`linux-x64`, and the 11-package verified toolchain. The process started at
+`2026-10-06 13:00:02 CEST` and returned at `13:35:54 CEST` (about 35:52 wall).
+The authenticated maintained checkpoint read matched that source and toolchain,
+with phase `searching`, sequence/next ordinal 256, and 256 rejections: 219
+geography rejections and 37 proof-rejection attempts. The root-seed buffer was
+zeroized after the read. The batch produced no eligible candidate, package,
+shortlist, selection, atlas operation, provider request or production mutation.
+The encrypted source-bound checkpoint was retained until this safe summary was
+published. Its maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`; the post-abort check at `2026-10-06T11:50:10Z`
+found both generation and completion checkpoint directories absent. The pinned
+operating checkout was clean at the original `1c24e3da` source and no generator
+remained active. Do not replay or relabel it.
+
+Geography rejection counts (one terminal code per geography-exhaustion attempt):
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 27 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 1 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 5 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 50 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 85 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 28 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 15 |
+| `GREATER_REALM_TIER_TWO_STRATEGIC_COMPONENTS_EMPTY` | 1 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 7 |
+| **Total** | **219** |
+
+Proof occurrences are nonexclusive across the 37 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 13 |
+| `HYDROLOGY_LAKES_48_96` | 9 |
+| `HYDROLOGY_MAJOR_OCEAN_SEA_BODIES_4_6` | 1 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 7 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 3 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 19 |
+| `PROOF_BIOME_DIVERSITY` | 10 |
+| `PROOF_CASTLE_CAPACITY` | 13 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_GATE_APPROACHES` | 16 |
+| `PROOF_GATE_GRAPH` | 16 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 10 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_REGION_GRAPH` | 18 |
+| `PROOF_REGION_LAND_COHERENCE` | 21 |
+| `PROOF_REGION_PASSABLE_LAND` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 34 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 22 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 36 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 29 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 10 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 5 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 28 |
+| `TIER_POTENTIAL_DENSITY` | 4 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 27 |
+
+The frontier codes use priority ordering: an edge-limit code takes precedence
+over a pair-limit code, and an edge-coded attempt may also have downstream pair
+truncation. These counts show the bounded frontier is reached but do not prove
+that omitted edges or pairs would pass the full geometry and ownership proofs.
+The new sample therefore does not establish a cause for every rejected world.
+
+### Follow-on bounded edge-frontier trial
+
+The follow-on source correction raises only the raw edge frontier from 192 to
+256 after the exact-source sample reported edge truncation in 85 of 256
+attempts. The 32 output-pair cap, 64 bundle-option cap, repair budgets,
+complete-plan/node limits, map-quality thresholds and all ownership/content
+proofs remain unchanged. This is a bounded search-coverage trial, not a claim
+that the omitted edges contain a valid plan. The five focused generator,
+apron, capacity, advanced-invariant and ordinary-yield files pass 59/59 on the
+Windows working copy; `npm run typecheck` and `npm run build` also pass. The
+full pinned Linux suite and a new exact-source generation must validate the
+successor before any candidate or release claim. The successful build
+retains its existing advisory for a JavaScript chunk above 600 kB.
+
+### Pre-push GitHub and Actions readback — 6 October 2026
+
+The reusable complete inventory remains 3,807 Warpkeep workflow runs in 39
+pages and 3,836 attempts; all 57 rerun attempts from the 28 rerun records were
+already inspected. Fresh latest-run reads found no post-inventory activity:
+Warpkeep's newest run was `36945781752` (2 October, PR event, attempt 1);
+Warpkeep-Live's was `36343178620` (27 September, dynamic event, attempt 1);
+Warpkeep-Assets' was `36461333088` (28 September, PR event, attempt 1); and
+Warpkeep-Water-Engine had no workflow run. The latest-run records were completed;
+no latest-run rerun needed a new attempt read.
+
+The maintained `verify:actions-hold` read at `2026-10-06T11:46:35.797Z`
+confirmed repository Actions disabled and zero active runs in all four
+configured repositories. Its output explicitly does not establish a daily
+usage total or release acceptance. PR #385 is still open/draft against `main`,
+and both its GitHub head and `origin` branch matched
+`1c24e3da1d764d857adcc993c6e542b41a6c9714` before this successor. No hosted
+Verify or deployment is represented by the local tests or the next backup push.
+
+### Publication and exact Linux rerun — 6 October 2026
+
+The signed source and this evidence were pushed non-forced to
+`release/0.4-living-realm-quality`. GitHub readback confirmed exact head
+`ef383f55fc93e78ee02e06a3693860a5d7985671`, tree
+`e19d96d1626eb486b295cfb6af4140d99b054c68`, parent
+`9bfdf181bada7785ed03fb1d70a48c940a5cce3d`, valid signature, and open draft PR
+#385 against `main`. The post-push Actions check at
+`2026-10-06T11:49:41.282Z` again found all four repositories disabled and idle;
+the newest Warpkeep run remained the completed 2 October run, so this branch
+push created no CI or deployment.
+
+The idle pinned Linux checkout now holds exact code source
+`9bfdf181bada7785ed03fb1d70a48c940a5cce3d` (clean detached worktree). Node
+`22.22.3`, `linux-x64`, all 11 trusted toolchain packages, and Linux
+SpacetimeDB CLI v2.6.1 are verified. The full pinned Linux suite on this exact
+edge-frontier source passed: 1,466/1,466 suites, 13,720 tests, 97 pending,
+zero failed/todo. The report range is `2026-10-06 11:50:49.263–12:10:16.279
+UTC` (19:27.017). The detached checkout remained clean and a post-suite
+`git fsck --full` reported no corrupt or missing objects.
+
+During follow-up, `pnpm run build` unexpectedly auto-started `pnpm install` in
+this npm-managed WSL checkout because Linux npm is unavailable. The install
+moved 19 existing package directories under `node_modules/.ignored`, then
+stopped on package lifecycle-build approval. Recovery verified the exact 19
+preserved entries, restored them to their original top-level locations, and
+removed only the newly created pnpm store, metadata, recovery copies, and
+links. The pinned bootstrap `--verify-only` then passed again under the
+`warpkeep` account, and the checkout stayed clean. Do not use `pnpm run` in
+this WSL checkout; it may mutate the npm-managed dependency tree. The Windows
+`npm run build` on the same code source already passed, and the Linux source
+suite above completed before this tooling incident.
+
+### Delivery-path PR integration — 6 October 2026
+
+Signed merge `1e664cf72af2ce96bb3afc21239ffcda9da52912` integrates PR #394's
+canonical absolute Pages plan path. The release branch had passed a relative
+path into `readLocalBindingBoundedFile`, whose contract requires canonical
+`realpath`; the correction resolves the copied plan with Node before invoking
+the operator. All six `publicPagesLocalCandidateScript` tests passed,
+including the new canonical-path contract case.
+
+Signed merge `fce8ea0842a8956b7b1bdd7fab5c122c4a16d727` integrates PR #399's
+Cloudflare Pages legal-text media types. The public mirror plan now includes
+generated `_headers` hosting metadata for the five extensionless legal texts,
+without changing their reviewed bytes or the 341 preserved Alpha root files.
+The Cloudflare postflight requires all five texts and exact header bytes, then
+checks `text/plain; charset=utf-8` on each route. The Cloudflare Content-Type
+tests and the new legal-plan test passed. The exact signed publication-operator
+case that checks the metadata and preserved files passed when isolated with a
+120-second timeout.
+
+On merge checkpoint `fce8ea0`, `npm run build` passed, including TypeScript,
+the production build, Greater Realm public-boundary verification (3,459
+tracked paths; 1,930 scanned entries), production exclusions and Mini App
+integrity. `npm run verify:licenses` passed. The broad five-file Windows test
+run hit per-test timeouts in Git-heavy synthetic-repository fixtures; it showed
+no assertion failure before those timeouts. Run the complete changed-path suite
+under the pinned Linux checkout after the active generation attempt finishes.
+No Cloudflare upload, DNS change or `/ptr/` cutover was performed.
+
+The live repository-variable readback also matches the checked-in deployment
+contract: shared Alpha is `true`, bridge and issuer are both
+`https://auth.warpkeep.com`, OIDC audience is `warpkeep-spacetimedb`, and the
+Alpha and PTR database identities remain separate at their reviewed values.
+With those exact values and `/ptr/`, local `npm run validate:pages-config`
+passed; admission notifications remain explicitly disabled.
+
+The topographic QA allowance change proposed by PR #397 is already present in
+the release branch and its public-boundary verifier passes, so that duplicate
+patch is not needed. The menu, soundtrack and biome-tree changes from PRs
+#375–#378 entered `main` through merged PR #374 and are already in this release
+lineage. PR #385 remains the single release integration target.
+
+## Exact-source private generation — 6 October 2026 — source `54889099`
+
+Signed source `54889099e464862e936459b30da2e681257aadbf` (tree
+`261f074d85bb5197fabb737a0368c2a5bab56f52`) is published at open draft PR
+#385. Its pinned Linux Tier-II fixture passed 1 case with 1 skipped on Node
+`22.22.3`, profile `linux-x64`: 16.41 seconds test time, 24.97 seconds wall,
+and 399,860 KiB peak RSS. This single-fixture result is not a whole-generator
+performance guarantee.
+
+Two independent fresh-seed batches each exhausted 256 attempts and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Both authenticated checkpoint
+reads matched source `54889099e464862e936459b30da2e681257aadbf`, generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3`, profile
+`linux-x64`, and 11 verified packages. Each reached `searching`, sequence and
+next ordinal 256. Neither produced an eligible candidate.
+
+The first batch took 2,276.88 CPU seconds and 35:58.28 wall, with 513,440 KiB
+maximum RSS. It recorded 214 geography rejections and 42 proof-rejection
+attempts:
+
+| Geography rejection code | Occurrences |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 28 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 4 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 5 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 23 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 75 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 24 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 29 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_SLOT_MISSING` | 1 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 14 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| **Total geography rejections** | **214** |
+
+Proof occurrences are nonexclusive across the 42 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 12 |
+| `HYDROLOGY_LAKES_48_96` | 7 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 10 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 6 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 15 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 3 |
+| `PROOF_CASTLE_CAPACITY` | 12 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 1 |
+| `PROOF_GATE_APPROACHES` | 18 |
+| `PROOF_GATE_GRAPH` | 16 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 9 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 4 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 4 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_REGION_GRAPH` | 22 |
+| `PROOF_REGION_LAND_COHERENCE` | 28 |
+| `PROOF_REGION_PASSABLE_LAND` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 32 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 21 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 42 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 4 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 6 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 30 |
+| `TIER_POTENTIAL_DENSITY` | 8 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 33 |
+
+The second batch took 2,341.84 CPU seconds and 36:56.41 wall, with 700,684
+KiB maximum RSS. It recorded 221 geography rejections and 35 proof-rejection
+attempts:
+
+| Geography rejection code | Occurrences |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 35 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 7 |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 2 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 4 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 7 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 28 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 55 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 28 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 36 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_SLOT_MISSING` | 1 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 13 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 5 |
+| **Total geography rejections** | **221** |
+
+Proof occurrences are nonexclusive across the 35 proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 10 |
+| `HYDROLOGY_LAKES_48_96` | 6 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 5 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 19 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 1 |
+| `PROOF_BIOME_DIVERSITY` | 3 |
+| `PROOF_CASTLE_CAPACITY` | 10 |
+| `PROOF_GATE_APPROACHES` | 13 |
+| `PROOF_GATE_GRAPH` | 12 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 8 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 2 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 4 |
+| `PROOF_REGION_GRAPH` | 18 |
+| `PROOF_REGION_LAND_COHERENCE` | 24 |
+| `PROOF_REGION_PASSABLE_LAND` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 33 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 17 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 35 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 29 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 4 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 4 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 23 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 24 |
+
+The edge and pair frontier codes are priority-selected, with edge before pair;
+edge-coded attempts may also have pair truncation. At cap 192 the first batch
+reported 75 edge and 23 pair frontier codes; the second reported 55 edge and
+28 pair codes. These two runs use independent seeds, so their outcomes and
+resource measurements are not paired causal comparisons. Both show the
+configured frontiers can still bind, but do not show that any omitted edge or
+pair would pass geometry or ownership proofs. Do not raise caps automatically.
+
+### Diagnosis correction
+
+The source classifier now gives a known truncated frontier precedence over
+specific missing-parent and capacity-infeasible labels when no complete
+assignment exists. A truncated option set cannot prove that a parent has no
+valid pair or that every full assignment is infeasible. This changes only the
+terminal diagnosis; parent eligibility, geometry proofs, search budgets, and
+candidate acceptance are unchanged. The historical cap-192 tables retain the
+codes emitted by source `54889099`; those counts do not establish an
+untruncated root cause.
+
+### Public-boundary allowance correction
+
+The full check next found an exact-count drift in the public-source scanner:
+`tests/greaterRealmCandidatePackage.test.ts` contains three reviewed
+topographic-QA fixture and type declarations, while the scanner expected two.
+The allowance is now exactly three; no file or directory was added to the
+scanner's allowlist. `npm run verify:atlas-public-boundary` passes with 3,459
+tracked paths and 1,929 scanned entries. Runtime-asset and tracked-file-size
+checks also pass. A Windows-hosted `npm run check` then reported failures
+across native filesystem, permission, runner, and release-operation tests; it
+was stopped before a final suite result. Treat the Windows sweep as
+inconclusive and run the full check under the pinned Linux/Node 22 toolchain.
+
+For both runs, the maintained checkpoint read matched the full source and
+toolchain binding; root-seed buffers were zeroized. The first run's maintained
+abort returned `checkpointAborted: true` and `productionUntouched: true`. The
+second run's subsequent maintained abort returned
+`GREATER_REALM_ATTEMPT_CHECKPOINT_MISSING`; the private workspace then
+contained no attempt checkpoint and no generator process was active. The
+second run had produced no candidate, package, shortlist, selection, atlas
+operation, provider request, or production mutation. Each run used its own
+owner-only workspace under the existing private root; the default workspace
+and all prior checkpoints were left untouched.
+
+## Exact-source private generation — 6 October 2026 — source `bf9fc3b0`
+
+Signed source `bf9fc3b05a157fbeedf72e73c75697f2ef547ca7` (tree
+`4509463e906dd3b405c2c4bcb480461113534ed5`) is published at open draft PR
+#385. The exact-source Linux Tier-II fixture passed 1 case with 1 skipped on
+Node `22.22.3`, profile `linux-x64`: test duration 15.83 seconds, wall time
+25.33 seconds, peak RSS 397,616 KiB. At cap 128 the same fixture measured
+14.33 seconds, 25.46 seconds, and 443,140 KiB. This is one fixture, not a
+whole-generator performance guarantee.
+
+One fresh-seed maximum-256 private batch on this exact source returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The process was still CPU-active at
+40:07 elapsed and exited shortly afterward; that run did not have an exact
+end-to-end timer, so no more precise duration is claimed. The authenticated
+checkpoint read matched source, generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node `22.22.3`, toolchain profile
+`linux-x64`, and 11 verified packages. It confirmed phase `searching`, sequence
+and next ordinal 256, and 256 rejected attempts: 215 geography rejections and
+41 proof-rejection attempts. The root-seed buffer was zeroized in `finally`.
+No seed, handle, coordinate, candidate bytes, or raw checkpoint was emitted.
+
+Exact geography rejection occurrences (one code per geography-exhaustion
+attempt):
+
+| Rejection code | Occurrences |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 22 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 7 |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 1 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 4 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 11 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 15 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 85 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 27 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 25 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 10 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 8 |
+| **Total geography rejections** | **215** |
+
+Proof occurrences below are nonexclusive across the 41 proof-rejection
+attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 15 |
+| `HYDROLOGY_LAKES_48_96` | 5 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 4 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 2 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 6 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 24 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 5 |
+| `PROOF_BIOME_DIVERSITY` | 5 |
+| `PROOF_CASTLE_CAPACITY` | 15 |
+| `PROOF_GATE_APPROACHES` | 20 |
+| `PROOF_GATE_GRAPH` | 19 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 7 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 3 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_REGION_GRAPH` | 26 |
+| `PROOF_REGION_LAND_COHERENCE` | 26 |
+| `PROOF_REGION_PASSABLE_LAND` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 21 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 41 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 30 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 11 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 6 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 23 |
+| `TIER_POTENTIAL_DENSITY` | 1 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 29 |
+
+At cap 160 the prioritized frontier diagnostic was the raw edge limit in 85
+attempts; 15 reported the unchanged bundle-pair limit, 11 the complete-plan
+limit, and 27 the search-node limit. Frontier codes retain one reason per
+geography rejection, ordered with `EDGE_CANDIDATE_LIMIT` before
+`BUNDLE_PAIR_LIMIT`; edge-coded attempts can also have a downstream pair
+truncation, so 15 is not the total number of pair-limit occurrences. The
+cap-128 and cap-160 batches used independent fresh seeds, so their rejection
+counts are not paired causal measurements. Neither diagnostic proves a
+discarded edge or pair would pass geometry or ownership proofs.
+
+After the safe read, the maintained abort returned `checkpointAborted: true`
+and `productionUntouched: true`. No candidate, package, shortlist, selection,
+atlas operation, provider request, or production mutation resulted. The new
+workspace is owner-only and source-specific; the default workspace, retained
+seed, and all earlier checkpoint workspaces were left untouched.
+
+The full post-push GitHub run inventory remained at 3,807 runs across 39 pages
+and 3,836 recorded attempts, including 57 inspected attempts across 28 rerun
+records. There were no active or queued runs and no run for this candidate
+SHA. Actions permission is disabled. PR #385 remains open/draft, with no
+hosted verification or deployment established.
+
+## Exact-source private generation — 6 October 2026 — source `85531010`
+
+Signed source `855310104d7579e79ecf68e084976be4e701015a` (tree
+`4cd0f4e2923e0e47aef5eca6de21314187521e36`) was published at open draft PR
+#385 before one fresh-seed, maximum-256 batch ran on Node `22.22.3`, profile
+`linux-x64`, with 11 verified toolchain packages. The run lasted `2,175.34`
+seconds and returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`.
+
+The authenticated checkpoint read matched the exact source, generator
+`greater-realm-v2-natural-continent-pr-a.19`, Node version and toolchain
+profile. It confirmed phase `searching`, sequence and next ordinal 256, and
+256 rejected attempts: 220 geography rejections and 36 proof-rejection
+attempts. The root-seed buffer was zeroized in `finally`; no seed, handle,
+coordinate, candidate bytes or raw checkpoint was emitted.
+
+Exact geography rejection occurrences (one code per geography-exhaustion
+attempt):
+
+| Rejection code | Occurrences |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 28 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 3 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 6 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 12 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 6 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 96 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 24 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 25 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 14 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 6 |
+| **Total geography rejections** | **220** |
+
+Proof occurrences below are nonexclusive across the 36 proof-rejection
+attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 12 |
+| `HYDROLOGY_LAKES_48_96` | 3 |
+| `HYDROLOGY_MAJOR_OCEAN_SEA_BODIES_4_6` | 1 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 6 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 4 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 10 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 4 |
+| `PROOF_BIOME_DIVERSITY` | 5 |
+| `PROOF_CASTLE_CAPACITY` | 12 |
+| `PROOF_GATE_APPROACHES` | 11 |
+| `PROOF_GATE_GRAPH` | 11 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 9 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 1 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 1 |
+| `PROOF_REGION_GRAPH` | 16 |
+| `PROOF_REGION_LAND_COHERENCE` | 24 |
+| `PROOF_REGION_PASSABLE_LAND` | 6 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 32 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 12 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 36 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 26 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 9 |
+| `TIER_I_REGION_BALANCE` | 2 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 22 |
+| `TIER_POTENTIAL_DENSITY` | 2 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 29 |
+
+At cap 128 the prioritized frontier code was the raw edge-candidate limit in
+96 attempts; six reported the bundle-pair limit. Twelve reported the
+complete-plan limit and 24 the search-node limit. Because edge truncation has
+higher diagnostic priority, edge-coded attempts may also have had a downstream
+pair truncation; six is not the total pair-limit count. The cap-96 sample was
+an independent seed, so its 105 edge-cap / one pair-cap profile is not a
+paired performance or outcome comparison. Neither sample proves that any
+discarded edge would pass the preserved ownership and quality proofs.
+
+The Linux public Tier-II fixture
+`tests/greaterRealmTierTwoCapacityAuthority.test.ts -t "retains one fordable Tier-II spine"`
+passed 1 case with 1 skipped at cap 128 (test duration 14.33 seconds, wall
+25.46 seconds, peak RSS 443,140 KiB). The same fixture at cap 96 took 14.59
+seconds internally and 415,724 KiB peak RSS. This is a bounded single-fixture
+measurement, not a whole-generator performance guarantee. Windows typecheck
+and 51 focused apron/rejection/generator tests passed for the cap-128 source.
+
+After the run, the maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. No candidate, package, shortlist, selection,
+atlas operation, provider request or production mutation resulted. The default
+workspace and its retained seed were left untouched; this run used a separate
+owner-only source-specific workspace under the existing private root.
+
+The complete post-push GitHub inventory covered all 3,807 runs in 39 pages:
+3,836 attempts, 28 records with reruns, no active or queued run, and Actions
+permission disabled. The push created no run. PR #385 remains open/draft; no
+hosted verification or deployment is established.
+
+The pair helper deterministically ranks pairs and balances endpoint use; its
+focused tests cover determinism, endpoint constraints, and malformed pairs,
+but do not establish that the bounded frontier retains a world-level passing
+plan. Review reproduced no ranking correctness defect. Raw-edge truncation
+has remained the prioritized diagnostic across three independent fresh-seed
+samples at caps 96, 128 and 160 (105, 96 and 85 reports respectively); this is
+evidence the bound is frequently reached, not a causal cap comparison. The
+local successor raises only that raw cap from 160 to 192. The 32 bundle
+options, repair budgets, complete-plan and node limits, ownership and
+candidate proofs remain fixed. Windows typecheck and all 51 focused
+apron/rejection/generator tests pass. Publish the signed source and run the
+same pinned Linux fixture before another fresh maximum-256 sample. Do not
+widen again automatically if the bound remains reached.
+
+## Exact-source private generation — 6 October 2026 — source `d036f000`
+
+Signed source `d036f000e18a584f267281e89bc8e4fc932d2c15` (tree
+`27f9e860d34fd6eb997ca8c876de06119a1bdbc9`) was published at open draft PR
+#385 before one fresh-seed, maximum-256 batch ran on pinned Node `22.22.3`,
+profile `linux-x64`, with all 11 verified toolchain packages. The run lasted
+`2,138.58` seconds and returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`.
+
+The authenticated checkpoint read matched that exact source, generator
+`greater-realm-v2-natural-continent-pr-a.19`, toolchain profile and Node
+version. It confirmed phase `searching`, sequence and next ordinal 256, and
+256 rejected attempts: 225 geography rejections and 31 proof-rejection
+attempts. The root-seed buffer was zeroized in `finally`. No seed, private
+handle, coordinate, candidate bytes or raw checkpoint was emitted.
+
+Exact geography rejection occurrences (one code per geography-exhaustion
+attempt):
+
+| Rejection code | Occurrences |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 28 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 8 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 6 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 6 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT` | 1 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_EDGE_CANDIDATE_LIMIT` | 105 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 22 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 34 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 11 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+| **Total geography rejections** | **225** |
+
+The proof counts below are nonexclusive occurrences across the 31
+proof-rejection attempts:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 11 |
+| `HYDROLOGY_LAKES_48_96` | 4 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 5 |
+| `HYDROLOGY_MINOR_STREAMS_120_240` | 1 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 5 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 16 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 4 |
+| `PROOF_BIOME_DIVERSITY` | 4 |
+| `PROOF_CASTLE_CAPACITY` | 11 |
+| `PROOF_FOREST_PATCH_COMPOSITION` | 2 |
+| `PROOF_GATE_APPROACHES` | 14 |
+| `PROOF_GATE_GRAPH` | 14 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 9 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 4 |
+| `PROOF_REGION_GRAPH` | 19 |
+| `PROOF_REGION_LAND_COHERENCE` | 20 |
+| `PROOF_REGION_PASSABLE_LAND` | 9 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 27 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 15 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 31 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 17 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 12 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 7 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 19 |
+| `TIER_POTENTIAL_DENSITY` | 5 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 20 |
+
+At the cap-96 source, the earliest truncation was the raw edge-candidate cap in
+105 attempts; one other attempt reached the bundle-pair cap. Six reached the
+complete-plan limit and 22 reached the search-node limit. This proves the
+retained raw-edge frontier is still clipped in this sample. It does not prove
+that any omitted edge would survive downstream geometry, ownership and
+quality proofs. The 32-option bundle limit, 16 capacity assignments, two
+Lowlands sibling pairs, complete-plan cap, search-node cap and every candidate
+proof remain unchanged.
+
+The first attempted fresh run used the default private workspace, but the
+maintained API returned `GREATER_REALM_ATTEMPT_CHECKPOINT_EXISTS` before
+creating a new checkpoint. Safe inventory showed that workspace still held
+257 encrypted records for the separate retained seed bound to source
+`19b3422`; it was preserved without inspection, replay or deletion. The
+diagnostic run used a separate owner-only workspace under the existing private
+root, outside the repository and Desktop. The maintained abort returned
+`checkpointAborted: true` and `productionUntouched: true` for that exact d036
+checkpoint. It produced no accepted candidate, batch package, shortlist,
+selection, atlas operation, provider request or production mutation.
+
+The exact-source Linux public fixture
+`tests/greaterRealmTierTwoCapacityAuthority.test.ts -t "retains one fordable Tier-II spine"`
+passed 1 case with 1 skipped at cap 96 (Node `22.22.3`; test duration 14.59
+seconds, wall 25.47 seconds, peak RSS 415,724 KiB). Its recorded cap-64
+baseline on source `ac7cb80c` passed the same 1 case with 1 skipped (test
+duration about 13.98 seconds, wall 21.43 seconds, peak RSS 405,780 KiB). This
+single-fixture comparison measured roughly 0.61 seconds and 9.7 MiB more at
+cap 96; it is not a broad performance guarantee. Windows typecheck and the
+focused apron/rejection/generator tests passed. The broader Windows package
+suite remains blocked before package assertions by its existing
+`GREATER_REALM_PRIVATE_PATH_UNTRUSTED_ANCESTOR` guard; do not weaken it.
+
+After the push, the complete 39-page GitHub inventory still reported 3,807
+runs, 3,836 attempts, 28 records with reruns and no active or queued run.
+Actions permission remained disabled and the push created no run. PR #385
+remained open/draft at this signed source. The branch push is source backup,
+not hosted verification, merge or deployment.
+
+## Exact-source private generation — 6 October 2026 — source `d3d83068`
+
+The pinned Linux runner executed one fresh-seed, 256-attempt batch on exact
+signed source `d3d83068726df885e513f20eeb3f6efb389c49a8`, tree
+`557bfe56a02c2fc03f945dfd0aa955e113ede153`, using Node `22.22.3` and the
+verified `linux-x64` toolchain (11 packages). It ran for about 30 minutes and
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`.
+
+The authenticated checkpoint read matched the source, generator
+`greater-realm-v2-natural-continent-pr-a.19`, toolchain profile, and Node
+version. It confirmed phase `searching`, sequence/next ordinal 256, and 256
+recorded rejected attempts: 222 geography-exhaustion attempts and 34
+proof-rejection attempts. The recovered root-seed buffer was zeroized in a
+`finally` block. The read emitted no seed, handle, coordinates, candidate
+bytes, or raw checkpoint data.
+
+Exact geography rejection occurrences (one code per geography-exhaustion
+attempt):
+
+| Rejection code | Occurrences |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 37 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 3 |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 1 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 4 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 8 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED` | 76 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 37 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 42 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 11 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 3 |
+| **Total geography rejections** | **222** |
+
+The 34 proof-rejection attempts had these nonexclusive failed-proof
+occurrences:
+
+| Failed proof | Occurrences |
+| --- | ---: |
+| `CASTLE_SUITABILITY` | 12 |
+| `HYDROLOGY_LAKES_48_96` | 7 |
+| `HYDROLOGY_MAJOR_RIVERS_48_72` | 6 |
+| `INNER_GATE_THRONE_REDUNDANCY` | 4 |
+| `LIVING_WORLD_DORMANT_CAPACITY` | 14 |
+| `PROOF_ADVANCED_GEOMORPHOLOGY` | 2 |
+| `PROOF_BIOME_DIVERSITY` | 1 |
+| `PROOF_CASTLE_CAPACITY` | 12 |
+| `PROOF_GATE_APPROACHES` | 14 |
+| `PROOF_GATE_GRAPH` | 14 |
+| `PROOF_GEOLOGICAL_HIGHLAND_BARRIERS` | 8 |
+| `PROOF_MOUNTAIN_SYSTEM_COMPOSITION` | 2 |
+| `PROOF_NATURAL_LAND_SILHOUETTE` | 1 |
+| `PROOF_NATURAL_LANDMASS_TOPOLOGY` | 3 |
+| `PROOF_NATURAL_OUTER_BOUNDARY` | 2 |
+| `PROOF_REGION_GRAPH` | 17 |
+| `PROOF_REGION_LAND_COHERENCE` | 19 |
+| `PROOF_REGION_PASSABLE_LAND` | 5 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_FROSTMERE` | 30 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_MIREFEN` | 17 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_QA` | 34 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_STONEWAKE` | 28 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_SUNSCAR` | 5 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_THRONEHEART` | 8 |
+| `REGIONAL_HYDROGEOMORPHOLOGY_TIER_II` | 9 |
+| `TIER_III_SMALLEST_PASSABLE_LAND` | 23 |
+| `TIER_POTENTIAL_DENSITY` | 3 |
+| `TOPOGRAPHIC_QA_COMPLETE` | 25 |
+
+The correction made the prior generic apron no-match class more honest:
+76 attempts reached a no-match after at least one viable upstream frontier had
+been truncated. That proves the retained-prefix search was incomplete; it does
+not prove a discarded option would satisfy all geometry and ownership checks.
+Eight attempts hit the complete-plan limit and 37 hit the search-node limit,
+which remain bounded outcomes. Do not loosen proofs, geometry, or search caps
+without a reproducible threshold-preserving diagnosis of the specific frontier.
+
+No candidate, package, shortlist, selection, atlas, provider request, or
+production mutation resulted. After the safe aggregate was captured, the
+maintained `generate-candidates --abort-checkpoint` command returned
+`checkpointAborted: true` and `productionUntouched: true`; this exhausted
+checkpoint is retired and must not be replayed.
+
+The next diagnosis must identify which retained frontier was truncated (bundle
+options, Lowlands-repair bundles/pairs, or capacity assignments) and whether
+the cap is hiding a valid alternative. Use deterministic public fixtures and a
+safe, source-reviewed diagnostic before another private batch. Any cap change
+must retain all candidate proofs and be justified by measured runtime and
+memory bounds.
+
+The post-push GitHub inventory still returned all 3,807 runs complete across
+all branches and event classes, with 3,836 recorded run attempts, 28 records
+having more than one attempt, and no active, queued, or newly triggered run.
+Repository Actions permission remained `enabled: false`; PR #385 remains open
+and draft at this exact signed source. This branch push is source backup only,
+not hosted verification, merge, or deployment.
+
+## Previous exact-source private generation — 6 October 2026 — source `85a2a7cf`
+
+The pinned Linux runner executed the maintained private generator against exact
+signed source `85a2a7cf2826c3526cfacac150827746d6cfa62a` on profile `linux-x64`
+with Node `22.22.3`; preflight verified 11 locked packages. One fresh-seed run
+used the supported 256-attempt maximum and ran for about 30 minutes before
+returning `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`.
+
+The authenticated safe checkpoint read matched the exact source, generator
+`greater-realm-v2-natural-continent-pr-a.19`, pinned toolchain profile/version,
+phase `searching`, sequence 256, next ordinal 256, and 256 recorded rejected
+attempts. The aggregate was 224 geography-exhaustion attempts and 32
+proof-rejection attempts. The recovered root-seed buffer was zeroized in a
+`finally` block. The read emitted no seed, candidate handle, coordinates,
+private package, or raw checkpoint bytes.
+
+Exact geography rejection-code occurrences (one code per geography-exhaustion
+attempt):
+
+| Rejection code | Occurrences |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 30 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 8 |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 1 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 5 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 8 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH` | 96 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH_AFTER_LOWLANDS_REPAIR_CHECK` | 1 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 30 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 32 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 9 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+| **Total geography rejections** | **224** |
+
+These are safe rejection occurrences from one fresh sample, not a paired
+comparison or causal proof. In particular, the 96 generic apron no-matches do
+not prove the complete plan reached either final apron lane. One attempt was
+classified after the Lowlands repair check; eight reached the bounded
+complete-plan limit. No candidate or eligible batch was accepted or written;
+there was no shortlist, selection, atlas, provider operation, or production
+mutation. After the summary was captured, the maintained
+`generate-candidates --abort-checkpoint` command returned
+`checkpointAborted: true` and `productionUntouched: true`. This private
+checkpoint is retired and must not be replayed.
+
+The result moves diagnosis to the generic no-match plan-return path and the
+Crownwood sibling-pair frontier. Trace these separately with bounded local
+fixtures. Do not launch another private generation batch until a concrete
+threshold-preserving correction is reproduced, covered by regression tests,
+and published as a signed source checkpoint.
+
+## Earlier release checkpoint — 5 October 2026
+
+The first 256-attempt private search ran against signed, pushed source
+`cff3479b7351ff253e4066d359278603462fc2bf` (tree
+`7f9dc2e8ddd2ac38bd58f6fc4fba9df148092911`), matching the release branch and
+PR #385 at run start. The source contains the owner-approved hydrology
+correction from [#384 comment
+5995094139](https://github.com/ael-dev3/Warpkeep/issues/384#issuecomment-5995094139),
+the generated frozen-water PTR catalog, Alpha source restoration, closure pins,
+and the stale-SFX closure test correction. The old
+`GR-A-WB4ATWJNGTDQCGGH` / H19/T03 candidate remains invalid for this source.
+
+The supported private generator ran on exact source `cff3479` with the maximum
+supported 256-attempt bound. It completed all 256 ordinals and exited
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no eligible candidate or batch
+package was written, selected, or published. The encrypted checkpoint remained
+in the existing mode-0700 private workspace until its safe rejection summary
+was synchronized; it was then retired through the maintained abort API with
+production untouched. The authenticated summary path zeroized the recovered
+root-seed buffer after classification. No raw checkpoint bytes, seed,
+coordinate, preview, or private package was printed or exported.
+
+The following are exact code-occurrence counts, not mutually exclusive map
+totals: a proof-rejected map can report several failed proofs. The leading
+Tier-II solver outcomes were dry-gate apron no-match (96), dry-gate apron
+search-node limit (52), and missing capacity assignment (36). Other codes:
+active-grid count out of range (29); undersized primary component (9); legacy
+Lowlands placement (6); castle suitability (6); lakes outside accepted range
+(5); major rivers outside accepted range (3); throne/inner-gate redundancy
+(2); living-world dormant capacity (5); advanced geomorphology (1); biome
+diversity (3); castle capacity (6); gate approaches (8); gate graph (8);
+geological barriers (4); natural-land silhouette (1); landmass topology (1);
+region graph (8); region land coherence (16); passable-land region proof (2);
+regional hydrogeomorphology by area (Frostmere 21, Mirefen 11, QA 24,
+Stonewake 17, Sunscar 3, Throneheart 8, Tier II 8); smallest passable Tier III
+(17); topology QA completion (16); and Tier-I balance (1). These are
+reproducible generation/proof rejections, not evidence of a hydrology verifier
+defect. No shortlist, selection, atlas import, provider request, or production
+mutation occurred.
+
+The second fresh-seed run was bound to signed, pushed source
+`c7c494bbfe9888ebfac3aa910aa8cc3b42839b96` (tree
+`bc614d509bfd5965658a9a65f78a865638612442`), a documentation-only successor
+of cff; `git diff cff3479..c7c494b -- scripts spacetimedb src public` was
+empty. It exhausted all 256 ordinals with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`, producing no eligible batch,
+shortlist, selection, atlas operation, or provider request. The authenticated
+checkpoint API reported 223 geography rejections and 33 proof rejections.
+The exact code-occurrence counts (multi-proof maps can contribute several
+codes) were: dry-gate apron no-match (95), search-node limit (51), missing
+Tier-II assignment (34), active-grid count out of range (26), undersized
+primary component (8), legacy Lowlands placement (7), castle suitability (9),
+throne-component repair forbidden (2), lakes outside range (6), major ocean/sea
+body count (1), major rivers outside range (6), inner-gate/throne redundancy
+(7), dormant capacity (17), advanced geomorphology (3), biome diversity (1),
+castle capacity (9), forest patch composition (2), gate approaches (16), gate
+graph (12), geological barriers (6), mountain-system composition (1), region
+graph (18), region land coherence (22), passable-land region proof (5),
+regional hydrogeomorphology by area (Frostmere 21, Mirefen 14, QA 31, Stonewake
+18, Sunscar 5, Throneheart 10, Tier II 4), smallest passable Tier III (16),
+tier-potential density (3), and topographic QA completion (25). These top
+solver counts are within one or two of the preceding independent cff run
+(96/52/36), confirming a systemic bounded-search issue rather than a seed-
+specific failure. After this evidence was synchronized, the maintained abort
+operation returned `checkpointAborted: true` and `productionUntouched: true` for
+the exhausted c7 checkpoint. No private checkpoint bytes or seed were exposed.
+
+The earlier exact-source `e1ac103` search separately exhausted 128 ordinals;
+its safe summary remains in the preceding Git history. The separate
+retained-seed checkpoint remains bound to source `19b3422`; the maintained CLI
+has no seed-import or cross-source migration path. It remains unchanged and
+must not be relabeled. The subsequent c7 run confirmed that cff's rejection
+profile was systemic. The c7 checkpoint was retired after its evidence sync;
+the corrective c5 run and next action are recorded below. Do not spend more
+seeds on an unchanged source; preserve every eligibility and content-quality
+proof when correcting the solver.
+
+Native targeted validation passes 455 cases across 13 affected files; the
+sealed-launch preparation check and 1,271-member source-closure check pass.
+Earlier Windows build/type/module/catalog/PTR/hydrology checks remain valid for
+their recorded scopes. The broad runtime-release suite retains its Windows
+private-temp ACL guard limitation. GitHub Actions is disabled; successful local
+checks and Git pushes do not establish hosted CI or deployment.
+
+### Bounded Tier-II bundle-frontier correction — 5 October 2026
+
+Review of the two duplicated bundle builders found that each kept the first 32
+valid pairs from lexicographic edge-pair enumeration after score-ranking up to
+64 edges. Because each first edge was compared with every later edge before the
+outer loop advanced, one early endpoint could occupy much of the bounded
+option list. This is a concrete frontier-selection defect; whether correcting
+it resolves the observed rejection profile remains to be measured on the next
+exact-source private batch.
+
+The correction uses one shared normal/Lowlands-repair builder. It retains the
+same 64 input-edge and 32 output-bundle caps, score ranking, distinct endpoint
+requirements, a minimum 4-cell axial separation, corridor-conflict exclusion,
+and all later eligibility/content proofs. Ordinary frontiers retain their
+48-cell upper separation bound; the restricted Lowlands-repair frontier permits
+longer pairs for large components. It gathers only compact viable-pair
+descriptors,
+selects a deterministic score-ranked frontier by gradually balancing use of
+each edge endpoint, and materializes private coordinate footprints only for the
+selected pairs. Lowlands repair still uses its existing restricted edge source;
+no policy, map-quality threshold, protocol, or player-facing feature changed.
+
+A full pinned Linux run on 2026-10-06 exposed a regression in that bundle filter:
+the Frostmere/Mirefen repair-authority fixture, which passes at the original
+`d7757cec` release checkpoint, was rejected at `2c5f0d3a` because one Tier-II
+primary component finished at 5,041 cells against its unchanged 6,627-cell
+minimum. Isolated replays showed the upper 48-cell separation cutoff caused the
+rejection. Allowing longer spans restored the fixture, while applying that
+exception to ordinary frontiers changed their published gate layouts. The
+current source keeps the 48-cell cap for ordinary frontiers and removes it only
+for the restricted Lowlands-repair frontier. This keeps the published capacity
+floor, corridor-conflict checks, and authority proofs intact. The full suite
+must pass again before another candidate batch or release claim.
+
+The correction was signed and published as `2c5f0d3ab07af4fcfcf11f46ed9dff630c9e235c`
+on the release branch and PR #385. Its native pinned-toolchain preflight passed.
+`tests/greaterRealmGateApronSearch.test.ts` passed all 16 cases, including
+endpoint balance, deterministic ordering, constrained-graph fallback and
+malformed/duplicate descriptor rejection. `tests/greaterRealmCandidateGenerator.test.ts`
+passed all 21 deterministic generator regressions, including its pinned digest
+and expected rejection fixture. `npm run typecheck` passed (`tsc -b`).
+
+The maintained private generator then ran once on exact source `2c5f0d3`, with
+maximum attempts set to 256. It consumed all 256 ordinals and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE` after about 39 minutes. An authenticated
+read through the maintained checkpoint API reported phase `searching`, ordinal
+256, and 206 geography-exhaustion / 50 proof-rejection attempts. The safe read
+returned only source identity and aggregate codes; its recovered root-seed
+buffer was zeroized immediately. No eligible batch, package, shortlist,
+selection, atlas publication, provider request or production mutation resulted.
+
+The apron frontier correction measurably changed the outcome profile. Dry-gate
+apron no-match fell to 84 from 95 on c7 (96 on cff), and search-node-limit fell
+to 29 from 51 (52 on cff). Missing capacity assignment remained 34, effectively
+unchanged from c7's 34 (36 on cff). Six candidates now report complete-plan
+limits. More candidates reached later proofs: proof rejections rose to 50 from
+33 on c7. The code-occurrence counts are not mutually exclusive across
+multi-proof maps: active-grid count (31); apron no-match (84); missing Tier-II
+assignment (34); apron search-node limit (29); apron complete-plan limit (6);
+smallest passable Tier III (36); topographic QA completion (34); regional
+hydrogeomorphology QA (50), Frostmere (46), Mirefen (27), Stonewake (40), Tier
+II (6), Throneheart (11), Sunscar (8); Lowlands throne-component repair
+forbidden (5); advanced geomorphology (4); region land coherence (33), passable
+land (15), region graph (31); gate approaches (22), gate graph (19); dormant
+capacity (18); Tier-I balance (2); tier-potential density (5); biome diversity
+(4); castle capacity (23), castle suitability (23); geological barriers (7);
+legacy Lowlands placement (5); minor-stream range (1); mountain composition
+(3); primary component undersized (12); inner-gate/throne redundancy (3); lakes
+(5); major rivers (8); natural strategic regions (1); region-boundary
+alignment (1); outer-boundary proof (1); and landmass topology (1).
+
+This verifies a partial solver improvement, not release readiness. After these
+results were synchronized, the maintained abort API retired the exhausted
+`2c5f0d3` checkpoint and returned `checkpointAborted: true` and
+`productionUntouched: true`. No private checkpoint bytes or seed were exposed.
+
+The follow-up review found a second concrete frontier defect in Lowlands repair:
+when both sibling children had their own apron bundles, the repair considered
+only those bundles. If every own-terrain pair failed the existing footprint or
+minimum-separation compatibility checks, it never considered the already
+permitted non-Lowlands borrowing fallback. The signed successor
+`fee38320f81f54647e17ed8351b3f2a4b45199dc` now prefers compatible own pairs and
+uses borrowed pairs only when that compatible set is empty. Borrowing excludes
+both Lowlands and the requested child, and keeps the 64-bundle option cap, two
+sibling-pair cap, overlap and separation checks, ownership proofs, and all map
+eligibility/content gates unchanged.
+
+The successor passed `tests/greaterRealmGateApronSearch.test.ts` (18/18),
+`tests/greaterRealmCandidateGenerator.test.ts` (21/21, including pinned digest
+and expected rejection), `npm run typecheck`, and the pinned Linux toolchain
+preflight (11/11 packages). It is pushed to the release branch and draft PR
+#385. One exact-source private batch ran on `fee3832`; its safe aggregate result
+is recorded below. No second seed batch was attempted on `2c5f0d3`. Actions
+remains disabled, so a push is neither hosted verification nor deployment.
+
+Read-only live checks on 5 October: `https://warpkeep.com/` returned 200,
+`https://warpkeep.com/ptr/` returned 404, and `https://warpkeep.pages.dev/ptr/`
+returned 200. The PTR custom-domain cutover and authenticated owner acceptance
+remain open.
+
+### Lowlands sibling-pair fallback batch — 5 October 2026
+
+The maintained generator ran once on exact source
+`fee38320f81f54647e17ed8351b3f2a4b45199dc`, with the maximum 256 attempts. It
+exhausted all ordinals after about 36 minutes and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated checkpoint read
+confirmed sequence 256, phase `searching`, and `nextOrdinal` 256. The
+aggregate-only reader zeroized the recovered root-seed buffer in `finally`;
+the seed, candidate handle, coordinates and private candidate bytes were not
+printed or copied. No candidate package, shortlist, selection, atlas
+publication, provider request or production mutation resulted.
+
+The safe profile contains 227 geography-exhaustion and 29 proof-rejection
+attempts. Geography rejection codes are mutually exclusive per attempt:
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 71 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 26 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 17 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH` | 53 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 9 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 9 |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 37 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 5 |
+
+The 29 proof-rejection attempts can each report multiple failed proofs, so
+these code occurrences are not mutually exclusive: regional hydrogeomorphology
+QA (27), Stonewake (23), region graph (22), Frostmere (21), topographic QA
+completion (21), gate approaches (17), Tier III passable-land minimum (17),
+gate graph (16), region land coherence (16), Mirefen (15), geological barriers
+(12), dormant capacity (12), region passable land (10), lakes 48–96 (8), Tier
+II QA (7), castle capacity (7), castle suitability (7), Throneheart (6),
+Sunscar (6), inner-gate/throne redundancy (4), biome diversity (4), advanced
+geomorphology (2), major rivers 48–72 (2), tier-potential density (2), mountain
+system composition (1), ocean/sea-body count (1), and natural landmass topology
+(1).
+
+This is one fresh-seed sample, not a paired comparison with the `2c5f0d3`
+batch; do not attribute any individual code-count shift to the source change.
+Do not replay or relabel the exhausted seed. This summary was synchronized in
+signed commit `5c97383e530ce3b67e4595159e3d0533bed4f7b3`. After publication, the
+maintained abort command returned `checkpointAborted: true` and
+`productionUntouched: true`. No private checkpoint bytes or seed were exposed.
+
+Before that publication, the full paginated Actions inventory showed 3,807
+completed runs across all five event classes, no queued or running runs, and
+28 rerun attempts. Repository Actions setting remained `enabled: false`; no
+workflow, deployment or provider operation was started. The PR head remains a
+draft pending integration and the owner PTR journey is not yet live.
+
+### Tier-II assignment rejection classification — 5 October 2026
+
+Review of the 71 `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` outcomes found
+that one rejection code covered two distinct cases: no parent/component had a
+compatible sibling-apron pair, or component triples existed but every triple
+failed minimum-cell or boundary capacity checks. The signed source
+`40f5c708a92b765232e0d35c139eaf765ba8ab66` now keeps the existing
+`ASSIGNMENT_MISSING` code for the first case and emits
+`CAPACITY_ASSIGNMENT_INFEASIBLE` for the second when neither search lane has a
+valid assignment. This changes only safe rejection classification. It does
+not alter map rules, minimums, geometry, ownership, ordering or search caps.
+
+Validation passed: apron and rejection suites (25/25), deterministic generator
+regression (21/21, including pinned digest and expected rejection),
+`npm run typecheck`, and `git diff --check`. The new classification was
+measured in the exact-source batch below. Actions remains disabled, so local
+checks and Git publication are not hosted verification or deployment.
+
+### Exact-source assignment-diagnostic batch — 5 October 2026
+
+The maintained generator ran once on exact source
+`40f5c708a92b765232e0d35c139eaf765ba8ab66`, with maximum attempts set to 256.
+After about 33 minutes, it exhausted all ordinals and returned
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated checkpoint read
+confirmed sequence 256, phase `searching`, and `nextOrdinal` 256. Its
+aggregate-only reader zeroized the recovered root-seed buffer in `finally`;
+the private seed, candidate handle, coordinates and candidate bytes were not
+printed or copied. No candidate package, shortlist, selection, atlas
+publication, provider request or production mutation resulted.
+
+The safe summary contains 219 geography-exhaustion and 37 proof-rejection
+attempts. Geography codes are mutually exclusive per attempt:
+
+| Rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 29 |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 65 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 10 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH` | 58 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 6 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 6 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 35 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 9 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 1 |
+
+Proof occurrences are not mutually exclusive across a proof-rejected attempt:
+regional hydrogeomorphology QA (36), Frostmere (33), region land coherence
+(28), topographic QA completion (28), Stonewake (28), Tier III passable-land
+minimum (28), region graph (19), Mirefen (18), dormant capacity (15), gate
+approaches (13), gate graph (12), castle capacity (12), castle suitability
+(12), region passable land (11), Sunscar (10), Throneheart (7), Tier II QA (5),
+geological barriers (5), major rivers 48–72 (6), tier-potential density (4),
+natural landmass topology (3), lakes 48–96 (3), advanced geomorphology (3),
+biome diversity (2), natural land silhouette (1), Tier-I region balance (1),
+minor streams 120–240 (1), and inner-gate/throne redundancy (1).
+
+`CAPACITY_ASSIGNMENT_INFEASIBLE` appeared once; `ASSIGNMENT_MISSING` remained
+65. The latter still merges a parent with no sibling pair in either lane and a
+cross-lane coverage split where each parent has a pair in only one lane. This
+is a fresh-seed sample, not a paired comparison with `fee3832`; do not attribute
+individual count shifts to the classification change. Do not replay or relabel
+the exhausted seed. The safe summary was synchronized in signed commit
+`d9ff3157`. At `2026-10-05 21:25:13 UTC`, the pinned Node 22.22.3 runner invoked
+the maintained `generate-candidates --abort-checkpoint` operation on exact
+source `40f5c708a92b765232e0d35c139eaf765ba8ab66`; it returned
+`checkpointAborted: true` and `productionUntouched: true`. The checkpoint is
+retired; run another batch only after the next diagnostic correction is
+reviewed, tested, signed, and synchronized.
+
+
+## Follow-on assignment classification correction — 6 October 2026
+
+This diagnostic uses the per-parent count of components with at least one
+eligible sibling pair in each search lane. If exactly one parent has zero
+eligible components in both lanes, the generator emits its parent-specific
+Crownwood, Ironveil, or Glasswater reason. Multiple missing parents retain
+generic `GATE_PARENT_SLOT_MISSING`. If every parent is represented in at least
+one lane but neither lane covers all parents, it retains
+`ASSIGNMENT_MISSING`. If a complete component combination was attempted and
+failed immutable capacity, `CAPACITY_ASSIGNMENT_INFEASIBLE` keeps precedence.
+Invalid diagnostic inputs remain fatal errors. This distinguishes the
+remaining outcomes without changing map selection, geometry, ownership,
+thresholds, or search caps.
+
+Deterministic classification cases cover each single-parent code, multiple
+missing parents, cross-lane coverage split, capacity infeasibility, and invalid
+diagnostics. The focused rejection/apron suites passed 26/26, the exact
+generator regression passed 21/21, and `npm run typecheck` passed. Actions
+remains disabled, so these are local checks, not hosted CI or deployment
+evidence.
+
+## Exact-source parent diagnostic batch — 6 October 2026
+
+The pinned Linux runner executed one fresh-seed batch on signed source
+`a18930b4d2e442558bd0b01f465149b745d641a6`, with maximum 256 attempts. It
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The maintained checkpoint
+reader authenticated the exact source binding and reported phase `searching`,
+sequence/next ordinal 256, and 256 recorded attempts. No eligible candidate,
+package, shortlist, selection, atlas publication, provider request, or
+production mutation resulted. The reader zeroized its recovered root-seed
+buffer in `finally`; the persistent private checkpoint must be retired after
+this summary is synchronized.
+
+The 215 geography rejections were:
+
+| Geography rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 28 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 8 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 2 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 5 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH` | 65 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 27 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 71 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 7 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 2 |
+
+There were 41 proof-rejection attempts. The following proof occurrences are
+nonexclusive: Tier III smallest passable land (30), lakes 48–96 (4), regional
+hydrogeomorphology QA (40), Frostmere (35), Stonewake (28), Throneheart (12),
+dormant capacity (14), castle capacity (18), gate approaches (11), gate graph
+(11), region land coherence (20), region graph (18), castle suitability (18),
+Mirefen (22), region passable land (9), major rivers 48–72 (10), Sunscar (9),
+topographic QA completion (27), Tier II regional QA (12), biome diversity (5),
+geological highland barriers (5), mountain system composition (2), natural
+outer boundary (1), inner-gate/throne redundancy (5), tier-potential density
+(3), and advanced geomorphology (3).
+
+All 71 formerly generic parent-slot failures identify Crownwood as the sole
+parent with no eligible sibling-pair component in either lane. This is a
+diagnostic observation from one fresh seed, not proof of a deterministic
+root-cause or a paired comparison with the `8bd8de9` run. Signed commit
+`85e46002` synchronized these safe aggregates. At `2026-10-05 23:33:33 UTC`,
+the pinned runner invoked the maintained `generate-candidates --abort-checkpoint`
+operation on exact source `a18930b4d2e442558bd0b01f465149b745d641a6`; it
+returned `checkpointAborted: true` and `productionUntouched: true`. This
+checkpoint is retired. Trace the Crownwood sibling frontier without changing
+geometry, quality thresholds or search caps absent a concrete source-level
+defect.
+
+## Crownwood Lowlands repair correction — 6 October 2026
+
+Source inspection found a concrete fallback defect in
+`lowlandsRepairSiblingPairsFor`. The fallback correctly excludes Lowlands as a
+donor, but it requested borrowed-only bundles for both children. Because the
+Crownwood pair is Lowlands child 0 plus Frostmere child 1, child 0 consequently
+received an empty option list even though its own reserved Lowlands bundles
+must remain the fixed side of that pair. When no compatible own-terrain pair
+existed, fallback pairing was therefore impossible for Crownwood.
+
+The correction routes child 0 through its own-bundle ranking even in fallback
+mode; only the non-Lowlands sibling receives donor-only bundles, still excluding
+both Lowlands and itself. Existing own-pair preference, the 64-option cap,
+two-pair cap, geometry, ownership, and all quality proofs remain unchanged.
+The new regression covers both the fixed Lowlands side and donor exclusion.
+Focused apron/rejection tests pass 27/27, generator regression 21/21,
+`npm run typecheck`, and `git diff --check` pass. This source correction has
+now had one exact-source fresh-seed run; its safe profile follows. Do not claim
+the Crownwood gap is cleared based on code correction or one independent seed.
+
+## Exact-source fallback correction batch — 6 October 2026
+
+The pinned Linux runner ran one fresh-seed batch on signed source
+`de1a5f63b4933539bac916f3a0a2d7ddd8089c69`, with a maximum of 256 attempts. It
+returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The authenticated
+checkpoint reader verified source binding, phase `searching`, sequence/next
+ordinal 256, and all 256 attempts. No candidate, private package, shortlist,
+selection, atlas publication, provider request, or production mutation
+resulted. The recovered root-seed buffer was zeroized in `finally`. Signed docs
+commit `77716367` synchronized this safe result; at `2026-10-06 00:33:02 UTC`,
+the maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true` on the exact source. The checkpoint is retired.
+
+The 216 geography rejections were:
+
+| Geography rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 24 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 4 |
+| `GREATER_REALM_TIER_TWO_ASSIGNMENT_MISSING` | 4 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 2 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 5 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH` | 107 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 32 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_CROWNWOOD_SLOT_MISSING` | 22 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 10 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 6 |
+
+There were 40 proof-rejection attempts. These proof occurrences are
+nonexclusive: region land coherence (24), Tier III smallest passable land
+(26), topographic QA completion (33), regional hydrogeomorphology QA (40),
+Frostmere (32), Mirefen (21), Stonewake (26), Throneheart (12), dormant
+capacity (16), gate approaches (21), region passable land (8), region graph
+(25), gate graph (18), geological highland barriers (8), Sunscar (8), major
+rivers 48–72 (8), castle capacity (13), advanced geomorphology (4), lakes
+48–96 (6), castle suitability (13), natural landmass topology (1), mountain
+system composition (1), Tier I region balance (1), Tier II regional QA (6),
+biome diversity (3), tier-potential density (3), inner-gate/throne redundancy
+(6), and forest patch composition (2).
+
+The aggregate shows 22 Crownwood parent-slot failures and four lane-split
+`ASSIGNMENT_MISSING` outcomes; the former `a18930b4` independent sample had 71
+Crownwood failures and zero lane-split outcomes. The corrected code fixes the
+proven impossible Lowlands fallback path, but these are separate fresh seeds,
+so the count change is descriptive and not a causal or paired result. The
+largest observed geography class is now dry gate apron no-match (107). The next
+step is to inspect the global apron no-match path for a concrete defect without
+relaxing geometry, thresholds, or search limits.
+
+## Apron no-match stage diagnostics — 6 October 2026
+
+Signed source `0109aaf0e3a5c8b0d9614180b9e027fb1d5be59c` adds four safe
+rejection codes for the furthest final-plan rejection stage observed across
+completed plans in an exhausted attempt: Lowlands repair ownership, Tier-II
+ownership forest, Tier-I repartition, or post-repartition ownership. Attempts
+that never reach a complete plan retain the legacy generic no-match code. This
+does not change candidate selection, acceptance, geometry, ownership rules,
+thresholds, or search limits; it records no seed or coordinates. Legacy
+checkpoint parsing still accepts the old generic code.
+
+Local validation on this source passed `npm run typecheck` and 48 tests across
+the rejection, apron-search, and candidate-generator suites. The separate
+`greaterRealmTierTwoCapacityAuthority` public ordinal-18 full-candidate fixture
+reaches both search lanes but fails afterward at
+`GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED`; this is a post-search,
+fail-closed capacity result and is not caused by or classified by the new
+no-match metadata. Keep the primary-capacity floor unchanged. No private batch
+has run on this diagnostic successor yet. Next: sync the exact source to the
+pinned Linux runner, verify the locked toolchain, and run one fresh-seed
+maximum-256 batch to obtain the stage breakdown for the prior 107 generic
+no-match outcomes.
+
+### Pre-push Actions inventory — 5 October 2026, 21:37 UTC
+
+The complete paginated repository inventory returned 3,807 workflow runs across
+all branches and event classes: 10 dynamic, 2,703 pull-request, 699 push, 156
+workflow-dispatch, and 239 workflow-run records. There were no queued or active
+runs and 28 listed runs had `run_attempt` greater than one. All listed runs
+were complete: 2,491 successful, 496 failed, 801 cancelled, and 19 skipped.
+Repository Actions permission readback returned `enabled: false`. The Verify
+workflow listens to pull requests and pushes; Pages deployment is downstream
+of successful Verify runs on pushes to `main`. Other inspected workflows are
+manual dispatches. This branch push cannot start hosted Actions while the
+repository setting remains disabled; it cannot deploy Pages.
+
+## Exact-source follow-on batch — 5 October UTC / 6 October Budapest
+
+The maintained generator ran once on signed source
+`8bd8de9d5673fe63dff73bc9196fb9c953b61f3a` with a fresh seed and a maximum of
+256 attempts. It exhausted the batch with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`; no eligible candidate, package,
+shortlist, selection, atlas publication, provider request or production
+mutation resulted.
+
+The authenticated checkpoint API verified source binding, phase `searching`,
+sequence 256, `nextOrdinal` 256 and 256 recorded attempts. It returned only
+aggregate rejection data; the recovered root-seed buffer was zeroized in
+`finally`, and no private seed, candidate handle, coordinates or candidate
+bytes were emitted. The safe rejection totals are:
+
+| Geography rejection code | Attempts |
+| --- | ---: |
+| `GREATER_REALM_ACTIVE_GRID_CELL_COUNT_OUT_OF_RANGE` | 30 |
+| `GREATER_REALM_LEGACY_LOWLANDS_PLACEMENT_FAILED` | 7 |
+| `GREATER_REALM_TIER_TWO_CAPACITY_ASSIGNMENT_INFEASIBLE` | 2 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_COMPLETE_PLAN_LIMIT` | 6 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_NO_MATCH` | 53 |
+| `GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT` | 36 |
+| `GREATER_REALM_TIER_TWO_GATE_PARENT_SLOT_MISSING` | 81 |
+| `GREATER_REALM_TIER_TWO_PRIMARY_COMPONENT_UNDERSIZED` | 4 |
+| `GREATER_REALM_TIER_TWO_THRONE_COMPONENT_REPAIR_FORBIDDEN` | 4 |
+
+There were 33 proof-rejection attempts. Their nonexclusive proof occurrences
+were: castle suitability (13), lakes 48–96 (4), major rivers 48–72 (6),
+inner-gate/throne redundancy (2), dormant capacity (14), advanced geomorphology
+(2), biome diversity (9), castle capacity (13), forest patch composition (1),
+gate approaches (12), gate graph (12), geological highland barriers (5),
+natural land silhouette (2), natural landmass topology (2), region graph (19),
+region land coherence (23), region passable land (10), Frostmere (23), Mirefen
+(18), regional hydrogeomorphology QA (31), Stonewake (26), Sunscar (4),
+Throneheart (6), Tier II QA (5), Tier III smallest passable land (22),
+tier-potential density (2), and topographic QA completion (24).
+
+This fresh-seed profile has 81 `GATE_PARENT_SLOT_MISSING`, zero
+`ASSIGNMENT_MISSING`, and two capacity-infeasible geography outcomes. It is not
+a paired comparison with the 40f5 sample, so do not attribute its count shifts
+to the diagnostic change alone. This evidence was synchronized in signed commit
+`a2c3589e`. At `2026-10-05 22:28:22 UTC`, the pinned Node 22.22.3 runner
+invoked the maintained `generate-candidates --abort-checkpoint` operation on
+exact source `8bd8de9d5673fe63dff73bc9196fb9c953b61f3a`; it returned
+`checkpointAborted: true` and `productionUntouched: true`. The checkpoint is
+retired before further candidate searches.
+
+## Current native verification evidence — 3 October 2026
+
+
+Published signed source `a89173f9` / tree `e3cf809b` is synchronized locally and remotely (publication `3bf80e59`, complete Actions post inventory `0c4245c5`). Its parent is `6088c974`; game baseline is `a0f6a55f`. Main `cb282bab` and PRs #380/#381 remain separate. Resolve the next signed repair identity from Git; Actions remains held disabled under the current runtime policy.
+
+The existing initial-owner four-file run passed all 139 cases, application/all-root-test and relocation-module types, and MJS syntax (summary `276442df`, post `3bd626b9`). The complete relocation successor passed all 79 original cases with no failures, skips or unfinished cases (summary `fc0cb87e41f0ecb1a3f4b94b376eada74e7c09b716e6cdea56be2668a6706074`, post `d43bbb945e2fbdf2781f9dfdfa2a5e2bea32ffc938074deef8a9d46dcf8cf77d`). All original bodies, 816 assertion calls, native structuredClone and command bounds remain intact. Earlier failed whole-file runs and inherited type diagnostics remain failed history; remaining module coverage is open.
+
+Fresh prepare/check at 08:42 UTC actually failed: prepare exit 1 / LOCAL_BINDING_RUNTIME_PROCESS_FAILED, with no check child or completed archive. Post `ddc8b4e` confirms its source/index/refs and full process-group closure while retaining passed:false. Genuine materializer diagnosis `a0cab32e` / post `1d1a94a0` identified TREE_INVALID caused by the sole tracked regular executable (Git 100755). It failed before compiler launch. The four-path repair preserves exact ordinary/executable Git modes throughout materialization, verification and cleanup, and updates the helper fingerprint. At 09:30:37.942–09:31:04.142 UTC, all 21 real native regression cases passed; root/application/all-test types and relocation-module types separately exited 0/null. Summary `9fba62b89904d59ac52d628600e621b9088d58a8b97bf0fd3af220f89d0437c0`; independent post `6c379b1054ba3095d88cd022365bbf33f127763474e85ffca8e3b72f0d90fb99` confirms owner/three children/full group absent and source/index/refs held. The supported family successor changed five metadata outputs, reproduced all 16 and passed protected/static policies (`00dab22d`, post `2a5b8518`). Full fresh compilation remains required from a clean signed checkpoint.
+
+Actual fixed-target inspection failed at its first SQL operation (summary `45ab116d`, post `a5d84d2c`). The protocol diagnosis (`5d7d2d63`, post `5b6dbb4e`) proves HTTP 403 before parsing. Comparison `1d5c4d5a` / post `691ccc59` observed metadata and RawV9 schema HTTP 200, actual database-owner/stored-publisher identity equality and an unexpired JWT claim; both installed-program and ordinary table SQL returned the 25-byte INVALID_PTR_OWNER_SESSION refusal. All deployed tables are private. Pinned CLI SQL also exited 1 with that refusal (`0f060dd0`, post `bb891928`). These are closed read-only groups with all source/index/refs held. No database program, schema, rows or owner/bootstrap state changed. The module rejects ordinary publisher connections before private SQL authorization. The token is not proved expired; neither a parser change nor repeating authentication resolves this defect.
+
+At 07:39:52.697 UTC, public reads returned Alpha 200, PTR 404 and host 2.10.2. Cloudflare metadata at 07:55:12.624 UTC (`cc2fb250`) showed authWorker `8e758507` without PTR/managed-owner bindings; admin-secret presence does not expose its value. Preserve existing Alpha/G001/G002/notifications. Before backend update, use a reviewed data-preserving compatibility recovery and actual deployed-state observation; metadata initial_program is insufficient current-program proof. Use genuine prepare-update, explicit apply and read-only reconciliation; uncertain/lost acknowledgements remain nonzero with no automatic resubmission. No provider or Pages publication authority follows from local tests. Authenticated owner PTR, complete release proof, owner journey and final device/render acceptance remain open.
+
+## Earlier development records (historical; directions superseded)
+
+The current continuation above supersedes the old next steps below. Their source scopes, failed attempts and receipt facts remain unchanged.
+
+This checkpoint descends from the signed, published `97f4041b` development source. Resolve its actual HEAD/tree and synchronized branch state from Git and the publication receipt. Alpha 0.3.43 is live; owner PTR 0.4 remains unpublished. Main `cb282bab` and PR380/381 are unchanged. Actions remains disabled under the current operating policy.
+
+Completed source repairs and checks: G002 setup and cleanup are bound by `october-release-g002-cleanup-focused-97-v2-20261003T0246Z-summary.json` (`e6295e59`), 107/107 across two complete files, 02:39:59.317–02:40:16.263 UTC on 3 October. App/all-tests noEmit and connected-module syntax exited 0/null; independent native post `4926c46e` retained the original leader, three children and full PGID absence, with source/index/refs held. The earlier focused V1 106-pass/one-failure report remains failed evidence: the mock captured no allocated directories; capturing actual HOME at CLI attestation corrected that test without changing verifier `791f9e06` bytes. This did not execute a live G002 workload.
+
+Supported source-family derivation `3290f49d` retained all 16 outputs. Exactly five outputs changed: four existing workflow closure-digest pins and one verifier member hash in the closure manifest. Eleven other output bodies and all compiled bodies/triggers stayed unchanged; no compiler ran. Five complete family test files passed 194/194 (`october-release-g002-cleanup-family-focused-97-v1-20261003T0253Z-summary.json`, `7e0e0180`), 02:47:43.118–02:53:44.920 UTC. Independent native post `d79a4047` retained original actor/group absence and the actual nine-path source/index/refs.
+
+The complete indexed fake-database fixture still cancelled at the unchanged 120/180 limits (`october-release-relocation-fixture-index-v5-97f4041b-20261003T0256Z-summary.json`, `c138063e`), 02:55:12.702–02:57:24.540 UTC. Its strict parser refused cancellation; parsed result is null, actual exit 1/null and preservationError null. Independent native post `869b7c26` retains the original actor/group/source/index/refs. Ten selected controls separately passed with complete strict parsing (`october-release-relocation-fixture-controls-v5-97f4041b-20261003T0300Z-summary.json`, `259c1ffe`), 03:00:39.394–03:00:43.476 UTC, actual 0/null; post `fbe18164` retains closure. The original 69-case suffix is byte-exact, but those 69 unmatched cases were omitted, not executed or skipped, in this selected run. No whole-file speed or coverage pass follows. The earlier selected-seven operator's false result arose from a wrong 69-skips expectation; raw reconciliation `e04d509d` establishes only seven actual passes and does not rewrite the original failed operator report.
+
+The earlier full run `0595bd98` ran 23:55:34.469 UTC on 2 October–01:02:22.433 UTC on 3 October. Its 45/82 commands retained 701 ordinary files with 12,997 passed/68 skipped/zero failed, namespace 260 passed/one skipped with satisfied fixed disposition, and the first 36 module files. Module37 cancelled at 120s; source preservation and original actor/group closure were independently retained. The ordinary skip dispositions remain unsupported. Clean-source notification20/20 and its post `cc558ec9`/`ca303e31` are complete. Do not repeat these completed domains without changed inputs or mislabel the raw skips as passes.
+
+Failed diagnosis records remain: unchanged-source trace `558e8fee` completed all ten imports in roughly 3s, then cancelled. Phase2 `a0a9d83a` (01:43:07.822–01:45:23.233 UTC) observed first-case:done within 10s, disproving an inference of first-case stall from earlier report silence; it still failed and its relative `test:stderr` file reference was rejected by the strict parser. Native post `038c3b00` and restoration `7534c571` retain closure and clean original97 bytes at 01:47:50.497 UTC. Actual restoration inner12b72c succeeded; the surrounding tool's later exit 1 was a missing-filename read. Clean-original duration `711b39e7` (01:49:58.219–02:01:03.742 UTC) also cancelled under diagnostic-only 600/660s bounds, stderr 0 and preservationError null. Native-only post `d432b769` retains owner1925170/child1925227 and group absence. The subsequent whole76 optimization `e219ffb1` also cancelled at 120s. None of these failed reports is waived or rewritten.
+
+Four finite current-user namespace controls passed with independent closure: normal, adopted detached-orphan reaping and original-owner death before registration or after fsync before ACK. They establish the finite UID1000/capability-drop/loopback/reaper mechanism, not genuine Spacetime/G002 or connected20 execution.
+
+Mobile v1 `825e12c6` failed before server/Chrome on a stale dist chunk; v2 `e7900487` loaded World but failed on an omitted favicon 404 before capture. Actual v3 `e76ee419` ran 02:15:34.830–02:16:57.219 UTC, with eligible complete sample `2e5664d9` lasting 60,013.9ms and CPU first-GL p95 84.8>83.4ms. Normal Chrome exit 0/profile removal/ownedRemaining 0 and native exit 0/two original-group absence probes retained source/index/refs. Compiled8b fixture JS and operating97/currentCSS are separately bound; no GPU/presented-frame, phone or final-A acceptance follows. Diagnosis `9fbc7498` records parent/render RAF p95 83.7ms and zero join issues; individual duplicate matrix/attribute costs remain unmeasured. The twelve historical nominal World misses retain their failed scopes.
+
+Latest bounded diagnosis used the signed, published facf6731 development source (tree a7d9dea9), publication receipt `7148f41b`. Whole-file trace `4dbe1938` ran 2026-10-03T03:27:59.411Z–2026-10-03T03:30:14.698Z; its recorded channel observed 24 callback returns and case 25 start before cancellation. This is progress, not parsed test acceptance: strict parsing rejected the relative stderr file reference and the run stayed failed. Original actor/group closure `db396a16` and narrow restoration `1d443928` returned the native checkout to exact published bytes.
+
+A fixture-only cell lookup prototype `69c69bc6` preserved every original 79 test body and added 3 controls. Selected 13 controls passed with strict parsing at 2026-10-03T03:40:49.463Z–2026-10-03T03:40:53.762Z (bfdb5f2a; independent post4b0b9b8b), with 69 original cases omitted. The complete 82-case file still cancelled at unchanged 120s Node/180s parent bounds at 2026-10-03T03:41:47.617Z–2026-10-03T03:44:02.962Z (c7bb2b00); strict cancellation refusal remains failed evidence, not a timeout waiver. Independent post `24f9b085` and restoration `c546762b` retained original actor/group absence, all 3405 other physical sources/index/refs and clean published `facf` bytes. The prototype remains ignored QA only and is not the current implementation; its speed benefit is unmeasured.
+
+Incoming PR #382 head `7d5a167b` targets the quality branch. Its nine commits are unsigned; source integration must preserve author history and current fixes, then use a signed reviewed checkpoint. Review `f29083b2` found three reachable audio risks: ambience beyond the shared voice cap, offscreen ambience persisting even in reduced-motion lanes, and lost construction cues when different building kinds share a project revision. Head-bound repair drafts are not yet executed or integrated. Three new imports require supported source-family namespace refresh and current compiled-input validation; previous compiler or device evidence does not cover this source.
+
+First measure repeated fixture preparation, route lookup and whole-state snapshot costs before another optimization; do not repeat an unchanged full batch or infer a single stalled case from buffered output. Complete module 37 under the maintained bounds, then resume modules 38–74 and the recorded remaining coverage. Review and test the three PR #382 repairs before integrating its visual/audio work. Retain all existing native, connected, mobile, owner/device and hosted delivery requirements.
+
+PRIMARY retains bound summaries, causal sample/diagnosis and restoration; explicitly native-only posts retain their original source/actor scope. These partial native receipts supply no complete production authority. Earlier raw evidence and the historical remainder below are unchanged.
+
+## Historical checkpoints and directions (superseded)
+
+The original record below is unchanged, including focused715/9 and full ordinary changed-index failures. Its old resumption instructions are superseded by the current evidence above.
+
+## Current native verification evidence — 3 October 2026
+
+### Native ordinary failure retained; focused repairs completed — 3 October
+
+This coherent repair checkpoint descends from published, synchronized `5cddb1a7` / tree `f2b1e73e` (`181c4950`) and integrates eleven reviewed repair candidates plus five mechanically derived metadata changes. Its eventual signed identity and publication must be read from actual receipts. Main and PR380/381 remain separate; Actions remains disabled under the runtime configuration.
+
+The maintained fixed namespace launcher was provisioned and exercised at `5cddb1a7`, 21:16:15.709–21:21:01.869 UTC on 2 October. Its four-file result is 260 passed assertions and one known source-declared negative-control skip (`1d624ae3`), with independent post-readback `3c2decf9`. The skip remains raw skipped evidence, not a pass or complete-source authority.
+
+The first full ordinary run completed 701 files: 12,970 passed, 11 failed and 68 skipped, 21:27:38.054–22:23:22.873 UTC on 2 October at the report/command scope (`abe08587`, raw `3871f281`, independent failure review `9f94afac`); the outer summary records 21:27:38.044–22:23:23.306 UTC. It did not time out. The producer then stopped with `NATIVE_SOURCE_VERIFICATION_CHANGED`: tracked source bytes and refs held, but the canonical index changed. Preserve that failed preservation result. The intentional index-flag fixture used the canonical checkout; the reviewed repair moves it to a temporary private clone. Ordinary test fixtures also need the real account home and functioning replacement-object positive controls, while strict source Git inspection remains isolated.
+
+The eleven reviewed candidates cover those fixture/environment failures, complete-file ordinary batching, observed bootstrap/publisher/CSS fixture defects and bounded callback retirement. Supported sixteen-output source-family derivation preserves the retained compiled bytes; only five metadata outputs change. This is source derivation, not a fresh operation compilation or accepted-main proof.
+
+The focused run completed 23:02:31.224–23:23:21.144 UTC on 2 October (`d735f7d6`; outer `7587cd`, exit 1). Fifteen complete files contain 724 assertions: 715 passed, nine failed and none skipped or unfinished. The first lifecycle group is 121/9 of 130: all 63 fullstack and 47 native-producer cases passed; 11 notification cases passed and nine clean-checkout guards rejected the then-unsigned source overlay (raw `a1c44227`). The observed-failure group passed all 400 cases (raw `05cac86a`), and the five protected-family files passed all 194 (raw `75525ffa`). App/all-tests noEmit and three module syntax checks each returned normal 0/null; no command timed out. The aggregate remains failed.
+
+Independent post-readback `cc2294f3` proves the original owner, seven recorded children and full process group absent twice on the original boot. Current overlay raw source `fedafc01`, physical index `ba0d21bd` and refs `3ce87123` held during this focused run. This does not repair or erase the earlier full ordinary run's changed-index preservation failure. After a clean local signed checkpoint, rerun the complete 20-case notification file and retain independent closure before remote backup; do not weaken its clean-source guard or relabel the nine failed cases.
+
+A separate unprivileged owner-death rehearsal completed normal, before-registration and after-fsync-before-ack modes, with independent record/absence audits (`e1aa5d02`). These are bounded sleep fixtures, not the maintained twenty-leaf connected profile, general orphan-reaping proof or release authorization. Connected containment, complete native/dependency coverage, authenticated proof transport, bounded hosted admission, owner play, physical devices and final-A performance remain open. Earlier service, compiler and rendered receipts retain their recorded source scopes.
+
+The older dated follow-up directions below are retained history and are superseded by this current section.
+
+### Native service verification completed; connected execution remains closed — 2 October
+
+The signed, published code source is `41e760fe` / tree `01c62e80`, parent `b9ca8ca7` (publication `3cabd70b`). Actual service run `native-source-verification-20139fbf5cc23e963fdac93e4f7f15bd1f2678023acc96ea6e94c4ff145a15a8.json` ran 17:46:06.292–17:47:33.932 UTC. All nine actual command terminals are 0/null. Auth-bridge ordinary/Workerd reports passed 484 assertions in 18 files and 18 assertions in one file; recovery ordinary/Workerd reports passed 1,499 in 49 files and 68 in eight files. The strict total is 2,069 assertions across 76 files, with no failures, skips, pending or todo cases. Four type checks and one generated Workerd declaration check are five separate terminal checks, without test counts.
+
+Independent `october-release-native-services-41e760fe-v1-20261002-post-outer.json` (SHA `21ad303e5283be616853ea254100c04c82f7d10fbf1c9b861bc02c3cfe3231c7`) recorded its proof at 18:01:27.208 UTC; the independent reader subsequently exited 0. It independently reparsed all four raw partitions and bound all nine started/terminal/report/stdout/stderr records. Original producer 697556 and its nine recorded children were physically absent; the whole original group was empty twice on the original boot. All 3,406 raw source files, physical index, refs, local signature, actual tools/configuration and selected six-package root archive slice held. Retention `17eb5f18` copied the summary, proof and four raw reports byte-for-byte to PRIMARY.
+
+The connected plan `366e8cdd9391c329ad55efb90d30d4903ad3c58c08f7ba8e67b2bed7d3eb9ba1`, retained in native `artifacts/qa` as `october-release-native-connected-41e760fe-v1-plan-20261002.json`, has `executionImplemented:false`. The actual attempted `--run` exited 1 with `NATIVE_SOURCE_VERIFICATION_CONNECTED_CONTAINMENT_NOT_IMPLEMENTED`. No connected child check ran; that observed refusal has no separate disk receipt. Detached G002 server/CLI identities and cleanup plus root client SDK/tsx/esbuild runtime capture remain required before execution.
+
+These are local service and planning observations, with `completeCoverage:false` and `productionAuthorized:false`. They do not prove full dependency provenance, hosted CI/OIDC, accepted-main source transport, provider deployment, owner play, physical-phone performance or final-A R06. The unchanged source family needs no regeneration for the producer/planner changes. Next collect the full ordinary/isolated-namespace/module test profile from the next clean signed source, finish connected containment and authenticated proof transport, then review admitted hosted operations and remaining owner/mobile requirements. All configured Actions repositories remain disabled; numeric limits stay in runtime configuration. Earlier failed service-template and genuine `b9ca8ca7` development preparation evidence remains historical at its own source.
+
+## Historical local checkpoints (superseded)
+
+The retained sections below preserve their original evidence and follow-up text. Their old resumption directions are superseded by the current section above.
+
+## Current Actions policy and completed mobile regression — 2 October 2026
+
+### Successful development preparation and service configuration repair — 2 October
+
+Signed development source `b9ca8ca7` is published and synchronized (publication `98592bd5`). Its genuine prepare/check ran 16:47:35.063–17:12:47.573 UTC. Both actual CLI children exited 0/null; their completions match all nineteen fields and all 102 private candidate/journal outputs. Receipt `49cfec4a`, matching results `9e2cbac6` and independent post-outer `8efc2eef` retain the exact source, physical index, HEAD and refs. The original wrapper and both recorded children, with their original births and entire process group, were absent in both readbacks. Compact review `7540600d` and bounded raw records are copied byte-for-byte to PRIMARY. This is a development rehearsal, with no candidate export, source integration, provider deployment or release authority.
+
+The first service plan then failed at 17:18:49.795 UTC with `NATIVE_SOURCE_VERIFICATION_AMBIENT_SERVICE_CONFIGURATION`. Its guard incorrectly included the tracked root `.env.example` in the active environment-file namespace. No service test or type command ran. Keep failed operator `888a6a5e`, actual nonzero CLI/stderr and independent closure `b63039e1`; the adapter's empty-stdout headline is not the underlying failure. Configuration capture now exempts only the exact non-loaded root template and existing auth-bridge example. Actual ambient configuration and executable shadows remain rejected. The regression uses unreadable malformed example bytes and rejects a near-name environment file, proving the exemption does not read values or admit active configuration.
+
+The connected-module continuation now has a source-derived `--plan-connected` recipe preserving every existing verification leaf. It remains planning-only: `executionImplemented:false`, and `--run` rejects it explicitly until actual detached G002 server/CLI births and process groups are retained and closed. Launcher exit and the producer's own group cannot prove a detached server stopped. Root TypeScript-script aliases require root tsx 4.23.0; module pure tests separately retain module tsx 4.20.6. Root client SDK and root tsx/esbuild transitive inputs must also be captured before execution. The real structured G002 receipt and additive protocol-v18 parser remain required; no synthetic assertion counts or aggregate-script substitute is introduced.
+
+All three complete affected native files passed 176 assertions, with app/test noEmit and namespace shell syntax (summary `6706b0a8`, actual outer 0/null). The final nine-path overlay is `1428923a`; earlier Windows 92-case results retain their own platform and pre/post-correction scope. Independent post-outer source/index/ref/process readback is recorded alongside the exact raw reports. Independent reachability review confirms these producer/CLI/planning changes are outside the protected source family: the unchanged minimal evidence reader is the sole privileged import. No family rewrite, operation compiler rerun or workflow change is needed for this checkpoint.
+
+Next, publish any still-local reviewed checkpoint, run the fixed service plan from that exact clean signed source, and retain its actual results before advancing the remaining native domains. Full verification, authenticated source transport, admitted hosted operations and measured owner/mobile acceptance remain open. Actions stays governed by the operational configuration; no new runner minutes, installation, provider mutation or Desktop sibling has been created.
+
+### Native verifier partitions and isolated receipt reader — 2 October
+
+Signed checkpoint `889e37c5` is published and synchronized (publication `bc6adc21`; all configured Actions repositories disabled and idle). Its genuine preparation ran 14:38:23.115–14:50:03.943 UTC and exited unsuccessfully before a prepared handle or check. The original failure and independent source/index/ref/process closure `1d80b4fa` remain retained. Do not reuse its failed draft/candidate as completed preparation.
+
+One operation-only diagnostic ran 15:13:56.283–15:14:02.683 UTC on the same held source. Actual worker failure `SEALED_REALMS_BUNDLES_ABSOLUTE_PATH_INVALID` is preserved in `39445902`; independent `459ca43b` confirms every recorded actor and both original groups absent with exact source, physical index and refs. The workflow evidence import had pulled the local verifier and production-dist exclusion vocabulary into the operation graph. The new minimal receipt reader imports no test runner/build/dependency producer. It preserves bounded owned CAS/source validation and unconditional incomplete-authority refusal; the operation artifact path/graph guards are unchanged.
+
+The maintained verifier now has a separate `--plan-services` recipe for exact ordinary/Workerd service reports, separate type checks and generated declaration checking. It reopens ignored ambient configuration and actual service tools/shims before each child; service-local Node shadows are refused. A bounded root dependency slice compares existing lock-SRI archives against every selected package file, mode and bin/link fact, retaining uncovered records. It does not install packages or establish full root/module/service provenance, audit, registry signatures or release authority. The namespace partition may classify only its exact source-declared unsupported-runtime negative control as inapplicable; raw skipped outcomes and `allTestsPassed:false` remain intact. No ordinary/service skip exemption is added.
+
+Source-only family derivation `1d167e80` passes paths/inventory/family after the reader split. Actual focused run `8c0c9fd8` ran all ten complete selected files: 327 assertions passed and 22 failed, with no skips, pending cases or runtime errors. All four real operation-lane compiler regressions, bundled reader import, strict incomplete-receipt refusals, services and namespace tests passed. App/test types and shell syntax separately passed. Independent `53a04fd9` closes the original leader, three children and full group with exact source, physical index and refs. Keep that unsuccessful aggregate result.
+
+The 21 dependency fixture failures came from the default DOM test environment supplying a different-realm byte type; the native-only test file now explicitly uses Node. Its unchanged production helper retains every rejection case. The remaining workflow failure exposed the dist verifier declaration falling out of the graph after the reader split. The existing CLI is now an explicit script graph root; its adjacent declaration remains required, with a negative regression that removes the file and expects ABI rejection. There is no declarationless exemption. A partial QA copy stopped on an existing untracked file; recovery `2cdb4538` verified the exact approved partial state and copied only the remaining test file, preserving the original failed attempt.
+
+Corrected source-only family `0de309d9` and independent post-outer `3b4f8e85` pass paths/inventory/family. Installation `42fa0418` changes only its twelve derived outputs. Independent review confirms each affected workflow changes only its two fingerprints; triggers, jobs, permissions, timeouts and downstream chains remain identical, and all existing compiled members retain their exact bytes. The corrected two complete files passed all 189 assertions with zero failures, skips or pending cases, 16:03:23.104–16:09:22.118 UTC (`9f76aa10`, actual outer exit 0). App/test types and shell syntax separately passed. Independent post-outer `fbcd5a72` confirms the original boot, leader, three recorded children and full process group absent twice, with the exact raw source, physical index and refs held. The eight other complete-file results retain their earlier overlay scope. A genuine installed-dependency capture then exposed `NATIVE_SOURCE_DEPENDENCIES_LOCK_PATH`: the actual lock includes the historical uppercase `JSONStream` name outside the selected slice. Keep failed receipt `44239237` and original-process/source closure `e05b5b01`. The parser now accepts safe recorded uppercase names and rejects dot/traversal, malformed scopes/nesting and excessive paths. The complete dependency and native-verifier files passed 79 assertions, including all 42 dependency cases, with types/shell (`169a415d`, 16:27:12.823–16:27:25.404 UTC); independent `69c93603` closes every original actor and the held source/index/refs. Actual capture `8d9ef202` then passed 16:29:37.549–16:29:38.219 UTC, with independent closure `d4cbeae6`. It compares all own files of the six fixed packages against the actual lock-SRI archives and explicitly leaves every other root record, including `JSONStream`, uncovered. This remains a bounded dependency slice, with full dependency, audit, signatures and release authority unproved.
+
+The fresh signed b9ca8ca7 preparation later passed, as recorded above. Reuse earlier complete production builds only at their retained source; do not relabel them as a later checkpoint. No Actions execution or provider mutation occurred.
+
+### Current source verification and preparation repair — 2 October
+
+Every fixed source check passed at signed `fef7d77a`, 13:23:02.736–13:26:17.224 UTC. Content-addressed summary `e44101ba` retains actual command exits and the three separate production build inventories; independent post-outer `d31b15b6` confirms original leader, all recorded children and group absent twice with exact source, physical index and refs held. This completes the local types/builds lane at that source. Full native coverage and release authority remain incomplete; the earlier failed runs remain separate.
+
+The preparation graph reached the production-dist exclusion verifier without its required adjacent declaration. `scripts/verify-production-dist-exclusions.d.mts` now describes its four real exports with literal readonly path tuples and exact CSP keys. No JavaScript behavior, graph exemption or release approval changed. Supported derivation through the existing attested scanner succeeds for paths, inventory and the full source family (final `ed9235c9`; independent post-outer `9d547ef5`). The derived manifest includes the newly reached modules/declarations; consumers retain exact member counts, and each affected workflow changes only its verifier/manifest fingerprints. All existing compiled members remain unchanged; this is source derivation, not a new compiler result or accepted-main proof.
+
+Keep the failed diagnostics: the first retirement check ran before Node reaped its closed parser children; the corrected bounded wait records their original identities and actual absence. Initial focused run `8fcbc944` exceeded its local aggregate deadline and exposed obsolete type-error annotations. Corrected run `74fef93e` passed nine affected files and types/shell, while one workflow assertion still expected the now-declared verifier in the declarationless list. Removing only that outdated entry preserves exact bidirectional ABI assertions. The complete repaired workflow file then passed all 164 assertions, types and shell (`34dd0449`); independent `7427b8ef` closes all original processes and exact source/index/refs. No test was filtered or skipped to pass the correction.
+
+Historical follow-up (completed by published `889e37c5`): publish the coherent signed declaration, generated metadata, test and notes checkpoint after an outgoing secret scan and fresh conserved readbacks. Reuse the retained build evidence for its actual source scope; do not relabel it as a build of a later commit. Continue genuine preparation, remaining native verification domains and authenticated proof transport. Actions remain stopped under the operational configuration; owner PTR 0.4 is unpublished. The older checkpoints below are historical diagnostics, not current resumption instructions.
+
+### Release fingerprint repair and actual builds — 2 October
+
+The maintained run at signed source `3a2dc781` ran from 13:09:29.418 to 13:12:49.164 UTC. Its immutable summary `c9fb96e6` records all fixed commands and nine passes: scanner regression, full-HEAD Gitleaks with no findings, licensing, runtime assets, file sizes, build-mode types and all three complete production builds. Each build retained its actual bounded output before the next replaced dist. The sealed-source check alone failed with `SEALED_LAUNCH_RELEASE_IDENTITY_INVALID`; keep that failure, rather than combining it into an aggregate pass. Independent post-outer `c06d6392` verifies the original leader, all recorded children and complete process group absent twice, with exact source, physical index and refs held.
+
+The package and lock remain canonical Alpha 0.3.43; the preparation binding remains closed. The version-neutral package fingerprint omitted the two reviewed operator scripts, `verify:actions-hold` and `verify:source-native`. Removing only those entries reproduces the historical fingerprint exactly. Supported `derivePreparedSourcePins` produced receipt `e961ec1d`; its only changed output is the sealed verifier's package fingerprint. Installation checks that exact one-line replacement and preserves every other pin and authority value. Three focused suites passed all 207 assertions, app/test types and shell syntax (`d8bf8d51`); independent `ffa0d86a` closes original processes and source/index/refs.
+
+Create a fresh maintained plan from the resulting clean signed source and retain the complete corrected run. Full closure-family derivation at the earlier source failed before installation; all mandatory compiled members exist, so do not diagnose them as missing. No compiler, dependency install, workflow execution or provider mutation was performed by the fingerprint derivation. Complete native coverage, authenticated source authority, genuinely rebuilt preparation and usable owner PTR remain open.
+
+### Verified pnpm script execution — 2 October
+
+At signedD74/treeD2AA, plan547a3ddf and actualrunbe9542/session16136 reached all10 fixed checks. Summary45e0893b records full-HEAD Gitleaks and scanner regression passed0/null with zero findings. Eight pnpm scripts refused the unsupported bare verify-deps-before-run option before script execution; those eight original exit1 failures remain recorded, allChecksPassed:false. Independent8b29d1/9b4fe3a7 proves original leader, all10 recorded children and complete PGID absent twice, and exact raw source/physical index/refs preserved. No types or production build pass is inferred from that failed run.
+
+The supported override is --config.verify-deps-before-run=false, alongside --pm-on-fail=ignore; the closed environment has no competing pnpm_config_verify_deps_before_run key. The native regression executes the actual fixed type command against an isolated fixture with missing declared dependencies and only the reviewed compiler bin link. Valid TypeScript exits0; intentionally invalid TypeScript exits1 with TS2322. Dependencies remain uninstalled, package bytes unchanged and no workspace/lock created. First fixture-run185cbeb8 failed only an unnecessary script-banner stdout assumption; that assertion was removed while retaining the real positive/negative compiler checks. Corrected focusb192f8/session3384 closed6f04d3: all233 assertions in four files, app/tests types and shell syntax passed0/null (summary2b84b7d7, overlay4cf9346a atD74). Keep earlier failed records; recreate the maintained source-check plan from the resulting signed source. No Actions, installer or provider operation occurred.
+
+Publish the complete signed75-to-current source range as one nonforced backup after outgoing scan and fresh conserved history/settings/ref/trigger readbacks. Native origin tracking must stay pinned while a source-check actor runs; synchronize it only after original actor/group absence is independently observed. Full source authority and owner PTR remain unfinished.
+
+### Scanner output and failure retention — 2 October
+
+Correction sourceAF93/tree0683364d is signed locally, parent75. Its maintained plan60ce8446 was created successfully; run109c96 reached the actual scanner regression, which closed0/null, then failed in source-secrets. The isolated environment disabled graft input via /dev/null but did not suppress Git's deprecation advice for the scanner's own Git child. That warning aborted Gitleaks, removed its external report and exposed a retainer lstat error that prevented the final summary. Keep the partial started/terminal/raw logs; no remaining policy/type/build check was reached. Post-outer6c8544/4e8c1ed8 proves original leader and two children/full PGID absent twice, original source bytes/index bytes/refs preserved. It does not claim a complete run or physical-inode equality.
+
+The correction adds a source-owned Git advice=false config to the closed child environment while retaining GIT_GRAFT_FILE=/dev/null and replacement/global-config isolation. Gitleaks now emits JSON to stdout, captured directly in the producer's reserved600 report under its live byte bound. Missing reports become explicit null-digest failure metadata, preserving the run summary; they cannot pass. Focusede807db/session34622 closed339493,12:44:08.803–12:44:28.900 UTC: all232 assertions, app/tests types and shell syntax passed0/null. Summaryb5a3aa0f binds overlay086cfb09 atAF93; real empty-fixture Git/Gitleaks stdout regression, missing-report retention and actual CommonJS sealed import passed. No install or provider operation occurred. Recreate the fixed maintained plan from the resulting signed source before its next owned --run; previous plan/source identities remain historical and incomplete.
+
+### Native no-install launch correction — 2 October
+
+The signed75c69cd5/tree238e6c2f checkpoint was published by nonforced pushfd4b20,12:26:32.326–12:26:34.898 UTC. Prede952395 and post3dec244a each used116 GETs; the post closed12:28:16.174 UTC. Publication51a95a3a confirms the conserved all-four disabled/idle settings, unchanged main/PR/history/catalog boundaries and local source backup. Native/PRIMARY match75; completeCoverage and productionAuthorized remainfalse.
+
+Its first --plan-checks call4cfd61 stopped before any checks because the native optional pnpm workspace file is absent, while PRIMARY has a harmless ignored placeholder. Configuration capture now records absence explicitly, binds reviewed present bytes/identity, rejects uncontrolled Vite env, ancestor/user package configuration and hook/config-dependency sources, and pins the bundled pnpmrc. Review also found pnpm11.11 defaults verify-deps-before-run to install: every fixed script command now explicitly supplies --verify-deps-before-run=false alongside --pm-on-fail=ignore. No install, workspace copy or normalization was performed.
+
+Focused corrected run18945f/session3559 closed d39283,12:33:19.597–12:33:41.216 UTC: all230 assertions in four files, app/tests noEmit and shell syntax passed, each actual child0/null with cleanup and raw-source/index/status/refs preserved. Summary4fd13528 binds overlayee9f1545 at signed75. Tests cover absent workspace, exact present bytes and unsupported configDependencies/ambient files. Preserve the earlier failed plan and focused type-error records. Commit the reviewed correction, create the maintained plan from that resulting clean signed source and run its complete fixed lane. Until actual terminal/output/source receipts exist, do not claim complete build verification, CI, deployment or owner PTR acceptance.
+
+### Fixed native source-check lane — 2 October
+
+The fixed native source-check lane is implemented alongside the existing test profile. It runs the exact source scripts through attested pnpm, without installation: scanner regression/full-HEAD secret scan, licensing/runtime assets/file sizes/sealed launch, build-mode root types and three serial production variants. Actual terminals, owned-process cleanup and source/tool/config preservation stay separate from test counters. Each successful build captures its complete bounded dist inventory twice, checks actual application/owner script and CSS references, and retains that manifest before the next build overwrites dist. Ignored Vite production env files and uncontrolled package configuration are refused; the existing ignored pnpm workspace bytes are explicitly bound. Full dependency bytes, npm audit/signature provenance, services, connected module, genuine preparation and authenticated source reopening remain incomplete. Both profiles retain completeCoverage:false and productionAuthorized:false.
+
+Focused native run 6a629a/session10305 closed in b9285c at exit0: all228 assertions in four files, app/tests noEmit and namespace shell syntax passed. Summary5b7577f0 binds the eight-path A7 overlay66f459e9 and unchanged raw source/index/status/refs. First run99915c/session90249 retained228 passing assertions but a TypeScript error in the new filesystem-owner mock (TS2345); the one-line value guard corrected it. Earlier summary17222529 remains failed. Independent observerddffc3/044c057d proved that first original leader/children/full group absent and reproduced its raw source before repair. The import-time dist-path resolution that would break the actual sealed CommonJS bundle was moved into its callable default; the bundled import regression passed. Ordinary tests now retain the existing workflow test timeout. No Actions, dependency install, provider operation or PTR publication occurred. Actual execution of the complete new source-check plan is the next action after its signed source checkpoint.
+
+Base is signed published A7/treeD361, parent39. Preserve the disabled Actions policy, main/PR boundaries, concurrent Assets review and in-place Desktop study/history. Resolve resulting HEAD and remote equality from actual publication receipts; this source change is not an accepted-main or full release candidate.
+
+Implementation checkpoint 39afd152/tree ca9aea5d, sole parent d9bbab2d, is signed,
+scanned and synchronized across native, PRIMARY and the remote quality branch.
+Nonforced push 9fe30f ran 11:38:14.494–11:38:16.494 UTC, exit 0/null and zero
+stderr. Pre f269c737 and post 1d4ca5a7 each used 116 GETs; the latter ran
+11:38:41.433–11:39:46.857 UTC. Both reused complete pinned histories and checked
+latest identities, historical attempts, catalogs, queues, permissions and refs.
+All four repositories remained globally disabled/idle. Only the expected quality
+ref advanced; game-main and PR380/381 stayed unchanged. Publication 8b919cf6
+and PRIMARY tracking receipt 6bfb32d1 close exact remote signature/tree/parent
+and local equality. No new Actions run, provider change or 0.4 deployment occurred.
+
+The first pre-read 08915465 held on concurrent Assets main changes and remains
+retained. Reviewed sibling receipt 1697b028 binds the complete signed lineage to
+65fb1f26 and its unchanged reviewed workflow tree. The explicit sibling-only
+adapter passed 13 offline guards (615a4005); independent full-read review found
+no concrete issue at helper 9b04be9b. Fresh remote commit/tree/blob/trigger checks
+did not relax history, settings, game-main/quality or PR comparisons. Direct
+GETs f7eb23/70c0c9/81a74a confirm Assets #41/#40/#38 merged.
+
+Publication helper c9988d produced the verified source receipt but held before
+writing Desktop because its old expected digest no longer matched. Concurrent
+review e36032/5ccf4311 reproduced the previous 6152cf46 bytes exactly by removing
+only an independently added Stillwater section; its original historical suffix
+still matched. In-place refresh 9a04ee/8f878eda preserved both that section and
+history byte-for-byte, read back digest 356a27da and created no Desktop siblings.
+The earlier held refresh did not alter Desktop. These are operation receipts,
+not owner/device, complete native coverage, CI or PTR release acceptance.
+
+Signed checkpoint 2137d044/tree 05c93da6 is the ordinary child of 784e7942. Exact 15-path stage 96a04c, signed commit/signature 624536, redacted outgoing scan 8aede4 and PRIMARY local-object synchronization 4809a7 exited 0. The scan has no findings (37517e5f). Nonforced quality-branch push 9b4cf6 ran 08:09:26.929–08:09:28.883 UTC. Pre c9a104f4 and post 6b7c8750 confirm the sole quality-ref advance, valid remote signature/tree/parent, unchanged main/PRs and disabled settings/idle queues across all four repositories. Publication record 477ad703 and in-place Desktop refresh 440b7da7 preserve actual bindings. Earlier slash-normalization and post-reader filename failures made no remote changes and remain retained. No main/PR/provider acceptance was created.
+
+The next signed checkpoint 13b8fd01/tree ec00b35c is the ordinary child of 2137d044. Its exact seven paths contain the short-viewport legend repair and aligned records. Native install/stage e44149 completed those changes but its final name-list command failed from a terminal carriage return; separate feb711 exited0 and confirmed exactly seven names. Signed commit40fd6b, signatured3f177, outgoing scan16d105 and PRIMARY synchronizatione8a325 exited0; the scan has zero findings. Fresh pre2eaaefe3 ran 09:10:42.920–09:11:49.627 UTC and post3d8c7415 ran 09:12:17.957–09:13:22.108, 112 GETs each, confirming unchanged main/PRs/attempts/catalogs, disabled settings/idle queues and only the expected signed quality-ref advance. Nonforced pushc35364 exited0. Publication69a382d6 and Desktop refresh2e8b7bcf confirm native/PRIMARY parity and byte-identical historical Desktop suffix, without new sibling files.
+
+The following seven-note checkpoint d9bbab2d/tree fa538249 is the ordinary child of 13b8fd01. Native install/stage 6ba7e5, signed commit 249e2b, signature 3f2b96, outgoing scan 37a8b8 and PRIMARY synchronization 2481d7 exited 0. The scan found zero findings. Fresh pre-readback 7c232d92 began 09:50:23.465 UTC; post 144fca88 ran 09:53:01.241–09:54:06.889 UTC, each with 112 GETs and retained complete history. Nonforced push 2be8b6 exited 0. Only the signed quality ref advanced; main, PRs, workflow attempts and catalogs were unchanged, all repositories remained disabled and queues empty. Publication b326f978 and Desktop refresh bfb33ebe confirm exact native/PRIMARY/remote parity and the unchanged historical Desktop suffix. They are source-backup evidence, not provider or PTR acceptance.
+
+The maintained native verifier and explicitly selected public workflow were then authored for local validation. Their CLI is separate from the importable API: an earlier eager import-meta/CLI composition error was corrected before execution, and a real CJS bundling regression exercises that boundary. Root reviewed all producer, consumer, public control and affected test bytes. The focused QA runner's post-spawn exception and normal-close surviving-descendant gaps were repaired before launch; peer review confirmed both at b95aab8b.
+
+Initial local installation 1f34eb installed the reviewed 21-path overlay and private QA helper, but its final inline manifest statement failed from an incorrectly escaped nested newline. No tests had launched. Repair d79946 independently checked every actual installed hash, owner, mode and single link, then wrote manifest ed165fe4 with exclusive mode 600; no source copy or dependency install was repeated. Actual focused run a6b9ca/session 35006 ended in 3dc8f4, exit 1, from 10:27:59.238 to 10:28:40.199 UTC. It recorded 196 assertions in five files: 194 passed and two failed, with zero skips and zero raw stderr. App/tests noEmit and namespace shell syntax separately exited 0/null. Summary 2145bdc3 retained the actual terminals and unchanged raw source, physical index, status and refs. Independent observer e1e607/9f19d35a confirmed the original boot, leader, all three children and full PGID absent twice and reproduced the raw source digest.
+
+Those two failures exposed real implementation bugs. The bounded reader returns body and identity, so the new verifier must compute its digest from those actual bytes rather than read a nonexistent sha256 field. The Pages publisher's final fresh-plan recheck also needs the same explicit workflow mode as its initial check. Both failed assertions remain recorded; a later pass must use the corrected bytes. Static review separately found that unprivileged cleanup cannot retire the namespace's root-owned sudo/unshare actors: the existing process probe correctly classifies EPERM as ambiguous. The repair uses an exact privileged cleanup boundary without changing that identity API. Read-only tool 6e5811 confirmed existing Python 3.12.3 has both pidfd_open and pidfd_send_signal; no runtime installation was needed.
+
+Corrected installation 41ae3d verified the existing native bytes before updating the coherent 25-path overlay, all source UID/GID1000, single-link mode644 and QA mode600. Manifest ba4eef40 retains D9/tree fa538249 plus exact installed hashes. Focused run 411426/session84914 ended 6fa172 exit0, 10:48:35.490–10:49:15.051 UTC. Summary 0bfcf3fb records 198/198 assertions in five files, no failed/skipped/todo/pending cases and zero raw stderr. App/tests noEmit and shell syntax separately closed0/null. Actual raw source, physical index, status and refs held throughout. Later independent observer 313512/6bede877 confirmed the original leader, all three recorded children and whole PGID absent twice. Its current raw-source match is explicitly false for this older report because the subsequent shell-only cleanup repair changed the operating source; no unchanged-after-that-edit claim is made.
+
+Namespace rehearsal v1 started10:49:32.172 UTC and failed b0c175 exit1 before reaching the real namespace suite. Its arbitrary sudo sleep fixture was not permitted. Failure a40c574f retains ROOT_FIXTURE_MISSING and the actual password-required stderr. Read-only sudo checks e989a7/14b9da and default-policy inspection e2c094 confirmed there was no existing helper grant; the established older local route is explicit WSLroot --as. Temporary local provisioning785338 installed only canonical-helper command patterns in /etc/sudoers.d/warpkeep-native-source-verification, root:root440 single-link, SHA c3fc0346; visudo and independent readback b4a0b1 passed. Invalid-owner cleanup484d16 reached the helper and correctly refused. This mutable-checkout rule is test-only access in the trusted VM, not a durable restricted privilege boundary, and must be removed after owned validation. Durable unattended verification needs an independently reviewed root-owned source-bound helper.
+
+The canonical-helper rehearsal v2 started10:56:56.809 UTC. Outer28029c returned a detached launch acknowledgment rather than a waited terminal; do not call its exit0 a test pass. Failure980187 retains correct wrong-birth/wrong-boot denials but an incorrect valid-target TARGET_CHANGED rejection. Its UID1000 leaf was successfully signaled; independent root read b07178 and later6bede877 found the full original group absent. The actual sudo parent retains caller real UID with root effective/saved/fs UIDs. The sole source repair a77d555f adds exactly [callerUID,0,0,0] to permitted target tuples; GID, real sudo caller, owner-alive, boot/birth/PGID, held pidfds and before-signal rechecks remain unchanged. Peer review reconstructed the previous b6f43c4d helper exactly by removing that predicate/comment block. QA now records all four IDs and requires a real signaled ACK for its positive rehearsal.
+
+Namespace v3 installed via af15fe/manifest52f8c660; shell syntax exited0. Actual waited21621e/session1587 ended2a0108 exit1, 10:59:53.975–11:03:01.932 UTC, summary70c4fe58. The privileged rehearsal passed with actual UID tuple [1000,0,0,0], root GIDs, two identity denials and a signaled PIDFD TERM acknowledgment. The namespace-suite phase reached the QA wrapper's short local deadline before writing its JSON result, then exact leaf-first cleanup retired the actual worker, Node and sudo actors. Its exit143, empty report and parser rejection are retained; no suite assertion pass is inferred. This is a local harness timeout, not an Actions allocation or established product defect. Post-outer313512/6bede877 at11:04:14.034 UTC proved all four earlier original-boot leaders/recorded children/full PGIDs absent twice and reproduced actual v3 source digest acb60f6e. The observer explicitly distinguishes that current match from older report mismatches. QA5f7b7aec now uses the maintained producer's existing namespace deadline; v4 is a separate actual run, not a rewritten v3 result.
+
+Namespace v4 used manifest efd02100 and actual waited c0f683/session51621, 11:04:15.100–11:09:03.934 UTC. The privileged rehearsal again recorded two correct identity denials and an actual signaled PIDFD TERM acknowledgment. The real fixed four-file namespace command closed0/null with no timeout, surviving descendants or stderr. JSON report0e2aff42 records260 passed, zero failed and one skipped assertion: existing-update native protocol refuses unsupported runtime before reading credentials or any response. Its source explicitly skips that unsupported-runtime check on the supported Linux boundary. All261 leaves are recorded; none is relabeled. The strict parser reports complete:true but success:false because skipped leaves are not passes. Accordingly summary1f8d199a and outer5dffae retain aggregatefalse/exit1 rather than inventing all-pass authority. A complete native profile still needs explicit source-owned platform-skip dispositions. Independent observer dee370/9f169e71 proves all five original leaders/recorded children/full PGIDs absent twice and reproduces the unchanged actual v3/v4 source digest acb60f6e. Source/index/status/refs held in the run. Temporary helper sudo access was then removed by bbeece after exact root-owned mode/link/hash validation; visudo passed and independent71e657 confirmed the default password-required state. No durable sudo grant, key, dependency install or provider authority remains from these probes.
+
+Complete policy inventories b183169e/8b9cb5e2 retain all four run histories, attempts and trigger chains. Repository disabling ran 07:33:18.778–07:33:34.493 UTC (45e6cc96); independent 2ceeccc1 and publication supplements confirmed all four disabled. Retain bfdba726 (first disable succeeded before normalized-response rejection) and b5ee16da (combined optional-field request rejected). Disabled API omits allowed_actions and reports SHA pinning false; dormant enabled settings were not claimed preserved. No runner was started or cancelled. Additional execution while disabled is zero; total daily allocation remains unknown. Numeric policy belongs only in runtime config. Alpha root returned HTTP 200 at 07:34:02.049 UTC (3e0ff6ee), without PTR/session acceptance.
+
+Retained World v1 failed WORLD_TOUCH_READBACK before interactions (9ffe1458): an undeclared test-expression selector. Reviewed smoke v2 74b1bb22 corrected the literal and retained exception detail. Portrait v2 ran 07:40:55.949–07:41:32.597 UTC (eb254ea7/11e36642), landscape 07:42:19.914–07:42:58.335 (374042bb/aad13581). Both selected a real fixture castle, then failed the unchanged geometry guard at 30.390625px Close size. Their normal Chrome/native terminals, profiles, original-boot group absence and source/index/contact/observer cleanup remain preserved.
+
+The source correction extends the existing mobile/coarse 44px rule to the castle header button. Native checks passed 77 assertions in two test-result files: 46 budget plus 31 World; Vitest reports five nested suites, not two suites. Tool 84ab2e and explicit app/tests noEmit abccf2 exited 0. Static source-derived header probe 832f2307 ran 07:59:36.970–07:59:43.212 UTC, reproduced the old target and verified the repaired size/hit area/trusted click/no overflow in four orientation/source cases. Root viewed PNGs 6db889f5/79a49543. It did not mount React.
+
+Frozen overlay runner 8b03f7f0 and adapter 971712e9 passed pinned-Node syntax checks (90a612); exact five QA inputs were installed UID1000:1000, mode600, single-link and hash-equal (7c1dcb). Actual portrait run 0beea4/session44202 ended 7d3b26 exit0 at 08:36:17.418 UTC; receipt d327a4b1, started 08:35:31.573. Landscape 90248f/session78785 ended e1f2dd exit0 at 08:37:12.969; receipt 58044453, started 08:36:29.447. Each passed 41 UI operations including real React Close/selection clearing, trusted pinch/selective lift/survivor pan/fresh canvas selection, nine camera controls and disclosure focus. Final contacts were zero, observer disposed, requested motion restored and owned CSS removed. Both Chrome closes were acknowledged/normal 0/null, owned actors zero and profiles removed. Both native servers closed 0/null with empty original-boot leader/groups twice, zero stderr and unchanged 3379 tracked files/index/refs. The JS/React remains compiled8b; the exact committed213 Close CSS is a separately owned diagnostic overlay, not a compiled213/final-A/full-R06/phone pass.
+
+Root viewed both fresh PNGs (58a1846e portrait, 54180e8d landscape). No horizontal overflow was observed; landscape exposed a zone-legend overlap with bottom cards. The existing legend now hides below 700px viewport height as well as below the existing width breakpoint. Immutable generated pixel-review flags were not rewritten.
+
+Layout probe v1 receipt 97f9ada6 failed after six coarse cases because it assumed touch-disabled headless Chrome must report pointer:fine; the actual pointer was none. Its retained geometry also exposed a noncoarse overlap. Reviewed v2 receipt 24f701a9 ran 09:01:40.882–09:01:47.506 UTC and deliberately retained all nine profiles before failing the unchanged visible-intersection guard: the noncoarse 600px legend overlapped the footer. Neither failure was waived. Final frozen v3 f83ce4f9 and review 9ba35b61 test the corrected exact CSS 0b8b21ac against immutable committed213 CSS. Actual tool ea09ee exited 0; receipt 526780d1 ran 09:07:35.792–09:07:41.884 UTC. All eight profiles passed, including coarse/noncoarse 699px/700px boundaries, portrait and taller coarse layout. Current visible legends never intersected cards; disclosure targets were on-screen and reachable, overflow absent, Close remained 44px for coarse/narrow and 30.390625px for wide noncoarse. Root viewed short-coarse and retained noncoarse-boundary PNGs. Browser.close was acknowledged, normal actual exit 0/null, owned actors zero, profile removed and inputs unchanged. This probe uses whole current CSS with source-derived static markup; it mounts no React component and injects no touch. Earlier actual React gesture receipts retain their compiled8b/213-overlay scope. World nominal timing, maximum density, actual-owner/phone and full R06 acceptance remain open.
+
+Independent retained-file diagnosis aeabc9ba rederived 12,965 bursts and 12,953 intervals. Callback gaps fit the expected 3/4/5, all 14 long intervals include a long ambient RAF gap, and compiled scheduler/host/runtime/policy bytes match. No extra product scheduler callback was demonstrated; all 12 strict nominal misses remain failures. One reduced-profile causal RAF-request capture is the next resolving measurement. No browser/source/API effect occurred in that analysis.
+
+QA-only native source-profile v1 had a real nested-suite counting defect, found before execution. Corrected v2 d6439f3b/tests68efc6ff passed 20 pure synthetic cases in actual tool9f3525, exit0; no native adapter, source-authority caller or provider route was installed or executed. Production authority remains false. The old development compiler evidence below retains its own source and limits.
+
+The concrete parser/reporter rehearsal then passed 18 offline cases from 09:26:53.576–09:26:54.228 UTC (cc02dda5), zero failures/skips/todo/stderr. Retained earlier failures were Windows absolute reporter paths using the unsupported C: ESM scheme (71b2edb3), and inherited NODE_TEST_CONTEXT suppressing the nested fixture report (de1ece18). Reviewed v3 uses file URLs and clears only that fixture context; no report acceptance guard was weakened.
+
+Native selected producer v1 plan b33f90 failed FILE_IDENTITY_INVALID before any test because installed frozen-pnpm tsx CLI/package metadata have two legitimate hard links. Read-only diagnosis17d380 confirmed the exact paths, owner, modes, links and bytes. Reviewed v2 d82eaa4e permits those two known tool files through a descriptor/lstat/hash-held reader; source, QA and lockfile readers remain unchanged. No dependency copy, reinstall or ownership change occurred. Actual plan8a9114 exited0 (9fed8099), selecting tests/greaterRealmDaylightJourneys.test.ts and spacetimedb/tests/worldSeedPolicy.test.ts only.
+
+The owned setsid native run started 09:39:45.409 and finished 09:39:55.820 UTC at exact13b8fd01/treeec00b35c. Outer session16953 closed in tool253edb exit0; summary24516228 records 14 passed ordinary Vitest leafs/one suite/one file and six passed Node leafs/zero suites/one file, no failures/pending/skips/todo. Both actual child terminals are0/null, both raw stderr files empty. Report hashes are3eac8e77 (Vitest JSON) and9b7a09a6 (Node event stream). Physical indexd9c51285/identity, refs445e5daf and all3379 raw source files remained unchanged. Independent observer a4b576 exited0 at09:43:35.932 UTC; receipt475c90a9 verifies original boot, leader, children and full PGID absent twice and reproduces source/index/refs. These are selected development diagnostics: completeCoverage=false and productionAuthorized=false; no verifiedSha or production capability was exported.
+
+Read-only Pages GET c37cad ran 09:30:12.846–09:30:13.407 UTC: Warpkeep-Live is built, legacy, main-root, CNAMEwarpkeep.com and HTTPS enforced. No host setting, public push or provider deployment changed. Static route review found initial observation OIDC services do not require hosted Verify, but the local workflow-evidence caller does; dispatcher callees still compile/materialize. The practical next integration retains genuine GitHub identity and existing permits/journals while adding complete local source evidence and bounded prepared execution. Public publishing needs an explicit bounded workflow/postflight branch. The separate recovery Pages issue/claim source-closure dependency remains unresolved; none of this read-only review grants execution admission.
+
+The later accounting read reused retained raw terminal 722cedcc for Verify 36942137986, attempt 1, recorded 00:08:42.984 UTC. Two allocated jobs crossed midnight before the current policy change: module job 110635863328 ran 23:41:35–00:06:54 UTC, and root shard job 110635863680 ran 23:41:35–00:05:52. The existing accountant charges each job's full rounded duration to every touched UTC day. Actual pure read 3f4ff2 exited 0; receipt ed4c3846 therefore establishes a conservative policy lower bound of 51 minutes for 2 October from these two jobs alone. This is not GitHub's billed allocation or actual runtime within that day; total daily minutes remain unknown. Unknown nominal-start/runner-zero records were not converted into zero cost. This lower bound alone holds further execution for the day, without another remote request or new run. The later global disabled setting remains the enforcement stop; future day boundaries do not automatically re-enable anything.
+
+## Previous local development operations — 2 October 2026
+
+Operating source is signed, synchronized 14ac294e/tree 73ea369f, the docs-only child of runtime 8b57f62a/tree 3f810073. Its prior backup completed 05:05:04.500 UTC (953eecf0), without a main/PR/provider change or new Actions run. Later notes HEADs must be read from actual receipts; no future commit identity is invented here.
+
+The native UID1000/Node22.22.3 development compiler rehearsal ran 05:27:48.472–05:53:02.388 UTC. Prepare and independent rebuilding check returned byte-equal 19-field results (8ec01d14), 102 outputs/family eb011331, closure c6860e32 and private candidate 849154f5. Both child exit/close events are 0/null. Completed receipt 177ecd87 and independent proof 8b94346e at 05:53:25.257 verify original boot/birth identities, physical leader/children and whole-group absence, all 3373 raw source files and unchanged index d4961aae. This was a genuine development rehearsal only; no candidate export/install, M2/main, hosted, provider or final-release authority was created.
+
+Four optimized synthetic Keep lifecycle runs completed with actual normal browser/native exit, close acknowledgement, actor absence and source/index preservation. Each used three warmups, 20 remount cycles and three intentional context loss/restores. Balanced normal/reduced-motion life receipts are 287d04ce/4dffe4aa; reduced normal/reduced-motion are 71d7fbb9/ca04fc23. Whole-page post-GC growth was respectively 1,326,552/1,376,564/1,315,324/1,333,580 bytes; fitted slopes 59,090.84/62,301.34/61,316.71/61,782.13 bytes/cycle. Existing growth/slope diagnostics passed, mounted resources matched baseline and final SceneHost-owned RAF/loaders/listeners were zero. Null disposed renderer resources are not zero-byte GPU evidence; whole-Screen ownership remains outside SceneHost counters.
+
+Preserve both failed touch attempts: 28bcbbb3 stopped at the outbound command bound during screenshot transfer, before gesture; source/command-bound review identified the whole-PNG encoding issue. The rejected screenshot bytes were not retained and no product bug was proved. Bounded-PNG v2 c789f100 transferred correctly and pinched with draft intact, but legacy Chromium touchMove omission did not produce selective finger-up (KEEP_TOUCH_PARTIAL_LIFT_CDP_NOT_OBSERVED). Their logs/receipts and cleanup distinctions remain immutable.
+
+The reviewed v3 driver uses explicit selective touchEnd. Portrait ran 06:22:15.820–06:22:57.507 UTC (099a471e/deddf362); landscape ran 06:23:38.194–06:24:16.493 (bd9ae27b/ee6b91de). Both passed 13 UI interactions, same-surviving-pointer continuation, exact draft preservation through pinch/lift/pan/end and three different decoded crops. All six crop transfers zeroed owned PNG bytes and released their object groups; final touch-release acknowledgement confirmed zero contacts. Both fresh Chrome profiles closed normally/removed and native groups were empty; 14ac/index d4961aae/raw3373 remained unchanged. Root separately viewed portrait 1beb8e08 and landscape 5e720ae9 screenshots: scoped controls/text fit without visible horizontal clipping. Immutable generated pixel-review flags were not rewritten.
+
+Read-only draw/budget derivation 8dd3f15d reused the twelve 8b camera samples; it started no browser run. Nominal World misses and the earlier decoder/LOD fixture failure remain preserved. Compiler, fixture/emulated-touch, visual review and physical-phone/owner/final-A/full-R06 evidence remain separate.
+
+Included-usage readback 0dcdf53c is observational; no billing change/trial CI occurred. Storage review c312c7d7 retains the prior 219G store and conditional 3.10 GiB retirement of the two completed cb temporary drafts, preserving their final candidate and journals. No private-store deletion/recovery/retention GC occurred; neither historical draft is cleared for retirement by the retained review. Explicit browser GC for heap measurement is a separate operation.
+
+## Historical unpublished integration record — 2 October 2026
+
+## Current Living Realm source checkpoint and Actions blocker — 2 October 2026
+
+R2 `d4f40cb5`, tree `7efff06b`, is the signed direct child of R `53edd619`.
+Its exact native public-caller run passed all 44 cases across four files, with
+zero failed/skipped/pending cases; both policy syntax checks and app/tests noEmit
+types passed. Source/tree/index and all tracked raw files stayed unchanged,
+and the independent post-terminal owner/group proof closed cleanup. The outgoing
+redacted scan found zero findings. These are R2 local checks, separate from
+R's earlier 212-case validation and cancelled hosted Verify.
+
+The one backup-only push completed at 2026-10-02T01:19:42.914Z. GitHub confirms
+`release/0.4-public-payload-paths` at exact signed R2/tree/parent, with no open PR
+and no CI trigger. Receipt `06714f72` records PR380 unchanged at R, PR381 unchanged
+at `8c22fddb`, and main unchanged at `cb282bab`. Nothing here claims publication
+of 0.4 or acceptance of a new operating main.
+
+GitHub blocked PR381 Verify `36945781752` attempt 1 before tests: all seventeen
+jobs have no executed steps/runner. The retained terminal `d0e2775b` and signed-in
+billing readback `52e2a8e4` establish the account Actions billing boundary, not a
+product test failure. No retry, new PR-head update or provider operation was made.
+Resolve that actual account blocker, then fresh readback under the current user
+Actions policy; do not introduce recovery keys or infer an accepted CI result.
+
+Retain superseded R Verify `36942137986`, attempt 1: terminal cancelled at
+00:06:57 UTC, fourteen successful jobs, two cancelled and aggregate failure.
+Raw terminal `722cedcc`, archive `aa7e33b6` and summary `207f6a12` retain actual
+checkout `6170ef20` (cb/R parents, R tree). Partial 598 module passes and 3,190
+shard passes/81 skips are retained output, not acceptance. R's earlier native
+six-file 212-case pass and outgoing zero-finding scan remain separately scoped
+to R, not R2 or the new integrated source checkpoint.
+
+R2 actual receipts: `october-release-public-pages-path-native-tests-summary.json`
+(SHA-256 `e81ae59ecb75d71e25f414fa2046b9521e52562c80583dcf9175d07c0381df95`),
+its independent `october-release-public-pages-path-native-tests-absence.json`,
+`october-release-public-pages-path-outgoing-scan-summary.json` and
+`october-release-public-pages-path-pr380-d4f40cb5-v3-backup-only-2026-10-02T011819576Z-backup-only.json`
+(SHA-256 `06714f7267f94f646980e7efb3e70a1b98744fb1d53e4bb6c4d3287e77736031`) bind the actual local checks,
+remote equality and unopened-backup scope. Billing terminal and readback are
+`october-release-pr381-billing-terminal.json` /
+`october-release-github-actions-billing-readback-20261002.json`; their hashes
+above remain separate from product validation.
+
+R's payload policy accepted `audio/warpkeep-genesis-002-theme.m4a` and
+`models/greater-realm/biome-trees/v3/manifest.json`, while its mirror/postflight
+generated-path policies rejected them. Both were already genuine payload members.
+The reviewed local repair adds only those two exact paths to the two predicates;
+no asset, license grant, gameplay feature or broad extension allowance is added.
+The actual publication operator imports the postflight predicate, so this repairs
+its demonstrated `PUBLIC_PAGES_PUBLICATION_PLAN_INVALID` parser rejection.
+
+Actual pinned-Node four-file caller baseline ran 2026-10-02T00:08:36.214Z–2026-10-02T00:12:45.772Z:
+42 cases, 19 passed/23 failed/0 pending, child exit 1 (receipt `1ff7f011`).
+The first repaired four-file run 2026-10-02T00:17:40.021Z–2026-10-02T00:27:29.294Z retained 40 passes,
+two failures/0 pending and child exit 1 (`4fc33cc2`). Its failed postflight fixture
+expected unrelated preserved assets as live root routes, and combined four signed
+negative fixtures exceeded the unchanged 30-second case bound. That failed attempt
+is preserved. The correction follows actual HTML-referenced Alpha routes, verifies
+both preserved asset Git bytes and separately times the two added negative cases;
+no product predicate, negative check or timeout budget is weakened.
+
+Only corrected Postflight reran 2026-10-02T00:34:03.962Z–2026-10-02T00:36:34.961Z: all 13 cases passed,
+0 failed/skipped/pending, child exit 0 (`ce7759e5`, review `10943ecd`).
+The unchanged Mirror 10, Payload 14 and Publication 7 cases already passed in the
+first repaired run. These 31 plus revised Postflight 13 are composed evidence,
+not a single Windows 44-case full run. The later actual R2 native four-file
+run completed all 44 cases at 00:53:38.840 UTC; preserve those separate scopes.
+Actual receipts retain source/index and exact candidate bytes.
+Fixture Git/signatures, fake push and mocked HTTP exercise real callers; no provider runs.
+
+The fixed pure diagnostic `d15387db` finished at 00:20:17.442 UTC: all 446
+retained payload members pass payload-root, mirror-root/PTR and postflight-relative
+predicates. Every generated path within the retained **800-total-entry plan**
+passes; eight negative paths and two nested-PTR cases remain rejected. The real
+canonical-plan parser advances to the deliberately absent source root with
+`ENOENT`/`lstat`. This proves the parser boundary only: no source/signature
+validation, completed preparation, signing or publication occurred. The original
+pure failing diagnosis `f141624b` and caller baseline are preserved separately.
+
+Retained payload `d8f7363f` genuinely belongs to 6e9f50bf/tree3fab7749, 446
+files; retained mirror plan `32c79c1e` belongs separately to e016f051/tree57451621,
+800 entries. The root diagnosis checks these separately and never relabels them
+as R or final A. Both assets' public bytes match their authenticated entries.
+
+R2's two policy scripts, their existing caller tests and original four notes are
+outside all four retained compiler graphs plus seven recovery inputs (212 distinct,
+135 tracked) and outside the 1,250-member prepared closure. For R2 alone, keep cb's genuine
+compiler manifests, all five bundles and closure `f34982a2` unchanged. This
+excluded-only repair needs no new compilation, prepare handle or 16-file
+projection. R's earlier runner repair already has its authentic closure family.
+
+This source checkpoint integrates the reviewed PR381 Living Realm presentation
+with R2's public-publication repairs and bounded fixes to existing Keep/World
+behavior. It preserves the original PR author ancestry. The Keep corrections
+restore ambient wake/reconcile behavior; World repairs preserve Worker journeys,
+sub-quantum progress and confirmed cargo, bound decorative trail geometry, and
+admit/count actual sky/journey uploads within the existing host budget. No new
+server rule, player authority, asset or performance allowance is introduced.
+
+The final source-only v4 overlay run used immutable `8c22fddb` while the real
+primary/native checkouts stayed at exact R2. All 474 cases across 21 affected
+suites passed, with zero failed/skipped/pending cases, at 02:16:17.997 UTC.
+Full app plus selected-test types and Vite-config noEmit checks passed by
+02:16:19.288 UTC. Actual outer exit0, run `149021c2`, independent results
+`dcb3706b` and idle proof `b1c20979` bind the final candidate bytes, absent
+owned group and unchanged source/index/caches. This is component/unit/type
+evidence, not whole-repository types, a product build, browser or R06 acceptance.
+
+Retain the earlier attempts separately: original-PR regressions were 20 cases
+with 13 passes/7 failures, then provisional 470 passes (`376b7e16`, older
+journey `0751e0da`). The later v3 baseline had 53 cases, 49 passes/4 failures;
+its composed suite had 473 passes/1 failure out of 474 and both type checks
+passed (`f935e864`, outer exit1). The remaining failure exposed the telemetry
+getter resetting the latest completed frame's upload counters. The v4 host
+retains those counters and its regression passed in the final 474-case run.
+These earlier failures are retained evidence, not relabeled successes.
+
+The thirteen new browser modules enter the protected import namespace through
+the supported sixteen-output source-family producer. Its policy, inventory,
+count consumers, source pins, manifest and four workflow pins belong to this
+source checkpoint; use the actual signed checkpoint receipt for the resulting
+source/tree, member count and closure SHA. The preserved cb compiler manifests
+and five bundle bodies remain authentic historical inputs. The changed
+compiler-input namespace does not make them current production authority.
+
+Next, finish the signed source checkpoint's independent native source-family,
+checked-in/policy/topology checks and outgoing scan, then back it up on the
+unopened `release/0.4-living-realm-quality` branch. No integrated source SHA,
+new hosted pass, operating S or production acceptance is invented in these notes.
+Once GitHub Actions billing is demonstrably restored, refresh actual
+repository-wide history/activity under the current user policy. Retarget existing
+PR381 to main first, then make one reviewed non-forced head update and require
+its exact-head normal source Verify. Keep PR380 until the accepted integration.
+
+Accepted signed main M1 and its own successful main Verify come first. Sync the
+idle native checkout to actual M1 and run existing private Node22
+`scripts/local-release-assembler.mjs prepare`, followed by
+`check <actual-handle>`. Authenticate/export/receive the genuine outputs;
+commit, verify and integrate generated-only M2. Only resulting accepted main S,
+its exact successful main Verify and separate preparation Pages classification
+can enter the provider route. Do not compile a candidate then squash away its
+compiler-source ancestry; production preflight checks the real commit/raw bytes.
+
+At accepted S: existing Linux preflight -> G001 observation -> preserving
+prepared bridge -> initial disabled preparation signer/gateway -> signed PTR
+observation -> PTR then G002 existing-update inspect/apply and signed adoptions.
+Immediately reopen the private prepared receipt and completed deployment journal
+under `production-admin-v1`. They are separate from the sealed bridge chain:
+initial updates/adoptions can precede that chain; later activation inspection or
+generation calls `createSealedRealmsProductionAuthBridgeState().establish()`
+internally with deployment evidence and fresh live attestations. No manual
+authority file or invented establish CLI is supported. Generate/check genuine F
+through the existing private ingress while S stays pinned; generate activation
+with the initial disabled-signer policy/epoch, then reviewed signer promotion.
+A remains the supported direct S child changing only binding/package/package-lock.
+Then build actual A /ptr/, sign/publish the public mirror and run postflight.
+
+## Completed World and mobile Keep diagnostics — 1 October 2026
+
+W `028b1e4b` remains the measured production-component source. Nine mobile
+Keep samples meet unchanged 50/75/50ms cadence ceilings; twelve synthetic World
+samples retain their strict nominal misses. Preserve H2's desktop placement
+33.6ms versus 33.4ms miss, the original ungraded 59998.7ms World sample and all
+original source/clock/cleanup scopes. These do not prove GPU completion,
+input-to-visible/touch acceptance, maximum world, final-A cold bootstrap, full
+R06 or real owner/device acceptance. The validator-only repair changes no render
+loop, quality cap, resource budget or performance acceptance method.
+W's exact PR Verify36931509836 passed17 at22:55:04UTC (summary9ea105b2); it is
+not R/future-child/main acceptance. Twelve World CPU-first-GL p95 values remain
+desktop50.8/50.8/50.8 versus50; balanced67.3/67.4/67.3 versus66.7;
+reduced84.5/84.4/84.5 versus83.4; landscape67.2/67.3/67.3 versus66.7ms.
+Nine mobile Keep values remain balanced34.4/32.2/31 versus50;
+reduced33.2/32.5/33.4 versus75; landscape34.9/33.3/33.8 versus50ms.
+Retain World summary `fa09d70e`, Keep summary `738e5ba8`, genuine W Keep
+producer `fb36a642` and independent proof `524aa663`. Actual component
+clocks, synthetic workloads, scope and normal owned cleanup stay bound to W;
+resource counters cover SceneHost rather than whole-Screen heap/GPU ownership.
+See [performance](performance.md#completed-world-and-mobile-keep-diagnostics--1-october-2026).
+
+## World scheduler repair and H2 lifecycle checks — 1 October 2026, 21:26 UTC
+
+Snapshot before the new signed source checkpoint. Native remains clean H2
+`a903e78e`, tree `344f5768`; primary contains six owned source/test/notes edits.
+H2 PR Verify `36920400660` attempt 1 passed all 17 jobs at 21:20:49 UTC.
+Its summary SHA-256 is `7743f9fcee858382936054c21ec1756733e5fac7d71ee78cc100eed6e43f29b4`.
+The previous watcher ended normally and downloaded its archive once. No merge,
+CI rerun, provider write or public deployment followed that result.
+
+Actual H2 World build `b748ec28` used 1,191 type files and 1,514 recorded inputs.
+Its first desktop consumer failed before starting a browser: the runner assumed
+absolute paths while the authentic builder records repository-relative paths.
+The ignored runner now normalizes either form within the native root and retains
+all existing input/provenance checks. The failed run was preserved; the genuine
+producer was reused, not rebuilt or relabeled. The next desktop and portrait
+captures completed with stable source/index and absent owned groups.
+
+Reduced World submission p95 was 100.5/100.2/100.4ms. Exact source/host clock modeling
+reproduced early modulo carry and an extra display-tick wait; the local repair
+carries signed debt with bounded tolerance and unchanged caps. The isolated model
+has twelve passing candidate cases and five original regression failures, receipt
+SHA-256 `89072e9a4ee0276d42e3f0c8ec881c3871401c82448d912a2970ad4cef24bef2`.
+This does not prove every live invalidation's cause or post-repair GL/GPU cadence.
+
+Windows focused scheduler validation ended 21:20:32 UTC: 18 pass, zero fail/skip,
+JSON SHA-256 `b90686268a457c2d4c2c975089bf60d207d43486aa26f216baee90152434719e`.
+An intermediate 16-pass/2-fail attempt exposed only a same-cap-reset assumption
+and skipped test teardown; corrected tests choose a different cap and always
+retire their scheduler. Preserve that failed receipt and the earlier original
+baseline with their actual test hashes. Do not transfer results across revisions.
+Real caller validation ended 21:23:06 UTC: 38 Greater Realm runtime, 38 canvas-host
+and 77 preserved-Realm cleanup tests pass, zero failures/skips. App noEmit types
+ended 21:25:56 UTC, exit 0; no generated app output was written.
+
+The repaired scheduler SHA-256 is
+`21963961fab9fe73db094b1b8c4d855645e473128dbdebd2fe982f6625638557`;
+the final test SHA-256 is
+`195da0a06e15cce6eab96a4d131e7f09b69e295b479d0630aa2e3a1efb4129a9`.
+Compiler membership review confirms that neither is a cb compiler/recovery input;
+only the scheduler is in the protected closure. Retain all five bundles and use
+the supported closure projection, without a new compiler-cycle claim.
+
+All four H2 balanced/reduced × normal/reduced-motion-prop Keep diagnostics completed
+three warmups, twenty post-GC remounts and three actual context recoveries each.
+Growth 1,078,296–1,105,392 bytes and fitted slope 48,408–49,726 bytes/cycle meet
+the existing limits; mounted resource counts match baseline. All native/Chrome
+cleanup completed normally with unchanged H2 source/index and absent owned groups.
+Combined local receipt SHA-256:
+`52378f25173f01f270aeaf7ac876276cfd67f75f6e51a64e46363c15b71edf3d`.
+These observations are component/whole-page V8 evidence, not GPU bytes, physical
+phone or actual World/Keep/realm switching acceptance. The final-A production
+workload and owner entry remain open. Continue the current shipping handoff.
+
+## Keep feedback repair and production-component measurements — 1 October 2026
+
+This notes snapshot is after the final H run at 20:02:51.443 UTC and before H2
+signing/publication. Resolve actual Git/PR/CI evidence before the next operation.
+
+The generated checkpoint G `a8feb8c4`, tree `96507e3f`, remains the published
+[PR #380](https://github.com/ael-dev3/Warpkeep/pull/380) head. Exact
+[Verify 36907314985](https://github.com/ael-dev3/Warpkeep/actions/runs/36907314985),
+attempt 1, passed all 17 jobs at 19:16 UTC. Retain
+`artifacts/qa/october-release-a8feb8c4-verify-terminal-summary.json`, SHA-256
+`67d724bf9c37c25042ed4ba3c43bf69eaf74634c8e7ff956b578313bf025f60a`,
+as G evidence; its hosted pass does not transfer to H or future H2.
+
+The narrow existing Keep feedback repair is signed H
+`0d36f06c7f2b1d65169be64e3aecc88b9e27096b`, tree
+`c548e407d92b8cf7560452fcb9432af0c938f118`, direct parent G. Native commit
+completed 19:21:02.308 UTC; retained
+`october-release-keep-feedback-checkpoint.json` has SHA-256
+`e12281e9cb08ae6ba8a83b3041f0af16ad2a38ef20250bdd39d741f57b8bff5f`.
+The affected Windows suite passes 139 tests without failures/skips, native
+checks pass 50 cases, app types pass and independent source review passes.
+Outgoing Gitleaks completes 19:28:01.973–19:28:02.302 UTC with exit 0 and no
+findings; `october-release-keep-feedback-gitleaks-summary.json` is SHA-256
+`babb82721a8d4f3209b4282271f5f72610c140a275e8678a70bd607c9ae786d0`.
+
+Fresh supported 16-output derivation, native closure policy, checked-in verifier
+and static prepared policy all exit 0. H changes the three authored source/test
+paths, two excluded notes and five closure/workflow outputs; current manifest is
+`9e0126ea21afce6beefec0f1d69647b500162543eb8d87eb79421535850ce261`.
+Both compiler manifests retain cb/tree `feeeff15`; all 135 distinct committed
+compiler inputs remain unchanged. All five bundle bodies match their current
+manifest sizes/SHA and are unchanged since G. The repaired Host is absent from
+all compiler graphs and matches its raw-file member in the updated closure.
+This supported reprojection requires no extra M1/M2/full compilation. Original
+cb prepare/export receipts remain intact; H is not a new 102-output completion
+or byte-identical replacement for that earlier complete export.
+
+Primary synchronization completes 19:25:00.827 UTC, actual root tool exit 0;
+`october-release-keep-feedback-primary-sync.json` is SHA-256
+`078bd1d6389c28f05469976e5c7cf41b55c7dc0849ed102ce7ea4b89c76a5985`.
+All 3,355 canonical raw tracked files match H, primary is clean at completion,
+native HEAD/source/index remain intact and earlier branches are preserved.
+The nonforced explicit `release/0.4-keep-feedback` backup is verified at
+19:33:49.499 UTC; `october-release-keep-feedback-backup-publish.json` is SHA-256
+`d778cd568ec73ea18640b5a2ce0213d8ca3f52670ca810668747144a508dcb82`.
+This is development backup evidence, not H PR/main CI or provider publication.
+
+The genuine H Keep fixture builds 19:25:37.735–19:25:38.620 UTC with production
+defines and no public asset copy. Producer PID/PGID 957829, birth 25543996, and
+type child 957855, birth 25544003, run as native UID/GID 1000. Actual type/build
+exit is 0; 777 type inputs, 811 loaded build inputs and six outputs are retained.
+The native receipt `october-release-r06-keep-0d36f06c-feedback.json` is SHA-256
+`b9995d10760f4f996a7c38ebadf299cb220daa4bbec4b9303444aa09e7ba873d`.
+Independent raw-source/index/output verification at 19:27:40.104 UTC confirms
+the whole group and both recorded actors absent. The independent primary receipt
+`october-release-r06-keep-H-independent.json` is SHA-256
+`b34c27d0413f7ed50179cff83bf7d787a26caf4ba679594eef0a7086c6ec0fb5`.
+Static models/fonts remain separately bound to the earlier `6e9f50bf` build.
+
+Four repaired-source camera profiles have completed three 60-second samples each:
+
+| H profile | Actual run interval, UTC | CPU GL submission p95 | Outer tool result |
+| --- | --- | --- | --- |
+| Desktop high | 19:34:23.617–19:38:01.595 | 17.1 / 17.1 / 17.1ms | Session 58285, exit 0 |
+| Portrait balanced | 19:39:14.115–19:42:59.551 | 17.5 / 17.6 / 34.0ms | Session 85502, exit 0 |
+| Portrait reduced | 19:43:59.255–19:47:42.829 | 17.4 / 34.3 / 17.6ms | Session 20314, exit 0 |
+| Landscape balanced, viewport retry | 19:59:05.689–20:02:51.443 | 17.4 / 18.8 / 34.2ms | Session 57420, exit 0 |
+
+Retain `october-release-r06-0d36f06c-desktop-high-advanced-feedback-run.json`,
+SHA-256 `f26736f68c2966857f2eb86975d963d2bb0137dbc2da4ace82dccaf104bb3bf8`,
+and `october-release-r06-0d36f06c-portrait-balanced-advanced-feedback-run.json`,
+SHA-256 `1f86de4a9df36ff0abc71b299758b8421cc111c34d4121fd2926f9c15b1b8126`,
+and `october-release-r06-0d36f06c-portrait-reduced-advanced-feedback-run.json`,
+SHA-256 `c1ea185fd6433e167fa7ad5d7e1abdf86eefe3899ab8cd41e4188335a5d42ec7`,
+and `october-release-r06-0d36f06c-landscape-balanced-advanced-feedback-viewport-v2-run.json`,
+SHA-256 `d702491d7e51835ef9dac439f9a6dc4cee6762a93bfdb450351dd634dddb20ef`,
+with their three separate raw sample receipts and actual outer terminals.
+All twelve samples are eligible, have exact application-RAF/GL-burst pairing,
+no failure and no driver-limited result. Actual Chrome/GPU/viewport/DPR and
+input-delivery diagnostics are retained. Owned Chrome/profile cleanup and native
+server normal exit/group absence pass; H source/index stay unchanged.
+All four profiles meet their unchanged cadence ceilings; full R06 remains incomplete.
+
+The first landscape attempt, actual root session 97457, exits 1 before timed
+samples at the fixture geometry boundary. Its real WebGL scene and viewport
+were ready; native H source/index remain unchanged and normal owned actor
+cleanup passes. Retain the failed run's SHA-256
+`385d7c3cda4b78c115962c7f910e83422b00e2606e75bf8cf2904e4a2aecfcd4`.
+The successful unique retry confirms the synthetic canvas was below the short
+844×390/DPR-3 viewport: before ordinary scrolling, canvas top is 407.75px with
+clipped-height diagnostic −17.75px (offscreen) and scrollY 0; after scrollY 295, visible height is
+163.796875px. The sampler records both geometries before timing. WebGL/profile
+are unchanged, horizontal overflow is absent and all other measurement gates
+remain intact. No product rendering change is made. Its three raw sample SHA-256s
+are `8442e0df6de0442874e778b50bf977efbcdfddc4955935c1f63f60d78128b9a4`,
+`af36f2d086fb3a8ff82a52bdfbb1fa5b213e748ce7201724441c01eb7e159c9b` and
+`40ba65fe368969c6563bd1776e6b12a1efec84e3e3f079fd1e650abc8217b775`.
+The failed first attempt remains separate and supplies no cadence result.
+
+These are production-optimized component measurements of synthetic completed
+buildings using genuine existing controls, without owner authority. They do not
+prove completed GPU frames, placement/basic controls, World and realm lifecycle
+workloads, final-A cold bootstrap/transfer, production heap/resource acceptance
+or actual-owner/physical-device behavior. Alpha remains live at 0.3.43 and owner
+0.4 PTR is unpublished. The planned five-note
+H2 checkpoint needs signing/scanning/sync/backup, one PR #380 head update with
+normal exact-head CI and resulting-main acceptance before S/F/A provider work.
+At this notes snapshot, H2 signing/publication, hosted CI and provider work are
+pending. Resolve actual Git/PR/CI evidence before acting; this section deliberately
+does not attempt to embed its own future commit identity. Earlier sections below
+retain their source-bound historical facts and pending language.
+
+## Authored main integration and Keep measurement diagnosis — 1 October 2026
+
+The corrected auth predecessor runtime and supported source-family pins are
+published at signed reviewed head `d16355f24045ff8580341a663b46c93d826ac356`.
+Exact [PR Verify 36883391676](https://github.com/ael-dev3/Warpkeep/actions/runs/36883391676),
+attempt 1, passed all 17 jobs, updated at 16:22:24 UTC. The module job passed
+598 pure tests without failures or skips; connected migration and generated-binding
+proofs also passed. Local native affected auth runtime tests passed 113 cases; the actual
+prepared policy, sealed verifier, selected POSIX static caller and app types
+passed in their separately retained records. Outgoing-range scanning found no
+secrets. Retain `october-auth-d163-verify-terminal-summary.json` and
+`october-release-auth-d163-final-review.json` under ignored `artifacts/qa/`.
+
+PR #379 merged at 16:30:55 UTC into actual signed main
+`cb282bab1f6df094643e4b18b20db3ce39e96ddf`, tree
+`feeeff15c458e18b793c071e67c16eb707d28a6f`, single parent
+`acbb51285485d918ae861db4bc18046e32378951`. GitHub verified the actual merge
+signature; its message has no CI skip. Retain
+`october-release-auth-source-integration.json`, SHA-256
+`2dc6ce0592fbbbb644f309e70378679341ef46e199ff45683ace475f10977288`.
+Primary synchronization finished at 16:33:13.436 UTC; its tracked bytes and
+normal index matched the reviewed source. Native synchronization finished at
+17:20:34.856 UTC after independent cleanup of the failed QA diagnostic below.
+Both checkouts retain the earlier development branch at `d16355f2`.
+This is source integration, with actual-main
+[Verify 36892578403](https://github.com/ael-dev3/Warpkeep/actions/runs/36892578403)
+passing all 17 jobs in the 17:36:29.827 UTC terminal readback. Its downstream
+Pages classification is separate from PR evidence and actual publication.
+
+Downstream [Pages 36900175046](https://github.com/ael-dev3/Warpkeep/actions/runs/36900175046),
+attempt 1, completed at 17:33:11 UTC. Exact-source classification passed and
+all six deployment/publication/live jobs were skipped. The blocked preparation
+lane is a source-supported inference from schema 1/Pages approval false, rather
+than a value printed by the raw log. Retain
+`october-auth-cb282-workflow-terminal-summary.json`, SHA-256
+`7a3d35212c45af66f2e97a638f1e2d4deaadf30fcd09fe8dd1332f299d44b069`.
+
+Actual resulting-main native prepare/check started at 17:20:59.498 UTC.
+The wrapper's real PID/PGID is 528293, boot UUID
+`b838a6fd-94ef-43a6-9d58-ed8f2141dd66`, start tick 24826902; its first actual
+prepare child is 528373, start tick 24827023 in the same group. The receipt stem
+is `artifacts/qa/october-release-cb282bab-actual-main`. It runs as UID/GID 1000
+with pinned Node 22.22.3 and the existing private tool/cache namespace. Follow
+these actual process identities and terminal phase receipts for continuation.
+Prepare and independent check completed at 17:46:10.895 UTC, actual tool session
+50549 exit 0. Their genuine 19-field results are identical, SHA-256
+`8fe9b0fcc0a477d9cee6ea497737f8f4ab12f1262d3239a46d6871dd24b52efa`,
+with handle `release-workspace-5fd662e2cd5d954fd6b50961384369b4`.
+Independent review at 17:48:09.580 verifies the whole group and all three recorded
+owners absent, all 3,355 raw source files and the physical index unchanged,
+102 outputs/backups and 3,253 preserved files. Complete generated family is
+`4b5240e99fa4fd75a2b6acf7268f0fbe76b7ee7f61d88387cc05423bd60ca003`.
+Retain the actual `-exec-terminal.json`, `-receipt.json`, `-independent.json`
+and `-transfer.json` under this stem. Private candidates/journals remain intact.
+
+Authenticated export is SHA-256
+`2898b83c465822d986d1457d38624992904a50ba5316f128573cb6cc26f1886f`;
+its complete output inventory produces generated tree
+`2172883986bc76af899ef2f42dbc23ad4fe6cdb9`, with exactly ten changed paths.
+Independent review verifies all 102 allowlisted outputs and the full family,
+patch and Git tree. Both sealed and recovery manifests retain genuine
+`cb282bab`/tree `feeeff15` compilation authority. Each workflow changes only its
+closure SHA pin. Isolated receive completed at 17:53:29.966 UTC, actual exit 0,
+preserving HEAD, normal index and nonoutputs. Retain this stem's `-export.json`,
+`-export-independent.json` and `-received.json`; the last has SHA-256
+`6449593df7a9ec183543e92325f016a3af204e7faafda16532017ddc20c00837`.
+The seven README/current-note updates are excluded from all actual compiler
+graphs and the protected closure; independently rederive its fixed family
+after copying them, preserving the authenticated 102 outputs. No extra compile
+is needed for those notes. Signed generated-checkpoint review, normal PR and
+resulting-main acceptance remain separate from this successful local receive.
+
+An additional authenticated production read at 17:54:02.961–17:54:14.674 UTC
+proves the known live v50's original B0 bytes. Existing pinned Node/Wrangler
+4.110 and profile `warpkeep-production` matched the configured account; the
+token remained only in process memory. Deployment-before, version, original
+content and deployment-after GETs confirmed stable `b338c098`/v50 `2b28a266`.
+The single `index.js` is 1,124,442 bytes, SHA-256
+`1442aca3fda8cc9d408d8614261ba8c472526ec0a17d2e513385f3885f33c4b3`;
+multipart source digest is
+`8744a3767fb0cbe9b99c34ab3351f9744b0b4134d6244c393dea5e828296654d`.
+These match original authority exactly. Retain sanitized
+`october-auth-v50-original-byte-read-20261001T175402961Z.json`, SHA-256
+`cd93f1e3f482af70a3a53d00d1a97ba728f7d5e14741a28811f206b0a240b839`.
+No raw body/credentials were persisted and no Worker was changed. The future
+accepted-S protected upload must repeat its own live configuration and byte
+checks; this read supplies no substitute S or deployment receipt.
+
+Production-component Keep diagnosis remains scoped to `d16355f2`/tree `feeeff15`.
+The isolated fixture compiles real Keep components with production optimizations
+and no player connection or command authority. Its corrected producer uses the
+actual npm root lock; the initial nonexistent pnpm-lock failure is retained.
+The fixture is separate from final-A bootstrap. Reused static assets retain the
+genuine `6e9f50bf` production build, not the fixture's source identity.
+
+Four browser attempts retain their actual failed terminals and collect no timed
+cadence samples. The first, 16:04:57.847–16:05:18.904 UTC, reported a generic
+boundary failure without its first event. The next, 16:13:20.789–16:13:40.347,
+identified the browser's implicit `/favicon.ico` request. Adding an explicit link
+to the existing hash-pinned favicon corrected only the ignored fixture HTML.
+The 16:21:35.325–16:21:55.924 attempt then identified canceled model requests;
+the final targeted diagnostic ran 16:41:34.682–16:41:58.705. Retain each original
+runner/guard input and corresponding `october-release-r06-desktop-advanced-20261001-…-run.json`.
+
+In the targeted diagnostic the real linden model request returned HTTP 200,
+`model/gltf-binary`, no blocked reason and all 74,720 declared raw body bytes.
+Chrome reported canceled `net::ERR_ABORTED`; its encoded-body counter was 68,336,
+which is not the raw-byte counter. Existing `requestExactModel` deliberately
+aborts its controller in `finally` after complete read/integrity validation.
+The scene subsequently reached real ready state at 16:41:49.816 with no fallback:
+45 draw calls, 145,640 triangles, 6,746,640 geometry bytes, zero active loaders
+and pending SceneHost RAFs. The 420.7 ms initial frame is warmup evidence,
+not a steady-state cadence statistic. The strict measurement guard, rather
+than a demonstrated product load defect, caused this rejection.
+
+Retain `october-release-r06-desktop-advanced-20261001-request-facts-run.json`,
+SHA-256 `2ba4b84fed71eeee8777cba1ee5dd811663c9058921decc4bb70e36d5a5836fb`,
+and the actual outer terminal in `october-release-r06-request-facts-exec-terminal.json`.
+Normal browser/server closure and independent cleanup confirm all nine matching
+Chrome creation identities absent and all recorded native groups empty.
+Independent full raw-source/mode and physical-index checks passed; retain
+`october-release-r06-request-facts-independent.json`, SHA-256
+`a2402e6c492645852c8c55f5bb21062d6bad20e8651029bb48fede126da4129f`.
+The fixed cleanup proof authorized synchronization of an idle checkout; it
+does not convert the failed diagnostic into R06 acceptance.
+
+Handle only verified, fully received, exact content-addressed local model cleanup
+cancellations in the measurement guard. Partial, unknown, blocked, redirected,
+bad-status and mismatched requests remain failures. A settled advanced Keep
+intentionally stops rendering; active cadence requires actual existing camera
+or placement input. Do not force product RAFs, score idle as lag, call CPU
+submission timing GPU completion, or treat desktop mobile emulation as a
+physical phone. Full shaped production R06 and owner/device acceptance remain
+open; no provider or publication write follows from these diagnostics.
 
 ## QR recovery predecessor compatibility — 1 October 2026
 
@@ -2445,3 +8262,204 @@ migration, complete local release execution, genuine workflow/OIDC evidence wher
 required, and isolated recovery verification. Cloudflare and SpacetimeDB targeting
 need separate fresh authenticated checks. Frontend setting verification alone
 does not satisfy the complete hosting or live-release gates.
+
+### .33 correction qualification — 8 October 2026, 06:07 UTC
+
+The origin-mandatory corridor correction is implemented in the real child-bundle
+selector shared by ordinary and repair callers. Mandatory intersections are
+computed separately for each origin and tier, from validated unique footprints.
+Only diversity scoring discounts these cells; original physical footprints,
+collision authority, geometry and search caps are preserved. Temporary arrays and
+Sets are cleared. Two regressions failed against .32 before the correction; all
+43 apron tests and pinned typecheck pass against .33. Mixed-origin, repeated-cell
+and actual collision rejection coverage also passes. Generator, rejection and
+package qualification is running; publication and a fresh search remain pending.
+
+File-size, licensing and public-boundary checks pass. The complete read-only
+Actions inventory finished at 06:05:39.102316 UTC: all four repositories remain
+disabled and have no active runs. Receipt
+`artifacts/qa/october-release-32-retirement-actions-v1.json`, SHA256
+`f30415958b9f1afa5da7b85ce2656d1212351d21aad5b0d39d01663d492b29e1`.
+No production mutation or new candidate search was performed during this fix.
+
+Build-mode qualification caught TS2322 in the previous repair-pair change: the
+non-null initializer inferred NonNullable<Option>, but later assignment accepts
+Option. Explicitly typing the local as Option fixes inference without changing
+runtime behavior. Pinned project tsc -b --pretty false now passes; root
+tsc --noEmit alone was not sufficient project qualification.
+
+Final .33 qualification: 157 affected tests passed. The three generator/rejection/
+package files passed 114 tests in 610.88 seconds (package 82 in 609.69 seconds),
+in addition to 43 apron tests. Pinned project build-mode typecheck and all policy
+checks pass. Complete prepublication Actions inventory finished 06:14:52.687658
+UTC, no active runs and all four repositories disabled. Receipt
+`artifacts/qa/october-release-33-prepublish-actions-v1.json`, SHA256
+`182aefbfb92fa47cc67ee8ff4ea66c99b515ec45dd127922437416d98d831e7f`.
+Source qualification is complete; publication and fresh search must be verified
+separately. No eligible atlas or authenticated owner acceptance is claimed.
+
+## .33 search exhausted and retired — 8 October 2026, 07:16 UTC
+
+Signed source 2ad40f31ba86399a2ad651085c135e688f66093f, tree
+c520e6b92d3be567e7c4b0d308042c41afc33bf1, completed its source-bound search
+at 07:15:55.885 UTC (start 06:19:46.959 UTC), exit 1 with no cutoff, monitoring
+or source-hold failure. Two complete process/group/supervisor absence observations
+preceded the bound terminal reader. The authenticated result proves 256 rejected
+attempts: 217 geography / 39 proof, root seed zeroized, no eligible package,
+selection or provider write. Maintained abort returned checkpointAborted=true,
+productionUntouched=true; the persistent watcher was stopped. Never resume this
+exhausted workspace or relabel its source/seed.
+
+Terminal metadata SHA256:
+`d06fa50bc11a20e2c35964a6146153677d915190e06fee23271ac560fc7977d6`.
+Started receipt SHA256:
+`b4e225d8ecacca504ae62f1efc5c2e493fe3f78c066276442ffd8981f2d31c86`.
+Bound reader SHA256:
+`11e4e29518f2b10e9bcfce275289a267cc007eb053b3e86136f64dd56e00bba4`.
+
+Geography failures: active grid 24, complete-plan limit 15, child-option frontier
+113, sibling-pair frontier 17, search-node limit 31, undersized primary component
+12, forbidden Throne component repair 5. Overlapping frontier kinds: bundle
+option 188, bundle pair 18, Lowlands repair option 182 and repair sibling pair
+182. These counts overlap and must not be summed as separate attempts.
+
+The .33 correction remains regression-qualified; this batch did not establish
+release atlas eligibility. Next action is a bounded public reproduction of any
+remaining real gate-apron selection defect, before another fresh search. Keep
+existing acceptance criteria and caps. Atlas, actual owner provisioning and
+Mini App/device acceptance remain incomplete; static PTR is not release proof.
+
+Preflight incident: initial replacement07 helper had mode0644 and failed
+QA_LAUNCHER_INVALID before worker/workspace creation. Its failure receipt remains
+separate. Replacement08 used a fresh launcher mode0600; source/toolchain checks
+passed. No security check was bypassed.
+
+### .34 bounded correction — 8 October 2026, 07:23 UTC
+
+Actual public selector/downstream replay proved that any available fallback pair
+excluded remaining own pairs from slot2. First own [1]/[2], second own [3]/[4],
+fallback [1]/[5], competing parent [1]/[6]: .33 retained first+fallback and the
+ranked search found no match; same-cap first+second-own found a match. This
+proves a feasible-selection loss, not the cause of every .33 random rejection.
+
+.34 scores remaining own pairs followed by fallback pairs together for slot2.
+Strictly smaller physical overlap wins; own preference and existing order break
+ties. The first own pair, two-slot cap, original physical collision footprints,
+tier separation and temporary-set cleanup remain intact. Two new regressions
+failed .33 first; all45 apron tests and pinned project tsc -b pass. Root reviewed
+the actual diff. Generator/rejection/package qualification is running. No new
+candidate search or production mutation has begun; publish only after checks.
+The retired native cutoff helper is independently confirmed absent.
+
+Final .34 qualification — 8 October 2026, 07:33 UTC: all159 affected tests pass
+(45 apron, 21 generator, 11 rejection, 82 package). Three root suites completed
+114 tests in 572.44 seconds; package suite took 571.239 seconds. Pinned project
+tsc -b, file-size, licensing and public-boundary checks pass. Complete Actions
+inventory finished 07:25:23.130471 UTC; four repositories disabled, no active runs.
+Receipt october-release-34-prepublish-actions-v1.json SHA256
+0d91b09e8862990497b0c7ad97477b403bbdb755b4414bb9b919b61ffd3d24e5.
+Qualification does not establish atlas eligibility or authenticated owner acceptance.
+
+## .34 authenticated search exhaustion — 8 October 2026, 08:34 UTC
+
+Signed source `e3a7de6adf2b5fc3d52297e30dbc5a6ff9a6839b`, tree
+`2ec9b9f9125753ebd240dbb4f251bb884af92bc0`, generator .34 ran from
+07:34:47.904 to 08:34:38.968 UTC. Worker session 34630 exited 1 without
+source hold, monitoring, deadline or toolchain failure. Two complete native
+observations proved the recorded workers, group and supervisor absent.
+The bound terminal reader authenticated receipt SHA256
+`1ca272c07d2813c3002f592d55d0ef06b0acdaea1e5e4930198e6518a13220d7`:
+256 rejected attempts (210 geography, 46 proof), no eligible package,
+accepted pending finalization, selection or provider write. Seed zeroization
+passed. Geography included 113 bundle-option frontier, 9 bundle-pair frontier,
+20 search-node, 13 complete-plan, 20 undersized-primary, 21 active-grid,
+10 legacy placement, 1 empty strategic and 3 forbidden throne repair rejects.
+Overlapping frontier flags: bundle-option 175, bundle-pair 16,
+repair bundle-option 165 and repair sibling-pair 165. These counts identify
+where diagnosis should start; they do not establish a specific defect.
+Maintained pinned `generate-candidates --abort-checkpoint` returned
+`checkpointAborted:true`, `productionUntouched:true`. Watcher session 30381
+was stopped after retirement. Never resume this exhausted workspace.
+Next: reproduce remaining generation failure using public synthetic input,
+then batch any confirmed fix and qualification before a new source-bound search.
+Existing production, admission freeze, G001 preservation and G002 seal remain
+unchanged. No 0.4 release or authenticated owner acceptance is claimed.
+
+### .34 public terrain diagnosis after retirement
+
+Independent bounded selector review at e3a7de6a found no demonstrated remaining
+selector defect. Finite-frontier incompleteness alone does not justify a change.
+Pinned public fixture `greater-realm-ordinary-parent-a` plus NUL, ordinal 10,
+completed successfully as a diagnostic (not an eligible release candidate).
+Recomputing semantic roles as [0,1,2,5,3,4] still failed regional proofs:
+Mirefen wetland complex 30, delta/estuary 19, braided proxy edges 2;
+Stonewake meaningful islands 8, narrow saltwater strait cells 0.
+Default roles had Mirefen wetland 63, delta 11, braided 23 and Stonewake
+one meaningful island, zero narrow straits. Biome classification consistency
+was 10000 basis points with zero mismatches. Thus naming alone remains
+insufficient; inspect physical terrain and political water ownership before
+another full search. These are public-fixture observations, not the private
+retired batch's seed or a proof that every candidate fails for this cause.
+
+
+### .35 balanced saltwater ownership correction - 8 October 2026
+
+Synthetic final-QA reproduction demonstrated physical strait potential across
+foreign ownership. The integrated repair exchanges eligible same-tier ocean/sea
+cells with equal donor compensation before derived world data. Locked cells,
+terrain, hydrology and region sizes are preserved. Adoption requires final
+Stonewake proof and preservation of other passing regional proofs. Rejection
+or acceptance exceptions roll back and zeroize scratch buffers.
+
+All 186 affected tests passed: repair 9, apron 45, and generator/rejection/
+package/topographic QA 132. The latter suite completed in 595.79 seconds.
+Build-mode typecheck, file-size, license and public-boundary checks passed;
+the boundary scan included both new paths (3463 tracked, 1928 scanned).
+
+Complete paginated Actions inventory finished 08:55:26.999893 UTC, no active
+runs, all four repositories disabled. Receipt SHA256:
+`119773462f9ff85efd7ec45d9f41ddc8c3293f1dca3e882d9859838063b9da67`.
+Before publication, fresh GETs must confirm unchanged permissions/run history.
+Next: signed publication and exact Windows/WSL synchronization, then one fresh
+source-bound search. No eligible atlas, provider write or owner acceptance
+is claimed by this correction. Existing Alpha and licensing remain unchanged.
+
+
+### .35 exhausted and retired - 8 October 2026, 10:03 UTC
+
+Source 75c617e55140aae55f23d96a2ab591c1bd394ede/tree f2c81c9ed3d3b80cfdaea17e39cf0ee936a00e53
+ran 09:06:05.132 through 10:03:08.600 UTC in replacement10. Worker session
+12894 ended exit 1, without source/toolchain/monitor/deadline failure. Two full
+native process observations proved the original workers/group/supervisor absent
+before the bound reader authenticated 256 rejections (225 geography, 31 proof),
+no eligible package or accepted pending finalization, and root seed zeroization.
+Terminal metadata SHA256 bfc34eaa2ee23ac9a42c531567005b3a7eb1a55a33bcb083ffcdff1492bd3f41.
+Bound reader SHA256 5b9da28252fa4da006d8efb7747fa516219a7fea7c8717161a4063bd8fd29465.
+Frostmere failed 28 proof attempts, Mirefen 17, Stonewake 18; overlapping proof
+counts are not evidence of one shared cause. Maintained abort reported
+checkpointAborted:true/productionUntouched:true; watcher 47008 was stopped.
+Next: bounded public Frostmere reproduction before another source search.
+
+Owner host login was verified at Farcaster as 0xael.eth. Existing Alpha build
+5f77c3c reports quick_auth_token_timeout (web, online) after initial launch and
+a fresh reopen; its host also shows Confirm it's you with phone approval.
+The pinned SDK obtains a nonce, awaits host signIn, then verifies SIWF; the
+observed timeout precedes Warpkeep bridge exchange. Host approval as the cause
+remains a hypothesis until approval and successful retry. No authenticated PTR
+acceptance is claimed. Privacy-safe observation receipt SHA256
+852a805ed4729ea640dbd871a011349c7183d96fa7d6a169718fd1a34072ee08.
+
+
+### .36 final fjord distance correction - 8 October 2026
+
+A bounded independent review identified an inconsistent predicate: the canonical
+coastal constructor accepts distance-to-glacial-mask <=4, but the final post-
+hydrology repair required glacialMask[cell]===1. A public axial line with dry,
+cold, steep coast one step from glacial authority reproduced missing fjord
+classification. Root-owned distance 1/2/3/4 regressions failed on .35; distance
+5 correctly rejected. The corrected repair reuses canonical maskDistances and
+zeroizes its result in finally, retaining all existing physical/protection guards.
+Qualification completed: 32 geomorphology/topographic and 168 generator,
+rejection, package, apron and strait tests passed (200 total); the latter suite
+finished in 596.34 seconds. Build-mode typecheck, file-size, license and public-
+boundary checks passed (3463 tracked, 1928 scanned). No global proof waiver or universal random-rejection fix is claimed.

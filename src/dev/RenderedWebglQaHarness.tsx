@@ -123,6 +123,10 @@ function renderedWebglQaSfxEventForKind(
     case 'select-stone':
     case 'river-focus-entered':
       return { kind, screenX: 400 };
+    case 'keep-building-selected':
+      return { kind, building: 'cathedral' };
+    case 'keep-resources-credited':
+      return { kind, resource: 'gold', count: 4 };
     default:
       return { kind };
   }
@@ -130,6 +134,8 @@ function renderedWebglQaSfxEventForKind(
 
 const RENDERED_WEBGL_QA_OFFLINE_SFX_CORPUS = Object.freeze([
   ...WARPKEEP_SFX_EVENT_KINDS.map(renderedWebglQaSfxEventForKind),
+  ...(['mill', 'lumber', 'stone', 'gold', 'barracks'] as const).map(building => Object.freeze({ kind: 'keep-building-selected', building } as const)),
+  ...(['food', 'wood', 'stone'] as const).map(resource => Object.freeze({ kind: 'keep-resources-credited', resource, count: 1 } as const)),
   Object.freeze({ kind: 'ui-press', emphasis: 'quiet' } as const),
   Object.freeze({ kind: 'ui-press', emphasis: 'primary' } as const),
   Object.freeze({ kind: 'select-water', regime: 'ocean', screenX: 400 } as const)

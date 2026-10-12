@@ -16,7 +16,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 // @ts-expect-error Standalone release utility has named test seams.
 import { allowedPath, checkPublicPagesPayloadManifest, verifyPublicPagesPayload, writePublicPagesPayloadManifest } from '../scripts/verify-public-pages-payload.mjs';
-// @ts-expect-error Production output policy is an executable ESM module.
 import { allowedProductionHtmlPaths, expectedProductionCspByPath } from '../scripts/verify-production-dist-exclusions.mjs';
 
 const sourceIndex = readFileSync(resolve(process.cwd(), 'index.html'), 'utf8');
@@ -58,7 +57,7 @@ function createCandidate(publicationPath = '/') {
   ]);
   const expectedSourceCommit = git(root, ['rev-parse', 'HEAD']);
   const dist = join(root, 'dist');
-  for (const htmlPath of allowedProductionHtmlPaths as readonly string[]) {
+  for (const htmlPath of allowedProductionHtmlPaths) {
     let document: string;
     if (htmlPath === 'index.html') {
       document = sourceIndex.replace(

@@ -2376,34 +2376,49 @@ describe('notification Pages ongoing live receipt', () => {
   // repeatedly launches the native syntax reader; keep a finite dedicated budget.
   }, 300_000);
 
-  it('rejects assume-unchanged and skip-worktree protected index flags before network', async () => {
-    const protectedPath = 'scripts/notification-pages-live-receipt.mjs';
-    for (const [enable, disable] of [
-      ['--assume-unchanged', '--no-assume-unchanged'],
-      ['--skip-worktree', '--no-skip-worktree'],
-    ] as const) {
-      const fetchImpl = vi.fn();
-      execFileSync('/usr/bin/git', ['update-index', enable, protectedPath], {
-        cwd: process.cwd(),
-        stdio: 'ignore',
-      });
-      try {
-        await expect(reconcileNotificationPagesLiveCandidate({
-          repositoryRoot: process.cwd(),
-          candidatePagesSourceCommit: HEAD_COMMIT,
-          fetchImpl: fetchImpl as unknown as typeof fetch,
-        })).rejects.toThrow(
-          'NOTIFICATION_PAGES_LIVE_PROTECTED_CHECKOUT_DIRTY',
-        );
-        expect(fetchImpl).not.toHaveBeenCalled();
-      } finally {
-        execFileSync('/usr/bin/git', ['update-index', disable, protectedPath], {
-          cwd: process.cwd(),
-          stdio: 'ignore',
-        });
+  it('rejects assume-unchanged and skip-worktree protected index flags before network without changing the source index', async () => {
+    const sourceRoot = realpathSync(process.cwd());
+    const sourceIndexPath = execFileSync('/usr/bin/git', ['--no-optional-locks', 'rev-parse',
+      '--path-format=absolute', '--git-path', 'index'], { cwd: sourceRoot, encoding: 'utf8', timeout: 15_000 }).trim();
+    const sourceIndexBefore = readFileSync(sourceIndexPath);
+    const cloneParent = mkdtempSync(join(realpathSync(tmpdir()), 'warpkeep-live-index-flags-'));
+    chmodSync(cloneParent, 0o700);
+    const cloneRoot = join(cloneParent, 'repository');
+    try {
+      // This consumer reads its imported repository's normal index with its own closed Git environment.
+      // A caller GIT_INDEX_FILE override would not exercise that index; isolate a real checkout instead.
+      execFileSync('/usr/bin/git', ['clone', '--quiet', '--no-checkout', '--shared', sourceRoot, cloneRoot],
+        { timeout: 30_000, maxBuffer: 1024 * 1024 });
+      execFileSync('/usr/bin/git', ['checkout', '--quiet', '--detach', HEAD_COMMIT], { cwd: cloneRoot, timeout: 15_000, maxBuffer: 1024 * 1024 });
+      symlinkSync(realpathSync(join(sourceRoot, 'services/auth-bridge/node_modules')),
+        join(cloneRoot, 'services/auth-bridge/node_modules'), 'dir');
+      const isolatedReceipt = await import(
+        `${pathToFileURL(join(cloneRoot, 'scripts/notification-pages-live-receipt.mjs')).href}?index-flags=${Date.now()}`
+      ) as typeof import('../scripts/notification-pages-live-receipt.mjs');
+      const protectedPath = 'scripts/notification-pages-live-receipt.mjs';
+      for (const [enable, disable, marker] of [
+        ['--assume-unchanged', '--no-assume-unchanged', 'h'],
+        ['--skip-worktree', '--no-skip-worktree', 'S'],
+      ] as const) {
+        const fetchImpl = vi.fn();
+        execFileSync('/usr/bin/git', ['update-index', enable, protectedPath], { cwd: cloneRoot, stdio: 'ignore', timeout: 15_000 });
+        try {
+          expect(execFileSync('/usr/bin/git', ['ls-files', '-v', '--', protectedPath],
+            { cwd: cloneRoot, encoding: 'utf8', timeout: 15_000 }).trim()).toBe(`${marker} ${protectedPath}`);
+          await expect(isolatedReceipt.reconcileNotificationPagesLiveCandidate({
+            repositoryRoot: realpathSync(cloneRoot), candidatePagesSourceCommit: HEAD_COMMIT,
+            fetchImpl: fetchImpl as unknown as typeof fetch,
+          })).rejects.toThrow('NOTIFICATION_PAGES_LIVE_PROTECTED_CHECKOUT_DIRTY');
+          expect(fetchImpl).not.toHaveBeenCalled();
+        } finally {
+          execFileSync('/usr/bin/git', ['update-index', disable, protectedPath], { cwd: cloneRoot, stdio: 'ignore', timeout: 15_000 });
+        }
       }
+    } finally {
+      try { expect(readFileSync(sourceIndexPath)).toEqual(sourceIndexBefore); }
+      finally { rmSync(cloneParent, { recursive: true, force: false }); }
     }
-  });
+  }, 60_000);
 
   it('performs no network work for invalid static input or a non-HEAD candidate', async () => {
     const targetWorkspace = workspace('warpkeep-pages-live-static-');

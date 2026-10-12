@@ -10,8 +10,9 @@ lane raises owner-private candidate yield without weakening final world proofs.
 
 **Architecture:** The `.18` normal authority and ranked search remain the first
 lane. A separately stored child-0 reserve authority and capped repair frontier
-are consulted only after a complete normal no-match. Both lanes use the same
-allocator commit path and final invariant suite.
+are consulted after an ordinary no-match or bounded search limit, unless the
+ordinary lane already found a match. Both lanes use the same allocator commit
+path and final invariant suite.
 
 **Spec:**
 `docs/superpowers/specs/2026-08-26-greater-realm-c0-yield-repair.md`
@@ -36,7 +37,8 @@ allocator commit path and final invariant suite.
 - Modify: `scripts/atlas/greater-realm-candidate-generator.ts` (exports only)
 
 - [ ] Add a pure two-lane sequencing test: normal match skips repair; normal
-  node/plan limits stay terminal; only normal no-match invokes repair.
+  no-match or node/plan limits invoke bounded repair; if repair does not match
+  after an ordinary limit, retain the ordinary limit as the primary result.
 - [ ] Add a repair-edge predicate matrix covering Lowlands ownership, dry
   endpoints, protected exclusion, Tier-II reserve exclusion, and foreign-child
   rejection.
@@ -57,8 +59,9 @@ allocator commit path and final invariant suite.
   selection.
 - [ ] Extract capacity-frontier construction without changing normal ranking;
   cap only the repair frontier at 16 assignments and two pairs per parent.
-- [ ] Run the ordinary lane first and the repair lane only after complete
-  no-match. Retain the existing global search budgets.
+- [ ] Run the ordinary lane first and preserve any ordinary match; run the
+  separately bounded repair lane after no-match or bounded exhaustion. Retain
+  the existing per-lane search budgets.
 - [ ] Assert reserve ownership and Lowlands apron ownership before commit.
 - [ ] Run the focused tests to green.
 

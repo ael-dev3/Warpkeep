@@ -438,6 +438,7 @@ type GreaterRealmTrackedTreeEntry = Readonly<{
   path: string;
   objectId: string;
   size: number;
+  mode: 0o644 | 0o755;
 }>;
 
 function parseExactRegularTree(
@@ -450,21 +451,21 @@ function parseExactRegularTree(
   for (const record of output.split('\0')) {
     if (record === '') continue;
     const match = record.match(
-      /^100644 blob ([0-9a-f]{40}) +([0-9]{1,12})\t([A-Za-z0-9._/@+-]{1,4096})$/u,
+      /^(100644|100755) blob ([0-9a-f]{40}) +([0-9]{1,12})\t([A-Za-z0-9._/@+-]{1,4096})$/u,
     );
-    const size = match === null ? -1 : Number(match[2]);
+    const size = match === null ? -1 : Number(match[3]);
     if (
       match === null
       || !Number.isSafeInteger(size)
       || size < 0
       || size > 512 * 1024 * 1024
-      || match[3]!.startsWith('/')
-      || match[3]!.split('/').some(component => (
+      || match[4]!.startsWith('/')
+      || match[4]!.split('/').some(component => (
         component === '' || component === '.' || component === '..'
       ))
-      || paths.has(match[3]!)
+      || paths.has(match[4]!)
       || (previousPath !== undefined && Buffer.compare(
-        Buffer.from(previousPath, 'utf8'), Buffer.from(match[3]!, 'utf8'),
+        Buffer.from(previousPath, 'utf8'), Buffer.from(match[4]!, 'utf8'),
       ) >= 0)
       || entries.length >= 100_000
     ) fail('GREATER_REALM_PRODUCTION_MATERIALIZATION_TREE_INVALID');
@@ -472,9 +473,12 @@ function parseExactRegularTree(
     if (!Number.isSafeInteger(totalBytes) || totalBytes > 2 * 1024 * 1024 * 1024) {
       fail('GREATER_REALM_PRODUCTION_MATERIALIZATION_TREE_INVALID');
     }
-    paths.add(match[3]!);
-    previousPath = match[3]!;
-    entries.push(Object.freeze({ objectId: match[1]!, size, path: match[3]! }));
+    paths.add(match[4]!);
+    previousPath = match[4]!;
+    entries.push(Object.freeze({
+      objectId: match[2]!, size, path: match[4]!,
+      mode: match[1] === '100755' ? 0o755 : 0o644,
+    }));
   }
   if (entries.length < 1) fail('GREATER_REALM_PRODUCTION_MATERIALIZATION_TREE_INVALID');
   return Object.freeze(entries);
@@ -484,6 +488,7 @@ function exactMaterializedBlob(input: Readonly<{
   root: string;
   path: string;
   expectedObjectId: string;
+  expectedMode: 0o644 | 0o755;
   expectedIdentity?: MaterializedTrackedFileIdentity;
 }>): MaterializedTrackedFileIdentity {
   const path = join(input.root, ...input.path.split('/'));
@@ -497,7 +502,7 @@ function exactMaterializedBlob(input: Readonly<{
     if (
       !before.isFile()
       || before.isSymbolicLink()
-      || (before.mode & 0o7777n) !== 0o644n
+      || (before.mode & 0o7777n) !== BigInt(input.expectedMode)
       || (process.getuid !== undefined && before.uid !== BigInt(process.getuid()))
       || before.nlink !== 1n
       || before.size < 0n
@@ -508,7 +513,7 @@ function exactMaterializedBlob(input: Readonly<{
     if (
       opened.dev !== before.dev
       || opened.ino !== before.ino
-      || (opened.mode & 0o7777n) !== 0o644n
+      || (opened.mode & 0o7777n) !== BigInt(input.expectedMode)
       || opened.size !== before.size
       || opened.mtimeNs !== before.mtimeNs
       || opened.ctimeNs !== before.ctimeNs
@@ -546,7 +551,7 @@ function exactMaterializedBlob(input: Readonly<{
       after.dev !== opened.dev
       || after.ino !== opened.ino
       || after.size !== opened.size
-      || (after.mode & 0o7777n) !== 0o644n
+      || (after.mode & 0o7777n) !== BigInt(input.expectedMode)
       || after.uid !== opened.uid
       || after.nlink !== 1n
       || after.mtimeNs !== opened.mtimeNs
@@ -554,7 +559,7 @@ function exactMaterializedBlob(input: Readonly<{
       || current.dev !== after.dev
       || current.ino !== after.ino
       || current.size !== after.size
-      || (current.mode & 0o7777n) !== 0o644n
+      || (current.mode & 0o7777n) !== BigInt(input.expectedMode)
       || current.uid !== after.uid
       || current.nlink !== 1n
       || current.mtimeNs !== after.mtimeNs
@@ -585,6 +590,7 @@ function exactMaterializedBlob(input: Readonly<{
 function exactPartialMaterializedBlob(input: Readonly<{
   root: string;
   path: string;
+  expectedMode: 0o644 | 0o755;
 }>): void {
   const path = join(input.root, ...input.path.split('/'));
   let descriptor: number | undefined;
@@ -592,7 +598,7 @@ function exactPartialMaterializedBlob(input: Readonly<{
     const before = lstatSync(path, { bigint: true });
     if (
       !before.isFile() || before.isSymbolicLink() || before.nlink !== 1n
-      || (before.mode & 0o7777n) !== 0o644n
+      || (before.mode & 0o7777n) !== BigInt(input.expectedMode)
       || before.size < 0n || before.size > 512n * 1024n * 1024n
       || (process.getuid !== undefined && before.uid !== BigInt(process.getuid()))
       || realpathSync(path) !== path
@@ -743,7 +749,9 @@ function rawMaterializationInventory(input: Readonly<{
       continue;
     }
     if (input.allowPartialTracked) {
-      exactPartialMaterializedBlob({ root: input.destination, path: entry.path });
+      exactPartialMaterializedBlob({
+        root: input.destination, path: entry.path, expectedMode: entry.mode,
+      });
     }
     const identity = input.allowPartialTracked
       ? undefined
@@ -751,6 +759,7 @@ function rawMaterializationInventory(input: Readonly<{
           root: input.destination,
           path: entry.path,
           expectedObjectId: entry.objectId,
+          expectedMode: entry.mode,
           expectedIdentity: input.trackedIdentities?.get(entry.path),
         });
     if (input.trackedIdentities !== undefined && !input.trackedIdentities.has(entry.path)) {
@@ -778,6 +787,7 @@ function verifyExactProductionWorkingTree(input: Readonly<{
       root: input.root,
       path: entry.path,
       expectedObjectId: entry.objectId,
+      expectedMode: entry.mode,
     });
   }
   const ordinary = (input.git.read([
@@ -1009,7 +1019,7 @@ export function createGreaterRealmProductionCommitMaterialization(input: Readonl
         if (body.byteLength !== entry.size || objectId !== entry.objectId) {
           fail('GREATER_REALM_PRODUCTION_MATERIALIZATION_TREE_INVALID');
         }
-        writer.writeFile(`${destinationName}/${entry.path}`, body, 0o644);
+        writer.writeFile(`${destinationName}/${entry.path}`, body, entry.mode);
       } finally {
         body.fill(0);
       }
@@ -1087,9 +1097,14 @@ export function cleanupGreaterRealmProductionCommitMaterialization(input: Readon
   for (const entry of [...inventory.presentTracked].reverse()) {
     const path = join(destination, ...entry.path.split('/'));
     if (input.allowPartialTracked) {
-      exactPartialMaterializedBlob({ root: destination, path: entry.path });
+      exactPartialMaterializedBlob({
+        root: destination, path: entry.path, expectedMode: entry.mode,
+      });
     } else {
-      exactMaterializedBlob({ root: destination, path: entry.path, expectedObjectId: entry.objectId });
+      exactMaterializedBlob({
+        root: destination, path: entry.path, expectedObjectId: entry.objectId,
+        expectedMode: entry.mode,
+      });
     }
     unlinkSync(path);
     fsyncProductionDirectory(dirname(path));

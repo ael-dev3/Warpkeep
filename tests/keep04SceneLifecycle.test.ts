@@ -8,11 +8,18 @@ const assets = (): InnerKeepRuntimeAssetBundle => ({ staticPrefabs: new Map(), p
 
 it('emits one disposal event per scene-owned instanced mesh, without disposing borrowed assets', () => {
   const bundle = assets(); const scene = createKeep04Scene({ quality: 'balanced', reducedMotion: true, assets: bundle });
-  const events: Array<{ id: number; name: string }> = [];
-  scene.scene.traverse(object => { if (object instanceof THREE.InstancedMesh) object.addEventListener('dispose', () => events.push({ id: object.id, name: object.name })); });
+  const events: Array<{ id: number; name: string }> = []; let owned = 0;
+  scene.scene.traverse(object => { if (object instanceof THREE.InstancedMesh) { owned++; object.addEventListener('dispose', () => events.push({ id: object.id, name: object.name })); } });
   scene.dispose(); scene.dispose();
-  expect(events).toHaveLength(4); expect(new Set(events.map(event => event.id)).size).toBe(4);
-  expect(events.map(event => event.name).sort()).toEqual(['forest-band:0', 'forest-band:1', 'forest-bank:perimeter', 'moat-water-edge']);
+  // Every scene-owned batch, including the decorative vale and its life, disposes exactly once.
+  expect(events).toHaveLength(owned); expect(new Set(events.map(event => event.id)).size).toBe(owned);
+  const names = events.map(event => event.name);
+  expect(names).toEqual(expect.arrayContaining(['forest-band:0', 'forest-band:1', 'forest-bank:perimeter', 'moat-water-edge']));
+  // The building ground-contact and night-light batches belong to the scene itself.
+  expect(names).toEqual(expect.arrayContaining(['building-contact-shadows', 'building-night-light']));
+  expect(names.filter(name => !['forest-band:0', 'forest-band:1', 'forest-bank:perimeter', 'moat-water-edge', 'building-contact-shadows', 'building-night-light'].includes(name))
+    .every(name => name.startsWith('keep04-vale-') || name.startsWith('keep04-life-'))).toBe(true);
+  expect(names.some(name => name.startsWith('keep04-vale-'))).toBe(true); expect(names.some(name => name.startsWith('keep04-life-'))).toBe(true);
   expect(scene.scene.children).toHaveLength(0); expect(bundle.dispose).not.toHaveBeenCalled();
 });
 

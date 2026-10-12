@@ -373,6 +373,20 @@ describe('Greater Realm derived topography', () => {
       GREATER_REALM_BIOME_ID.ALPINE_SNOW,
     ]).not.toContain(warmResult.biomeId[center]);
 
+    // A cold lowland is climate-compatible with its tundra neighbors but is
+    // still below the minimum elevation for either cold highland biome.
+    geomorphicTemperature[center] = 1_000;
+    const coldLowlandResult = derive();
+    expect(coldLowlandResult.temperature[center]).toBe(1_000);
+    expect(elevation[center]).toBeLessThan(4_000);
+    expect([
+      GREATER_REALM_BIOME_ID.TUNDRA,
+      GREATER_REALM_BIOME_ID.ALPINE_SNOW,
+    ]).not.toContain(coldLowlandResult.biomeId[center]);
+    elevation[center] = 4_000;
+    const coldHighlandResult = derive();
+    expect(coldHighlandResult.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.TUNDRA);
+
     // The preliminary pass may nominate saturated dry land as marsh for the
     // hydrology authority to accept or reject. Once hydrology is final, the
     // same dry cells must receive a genuinely dry visual classification.
@@ -394,5 +408,52 @@ describe('Greater Realm derived topography', () => {
     ).reduce<number>((total, value) => total + value, 0);
     expect(dryMarshCount(provisionalMarsh.biomeId)).toBeGreaterThan(0);
     expect(dryMarshCount(authoritative.biomeId)).toBe(0);
+
+    // A mountain coast cannot use the lowland coastal biome merely because
+    // the process descriptor identifies a cliff. Saturation likewise cannot
+    // nominate alpine dry ground as a lowland marsh in the preliminary pass.
+    elevation.fill(14_000);
+    geomorphicMoisture.fill(0);
+    geomorphicCoastalClass[center] = 2;
+    const alpineCliff = derive();
+    expect(alpineCliff.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND);
+    expect(alpineCliff.landformId[center]).toBe(GREATER_REALM_LANDFORM_ID.MOUNTAIN);
+    expect(alpineCliff.biomeId[protectedCell]).toBe(protectedBiomeId[protectedCell]);
+    expect(alpineCliff.landformId[protectedCell]).toBe(protectedLandformId[protectedCell]);
+
+    geomorphicCoastalClass.fill(0);
+    geomorphicMoisture.fill(6_000);
+    const alpineWetGround = derive();
+    expect(alpineWetGround.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.ROCKY_HIGHLAND);
+    expect(alpineWetGround.landformId[center]).toBe(GREATER_REALM_LANDFORM_ID.MOUNTAIN);
+
+    // A small alpine pine transition beside hot arid ground must not become
+    // lowland terrain when the forest patch cleanup removes isolated woods.
+    geomorphicTemperature.fill(1_000);
+    geomorphicMoisture.fill(3_000);
+    geomorphicAridMask[glacialCell] = 1;
+    geomorphicTemperature[glacialCell] = 9_000;
+    const alpineForestTransition = derive();
+    expect(alpineForestTransition.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.PINE_FOREST);
+    expect(alpineForestTransition.biomeId[protectedCell]).toBe(protectedBiomeId[protectedCell]);
+    // At the existing ceiling, lowland patch cleanup remains permitted.
+    elevation[center] = 13_500;
+    const forestTransitionAtCeiling = derive();
+    expect(forestTransitionAtCeiling.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.TEMPERATE_LOWLAND);
+    // Lowland forest neighbors cannot vote an alpine pine transition down.
+    elevation.fill(13_500);
+    elevation[center] = 14_000;
+    geomorphicTemperature.fill(4_000);
+    geomorphicTemperature[center] = 1_000;
+    geomorphicTemperature[glacialCell] = 9_000;
+    const alpineNeighborTransition = derive();
+    expect(alpineNeighborTransition.biomeId[center]).toBe(GREATER_REALM_BIOME_ID.PINE_FOREST);
+    elevation[center] = 13_500;
+    const neighborTransitionAtCeiling = derive();
+    expect([
+      GREATER_REALM_BIOME_ID.OAK_FOREST,
+      GREATER_REALM_BIOME_ID.OLD_GROWTH_FOREST,
+    ]).toContain(neighborTransitionAtCeiling.biomeId[center]);
+
   });
 });

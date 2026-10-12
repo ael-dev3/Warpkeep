@@ -11,7 +11,6 @@ import { dirname, join, resolve } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-// @ts-expect-error The production verifier is an executable ESM module with named test seams.
 import { allowedProductionHiddenPaths, allowedProductionHtmlPaths, expectedProductionCspByPath, verifyProductionDistExclusions } from '../scripts/verify-production-dist-exclusions.mjs';
 
 const temporaryRoots: string[] = [];
@@ -26,7 +25,7 @@ function writeOutput(path: string, content: string) {
 function createReviewedOutput() {
   const root = mkdtempSync(join(tmpdir(), 'warpkeep-production-output-'));
   temporaryRoots.push(root);
-  for (const htmlPath of allowedProductionHtmlPaths as readonly string[]) {
+  for (const htmlPath of allowedProductionHtmlPaths) {
     const marker = htmlPath === 'index.html'
       ? ' data-warpkeep-production-csp'
       : htmlPath === 'owner-canary/index.html'

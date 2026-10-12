@@ -1,0 +1,159 @@
+name: Publish signed public PTR
+
+on:
+  workflow_dispatch:
+    inputs:
+      public_commit:
+        description: Exact signed public main commit
+        required: true
+        type: string
+      public_tree:
+        description: Exact reviewed public tree
+        required: true
+        type: string
+      source_commit:
+        description: Private source commit recorded in the public payload manifest
+        required: true
+        type: string
+      payload_manifest_sha256:
+        description: Reviewed public payload manifest digest
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-ptr-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy-pages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    env:
+      WK_PUBLIC_COMMIT: ${{ inputs.public_commit }}
+      WK_PUBLIC_TREE: ${{ inputs.public_tree }}
+      WK_SOURCE_COMMIT: ${{ inputs.source_commit }}
+      WK_MANIFEST_SHA256: ${{ inputs.payload_manifest_sha256 }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate exact manual main request
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, re
+          assert os.environ['GITHUB_REPOSITORY'] == 'ael-dev3/Warpkeep-Live'
+          assert os.environ['GITHUB_EVENT_NAME'] == 'workflow_dispatch'
+          assert os.environ['GITHUB_REF'] == 'refs/heads/main'
+          for key in ('WK_PUBLIC_COMMIT', 'WK_PUBLIC_TREE', 'WK_SOURCE_COMMIT'):
+              assert re.fullmatch('[a-f0-9]{40}', os.environ[key])
+          assert re.fullmatch('[a-f0-9]{64}', os.environ['WK_MANIFEST_SHA256'])
+          assert os.environ['GITHUB_SHA'] == os.environ['WK_PUBLIC_COMMIT']
+          assert os.environ['GITHUB_WORKFLOW_SHA'] == os.environ['WK_PUBLIC_COMMIT']
+          PY
+      - name: Check out the exact public commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.public_commit }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Attest signed tree and stage existing served files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, stat, subprocess, urllib.request
+          root = pathlib.Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          commit = os.environ['WK_PUBLIC_COMMIT']
+          tree = os.environ['WK_PUBLIC_TREE']
+          def api(path):
+              request = urllib.request.Request('https://api.github.com/repos/ael-dev3/Warpkeep-Live/' + path,
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(request, timeout=10) as response:
+                  body = response.read(2 * 1024 * 1024 + 1)
+              assert len(body) <= 2 * 1024 * 1024
+              return json.loads(body)
+          assert api('git/ref/heads/main')['object']['sha'] == commit
+          authority = api('git/commits/' + commit)
+          assert authority['sha'] == commit and authority['tree']['sha'] == tree
+          assert authority['verification']['verified'] is True and authority['verification']['reason'] == 'valid'
+          def git(*args):
+              return subprocess.check_output(['git', *args], cwd=root, timeout=10)
+          assert git('rev-parse', 'HEAD').decode().strip() == commit
+          assert git('rev-parse', 'HEAD^{tree}').decode().strip() == tree
+          records = git('ls-tree', '-rz', '--full-tree', 'HEAD').split(b'\0')
+          assert records.pop() == b''
+          files = {}
+          folded = set()
+          for record in records:
+              header, rawpath = record.split(b'\t', 1)
+              path = rawpath.decode('ascii')
+              assert header.startswith(b'100644 blob ') and re.fullmatch('[A-Za-z0-9._/-]+', path)
+              assert all(part not in ('', '.', '..') for part in path.split('/'))
+              assert path.lower() not in folded
+              folded.add(path.lower())
+              assert not path.startswith('.github/') or path == '.github/workflows/ptr-pages.yml'
+              file = root / path
+              info = file.lstat()
+              assert stat.S_ISREG(info.st_mode) and not file.is_symlink() and file.resolve() == file
+              body = file.read_bytes()
+              assert body == git('show', commit + ':' + path)
+              files[path] = body
+          assert '.github/workflows/ptr-pages.yml' in files
+          manifest_path = 'docs/releases/0.4.0/public-pages-ptr-payload-v1.json'
+          manifest_bytes = files[manifest_path]
+          assert hashlib.sha256(manifest_bytes).hexdigest() == os.environ['WK_MANIFEST_SHA256']
+          manifest = json.loads(manifest_bytes)
+          assert manifest['schemaVersion'] == 1 and manifest['profile'] == 'warpkeep-public-pages-payload-v1'
+          assert manifest['sourceCommit'] == os.environ['WK_SOURCE_COMMIT']
+          assert manifest['canonicalOrigin'] == 'https://warpkeep.com' and manifest['publicationPath'] == '/ptr/'
+          assert manifest['fileCount'] == len(manifest['files'])
+          payload_paths = set()
+          for entry in manifest['files']:
+              path = entry['path']
+              assert re.fullmatch('[A-Za-z0-9._/-]+', path) and all(part not in ('', '.', '..') for part in path.split('/'))
+              assert not path.startswith('ptr/') and path not in payload_paths
+              payload_paths.add(path)
+              body = files['ptr/' + path]
+              assert len(body) == entry['byteLength'] and hashlib.sha256(body).hexdigest() == entry['sha256']
+          assert manifest['totalByteLength'] == sum(len(files['ptr/' + path]) for path in payload_paths)
+          assert manifest['totalByteLength'] <= 150 * 1024 * 1024
+          assert {path[4:] for path in files if path.startswith('ptr/')} == payload_paths | {'404.html'}
+          assert files['ptr/404.html'] == files['ptr/index.html'] and files['404.html'] == files['index.html']
+          assert files['CNAME'] in (b'warpkeep.com\n', b'warpkeep.com\r\n') and files['.nojekyll'] == b''
+          assert sum(len(body) for body in files.values()) <= 320 * 1024 * 1024
+          site = pathlib.Path(os.environ['RUNNER_TEMP']) / 'warpkeep-pages'
+          site.mkdir()
+          for path, body in files.items():
+              if path == '.github/workflows/ptr-pages.yml':
+                  continue
+              target = site / path
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_bytes(body)
+          PY
+      - name: Upload the already built site
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/warpkeep-pages
+          retention-days: 1
+      - name: Recheck exact current public main
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          request = urllib.request.Request('https://api.github.com/repos/ael-dev3/Warpkeep-Live/git/ref/heads/main',
+              headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          with urllib.request.urlopen(request, timeout=10) as response:
+              body = response.read(65537)
+          assert len(body) <= 65536 and json.loads(body)['object']['sha'] == os.environ['WK_PUBLIC_COMMIT']
+          PY
+      - name: Deploy the exact Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0

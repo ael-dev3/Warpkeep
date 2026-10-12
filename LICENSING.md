@@ -1,5 +1,7 @@
 # Warpkeep Licensing
 
+In the published public mirror, paths marked `source:` refer to files or directories in the Warpkeep development repository that are not included in that mirror. These citations are not web links.
+
 This document is the human-readable overview of Warpkeep's release-based licensing policy. It records a forward-looking transition; it does not provide individualized legal advice.
 
 ## Current release policy
@@ -67,7 +69,7 @@ Where authority or original terms are incomplete, the repository preserves the f
 
 ## Contributions
 
-Contributors must have the right to submit their work. Contributions included in a release follow that release's policy for their material category. From v0.3.0, Warpkeep code contributions are intended to be Apache-2.0 and project-owned creative contributions are intended to be CC-BY-4.0. Contributors retain their copyright; no copyright assignment or heavyweight CLA is required. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Contributors must have the right to submit their work. Contributions included in a release follow that release's policy for their material category. From v0.3.0, Warpkeep code contributions are intended to be Apache-2.0 and project-owned creative contributions are intended to be CC-BY-4.0. Contributors retain their copyright; no copyright assignment or heavyweight CLA is required. See the contribution guide (source: `CONTRIBUTING.md`).
 
 ## Trademarks and official project identity
 
@@ -79,7 +81,7 @@ The open-source and Creative Commons licenses do not grant trademark rights or p
 - Active creative-content text: [`LICENSE-CC-BY-4.0`](LICENSE-CC-BY-4.0) (`CC-BY-4.0`).
 - Historical software text: [`licenses/legacy/LICENSE-0BSD-v0.2.0`](licenses/legacy/LICENSE-0BSD-v0.2.0) (`0BSD`).
 - Historical creative-content text: [`licenses/legacy/LICENSE-CC0-1.0-v0.2.0`](licenses/legacy/LICENSE-CC0-1.0-v0.2.0) (`CC0-1.0`).
-- Cutover protocol: [`docs/legal/v0.3.0-license-cutover.md`](docs/legal/v0.3.0-license-cutover.md).
+- Cutover protocol (source: `docs/legal/v0.3.0-license-cutover.md`).
 - SPDX identifiers: `0BSD`, `CC0-1.0`, `Apache-2.0`, and `CC-BY-4.0`.
 
 Canonical legal texts must be copied unmodified from their official sources during the v0.3.0 cutover. No custom license, copyleft, noncommercial, field-of-use, AI-use, blockchain, token, or source-available restriction is introduced by this policy.

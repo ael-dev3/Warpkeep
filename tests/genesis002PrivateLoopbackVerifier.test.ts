@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, vi } from 'vitest';
+import { existsSync, rmSync } from 'node:fs';
 
 import { MAX_HERMES_ADMIN_SESSION_SECONDS } from '../spacetimedb/src/claims';
 import {
   genesis002PrivateLoopbackAdminJwtTimes,
   genesis002PrivateLoopbackJwtClaims,
+  runGenesis002PrivateLoopbackWithCleanup,
+  verifyGenesis002PrivateLoopback,
 } from '../scripts/genesis002-private-loopback-verifier';
 import {
   readFreshGenesis002AdminClaims,
@@ -69,4 +72,94 @@ test('the synthetic Hermes token uses the real bridge claims accepted unchanged 
   assert.ok('hex_identity' in outboundClaims);
   const { hex_identity: _identity, ...missingIdentity } = outboundClaims;
   assert.throws(() => readFreshGenesis002AdminClaims(missingIdentity, BigInt(times.issuedAt) * 1_000_000n));
+});
+
+const setupProbe = vi.hoisted(() => ({
+  failure: new Error('EXPECTED_G002_CLI_ATTESTATION_FAILURE'),
+  directories: [] as string[],
+}));
+vi.mock('../scripts/spacetime-cli-attestation.mjs', async importOriginal => {
+  const actual = await importOriginal<typeof import('../scripts/spacetime-cli-attestation.mjs')>();
+  return {
+    ...actual,
+    attestPinnedSpacetimeCli(...args: Parameters<typeof actual.attestPinnedSpacetimeCli>) {
+      const directory = args[2]?.HOME;
+      assert.equal(typeof directory, 'string');
+      assert.equal(args[2]?.TMPDIR, directory);
+      assert.ok(directory && existsSync(directory));
+      setupProbe.directories.push(directory!);
+      throw setupProbe.failure;
+    },
+  };
+});
+
+test('the real G002 verifier removes its allocated private directory when CLI attestation fails before fixtures', async () => {
+  const first = setupProbe.directories.length;
+  try {
+    await assert.rejects(verifyGenesis002PrivateLoopback(), error => error === setupProbe.failure);
+    const allocated = setupProbe.directories.slice(first);
+    assert.equal(allocated.length, 1);
+    assert.equal(existsSync(allocated[0]), false);
+  } finally {
+    for (const directory of setupProbe.directories.slice(first)) rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+const disposalOrder = ['transport', 'server', 'fixture', 'manifest', 'status', 'chunks', 'snapshot', 'directory'] as const;
+function cleanupSteps(visit: (name: (typeof disposalOrder)[number]) => void) {
+  return {
+    transport: () => visit('transport'), server: () => visit('server'),
+    fixture: () => visit('fixture'), manifest: () => visit('manifest'),
+    status: () => visit('status'), chunks: () => visit('chunks'),
+    snapshot: () => visit('snapshot'), directory: () => visit('directory'),
+  };
+}
+
+test('an early transport close is memoized through concurrent callers and final disposal before the receipt resolves', async () => {
+  const calls: string[] = [];
+  const receipt = Object.freeze({ atlasFinalized: true });
+  const result = await runGenesis002PrivateLoopbackWithCleanup(cleanupSteps(name => { calls.push(name); }), async closeTransport => {
+    await Promise.all([closeTransport(), closeTransport()]);
+    assert.deepEqual(calls, ['transport']);
+    return receipt;
+  });
+  assert.equal(result, receipt);
+  assert.deepEqual(calls, disposalOrder);
+});
+
+test.each(disposalOrder)('a %s cleanup failure prevents an otherwise successful G002 receipt without skipping remaining cleanup', async failedStep => {
+  const calls: string[] = [];
+  await assert.rejects(runGenesis002PrivateLoopbackWithCleanup(cleanupSteps(name => {
+    calls.push(name);
+    if (name === failedStep) throw new Error('PRIVATE_FAILURE_MUST_NOT_ESCAPE_AS_CLEANUP_MESSAGE');
+  }), async () => ({ atlasFinalized: true })), error => {
+    assert.equal((error as Error).message, 'GENESIS_002_LOOPBACK_CLEANUP_FAILED');
+    assert.deepEqual(Object.getOwnPropertyDescriptor(error, 'cleanupFailures')?.value, [failedStep]);
+    return true;
+  });
+  assert.deepEqual(calls, disposalOrder);
+});
+
+test('the first main failure survives transport/server cleanup failures while all allocated buffers are still zeroed', async () => {
+  const failure = new Error('EXPECTED_FIRST_G002_FAILURE');
+  const calls: string[] = [];
+  const buffers = Object.fromEntries(['manifest', 'status', 'chunks'].map(name => [name, new Uint8Array([1, 2, 3])]));
+  await assert.rejects(runGenesis002PrivateLoopbackWithCleanup(cleanupSteps(name => {
+    calls.push(name);
+    if (name === 'transport' || name === 'server') throw Error('EXPECTED_CLEANUP_FAILURE');
+    buffers[name]?.fill(0);
+  }), async () => { throw failure; }), error => error === failure);
+  assert.deepEqual(calls, disposalOrder);
+  assert.deepEqual(Object.getOwnPropertyDescriptor(failure, 'cleanupFailures')?.value, ['transport', 'server']);
+  for (const buffer of Object.values(buffers)) assert.deepEqual([...buffer], [0, 0, 0]);
+});
+
+test('an undefined main rejection is preserved when cleanup also fails', async () => {
+  let caught: unknown = Symbol('not rejected');
+  try {
+    await runGenesis002PrivateLoopbackWithCleanup(cleanupSteps(name => {
+      if (name === 'server') throw Error('EXPECTED_CLEANUP_FAILURE');
+    }), async () => { throw undefined; });
+  } catch (error) { caught = error; }
+  assert.equal(caught, undefined);
 });

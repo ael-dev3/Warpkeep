@@ -162,6 +162,77 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
     }
   });
 
+  it.each([47, 48, 66, 72, 73])('retains a rejected major-river count of %i across encrypted resume', majorRiverCount => {
+    const { workspace } = fixture();
+    const initial = createInitial(workspace);
+    let rejected: GreaterRealmAttemptCheckpointState | undefined;
+    let resumed: GreaterRealmAttemptCheckpointState | undefined;
+    let accepted: GreaterRealmAttemptCheckpointState | undefined;
+    const failedProofs = majorRiverCount >= 48 && majorRiverCount <= 72
+      ? ['PROOF_REGION_GRAPH'] : ['HYDROLOGY_MAJOR_RIVERS_48_72'];
+    try {
+      rejected = recordGreaterRealmRejectedAttempt({
+        workspace,
+        state: initial,
+        rejectedAttempt: {
+          kind: 'proof-rejection',
+          candidateOrdinal: 0,
+          activeCellCount: 123_456,
+          failedProofs,
+          majorRiverCount,
+        },
+        nextCandidateHandle: SECOND_CANDIDATE,
+      });
+      resumed = resumeGreaterRealmAttemptCheckpoint({ workspace, binding: binding() });
+      expect(resumed.rejectedAttempts).toEqual([{
+        kind: 'proof-rejection',
+        candidateOrdinal: 0,
+        activeCellCount: 123_456,
+        failedProofs,
+        majorRiverCount,
+      }]);
+      expect(resumed.nextOrdinal).toBe(1);
+      accepted = recordGreaterRealmAcceptedAttempt({
+        workspace,
+        state: resumed,
+        candidateDigest: CANDIDATE_DIGEST,
+        performance: { generationMilliseconds: 2_400, processPeakMemoryMiB: 512 },
+      });
+      writeGreaterRealmAttemptCompletionReceipt({ workspace, state: accepted });
+      expect(readGreaterRealmAttemptCompletionReceipt({ workspace, binding: binding() })
+        ?.rejectedAttempts).toEqual(resumed.rejectedAttempts);
+    } finally {
+      clearGreaterRealmAttemptCheckpointSecret(accepted);
+      clearGreaterRealmAttemptCheckpointSecret(resumed);
+      clearGreaterRealmAttemptCheckpointSecret(rejected);
+      clearGreaterRealmAttemptCheckpointSecret(initial);
+    }
+  });
+
+  it.each([NaN, Infinity, -1, 1.5, 123_457, 66, undefined])(
+    'rejects invalid or proof-inconsistent river diagnostic %s without appending', majorRiverCount => {
+      const { workspace } = fixture();
+      const initial = createInitial(workspace);
+      try {
+        expect(() => recordGreaterRealmRejectedAttempt({
+          workspace,
+          state: initial,
+          rejectedAttempt: {
+            kind: 'proof-rejection',
+            candidateOrdinal: 0,
+            activeCellCount: 123_456,
+            failedProofs: ['HYDROLOGY_MAJOR_RIVERS_48_72'],
+            majorRiverCount: majorRiverCount as number,
+          },
+          nextCandidateHandle: SECOND_CANDIDATE,
+        })).toThrow('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
+        expect(existsSync(checkpointFile(workspace, 1))).toBe(false);
+      } finally {
+        clearGreaterRealmAttemptCheckpointSecret(initial);
+      }
+    },
+  );
+
   it('resumes a historical .17 broad rejection at the exact next ordinal', () => {
     const { workspace } = fixture();
     const historicalBinding = binding({
@@ -240,6 +311,59 @@ describe('Greater Realm attempt-boundary checkpoint', () => {
       clearGreaterRealmAttemptCheckpointSecret(accepted);
       clearGreaterRealmAttemptCheckpointSecret(afterGeography);
       clearGreaterRealmAttemptCheckpointSecret(afterProof);
+      clearGreaterRealmAttemptCheckpointSecret(initial);
+    }
+  });
+
+  it('authenticates canonical co-occurring frontier truncation diagnostics', () => {
+    const { workspace } = fixture();
+    const initial = createInitial(workspace);
+    let next: GreaterRealmAttemptCheckpointState | undefined;
+    let resumed: GreaterRealmAttemptCheckpointState | undefined;
+    const frontierTruncationKinds = Object.freeze([
+      'BUNDLE_PAIR_LIMIT',
+      'BUNDLE_OPTION_LIMIT',
+    ] as const);
+    try {
+      expect(() => recordGreaterRealmRejectedAttempt({
+        workspace,
+        state: initial,
+        rejectedAttempt: Object.freeze({
+          kind: 'geography-exhaustion',
+          candidateOrdinal: 0,
+          rejectionCode: 'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT',
+          frontierTruncationKinds: Object.freeze([
+            'BUNDLE_OPTION_LIMIT',
+            'BUNDLE_PAIR_LIMIT',
+          ] as const),
+        }),
+        nextCandidateHandle: SECOND_CANDIDATE,
+      })).toThrow('GREATER_REALM_ATTEMPT_CHECKPOINT_INVALID');
+
+      next = recordGreaterRealmRejectedAttempt({
+        workspace,
+        state: initial,
+        rejectedAttempt: Object.freeze({
+          kind: 'geography-exhaustion',
+          candidateOrdinal: 0,
+          rejectionCode: 'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT',
+          frontierTruncationKinds,
+        }),
+        nextCandidateHandle: SECOND_CANDIDATE,
+      });
+      resumed = resumeGreaterRealmAttemptCheckpoint({
+        workspace,
+        binding: binding(),
+      });
+      expect(resumed.rejectedAttempts).toEqual([{
+        kind: 'geography-exhaustion',
+        candidateOrdinal: 0,
+        rejectionCode: 'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_FRONTIER_TRUNCATED_AT_BUNDLE_PAIR_LIMIT',
+        frontierTruncationKinds,
+      }]);
+    } finally {
+      clearGreaterRealmAttemptCheckpointSecret(resumed);
+      clearGreaterRealmAttemptCheckpointSecret(next);
       clearGreaterRealmAttemptCheckpointSecret(initial);
     }
   });

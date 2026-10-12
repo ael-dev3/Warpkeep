@@ -92,6 +92,55 @@ function fail(code: string): never {
   throw new Genesis002PrivateLoopbackError(code);
 }
 
+
+type Genesis002PrivateLoopbackCleanupSteps = Readonly<{
+  transport: () => void | Promise<void>;
+  server: () => void | Promise<void>;
+  fixture: () => void | Promise<void>;
+  manifest: () => void | Promise<void>;
+  status: () => void | Promise<void>;
+  chunks: () => void | Promise<void>;
+  snapshot: () => void | Promise<void>;
+  directory: () => void | Promise<void>;
+}>;
+
+/** Fixed G002 disposal steps; main failures retain their identity and no cleanup failure becomes a receipt. */
+export async function runGenesis002PrivateLoopbackWithCleanup<T>(
+  steps: Genesis002PrivateLoopbackCleanupSteps,
+  operation: (closeTransport: () => Promise<void>) => Promise<T>,
+): Promise<T> {
+  const order = ['transport', 'server', 'fixture', 'manifest', 'status', 'chunks', 'snapshot', 'directory'] as const;
+  const actions = order.map(name => {
+    let completion: Promise<void> | undefined;
+    return { name, run: () => completion ??= Promise.resolve().then(async () => { await steps[name](); }) };
+  });
+  let value: T | undefined;
+  let failed = false;
+  let firstFailure: unknown;
+  try { value = await operation(actions[0].run); }
+  catch (error) { failed = true; firstFailure = error; }
+  const cleanupFailures: (typeof order)[number][] = [];
+  for (const action of actions) {
+    try { await action.run(); }
+    catch { cleanupFailures.push(action.name); }
+  }
+  if (!failed && cleanupFailures.length > 0) {
+    failed = true;
+    firstFailure = new Genesis002PrivateLoopbackError('GENESIS_002_LOOPBACK_CLEANUP_FAILED');
+  }
+  if (failed) {
+    if (cleanupFailures.length > 0 && firstFailure instanceof Error) {
+      try {
+        Object.defineProperty(firstFailure, 'cleanupFailures', {
+          value: Object.freeze(cleanupFailures), enumerable: true,
+        });
+      } catch { /* An immutable main failure still retains its original identity. */ }
+    }
+    throw firstFailure;
+  }
+  return value as T;
+}
+
 export function genesis002PrivateLoopbackAdminJwtTimes(
   wallClockSeconds: number,
 ) {
@@ -368,23 +417,36 @@ async function probeCliDenials(input: Readonly<{
 }
 
 export async function verifyGenesis002PrivateLoopback() {
-  const runtimeDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-g002-private-loopback-'));
-  chmodSync(runtimeDirectory, 0o700);
-  const environment = safeEnvironment(runtimeDirectory);
-  const cliSnapshot = attestPinnedSpacetimeCli(
-    process.env.SPACETIME_BIN ?? 'spacetime',
-    undefined,
-    environment,
-  );
+  let runtimeDirectory: string | undefined;
+  let cliSnapshot: ReturnType<typeof attestPinnedSpacetimeCli> | undefined;
   let serverProcess: ChildProcess | undefined;
   let transport: ReturnType<typeof createGenesis002ProductionTransport> | undefined;
-  const fixture = createGreaterRealmRuntimeReleaseFixtureSource();
-  const artifacts = createGenesis002GreaterRealmRuntimeRelease({
-    source: fixture,
-    sourceCommit: MODULE_SOURCE_COMMIT,
-    releaseSeed: greaterRealmRuntimeReleaseFixtureSeed(),
-  });
-  try {
+  let fixture: ReturnType<typeof createGreaterRealmRuntimeReleaseFixtureSource> | undefined;
+  let artifacts: ReturnType<typeof createGenesis002GreaterRealmRuntimeRelease> | undefined;
+  return runGenesis002PrivateLoopbackWithCleanup({
+    transport: () => transport?.close(),
+    server: () => terminateLocalFullstackProcessGroup(serverProcess),
+    fixture: () => { fixture?.grid.clearIndex?.(); },
+    manifest: () => { artifacts?.manifestBytes.fill(0); },
+    status: () => { artifacts?.statusBytes.fill(0); },
+    chunks: () => { for (const chunk of artifacts?.chunks ?? []) chunk.bytes.fill(0); },
+    snapshot: () => { cliSnapshot?.cleanup(); },
+    directory: () => { if (runtimeDirectory !== undefined) rmSync(runtimeDirectory, { recursive: true, force: true }); },
+  }, async closeTransport => {
+    runtimeDirectory = mkdtempSync(join(tmpdir(), 'warpkeep-g002-private-loopback-'));
+    chmodSync(runtimeDirectory, 0o700);
+    const environment = safeEnvironment(runtimeDirectory);
+    cliSnapshot = attestPinnedSpacetimeCli(
+      process.env.SPACETIME_BIN ?? 'spacetime',
+      undefined,
+      environment,
+    );
+    fixture = createGreaterRealmRuntimeReleaseFixtureSource();
+    artifacts = createGenesis002GreaterRealmRuntimeRelease({
+      source: fixture,
+      sourceCommit: MODULE_SOURCE_COMMIT,
+      releaseSeed: greaterRealmRuntimeReleaseFixtureSeed(),
+    });
     verifyGenesis002GreaterRealmRuntimeReleaseArtifacts(artifacts);
     const { privateKey, publicKey } = generateKeyPairSync('ec', {
       namedCurve: 'prime256v1',
@@ -475,8 +537,7 @@ export async function verifyGenesis002PrivateLoopback() {
       || receipt.activationMutationsEnabled !== false
       || receipt.playerPresentationEnabled !== false
     ) fail('GENESIS_002_LOOPBACK_FINALIZATION_INVALID');
-    await activeTransport.close();
-    transport = undefined;
+    await closeTransport();
 
     await requireConnectionRejected(
       server,
@@ -515,16 +576,7 @@ export async function verifyGenesis002PrivateLoopback() {
       anonymousProceduresRejected: true,
       nonAdminProceduresRejected: true,
     });
-  } finally {
-    try { await transport?.close(); } catch { /* Preserve the first failure. */ }
-    await terminateLocalFullstackProcessGroup(serverProcess);
-    fixture.grid.clearIndex?.();
-    artifacts.manifestBytes.fill(0);
-    artifacts.statusBytes.fill(0);
-    for (const chunk of artifacts.chunks) chunk.bytes.fill(0);
-    cliSnapshot.cleanup();
-    rmSync(runtimeDirectory, { recursive: true, force: true });
-  }
+  });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

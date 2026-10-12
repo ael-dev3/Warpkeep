@@ -10,6 +10,7 @@ import {
   requestPtrProductionAdminToken,
   type PtrOwnerProvisionAuthority,
 } from './ptr-production-admin-token';
+import { createPtrAtlasWebSocketFactory, type PtrEffectiveSession } from './ptr-production-websocket';
 
 export const PTR_PRODUCTION_TRANSPORT_TARGET = Object.freeze({
   uri: 'https://maincloud.spacetimedb.com',
@@ -77,6 +78,7 @@ function operationTimeout<T>(operation: Promise<T>): Promise<T> {
 function connectPtrProduction(
   databaseIdentity: string,
   token: string,
+  effectiveSession?: (value: PtrEffectiveSession) => void,
 ): Promise<PtrDbConnection> {
   return new Promise((resolve, reject) => {
     let settled = false;
@@ -97,11 +99,20 @@ function connectPtrProduction(
     };
     const timer = setTimeout(unavailable, CONNECT_TIMEOUT_MILLISECONDS);
     try {
-      const connection = DbConnection.builder()
+      let session: PtrEffectiveSession | undefined;
+      const builder = DbConnection.builder()
         .withUri(PTR_PRODUCTION_TRANSPORT_TARGET.uri)
         .withDatabaseName(databaseIdentity)
-        .withToken(token)
+        .withToken(token);
+      if (effectiveSession) builder.withWSFn(createPtrAtlasWebSocketFactory({ databaseIdentity, token,
+        nowSeconds: () => Math.floor(Date.now() / 1000), session: value => { session = value; } }));
+      const connection = builder
         .onConnect(value => {
+          if (effectiveSession && (!session || value.identity?.toHexString() !== session.hexIdentity)) {
+            disconnect(value);
+            unavailable(); return;
+          }
+          if (effectiveSession) effectiveSession(session!);
           if (finish(() => resolve(value))) pending = undefined;
           else {
             try { value.disconnect(); } catch { /* Connection was rejected. */ }
@@ -142,14 +153,29 @@ function validTarget(
 
 export type PtrAtlasImportTransport = Readonly<{
   inspect: () => Promise<unknown>;
-  prepareSubmission: () => Promise<void>;
+  prepareSubmission: (freshConnection?: boolean) => Promise<void>;
   submit: (
     reducer: PtrProductionReducer,
     arguments_: Readonly<Record<string, unknown>>,
     assertCanStartWrite: () => void,
+    assertCurrentStatus?: (value: unknown) => void | Promise<void>,
   ) => Promise<void>;
   close: () => Promise<void>;
 }>;
+
+/** Wait for bounded clock skew without granting authority before activation. */
+async function activatedAuthority<T>(read: (now: number) => T, nowSeconds: () => number): Promise<T> {
+  const now = nowSeconds();
+  try { return read(now); } catch (error) {
+    if (!(error instanceof PtrProductionAdminTokenError)
+      || !['PTR_PRODUCTION_ATLAS_ADMIN_TOKEN_CLAIMS_INVALID', 'PTR_PRODUCTION_ADMIN_TOKEN_CLAIMS_INVALID'].includes(error.code)) throw error;
+    // This only checks whether activation is near. Discard the projected authority.
+    // Malformed, expired, wrong-role and excessively future tokens still fail here.
+    read(now + 5);
+    await new Promise<void>(resolve => setTimeout(resolve, 5_000));
+    return read(nowSeconds());
+  }
+}
 
 /** A serialized ownerless atlas-import session with no owner mutation method. */
 export function createPtrAtlasImportTransport(input: Readonly<{
@@ -163,8 +189,10 @@ export function createPtrAtlasImportTransport(input: Readonly<{
   const databaseIdentity = input.databaseIdentity;
   const suppliedAdminSecret = input.adminSecret;
   const disallowedDatabaseIdentities = input.disallowedDatabaseIdentities;
-  const requestToken = input.requestToken ?? requestPtrAtlasProductionAdminToken;
+  const tokenRequestLifetime = new AbortController();
+  const requestToken = input.requestToken ?? (secret => requestPtrAtlasProductionAdminToken(secret, { signal: tokenRequestLifetime.signal }));
   const connectDatabase = input.connectDatabase ?? connectPtrProduction;
+  const effectiveSessionRequired = input.connectDatabase === undefined;
   const nowSeconds = input.nowSeconds ?? (() => Math.floor(Date.now() / 1_000));
   if (
     !Array.isArray(disallowedDatabaseIdentities)
@@ -173,6 +201,9 @@ export function createPtrAtlasImportTransport(input: Readonly<{
   ) fail('PTR_PRODUCTION_TARGET_INVALID');
   let adminSecret = suppliedAdminSecret;
   let connection: PtrDbConnection | undefined;
+  let connectionExpiresAt = 0;
+  let connectionIssuedAt = 0;
+  let connectionMinimumRemaining = 60;
   let closed = false;
   let serialized = Promise.resolve();
 
@@ -191,16 +222,40 @@ export function createPtrAtlasImportTransport(input: Readonly<{
   const invalidate = (): void => {
     disconnect(connection);
     connection = undefined;
+    connectionExpiresAt = 0;
+    connectionIssuedAt = 0;
+  };
+  const currentTime = (): number => {
+    const now = nowSeconds();
+    if (!Number.isSafeInteger(now) || now < 0) fail('PTR_PRODUCTION_CLOCK_INVALID');
+    return now;
   };
   const requireConnection = async (): Promise<DynamicConnection> => {
-    if (connection !== undefined && !connection.isDisconnectRequested) {
+    const now = currentTime();
+    // Refresh before the bounded operation window; never extend the token's server expiry.
+    if (connection !== undefined && !connection.isDisconnectRequested
+      && now >= connectionIssuedAt && connectionExpiresAt - now > connectionMinimumRemaining) {
       return connection as DynamicConnection;
     }
+    invalidate();
     let token = '';
     try {
       token = await requestToken(adminSecret);
-      readPtrAtlasImportAuthority(token, nowSeconds());
-      connection = await connectDatabase(databaseIdentity, token);
+      const authority = await activatedAuthority(now => readPtrAtlasImportAuthority(token, now), currentTime);
+      if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
+      let effective: PtrEffectiveSession | undefined;
+      const connected = await connectDatabase(databaseIdentity, token, value => { effective = value; });
+      if (closed) { disconnect(connected); fail('PTR_PRODUCTION_SESSION_CLOSED'); }
+      try {
+        const connectedAt = currentTime();
+        if (!effective && effectiveSessionRequired) fail('PTR_PRODUCTION_CONNECTION_UNAVAILABLE');
+        const expiresAt = Math.min(authority.expiresAt, effective?.expiresAt ?? authority.expiresAt);
+        const issuedAt = effective?.issuedAt ?? authority.expiresAt - 300;
+        connectionMinimumRemaining = effective ? 30 : 60;
+        if (connectedAt < issuedAt || expiresAt - connectedAt <= connectionMinimumRemaining) fail('PTR_PRODUCTION_TOKEN_REFRESH_REQUIRED');
+        connectionIssuedAt = issuedAt; connectionExpiresAt = expiresAt;
+      } catch (error) { disconnect(connected); throw error; }
+      connection = connected;
       return connection as DynamicConnection;
     } finally {
       token = '';
@@ -211,6 +266,7 @@ export function createPtrAtlasImportTransport(input: Readonly<{
     inspect: () => runSerialized(async () => {
       try {
         const active = await requireConnection();
+        if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
         const procedure = active.procedures.adminGetGreaterRealmStatusV1;
         if (typeof procedure !== 'function') {
           fail('PTR_PRODUCTION_STATUS_ABI_MISSING');
@@ -223,9 +279,13 @@ export function createPtrAtlasImportTransport(input: Readonly<{
         return fail('PTR_PRODUCTION_INSPECTION_UNAVAILABLE');
       }
     }),
-    prepareSubmission: () => runSerialized(async () => {
+    prepareSubmission: (freshConnection = false) => runSerialized(async () => {
       try {
+        if (typeof freshConnection !== 'boolean') fail('PTR_PRODUCTION_REFRESH_REQUEST_INVALID');
+        // Expensive read-only admission runs before this explicit, pre-marker renewal.
+        if (freshConnection) invalidate();
         void await requireConnection();
+        if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
       } catch (error) {
         invalidate();
         if (error instanceof PtrProductionAdminTokenError) throw error;
@@ -233,31 +293,42 @@ export function createPtrAtlasImportTransport(input: Readonly<{
         return fail('PTR_PRODUCTION_CONNECTION_UNAVAILABLE');
       }
     }),
-    submit: (reducer, arguments_, assertCanStartWrite) => runSerialized(async () => {
+    submit: (reducer, arguments_, assertCanStartWrite, assertCurrentStatus) => runSerialized(async () => {
       const methodName = PTR_PRODUCTION_ATLAS_REDUCER_METHODS[reducer];
       if (typeof methodName !== 'string') {
         fail('PTR_PRODUCTION_REDUCER_FORBIDDEN');
       }
       try {
         const active = await requireConnection();
+        if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
         const method = active.reducers[methodName];
         if (typeof method !== 'function') {
           fail('PTR_PRODUCTION_REDUCER_ABI_MISSING');
         }
+        if (assertCurrentStatus) {
+          const procedure = active.procedures.adminGetGreaterRealmStatusV1;
+          if (typeof procedure !== 'function') fail('PTR_PRODUCTION_STATUS_ABI_MISSING');
+          await assertCurrentStatus(await operationTimeout(procedure({})));
+          if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
+        }
+        const beforeWrite = currentTime();
+        if (beforeWrite < connectionIssuedAt || connectionExpiresAt - beforeWrite <= connectionMinimumRemaining) fail('PTR_PRODUCTION_TOKEN_REFRESH_REQUIRED');
         assertCanStartWrite();
+        const sendingAt = currentTime();
+        if (sendingAt < connectionIssuedAt || connectionExpiresAt - sendingAt <= 15) fail('PTR_PRODUCTION_TOKEN_EXPIRED_BEFORE_SEND');
         await operationTimeout(method(arguments_));
       } catch (error) {
         invalidate();
-        if (error instanceof PtrProductionTransportError) throw error;
+        if (error instanceof PtrProductionTransportError || error instanceof PtrProductionAdminTokenError) throw error;
         return fail('PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS');
       }
     }),
     close: async () => {
       const prior = serialized;
-      await prior;
-      if (closed) return;
       closed = true;
+      tokenRequestLifetime.abort();
       adminSecret = '';
+      await prior;
       invalidate();
     },
   });
@@ -318,8 +389,11 @@ export function createPtrOwnerProvisionTransport(input: Readonly<{
       let authority: PtrOwnerProvisionAuthority;
       try {
         token = await requestToken(adminSecret);
-        authority = readPtrOwnerProvisionAuthority(token, expectedOwnerFid, nowSeconds());
-        active = await connectDatabase(databaseIdentity, token);
+        authority = await activatedAuthority(now => readPtrOwnerProvisionAuthority(token, expectedOwnerFid, now), nowSeconds);
+        if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
+        const connected = await connectDatabase(databaseIdentity, token);
+        if (closed) { disconnect(connected); fail('PTR_PRODUCTION_SESSION_CLOSED'); }
+        active = connected;
       } catch (error) {
         invalidate();
         if (error instanceof PtrProductionAdminTokenError) throw error;
@@ -328,6 +402,7 @@ export function createPtrOwnerProvisionTransport(input: Readonly<{
         token = '';
       }
       const method = (active as DynamicConnection).reducers.adminProvisionPtrOwnerV1;
+      if (closed) fail('PTR_PRODUCTION_SESSION_CLOSED');
       if (typeof method !== 'function') {
         invalidate();
         return fail('PTR_PRODUCTION_REDUCER_ABI_MISSING');
@@ -345,10 +420,9 @@ export function createPtrOwnerProvisionTransport(input: Readonly<{
       }
     }),
     close: async () => {
-      await serialized;
-      if (closed) return;
       closed = true;
       adminSecret = '';
+      await serialized;
       invalidate();
     },
   });

@@ -26,7 +26,9 @@ import { join } from 'node:path';
 
 import {
   GREATER_REALM_CANDIDATE_REJECTION_CODES,
+  isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds,
   type GreaterRealmCandidateRejectionCode,
+  type GreaterRealmTierTwoApronFrontierTruncationKind,
 } from './greater-realm-candidate-rejection';
 import type { GreaterRealmCandidatePerformance } from './greater-realm-candidate-package';
 import {
@@ -91,11 +93,13 @@ export type GreaterRealmCheckpointRejectedAttempt = Readonly<
     candidateOrdinal: number;
     activeCellCount: number;
     failedProofs: readonly string[];
+    majorRiverCount?: number;
   }
   | {
     kind: 'geography-exhaustion';
     candidateOrdinal: number;
     rejectionCode: GreaterRealmCandidateRejectionCode;
+    frontierTruncationKinds?: readonly GreaterRealmTierTwoApronFrontierTruncationKind[];
   }
 >;
 
@@ -267,6 +271,18 @@ function validatePerformance(value: unknown): GreaterRealmCandidatePerformance {
   });
 }
 
+export function isCanonicalGreaterRealmRejectedMajorRiverCount(
+  value: unknown,
+  activeCellCount: number,
+  failedProofs: readonly string[],
+): value is number {
+  return Number.isSafeInteger(value)
+    && (value as number) >= 0
+    && (value as number) <= activeCellCount
+    && failedProofs.includes('HYDROLOGY_MAJOR_RIVERS_48_72')
+      === ((value as number) < 48 || (value as number) > 72);
+}
+
 function validateRejectedAttempt(
   value: unknown,
   expectedOrdinal: number,
@@ -275,11 +291,13 @@ function validateRejectedAttempt(
     ? (value as { kind?: unknown }).kind
     : undefined;
   if (kind === 'proof-rejection') {
+    const hasMajorRiverCount = Object.prototype.hasOwnProperty.call(value, 'majorRiverCount');
     const row = exactRecord(value, [
       'activeCellCount',
       'candidateOrdinal',
       'failedProofs',
       'kind',
+      ...(hasMajorRiverCount ? ['majorRiverCount'] : []),
     ]);
     if (
       row.candidateOrdinal !== expectedOrdinal
@@ -293,19 +311,30 @@ function validateRejectedAttempt(
       || row.failedProofs.some(proof => (
         typeof proof !== 'string' || !PROOF_CODE_PATTERN.test(proof)
       ))
+      || (hasMajorRiverCount && !isCanonicalGreaterRealmRejectedMajorRiverCount(
+        row.majorRiverCount,
+        row.activeCellCount as number,
+        row.failedProofs as string[],
+      ))
     ) fail();
     return Object.freeze({
       kind,
       candidateOrdinal: expectedOrdinal,
       activeCellCount: row.activeCellCount as number,
       failedProofs: Object.freeze([...(row.failedProofs as string[])]),
+      ...(hasMajorRiverCount ? { majorRiverCount: row.majorRiverCount as number } : {}),
     });
   }
   if (kind === 'geography-exhaustion') {
+    const hasFrontierTruncationKinds = Object.prototype.hasOwnProperty.call(
+      value,
+      'frontierTruncationKinds',
+    );
     const row = exactRecord(value, [
       'candidateOrdinal',
       'kind',
       'rejectionCode',
+      ...(hasFrontierTruncationKinds ? ['frontierTruncationKinds'] : []),
     ]);
     if (
       row.candidateOrdinal !== expectedOrdinal
@@ -313,10 +342,26 @@ function validateRejectedAttempt(
       || !(GREATER_REALM_CANDIDATE_REJECTION_CODES as readonly string[])
         .includes(row.rejectionCode)
     ) fail();
+    const frontierTruncationKinds = hasFrontierTruncationKinds
+      ? row.frontierTruncationKinds
+      : undefined;
+    if (
+      hasFrontierTruncationKinds
+      && !isCanonicalGreaterRealmTierTwoApronFrontierTruncationKinds(
+        frontierTruncationKinds,
+      )
+    ) fail();
     return Object.freeze({
       kind,
       candidateOrdinal: expectedOrdinal,
       rejectionCode: row.rejectionCode as GreaterRealmCandidateRejectionCode,
+      ...(hasFrontierTruncationKinds
+        ? {
+          frontierTruncationKinds: Object.freeze([
+            ...(frontierTruncationKinds as readonly GreaterRealmTierTwoApronFrontierTruncationKind[]),
+          ]),
+        }
+        : {}),
     });
   }
   return fail();

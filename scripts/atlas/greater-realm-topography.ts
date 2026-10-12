@@ -25,6 +25,12 @@ const PHYSICALLY_COLD_TEMPERATURE_THRESHOLD = 2_000;
 const LANDFORM_PAIR_STRIDE = 32;
 const BIOME = GREATER_REALM_BIOME_ID;
 const LANDFORM = GREATER_REALM_LANDFORM_ID;
+// The lowland classes constrained by complete topographic QA.
+const LOWLAND_BIOMES: ReadonlySet<number> = new Set([
+  BIOME.TEMPERATE_LOWLAND, BIOME.FLOWER_MEADOW, BIOME.OAK_FOREST,
+  BIOME.OLD_GROWTH_FOREST, BIOME.SAVANNA, BIOME.WARM_SCRUB,
+  BIOME.FRESHWATER_MARSH, BIOME.SALT_MARSH, BIOME.COASTAL,
+]);
 
 export type GreaterRealmTopographyMetrics = Readonly<{
   elevationMinimum: number;
@@ -259,6 +265,7 @@ function isBiomeCompatibleWithPhysicalClimate(
 
 function consolidateGeneratedForestPatches(input: Readonly<{
   grid: IndexedAxialGrid;
+  elevation: Int32Array;
   waterRegime: Uint8Array;
   legacyProtectedCell: Uint8Array;
   biomeId: Uint8Array;
@@ -309,6 +316,8 @@ function consolidateGeneratedForestPatches(input: Readonly<{
       if (tail >= MINIMUM_GENERATED_FOREST_PATCH_CELLS) continue;
       for (let offset = 0; offset < tail; offset += 1) {
         const cell = queue[offset]!;
+        // Alpine forest transitions cannot be consolidated into lowland biomes.
+        if (input.elevation[cell]! > 13_500) continue;
         if (isPhysicallyExtremeClimate(
           input.moisture[cell]!,
           input.temperature[cell]!,
@@ -581,7 +590,7 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     } else if (coastClass === 4 || geomorphicGlacialMask[cell] === 1) {
       biomeId[cell] = BIOME.PINE_FOREST;
       landformId[cell] = LANDFORM.GLACIAL_VALLEY;
-    } else if (coastClass === 2) {
+    } else if (coastClass === 2 && !high) {
       biomeId[cell] = BIOME.COASTAL;
       landformId[cell] = LANDFORM.SEA_CLIFF;
     } else if (geomorphicVolcanicMask[cell] === 1) {
@@ -603,6 +612,7 @@ export function deriveGreaterRealmTopography(input: Readonly<{
       landformId[cell] = slope[cell]! < 500 ? LANDFORM.DUNE : slope[cell]! > 1_400 ? LANDFORM.BADLANDS : LANDFORM.HIGHLAND;
     } else if (
       !waterRegimeIsAuthoritative
+      && !high
       && saturated
       && nearFreshwater
       && slope[cell]! < 650
@@ -757,6 +767,18 @@ export function deriveGreaterRealmTopography(input: Readonly<{
               moisture[cell]!,
               temperature[cell]!,
             )) continue;
+            // Climate compatibility alone cannot make low ground alpine.
+            // Apply the same minimum elevation enforced by topographic QA
+            // before a neighbor's cold highland pair can vote for this cell.
+            if (
+              elevation[cell]! < 4_000
+              && (
+                biomeId[neighbor] === BIOME.ALPINE_SNOW
+                || biomeId[neighbor] === BIOME.TUNDRA
+              )
+            ) continue;
+            // A valid neighbor lowland cannot reclassify an alpine target.
+            if (elevation[cell]! > 13_500 && LOWLAND_BIOMES.has(biomeId[neighbor]!)) continue;
             biomeCounts[biomeId[neighbor]!] += 1;
             pairCounts[
               biomeId[neighbor]! * LANDFORM_PAIR_STRIDE + landformId[neighbor]!
@@ -800,6 +822,7 @@ export function deriveGreaterRealmTopography(input: Readonly<{
     // meadow/heath transitions. The frozen Lowlands surface is never touched.
     consolidateGeneratedForestPatches({
       grid,
+      elevation,
       waterRegime,
       legacyProtectedCell,
       biomeId,

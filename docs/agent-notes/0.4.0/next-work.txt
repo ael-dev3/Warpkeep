@@ -1,20 +1,2579 @@
-WARPKEEP 0.4 — NEXT WORK
-Refreshed 1 October 2026, UTC and Europe/Budapest.
+Current next work - 12 October 2026
 
+0.4 is NOT SHIPPED. Atlas finalization, read-only reconciliation and reviewed
+owner provisioning passed. Atlas is ready; PTR owner is enabled. Actual player
+authentication, journey, physical-phone performance and final cutover remain.
+
+Operator checkpoint: 32b9311f9038840c558c1beb54f8968666bc76a6.
+Installed module: 2891aee281c6c77be638635a0aecb5e688194320.
+Genuine import receipt:
+4367c60814b13ed16b52fc4c40673aa19e16264aa995566e4d67b1661b132446.
+Exact receipts/timestamps: 2026-10-11-atlas43-token-activation.md in this folder.
+
+Ordered work, owned by Codex:
+1. Human completes Farcaster's visible Confirm it's you screen: Continue, then
+   Approve in Farcaster Mobile. This is separate 30-day browser wallet access.
+   Reopen https://warpkeep.com/ptr/?miniApp=true through the verified Farcaster
+   preview and complete the actual PTR admission/entry check.
+2. Execute docs/evidence/0.4.0/owner-journey.md with normal server timers, then
+   persistence, reconnect, background/resume and physical-phone R06 measurements.
+3. Complete exact-source frontend/cutover and publication evidence. Preserve
+   Alpha, G001 progress/admission freeze, sealed G002, licensing and rollback;
+   inspect Actions state/triggers under the user's current policy before pushes.
+
+No active release job remains. Do not replay apply/import/resume/provision.
+Retain the genuine journals and use maintained read-only reconciliation for
+missing readback evidence. No new recovery App key, fake player token, admin
+substitute or accelerated timer is needed or accepted as player evidence.
+The entries below are historical; their completed next steps are superseded.
+
+Atlas .53 preserved update and verification recovery - 11 October 2026, 15:27 UTC
+
+The exact reviewed backend update completed successfully. Published source:
+2891aee281c6c77be638635a0aecb5e688194320; tree:
+4cd876cd0e25883dd2b1c7dd4a9c8b9c85e58363. Installed program:
+634397f06a0accc7f69f137d584f2df233f786919d427f46646ff97329bcaf5c.
+The once-only apply started at 2026-10-11T14:33:22.080Z and its actual
+exec session 53948 terminated with exit 0, observed at 15:09:56 UTC.
+The provider acknowledgement and preserved-candidate readback are retained;
+all tables/configuration were preserved and managed cleanup completed.
+Inspection: ffa808fe75517f93b2c9701014ffccd98cc4f79878331692020cbb226785ac35.
+Native QA summary: artifacts/qa/october-release-atlas43-host2111-apply-summary.json,
+SHA256 80a69b236ee5536475f5cf8f202a69c32050f53e9d6db39374b8eb166a6209ad.
+Operation receipt SHA256:
+b63a156d0d2a0bcffac56d1a100da5f0c7c29c282c0c617bcc7be8dd884138d7.
+Do not repeat apply: it is complete. Its source hold and cleanup are resolved.
+
+Actual read-only qualification also completed with exit 0 (session 58685).
+The complete installed package matched the actual corrected backend through
+its current partial cell-verification cursor. Prefix proof digest:
+30d51da8ae5def4c95ca4256f556bf7191adabedd643ae7119873c0f8e9c7d89.
+Complete semantic import-audit proof digest:
+ed681850ae197d81b29ff3d13dc2820fd068dc1e6603e97a6dd9b8752ed565f7.
+All six activation/public-world boundaries remained empty. Program/schema and
+source were bracketed; no provider writes or completion receipt were claimed.
+No atlas rebuild is indicated. Audit identifiers have legitimate gaps;
+uniqueness, positivity, complete action order, counters and chronology remain
+required. Identifier contiguity is not a database guarantee (see SpacetimeDB
+transactions/atomicity documentation); no particular restart cause is inferred.
+
+Remaining ordered release path, owned by Codex:
+1. Validate and publish this verification-only recovery checkpoint, then sync
+   the idle native checkout. Reuse the accepted package and retained journals.
+2. Inspect the exact current module continuation and full imported prefix, then
+   use resume-verification with the inspection's confirmation. Only verification
+   batches/finalization may execute. A fixed continuation slot precedes the
+   first send; a marked failure is read-only reconciliation, never replay.
+3. Obtain actual ready readback and completion receipt. Preserve all five old
+   submissions; do not invent historical terrain-recovery acknowledgements.
+4. Provision the reviewed owner; complete real Farcaster owner PTR acceptance
+   for gather -> choose -> build -> benefit -> return.
+5. Finish frontend/mobile acceptance and cutover while preserving Alpha,
+   explicit public licensing, rollback and current GitHub Actions policy.
+
+CLI recovery requires the historical --update-inspection and its prior chain,
+plus --imported-state-update-inspection for the acknowledged preserved module
+update above. inspect-verification-recovery produces the exact confirmation;
+resume-verification consumes it. Owner inspection/provisioning and read-only
+reconcile-import also use this current-module inspection to validate the new
+completion lineage. The historical original marker remains unchanged.
+
+Farcaster host login is observed. A separate wallet confirmation was previously
+pending; it is not authenticated owner PTR acceptance. Do not substitute admin
+identity or claim release acceptance before the actual player journey passes.
+
+Local validation: 304 affected tests passed on Linux; Windows build-mode types,
+license and tracked file-size policies passed. Independent integration review
+found and corrected the bigint/number cursor comparison before any writes.
+The earlier full local verification/finalizer closure also passed with digest
+31d1bba0622f28bf3b6fdd22fbb9a6a1f6abd9dd97a0fd92b430ee49239ac768.
+This remains local simulation evidence, not live completion.
+
+The historical entry below is superseded by the evidence above.
+
+Atlas .53 prepare-update host readback - 11 October 2026
+
+Published bounded snapshot checkpoint dad826aa075e508ef3c3c8168b26f6ecce523d83,
+tree 6d75d07115a2a061316da42d3b45cc08c80a17af; remote equality and GitHub signature
+verified. Linux 166 affected tests passed; Windows build-mode types, licensing
+and file-size checks passed. Independent pagination review found no blocker.
+
+Actual prepare-update terminated before provider writes with
+PTR_INITIAL_OWNER_UPDATE_HOST_UNSUPPORTED. Source/publication held and managed
+cleanup completed. Terminal summary digest:
+ee13a1a2e66c968e373913d11fd3ce3a1966f9f62e0db2913d8350d6165f3c85.
+Fresh Maincloud health reported spacetimedb-cloud 2.11.1, worker, schedulable,
+git_commit 843bc61. The operator previously recognized 2.10.2/2.11.0 only.
+The narrow correction recognizes this exact observed patch; unknown 2.11.2
+and wrong packages still reject before inspection/plan/marker. Exact V9/V10,
+additive migration plan, source-built artifact and complete preservation proofs
+remain mandatory before apply. Public upstream release/commit lookups returned
+404/422, so no public patch changelog compatibility is claimed. Actual protocol
+compatibility must be established by preparation; health is not replica attestation.
+
+The QA ingress first refused changed Windows powershell.exe/wsl.exe hashes.
+Both actual files had valid Microsoft Windows Authenticode signatures; a new
+ignored OS-refresh ingress pins their exact hashes and preserves all other
+retained tool/child hashes. The original caller remains unchanged. This was
+before credential ingress or native launch; do not weaken hash checks.
+Next: publish the narrow host correction and repeat read-only prepare-update
+using a distinct output stem; no submission occurred to replay.
+
+Atlas .53 bounded preservation snapshots - 11 October 2026
+
+The corrected backend authority passed all 55,102 remaining installed cells in
+read-only local verification. No atlas rebuild is indicated; this is not live
+verification, readiness or a completion receipt. Live cursor remains 53,760.
+Complete provider responses measured 130,213,429 bytes for chunks and 37,518,802
+bytes for cells. Both exceed the maintained 32 MiB single-response bound.
+
+PTR inspection now inventories every globally unique u32 ordinal before and
+after fixed pages (16 chunks / 512 cells), requires exact row/key coverage,
+rejects duplicate/out-of-range/missing rows and schema drift, and hashes all
+canonical rows in the original sorted digest format. Sparse keys and the u32
+endpoint are covered. Individual parser/network bounds remain unchanged; the
+PTR-only total bound is 512 MiB for two complete snapshots (~336 MiB currently).
+G002 and arbitrary SQL/destination restrictions remain unchanged. These are
+sequential observations, not an atomic database snapshot; source/program and
+bridge bracketing and repeated complete state comparisons remain required.
+
+Next: publish this checkpoint, run actual preservation-aware prepare-update,
+apply the exact reviewed backend once, then qualify a verification-only
+continuation retaining all five immutable terrain submissions. Do not replay
+the marked terrain v2, import again, claim readiness, or substitute local tests
+for the authenticated owner journey. Existing Alpha and rollback remain required.
+
+Atlas .53 verification blocker and narrow Lowlands correction - 11 October 2026
+
+Actual d12a695695c2f3c1e22db2d6f0e7455b5f9968f9 terrain v2 continuation ran
+09:33:07.421-13:43:09.748 UTC. All 624 chunks were imported; all 177 component
+and 624 chunk verification checks completed. Cell verification stopped at 53760.
+Terminal diagnostic PTR_PRODUCTION_OPERATION_OUTCOME_AMBIGUOUS; no timeout,
+source/index/refs held, managed cleanup complete. Summary SHA256:
+eb216e038c056f638fba18aa981bd7afa9292c0f7661f2e450e4a6c626393f65.
+The fifth durable submission remains marked; no completion receipt or ACK exists.
+Never replay that terrain v2 command or invent its receipt. Keep the installed atlas.
+
+Read-only installed-snapshot reproduction of the next batch processed 63 cells,
+then failed at ordinal 53823 with GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID.
+Generated Lowlands river local(-65,66), atlas(29,27), revision 1, accumulation 1476,
+surface 10076 drains frozen Alpha ocean local(-65,65), atlas(30,26), revision 3,
+accumulation 0, surface 975. Retained transform: rotation 1, offsets (95,26).
+The old gate used region identity as a proxy for frozen-water provenance and
+therefore rejected this generated source within Lowlands. The correction admits
+only revision-1 Lowlands sources matching the retained transform and outside all
+canonical frozen water coordinates, into the existing fully verified frozen ocean
+terminal. Uphill, transition/body checks, frozen Alpha semantics and equal-flow
+rules remain unchanged. Independent bounded review found no blocker.
+
+Windows/native Linux: all 12 affected atlas read-contract tests pass. Root Windows
+build-mode types and native PTR module types pass. Regression covers the installed
+pair plus altered source provenance/transform and altered frozen terminal fields.
+This is a qualified source correction, not an installed backend or release claim.
+Next: verify all installed hydrology links against the corrected authority, prepare
+a preservation-aware exact-source backend update, and qualify a distinct bounded
+verification-only continuation retaining all five prior records. Do not restage,
+reimport earlier terrain, provision an owner before genuine atlas completion, or
+mark the release accepted from these tests. Full owner journey remains pending.
+
+The completed chunk table exceeds the fixed inspection provider's response cap.
+Diagnosis used an isolated bounded read-only SELECT snapshot with pinned CLI,
+config/source assertions, no reducer submission and no raw provider rows or token
+output. Maintained continuation must support bounded complete row evidence;
+do not weaken response limits or substitute partial rows for full proof.
+
+Qualified token throttling and bounded terrain v2 checkpoint - 11 October 2026
+
+Token acquisition now retries only a trusted 429 mint response, honoring canonical
+Retry-After 1..300 seconds for at most three HTTP attempts. Each attempt has its
+own deadline; waiting is cancellable and atlas transport close aborts it. Successful
+response/claims, protected-session expiry, marker timing and reducer behavior remain
+strict. Deterministic tests use the maintained bridge rate limiter at real renewal
+cadence. This corrects the demonstrated code throughput mismatch; the historical
+failed HTTP response itself was not retained and its exact status remains unknown.
+
+Existing terrain inspection/continuation commands select a distinct v2 profile
+only after the retained v1 terrain marker. All four prior submissions are required
+and unchanged; v2 requires strictly advanced exact terrain prefix and identical
+complete component proof. Its fifth key is fixed across source/prefix changes.
+Fresh confirmation, full prefix proofs and fresh protected SDK status precede its
+first send. Earlier stage/component/region/chunks are forbidden. Once marked, v2
+cannot retry. Genuine completion provenance through the entire retained chain is
+required before original ACK; orphan completion and modified parents reject.
+Windows/native Linux: 213 affected tests and root build-mode types passed with
+identical five-file bytes. Licensing, file-size and diff checks passed. Independent
+review passed; actual v2 inspection, continuation and completion are still pending.
+Publish and synchronize this exact checkpoint before runtime invocation. Preserve
+Alpha, G001 admission freeze/progress, G002 seal, licensing and rollback.
+
+Actual terrain continuation and token mint cadence - 11 October 2026
+
+Signed source 9ada69138a15f44a2070795cf871c68913b609a9 passed fresh inspection
+08:46:32.718-08:58:00.061 UTC; summary SHA256
+7c5065f8242dd379ddfef6607aedea1fdbef45bed9a55ebc82c16d044fbe13f8.
+Actual once-only continuation 08:58:09.866-09:12:21.258 UTC crossed the corrected
+pre-marker timing gate, committed six additional chunks, then closed with
+IMPORT_OUTCOME_AMBIGUOUS_RECONCILE_ONLY and diagnostic
+PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID. Summary SHA256
+7546675c6e1cdcd00bd149cc80190cce030e90cf9fbf63f766e0b92bc6af12b1.
+Source/index/refs remained held and managed cleanup completed. No completion
+receipt or owner acceptance exists. The fourth submission marker is retained:
+key 9c0f9fa21c8c4772cecbd6a6c65840040535649c630f847dd3cca41c16d27e25,
+SHA256 f5e1dbc93ddccce0f638e5893eb6de6dd7a17bed8d221d7054a27461f58cca32.
+All earlier markers remain unchanged; no acknowledgement. Never replay this command.
+Read-only reconciliation verifies exact maintained payload/indexed rows for 16
+chunks and 1960 cells, still zero passable cells, slots and resources. Preserve atlas.
+
+Maintained code identifies a deterministic throughput mismatch: the bridge allows
+six admin-token mints per rolling five minutes, while protected WebSocket renewal
+can mint every thirty seconds. All non-200 responses currently collapse to the
+same invalid-response diagnostic. A fresh metadata-only probe at 09:14:14.978 UTC
+returned 200 with JSON/no-store. This does not prove the failed earlier response
+was 429. Correct bounded token-mint throttling without retrying reducer calls or
+changing provider limits, then qualify a distinct once-only continuation bound to
+the newly verified prefix and all four retained markers. No marked operation may
+be replayed. Actual import completion, owner PTR journey and cutover remain pending.
+
+Pre-marker session timing correction - 11 October 2026
+
+Actual signed 3e5c0fee inspection passed with exact retained prefix: 10 chunks,
+1114 cells, zero passable cells. Inspection summary SHA256
+562e03e617a5696aa9f21ec32704da124beaea3ef70a5cf3462c6d708af491ea.
+The subsequent continuation closed with conservative ambiguous outcome and bounded
+diagnostic PTR_PRODUCTION_TOKEN_REFRESH_REQUIRED. Resume summary SHA256
+8d42fcf69775ed66a1d8253ebd3a8711a974f51c976473ef5cec1eeeee0be83b.
+Reconciliation confirmed unchanged next ordinal 10 and no fourth submission marker;
+all three original markers and their hashes remain intact, with no ACK or receipt.
+This failed before a new durable marker/reducer send. Never replay marked commands.
+
+Complete component/terrain prefix proofs now precede explicit fresh protected
+session acquisition. Fresh SDK status, exact digest/counter comparison, held-source
+checks and unchanged expiry guards precede the durable marker and first reducer.
+Renewal failure or status drift cannot mark or send. No automatic post-marker retry,
+expiry relaxation, journal reset, atlas rebuild or owner acceptance substitution.
+Windows and native Linux: 167 affected tests and root build-mode types passed.
+Independent final review found no blocker. Publish this checkpoint, synchronize
+exact native source, inspect again for a fresh confirmation, then attempt only the
+still-unmarked terrain continuation. Actual completion receipt, authenticated owner
+PTR journey and final cutover remain outstanding. Existing Alpha must remain live.
+
+Actual terrain inspection and SQL field correction - 11 October 2026
+
+The read-only inspect-terrain-recovery on signed source 0939f24d closed exit 1,
+PTR_INITIAL_ATLAS_TERRAIN_PREFIX_DIFFERENT; source/index/refs were held and cleanup
+completed. Summary SHA256 91a0ab4a7e77080be8accfbe4e53084e6060b2f8c1f61770304469eb45b20621.
+No writes, new submission marker or completed receipt were produced. A bounded
+fixed-provider diagnostic traced the failure to indexed chunk comparison. The
+verifier's camel-to-SQL mapping omitted the digit-to-uppercase boundary: it expected
+lod_0cell_count instead of the backend's actual lod_0_cell_count (and likewise
+levels 1-3). Corrected this mapping without relaxing exact row comparison. A literal
+SQL-name regression also rejects the old malformed spelling. Independent review
+passed; 83 affected verifier tests pass on Windows and Linux. Existing operator,
+core and build-type evidence remains applicable. Preserve the atlas and all markers;
+publish the correction, synchronize exact source, then obtain fresh actual inspection
+and confirmation before any continuation. The prior failed inspection authorizes
+no import. Authenticated gameplay and final release acceptance remain unproven.
+
+Terrain-prefix continuation checkpoint - 11 October 2026
+
+Implemented a distinct inspect-terrain-recovery / resume-terrain-import path for
+an exact nonpassable prefix with no component membership, slots or resources.
+The read-only verifier compares every retained chunk and indexed cell against
+maintained verified artifact bytes, reconstructs the release hash state and rejects
+missing, extra or changed rows. Two complete readbacks bind the confirmation;
+a fresh prefix check precedes the first send. Earlier stage, component, region and
+chunk operations are forbidden. All three prior markers remain unchanged; a fourth
+once-only marker and genuine completion provenance precede any original ACK.
+This is narrow recovery admission, not owner gameplay or release acceptance.
+Windows and native Linux: 259 affected tests and root build-mode types passed.
+Licensing, file-size, caller syntax and diff checks passed. Independent review
+passed after correcting the signed timestamp bound and QA caller version identity.
+Actual deployment
+inspection and continuation are still pending. Preserve the accepted atlas; do
+not rebuild, restage or replay a previously marked command. New QA caller versions
+retain bounded diagnostic codes without retaining exception messages or credentials.
+
+Current recovery checkpoint - 11 October 2026, committed terrain prefix retained
+
+Diagnostic reporting correction: the import core now retains bounded submission
+and inspection protocol codes; the operator keeps that diagnostic separate from
+its ambiguous outcome. Typed token-acquisition errors are preserved before send.
+The maintained CLI emits only the validated diagnostic code, never provider bodies
+or exception messages. Windows/native Linux: 199 affected tests and root build-mode
+types passed; independent bounded review passed. This improves future diagnosis;
+it does not recover the lost underlying cause of the completed ten-chunk attempt.
+No provider write was performed for this correction. Next: independently qualify
+actual exact terrain-prefix continuation while retaining all three markers.
+
+Signed source 1cd0b209427201eeea340736305b9a8c3808cd6f,
+tree 77ef90fa90ae274045bf0946c23141d3299cd593, passed live
+inspect-region-recovery. Summary SHA256
+134d232bd80b1c0e643cc64a9ae34334f6acf2770bf999b434112234e99eda62.
+The once-only resume-region-import ran 07:16:48.562-07:30:39.119 UTC,
+closed exit 1 with IMPORT_OUTCOME_AMBIGUOUS_RECONCILE_ONLY.
+Summary SHA256 2f21bf93cb5d34473e0bb1b4484282fe1677d9e70364f0da8fa55f7bc8ba3a2c;
+operation SHA256 48adba699bab7dd6e04b86cbcf0e7a684f9666f7e6d6b9bbe0eb94b270d3e899.
+Source/index/refs held; cleanup completed and native launchers are absent.
+
+Actual fixed-provider readback proves next_chunk_ordinal=10 and ten terrain chunk
+rows, importing, with zero verification progress. This is committed partial
+progress, not a ready atlas or completed owner PTR. Original, staged-recovery and
+region-recovery markers remain; no completion receipt was returned. Region marker
+key 2011d5bd47cc2409ac2e36d1e40b265254b9e1f2413608c1b26a0443eae08838,
+file SHA256 981de471bb186ab21f92f069c730809b3053b5b9b1868323c99df402db1bd80c,
+created 07:28:38.275 UTC. Backend error readback is unchanged: no new logged
+INVALID_PTR_ATLAS_ADMIN_SESSION. The current failure classification masks its
+underlying cause; do not assert a new backend authentication failure without proof.
+
+Next, Codex: preserve a sanitized underlying diagnostic alongside ambiguous outcome,
+then qualify exact retained terrain-prefix continuation and real completion
+provenance. Never rerun resume-region-import, erase a marker, rebuild/restage or
+replay committed components/regions/chunks. Keep Alpha, G001 progress/admission
+freeze, G002 seal, licensing and rollback. Owner, bridge/frontend, authenticated
+journey, mobile/performance and cutover acceptance remain. 0.4 is not shipped.
+Historical next steps below are superseded by this actual partial import.
+
+Current recovery checkpoint - 11 October 2026, actual session renewal verified
+
+Signed source bd5f1f52f6b169e4b018390f96d079f9e6198042,
+tree f6104ed9090340b749ed5d3ef4ef0ccc4754aa23, is synchronized with GitHub
+and native Linux. The actual default transport completed two read-only PTR reads
+32 seconds apart and requested two tokens: renewalObserved=true. Both reads show
+importing, six committed regions and zero terrain chunks. No provider write,
+owner acceptance or release acceptance occurred. Safe evidence SHA256
+73e1e8dc22c727f71142a48b0efd6ed92ce178d59247125bbbb5bc9f3743c2a8.
+The ignored QA reporter's newline/projection parsing was corrected; its earlier
+reporting failures do not establish a failed runtime renewal.
+
+The distinct continuation is implemented as inspect-region-recovery followed by
+resume-region-import with its actual fresh confirmation. Windows and native Linux:
+202 affected tests passed, including chunk-zero continuation and provenance tamper
+cases; root build-mode types passed on both. Licensing/file-size policy passed.
+Independent bounded review found no remaining blocker after fixing validation of
+the prior marker's profile and original-import link. Actual inspection and import
+completion from this new source remain unproven; publish and synchronize first.
+
+Next: inspect the distinct once-only continuation from the complete initialized
+component/region prefix. Bind unchanged original and staged-recovery markers,
+canonical regions and zero verification/terrain to fresh confirmation. Never
+replay stage/components/regions or fabricate the earlier recovery's completion.
+Require genuine completion provenance before acknowledging the original import.
+Then owner provisioning, bridge/frontend, authenticated journey, mobile/performance
+and cutover/rollback acceptance. Atlas43 remains accepted; no rebuild is needed.
+Preserve Alpha, G001 progress/admission freeze, G002 seal and licensing.
+0.4 is not shipped. Historical next steps below are superseded.
+
+Current recovery checkpoint - 11 October 2026, host-preserved activation bound
+
+Published session-expiry source a23146be3f16c03ead2654c09067d86f51712682,
+tree 0eb011be80ca31b37c44ce91bf4d1da71ffc5d24, is synchronized and signed.
+The actual read-only live session probe rejected connection before any reducer.
+A bounded private exchange diagnostic confirms the host refreshes iat while
+preserving original nbf; the observed nbf-minus-iat offset was -1 second.
+Requiring equality rejected this genuine exchange. The narrow correction requires
+preserved original nbf and nondecreasing exchanged iat, retaining exact authority,
+identity, activation, expiry and lifetime checks. Windows/Linux: 67 affected tests
+passed. Actual live renewal and import completion are still unproven.
+
+Next: publish/synchronize this correction, require successful actual read-only
+renewal, then independently review continuation from the exact initialized
+component/region prefix. Both original/recovery markers remain. No stage, region
+replay, rebuild, new credentials or backend reapplication. Preserve Alpha, G001
+progress/admission freeze, G002 seal and licensing. 0.4 is not shipped.
+
+Current recovery checkpoint - 11 October 2026, effective WebSocket session expiry
+
+0.4 is not shipped. Windows and native Linux qualification passed: 233 affected tests,
+root build-mode types, explicit strict transport/WebSocket types, licensing and
+file-size policy. These checks do not establish runtime completion. Source d014d55814d492f5c51a287f6ec1f93fb5940e07
+(tree 370b2e037694fbb2d759f8578c391b9c9bec41df) passed maintained
+recovery inspection v5 at 05:33:35.476-05:45:13.300 UTC. Its summary SHA256
+936846c53616f35feceffcbabddc112610e570bb23132d1348a6321afccc0109.
+The parent reporting predicate was corrected to recognize actual inspection
+confirmation without claiming an already completed import receipt.
+
+The once-only resume ran 05:48:52.475-06:00:15.370 UTC and ended
+IMPORT_OUTCOME_AMBIGUOUS_RECONCILE_ONLY. Summary SHA256
+11fbccdbd641c428c48cf8ec276a11c8856443c88e209461bd6cb463af7dc363.
+Read-only reconcile-v6 ran 06:00:34.892-06:23:46.436 UTC and ended
+ATLAS_OPERATION_UNRESOLVED. Summary SHA256
+ea1af73a41d83da069b866d979f8c333f2f9141946e6a98a3d7bb9eeeb1a0108.
+Source/index/refs held; owned processes are now absent. Both original and recovery
+submission markers remain; no completion ACK or ready receipt exists.
+
+Actual fixed-provider reads prove the canonical region manifest now exactly matches
+the reviewed atlas, with zero terrain chunks and no verification progress. Backend
+logs record INVALID_PTR_ATLAS_ADMIN_SESSION at 06:00:11.784515 UTC. A reviewed,
+bounded private exchange probe proves the original bridge token lasts 300 seconds
+but the SDK's WebSocket exchange lasts 60 seconds. connection.token retains the
+original token, so its expiry cannot establish effective session freshness.
+Evidence SHA256 d6886b174ee11a0ee62d489aeaa5f66250754e9b1a9880d90aebad5dbbc392d5.
+
+The current transport correction privately validates the fixed-host exchange,
+binds its identity to the actual connection, tracks the shorter expiry, preserves
+binary framing/decompression and rejects stale sessions before writes. It does not
+extend backend authority or erase journals. Qualification and publication results
+must be read from the exact checkpoint; this is not runtime completion.
+
+Next, Codex: publish/synchronize the reviewed effective-session correction; verify
+an actual read-only session using it. Implement and independently review a distinct
+continuation admission bound to the exact initialized component AND region prefix,
+retained markers and zero terrain. Never repeat the already committed region write
+or the once-only recovery command. Require genuine ready receipt/provenance, then
+actual owner, bridge/frontend, authenticated gameplay, mobile/performance and
+cutover/rollback acceptance. Preserve Alpha, G001 progress/admission freeze, G002
+seal and licensing. No rebuild, restage, blind replay, new key or backend reapply.
+Historical entries below are superseded where conflicting.
+
+Current recovery checkpoint - 11 October 2026, SQL option encoding correction
+
+Published component-prefix checkpoint 1b16e400088ce91ce2f25d79dd5bd81311d7e957,
+tree efa4221db44c47e418352bd9b95ecb0dfa996e60. Inspection v4 ran
+05:17:59.912-05:28:38.117 UTC and safely rejected the SQL optional-value encoding.
+Summary SHA256 9e5cf3ba9cf2d4ba8bceba5d4384e9fb5f9a44cec06876c667f1d6e76fbae20b.
+No write occurred and all owned PIDs are absent. Actual maintained fixed-provider
+reads prove all 177 initialized component rows and the manifest match exactly.
+SQL encodes absent region_manifest_json as [1, []], not a named none object;
+the narrow caller correction uses that observed representation and rejects present
+or malformed variants. No backend, journal or atlas change is needed.
+
+Published token-renewal checkpoint e4f831529a38d0ed5808241997b3621a69afdd51,
+tree 64d273947a9c690cf321e0c66cfd65d1b184468c. Recovery inspection v3 ran
+04:55:34.693-05:06:18.986 UTC, closed exit 1 with
+PTR_PRODUCTION_INITIAL_STAGE_DIFFERENT. No writes, confirmation or completion
+receipt; source/index/refs held and the entire owned group is now absent.
+Summary SHA256 2f27d573b69e6a0dba72afa88088e0156d83bcac290d27c286efaa3943351500.
+
+Actual read-only SQL proves 177 component rows, aggregate expected passable
+cells/slots/resources 63859/600/12000, next chunk ordinal zero, no region manifest,
+no imported passable cells or verification progress. Earlier ordinal-zero evidence
+proved no terrain chunks, not an untouched empty stage. No atlas rebuild is needed.
+The corrected recovery caller verifies every initialized component field and the
+exact retained canonical manifest against the accepted artifact. It binds that
+prefix into confirmation, checks it again before the first durable submission,
+awaits verification, and preserves token expiry checks and original journal history.
+Stage remains forbidden. Invalid rows/manifests, changed counters or terrain
+progress block continuation without a first-send callback.
+
+Next, Codex: finish qualification and publish/synchronize this coherent correction;
+inspect-import-recovery on the exact signed source with parent-v7/run-v6/child-v5.
+Resume once only with the actual matching confirmation. Require genuine ready
+receipt/provenance, then actual owner, bridge/frontend, authenticated gameplay,
+mobile/performance and cutover/rollback acceptance. Preserve Alpha, G001 progress
+and admission freeze, G002 seal and licensing. 0.4 is not shipped. No restaging,
+journal erasure, blind retry, new keys or backend reapplication. Historical entries
+below are superseded where conflicting.
+
+Current recovery checkpoint - 11 October 2026, atlas transport renewal
+
+Published explicit staged recovery: 42935f334ae01760eeb6ee4f7b671b4e0e71ed63,
+tree f185e5a4e2312852d9b62c1d0d9c4e72a23ab961. Actual atlas remains staged,
+ownerless, no completion receipt. Reconcile-v5 proved importing; no rebuild needed.
+
+Recovery inspection v1 stopped before writes because a concurrent verification
+refreshed Git index metadata during its hold. Never run a refreshing git status
+alongside held native execution; finish validation first or disable optional locks.
+Inspection v2 was deliberately retired 04:48:57.054Z after a concrete long-import
+blocker was reproduced locally: transport reused expired five-minute JWT authority.
+All owned PIDs are absent, source/index/refs held, no write/retry authorization.
+No completion result was produced. Summary SHA256 b1943efc70f58128d6bf6c8ac57038cbb25aa5e76936c069f916ed65ffd06fad.
+
+Reviewed correction refreshes atlas connections before expiry, preserves original
+five-minute token lifetime/issuer/role/target checks, rejects expiry during awaited
+readback or before transmission, and cleans up late connection failures. 164
+affected tests pass Windows/Linux; build-mode types pass both. Maintained import,
+owner and recovery receipt requirements stay intact; actual import is not complete.
+
+Next, Codex: publish/synchronize this correction; run inspect-import-recovery on
+the unchanged signed source with parent-v7/run-v6/child-v5. Then resume-import
+only with its actual matching confirmation. The resume-only QA deadline is bounded
+to twelve hours because the actual prepared release needs hundreds of reducers
+plus verification and guarded reads; inspection remains thirty minutes. Token and
+RPC deadlines are unchanged. Keep source/index/refs fixed throughout the write.
+Never erase original or recovery markers, restage, blindly retry, rebuild accepted
+Atlas43 or reapply the installed backend. Genuine ready receipt/provenance precedes
+owner provisioning, bridge/frontend, authenticated journey/mobile/performance,
+cutover and rollback readbacks. Preserve Alpha, G001 progress/freeze, G002 seal and
+licensing. 0.4 is not shipped. Historical checkpoints below are superseded.
+
+Current recovery checkpoint - 11 October 2026, Atlas43 read-only reconciliation
+
+Reconcile-v3 hit its owned deadline; reconcile-v4 was deliberately retired after
+collecting a bounded timing trace. Complete worker absence was verified for both.
+No usable reconciliation or import completion receipt was produced. The original
+submission marker remains byte-identical and no acknowledgement exists.
+
+A qualified caller correction removes duplicate full source validation from the
+config callback and an extra wrapper around already guarded owner-state reads.
+All source/journal/signature/executable/protected-target and asynchronous readback
+checks remain. 164 affected tests and root build-mode types pass on Windows and
+Linux; license/file-size checks pass. Detailed timestamps, diagnostic limitations
+and recovery evidence: 2026-10-11-atlas43-token-activation.md.
+
+Next, owned by Codex: publish/synchronize this exact correction, reconcile read-only
+against the retained marker, classify actual backend status and the original
+continuation failure, then implement explicit verified recovery. No blind import
+retry, atlas rebuild, backend reapply or owner provisioning. After verified import
+completion: real owner, bridge/frontend, authenticated journey/mobile/performance,
+cutover and rollback readbacks. Preserve Alpha/G001 freeze/progress/G002 seal.
+0.4 is not shipped. Historical checkpoints below are superseded where conflicting.
+
+Current recovery checkpoint - 11 October 2026, partially staged Atlas43
+
+Import on published 5d6e743c closed with an ambiguous outcome after staging.
+The actual journal contains a submission marker and no completion acknowledgement.
+Direct backend reads show importing, no imported chunks, and phase components.
+Read-only reconciliation exposed IMPORT_CHAIN_RECEIPT_MISSING: its prior-chain
+admission guard incorrectly requires completion evidence before reconciliation.
+The qualified correction permits reconciliation with an unverified chain only;
+import retries and owner work remain closed without real completion evidence.
+72 affected tests and root build-mode types pass on Windows. Next: publish and
+synchronize the correction, reconcile read-only against the retained marker,
+diagnose the exact continuation failure, and implement verified recovery before
+owner provisioning and authenticated acceptance. Do not erase the journal,
+restart the atlas, reapply the backend, or claim readiness. Detailed UTC timings
+and evidence hashes are in 2026-10-11-atlas43-token-activation.md.
+Historical checkpoints below are superseded where conflicting. 0.4 is not shipped.
+
+Current release checkpoint — 11 October 2026, Atlas43 retained; protected-target caller fixed
+
+Atlas43 from signed source 86a24f58a93829d9c4ea04e3d8db1e6c7c6316b2
+passed all 26 maintained proofs and local runtime preparation. Signed token fix
+9284aa94 passed fresh actual backend inspection. Import then stopped before any
+submission because its caller supplied an empty protected-target exclusion.
+The actual nested journal is empty; its directories alone do not mean submission.
+Fresh CLI alias readback resolved G001/PTR/sealed G002. The correction supplies
+verified G002 to transport/import and binds it into confirmation; no guard is relaxed.
+111 affected tests and root build-mode types pass on Windows and native Linux.
+Detailed timestamps, receipt hashes and recovery:
+docs/agent-notes/0.4.0/2026-10-11-atlas43-token-activation.md.
+
+Next, owned by Codex: publish/synchronize the qualified correction and use the
+verified G002 readback in the maintained caller; inspect from that exact source;
+import once only with actual marker absence and fresh confirmation (or reconcile
+an existing marker); verify readiness, then provision the reviewed owner and accept
+authenticated gameplay/mobile/performance before cutover. Keep Atlas43's original
+provenance. Preserve Alpha, G001 progress/admission freeze, G002 seal and rollback.
+0.4 is not shipped. Historical checkpoints below are superseded where conflicting.
+
+Current release checkpoint - 10 October 2026, authenticated replacement40 exhaustion
+
+Reviewed .51 source ad7e7233916cd89574270cd5d20b7835deacd205
+(tree abbc72eb8c77706f1811514e4ace9f48425eb43a) was published and synchronized
+before replacement40. Original session22137 started 16:23:35.635 UTC and closed
+exit 1 at 17:26:08.762 UTC. Maintained validation authenticated all 256 rejections:
+208 geography, 48 proof. No timeout, interruption, source/toolchain or monitoring
+failure. Full worker/group/supervisor absence and root-seed zeroization verified.
+Cutoff session26340 stopped after authenticated closure; native helper absence
+verified. Never reuse exhausted replacement40. No accepted atlas, selection,
+runtime preparation, import or provider write. Credential-free terminal receipt:
+artifacts/qa/october-release-atlas40-authenticated-terminal-v1.json
+SHA256 827944d91ff92376879fdd6d764d83c657c376d11303a7d4ee0b4ae7baedda57.
+
+A source-bound replay of the sole regionally eligible rejection, ordinal230,
+reproduced missing Sunscar -> Ironveil (region2 -> region7) gates: that arm
+has no gate while the other
+eight retain two each. Natural boundary, geomorphology, hydrology and geological
+barrier proofs pass. Remaining failures concern gate access/graph, regional land
+coherence/passability, castle capacity/suitability and Throneheart being smallest.
+The .51 enumeration correction remains qualified; it has not produced an accepted
+release world. Do not lower proofs or launch the same-source search again.
+
+A hash-pinned aggregate-only instrumented copy matched the direct replay's final
+diagnostics exactly. Stonewake (region4) already has only 2,891 traversable cells and a
+29.68% dominant land component immediately after natural region coherence repair;
+Throneheart then has 7,047 traversable cells. Before the late strait repair those
+counts are 2,727 and 6,561, with region4's dominant share 31.46%. The strait repair
+returns unchanged, and the pre-sites counts remain identical. Region6 also loses
+its earlier capacity margin after sealing. Trace initial allocation and the
+reachable donor/capacity decisions in natural coherence repair before claiming
+an implementation defect. The measured world remains unusable under existing
+rules. No seed, coordinates, identity or private Realm payload was disclosed.
+Replay sessions23478,85870 and16690 closed exit 0; explicit diagnostic types pass.
+The first eligible-helper preparation exposed a TypeScript union-narrowing error
+in ignored QA code; it was corrected and typechecked. It did not affect the game
+or the authenticated terminal result. Instrumented stage receipt:
+artifacts/qa/october-release-atlas40-ordinal230-stages-v1.jsonl
+SHA256 5ecea7fcf4286d2ea39ce5e47dd706aa6987c700c8136ac8be5b1be249f6233d.
+
+Owner web acceptance advanced: the saved Farcaster session restored on deployed
+frontend BUILD 9EA4821 at https://warpkeep.com/ptr/. The preserved Alpha realm
+rendered the owner's existing keep, showed verified keeper identity, and retained
+that identity on returning to the menu. The directory reports G001 admitted,
+G002 sealed and PTR access unknown. No resource command was performed. This is
+Alpha/web-session evidence, not authenticated PTR gameplay acceptance; PTR uses
+Mini App QuickAuth, whose separate browser-wallet confirmation is still pending.
+Credential-free local observation SHA256:
+e40f8bccaa9d439de7fd62598d746982bd04732a44a0fd08f5589242c98a4b0c.
+
+Next ordered work, owned by Codex:
+1. Diagnose the earlier land allocation/coherence and missing gate route using
+   the actual callers, then reproduce demonstrated defects in public fixtures.
+   Qualify and publish a coherent correction before another bounded atlas build.
+2. Verify/select/prepare only an actually accepted atlas. Replacement40 adapters
+   were prepared and typechecked, never invoked; exhausted work is not acceptance.
+3. Bind import to the accepted source and the existing installed-backend readbacks;
+   do not reapply backend6713e152.... Provision only the actual isolated PTR owner.
+4. Accept gather -> choose -> build -> benefit -> return, mobile comfort and
+   performance through real owner authority, then finish frontend/cutover/rollback.
+Preserve Alpha, G001 progress/admission freeze, sealed G002 and licensing.
+0.4 remains unshipped. Historical checkpoint follows.
+
+Current release checkpoint - 10 October 2026, canonical gate approach options (.51)
+
+The .51 generator correction is locally qualified for publication. The real
+compatibleGateApproaches caller counted primary/alternate label swaps as separate
+options, exhausting bounded callers on repeated geometry. Canonical unordered
+pairs retain original option zero and let unchanged finite budgets inspect more
+distinct corridor combinations. All four callers treat both routes symmetrically.
+No sealing, disjointness, core-connectivity proof, search limit or terrain seed
+namespace changed. This does not establish acceptance of an atlas.
+
+Public regressions reproduced the old failure before the correction: two new
+tests failed while the six existing coherence tests passed. The corrected tests
+also reject routes ending in disconnected, genuinely derived dry cores and verify
+input preservation. Windows focused tests: 20 passed, actual session47293 exit 0.
+Linux package/rejection/coherence: 102 passed, original session90837 exit 0,
+598.71 seconds; strait ownership: 10 passed separately, exit 0. Root build-mode
+and explicit generator/test TypeScript, licensing, file-size policy and scoped
+redacted secret scan passed. Independent review found no blocker.
+
+Next: publish and synchronize this reviewed checkpoint, bind one fresh bounded
+replacement40 to its exact commit/tree, and authenticate its actual terminal
+result before selecting/preparing anything. Never reuse exhausted replacement39.
+Only an accepted atlas may proceed to import, actual owner provisioning and PTR
+acceptance, then frontend/cutover. The installed backend must not be reapplied.
+Alpha, G001 progress/admission freeze, sealed G002 and licensing remain preserved.
+Farcaster host login is verified; Warpkeep QuickAuth and the separate 30-day
+browser-wallet confirmation remain unverified. No provider writes or deployment
+were performed by this correction. 0.4 remains unshipped.
+
+Historical checkpoint follows; pending statements below are superseded.
+
+Current release checkpoint - 10 October 2026, authenticated replacement39 exhaustion
+
+The published .50 correction is qualified and synchronized at
+b9cd1b3d5d4dc6495d79bbdc0023ae32d24deebc
+(tree f33319701526f4f4d5901ef2f71d137bb59d2326). Replacement39 used that exact
+source. Original session28376 started at 14:31:30.698 UTC and closed exit 1 at
+15:38:41.622 UTC, before its cutoff. No timeout, interruption, source-hold or
+toolchain failure. Maintained terminal validation authenticated all 256
+rejections: 217 geography and 39 proof. No accepted atlas, selection, runtime
+preparation, import or provider write. Worker/group/supervisor absence and root
+seed zeroization were verified. Cutoff session86074 was stopped after validation;
+its native helper absence was verified. Never reuse exhausted replacement39.
+Credential-free terminal receipt:
+artifacts/qa/october-release-atlas39-authenticated-terminal-v1.json
+SHA256 54d78a29c2ebb6897a3921b2dfd9b5eb4d65330e3185c5a5ed386c22150f3e06.
+
+One rejected candidate, ordinal72, passed regional hydrogeomorphology and the
+major-river range. A source-bound replay reproduced seven failed proofs: gate
+approaches, gate graph, advanced geomorphology, natural outer boundary, regional
+land coherence, regional passable land and region graph. The planned region2 ->
+region7 connection has no gate, despite 345 barrier cross-sections; the other
+eight planned pairs retain two gates each. This is a reproduced release-blocking
+candidate failure, not yet a demonstrated selector implementation bug.
+
+A second bounded replay used a hash-pinned diagnostic copy of the exact .50
+generator, with aggregate logging only. TypeScript and actual replay exit 0;
+tracked source, private checkpoint, production and proof thresholds were unchanged.
+It measured 743 gate candidates and 83 with approaches on both sides of the
+missing pair. Further tracing must distinguish pair compatibility, sealing,
+regional-core connectivity and fallback selection before claiming a source bug.
+No coordinates, root seed, identity or credentials were disclosed.
+
+Further tracing measured zero usable approaches among the fallback's first 128
+raw edges. An experimental necessary-reachability filter retained the same
+expensive search limits and exposed 83 reachable edges, eight compatible
+single-gate options and no valid two-gate bundle. All 3,328 examined pair options
+failed existing sealing checks: 1,440 expose an unintended entrance and 1,888
+have an approach crossing a selected gate endpoint. The other eight graph arms
+have bundles. The experiment did not restore gates or any failed proof and is
+not a qualified source fix. Keep it out of production; neither relax sealing
+nor infer that removing candidate starvation alone makes this world usable.
+Diagnostic replay sessions7995,45198,31786,91496 and2227 all closed exit 0;
+all diagnostic/experimental code remains ignored, with no provider calls or
+checkpoint writes. Source remains .50. Next diagnosis must inspect approach
+option compatibility and earlier regional land allocation, with a reproducing
+public fixture before modifying the maintained implementation.
+
+The same replay identifies independent rejection causes: no volcanic anchors,
+volcanic tectonic compatibility zero, ridge uplift alignment 8,488 below the
+8,500 requirement, and an aligned outer-boundary run of 112 above the existing
+96 limit. Final passable-land largest-component shares are 7,805 basis points
+for region1 and 5,498 for region5, both below their 8,000 requirement; final
+fragmentation and tendril proofs also fail. Relief structure and natural landmass
+topology pass. These values explain rejection; they do not justify lowering
+thresholds, changing world authority or rerunning the same exhausted search.
+
+Next ordered work, owned by Codex:
+1. Trace the reproduced gate and connectivity failures through the real callers.
+   Fix demonstrated defects with public regressions and qualified source changes
+   before another bounded build. The .50 qualification/publication is complete;
+   do not repeat it or treat Farcaster host login as atlas acceptance.
+2. Verify/select/prepare only an actually accepted package. The replacement39
+   continuation/runtime adapters are prepared and typechecked, never invoked.
+3. Bind import to that accepted source and inspection45c7403e..., prior
+   4a78bc2b... and bootstrapad787790.... Do not reapply installed backend6713e152....
+4. Provision the real owner and accept gather -> choose -> build -> benefit ->
+   return on PTR with mobile checks. Host Farcaster login is verified, but
+   QuickAuth and the separate browser-wallet handoff remain unverified.
+5. Complete frontend/cutover readbacks and rollback. Preserve Alpha, G001 progress
+   and its admission freeze, sealed G002 and existing licensing. 0.4 is unshipped.
+
+Historical checkpoint follows; pending statements below are superseded.
+
+Current release checkpoint - 10 October 2026, planned-parent frontier correction
+
+Replacement38 ran against published source bdf30f484db7380fff058196bbb4704431815f6c
+(tree c355748b03bd95c3562f63703f45e8b9698b52b7, generator .49). Its original
+session97599 closed with exit 1 at 13:53:13.155 UTC. Maintained terminal validation
+authenticated all 256 rejections: 216 geography, 40 proof. One candidate passed
+regional hydrogeomorphology, but failed gate approaches, gate graph, geological
+barrier coverage, natural landmass topology and region graph. No accepted atlas,
+selection, preparation, import or provider write. Source/index/refs, toolchain,
+root-seed zeroization and full worker/group/supervisor absence were verified.
+The cutoff session92310 was stopped after authenticated closure; helper absence
+was verified. Never reuse the exhausted workspace. Credential-free receipt:
+artifacts/qa/october-release-atlas38-authenticated-exhaustion-v1.json
+SHA256 9a70fd0128fcbf8699b70c9f74d8f6176fecbcf3f9bc0f35402fe9bc92960d60.
+
+A source-bound, bounded replay of ordinal192 traced the gate failure to natural
+region coherence repair. The planned region1 -> region7 frontier had 187 dry
+contacts after semantic naming and only 24 after repair. Repair protected a
+1,550-cell foothold with 193 contacts to a different middle realm and transferred
+the 955-cell foothold serving the actual parent. The remaining frontier had no
+outer-side exit from the barrier band: zero approaches, zero cross-sections,
+16 gates and coverage for eight of nine required graph pairs. This is a real
+planned-parent preservation defect, not a reason to increase search budgets.
+
+The .50 correction counts dry tier contacts only with the source region's
+planned graph parents. That rule governs both foothold protection and subsequent
+foothold trimming. The experimental replay retained the correct frontier and
+restored 18 gates, route redundancy, gate approaches, gate graph and geological
+barrier coverage. It still failed land coherence/passable land/region graph and
+natural landmass topology (nine large islands against a maximum of eight).
+The replay is rejected and must not be imported or called accepted. Do not infer
+that this correction resolves all regional failures or establishes release readiness.
+No proof threshold, search budget, terrain seed namespace, Lowlands authority,
+licensing, backend installation or deployment change.
+
+Two public synthetic regressions invoke the real coherence repair with valid
+middle-tier spine authority. Both fail with the previous contact predicate and
+pass with the planned-parent correction; they cover a larger foreign foothold
+and a dominant body touching the wrong parent. They also verify population/tier
+conservation and unchanged caller-owned terrain/water/authority arrays.
+Windows focused checks, explicit generator/test TypeScript on both platforms,
+root build-mode types, license/file-size policy and redacted outgoing scan passed.
+Native session67958 closed exit 0: 99 tests (82 package, 11 rejection, 6 coherence)
+in 592.81 seconds. Final corrected coherence fixtures also passed separately on
+both platforms. The originally named strait test path matched no file; the actual
+greaterRealmStraitOwnershipRepair.test.ts was then run separately and all 10 tests
+passed. Qualification covers ordinary/repaired public package replay, tamper
+rejection and zeroization; it does not establish private atlas acceptance. Independent bounded review found no production
+blocker and identified an initially non-reproducing parameter; that fixture was
+corrected and both old-behavior failures were observed. Publish the coherent
+reviewed correction with its actual verification status and synchronize source.
+
+Next ordered work, owned by Codex:
+1. Finish exact .50 qualification and publication; retain truthful rejected38 evidence.
+2. Diagnose demonstrated remaining atlas failures before another bounded build.
+   Verify/select/prepare only an accepted package; never reuse exhausted38.
+3. Bind atlas import to accepted source and final inspection45c7403e..., prior
+   4a78bc2b... and bootstrapad787790.... Do not reapply installed backend6713e152....
+4. Provision the real owner and accept gather -> choose -> build -> benefit ->
+   return on PTR with mobile checks; preserve Alpha, G001 and sealed G002.
+5. Complete frontend/cutover readback and rollback. 0.4 remains unshipped.
+
+Farcaster host login is not QuickAuth acceptance. The previously observed
+quick_auth_token_timeout and separate browser-wallet identity handoff remain
+unverified until actual owner sign-in succeeds. Never replace player access
+with admin credentials or report hosted static delivery as gameplay acceptance.
+
+Historical checkpoint follows; pending statements below are superseded.
+
+Current release checkpoint - 10 October 2026, barrier-coherence qualification
+
+Published source f2f858f008375766adf387ded8393bcd104f7574 (generator .48)
+completed replacement37 at 12:21:23.210 UTC with actual exit 1. Maintained
+terminal validation authenticated exhaustion: 256 rejections (218 geography,
+38 proof). Two candidates passed regional hydrogeomorphology; both failed
+TIER_III_SMALLEST_PASSABLE_LAND, one also failed minor-stream count. No atlas
+was accepted, selected, prepared or imported. Root seed zeroization, source
+preservation and worker/group/supervisor absence were verified. Cutoff monitoring
+was stopped; production was untouched. Credential-free exhaustion receipt:
+artifacts/qa/october-release-atlas37-authenticated-exhaustion-v1.json
+SHA256 4075f8697a52b93f77b60ebb42356c2569ac48d12154dbf62f99750355a41655.
+
+A public synthetic fixture demonstrates an independent coherence defect:
+region1 donates 70 passable cells, falling from 150 to 80 while Throneheart
+stays 100. The smallest-passable proof changes from true to false despite
+population conservation. This does not establish replacement37's private cause.
+The .49 correction skips transfers whose barrier-excluded donor would become
+no larger than Throneheart, continuing existing bounded choices. Regression
+coverage includes below/equal capacity, sealed barriers and permitted transfers.
+No proof threshold, search budget, terrain seed namespace, Lowlands authority,
+licensing, backend installation or deployment changes.
+
+Windows focused tests, explicit TypeScript and build-mode types passed.
+Native Linux passed all 106 tests in the affected package/repair/rejection batch
+in 581.11 seconds, including public ordinal9 and repaired ordinal18 replay,
+tamper rejection and zeroization. The final four focused coherence tests also
+passed separately on both platforms. License, file-size, diff and redacted
+source-secret checks passed. Independent review found no blocker; its sealed-
+barrier test gap was covered. Complete Actions history and a fresh readback at
+12:40:30 UTC confirmed no active runs, unchanged workflows and all four repos
+disabled. Publish this reviewed .49 checkpoint and synchronize exact source
+before rebuilding. The preceding .48 checkpoint remains the historical base.
+
+Farcaster host login was verified. A fresh Alpha Mini App attempt returned
+quick_auth_token_timeout (build 5f77c3c) while Farcaster displayed its separate
+30-day browser-wallet identity prompt. Host login is not QuickAuth acceptance;
+the existing human handoff remains pending. Do not substitute admin access.
+
+Next ordered work, owned by Codex:
+1. Complete .49 qualification, publish the reviewed source, synchronize native.
+2. Run one fresh bounded source-bound atlas and authenticate actual closure;
+   verify/select/prepare only an accepted package. Never reuse exhausted37.
+3. Bind import adapters to accepted evidence and final inspection 45c7403e...
+   with prior 4a78bc2b... and bootstrap ad787790.... Do not reapply backend6713e152....
+4. Provision the real owner and accept gather -> choose -> build -> benefit ->
+   return with mobile checks; preserve Alpha, G001 progress and sealed G002.
+5. Complete frontend/cutover readback and rollback. 0.4 is not shipped.
+
+Historical checkpoint follows; pending statements below are superseded.
+
+Current release checkpoint - 10 October 2026, atlas repair qualification
+
+Published source 9512a86db68b0a4ef6525900fbab0718a6a97079 (generator .47)
+remains the remote checkpoint. Replacement35 was interrupted by a native runner
+reboot; no terminal receipt existed, and its checkpoint was safely aborted.
+Do not describe it as completed or exhausted and do not reuse its workspace.
+
+Replacement36 closed with actual exit 1 at 11:01:00.455 UTC. Maintained terminal
+validation authenticated exhaustion of 256 candidates: 220 geography and 36
+proof rejections. All 36 proof candidates failed regional hydrogeomorphology.
+No candidate was accepted, selected, prepared or imported. Source was preserved,
+the root seed zeroized, and worker/group/supervisor absence verified. The cutoff
+monitor was stopped. Production was untouched. Credential-free exhaustion receipt:
+artifacts/qa/october-release-atlas36-authenticated-exhaustion-v1.json
+SHA256 6140a9b3c8162bc076881a37bc0bdd96755bce1d1918eab0a59fdf4c2a1c1b34.
+
+Bounded public diagnosis demonstrated that strait ownership repair returned after
+the first independently rejected threshold-reaching corridor. It could discard
+an accepted alternative within its existing four-plan budget. The .48 correction
+undoes only rejected swaps and donor consumption, retains earlier partial work,
+and continues bounded enumeration. A fixture preserving cell q=6,r=1 rejects
+the first trial and accepts the second; conservation, final Stonewake proof and
+input authority are checked. Preserving the whole q=6 corridor is not claimed.
+This helper defect is reproducible; it does not prove the cause of replacement36.
+Package version advances to .48; terrain seed namespace remains .3. No acceptance
+threshold, search budget, Lowlands lock, licensing or deployment changes.
+
+Windows repair tests (10), rejection tests (11), build-mode types and explicit
+TypeScript passed. Native Linux passed all 103 affected tests (10 repair, 11
+rejection, 82 package) in 509.84 seconds, including deterministic replay, repaired
+semantic-region roundtrip, tamper rejection and cleanup. License, file-size, diff
+and redacted source-secret checks passed. Independent review found no blocker.
+Complete Actions inventory at 11:11:03 UTC found no active runs and all four
+repositories disabled; publication is pending. Do not rebuild or import until
+the corrected source is published and synchronized as an exact checkpoint.
+Owner Farcaster host login is visible; this is not owner PTR QuickAuth acceptance.
+
+Next ordered work, owned by Codex:
+1. Finish package qualification, review and publish the corrected checkpoint;
+   preserve disabled Actions and synchronize the native checkout exactly.
+2. Generate one fresh bounded source-bound atlas, authenticate its actual closure,
+   and verify/select/prepare only an accepted package. Retire exhausted workspaces.
+3. Bind import adapters to the accepted package and final inspection 45c7403e...
+   with prior 4a78bc2b... and bootstrap ad787790.... Do not reapply backend 6713e152....
+4. Provision the real owner, accept authenticated gather -> choose -> build ->
+   benefit -> return with mobile checks, and preserve Alpha and G001/G002 policy.
+5. Complete frontend/cutover readback with rollback preserved. 0.4 is not shipped.
+
+Historical checkpoint follows; pending statements below are superseded.
+
+Current release checkpoint - 9 October 2026, 14:55 UTC
+
+Published source 4ba9899632e8e90266af6262d76dfe19dcaf1c21 (generator .46)
+completed replacement34 at 14:49:28.696 UTC. Maintained terminal validation
+authenticated exhaustion of all 256 candidates (207 geography, 49 proof), seed
+zeroization, source preservation and worker/group/supervisor absence. No atlas
+was accepted, selected or imported. Production was untouched. The cutoff monitor
+is stopped and its native process is absent. Do not resume this workspace.
+
+A public reproduction demonstrates a remaining independent-shortlist defect:
+both complete sibling pools contain compatible pairs, but each bounded shortlist
+can discard the other's compatible witness, leaving no pair for ranked search.
+The local .47 correction jointly reserves a compatible pair within existing caps
+and integrates ordinary and repair selection. Lowlands protection, preferred and
+donor eligibility, proof criteria and the terrain seed namespace remain intact.
+This reproduction does not establish the cause of every private rejection.
+
+Validation completed: native Linux passed 146 affected tests (53 search,
+11 rejection, 82 package) in 620.75 seconds, including deterministic replay,
+tamper rejection and cleanup. Explicit TypeScript, root build-mode types, license
+and file-size checks passed. Independent review found no functional blocker.
+The joint witness adds at most one reserved choice per capped child pool and
+65,536 predicate calls per uncached parent/lane; it preserves original rank order
+but does not claim the globally lowest-score pair. Actions inventory completed
+at 14:57:29 UTC with no active runs and all configured repositories disabled.
+Publication is pending; no replacement35 or provider write has started.
+
+Next ordered work, owned by Codex:
+1. Review and qualify joint selection, publish the source checkpoint with conserved
+   Actions state, and synchronize exact bytes into the idle native checkout.
+2. Generate a fresh source-bound atlas; authenticate closure and verify/select/
+   prepare only an accepted package. Bind import adapters to that exact source.
+3. Import using final inspection 45c7403e... plus prior 4a78bc2b... and bootstrap
+   ad787790.... Installed backend 6713e152... must not be reapplied.
+4. Provision the real owner; accept authenticated gather -> choose -> build ->
+   benefit -> return, mobile performance and Alpha preservation, then cut over
+   with rollback retained and verified deployment readback.
+
+G001 progress and the admission freeze remain preserved; G002 stays sealed.
+Farcaster host login does not establish mini-app secure-sign-in acceptance.
+Existing Alpha remains the public baseline. 0.4 is not shipped.
+
+Earlier checkpoints (historical):
+
+Current release checkpoint - 9 October 2026, 13:26 UTC
+
+Published source 6220954dd197db976976df0b3a5db4bac0cddf95 (generator .45)
+completed replacement33 at 13:20:00.439 UTC. Maintained terminal validation
+authenticated all 256 rejections (218 geography, 38 proof), seed zeroization,
+source preservation and worker/group/supervisor absence. No candidate was
+accepted or imported; production was untouched. The cutoff monitor is stopped.
+Do not resume this exhausted workspace or reuse its prepared import adapters.
+
+The local .46 correction addresses another reproduced shortlist loss: choices
+with no physically compatible, sufficiently separated sibling could occupy the
+entire cap. Both ordinary and repair paths now use their existing complete
+compatibility predicate before shortlisting. An option is removed only after
+every raw eligible sibling is disproved. The bounded callback budget retains
+unresolved and unvisited choices; it does not reject a candidate. Existing caps,
+Lowlands protection, preferred/donor lanes, proof criteria and terrain seed
+namespace remain unchanged. Downstream pair construction shares the predicate.
+This reproduction does not prove the cause of every private rejection.
+
+Validation so far: 62 affected search/rejection tests passed, including the
+axial separation reproduction through actual ranked search and conservative
+budget exhaustion. Native Linux passed all 144 affected tests (51 search,
+11 rejection, 82 package), including deterministic replay, tamper rejection and
+cleanup, in 630.49 seconds. Explicit TypeScript, root build-mode types, licensing,
+file-size policy, diff whitespace and outgoing secret scan passed. Independent
+bounded review found no functional blocker. The full Actions inventory completed
+at 13:31:33 UTC: no active runs and all configured repositories disabled.
+Publication is pending; no fresh private search has started.
+
+Next ordered work, owned by Codex:
+1. Finish native qualification and reviewed publication of .46, synchronizing
+   exact bytes and checking conserved Actions state before the remote checkpoint.
+2. Run one fresh source-bound atlas search, authenticate actual closure, then
+   verify/select/prepare only an accepted atlas. Bind new adapters to that source.
+3. Import against final inspection 45c7403e... with prior 4a78bc2b... and preserved
+   bootstrap ad787790.... Installed backend 6713e152... must not be reapplied.
+4. Provision the real owner and accept authenticated gather -> choose -> build ->
+   benefit -> return, mobile performance and Alpha preservation; then cut over
+   with verified rollback and production readback.
+
+G001 progress and the admission freeze remain preserved; G002 stays sealed.
+Farcaster host login alone is not actual mini-app secure-sign-in acceptance.
+Existing Alpha remains the public baseline; 0.4 is not shipped.
+
+Earlier checkpoints (historical):
+
+Current release checkpoint - 9 October 2026, 11:51 UTC
+
+Published predecessor d501b848eb569c69c59c527562e28488635b26cb repaired
+successive PTR backend-update continuity; the native affected suite passed 105 tests.
+Backend program 6713e15292fc304ebc971e3bc37b852d81f4ee5507b813682634f6d6d172dae4
+is installed with preserved schema, rows and configuration. Do not reapply it.
+
+Replacement31 closed at 11:41:21.427 UTC: all 256 candidates were rejected
+(211 geography, 45 proof). The terminal reader authenticated exhaustion,
+source preservation, seed cleanup and worker/group/supervisor absence.
+No selection or provider write occurred. The cutoff watcher is also stopped.
+
+The next generator revision .45 fixes a reproduced bounded-search failure:
+provably incompatible bundles could occupy all 256 shortlisted positions,
+hiding a feasible sibling pair. Ordinary and repair callers now prune only
+collisions with cells mandatory in every option of the complete raw sibling
+pool before applying the existing cap. Preferred and donor repair pools remain
+separate; Lowlands protection, proof criteria and terrain seed namespace remain
+unchanged. A synthetic reproduction and exhaustive small-footprint checks cover
+feasible-pair preservation. This does not prove that all historical failures had
+this cause. Historical packages retain their original source and generator bindings.
+
+Validation completed: native Linux passed all 142 affected tests (49 search,
+11 rejection, 82 private-package tests), including deterministic replay, tampering
+rejection and cleanup. Explicit TypeScript, root build-mode types, license policy,
+tracked file-size policy, diff whitespace and outgoing secret scan passed.
+Independent bounded review found no functional blocker. Repository-wide Actions
+inventory found no active runs; Actions remain disabled, with no runner usage.
+
+Next ordered work, owned by Codex:
+1. Finish native qualification, publish the reviewed .45 checkpoint and synchronize
+   exact source bytes before a fresh bounded source-bound atlas generation.
+2. Authenticate actual closure; verify/select/prepare the eligible atlas. Import
+   against final inspection 45c7403e... with prior inspection 4a78bc2b... and the
+   preserved bootstrap inspection ad787790.... Never relabel a historical package.
+3. Provision the real owner; accept authenticated gather -> choose -> build ->
+   benefit -> return, mobile performance and Alpha preservation.
+4. Complete production cutover/readback with rollback retained.
+
+Farcaster host login is verified. Mini-app secure sign-in is not yet accepted;
+the host browser still requests a separate wallet identity confirmation.
+G001 and its admission freeze are preserved; G002 stays sealed. Existing Alpha
+remains the public baseline. No new release completion claim is made here.
+
+Earlier checkpoints (historical):
+
+Current release checkpoint — 9 October 2026, 08:48 UTC
+
+Published and native frozen source: 3bd4214342262251be0a08792b9eee45cfd44157
+(tree 47ee7d67a3ff31ce497525e87736d6c47b597c7d).
+PTR update completed with provider acknowledgement and fresh preservation readback:
+installed program 6713e15292fc304ebc971e3bc37b852d81f4ee5507b813682634f6d6d172dae4.
+Schema, retained rows and private configuration were preserved. Owner and atlas
+readiness remain incomplete; this is not authenticated journey acceptance.
+
+Replacement29 started 08:23:51.284 UTC from this exact source. Process monitor
+54638 remained live at 08:46 UTC. Do not change native tracked source/index/refs
+or start another worker before actual closure and authenticated terminal readback.
+Retain its original source provenance even when later operator-only fixes publish.
+
+Windows-only pending patch repairs the demonstrated two-update continuation gap:
+bootstrap ac364d4f... -> first update 95ca5801... -> current program 6713e152....
+Both real immutable inspections and acknowledgements are retained. The operator
+accepts an explicit ordered prior-update-inspections list, verifies each signed
+source/tree and ancestry, preserves historical rows/configuration/schema continuity,
+rereads all journal records after asynchronous boundaries, and still requires fresh
+final installed-program readback. Single-update digest/import markers stay compatible;
+marked imports remain reconciliation-only. Never bypass this check by relabelling
+the bootstrap candidate or rerunning the successful backend update.
+
+Validation: 79 affected tests passed before four additional historical-continuity
+cases; those four passed after correcting the owner fixture to include its anchor.
+Explicit operator/test TypeScript checking, root tsc -b and diff whitespace checks passed.
+Independent read-only review found no reproducible release-blocking patch defect.
+Prepared, not invoked: replacement29 initial-atlas child/run/parent QA adapters.
+They target the actual replacement29 workspace and final inspection 45c7403e...
+with explicit prior inspection 4a78bc2b.... All three syntax checks passed and
+native ignored copies are exclusive UID1000/mode600 files. Their SHA256 values:
+child 38f8f238716b8da8bda170bb530cc02f40c282464cf6c1c21265189b5da21b60
+run 919584b67427d45779297926ff6fe6353f75017a383a78f7eda92311ed46ef21
+parent 92d11f9a6b72baabdac485b69d68a48c1075a82e357526c396a93603ea069ef0
+No credential or provider input was used during preparation. At the 08:50 UTC check, the
+actual worker /proc identity matched recorded birth 86266360 and remained R;
+supervisor and timeout identities also matched. No native tracked mutation.
+Independent read-only review also found no concrete invocation blocker in these
+three adapters; native identity and invocation readback remain runtime checks.
+
+Pending: final local qualification, worker closure/terminal authentication, signed
+publication and native synchronization, actual runtime selection/preparation,
+initial atlas inspect/import/readbacks, owner provisioning and authenticated journey.
+The browser host account is logged in; mini-app secure sign-in remains unverified.
+
+Earlier checkpoint (historical):
+
+Current release checkpoint — 9 October 2026, 08:16 UTC
+
+Published source 11115e7275028dc1149cb6a63b2a4cb395d3bb05 contains the
+PTR sealed-flow correction. Replacement28 closed at 08:10:16.491 UTC with
+all 256 attempts rejected (210 geography, 46 proof). The authenticated terminal
+reader confirmed exhaustion, source preservation and process/group/supervisor
+absence. No candidate was selected and no provider write occurred. Retain the
+successful replacement27 package as historical evidence; do not relabel it.
+
+Backend preparation first failed because one native tracked test file had CRLF
+bytes despite clean Git status. After worker closure and terminal authentication,
+only tests/greaterRealmGateApronSearch.test.ts was restored to its existing
+committed LF bytes. Exact-path index refresh via git add preserved the tree;
+the full strict source preflight then passed. No code or commit changed in that
+representation repair; never normalize the full checkout or public Alpha.
+
+Actual prepare-update at 08:11:48.009–08:13:50.286 UTC then failed safely with
+PTR_INITIAL_OWNER_UPDATE_HOST_UNSUPPORTED, without a submission marker.
+Maincloud GET /v1/health now reports 2.11.0 / spacetimedb-cloud. Official release:
+https://github.com/clockworklabs/SpacetimeDB/releases/tag/v2.11.0
+The current update operator adds only this exact host version to its existing
+2.10.2 allowance. Fixed target/package, exact source/artifact, complete schema,
+plan, preservation and one-submission checks remain required. Native Linux x64
+UID1000 validation passed all 22 operator tests, including both supported versions,
+future-version and wrong-package rejection. Independent bounded review found no
+blocker. This is not proof of provider compatibility: actual preparation is next.
+The historical compatibility bootstrap is not rerun or modified by this change.
+
+Next ordered work, owned by Codex:
+1. Publish/synchronize this reviewed host-version fix and recovery record.
+2. Retry actual backend preparation; apply once only after compatible schema/plan
+   and preservation evidence, then read back. Reconcile a lost acknowledgement.
+3. Generate a fresh source-bound eligible atlas, verify/select/prepare/import it.
+4. Provision the actual owner, accept the authenticated mobile journey and Alpha
+   preservation, then complete cutover/readback with rollback retained.
+
+Farcaster host login is present; fresh Warpkeep entry still reaches a separate
+wallet identity check. Actual owner acceptance and 0.4 shipping remain unproven.
+
+Historical release checkpoint — 9 October 2026, 07:03 UTC
+
+The .44 search at signed de8b7663802c327ed6f71a14447345547df707c5
+completed successfully at 06:00:26.567 UTC. Its private package was canonically
+verified, all 26 eligibility proofs passed, and explicit owner selection was
+recorded. Preserve replacement27 as evidence; it has not been imported.
+
+Runtime preparation failed with GREATER_REALM_RUNTIME_RELEASE_HYDROLOGY_FLOW_INVALID.
+A read-only verified-package reproduction identifies the missing-direction
+branch: 12 flowing Tier 1 cells drain into hidden tiers. The exporter omitted
+those directions. The actual PTR import verifier also required a public target,
+so changing export alone would not unblock deployment.
+
+The correction retains direction only for PTR river/stream flow through a sealed
+edge. Both runtime verification and the actual PTR backend recompute the complete
+seal; present downstream targets retain transition, slope, body and accumulation
+checks. No hidden cells or navigable routes are added. Historical G001 and G002
+producers retain their previous behavior, and schemas/licensing are unchanged.
+
+The regression failed before the correction. Native qualification covers all 39
+runtime cases (36 passed in the full run; three repaired/new cases passed on the
+focused rerun), 90 PTR read/import/update cases and three hydrology cases. Actual
+PTR cell verification accepts river/stream exits and rejects forged complete seals
+before counter mutation. Project, explicit source/test and PTR module types pass;
+the pinned CLI builds the module (its missing local tsc warning is covered by the
+separate explicit compiler check). Independent bounded review found no blocker.
+The full run also exposed stale generator-version contract vectors and a test
+rehash helper that defaulted PTR artifacts to G001. These test issues are corrected;
+published and corrected G001 fixture exports were independently byte-identical.
+
+Next ordered work, owned by Codex:
+1. Publish and synchronize this reviewed fix; retain the source checkpoint exactly.
+2. Generate/verify/select a fresh source-bound atlas, then prepare its runtime once.
+   Existing provenance checks cover scripts/atlas, so do not relabel or reuse the
+   old candidate under changed source, weaken that check, or blindly replay it.
+3. Inspect the real PTR deployment, install/read back the schema-compatible backend
+   correction, import/read back the atlas, and provision the real owner.
+4. Accept the authenticated owner journey, mobile/device and Alpha preservation,
+   then complete Cloudflare cutover/readback with rollback retained.
+
+Farcaster host login is verified, but a fresh Warpkeep Mini App retry still reaches
+its separate wallet identity approval with a stated 30-day browser session. That
+approval has not been confirmed as completed. No owner acceptance or 0.4 release
+is claimed. No provider writes occurred during this correction. Preserve Alpha,
+G001 progress/admission freeze, G002 sealing and current Actions policy.
+
+Historical checkpoints below; do not resume their retired workspaces.
+
+Current atlas correction — 9 October 2026, 05:20 UTC
+
+Qualified .43 source 98feaebb3e8f5d9f20ef27826ccf0871ce8982f6 /
+tree 56088b6b4fa92c673f542b0e626795ea49e3cee0 completed replacement26.
+Started 04:06:58.138 UTC; finished 05:08:41.574 UTC. Authenticated exhaustion:
+256 rejections (217 geography / 39 proof), no eligible or pending atlas,
+selection or provider write. Terminal metadata SHA256:
+141af875f7b4ba2eb0114e1b1811c476aea41a090bfde6b4756f0d5a4bc47075.
+Source/index/refs and toolchain were preserved; no deadline, monitoring failure,
+interruption or signal. Actual worker/group/descendant/supervisor absence was
+verified before checkpoint access. Root seed zeroized; maintained checkpoint
+abort completed and owned cutoff watch stopped. Never resume this workspace.
+One exact rejected replay matched aggregate regional QA, Stonewake and complete
+topography failures, including 219 lowland biomes above the alpine ceiling.
+This is a different private root from replacement25; do not infer a controlled
+increase or reduction. No seed, ordinal or geometry was exported.
+
+A public ordinary-parent-a ordinal 3 replay on .43 identifies all 118 altitude
+mismatches inside the protected legacy patch: meadow, savanna, temperate lowland
+and old-growth forest. No generated cell accounts for those mismatches.
+The existing reconciliation preserves canonical visuals but only applies a
+minimum dry altitude; generated mountain heights can therefore conflict with
+those frozen lowland classes. A focused canonical-patch regression reproduces
+20,000-unit dry lowlands where the unchanged QA ceiling is 13,500.
+
+Generator .44 caps reconciled bedrock/surface altitude for the five canonical
+lowland terrain kinds before flood/routing. It preserves lower dry heights,
+ridge/ancient-stone heights, exact legacy water routing, input arrays, canonical
+visuals and placement. Only the generated host relief is reconciled; G001 data
+and its deployed surface are not edited. QA criteria, seed namespace, water
+pins, admission freeze, G002 seal and licensing remain unchanged.
+Signed .44 source 716d5426d9a1dbfe030196eb1704571152e347e4 /
+tree 8f737f1055682ea23ae0108869054b4229dcd6ea is published and native-synchronized.
+The regression fails on .43 and passes on .44. Project and explicit source/test
+types, boundary/license/file-size/diff/redacted secret checks pass. All eight
+affected native suites / 167 tests pass in 647.22s, including eligible yield,
+canonical private-package replay and tamper rejection. Native run began at
+05:25:16 UTC; terminal exec exit code was 0.
+A controlled public ordinal 3 replay on .44 has zero biome/elevation mismatch
+cells (118 on .43), and the complete-topography failure is removed. Remaining
+regional, gate/graph, biome-diversity and dormant-capacity failures stay rejected.
+No QA criterion was relaxed; source did not change during qualification/replay.
+This establishes the correction, not an eligible private atlas or ship readiness.
+Next: publish this qualification evidence, synchronize the exact checkpoint,
+then run one fresh bounded source-bound private search. Do not resume retired
+workspaces or repeat full qualification without a new change or failure.
+Owner import/provision and authenticated acceptance remain downstream of a
+verified eligible atlas. Alpha and the existing PTR deployment remain preserved.
+
+Current atlas correction — 9 October 2026, 03:52 UTC
+
+Published qualified .42 checkpoint 230e5be249f99e22ae062e5efb73e589fd86dd08 /
+tree f27817b53d46e33b3cd445e5c0144011934935ea completed replacement25.
+Started 02:52:29.732 UTC; finished 03:47:54.418 UTC. Authenticated exhaustion:
+256 rejected attempts (219 geography / 37 proof), no eligible or pending atlas,
+selection or provider write. All proof-rejected attempts failed regional
+hydrogeomorphology QA. Terminal metadata SHA256:
+fb0463b6d4c7f4882c7529966a2e154e02a2ad054e5e430f51bc403153347ac8.
+Source/index/refs and toolchain preserved; no deadline, monitoring failure,
+interruption or signal. Original process/group/supervisor absence verified;
+root seed zeroized, maintained checkpoint abort completed, owned cutoff watch
+stopped. Workspace retired; never resume it.
+
+One bounded exact replay of a topography rejection matched all failure codes:
+Mirefen regional QA, aggregate regional QA, Throneheart smallest passable land
+and complete topography. Its consistency evidence has 24 lowland biomes above
+the alpine ceiling; no water-regime, cold-highland-floor or marsh mismatch.
+This is a different private root from replacement24, not a controlled reduction
+comparison. No seed, ordinal or geometry was exported; production untouched.
+Diagnosis helper SHA256:
+d4db27e234eb43bd16c45788a8b5ed7265444e230fe9952183bbfb44814d019e.
+
+A public regression reproduces another remaining classifier defect: an alpine
+pine transition at elevation 14,000 inherits oak forest from neighboring ground
+at 13,500. Generator .43 excludes the existing QA lowland biome classes from
+neighbor votes above 13,500. The regression fails on .42 and passes with the
+correction; valid smoothing at the ceiling remains permitted. Seed namespace,
+living-world version, protected terrain, final water and eligibility thresholds
+remain unchanged. This does not prove all private failures are repaired.
+
+Focused before/after regression, project/explicit types, license, file-size,
+public-boundary, diff and redacted secret checks pass. Mixed encoding in the
+release notes is corrected to UTF-8. Native qualification is complete: six
+suite files / 160 tests passed in the 574.60s full run; that run also passed
+three topography cases but exposed an overly narrow new ceiling assertion
+(oak required although old-growth forest is also a valid lowland result).
+Published b67879c94ba853d7849daedc0981f9050c647b49 contains the corrected
+semantic assertion. All four native topography cases pass on the 22.06s rerun.
+Combined coverage: seven files / 164 tests, including deterministic eligible
+yield, canonical replay and tamper rejection. Generator code did not change
+after the full run. Source is clean and native-synchronized.
+Next: publish this qualification evidence, synchronize the exact checkpoint,
+then one fresh bounded private search. Never resume retired workspaces.
+Owner import/provision remains downstream of a verified eligible atlas. Preserve
+Alpha, G001 progress/admission freeze, G002 seal, licensing, rollback and the
+current Actions policy.
+
+Previous .42 qualification and .41 terminal evidence follows.
+
+Current atlas correction — 9 October 2026
+
+Published .41 source ca0e77cd292d5b7d6b2fdcc6bba6166730e5627a / tree
+258d93c9b995c01a554de1ccfa3db008c4e24913 completed replacement24:
+started 01:23:40.894 UTC; finished 02:30:35.630 UTC. Authenticated exhaustion:
+256 rejected attempts (216 geography / 40 proof); no eligible or pending atlas,
+selection or provider write. Terminal metadata SHA256:
+79b8b580e4693050a117d4ea2da1b96b1032b44bf8df2c439bb9c56691e40683.
+Source/index/refs and toolchain preserved; no monitoring failure, deadline,
+interruption or signal. Root seed zeroized; original process/group absence
+verified before checkpoint diagnosis and maintained abort. Workspace retired.
+Never resume it.
+
+One attempt passed regional hydrogeomorphology QA and failed only
+TIER_III_SMALLEST_PASSABLE_LAND and TOPOGRAPHIC_QA_COMPLETE. Exact guarded
+replay reproduced those failures and identified 189 lowland biomes above the
+existing alpine ceiling. No water-regime, cold-highland-floor or marsh
+classification mismatch occurred. Private coordinates, root and ordinal remain
+private; production is untouched.
+
+A public synthetic regression reproduces a specific remaining classifier defect:
+a small alpine pine transition beside hot arid terrain becomes temperate lowland
+through forest patch consolidation. Generator .42 passes elevation to that
+cleanup and preserves forests above 13,500; lowland cleanup at exactly 13,500
+remains permitted. The regression failed before the correction and passes after.
+Protected terrain, fixed water, seeds, living-world version and proof thresholds
+remain unchanged. This does not establish that all private inconsistencies are
+resolved or that the separate Throneheart passable-land failure is repaired.
+
+Qualification: project build-mode types, explicit topography/test types,
+Windows topography tests, file-size, license and public-boundary checks pass.
+Native qualification complete: six unaffected suite files passed (160 tests);
+the initial full run also passed three topography tests but exposed an incorrect
+new boundary fixture that changed every cell instead of only the target. The
+corrected fixture is in published source 9a10af4c; all four topography tests
+passed on native rerun in 26.32s. Combined coverage: all seven files / 164 tests
+pass, including eligible yield, canonical replay and tamper rejection. The
+full run took 553.21s; only the corrected topography file was rerun. No
+generator change followed that full run. Do not start a new private search
+until this evidence checkpoint is published and native-synchronized.
+Next: complete qualification, publish the reviewed checkpoint, then one fresh
+bounded source-bound search. Owner import/provision remains downstream of a
+verified eligible atlas; preserve Alpha, G001 progress/admission freeze, G002
+seal, licensing, rollback and the current Actions policy.
+
+Previous .41 correction qualification and .40 evidence follows.
+
+Current correction qualification — 9 October 2026
+
+Generator .41 prevents cold low ground from inheriting tundra/alpine-snow
+biomes during neighbor smoothing. A regression reproduces the .40 defect:
+a cold cell at elevation 1,000 inherits tundra from four high neighbors and
+violates the existing complete-topography elevation floor. The correction
+rejects those neighbor votes below 4,000 and preserves valid smoothing at
+exactly 4,000. Protected terrain, fixed water, terrain seed namespace, living
+world version and all eligibility thresholds remain unchanged.
+This demonstrates a classifier defect; it does not establish the cause of
+every replacement23 rejection or prove a private atlas is now eligible.
+
+Qualification complete: all seven files / 164 native tests passed in 706.43s,
+including deterministic eligible yield, canonical package replay and tamper
+rejection. Project and
+explicit topography/test types, focused before/after regression, file-size,
+license, public-boundary, diff and redacted secret checks passed. Public
+ordinary-parent-a ordinal 9 remains eligible under its native regression.
+Next: publish and native-synchronize this completed, reviewed checkpoint before
+one fresh bounded private search. Never resume a retired workspace.
+
+Remaining dependency order: eligible atlas package verification/selection;
+owner atlas import/readback and real owner provisioning; authenticated PTR
+journey and device/Alpha acceptance; Cloudflare cutover and rollback readback.
+No provider mutation, owner PTR acceptance or final 0.4 release is claimed.
+
+Previous .40 terminal evidence follows.
+
+Current atlas terminal — 9 October 2026, 00:57 UTC
+
+Reviewed source 679ef07b28a63a1e005fd8c8a2c1bffcc4695dcd / tree
+ef6647b108bed1cc6610ab41342da9a55f4b0a72 is published and native-synchronized.
+Replacement23 (.40) started 8 October 23:48:45.154 UTC and finished
+9 October 00:56:42.654 UTC. Authenticated exhaustion: 256 rejected attempts,
+214 geography / 42 proof. Two passed regional hydrogeomorphology QA but failed
+remaining graph, coherence, passable-land, gate or complete-topography proofs.
+No eligible or pending atlas exists. Terminal metadata SHA256:
+7a7927e2b8215104797f14e37bbd84ed87198be82b031d4f1d11d053eaccf179.
+Source/index/refs and toolchain preserved; no monitoring failure, interruption,
+deadline or provider write. Root seed zeroized. Two process scans confirmed
+original births/group/supervisor absent. Maintained abort confirmed checkpoint
+aborted and production untouched; owned cutoff watch stopped. Run retired.
+
+Replacement21 stopped at 8 October 23:46:12.371 UTC due to an unclassified
+monitoring failure. Source/index/refs and toolchain remained preserved. No
+checkpoint diagnosis was read and no authenticated exhaustion is claimed.
+Its maintained abort completed after original-process absence verification.
+Fault injection reproduces the old supervisor aborting when /proc reports ESRCH
+for a disappearing process. Supervisor v24 treats ENOENT/ESRCH as absence while
+permission, I/O and other failures still fail closed; bounded OS error codes
+are retained. This is a demonstrated monitor defect, not proof of the exact
+unrecorded replacement21 errno. Targeted tests passed. Replacement22 never
+allocated a workspace or child: v23 preflight rejected an accidentally changed
+Node runtime path. v24 restores the pinned Node 22.22.3 path; replacement23
+completed with all source, toolchain and monitoring guards intact.
+
+Fresh browser retry at approximately 8 October 23:55 UTC again confirms channel
+login but not Warpkeep secure sign-in. Farcaster still displays its separate
+wallet identity check with Continue / mobile Approve and a 30-day browser session.
+User action requested; no wallet authorization, token extraction or authenticated
+owner PTR acceptance is claimed.
+
+Public ordinary-parent-a ordinals 6, 7 and 8 terminate on existing geography
+proofs. Ordinal 10 passes complete topographic QA but has only 14 reviewed gates,
+so its gate graph and route redundancy proofs correctly reject the incomplete
+plan. Independent retained-path checks find no wet endpoint/path, changed region,
+barrier crossing, route intersection or unreviewed cross-tier open edge. Its
+Throneheart passable land also exceeds two outer regions. This fixture does not
+establish a damaged-path or topography defect; do not relax proof thresholds.
+
+Next: reproduce the remaining regional-passable/topography and gate/coherence
+failures using public fixtures, fix only demonstrated defects and qualify the
+change before another fresh bounded private search. Never resume retired runs.
+Keep owner import/provision downstream of a verified eligible atlas. Existing
+Alpha, G001 progress/admission freeze, G002 seal, licensing and rollback preserved.
+
+Previous checkpoint and qualification evidence follows.
+
+Current correction qualification — 8 October 2026, 22:49 UTC
+
+Generator .40 prevents provisional lowland marsh and coastal-cliff classification
+from overriding alpine elevation. Existing cold, volcanic, arid and highland
+branches now resolve those high dry cells; protected Lowlands and fixed water
+remain authoritative. Terrain seed namespace and living-world version unchanged.
+A synthetic alpine-cliff regression fails on .39 (coastal biome 23 instead of
+highland 19) and passes with the two-condition correction, including protected
+visual preservation and high saturated-ground coverage.
+Public ordinary-parent-a ordinal 5 independently reproduces 21 elevation/biome
+inconsistencies: 14 coastal and seven marsh, all outside protected Lowlands.
+After correction, all 21 clear and TOPOGRAPHIC_QA_COMPLETE passes. The public
+fixture remains ineligible on separate castle capacity, topology, regional and
+route-anchor proofs; it is not a release atlas and cannot substitute for one.
+Public ordinal 3 has valid living invariants but insufficient cold ecology for
+the existing capacity floor; this is not evidence of an invariant-check defect.
+The known eligible public ordinal 9 still has no failed eligibility or living
+invariant checks and zero elevation inconsistencies on .40. All diagnostic
+roots/candidate scratch were cleared. All eight affected files / 172 native
+tests passed in 782.52 seconds, including 82 package, 21 generator, 27 living,
+18 topographic QA, four topography, 11 rejection, eight isolated-pocket and one
+independent final-passability test. Project and targeted types, file-size,
+licensing, public boundary and redacted diff secret scan passed.
+Published and native-synchronized at the source checkpoint above; its fresh
+search is retired. Qualification remains applicable to unchanged .40 source.
+
+Current atlas terminal — 8 October 2026, 22:42 UTC
+
+The .39 reviewed source is published at e7d860b618bbe9a097a45fcb7a4f91be3331f04d,
+tree 076b8fcdb8c61ce866b2c424019e4222c8588c1c.
+Replacement20 started 21:41:11.073 UTC and finished 22:41:34.389 UTC.
+Authenticated exhaustion: 256 rejected attempts, 220 geography / 36 proof.
+One passed regional QA but failed castle suitability/capacity, dormant capacity,
+Tier-III smallest passable land and complete topographic QA. Its major-river
+count was within the required range. No eligible or pending private package exists.
+Terminal metadata SHA256:
+cf35f98e4d22be9141a6c7f890501fabec12a794d804a22305d9f6b42878b9cd.
+Source/index/refs and toolchain preserved; no monitoring failure, interruption,
+deadline or provider write. Root seed zeroized. Two process scans confirmed
+original births/group/supervisor absent. Maintained abort confirmed checkpoint
+aborted and production untouched. Replacement20 retired; never resume it.
+
+Replacement19 stopped at 21:37:25.560 UTC with the earlier supervisor's combined
+source/process-monitor failure flag. Immediate source/index/refs readback matched
+the startup binding exactly; the original monitor did not retain the cause.
+Do not claim a proven source mutation or authenticated exhaustion for that run.
+It was aborted after process absence verification and is retired. Ignored QA
+supervisor v21 separates source failures from process monitoring failures and
+retains bounded failure codes without relaxing either guard. Its targeted type
+check passed; replacement20 completed without either failure.
+
+Fresh browser retry at approximately 22:43 UTC confirms Farcaster channel login
+but Warpkeep secure sign-in remains unavailable. Farcaster's wallet iframe still
+requests Continue plus mobile Approve and states a 30-day browser session.
+Channel login is not authenticated owner PTR acceptance. No token was extracted,
+account impersonated, owner provisioned or security guard bypassed.
+
+Next: reproduce remaining capacity/topography failures with public fixtures,
+fix only confirmed defects and qualify them before a fresh bounded private search.
+Do not replay private seeds or import a rejected package. Owner import/provision
+and authenticated PTR acceptance remain downstream of a verified eligible atlas.
+Existing Alpha, admission freeze, licensing and rollback remain preserved.
+
+Previous checkpoint and qualification evidence follows.
+
+Current atlas correction — 8 October 2026, 20:52 UTC
+
+Generator .39 fixes a reproduced barrier-coherence defect using existing planned
+marsh classification before authoritative barrier audits. Public ordinary-parent-a
+ordinal 3 passed the preliminary tendril ratio (119 / 7945 rounds to 150),
+but marsh conversion produced 120 / 7929, rounding to 151 and failing coherence.
+The isolated pockets already existed before marsh conversion. Closing one
+unprotected isolated geological pocket clears PROOF_REGION_LAND_COHERENCE:
+tendril 151 -> 150, minor-fragment share 84 -> 83, largest share 9629 -> 9630.
+Actual .39 source reproduces the cleared failure; all living-world invariants pass.
+The public fixture still fails separate geography, hydrology, gate and capacity
+proofs. It is not an eligible private release atlas.
+
+The bounded helper closes at most four already isolated Tier-II cells, only
+inside the geological band. It preserves Lowlands protected/reserve masks,
+immutable repair ownership, every reviewed gate endpoint/path, interior capacity
+spines, hydrology and political ownership, and the throne land ordering.
+Passing regions are untouched. Seed namespace and living-world v4 stay unchanged.
+The known eligible public ordinal 9 remains eligible with identical stage digests
+under prototype and control. This public fixture cannot substitute for the
+private owner atlas. All diagnostic roots and candidate scratch were cleared.
+
+Qualification: six native files / 150 tests passed, including 82 package tests
+for roundtrip/replay, semantic ownership, payload/manifest tamper rejection,
+preview validation and zeroization; 21 generator, 11 rejection, 27 living-world,
+eight new isolated-pocket tests and one independent final-passability regression.
+Final helper bytes also pass all eight tests natively and on Windows. Project
+and targeted types, file-size, licensing and the 3466-path public boundary pass.
+The stricter optional type probe found pre-existing terrain indexed-access
+annotations; no new helper errors remain after explicit counter assignments.
+
+Next: publish this exact reviewed checkpoint, synchronize the idle native source,
+then run one fresh bounded private atlas search. Never resume retired batches.
+No private atlas has been selected, imported or accepted. No provider write or
+rendered/mobile acceptance is implied by these local checks.
+
+Previous terminal and diagnosis evidence follows.
+
+Current atlas checkpoint — 8 October 2026, 20:20 UTC
+
+Replacement18 bound signed source edb9378ba820334c8c0c09438384a13c7211f2f0 /
+tree 02940aeb61f75f37e89d5c25374a6a22c4452501, generator .38.
+Started 19:22:35.024 UTC; finished 20:18:08.787 UTC without deadline or interruption.
+Authenticated terminal evidence: 256 rejections, 213 geography / 43 proof.
+42 proof attempts failed regional QA. One passed regional QA, then failed
+PROOF_GATE_APPROACHES, PROOF_REGION_GRAPH, PROOF_REGION_LAND_COHERENCE,
+TIER_III_SMALLEST_PASSABLE_LAND and TOPOGRAPHIC_QA_COMPLETE.
+Major rivers: 43 observed, 11 below range, 32 within, range 35–68.
+The regionally eligible attempt had 65, within the required range.
+No eligible, pending or verified private package exists; production untouched.
+Terminal metadata SHA256:
+22b6fe0e5a7a79331d6c7e6c690c1dc6f5705a43392f6140f2288ab7f54f5ca8.
+Root seed zeroized; source/index/refs and toolchain preserved.
+Two full /proc scans each examined 47 processes, no original births/group/supervisor.
+Maintained abort returned checkpointAborted:true / productionUntouched:true.
+Replacement18 retired; owned cutoff watcher stopped. Never resume this workspace.
+Current-source public ordinary-parent-a ordinal 10 independently reproduced
+14 gates across nine required graph pairs: pairs 0:7 and 4:7 have no gates.
+Endpoint conflicts, required-path conflicts, open side edges and invalid
+endpoints are all zero. Gate approaches, gate graph and region graph fail.
+This is consistent with the earlier independent dry-access diagnosis, not
+evidence of a new endpoint-conflict defect or justification to relax proofs.
+Next: diagnose reproducible region coherence/land-floor failures before
+another bounded private search. Do not relax requirements or replay private seeds.
+The .38 public opening regression and 142 native affected tests passed;
+this qualification is not a private atlas winner or authenticated PTR acceptance.
+
+Previous checkpoint and qualification details follow.
+
+Current atlas checkpoint — 8 October 2026, 19:16 UTC
+
+Replacement17 bound signed source 7ad506d3632ddc4b9e2ed3600cc472c582e37743 /
+tree fdf09f7ad4077a10047fda085fccfefa8955008c and finished 18:49:33.477 UTC.
+The authenticated .37 terminal reader found 256 rejections: 210 geography /
+46 proof. 44 proof attempts failed regional QA. Two passed regional QA:
+one failed castle capacity/suitability, region graph/coherence/passable land,
+Tier III size and complete topography; the other failed only inner-gate throne
+redundancy, dormant capacity and region land coherence. Major rivers ranged
+37–70: seven below range, 39 within. Both regionally passing attempts were
+within range (52–56). No eligible or pending candidate exists.
+Terminal metadata SHA256:
+38deb1dc37d795ab27748d82a7bb033950baddc1faa18ff1bd28b301c1437846.
+Two full /proc scans each examined 48 processes and found no original worker
+births, group or supervisor. Source/index/refs and toolchain preservation passed;
+root seed was zeroized. No deadline, interruption or provider write occurred.
+Maintained abort returned checkpointAborted:true / productionUntouched:true;
+replacement17 is retired and its owned watcher stopped. Never resume it.
+
+A bounded public ordinary-parent-a scan of ordinals 0–8 reached final audits
+for ordinals 3 and 5. Both had six valid inner-gate approach pairs, six gates
+with two independent throne routes and a passing redundancy proof. The other
+seven rejected earlier in geography. This does not reproduce the private
+throne-access failure or justify changing the audit/selection algorithm.
+Public ordinal 10 also did not fail throne redundancy. All diagnostic candidates
+and roots were cleared; no private candidate was replayed or exported.
+
+Public gate diagnosis did not establish a selector or search-depth defect:
+missing pairs had no reachable dry approaches even under uncapped independent
+BFS. Do not relax dry access, isolation, topology or acceptance requirements.
+Public ordinary-parent-a ordinal 10 reproduces a separate measurement defect:
+the ordinary lane reused barrier-stage topology before final marsh conversion.
+Independent final-mask BFS measured throne land 6286 versus reported 6323, and
+minimum outer land 1587 versus reported 1603, with differing component shares.
+The .37 correction recomputes final topology in both lanes after authoritative
+hydrology/ownership, then clears component scratch. Terrain seed namespace,
+geometry, hydrology and acceptance thresholds remain unchanged. This corrects
+proof authority; it does not turn the undersized public fixture into a winner.
+The independent regression failed before the correction and passes afterward.
+Qualification completed: 115 affected tests pass (21 generator, 82 package,
+11 rejection and one independent final-mask regression). Package checks include
+roundtrip/replay, semantic ownership, tamper rejection and zeroization. Project
+and regression types, licensing, file-size and public-boundary checks pass.
+Public floor-repair tracing shows insufficient reachable same-tier donor land:
+region 4 needed 6018 cells but found 1523; region 2 needed 3166 but found 33.
+The final reported counts and component shares now match independent BFS exactly.
+This evidence does not justify forcing annexation or bypassing immutable ownership.
+
+Further public diagnosis: ordinal 10 starts with one outer parent owning only
+3635 sea-level land cells versus 21496/21447 for its peers. A land-first scratch
+prototype balanced parents but failed gate-capacity search and regressed the
+known eligible ordinal 9. A conditional gate-frontier-preserving prototype kept
+ordinal 9 eligible but ordinal 10 still hit the existing bounded gate search limit.
+Neither prototype is production source, qualification or a release candidate.
+Do not adopt a land rebalance or raise search limits from these results alone.
+The ordinary .37 generator retains a genuinely eligible public fixture; rejected
+terrain is not evidence that its acceptance requirements should be relaxed.
+
+The public ordinal 3 living-world diagnosis reproduced insufficient independent
+open groundcover: 397 cells versus the unchanged 454-cell separation minimum.
+Its Jaccard overlap check already passed. Leaf-only fringe repair could not use
+safe, connected woody boundaries. The .38 correction permits only boundary
+cells with existing open neighbours and locally connected remaining neighbours.
+It rechecks every removal sequentially and tracks whole-patch sizes to preserve
+the six-cell minimum, rather than pruning an undersized remainder afterward.
+Dense interiors and narrow connectors stay untouched. Groundcover, water,
+strategic ownership, protected clearances and acceptance limits do not change.
+Generator identity advances to .38; terrain seed namespace and living-world
+serialized schema remain unchanged. The new boundary regression failed before
+the fix. All 27 living-world cases pass, including connector preservation and
+minimum patch size. Public ordinal 3 now has 454 open-groundcover cells, passes
+that independence invariant and retains valid patch sizes/routes/clearances;
+its other terrain/capacity failures remain genuine rejection evidence.
+Qualification completed: 142 affected tests pass (21 generator, 82 package,
+11 rejection, one final-passability regression and 27 living-world tests).
+Package replay, semantic ownership, tamper rejection and zeroization pass.
+Project and affected test types, licensing, file-size, diff and public-boundary
+checks pass. No private candidate or provider operation used the correction yet.
+
+Next: publish/synchronize the qualified .38 source, then run one fresh bounded
+source-bound atlas batch with unchanged acceptance requirements. Authenticate
+its terminal evidence before selecting/importing anything; never resume retired
+workspaces or automatically loop retries. No eligible atlas, selection, import,
+owner acceptance or shipped 0.4 is claimed. Preserve installed services, Alpha,
+G001 admission freeze/progress, G002 sealing, licensing and current Actions policy.
+Earlier entries below are historical evidence.
+
+Current terminal evidence — 8 October 2026, 16:04 UTC
+
+Signed source 56fe20f184f0e7b7a5b6231beefdd5ab44c358ed / tree
+0853fc24bcd820b31b2140d5b8555b0a3f6491e6 finished at 16:04:23.560 UTC.
+The bound reader authenticated 256 rejections: 211 geography / 45 proof.
+43 proof attempts failed combined regional QA. Two passed regional QA;
+one failed only gateApproaches, gateGraph and regionGraph. The other also
+failed castle suitability/capacity, lakes, land coherence, Tier III size,
+potential density and complete topography. Measured major rivers were
+40–71 across 45 proof attempts (eight below range); the two regionally
+eligible attempts had 57–60 major rivers. No eligible atlas was accepted.
+
+Terminal metadata SHA256:
+0e5a9f8d147f52d429259e6140c9b2f0853848e0bf67828071bb7819f0df1984.
+Two full /proc scans each examined 50 processes and found no original
+worker births, group or supervisor. Source/index/refs, toolchain and
+root-seed zeroization passed; no interruption or cutoff caused exhaustion.
+Maintained abort returned checkpointAborted:true / productionUntouched:true.
+Replacement15 is retired and its owned cutoff watcher stopped; never resume it.
+No package, selection, provider write or authenticated owner acceptance exists.
+
+Next: diagnose gate placement completeness and final approach validation using
+public fixtures. Existing greedy selection already checks side entrances and
+required approach conflicts; do not assume that missing a fallback for a complete
+assignment is a demonstrated bug. Keep acceptance and installed services intact.
+Earlier entries below are historical evidence.
+
+Current terminal evidence — 8 October 2026, 14:55 UTC
+
+Signed diagnostic source de76d1ce9345005ffc4fcfe908e5d8e84b215aa2 / tree
+a65a7e4fd955be93b16484fb1d0e6db867e0187f finished at 14:55:03.290 UTC.
+The bound terminal reader authenticated 256 rejections: 214 geography / 42
+proof; all 42 proof attempts failed combined regional hydrogeomorphology QA.
+Major-river measurements: 42 observed, eight below 48, 34 within 48–72,
+none above 72, range 39–66. No regionally eligible attempt was observed.
+These measurements do not establish a river-counting bug or justify tuning
+threshold 144. Regional terrain remains the primary diagnosis path.
+
+Two independent full /proc scans found no original worker births, group or
+supervisor. Source/index/refs and toolchain preservation, authenticated
+exhaustion and root-seed zeroization passed. Terminal metadata SHA256:
+e7a3e3cbe71c7dfcc8ce54690c8dea6c84da94132a6897300fbaa2381cfbabaa.
+Maintained abort returned checkpointAborted:true / productionUntouched:true.
+The replacement14 workspace is retired; its cutoff watcher is stopped.
+Never resume this workspace. No candidate, package, selection or provider write
+was accepted. No 0.4 release or authenticated owner acceptance is claimed.
+
+Next: investigate regional terrain using public fixtures. Change generator geometry
+only for a reproduced defect; a separately bounded fresh search may retain the
+qualified geometry when no defect is established. Keep acceptance criteria
+and approved backend/bridge/frontend intact. Earlier entries below are history.
+Current release checkpoint - 8 October 2026, 13:47 UTC
+
+The third .36 search bound signed source
+7f6379d1c4d28680ba12a8ca3cf58fae6110bc85 / tree
+45f295d872e83030955fecfe36fd0eb30bdb3ff2. It finished 13:36:19.108 UTC:
+256 authenticated rejections, 212 geography / 44 proof, no eligible atlas,
+accepted-pending candidate, package, selection or provider write. Of 44 proof
+rejections, 43 failed combined regional QA; the remaining attempt failed only
+major-river range and geological highland barriers. Source/toolchain preservation
+and root-seed zeroization passed. The exhausted replacement13 workspace is
+maintained-retired and its watcher is stopped; never resume it.
+
+Across the last two batches, every regionally passing rejected attempt failed
+river-range checks. Existing receipts lack measured counts, so failure codes
+cannot establish whether counts are low or high. The narrow diagnostic correction
+retains optional majorRiverCount in encrypted rejection/completion and private
+batch records, validates bounds/proof consistency and checks exact values against
+regenerated authority. Historical records remain readable; sanitized output,
+geometry, threshold 144, 48-72 requirement and generator/seed versions stay intact.
+No player feature or acceptance requirement changes.
+
+Qualification: 55 affected tests pass (27 checkpoint, 28 CLI security), including
+encrypted resume/completion boundary values and regenerated tampered-count
+rejection. Two retention regressions failed before the correction. Explicit CLI/
+checkpoint typechecking, project types, file-size, license and public-boundary
+checks pass; bounded independent review found no blocker. The existing 200-case
+geometry qualification remains applicable because generator code is unchanged.
+
+Codex next publishes/synchronizes the reviewed diagnostic checkpoint, runs one
+fresh source-bound search with unchanged requirements and reads only authenticated
+aggregate failure measurements at terminal. Then verify/select an eligible atlas,
+import/read back and provision the real owner, accept the authenticated journey
+and device/Alpha behavior, and complete Cloudflare cutover/rollback readback.
+Reuse accepted backend, bridge and frontend unless an actual defect is reproduced.
+
+Farcaster host login is verified; Alpha Mini App Quick Auth still times out before
+bridge exchange while host identity approval is pending. No authenticated owner
+PTR acceptance or shipped 0.4 is claimed. Preserve existing Alpha, G001 progress/
+admission freeze, G002 sealing, licensing and Actions policy. Entries below are
+historical; resolve exact current source from Git and PR #385.
+
+.34 qualified — 8 October 2026, 07:33 UTC: all159 affected tests and project
+typecheck/policy checks pass. Next: verify signed publication/synchronization,
+then one fresh source-bound search. Resolve exact commit/tree from Git/PR.
+No eligible atlas or authenticated owner acceptance is claimed.
+
+CURRENT RESUMPTION — 8 OCTOBER 2026, 07:16 UTC
+.33 signed source 2ad40f31/tree c520e6b9 exhausted and is retired: 256 rejected
+attempts, 217 geography / 39 proof, no eligible atlas or provider write. Source
+checks and seed zeroization passed. Watcher stopped. Never resume this workspace.
+Next: reproduce one remaining gate-apron selection defect publicly before another
+search; preserve existing caps and acceptance criteria. Detailed authenticated
+terminal evidence is in local-operations.md. Older search/publish steps below are
+historical. Actual atlas and authenticated owner/device acceptance remain open.
+WARPKEEP 0.4 - NEXT WORK
+
+Qualified checkpoint — 8 October 2026, 06:17 UTC: .33 correction complete.
+All 157 affected tests pass (43 apron, 21 generator, 11 rejection, 82 package),
+as do pinned project build-mode typecheck, file-size, license and public-boundary
+checks. The prior repair-pair generic inference error is also fixed without a
+runtime behavior change. Resolve the signed commit/tree from actual Git/PR state.
+Next: publish/synchronize this reviewed checkpoint, then run one fresh bound
+candidate search. Atlas and authenticated owner acceptance remain pending.
+CURRENT RESUMPTION - 8 OCTOBER 2026, 06:02 UTC
+
+ACTIVE RELEASE STEP - CORRECT THE REPRODUCED CHILD-OPTION DIVERSITY LOSS
+
+Signed .32 source 51b41e2bd8dced229387e84f0195953ff0319ed0/tree
+66acff5ba768f86ec7563239151a18942701339d completed 256 attempts at
+05:57:19.253 UTC: 216 geography and 40 proof rejections. Authenticated terminal
+receipt 3fb8a1c4a2698f201cbad528636f894471dcc7524ee15cfa41928791090a352d
+proves no eligible package, selection, atlas or provider write. The seed was
+zeroized, maintained abort retired the checkpoint and the watcher was stopped.
+Never resume .32 or older exhausted workspaces.
+
+1. Correct the demonstrated child-bundle selector defect under unchanged caps:
+   origin-mandatory corridor cells must not suppress footprint diversity, but
+   must remain authoritative in actual collision checks. Qualify both ordinary
+   and repair callers with regressions, generator/package tests and typecheck.
+2. Batch source and current evidence, inspect outgoing diff/secret scan/signature,
+   refresh repository-wide Actions evidence, publish and synchronize the actual
+   checkpoint. Keep Actions disabled and PR #385 draft.
+3. Only then start one fresh source-bound search with the pinned toolchain,
+   new workspace/seed, existing fixed cutoff and verified persistent watcher.
+   Do not automatically retry or weaken acceptance criteria.
+4. Verify/select a genuine candidate, export/import/read back atlas and provision
+   actual owner. Reuse accepted backend 95ca5801 and bridge absent a defect.
+5. Complete actual Farcaster Mini App owner journey, device/performance and Alpha
+   acceptance, then direct Cloudflare cutover/readback with rollback. The existing
+   static /ptr/ deployment is not authenticated gameplay acceptance. Current
+   sign-in recovery is documented in infra-access.md; no new keys are needed.
+
+Public ordinal-10 diagnostics ruled out naming alone as a sufficient fix.
+Detailed .32 terminal and synthetic defect evidence is in local-operations.md.
+The following entry is a superseded snapshot, not the current next action.
+
+CURRENT RESUMPTION - 8 OCTOBER 2026, 04:43 UTC
+
+ACTIVE RELEASE STEP - CONFIRM THE QUALIFIED .32 CHECKPOINT, THEN SEARCH
+
+The completed .31 batch used signed 222e64bc8d969a90c38b832d43e0aa11d149429b,
+tree f7fb70526a4463ccc17421edb7a3b7e7dbc9f127, on the release branch
+and draft PR #385. Resolve the .32 publication from the actual signed remote
+HEAD/tree; this dated note does not embed its own future commit hash. The .31 batch started 03:34:05.016 UTC and terminated
+04:37:46.075 UTC with 256 rejections (226 geography / 30 proof), no eligible
+candidate, package, selection, atlas, owner action or provider write. Two
+identity-bound observations established worker/group/supervisor absence.
+The bound reader authenticated terminal receipt 98cb6c6accb999632e900a459e08472d27a72f6b0507da6d63e86fd5d29fd2e2;
+maintained abort retired the exhausted checkpoint, and its watcher was stopped.
+Never resume its seed or workspace. See local-operations.md for rejection counts.
+
+Local .32 corrects a reproduced repair-pair truncation: rank-first retention
+can spend both slots on the same corridor and discard an alternative required
+by another parent's footprint. Keep the first own pair and the least-overlapping
+fallback (or second own pair), with deterministic rank ties. The two-pair cap,
+all other search caps, ownership, geometry, proofs and seed namespace .3 stay
+unchanged. Five regression cases cover both repair selection modes, repeated cells,
+tier separation, invalid input and untruncated behavior. Pinned Linux qualification passed all 154 affected cases (40 apron, 11
+rejection, 21 generator, 82 package), plus typecheck. The package suite took
+524.33 seconds. No .32 search has started.
+
+ORDERED NEXT ACTIONS
+
+1. Confirm the qualified, reviewed .32 checkpoint is signed, scanned, published
+   and synchronized. Before any pending push, inspect all configured repository
+   Actions histories/attempts and triggers. Keep
+   Actions disabled and PR #385 draft. Bind any new run to its actual HEAD/tree.
+2. Start one fresh source-bound search only after qualification/publication:
+   pinned Node/toolchain, new private workspace/seed, 256 attempts, one slot,
+   fixed six-hour cutoff, persistent-stdin watcher with genuine armed readiness,
+   no provider writes and no automatic restart. Never reuse .31 state.
+3. For a genuine candidate: verify its package, compare/select separately,
+   export/import/read back the atlas, and provision the actual owner. Reuse the
+   installed backend program 95ca5801 and accepted bridge absent a reproduced
+   failure; bootstrap and recovery are already complete.
+4. Accept Quick Auth and gather -> choose -> build -> benefit -> return inside
+   the signed-in Farcaster Mini App, then regress Alpha. The Farcaster client
+   currently reports a failed mobile sync channel and requests an app update.
+   Cloudflare's production dashboard is at existing-account sign-in. Human
+   login is required; no new keys or substitute player identity are needed.
+5. Follow the direct Cloudflare Pages deployment/cutover lane and exact
+   postflight with fresh account/DNS evidence and preserved Alpha rollback.
+   Warpkeep-Live is the Alpha/provenance mirror; no Actions dispatch is needed.
+
+RELEASE STATE
+
+0.4 is not shipped. Accepted immutable frontend source 9ea4821a, public artifact
+3634aa82 and Cloudflare deployment 8a469929 already serve /ptr/. The previous
+full postflight passed all 800 files and both fallbacks. Current root, PTR
+landing pages and referenced script/style assets return HTTP 200; this is
+static delivery only. Do not rebuild an unchanged frontend without a defect.
+Actual atlas, owner admission/gameplay, device acceptance and final cutover
+readback remain required. Preserve G001 progress/admission freeze, Alpha root,
+G002 sealing, exact legal bytes and rollback. No licensing-term change is needed.
+
+The remaining snapshots below are dated history. Never revive their sources,
+workspaces, seeds, cutoffs or candidate states.
+
+DATED HISTORICAL SNAPSHOT - 21:03 UTC
+Published/native-qualified d1ab2b21 / generator .27 is running one fresh guarded
+search. Actual start21:01:11.913; guard READY21:01:29.401 UTC. Root generation
+exec55823, guard exec89976. Fixed window20:57 UTC to02:57 UTC8 October;
+TERM02:56:00, KILL02:56:45 with actual acknowledgement plus10-second minimum
+grace. No automatic restart. All five startup roles were observed on CPU7.
+
+Keep active native source/index/refs frozen; documentation-only publication
+must not fetch or sync that checkout. Root must observe actual exec closure,
+validate genuine terminal evidence and all group/recorded-role/supervisor
+absence before the exact bound reader accesses private state. Earlier .26
+checkpoints stay stopped and may not be relabeled.
+
+Next: genuine winner verification/comparison/selection/runtime, atlas import
+and readback, actual owner, existing bridge/frontend rechecks, production
+Cloudflare SSO and approved cutover with fresh DNS/Alpha rollback, then real
+authenticated canonical PTR acceptance and Alpha regression. No winner or
+owner acceptance is established yet. Do not repeat the successful backend
+update. Latest local-operations records own evidence; everything below is
+dated history when superseded by a newer completed step.
+
+PUBLISHED OPERATING SOURCE - 20:38 UTC
+Signed d1ab2b217ebef4dee504b61d5098d9719c553f35, tree
+7b551a8cafef6c15e0abe678480d43a8b4b85594, is synchronized with GitHub/PR385
+and the clean native checkout. Generator .27 and unchanged toolchain verified.
+Build-mode types,69 targeted native tests and the package namespace assertion
+passed. No new search has started. Finish public cutoff smoke, bind a new
+guarded search, then
+verify a genuine winner and follow atlas/owner/cutover/authenticated acceptance.
+Keep the operating source pinned. Do not repeat the successful backend update.
+The newest local-operations record owns the actual evidence and limits.
+
+LATEST CORRECTION - 20:23 UTC
+Generator .27 corrects the reproduced ordinary/repair child-frontier defect.
+All33 apron tests and build-mode types pass; independent source review and
+bounded public synthetic performance qualification passed. Actual footprints
+now guide two fixed retention scans, preserving ownership/proofs/caps/rank and
+terrain namespace .3. See the latest local-operations record.
+
+Publish the reviewed checkpoint, synchronize the idle native source, qualify
+native packages and prepare a NEW guarded search with fresh source/workspace/
+start/deadline bindings. Do not resume .26 state, relabel old evidence or extend
+the completed search boundary. No new search is running. Keep the successful
+installed7ae backend/update4a78 and bridge v52; this offline-only correction
+requires no repeat backend deployment. Actual winner/atlas/owner acceptance,
+existing Cloudflare production SSO/cutover and Alpha regression remain next.
+Everything below is dated history until a newer completed step is recorded.
+
+LATEST STATE - AFTER THE 19:32:47 UTC SEARCH BOUNDARY
+Codex owns the remaining release path. No successor is running. The fixed
+cutoff guards failed closed; identity-bound corrective TERM stopped the three
+surviving groups. Preserve the actual deadline breach and saved checkpoints.
+Use the latest local-operations record; all active-worker snapshots below are
+historical. Do not restart old callers or change their authority.
+
+1. All six final terminal states are authenticated: 751 committed rejects
+   (639 geography / 112 proof), no completion or accepted-pending candidate.
+   Five interrupted encrypted checkpoints are preserved; exhaustion-only abort
+   is inapplicable. There is no eligible atlas to select.
+2. Reproduce and correct the generator blocker with a deterministic public
+   fixture, preserving proofs/caps; test the process-inventory PGID/SID-zero
+   cutoff correction before a new timed search. Return options at this boundary
+   instead of silently extending it.
+   The retained replay really exhausted 256 (234 geography / 22 proof), was
+   authenticated and maintained-retired; original 9ea material is untouched.
+3. Verify/compare/select/prepare only a genuine winner, then import/read back
+   its atlas and provision the actual owner. Backend update and bridge v52 passed.
+4. Complete the existing production Cloudflare SSO login, then approved cutover
+   with fresh DNS evidence and preserved Alpha rollback.
+5. Accept the actual authenticated owner journey at
+   https://warpkeep.com/ptr/?miniApp=true and regress Alpha root. 0.4 is not live
+   until this passes. No licensing change or new product feature is required.
+
+Owner PTR remains the release target. Preserve Alpha root/G001 and its
+admission policy; keep G002 sealed. Actions remains disabled. A source push
+is synchronization, not hosted verification or deployment.
+
+CURRENT CORRECTION
+
+The frozen operating source is signed/published
+`7ae40a6f4ba44188f7935f7dbcaf6f920f4eb36f`, tree
+`0cbb69dd6258533a84e851d0929d70a43765e8ea`, on the release branch / draft
+PR #385. Keep active native source/index/refs unchanged. The correction prunes only
+option prefixes whose remaining groups cannot supply the residual exact rank.
+Two new regressions fail on the old helper and pass after the fix. Feasible
+plan order, MRV choice, ownership, proofs, geometry, terrain-seed namespace and
+all production caps are preserved. Windows apron tests pass 24/24; pinned
+Linux Node `22.22.3` typecheck and four focused suites pass 60/60. Independent
+review found no blocker. See `docs/evidence/0.4.0/local-operations.md`.
+
+PREVIOUS CORRECTION'S PRIVATE BATCH — `ac6d85ee`
+
+That fresh maximum-256 batch ended incomplete: 224 geography and 32 proof
+rejections, no candidate/package/selection/atlas/provider mutation. The
+maintained reader zeroized its seed, and abort confirmed checkpointAborted
+and productionUntouched. It is retired; never resume or relabel it. Counts
+from independent seeds do not establish causation or candidate yield.
+
+NEXT — IN DEPENDENCY ORDER
+The recorded six-worker pool has now closed: 1,536 authenticated rejected
+attempts (1,332 geography / 204 proof), no eligible atlas. Its terminal-only
+pool rate was 1,077.27 attempts per UTC wall-clock hour, including staggered
+starts and VM suspend. All six passed maintained retirement and seed
+zeroization; slots01/06 completed at 17:46:45.238 / 17:47:22.360 UTC.
+Resolve actual successor starts and cutoff guards
+from the newest local-operations record. Old readers/callers bind the closed
+pool and must not be relabeled or reopened after abort.
+
+Slots02–05 replacement03 closed with no candidate: 1,024 authenticated rejected
+attempts (892 geography / 132 proof). Slot04 passed maintained retirement at
+18:30:36.879 UTC; slots02/03/05 passed maintained retirement at18:52:46.011 /
+18:52:57.303 /18:53:04.423 UTC. Slot01 replacement04 closed18:44:50.958 UTC with 256
+authenticated rejects (232/24); separately reviewed maintained retirement passed
+at19:00:51.912 UTC. Never reopen retired state.
+Slot04 replacement04 actually began18:32:12.768 UTC using reviewed launcher v9,
+with separate host-guard readiness18:32:22.944 UTC. Its matching terminal reader
+passed root byte review. Comparison/runtime v7 binds the previous five and cannot
+authorize fresh successors. Use local operations for actual digests/exec ownership.
+Source7ae/tree0cbb, gates/caps and the19:32:47 UTC boundary remain unchanged.
+Root owns comparison, selection and runtime; live metadata does not authorize
+private checkpoint reads. Slot06 capacity then ran the separately reviewed current-source
+retained-entropy replay: initializer closed0 (receipt2e87); full maintained
+generation started18:21:28.521 UTC in root-owned exec30095, singleton CPU7.
+It genuinely closed1 at19:08:50.109 UTC with
+GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE. Source/index/refs held; root observed
+the whole group and recorded children absent twice. Terminal private
+authentication and maintained retirement subsequently passed, as recorded
+above and in local operations. Prepared success/runtime
+callers cannot run against this failed replay. No blind retry.
+Separate root-owned watchdog exec15771 emitted genuine readiness18:22:54.382 UTC.
+Source7ae / generator.26 / namespace.3 and all gates remain unchanged. This
+retained original is not a retired batch; old source/package claims were not
+copied. Full package/shortlist/runtime acceptance remains open. Exact safe
+receipts, pins and correction/closure history are in local operations.
+
+1. Publication and clean native synchronization are complete. Original parallel
+   slots02–06 all ended incomplete: 1,280 authenticated attempts, 1,123 geography
+   and 157 proof rejects, no candidate. Each is retired with maintained abort
+   and seed zeroization. Slot01-replacement01 also ended incomplete (221/35)
+   and was retired. All five parallel02–06-replacement01 batches have now also
+   exhausted: 1,280 authenticated attempts, 1,094 geography / 186 proof rejects,
+   no candidate. Each is retired before its fresh successor. Slot01-replacement02
+   later exhausted 256 (225/31), was authenticated and retired at 16:15:10.826 UTC.
+   Its replacement03 began 16:15:37.462 UTC; the other five then used replacement02.
+   Those now-closed maximum-256 workers retained the same source/gates and absolute
+   cutoff. Full timestamps,
+   source-bound start/retirement pins and current readers are in the handoff.
+   The original batch exhausted 256 attempts (225 geography / 31 proof rejects)
+   and was authenticated, zeroized and retired at 13:45:32.675 UTC. Never resume
+   it. Preserve each active process and operating source until terminal, with
+   the same gates and bounds; the global stop boundary remains 19:32:47 UTC.
+   The host-clock cutoff is armed for these exact six recorded births; preserve
+   its bytes. Any successor needs separately reviewed cutoff coverage before
+   generation. See local operations; machine sleep never resets the boundary.
+   Authenticate each terminal separately; use only the first verified winner.
+   Never invoke a reader on its retired original or replacement binding.
+   If incomplete,
+   use the maintained authenticated aggregate reader, zeroization and abort.
+2. Actual PTR inspection, compatible update preparation and one-submit apply
+   have passed. Inspection `4a78bc2b` binds installed program `95ca5801` to
+   source `7ae40a6f`; all existing tables/rows and private configuration are
+   preserved. The only observed readiness gaps are owner and atlas; bridge is
+   ready. Do not repeat bootstrap, credentials or the resolved update. A local
+   native Git-object ownership failure was fixed; future native imports run as
+   UID 1000. See docs/operations/0.4.0-development-sync.md for the precise
+   prevention/unblock path.
+3. If eligible, verify the exact private package, shortlist and inspection,
+   then select and prepare runtime exports through the maintained gates. The
+   compatible backend is already installed; do not repeat its apply.
+4. Complete atlas import/readback, actual-owner provisioning, bridge/frontend
+   readback and custom-domain cutover. Atlas commands use genuine bootstrap
+   inspection `ad787790` plus current update inspection `4a78bc2b`. Verify the
+   authenticated owner journey and Alpha preservation before claiming release.
+   Preserve rollback/licensing.
+   Bind all three staged atlas callers to the actual verified winner workspace
+   and derive their transitive pins first. The source remains native7ae/tree0cbb;
+   later documentation-only release-branch ancestry is accepted. Inspect-owner
+   is the ownerless pre-provision check; use actual provisioning postflight and
+   authenticated play after success, not a repeat of that precondition.
+
+LIVE BASELINE — 7 OCTOBER 2026
+
+Alpha `https://warpkeep.com/` returned 200; custom-domain `/ptr/` returned 404;
+Pages preview `/ptr/` returned 200. Frontend implementation and visual evidence
+remain staged and frozen at public commit `3634aa82` / deployment `8a469929`
+(frontend source `9ea4821a`). Those product paths are unchanged through `7ae`;
+fresh immutable-origin postflight at 13:30:07-17 UTC verified all 800 planned
+files and both SPA fallbacks with the exact original maintained verifier/plan.
+The newer verifier's added legal-header criterion does not pass this old plan;
+all five legal files are accessible with exact approved bytes. Download-style
+MIME remains optional follow-up #395. Do not rebuild just to change a stamp.
+Final live acceptance is open.
+
+DOMAIN ACCESS
+The browser's saved GitHub login saw only snapmeter in the wrong Cloudflare
+account and has been signed out. Production CLI reads confirm Warpkeep exists in account
+`c647739b4535010b0b13e6fc296e2c4e`, but DNS/settings return 403. One login to
+that existing production account is pending for final cutover. The existing
+CLI's whoami confirmed the correct account identity; its browser sign-in form
+is open. Use the access guide's verified identity/command, not the saved GitHub
+profile. Atlas work
+continues. See docs/operations/0.4.0-infra-access.md for the exact URL/readback.
+
+Keep durable work in this repository and private operations in existing
+owner-only roots. Do not create Desktop files or new recovery credentials.
+Ask only for an unavoidable human access action; current owner instructions
+remain authoritative.
+
+PREVIOUS RESUMPTION - 6 OCTOBER 2026 (SUPERSEDED)
+
+Owner PTR remains the release target; preserve the existing Alpha root/G001,
+keep G002 sealed, and use the ordered release record in execution-handoff.md.
+The owner delegated remaining release decisions on 5 October. Keep all
+maintained quality, source-binding, preservation, rollback and acceptance gates;
+this delegation does not turn a local check or push into deployment evidence.
+GitHub Actions remains disabled; preserve that hold and its downstream Pages
+chain.
+
+CURRENT EXACT-SOURCE BATCH — `85a2a7cf2826c3526cfacac150827746d6cfa62a`
+
+One fresh private search on the signed source and pinned Linux x64 Node
+22.22.3 toolchain ran for about 30 minutes, exhausted the supported 256
+attempts, and returned `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. The
+authenticated safe reader confirmed exact source binding, phase `searching`,
+sequence/next ordinal 256, 224 geography rejections, and 32 proof-rejection
+attempts. The recovered root-seed buffer was zeroized in `finally`. No
+candidate, package, shortlist, selection, atlas, provider operation, or
+production mutation resulted. Full safe geography-code counts are in
+`docs/evidence/0.4.0/local-operations.md`. After recording the summary, the
+maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. The checkpoint is retired; never replay it.
+
+The stage-classified counts are: 96 generic dry-gate apron no-matches, 1 after
+the Lowlands repair check, 8 complete-plan limits, 30 search-node limits, and
+32 Crownwood parent-slot misses. The other 57 geography rejections were active
+grid out of range (30), legacy Lowlands placement (8), primary component
+undersized (9), capacity assignment infeasible (5), throne-component repair
+forbidden (4), and Tier-II assignment missing (1). This is one fresh sample,
+not a causal comparison. Generic no-match means the diagnostic did not prove
+that the completed plan reached either apron lane; do not attribute those 96
+rejections to an apron-geometry defect.
+
+The signed `0109aaf0e3a5c8b0d9614180b9e027fb1d5be59c` source adds only safe
+no-match stage classification. It exposes no seed or coordinates and changes
+no acceptance, geometry, ownership, thresholds, caps, or search limits.
+Typecheck and 48 focused rejection/apron/generator tests passed before the
+private batch. The separate public ordinal-18 capacity-authority fixture
+still fails closed at `PRIMARY_COMPONENT_UNDERSIZED`; it is not a candidate.
+
+The signed source `fee38320f81f54647e17ed8351b3f2a4b45199dc` fixes the Lowlands
+sibling-pair fallback: compatible own-terrain pairs remain preferred; only
+when none pass the existing overlap and minimum-separation checks may children
+borrow bundles from other non-Lowlands children. Lowlands and the requested
+child are excluded as donors. Its 64-option and two-pair caps and all geometry,
+ownership, eligibility and content proofs remain unchanged. The current signed
+successor `40f5c708a92b765232e0d35c139eaf765ba8ab66` splits the previously
+ambiguous assignment-missing outcome into missing sibling pairs versus
+capacity-infeasible component combinations. It changes rejection reporting
+only; map selection, thresholds and search caps are unchanged. Validation
+passes 25 focused search/rejection tests, 21 deterministic generator
+regressions, typecheck, and the earlier pinned Linux toolchain preflight
+(11 packages). Earlier native targeted validation
+passes 455 cases across 13 affected files; sealed-launch preparation and the
+1,271-member closure check pass at their recorded source. Preserve the full
+runtime-release suite's Windows private-temp ACL guard. Actions remains
+disabled; this push is not hosted CI or deployment evidence.
+
+One exact-source batch on `40f5c70` exhausted all 256 attempts with no eligible
+candidate. The new capacity-infeasible code appeared once; 65 attempts still
+reported `ASSIGNMENT_MISSING`. Its safe aggregate record is in
+`docs/evidence/0.4.0/local-operations.md`; signed commit `d9ff3157` synchronized
+it, and the maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true`. The fresh-seed profile is descriptive, not a paired
+comparison with `fee3832`.
+
+The latest exact-source batch on `a18930b4` exhausted all 256 attempts without
+a candidate: 215 geography rejections and 41 proof-rejection attempts. Its
+parent-specific diagnostic reported Crownwood missing in 71 attempts; full
+safe aggregates are in `docs/evidence/0.4.0/local-operations.md`. Signed commit
+`85e46002` synchronized the summary; the maintained abort returned
+`checkpointAborted: true` and `productionUntouched: true` at
+`2026-10-05 23:33:33 UTC`. This independent fresh seed is not a paired
+comparison with earlier batches. The older `8bd8de9` summary and successful
+retirement remain in local operations.
+
+The exact-source `e1ac103` search exhausted 128 ordinals. Fresh 256-attempt
+searches on `cff3479` and documentation-only successor `c7c494b` both exhausted
+with `GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE` and no package, selection, atlas
+publication, or provider operation. Their safe rejection profiles are nearly
+identical, confirming a systemic bounded Tier-II apron-frontier bias rather
+than a seed-specific failure. The cff, c7 and `2c5f0d3` checkpoints were all
+retired through the maintained abort path with production untouched. The
+exact-source `2c5f0d3` run exhausted all 256 ordinals with
+`GREATER_REALM_CANDIDATE_BATCH_INCOMPLETE`. Its authenticated safe summary is recorded in
+`docs/evidence/0.4.0/local-operations.md`: geography exhaustion fell to 206
+from c7's 223; proof rejections rose to 50 from 33; apron no-match fell to 84
+from 95; node limits fell to 29 from 51; missing assignments remained 34.
+This was measurable improvement but yielded no eligible candidate. The
+maintained abort returned `checkpointAborted: true` and
+`productionUntouched: true` after the summary was synchronized. The separate
+retained-seed checkpoint remains bound to `19b3422`; never relabel or inject it
+into another source.
+
+NEXT
+1. Publish this exact-source safe aggregate and retirement receipt as a signed
+   docs checkpoint after fresh Actions history/settings, secret scan and Git
+   readback. Keep Actions disabled.
+2. Trace generic apron no-match and Crownwood parent-slot failure paths locally,
+   separating plans that never reach the final solver from plans rejected by
+   existing proofs. Find a concrete defect before changing source; add a
+   focused regression and preserve all geometry, ownership, thresholds and
+   search caps. Do not spend another private seed until that correction passes
+   focused checks and typecheck.
+3. If a batch yields an eligible candidate, verify its private package and
+   shortlist; continue only if every proof passes, then record selection
+   against that exact candidate. Never replay exhausted seeds or relax quality
+   rules.
+4. Publish the source-bound PTR atlas, then apply the isolated PTR update through
+   its maintained prepare/apply and continuation consumer. After import starts,
+   reconcile uncertain outcomes read-only; never resubmit a possibly submitted
+   import. Proceed through owner provisioning, bridge/frontend readback,
+   custom-domain cutover and genuine authenticated owner PTR plus Alpha
+   acceptance.
+
+Keep changes in this checkout and the repository; do not create Desktop files,
+new recovery credentials or unrelated feature scope. Follow the current owner
+instructions and #384; ask only if an unavoidable provider gate needs a human.
+
+PREVIOUS RESUMPTION - 3 OCTOBER 2026 (SUPERSEDED)
+
+The genuine P1 bootstrap at signed/published `d6e069c4` deployed the gameplay program (`ac364d4` / `9b2f159c`, post `711ff1a8`); PTR is still ownerless and its private atlas is absent. The maintained toolchain passed (`54344a` / `249c55c1`) after a clean frozen patched-pnpm 11.11 copy install using a fresh private store and `0077` mask, without changing tracked manifests. P2's second attempt failed on actual Cloudflare GET `errors`/`messages: null` before its markers; post `2c539e5b` retains the failure and source/group closure.
+
+Next, resolve actual checks/publication for the atlas/owner CLI, narrow provider response-shape/cache-preservation repairs and PR #389; complete only missing checks or publication. Generate the genuine private atlas only after its helper is signed, then enable/verify the existing PTR bridge before owner provisioning and verify actual G001 admission. The existing local admin-secret value remains unavailable; discover established private access without new recovery apps or keys. No owner/P2 delivery is claimed. Keep the failed attempts, use actual checkpoint/operation receipts, and avoid repeating unrelated completed batches.
+
+PREVIOUS RESUMPTION - BEFORE THE DEPLOYED BOOTSTRAP AND TOOLCHAIN RECOVERY (SUPERSEDED)
+
+Read execution-handoff.md for exact receipts before acting. This checkpoint
+integrates PR386/387/388 and the P1/P2 repairs on prior signed quality base
+f06bb380 / tree 9d71959b. The last verified published source before this repair
+was b6504fcf / tree 30507654; PRIMARY/native were synchronized and all three
+incoming PRs merged at that observation. Resolve the next signed repair source
+from actual Git/publication receipts.
+The failed physical-index readback 8c1f08 preserved raw source bytes; protected
+recovery 605d29 and native origin synchronization 98a6cb resolved it. Use
+read-only Git with optional locks disabled so observation does not refresh index.
+Main cb282bab is unchanged; PR385 remains draft. Alpha is live; owner PTR is
+unpublished. Actions stays OFF under the current runtime policy.
+
+CURRENT INTEGRATION
+Native holds the authentic ordinary merge of PR386 ad4879ce, PR387 00b5e517
+and PR388 1fa2ac2c, plus six private-source-clone repairs and four scoped native
+bridge files. Actual receiving inventory is 3449. Merge/adoption independent
+posts hold source/index/refs and close original actors. Supported family reproduced 16 outputs with six metadata changes and
+independent closure; no compiler ran. Fifteen complete files passed 344 cases, zero failed/skipped, with types/syntax
+and independent source/Git/process closure at its adopted v2 source. The final
+P2 privacy repair separately passed its whole 31-case file, three type checks
+and core syntax with independent closure. The earlier strict type-graph failure
+is retained; the pure-core input helper fixes that dependency without a waiver.
+The privacy family reproduced 16 outputs with no further generated changes.
+Earlier native ordinary/raw-skip failures remain retained;
+complete native authority is still closed.
+
+NEXT
+1. Retain the completed b650 publication/synchronization, separate 344-case and
+   31-case scopes, metadata reproduction and failed attempts. Do not repeat
+   unrelated completed batches or infer full native authority.
+2. Resolve the repair's clean signed source/publication from Git/receipts;
+   publish only if still unpublished, then retry the bootstrap. Both complete files passed 42 + 7 = 49 cases,
+   zero failures; app/all-root-test types, strict operator types and core syntax
+   each exited 0. The b650 retry passed
+   the inline build but refused metadata before any submission marker/write
+   (b58df59f; independent post 3771d970). A genuine metadata GET ca89af79
+   observed host_type { Js: [] }, while the parser expected a string enum.
+   The earlier f06 pre-build failure is retained;
+   the adopted private independent clone preserves G001's guard.
+   Genuine inline build/ABI, authenticated nonbreaking prepublish token, durable
+   one-write marker and two poststate reads remain required. Old private before-
+   program/rows stay null; never replay an uncertain write. Full 102-output
+   preparation is separate, not an isolated-PTR prerequisite.
+3. Provision/verify the existing managed owner, then execute the scoped native existing-Worker
+   route with fresh observations and existing privately supplied credentials.
+   Missing local admin-secret value evidence requires actual metadata/access
+   discovery; configured GitHub names are not local values. Preserve Alpha,
+   G001/G002, managed secret names, Durable Objects, routes and notifications.
+4. Bring the approved integrated frontend to the Alpha-preserving Cloudflare
+   Pages /ptr/ route. The latest https://a4e3a104.warpkeep.pages.dev preview preserves Alpha
+   root bytes; its reported 800+2 postflight is pinned frontend evidence, not
+   domain cutover
+   or authenticated owner/mobile acceptance. Complete that real journey before
+   calling owner PTR delivered.
+
+Codex/root has final integration and delivery authority; Claude contributes P3.
+Coordinate actual heads/results/blockers through issue #384 under the user's
+current request. Do not duplicate numerical Actions policy, grant new permission,
+create Desktop files or require unrelated global S/F/A/G002 deployments here.
+
+PREVIOUS INTEGRATED RESUMPTION — BEFORE F06 PUBLICATION, 3 OCTOBER 2026 (SUPERSEDED)
+
+Read docs/agent-notes/0.4.0/execution-handoff.md before acting. The
+signed da3e057f base has a genuine prepare/check and independent closure. A
+later native integration contains authentic PR #383 changes, maintenance,
+PTR compatibility/bootstrap, explicit G001 refreeze, notes and reproduced
+16-output family metadata. Resolve its exact signed checkpoint/publication from Git and receipts;
+do not infer a future commit hash from these notes. The signed-base
+preparation does not cover the combined source. Main cb282bab is
+unchanged and PR #385 is still draft. Alpha is live; owner PTR is unpublished.
+
+LOCAL EVIDENCE
+Maintenance passed 52 complete cases; G001 refreeze passed 170; PTR
+compatibility/bootstrap passed 39 and relevant type checks. The ordinary
+focused aggregate retained 393 passes, zero failures and 29 raw skips, so its
+strict result failed. An isolated installed namespace run then passed 260,
+failed zero and retained one declared unsupported-runtime control skip, with
+independent source/Git/process closure. Neither result is complete native
+authority or a deployed owner PTR. Supported family regeneration is metadata,
+not a new compiler pass at the integrated source.
+
+NEXT
+1. Resolve the guarded integration's exact clean signed checkpoint and
+   Git synchronization. Preserve raw strict failures and the separately
+   accepted namespace disposition.
+2. Run the maintained PTR compatibility bootstrap from that clean committed
+   source: genuine inline artifact build/ABI, authenticated nonbreaking
+   prepublish token, one durably marked guarded update and two complete
+   poststate reads. Old private SQL 403 leaves programBefore/rowsBefore null;
+   do not invent private before-state or replay an uncertain submission.
+   Full combined-source prepare/check is separate release evidence, not a
+   prerequisite for this isolated repair.
+3. Configure and validate the auth Worker's direct owner PTR caller/exchange
+   with existing protected credentials. Unrelated GitHub-bound settings are a
+   separate concern. Preserve Alpha/G001/G002 and notification behavior.
+4. Claude's Cloudflare frontend/mobile preview is based on older source. Bring
+   the approved integrated build to an Alpha-preserving `/ptr/` route, then
+   perform a real authenticated owner journey and mobile acceptance. A preview
+   is not custom-domain cutover or owner acceptance.
+
+Coordinate exact heads and operation completion through issue #384. Apply the
+current Actions policy from config and fresh inventory; these notes grant no
+workflow permission. Keep all durable work in the repository, with no new
+Desktop files. G002 and global S/F/A remain sealed and separate.
+
+PREVIOUS RESUMPTION — EARLIER 3 OCTOBER 2026 (SUPERSEDED)
+
+CURRENT CHECKPOINT
+Published signed quality source a89173f9 / tree e3cf809b follows game integration a0f6a55f. Resolve the next reviewed repair from actual Git. Main cb282bab and PRs #380/#381 remain separate. Alpha 0.3.43 is live; authenticated owner PTR is not published. Actions remains held disabled; use current config/github-actions-budget.json and its operations guide for remote decisions.
+
+VERIFIED AND FAILED SCOPE
+Initial-owner checks passed 139 tests and types (276442df, post 3bd626b9). The complete relocation successor passed all 79 original cases within maintained bounds (fc0cb87e, post d43bbb94), preserving native structuredClone and all original assertions. Remaining module coverage and the full release gate remain open.
+Fresh prepare failed at 08:42 UTC before any completed archive or check. Genuine G001-current materialization exposed rejection of a valid Git 100755 executable (a0cab32e, post 1d1a94a0). The four-path mode repair passed all 21 native regression cases and root/module types at 09:30–09:31 UTC (9fba62b8, post 6c379b10). Reproduce supported metadata, then retry genuine clean-source prepare/check; don't recover failed workspace IDs or claim compiler success from metadata.
+Actual PTR inspection and CLI SQL fail HTTP 403 / INVALID_PTR_OWNER_SESSION before parsing; metadata/schema reads return 200 and actual publisher identity matches the database owner (1d5c4d5a / 691ccc59; CLI 0f060dd0 / bb891928). All diagnostic groups are closed and read-only. This is a module connection-gate compatibility defect; repeating login, new keys or parser changes cannot fix it. Metadata initial_program is not current installed-program proof.
+
+NEXT
+1. The supported family is regenerated and reproduced (00dab22d, post 2a5b8518): five metadata outputs changed; all 16 outputs and policies pass. Sign/synchronize the reviewed repair and run actual fresh prepare/check.
+2. Resolve publisher/module connection compatibility through a reviewed data-preserving provider route, then observe actual current program/schema/owner/epoch/atlas/config and old rows. Don't substitute invented snapshots or administrator identity for player authority.
+3. Use genuine source-built prepare-update; review additive/preservation results before explicit apply. Lost or uncertain acknowledgement stays nonzero; use readonly reconciliation, never automatic resubmission.
+4. Configure owner/auth Worker/PTR publication separately. Current auth Worker 8e758507 lacks PTR enable/database/audience and managed-owner bindings (cc2fb250). Reuse protected existing secrets via a concretely admitted deployment; no additional recovery keys. Missing private values stay unknown. Preserve Alpha/G001/G002/notifications. Pages proposals remain QA-only and unpublished.
+5. Complete remaining module/release coverage, actual-owner journey and performance/render/device acceptance. Reuse genuine applicable evidence; don't repeat closed successful checks without a new concern.
+
+DELIVERY BOUNDARY
+Initial authenticated owner PTR is separate from global final A. Global S/F/A stays sealed. Local tests, metadata and prototypes are not installed-backend or usable-owner proof. Keep failures and scopes honest; use execution-handoff.md and local-operations.md for actual records. Keep all durable changes in the repository, with no new Desktop files or unrelated output cleanup.
+
+HISTORICAL CHECKPOINTS (SUPERSEDED)
+The original text below remains byte-for-byte evidence. Its old imperatives, including the notification rerun and publication, are superseded by the current instructions above.
+
+CURRENT RESUMPTION — 3 OCTOBER 2026, LOCAL RELEASE WORK
+
+CURRENT CHECKPOINT
+Signed 5cddb1a7 / tree f2b1e73e is the published, synchronized clean baseline (181c4950). This coherent repair checkpoint descends from that published baseline and integrates eleven reviewed repair candidates plus five mechanically derived metadata changes. Its actual signed identity must be read from the checkpoint receipt. Alpha remains live; owner PTR 0.4 is unpublished. Main and PR380/381 are separate.
+
+COMPLETED AND FAILED EVIDENCE
+The installed maintained namespace route at 5cddb passed 260 assertions with one known source-declared skip (1d624ae3; independent 3c2decf9). Raw skipped is not passed. The full ordinary run completed 701 files with 12,970 passed, 11 failed and 68 skipped (abe08587, raw 3871f281); it did not time out. The producer stopped with NATIVE_SOURCE_VERIFICATION_CHANGED after the canonical index changed; source raw bytes and refs held. Preserve that failed index result.
+
+The reviewed repairs isolate intentional index flags in a private temporary clone, give ordinary fixtures the real account home and functioning replacement-object controls while preserving strict source inspection, split the same complete-file inventory into disjoint batches, and fix observed bootstrap/publisher/CSS fixtures and callback retirement. Supported family derivation changes only five metadata outputs and preserves compiled bytes; it is not compilation or accepted-main proof.
+
+COMPLETED FOCUSED VALIDATION
+The run completed 23:02:31.224–23:23:21.144 UTC on 2 October (d735f7d6; outer 7587cd exit 1). Its 15 complete files contain 724 assertions: 715 passed, nine failed and none skipped/unfinished. The first group passed 121 of 130 cases and retains nine notification clean-checkout failures; all 63 fullstack/all 47 native-producer cases and 11 notification cases passed (raw a1c44227). Observed-failure 400 and protected-family 194 all passed (raw 05cac86a/75525ffa). App/all-tests noEmit and three module syntax checks returned normal 0/null; no command timed out. Keep the failed aggregate.
+
+Independent cc2294f3 proves original owner, seven children and full group absent twice on the original boot, with current raw source fedafc01, physical index ba0d21bd and refs 3ce87123 held. Earlier full ordinary index preservation still failed. After a clean local signed checkpoint, rerun the complete 20-case notification file and retain independent closure before remote backup, without weakening its guard or relabeling nine failures.
+
+NEXT
+Create the clean local signed repair checkpoint, complete the 20-case notification rerun and independent closure, then publish only after outgoing scan and fresh conserved readbacks. Recreate the maintained plan from that clean source and collect every complete ordinary batch, namespace and module partition with raw dispositions. Do not replay the completed service slice merely to follow historical directions. Finish connected lifecycle containment and runtime dependency capture before admitting the twenty-leaf connected plan; the three-mode unprivileged crash rehearsal (e1aa5d02) proves only bounded sleep-fixture owner-death behavior and independent absence.
+
+POLICY AND RELEASE SCOPE
+Use config/github-actions-budget.json and docs/operations/github-actions-budget.md. All configured Actions repositories remain disabled. Complete native/dependency coverage, authenticated proof transport, admitted hosted operations, owner/device play and final-A performance remain open. Existing G001/G002, signed observations, S/F/A and PTR acceptance contracts remain required. No future source identity, release authority or deployment is invented.
+
+Historical checkpoint (superseded; do not repeat its resumption steps): Previous service-plan/preparation state follows unchanged.
+
+CURRENT CHECKPOINT
+Resolve actual Git HEAD, release/0.4-living-realm-quality on GitHub and the latest publication receipt. Previous signed implementation b9ca8ca7 is published/synchronized (98592bd5). Genuine development prepare/check passed16:47:35–17:12:47UTC: both actual CLI0/null, nineteen matching fields/all102outputs, independent8efc2eef and compact review7540600d. It is a private development rehearsal, not exported integration or PTR deployment.
+
+LOCAL VALIDATION
+Service planning failed before any service checks because the guard rejected the tracked .env.example (operator888a6a5e, actual CLI error NATIVE_SOURCE_VERIFICATION_AMBIENT_SERVICE_CONFIGURATION). Independentb63039e1 closes its original actors/group with source/index/refs held. The correction exempts only non-loaded exact example names without reading their values; active env/config and executable shadows remain rejected. All three complete affected native files passed176assertions, app/test types and shell (6706b0a8, final overlay1428923a); keep independent post-outer/source preservation and earlier Windows scope separate.
+
+SOURCE AND EVIDENCE
+--plan-connected exposes all existing connected continuation leaves from exact source inputs, with executionImplemented:false. --run refuses it until actual detached G002 server/CLI birth/group closure and real root client SDK/tsx/esbuild runtime capture are implemented. Root TS callers use roottsx4.23; module pure tests use moduletsx4.20.6 separately. Independent graph review proves these planner/producer/CLI changes do not reach the unchanged privileged evidence reader or protected family. Do not regenerate unchanged compiler/family output. Detailed receipts and timestamps belong in execution-handoff.md and docs/evidence/0.4.0/local-operations.md; raw immutable evidence remains in existing artifacts/qa.
+
+NEXT
+Publish any reviewed local checkpoint that still differs from the remote after outgoing scan and fresh conserved readbacks. Run --plan-services/--run from that exact clean signed native source, using actual producer handles and independent post-outer evidence. Do not repeat a failed service plan without fixing its demonstrated cause. Continue complete native domains, authenticated source transport and measured owner/mobile acceptance. Preserve native source/index/refs while any owned actor runs; synchronize idle checkouts after actual cleanup. Earlier successful compilation retains its exact source scope.
+
+POLICY
+Read config/github-actions-budget.json and docs/operations/github-actions-budget.md. All configured Actions repositories remain disabled; keep numeric policy in runtime configuration. Alpha is live; owner PTR0.4 is unpublished. No new credentials, installs, Desktop files or human approval are required for this local work. Historical records below are retained diagnostics with superseded follow-up steps.
+
+Historical checkpoint (superseded; do not repeat its resumption steps): Latest source check: signed3a2dc781 actualrun c9fb96e6 recorded all fixed commands; types, scanner/secrets, licensing/assets/sizes and all three production builds passed. Sealed-source failed only on the stale package fingerprint for two reviewed operator scripts; keep the original failure. Supported pure pin derivation e961ec1d changed only that fingerprint; all207 focused assertions, types and shell passed (d8bf8d51), with independent process/source/index/ref closure ffa0d86a. Sign/publish the correction, create a new --plan-checks and run the full fixed lane. Full-family derivation remains unresolved, compiled members are present, and full release/PTR authority remains closed. No installer, Actions or provider operation needed for these local checks.
+
+Historical checkpoint (superseded; do not repeat its resumption steps): Latest verified correction: sourceD74 (signed local childAF93/75) full maintained run45e0893b recorded all10 checks; scanner/fullHEAD secret scan passed, eight scripts stopped before execution on unsupported bare pnpm option. Correct source-owned spelling is --config.verify-deps-before-run=false. Real PNPM/TypeScript regression now proves valid0, invalid1/TS2322 and no dependency install or lock/workspace creation. Focus2b84b7d7 passed233 assertions, types and shell atoverlay4cf9346a. Original D74 actor/all10children/group absent with exact source/index/refs (9b4fe3a7). Publish all signed children; create a new current-source plan and run the complete fixed lane. Hold native refs until the actor finishes, then sync; full release proof/PTR remain pending.
+
+Historical checkpoint (superseded; do not repeat its resumption steps): Latest runtime correction:AF93 signed locally, parentpublished75; plan60ce8446 created, run109c96 passed scanner regression then stopped on Git graft advice and absent external scanner report. Original leader/children/group absent and source bytes/index/refs retained (4e8c1ed8). Closed environment now suppresses that advice; Gitleaks JSON goes to bounded owned stdout/report, and missing output stays failed metadata instead of dropping the summary. Focusb5a3aa0f passed232 assertions, types and shell atoverlay086cfb09, including real Git/Gitleaks and actual CommonJS import. Publish all signed children, recreate --plan-checks for current source, then run the complete fixed lane. No dependency install, Actions, provider changes or full release authority.
+
+Historical checkpoint (superseded; do not repeat its resumption steps): Latest correction:75c69cd5 is signed/published/synchronized (publication51a95a3a, post3dec244a). Its first plan stopped before execution on absent native pnpm-workspace.yaml; optional config is now explicitly absent-or-reviewed, with pinned builtin pnpmrc and uncontrolled env/hook/configDependencies rejected. Every script uses --verify-deps-before-run=false to prevent pnpm11.11 implicit installation. Corrected focus passed230 assertions, types and shell (4fd13528 at overlayee9f1545). Commit/publish the source correction and run --plan-checks/--run from its clean signed native source; no dependency install, Actions or provider operation needed. Full release authority remains closed.
+
+Historical checkpoint (superseded; do not repeat its resumption steps): Latest bounded work: fixed native source-check lane implemented; four affected files passed228 assertions, app/tests types and shell syntax at overlay66f459e9 (summary5b7577f0). Run scripts/verify-native-source.mjs --plan-checks from the resulting clean signed native source, then --run in an owned setsid --wait session. It executes the exact pnpm source scripts, source-policy subset, build-mode types and three production builds with retained output inventories. No install or Actions needed. Keep raw failures and manifests; completeCoverage/productionAuthorized stayfalse, full dependency/npm provenance and remaining domains are open. First focused mock-type error was fixed; actual bundled-import regression passed. Refresh policy evidence before publication; resolve current HEAD from actual Git, preserve the historical notes below.
+
+Historical checkpoint (superseded; do not repeat its resumption steps): Current implementation: verified signed 39afd152/tree ca9aea5d, sole parent d9bbab2d, published on release/0.4-living-realm-quality. Publication 8b919cf6 and post-readback 1d4ca5a7 bind both clean local checkouts and the remote; all four repositories remained disabled/idle with no new Actions run. Main cb282bab and PR380/381 remain unchanged. Separately reviewed Assets main 65fb1f26 includes merged archives #38/#40/#41; no new runtime integration is implied. Desktop refresh 8f878eda preserves its independent Stillwater study and historical suffix exactly. Resolve later notes commits from actual Git/readback. Alpha root returned HTTP 200; owner PTR 0.4 is unpublished.
+
+1. Read config/github-actions-budget.json and docs/operations/github-actions-budget.md. All four repositories remain globally disabled with empty active queues at the publication readback. Reuse complete history and refresh activity, attempts, refs, PRs, catalogs and settings before remote actions. Do not restore billing, re-enable, dispatch, rerun or assume a daily reset from older directions below. Continue local validation and coherent signed/scanned/nonforced checkpoints.
+
+2. Keep the completed mobile Close correction. Budget plus World tests passed 77 assertions and app/tests noEmit. Exact-CSS static probe 832f2307 verified its 44px touch target. Actual React/World portrait d327a4b1 and landscape 58044453 each passed 41 operations, including real Close, pinch/selective lift/continued pan, canvas selection, camera controls and disclosure focus. Cleanup and source/index/refs preservation passed. These use unchanged compiled8b plus an explicit exact-213 CSS overlay; no compiled-213, maximum-density, phone or full R06 acceptance is implied. The short-viewport legend overlap is corrected: static exact-CSS v3 receipt 526780d1 passed eight profiles, including coarse/noncoarse 699px and 700px boundaries, retained visible legends without intersections, disclosure targets, overflow and preserved Close sizes. Owned Chrome cleanup and unchanged inputs passed. Keep both earlier failed probe receipts; this separate static check is not React or full R06 acceptance.
+
+3. Complete the maintained native verifier's remaining coverage and authenticated proof reader. scripts/verify-native-source.mjs now has separate plan/run/import boundaries and complete ordinary/namespace/module discovery; completeCoverage and productionAuthorized remain false. The actual workflow consumer explicitly supports native-full plus a digest locator, verifies content-addressed bytes and refuses incomplete evidence without fallback. Five affected files passed 198 assertions, app/tests types and shell syntax. The opt-in reviewed Pages template, planning, both publisher rechecks and workflow/file-hash postflight are implemented, but no public workflow/settings change or deployment occurred. Prepared-artifact reuse/measured runtime and cumulative admission remain open. Initial observation services accept genuine current-main dispatch/OIDC; the recovery Pages issue/claim service still requires hosted Verify/source-closure evidence. Preserve existing permits, observations, owner, G001 freeze, G002 sealing and update/adoption/S-to-A invariants.
+
+For unattended native tests, first resolve the actual namespace caller. The existing WSL-root --as route drops tests to UID/GID1000. Temporary mutable-checkout helper access was removed after probes (bbeece/71e657); durable access needs a root-owned source-digest-bound copy and exact command readback. Retained runtime checks fixed sudo's mixed-real/effective-UID cleanup rejection and proved actual signaling/identity denials. Namespace v4 recorded260 passed/zero failed/one source-declared platform skip, normal real child0/null and no stderr; strict aggregate remainsfalse rather than relabeling that skip. Independent9f169e71 closes original actor/group absence and actual raw-source preservation. Implement explicit native-profile skip dispositions with the remaining coverage. Keep failed attempts and signal acknowledgments; do not broaden signals or substitute owner/login changes.
+
+4. Keep all 12 strict World nominal timing misses open. Retained-file diagnosis aeabc9ba found no extra scheduler callback. A causal RAF-request capture in the reduced profile is the next narrow resolving measurement. Final source must still pass genuine prepare/check, owner PTR cold bootstrap, shaped World/Keep/realm lifecycle and required real-player/performance acceptance.
+
+5. Publish the next reviewed source/docs checkpoint, verify actual remote equality, synchronize idle native/PRIMARY checkouts, and refresh the existing Desktop TXT in place. Preserve historical records, private candidates/journals and the conditional retention decision; create no Desktop siblings, duplicate clones or dependency trees. Record exact results and limits in execution-handoff.md and local-operations.md.
+
+PREVIOUS RESUMPTION SNAPSHOT — 2 OCTOBER 2026
+
+Current source/notes base: signed, backed-up 14ac294e/tree 73ea369f; presentation evidence retains runtime 8b57f62a/tree 3f810073. Main cb282bab and PR380/381 are unchanged. Alpha 0.3.43 remains live; owner PTR 0.4 is unpublished. Resolve later notes HEADs from actual Git/remote receipts.
+
+Completed local work: the genuine 14ac prepare/independent check matched all 19 fields and 102 outputs, with actual terminal/group/source/index proof (177ecd87/8b94346e). It remains a development-only private candidate. Existing native/frontend checks retain their original scopes. Keep camera/budget and all four component lifecycle variants passed; portrait/landscape v3 Chromium touch passed after two preserved harness failures. World nominal timing misses remain open. Precise evidence and acceptance limits belong in docs/agent-notes/0.4.0/execution-handoff.md; operation/cleanup details belong in docs/evidence/0.4.0/local-operations.md.
+
+1. With all owned actors absent, finalize these three canonical prefixes, preserving their exact history. Make one ordinary signed child of 14ac, incremental outgoing scan, local native/PRIMARY sync and nonforced backup to release/0.4-living-realm-quality. These notes are excluded from the closure/compiler inputs: no extra preparation, family rewriting or private 102-output integration is needed for this docs checkpoint.
+
+2. Continue the existing owner billing handoff. Signed-in included-usage readback 0dcdf53c shows exhausted included usage plus paid-usage stop; GitHub API authentication works. The owner must resolve the account billing boundary before hosted release acceptance can resume. Re-read actual account state; do not launch a trial run, infer financial authorization, create keys or repeat authentication questions.
+
+3. Before any Actions-triggering mutation, conserve complete run/attempt history, fresh activity, refs and trigger chains in both repositories under the current user policy. Resolve PR381's old base before its one reviewed head update; obtain normal exact-source PR/main Verify rather than treating local tests as hosted evidence. Preserve published source history and incoming PR work.
+
+4. From actual accepted M1/main, run its genuine prepare/check and integrate the authenticated generated-only M2. Establish accepted S, then use the existing preflight/observation, prepared bridge, signer/adoption, separate fixture component F and direct-child activation A route. Verify immediate prepared receipt/journal before later bridge import authority establishment. Do not relabel the 14ac rehearsal or older compiler artifacts as final-main authority.
+
+5. Close genuine final-A/PTR cold bootstrap, World/Keep/realm lifecycle, controls, input-to-presented feedback, owner and physical-phone acceptance. Preserve nominal World misses and synthetic/emulator limits; no full R06 pass or release date is asserted by this note.
+
+Reuse the existing Desktop TXT and ignored QA storage. Retention review c312c7d7 is conditional and unresolved: preserve required candidates/journals and ambiguous runs; no age-based deletion, recovery-as-cleanup, new clone or dependency duplication.
+
+HISTORICAL UNPUBLISHED INTEGRATION RECORD — 2 OCTOBER 2026
+
+Living Realm source checkpoint and Actions blocker — 2 October 2026.
 
 CURRENT SHIPPING STATE
 
-Known live QR-recovery v50 has original B0 bindings without PTR_ENABLED and
-Wrangler provenance. This source checkpoint corrects the preparation adapter;
-original byte authority and successor API validation stay intact. It does not
-change working public sign-in or add gameplay.
+R2 `d4f40cb5`, tree `7efff06b`, is the signed direct child of R `53edd619`.
+Its exact native public-caller run passed all 44 cases across four files, with
+zero failed/skipped/pending cases; both policy syntax checks and app/tests noEmit
+types passed. Source/tree/index and all tracked raw files stayed unchanged,
+and the independent post-terminal owner/group proof closed cleanup. The outgoing
+redacted scan found zero findings. These are R2 local checks, separate from
+R's earlier 212-case validation and cancelled hosted Verify.
 
-Next: reproduce the supported 16-output source family, keeping genuine acbb5128
-compiler manifests; require corrected PR #379 Verify and integrate authored
-source; run actual resulting-main native prepare/check; publish and verify the
-new genuine generated family. Do not use PR-head compilation/equal tree as
-main ancestry or push-main Verify evidence. The earlier excluded-only correction
-plan does not cover this runtime compiler-input repair.
+The one backup-only push completed at 2026-10-02T01:19:42.914Z. GitHub confirms
+`release/0.4-public-payload-paths` at exact signed R2/tree/parent, with no open PR
+and no CI trigger. Receipt `06714f72` records PR380 unchanged at R, PR381 unchanged
+at `8c22fddb`, and main unchanged at `cb282bab`. Nothing here claims publication
+of 0.4 or acceptance of a new operating main.
+
+GitHub blocked PR381 Verify `36945781752` attempt 1 before tests: all seventeen
+jobs have no executed steps/runner. The retained terminal `d0e2775b` and signed-in
+billing readback `52e2a8e4` establish the account Actions billing boundary, not a
+product test failure. No retry, new PR-head update or provider operation was made.
+Resolve that actual account blocker, then fresh readback under the current user
+Actions policy; do not introduce recovery keys or infer an accepted CI result.
+
+CURRENT SOURCE QUALITY
+
+This source checkpoint integrates the reviewed PR381 Living Realm presentation
+with R2's public-publication repairs and bounded fixes to existing Keep/World
+behavior. It preserves the original PR author ancestry. The Keep corrections
+restore ambient wake/reconcile behavior; World repairs preserve Worker journeys,
+sub-quantum progress and confirmed cargo, bound decorative trail geometry, and
+admit/count actual sky/journey uploads within the existing host budget. No new
+server rule, player authority, asset or performance allowance is introduced.
+
+The final source-only v4 overlay run used immutable `8c22fddb` while the real
+primary/native checkouts stayed at exact R2. All 474 cases across 21 affected
+suites passed, with zero failed/skipped/pending cases, at 02:16:17.997 UTC.
+Full app plus selected-test types and Vite-config noEmit checks passed by
+02:16:19.288 UTC. Actual outer exit0, run `149021c2`, independent results
+`dcb3706b` and idle proof `b1c20979` bind the final candidate bytes, absent
+owned group and unchanged source/index/caches. This is component/unit/type
+evidence, not whole-repository types, a product build, browser or R06 acceptance.
+
+Retain the earlier attempts separately: original-PR regressions were 20 cases
+with 13 passes/7 failures, then provisional 470 passes (`376b7e16`, older
+journey `0751e0da`). The later v3 baseline had 53 cases, 49 passes/4 failures;
+its composed suite had 473 passes/1 failure out of 474 and both type checks
+passed (`f935e864`, outer exit1). The remaining failure exposed the telemetry
+getter resetting the latest completed frame's upload counters. The v4 host
+retains those counters and its regression passed in the final 474-case run.
+These earlier failures are retained evidence, not relabeled successes.
+
+The thirteen new browser modules enter the protected import namespace through
+the supported sixteen-output source-family producer. Its policy, inventory,
+count consumers, source pins, manifest and four workflow pins belong to this
+source checkpoint; use the actual signed checkpoint receipt for the resulting
+source/tree, member count and closure SHA. The preserved cb compiler manifests
+and five bundle bodies remain authentic historical inputs. The changed
+compiler-input namespace does not make them current production authority.
+
+NEXT
+
+Next, finish the signed source checkpoint's independent native source-family,
+checked-in/policy/topology checks and outgoing scan, then back it up on the
+unopened `release/0.4-living-realm-quality` branch. No integrated source SHA,
+new hosted pass, operating S or production acceptance is invented in these notes.
+Once GitHub Actions billing is demonstrably restored, refresh actual
+repository-wide history/activity under the current user policy. Retarget existing
+PR381 to main first, then make one reviewed non-forced head update and require
+its exact-head normal source Verify. Keep PR380 until the accepted integration.
+
+Accepted signed main M1 and its own successful main Verify come first. Sync the
+idle native checkout to actual M1 and run existing private Node22
+`scripts/local-release-assembler.mjs prepare`, followed by
+`check <actual-handle>`. Authenticate/export/receive the genuine outputs;
+commit, verify and integrate generated-only M2. Only resulting accepted main S,
+its exact successful main Verify and separate preparation Pages classification
+can enter the provider route. Do not compile a candidate then squash away its
+compiler-source ancestry; production preflight checks the real commit/raw bytes.
+
+PROVIDER ROUTE AFTER ACTUAL S
+
+At accepted S: existing Linux preflight -> G001 observation -> preserving
+prepared bridge -> initial disabled preparation signer/gateway -> signed PTR
+observation -> PTR then G002 existing-update inspect/apply and signed adoptions.
+Immediately reopen the private prepared receipt and completed deployment journal
+under `production-admin-v1`. They are separate from the sealed bridge chain:
+initial updates/adoptions can precede that chain; later activation inspection or
+generation calls `createSealedRealmsProductionAuthBridgeState().establish()`
+internally with deployment evidence and fresh live attestations. No manual
+authority file or invented establish CLI is supported. Generate/check genuine F
+through the existing private ingress while S stays pinned; generate activation
+with the initial disabled-signer policy/epoch, then reviewed signer promotion.
+A remains the supported direct S child changing only binding/package/package-lock.
+Then build actual A /ptr/, sign/publish the public mirror and run postflight.
+
+Measured W `028b1e4b` remains separate: nine mobile Keep cadence samples meet
+unchanged 50/75/50ms ceilings; twelve synthetic World samples retain strict nominal
+misses. Keep H2's desktop 33.6ms versus 33.4ms miss and the ungraded 59998.7ms
+World attempt. PR381's new presentation has no production-component timing or
+visual acceptance yet. None of this proves full R06, GPU completion,
+input-to-visible/touch acceptance, final-A cold bootstrap or owner/physical-phone
+acceptance. Alpha 0.3.43 stays public; 0.4 owner PTR is not live. Preserve G001
+progress/admission freeze and sealed G002. Existing Desktop notes update only
+in place; ignored candidates stay under this repository.
+
+PREVIOUS SNAPSHOT — 21:26 UTC
+
+Historical source-bound snapshot; superseded for the next action above.
+21:26 UTC snapshot, after local World scheduler validation and before its new
+signed checkpoint. Main remains cb282bab. Published PR #380 head H2 a903e78e
+passed normal Verify 36920400660 attempt 1, all 17 jobs, at 21:20:49 UTC.
+H2's terminal summary SHA is 7743f9fcee858382936054c21ec1756733e5fac7d71ee78cc100eed6e43f29b4.
+H2 is not merged: measured reduced World pacing exposed an existing scheduler
+defect before integration. Resolve actual refs and latest CI before acting.
+
+The local repair carries signed early animation debt with bounded 1ms tolerance;
+24/18/12Hz caps and lifecycle gates remain. Eighteen scheduler cases and 153 real
+caller/cleanup cases pass; app noEmit types pass. Old failures remain evidence.
+Desktop/balanced World nominal timing misses and the desktop placement miss
+remain open; no post-repair live cadence or final R06 claim is established.
+All four H2 Keep-only lifecycle profiles passed their memory/resource limits and
+three context restores each. They do not prove whole-app or physical-phone safety.
+
+NEXT: freeze the six reviewed authored files, reuse the supported 16-file closure
+projection, sign a coherent child of H2, synchronize primary/native, scan the
+outgoing range and update the existing PR #380 once. The scheduler is outside
+cb's compiler graphs/recovery inputs, so retain the genuine cb compiler ancestry
+and all five bundle bodies; do not run another full prepare/compiler cycle for it.
+Do not execute the old G/H2-pinned merge helpers against this later source.
+Complete one normal Verify on the actual final PR head and resulting signed main,
+then freeze operating S and follow the existing provider/signer/PTR activation
+route. Build and measure the repaired World; final-A production R06, owner and
+device acceptance remain required. Alpha stays live; G001 progress/freeze and
+sealed G002 remain. No new Desktop files, recovery keys or recurring jobs.
+
+PREVIOUS SNAPSHOT — 20:02 UTC
+
+Notes snapshot: after the final H component run at 20:02:51.443 UTC, before H2
+signing/publication. Resolve actual Git refs, PR head and CI evidence before acting.
+
+PR #379 merged at 16:30:55 UTC after reviewed d16355f2 Verify 36883391676 passed
+all 17 jobs. Actual signed main is cb282bab/tree feeeff15, parent acbb5128.
+The preparation checkouts were synchronized to it; the d163 branch remains.
+Signed generated checkpoint a8feb8c4/tree 96507e3f (G) is published in PR #380,
+release/0.4-prepared-cb282bab. Its exact Verify 36907314985 attempt 1 passed all
+17 jobs at 19:16 UTC. This hosted pass belongs to G, not its later repair H or
+the future notes checkpoint H2. H is signed 0d36f06c/tree c548e407, direct child
+of G; native commit completed 19:21:02.308 UTC. Primary/native synchronization
+completed 19:25:00.827 UTC and the explicit release/0.4-keep-feedback backup was
+published at 19:33:49.499 UTC. Resolve this repair separately from the current
+PR head, retained cb282 compiler-input main and later accepted operating main S.
+Actual-main Verify 36892578403 passed all 17 jobs in the 17:36:29.827 UTC terminal
+readback; its Pages classification is separate from publication evidence.
+
+The adapter now recognizes known live QR-recovery v50: original B0 bindings
+without PTR_ENABLED and exact Wrangler provenance, with original byte authority
+and successor validation intact. Current working public sign-in is unchanged.
+
+Actual cb282 native prepare/check completed at 17:46:10.895 UTC with tool exit 0,
+matching 19-field results, independently absent owned group and unchanged source/
+index. Handle release-workspace-5fd662e2cd5d954fd6b50961384369b4; receipt stem
+artifacts/qa/october-release-cb282bab-actual-main. Its genuine 102-output export
+changes ten paths; both compiler manifests bind cb282/tree feeeff15.
+Isolated receive completed at 17:53:29.966 UTC with normal index/HEAD/nonoutputs intact.
+The family plus seven excluded notes is signed, scanned, published and synchronized
+locally at a8feb8c4. The existing Desktop TXT was updated in place, with no new
+Desktop file. Accept normal PR and resulting-main CI before freezing S. Do not
+repeat successful compilation for these notes or rerun completed source merges. A PR-head compile/
+equal tree cannot supply main ancestry or exact push-main CI authority.
+
+G's paired application-RAF/GL measurements reproduced delayed camera feedback.
+The narrow Keep04SceneHost repair and its two affected tests now pass 139 Windows
+cases, 50 native cases, app types, source review and outgoing scanning. Visible
+feedback renders on the next RAF; autonomous 30/24/15 caps and one pending RAF
+remain, with a bounded 1ms tolerance for reproduced decorative deadline jitter.
+The genuine H component build completes 19:25:37.735–19:25:38.620 UTC, with
+production defines, clean unchanged source/index and independently absent group.
+
+H completes three 60-second trusted-camera samples per completed profile:
+desktop high p95 17.1/17.1/17.1ms, portrait balanced 17.5/17.6/34.0ms and
+portrait reduced 17.4/34.3/17.6ms and landscape balanced 17.4/18.8/34.2ms.
+All four actual runners exit 0; samples are
+eligible, exactly RAF/GL paired, have no failure and are not driver-limited.
+All four meet their unchanged cadence budgets. The first landscape geometry
+failure is retained; its successful retry scrolls the synthetic fixture into
+view before timing without changing the profile, WebGL or acceptance gates.
+Exact raw receipts, cleanup and limitations are in performance.md and local-operations.md.
+Synthetic component presentation is not final-A cold bootstrap, owner play,
+physical-device acceptance or full R06. World/placement/lifecycle workloads remain open.
+
+Keep04SceneHost is outside all four retained operation compiler graphs and seven
+recovery compiler inputs, but inside the prepared protected source closure.
+The supported 16-output family has been reproduced/installed/checked for H;
+current closure is 9e0126ea. Both cb282 compiler identities and all 135 distinct
+committed compiler inputs are unchanged; retained bundle bodies match their
+manifests. Preserve the original 102-output receipts; H is not a new full
+102-output completion and its changed closure is not that earlier export.
+No extra M1/M2 or full compilation loop is required for this frontend repair.
+
+Next: freeze these five canonical note updates as a notes-only H2 checkpoint.
+Sign, scan, synchronize
+and back up H2. At this notes snapshot, signing/publication and its hosted pass
+are pending; resolve the actual Git refs, PR head and SHA-bound CI before acting.
+After a fresh complete
+Actions inventory and trigger review, update PR #380's head once and require
+normal exact-head Verify. Merge only the reviewed final head, then require
+actual resulting-main Verify before freezing S. Reuse completed G evidence
+without relabeling it as H/H2 or starting duplicate runs.
 
 Freeze accepted operating main S before prepared bridge deployment. Keep the
 existing frozen-S/separate five-output signer component F/direct-child activation

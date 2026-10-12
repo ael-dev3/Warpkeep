@@ -1604,3 +1604,148 @@ describe('Greater Realm world canvas host', () => {
     expect(frames.size).toBe(0);
   });
 });
+
+
+it('accounts actual new-layer transfers, defers them behind existing host uploads, and requeues restoration', () => {
+  const canvas = document.createElement('canvas');
+  vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+  const frames = new Map<number, FrameRequestCallback>(); let sequence = 0;
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => { frames.set(++sequence, callback); return sequence; });
+  vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(id => frames.delete(id));
+  vi.spyOn(Date, 'now').mockReturnValue(0);
+  let versions = new WeakMap<THREE.BufferAttribute, number>();
+  const transfers: Array<{ bytes: number; newBytes: number; skyVisible: boolean; journeyVisible: boolean; newStaticBytes: number }> = [];
+  const renderer = { setPixelRatio: vi.fn(), setSize: vi.fn(), dispose: vi.fn(), render: vi.fn((scene: THREE.Scene, camera: THREE.PerspectiveCamera) => {
+    const row = { bytes: 0, newBytes: 0, skyVisible: scene.getObjectByName('greater-realm-atmosphere')!.visible,
+      journeyVisible: scene.getObjectByName('greater-realm-own-journeys')!.visible, newStaticBytes: 0 };
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse), camera.coordinateSystem);
+    const visit = (object: THREE.Object3D, decoration = false) => {
+      if (!object.visible) return;
+      decoration ||= object.name === 'greater-realm-atmosphere' || object.name === 'greater-realm-own-journeys';
+      // Three uploads a visible zero-count mesh before its draw decision.
+      if (object instanceof THREE.Mesh) {
+        if (!object.layers.test(camera.layers) || (object.frustumCulled && !frustum.intersectsObject(object))) return;
+        const attributes = Object.values(object.geometry.attributes) as THREE.BufferAttribute[];
+        if (object.geometry.index) attributes.push(object.geometry.index);
+        const staticCount = attributes.length;
+        if (object instanceof THREE.InstancedMesh) { attributes.push(object.instanceMatrix); if (object.instanceColor) attributes.push(object.instanceColor); }
+        attributes.forEach((attribute, index) => {
+          if (versions.get(attribute) === attribute.version) return;
+          versions.set(attribute, attribute.version); row.bytes += attribute.array.byteLength;
+          if (decoration) { row.newBytes += attribute.array.byteLength; if (index < staticCount) row.newStaticBytes += attribute.array.byteLength; }
+          attribute.onUploadCallback();
+        });
+      }
+      object.children.forEach(child => visit(child, decoration));
+    };
+    visit(scene); transfers.push(row);
+  }) };
+  const runtime = { group: new THREE.Group(), setView: vi.fn(), flushUploads: vi.fn(() => 0), update: vi.fn(() => false),
+    startAnimation: vi.fn(), stopAnimation: vi.fn(), setReducedMotion: vi.fn(), setDocumentVisible: vi.fn(), bindCanvas: vi.fn(),
+    getCellAccess: vi.fn(), getTerrainSurfaceY: vi.fn(() => 0), isCoordinatePassable: vi.fn(() => false),
+    ...vesselRuntimeMethods(), getTelemetry: vi.fn(() => EMPTY_TELEMETRY), dispose: vi.fn() };
+  const onFailure = vi.fn(); const onTelemetry = vi.fn();
+  const policy = resolveGreaterRealmWorldViewPolicy({ atlasQ: -2, atlasR: 1, viewportWidth: 1440,
+    coarsePointer: false, farcasterMiniApp: false, resolvedGraphicsQuality: 'cinematic', reducedMotion: true });
+  const host = createGreaterRealmWorldCanvasHost({ canvas, atlasQ: -2, atlasR: 1, ownCastleId: 1,
+    policy, rendererFactory: () => renderer, sceneRuntimeFactory: () => runtime, onFailure, onTelemetry })!;
+  const frame = (time: number) => { const current = [...frames]; frames.clear(); current.forEach(([, callback]) => callback(time)); };
+  try {
+    const snapshot = readySnapshot(); const templateCastle = snapshot.window!.castles[0]; const templateResource = snapshot.resourceLocations[0];
+    const saturated = { ...snapshot, graphicsProfile: policy.graphicsProfile,
+      window: { ...snapshot.window!, castles: Array.from({ length: 600 }, (_, index) => ({ ...templateCastle, castleId: BigInt(index + 1) })) },
+      resourceLocations: Array.from({ length: 128 }, (_, index) => ({ ...templateResource, locationId: 'upload-boundary-' + index,
+        resourceKind: (['food', 'wood', 'stone', 'gold'] as const)[index % 4] })) } as GreaterRealmClientSnapshot;
+    host.applySnapshot(saturated);
+    host.setJourneys!([{ ordinal: 0, phase: 'outbound', resource: 'wood', route: [{ q: -2, r: 1 }, { q: -1, r: 1 }],
+      dispatchedAtMs: 0, arrivesAtMs: 30_000, gatheringStopsAtMs: 90_000, returnsAtMs: 120_000, recalledAtMs: null }]);
+    frame(16);
+    expect(transfers[0].skyVisible).toBe(false); expect(transfers[0].bytes).toBeLessThanOrEqual(GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES);
+    const firstFrame = onTelemetry.mock.calls.at(-1)![0];
+    expect(firstFrame.hostUploadBytesThisFrame).toBe(transfers[0].bytes);
+    for (let read = 0; read < 2; read++) {
+      const observed = host.getTelemetry();
+      expect(observed.hostUploadBytesThisFrame).toBe(firstFrame.hostUploadBytesThisFrame);
+      expect(observed.publicCastleUploadBytesThisFrame).toBe(firstFrame.publicCastleUploadBytesThisFrame);
+      expect(observed.scene.uploadBytesThisFrame).toBe(transfers[0].bytes);
+    }
+    expect(frames.size).toBe(1);
+    frame(32); expect(transfers[1].skyVisible).toBe(true); expect(transfers[1].newStaticBytes).toBeGreaterThan(0);
+    expect(host.getTelemetry().hostUploadBytesThisFrame).toBe(transfers[1].bytes);
+    host.setJourneys!([]); host.schedule(); frame(48); expect(transfers[2].newStaticBytes).toBe(0);
+    expect(transfers[2].bytes).toBe(0);
+    expect(onTelemetry.mock.calls.at(-1)![0].hostUploadBytesThisFrame).toBe(0);
+    for (let read = 0; read < 2; read++) {
+      expect(host.getTelemetry().hostUploadBytesThisFrame).toBe(0);
+      expect(host.getTelemetry().publicCastleUploadBytesThisFrame).toBe(0);
+    }
+    versions = new WeakMap(); canvas.dispatchEvent(new Event('webglcontextrestored')); frame(64);
+    expect(transfers[3].skyVisible).toBe(false); expect(transfers[3].bytes).toBeLessThanOrEqual(GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES);
+    expect(transfers[3].bytes).toBeGreaterThan(0);
+    expect(host.getTelemetry().hostUploadBytesThisFrame).toBe(transfers[3].bytes);
+    expect(host.getTelemetry().hostUploadBytesThisFrame).toBe(onTelemetry.mock.calls.at(-1)![0].hostUploadBytesThisFrame);
+    frame(80); expect(transfers[4].skyVisible).toBe(true); expect(transfers[4].newStaticBytes).toBeGreaterThan(0);
+    expect(host.getTelemetry().hostUploadBytesThisFrame).toBe(transfers[4].bytes);
+    expect(onFailure).not.toHaveBeenCalled();
+
+    // Fresh dirty mandatory arrays remain unacknowledged while actually culled.
+    versions = new WeakMap(); canvas.dispatchEvent(new Event('webglcontextrestored'));
+    for (let index = 0; index < 200; index++) host.control({ kind: 'pan', direction: 'east' });
+    frame(96); expect(transfers[5].bytes).toBe(transfers[5].newBytes);
+    expect(host.getTelemetry().hostUploadBytesThisFrame).toBe(transfers[5].bytes);
+    expect(frames.size).toBe(0); // Culled pending arrays do not cause an idle RAF spin.
+    host.control({ kind: 'reset' }); frame(112);
+    expect(transfers[6].bytes - transfers[6].newBytes).toBeGreaterThan(0);
+    expect(transfers[6].bytes).toBeLessThanOrEqual(GREATER_REALM_HOST_UPLOAD_RESERVE_BYTES);
+    expect(host.getTelemetry().hostUploadBytesThisFrame).toBe(transfers[6].bytes);
+    expect(onFailure).not.toHaveBeenCalled();
+  } finally { host.dispose(); }
+  expect(frames.size).toBe(0);
+});
+
+describe('Greater Realm world daylight', () => {
+  function daylightHost(hour: () => number) {
+    const canvas = document.createElement('canvas');
+    vi.spyOn(canvas, 'getContext').mockReturnValue({} as WebGL2RenderingContext);
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, x: 0, y: 0, toJSON: () => ({})
+    } as DOMRect);
+    const frames = new Map<number, FrameRequestCallback>(); let frameId = 0;
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => { frames.set(++frameId, callback); return frameId; });
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => frames.delete(id));
+    const renderer = { setPixelRatio: vi.fn(), setSize: vi.fn(), render: vi.fn(), dispose: vi.fn() };
+    const runtime = {
+      group: new THREE.Group(), setView: vi.fn(), flushUploads: vi.fn(() => 0),
+      update: vi.fn(() => false), startAnimation: vi.fn(), stopAnimation: vi.fn(),
+      setReducedMotion: vi.fn(), setDocumentVisible: vi.fn(), bindCanvas: vi.fn(),
+      getCellAccess: vi.fn(), isCoordinatePassable: vi.fn(() => false),
+      ...vesselRuntimeMethods(), getTelemetry: vi.fn(() => EMPTY_TELEMETRY), dispose: vi.fn()
+    };
+    const host = createGreaterRealmWorldCanvasHost({
+      canvas, atlasQ: -2, atlasR: 1, ownCastleId: 1, daylightHour: hour,
+      policy: resolveGreaterRealmWorldViewPolicy({
+        atlasQ: -2, atlasR: 1, viewportWidth: 800, coarsePointer: false,
+        farcasterMiniApp: false, resolvedGraphicsQuality: 'balanced', reducedMotion: true
+      }),
+      rendererFactory: () => renderer, sceneRuntimeFactory: () => runtime
+    })!;
+    host.applySnapshot(readySnapshot());
+    const flush = () => { for (const [id, callback] of [...frames]) { frames.delete(id); callback(1); } };
+    flush();
+    const scene = () => renderer.render.mock.calls.at(-1)![0] as THREE.Scene;
+    return { host, flush, scene };
+  }
+
+  it('keeps its own pale sky by day and shares the moonlit haze at night', () => {
+    let hour = 12;
+    const { host, flush, scene } = daylightHost(() => hour);
+    const noonSky = (scene().background as THREE.Color).getHexString();
+    const sun = scene().children.find(child => child instanceof THREE.DirectionalLight) as THREE.DirectionalLight;
+    const noonSun = sun.color.getHexString();
+    hour = 23; host.schedule(); flush();
+    expect((scene().background as THREE.Color).getHexString()).not.toBe(noonSky);
+    expect(sun.color.getHexString()).not.toBe(noonSun);
+    expect((scene().fog as THREE.FogExp2).color.getHexString()).not.toBe(noonSky);
+    host.dispose();
+  });
+});

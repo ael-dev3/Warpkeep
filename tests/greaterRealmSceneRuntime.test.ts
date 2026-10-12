@@ -889,10 +889,10 @@ describe('Greater Realm scene runtime', () => {
       boatCount: 1
     });
     const ambient = ambientBoatMesh(runtime);
-    const ambientGeometry = ambient.geometry as THREE.BoxGeometry;
-    expect(ambientGeometry.parameters.depth).toBeGreaterThan(
-      ambientGeometry.parameters.width
-    );
+    // The hull's long axis stays on Z so boats face along their river lane.
+    ambient.geometry.computeBoundingBox();
+    const hull = ambient.geometry.boundingBox!.getSize(new THREE.Vector3());
+    expect(hull.z).toBeGreaterThan(hull.x);
     expect(ambient.userData).toMatchObject({
       greaterRealmPresentationOnly: true,
       greaterRealmReturnedLaneCount: 1
@@ -925,7 +925,7 @@ describe('Greater Realm scene runtime', () => {
     expect(after.x).toBeLessThanOrEqual(Math.max(source.x, destination.x) + 1e-6);
     expect(after.z).toBeGreaterThanOrEqual(Math.min(source.z, destination.z) - 1e-6);
     expect(after.z).toBeLessThanOrEqual(Math.max(source.z, destination.z) + 1e-6);
-    expect(after.y - ambientGeometry.parameters.height / 2).toBeGreaterThan(waterPlane);
+    expect(after.y + ambient.geometry.boundingBox!.min.y).toBeGreaterThan(waterPlane);
     expect(runtime.getLocalVesselState()).toMatchObject({
       status: 'available',
       persisted: false

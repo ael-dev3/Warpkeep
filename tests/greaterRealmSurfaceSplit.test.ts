@@ -264,6 +264,52 @@ describe('Greater Realm generated-surface split', () => {
         );
         enabledWaterByCell.set(cell, waterCell);
       }
+      // Frozen lowland visuals must fit their reconciled physical altitude.
+      // High generated ground cannot make a preserved meadow alpine.
+      const elevation = new Int32Array(grid.cellCount).fill(20_000);
+      const bedrock = new Int32Array(elevation);
+      const lowerTile = patch.world.metadata.find(metadata =>
+        metadata.terrainKind === 'lowland'
+        && !enabledWaterByCell.has(grid.indexOf(tileByKey.get(metadata.tileKey)!)),
+      )!;
+      const lowerCell = grid.indexOf(tileByKey.get(lowerTile.tileKey)!);
+      elevation[lowerCell] = 12_500;
+      bedrock[lowerCell] = 12_400;
+      const reconciled = greaterRealmSurfaceSplitTestSeams.reconcileLegacyLowlandsTopography(
+        grid, legacy, bedrock, elevation,
+      );
+      try {
+        for (const metadata of patch.world.metadata) {
+          const cell = grid.indexOf(tileByKey.get(metadata.tileKey)!);
+          if (enabledWaterByCell.has(cell)) continue;
+          if (['lowland', 'meadow', 'forest', 'heath', 'lake'].includes(metadata.terrainKind)) {
+            expect(reconciled.elevation[cell]).toBe(Math.min(13_500, elevation[cell]!));
+            expect(reconciled.bedrockElevation[cell]).toBe(Math.min(13_500, bedrock[cell]!));
+          } else {
+            expect(reconciled.elevation[cell]).toBe(20_000);
+          }
+        }
+        for (const waterCell of patch.water.enabledCells) {
+          const cell = grid.indexOf(transformLegacyLowlandsToGlobal(waterCell, transform));
+          if (waterCell.regime !== 'river') continue;
+          const downstream = waterCell.downstreamWaterCellKey === undefined ? -1
+            : grid.indexOf(transformLegacyLowlandsToGlobal(
+              patch.water.enabledCells.find(value => value.cellKey === waterCell.downstreamWaterCellKey)!,
+              transform,
+            ));
+          expect(reconciled.flowReceiver[cell]).toBe(downstream);
+        }
+        expect(elevation.every((value, cell) => value === (cell === lowerCell ? 12_500 : 20_000))).toBe(true);
+        expect(bedrock.every((value, cell) => value === (cell === lowerCell ? 12_400 : 20_000))).toBe(true);
+      } finally {
+        reconciled.bedrockElevation.fill(0);
+        reconciled.elevation.fill(0);
+        reconciled.filledElevation.fill(0);
+        reconciled.flowReceiver.fill(0);
+        reconciled.flowAccumulation.fill(0n);
+        elevation.fill(0);
+        bedrock.fill(0);
+      }
       for (let cell = 0; cell < grid.cellCount; cell += 1) {
         const waterCell = enabledWaterByCell.get(cell);
         const expectedRegime =

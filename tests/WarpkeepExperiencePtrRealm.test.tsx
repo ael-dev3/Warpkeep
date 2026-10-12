@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const hookState = vi.hoisted(() => ({
@@ -183,7 +183,10 @@ type DeferredPtrRuntimeHarness = Readonly<{
   releaseConnection: () => void;
 }>;
 
-function runtimeHarness(authority: PtrRealmAuthority): PtrRuntimeHarness {
+function runtimeHarness(
+  authority: PtrRealmAuthority,
+  mintFreshAuthority?: () => Promise<PtrRealmAuthority>,
+): PtrRuntimeHarness {
   const session = Object.freeze({
     realmId: 'PTR',
     generation: 2,
@@ -195,10 +198,13 @@ function runtimeHarness(authority: PtrRealmAuthority): PtrRuntimeHarness {
     createRuntime: vi.fn(),
   }) as unknown as GreaterRealmProviderBridge;
   let transportFailure: (() => void) | undefined;
+  let exchanges = 0;
   const runtime: PtrRealmProviderRuntime = Object.freeze({
     now: () => NOW,
     createAuthClient: vi.fn(() => Object.freeze({
-      exchangeQuickAuth: vi.fn(async () => authority),
+      exchangeQuickAuth: vi.fn(async () => (
+        exchanges++ > 0 && mintFreshAuthority ? mintFreshAuthority() : authority
+      )),
     })),
     connect: vi.fn(async options => {
       transportFailure = () => options.onTransportFailure?.('transport-unavailable');
@@ -834,6 +840,7 @@ describe('Warpkeep PTR realm integration', () => {
   it('revokes the mounted PTR surface and normalizes history on transport failure', async () => {
     const authority = await ownerAuthority();
     const harness = runtimeHarness(authority);
+    hookState.gameplayProbe = true;
     render(
       <PtrRealmProvider config={CONFIG} runtime={harness.runtime}>
         <WarpkeepExperience />
@@ -850,15 +857,46 @@ describe('Warpkeep PTR realm integration', () => {
     })).not.toBeNull());
     fireEvent.click(screen.getByRole('button', { name: 'ENTER SELECTED REALM' }));
     await screen.findByRole('main', { name: 'PTR realm test surface' });
+    // Play has begun once the first authoritative read lands; the entry's
+    // effects, including the session continuation, have settled by then.
+    await waitFor(() => expect(screen.getByTestId('gameplay-phase').textContent).toBe('ready'));
 
     act(() => harness.failTransport());
 
-    await waitFor(() => expect(screen.getByRole('button', { name: 'ENTER REALM' })).not.toBeNull());
+    // The dropped surface and its authority are revoked at once. The player
+    // stays in the realm while fresh access is attempted; this harness cannot
+    // mint any, so the reconnection fails visibly instead of silently.
+    const panel = await screen.findByRole('region', { name: 'PTR session connection' });
     expect(screen.queryByRole('main', { name: 'PTR realm test surface' })).toBeNull();
+    expect(harness.runtime.closeSession).toHaveBeenCalled();
+    expect(isCurrentPtrRealmAuthority(authority, NOW)).toBe(false);
+    await within(panel).findByRole('button', { name: 'Retry connection' });
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'Return to Menu' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'ENTER REALM' })).not.toBeNull());
     expect(document.querySelector('.warpkeep-experience')?.getAttribute('data-active-realm'))
       .toBe('none');
     expect(window.location.hash).toBe('#menu');
-    expect(harness.runtime.closeSession).toHaveBeenCalled();
+    expect(hookState.backend.disconnect).not.toHaveBeenCalled();
+  });
+
+  it('reconnects a dropped PTR session in place when fresh access is available', async () => {
+    const authority = await ownerAuthority();
+    const harness = runtimeHarness(authority, () => ownerAuthority(NOW, 'ptr-reconnected-authority'));
+    hookState.gameplayProbe = true;
+    render(<PtrRealmProvider config={CONFIG} runtime={harness.runtime}><WarpkeepExperience /></PtrRealmProvider>);
+    await enterPtr();
+    await waitFor(() => expect(screen.getByTestId('gameplay-phase').textContent).toBe('ready'));
+
+    act(() => harness.failTransport());
+
+    await waitFor(() => expect(harness.runtime.connect).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByTestId('gameplay-phase').textContent).toBe('ready'));
+    expect(screen.queryByRole('region', { name: 'PTR session connection' })).toBeNull();
+    expect(isCurrentPtrRealmAuthority(authority, NOW)).toBe(false);
+    expect(document.querySelector('.warpkeep-experience')?.getAttribute('data-active-realm'))
+      .toBe('ptr');
+    expect(window.location.hash).toBe('#realm');
     expect(hookState.backend.disconnect).not.toHaveBeenCalled();
   });
 

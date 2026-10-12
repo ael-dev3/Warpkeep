@@ -15,7 +15,9 @@ import {
   type PtrOwnerProvisionAuthority,
 } from './ptr-production-admin-token';
 import {
+  createPtrAtlasImportTransport,
   createPtrOwnerProvisionTransport,
+  type PtrAtlasImportTransport,
   type PtrOwnerProvisionTransport,
 } from './ptr-production-transport';
 import {
@@ -203,6 +205,7 @@ export function ptrOwnerProvisionConfirmationDigest(input: Readonly<{
 type Dependencies = Readonly<{
   readImportReceipt?: typeof readPrivatePtrProductionImportReceipt;
   inspectStatus?: () => Promise<unknown>;
+  createStatusTransport?: typeof createPtrAtlasImportTransport;
   resolveOwnerAuthority?: (ownerFid: bigint) => Promise<PtrOwnerProvisionAuthority>;
   requestOwnerToken?: typeof requestPtrProductionAdminToken;
   validateOwnerToken?: typeof readPtrOwnerProvisionAuthority;
@@ -226,64 +229,68 @@ export async function executePtrOwnerProvisionOperator(input: Readonly<{
   const dependencies = input.dependencies ?? {};
   const readImportReceipt = dependencies.readImportReceipt
     ?? readPrivatePtrProductionImportReceipt;
-  const inspectStatus = dependencies.inspectStatus
-    ?? (() => Promise.reject(new Error('ownerless status dependency unavailable')));
-  const firstEvidence = readImportReceipt({
-    directory: receiptDirectory,
-    repositoryRoot: REPOSITORY_ROOT,
-    expectedReceiptDigest: arguments_.atlasImportReceiptDigest,
-  });
-  const firstReceipt = authenticateImportReceipt(firstEvidence.receipt, arguments_);
-  const initialStatus = assertSealedOwnerlessStatus(
-    await inspectStatus(),
-    firstReceipt,
-  );
-  const confirmationDigest = confirmationDigestFromStatus({
-    databaseIdentity: arguments_.databaseIdentity,
-    moduleSourceCommit: arguments_.moduleSourceCommit,
-    moduleSha256: arguments_.moduleSha256,
-    atlasImportReceiptDigest: firstReceipt.importReceiptDigest,
-    status: initialStatus,
-  });
-  if (arguments_.command === 'inspect') {
-    return Object.freeze({
-      schemaVersion: 1,
-      profile: 'warpkeep.ptr.owner-provision-inspection.v1',
-      databaseIdentity: arguments_.databaseIdentity,
-      moduleIdentity: 'warpkeep-ptr-owner-view-v1',
-      moduleSourceCommit: arguments_.moduleSourceCommit,
-      moduleSha256: arguments_.moduleSha256,
-      atlasImportReceiptDigest: firstReceipt.importReceiptDigest,
-      confirmationDigest,
-      atlasReady: true,
-      ownerProvisioned: false,
-      ownerEnabled: false,
-      privacySafe: true,
-    });
-  }
-  if (arguments_.confirmationDigest !== confirmationDigest) {
-    fail('PTR_OWNER_PROVISION_CONFIRMATION_INVALID');
-  }
-
   let adminSecret = '';
   let ownerToken = '';
   let stagedOwnerToken = '';
   let launchEntropy = '';
   let transport: PtrOwnerProvisionTransport | undefined;
+  let statusTransport: PtrAtlasImportTransport | undefined;
   let mutationStarted = false;
+  const createStatusTransport = dependencies.createStatusTransport
+    ?? createPtrAtlasImportTransport;
+  const inspectStatus = dependencies.inspectStatus ?? (async () => {
+    if (statusTransport === undefined) {
+      if (adminSecret === '') adminSecret = takePtrProductionAdminSecret(input.environment);
+      statusTransport = createStatusTransport({
+        databaseIdentity: arguments_.databaseIdentity,
+        adminSecret,
+        disallowedDatabaseIdentities: [],
+      });
+    }
+    return statusTransport.inspect();
+  });
   try {
+    const firstEvidence = readImportReceipt({
+      directory: receiptDirectory,
+      repositoryRoot: REPOSITORY_ROOT,
+      expectedReceiptDigest: arguments_.atlasImportReceiptDigest,
+    });
+    const firstReceipt = authenticateImportReceipt(firstEvidence.receipt, arguments_);
+    const initialStatus = assertSealedOwnerlessStatus(
+      await inspectStatus(),
+      firstReceipt,
+    );
+    const confirmationDigest = confirmationDigestFromStatus({
+      databaseIdentity: arguments_.databaseIdentity,
+      moduleSourceCommit: arguments_.moduleSourceCommit,
+      moduleSha256: arguments_.moduleSha256,
+      atlasImportReceiptDigest: firstReceipt.importReceiptDigest,
+      status: initialStatus,
+    });
+    if (arguments_.command === 'inspect') {
+      return Object.freeze({
+        schemaVersion: 1,
+        profile: 'warpkeep.ptr.owner-provision-inspection.v1',
+        databaseIdentity: arguments_.databaseIdentity,
+        moduleIdentity: 'warpkeep-ptr-owner-view-v1',
+        moduleSourceCommit: arguments_.moduleSourceCommit,
+        moduleSha256: arguments_.moduleSha256,
+        atlasImportReceiptDigest: firstReceipt.importReceiptDigest,
+        confirmationDigest,
+        atlasReady: true,
+        ownerProvisioned: false,
+        ownerEnabled: false,
+        privacySafe: true,
+      });
+    }
+    if (arguments_.confirmationDigest !== confirmationDigest) {
+      fail('PTR_OWNER_PROVISION_CONFIRMATION_INVALID');
+    }
     const ownerFid = takePtrProductionOwnerFid(input.environment);
     const resolveOwnerAuthority = dependencies.resolveOwnerAuthority;
-    if (resolveOwnerAuthority === undefined) {
-      fail('PTR_OWNER_PROVISION_OWNER_RESOLVER_UNAVAILABLE');
-    }
-    const resolved = await resolveOwnerAuthority(ownerFid);
-    if (
-      resolved.ownerFid !== ownerFid
-      || !Number.isSafeInteger(resolved.ownerAuthEpoch)
-      || resolved.ownerAuthEpoch < 1
-    ) fail('PTR_OWNER_PROVISION_OWNER_AUTHORITY_INVALID');
-    adminSecret = takePtrProductionAdminSecret(input.environment);
+    const resolvedFromSource = resolveOwnerAuthority === undefined
+      ? undefined : await resolveOwnerAuthority(ownerFid);
+    if (adminSecret === '') adminSecret = takePtrProductionAdminSecret(input.environment);
     const requestOwnerToken = dependencies.requestOwnerToken
       ?? requestPtrProductionAdminToken;
     ownerToken = await requestOwnerToken(adminSecret);
@@ -292,6 +299,14 @@ export async function executePtrOwnerProvisionOperator(input: Readonly<{
       ?? readPtrOwnerProvisionAuthority;
     const nowSeconds = (dependencies.nowSeconds ?? (() => Math.floor(Date.now() / 1_000)))();
     const tokenAuthority = validateOwnerToken(ownerToken, ownerFid, nowSeconds);
+    // The CLI has no separate G001 resolver. Its genuine bridge-issued owner
+    // token is the authority; injected resolvers must still agree with it.
+    const resolved = resolvedFromSource ?? tokenAuthority;
+    if (
+      resolved.ownerFid !== ownerFid
+      || !Number.isSafeInteger(resolved.ownerAuthEpoch)
+      || resolved.ownerAuthEpoch < 1
+    ) fail('PTR_OWNER_PROVISION_OWNER_AUTHORITY_INVALID');
     if (
       tokenAuthority.ownerFid !== resolved.ownerFid
       || tokenAuthority.ownerAuthEpoch !== resolved.ownerAuthEpoch
@@ -421,14 +436,21 @@ export async function executePtrOwnerProvisionOperator(input: Readonly<{
       mutationStarted,
     );
   } finally {
-    delete input.environment.WARPKEEP_ADMIN_TOKEN_SECRET;
-    delete input.environment.WARPKEEP_PLAYER_CANARY_OWNER_FID;
-    delete input.environment.WARPKEEP_PTR_LAUNCH_ENTROPY;
+    if (arguments_.command === 'provision' || statusTransport !== undefined) {
+      delete input.environment.WARPKEEP_ADMIN_TOKEN_SECRET;
+    }
+    if (arguments_.command === 'provision') {
+      delete input.environment.WARPKEEP_PLAYER_CANARY_OWNER_FID;
+      delete input.environment.WARPKEEP_PTR_LAUNCH_ENTROPY;
+    }
     adminSecret = '';
     ownerToken = '';
     stagedOwnerToken = '';
     launchEntropy = '';
-    try { await transport?.close(); } catch {
+    let cleanupFailed = false;
+    try { await transport?.close(); } catch { cleanupFailed = true; }
+    try { await statusTransport?.close(); } catch { cleanupFailed = true; }
+    if (cleanupFailed) {
       fail(
         mutationStarted
           ? 'PTR_OWNER_PROVISION_CLEANUP_FAILED_MANUAL_RECONCILIATION_REQUIRED'

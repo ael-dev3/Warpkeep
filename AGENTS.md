@@ -88,6 +88,7 @@ authority. Generated bindings and release manifests come from their generators.
 Follow [the development workflow](docs/engineering/development-workflow.md) and
 [source synchronization](docs/operations/0.4.0-development-sync.md).
 
+- For read-only Git, set `GIT_OPTIONAL_LOCKS=0` and use `git --no-optional-locks -c core.fsmonitor=false` to avoid optional index/stat-cache writes during source holds.
 - Make a coherent improvement, test the affected behavior and inspect the diff.
   Complete the real caller and integration, not only an unused helper.
 - Inspect dependency paths before installing. Existing worktrees may share a
@@ -152,15 +153,17 @@ Follow [the development workflow](docs/engineering/development-workflow.md) and
 
 ## Delivery and handoff
 
-The live 0.3.43 frontend is served from the public, generated-assets-only
-[`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live) GitHub Pages repository;
-the development repository remains private and has no Pages site on the current
-plan. This restores the existing Alpha, not the 0.4 release lane. Read the
-[hosting and recovery record](docs/operations/0.4.0-infra-access.md#existing-alpha-frontend-restored)
-before changing either site. Cloudflare hosts identity/recovery services, and
-SpacetimeDB hosts persistent realms. Verify configured accounts and immutable
-targets. Complete the Windows/WSL/Linux operating path without a Mac dependency;
-required workflow identity must come from the actual supported runner.
+Preserve the live Alpha at `warpkeep.com/` and its signed generated-assets mirror
+[`Warpkeep-Live`](https://github.com/ael-dev3/Warpkeep-Live). The owner-PTR frontend
+at `warpkeep.com/ptr/` uses Cloudflare Pages project `warpkeep` through the
+reviewed direct-upload lane; static delivery alone does not prove owner gameplay.
+The private development repository has no Pages site on the current plan.
+Read the [hosting and recovery record](docs/operations/0.4.0-infra-access.md)
+before changing either site. Cloudflare also hosts identity/recovery services,
+and SpacetimeDB hosts persistent realms. Verify current provider identity, DNS,
+immutable targets and the actual deployment path. Complete the Windows/WSL/Linux
+operating path without a Mac dependency; any required workflow identity must
+come from the actual supported runner.
 
 Source synchronization, a green test, deployment and usable player experience are
 different outcomes. The [release acceptance record](docs/operations/0.4.0-release-checklist.md)
@@ -183,8 +186,10 @@ full release goal active until the deployed game and required evidence support i
 <!-- BEGIN github-actions-conservation -->
 ## GitHub Actions conservation
 
+- Resolve the current operational policy from [the budget configuration](config/github-actions-budget.json) and [its operating guide](docs/operations/github-actions-budget.md). Repository-wide Actions is currently disabled across Warpkeep and its delivery, assets and water repositories. Continue local validation and coherent signed, scanned, non-forced source checkpoints; do not automatically enable, dispatch or rerun Actions. Older billing-recovery and dated resume instructions do not override this policy.
 - Validate locally with checks proportionate to the change and inspect the diff. Batch related edits into coherent, reviewed checkpoints before remote actions; use local diagnosis to resolve failures and avoid repeated CI experiments.
 - Before remote actions that may start, repeat, cancel or change Actions, inspect repository-wide workflow runs across branches and event types. Include queued/running runs, completed evidence and rerun attempts; paginate results as needed. Reuse applicable evidence and avoid duplicate runs while relevant work is already running.
 - Inspect workflow triggers and downstream chains, including push/PR events, workflow_run, workflow_call/reusable workflows, tags/releases and deployments. Account for follow-on runs before pushes, PR updates, merges, dispatches, reruns or workflow/settings changes.
+- Reuse complete retained histories with fresh activity, attempt, reference and trigger readbacks across the configured repositories. The pure job-time accounting helper refuses admission and cannot reserve capacity or enforce the cap. Local receipts cannot replace required GitHub workflow identity; the existing hosted release lane needs a reviewed replacement compatible with the current policy.
 - Resolve limits and approval decisions from the user's current GitHub Actions policy and custom rules, including where they override older publish/merge defaults. This guidance grants no permissions. Keep numeric custom-rule limits and permission grants out of instruction files and memories so the current policy remains authoritative and independently changeable.
 <!-- END github-actions-conservation -->

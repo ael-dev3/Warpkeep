@@ -3,6 +3,7 @@ import { describe, test } from 'vitest';
 
 import {
   GREATER_REALM_HYDRO_REGIME,
+  GREATER_REALM_PUBLIC_REGIONS,
   GREATER_REALM_RUNTIME_PARTITION_VERSION,
   GREATER_REALM_TRAVEL_CLASS,
   GREATER_REALM_UNASSIGNED_RANK,
@@ -18,7 +19,10 @@ import {
 import {
   type GreaterRealmCellImportV1,
   validateGreaterRealmCellImportV1,
+  verifyGreaterRealmBatchV1,
 } from '../spacetimedb/ptr/src/atlasAuthority';
+import { Sha256 } from '../spacetimedb/ptr/src/sha256';
+import { requireGreaterRealmPtrHydrologyLinkV1 } from '../spacetimedb/ptr/src/greaterRealmHydrologyAuthority';
 import {
   PTR_ATLAS_MAX_RESOURCE_CHUNK_HANDLES,
   planPtrTreeRoute,
@@ -35,6 +39,37 @@ const CHUNK_B = `GRK-${'B'.repeat(26)}`;
 const PUBLIC_RELEASE_A = `GRR-${'A'.repeat(26)}`;
 const RESOURCE_LOCATION_A = `GRL-${'A'.repeat(26)}`;
 const COMPONENT_A = `GRC-${'A'.repeat(26)}`;
+
+test('generated Lowlands river can terminate in the exact transformed frozen Alpha ocean', () => {
+  // Installed atlas .53: verification ordinal 53823, observed on 2026-10-11.
+  const source = { regionId: 'T1_LOWLANDS', localQ: -65, localR: 66,
+    atlasQ: 29, atlasR: 27, hydroRegime: 3, hydroDepthClass: 2,
+    hydroSurfaceMilli: 10076, hydroFlowDirection: 1, flowAccumulation: 1476n,
+    hydrologyRevision: 1, passable: false, movementCost: 1_000_000,
+    geologicalBarrierBand: 0, biomeClass: 22, landformClass: 2, yieldClass: 0,
+    hydroBodyId: `GRW-${'A'.repeat(26)}` };
+  const downstream = { ...source, localR: 65, atlasQ: 30, atlasR: 26,
+    hydroRegime: 1, hydroDepthClass: 3, hydroSurfaceMilli: 975,
+    hydroFlowDirection: undefined, flowAccumulation: 0n, hydrologyRevision: 3,
+    biomeClass: 20, landformClass: 16, hydroBodyId: `GRW-${'B'.repeat(26)}` };
+  const transform = { rotation: 1, offsetQ: 95, offsetR: 26 };
+  assert.doesNotThrow(() => requireGreaterRealmPtrHydrologyLinkV1(source, downstream, transform));
+  for (const changed of [
+    { ...source, hydrologyRevision: 3 },
+    { ...source, atlasQ: source.atlasQ + 1 },
+    { ...source, localR: 65, atlasQ: 30, atlasR: 26 },
+  ]) assert.throws(() => requireGreaterRealmPtrHydrologyLinkV1(changed, downstream, transform),
+    /GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID/);
+  assert.throws(() => requireGreaterRealmPtrHydrologyLinkV1(source, downstream),
+    /GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID/);
+  for (const changed of [
+    { ...downstream, hydroDepthClass: 1 },
+    { ...downstream, hydrologyRevision: 1 },
+    { ...downstream, passable: true },
+    { ...downstream, flowAccumulation: 1n },
+  ]) assert.throws(() => requireGreaterRealmPtrHydrologyLinkV1(source, changed, transform),
+    /GREATER_REALM_HYDROLOGY_ACCUMULATION_INVALID/);
+});
 const SHA_A = 'a'.repeat(64);
 
 const VALID_RELEASE: GreaterRealmReleaseInputV1 = {
@@ -125,6 +160,74 @@ const VALID_CELL_IMPORT: GreaterRealmCellImportV1 = {
   ambienceClass: 0,
   presentationVariant: 0,
 };
+
+function sealedHydrologyVerificationFixture(hydroRegime: number, mask = 63, neighbor = false) {
+  const row: GreaterRealmCellImportV1 = {
+    ...VALID_CELL_IMPORT, cellKey: 'T1_FROSTMERE:0:0', regionId: 'T1_FROSTMERE',
+    passable: false, movementCost: 1_000_000, componentKey: undefined,
+    routeDepth: undefined, sealedBoundaryMask: mask,
+    hydroRegime, hydroBodyId: `GRW-${'A'.repeat(26)}`, hydroDepthClass: 2,
+    hydroSurfaceMilli: 100, hydroFlowDirection: 0, flowAccumulation: 1n,
+    hydrologyRevision: 1,
+  };
+  const regionFields = ['verifiedCellCount', 'verifiedPassableCellCount', 'verifiedChunkCount',
+    'verifiedCastleCapacity', 'verifiedResourceLocationCount', 'verifiedResourceNodeCount',
+    'verifiedFoodNodeCount', 'verifiedWoodNodeCount', 'verifiedStoneNodeCount', 'verifiedGoldNodeCount'];
+  const regionVerification = GREATER_REALM_PUBLIC_REGIONS.map(region => ({
+    regionId: region.id, ...Object.fromEntries(regionFields.map(field => [field, 0])),
+  }));
+  const regions = GREATER_REALM_PUBLIC_REGIONS.map(region => ({
+    regionId: region.id, publicName: region.name, ordinal: region.ordinal, tier: 1,
+    cellCount: region.id === row.regionId ? 1 : 0, passableCellCount: 0,
+    chunkCount: region.id === row.regionId ? 1 : 0, castleCapacity: 0,
+    resourceLocationCount: 0, resourceNodeCount: 0, foodNodeCount: 0,
+    woodNodeCount: 0, stoneNodeCount: 0, goldNodeCount: 0, active: false,
+  }));
+  let release = {
+    atlasId: row.atlasId, importEpoch: 1n, state: 'verifying',
+    verificationPhase: 'cells', verificationCursor: 0n, expectedCellCount: 1,
+    verifiedCellCount: 0, verificationDigest: new Sha256().serialize(),
+    regionManifestJson: `${JSON.stringify(regions)}\n`,
+    regionVerificationJson: `${JSON.stringify(regionVerification)}\n`,
+  };
+  const ctx = { db: {
+    greaterRealmReleaseV1: { atlasId: {
+      find: () => release,
+      update: (value: typeof release) => { release = value; },
+    } },
+    greaterRealmChunkV1: { chunkHandle: { find: () => ({ chunkHandle: row.chunkHandle }) } },
+    greaterRealmCellV1: {
+      releaseOrdinal: { find: () => row },
+      atlasCoordKey: { find: (key: string) => (
+        neighbor && key === 'A:1:-1' ? { ...row, atlasQ: 1, atlasR: -1 } : null
+      ) },
+      chunkHandle: { filter: () => [row] },
+    },
+  } } as unknown as Parameters<typeof verifyGreaterRealmBatchV1>[0];
+  return { run: () => verifyGreaterRealmBatchV1(ctx, row.atlasId, 1n, 1), release: () => release };
+}
+
+test('actual PTR cell verification preserves river and stream continuation through a fully verified seal', () => {
+  for (const regime of [GREATER_REALM_HYDRO_REGIME.RIVER, GREATER_REALM_HYDRO_REGIME.STREAM]) {
+    const fixture = sealedHydrologyVerificationFixture(regime);
+    assert.deepEqual(fixture.run(), { phase: 'cells', processed: 1, remaining: 0, complete: false });
+    assert.equal(fixture.release().verifiedCellCount, 1);
+    assert.equal(fixture.release().verificationPhase, 'component-slots');
+    const regions = JSON.parse(fixture.release().regionVerificationJson);
+    assert.equal(regions.find((region: { regionId: string }) => region.regionId === 'T1_FROSTMERE').verifiedCellCount, 1);
+  }
+});
+
+test('actual PTR cell verification rejects an unsealed exit and a forged complete seal before updating counters', () => {
+  for (const fixture of [
+    sealedHydrologyVerificationFixture(GREATER_REALM_HYDRO_REGIME.RIVER, 62),
+    sealedHydrologyVerificationFixture(GREATER_REALM_HYDRO_REGIME.RIVER, 63, true),
+  ]) {
+    assert.throws(fixture.run, /GREATER_REALM_SEALED_BOUNDARY_CLOSURE_INVALID/u);
+    assert.equal(fixture.release().verifiedCellCount, 0);
+    assert.equal(fixture.release().verificationCursor, 0n);
+  }
+});
 
 const VALID_RESOURCE: GreaterRealmResourceInputV1 = {
   nodeId: 'GRN-RESOURCE-1',

@@ -7,12 +7,24 @@ import { createKeep04Building, KEEP04_FOOTPRINTS, measureKeep04Object, type Keep
 import { KEEP04_BUILDING_IDS, KEEP04_TREE_IDS } from './loadKeep04Assets';
 import { fitKeep04Camera, fitKeep04SiteCamera, KEEP04_VISUAL_PROFILE as P, type Quality04 } from './keep04VisualProfile';
 import { createKeep04Dressing } from './keep04VoxelDressing';
+import { KEEP04_VALE_PALETTE as V } from './keep04ValePalette';
+import { createKeep04Landscape, type Keep04Landscape } from './createKeep04Landscape';
+import { createKeep04Life, type Keep04Life, type Keep04WorkerVisual } from './createKeep04Life';
+import { keep04ContactShadowGeometry, keep04ContactShadowMaterial } from './keep04ModelKit';
+import {
+  verdantDaylightAt, verdantDaylightKey, verdantLocalHour, verdantSunDirection, type VerdantDaylight,
+} from '../../greater-realm/verdantDaylight';
 
-export type VisualState04 = Readonly<{ buildings: readonly BuildingView04[]; selectedKind: Building04 | null; draft: Placement04 | null; draftValid: boolean }>;
+export type { Keep04WorkerVisual } from './createKeep04Life';
+/** Presentation-only scene input. `workers` carries confirmed journey phases, never economics. */
+export type VisualState04 = Readonly<{ buildings: readonly BuildingView04[]; selectedKind: Building04 | null; draft: Placement04 | null; draftValid: boolean;
+  workers?: readonly Keep04WorkerVisual[] }>;
 export type SceneTelemetry04 = Readonly<{
   drawCalls: number; triangles: number; geometryBytes: number; textureBytes: number; uploadBytes: number;
   voxelQuads: number; sceneryInstances: number; buildingCount: number; pickTargetCount: number;
   voxelPreparationMs: number | null;
+  /** Decorative vale instances and living actors; neither is pickable. */
+  landscapeInstances: number; lifeActors: number;
   fallback: 'none' | 'asset' | 'voxel' | 'budget';
 }>;
 export type Scene04 = Readonly<{
@@ -22,14 +34,31 @@ export type Scene04 = Readonly<{
   selectedSiteBounds: () => THREE.Box3 | null; entryOverviewBounds: () => THREE.Box3 | null;
   fitSite: (bounds: THREE.Box3, aspect: number, inspection?: boolean) => boolean;
   pickPlacement: (ndcX: number, ndcY: number, kind: Building04) => Placement04 | null;
-  update: (elapsedSeconds: number) => boolean; telemetry: () => SceneTelemetry04; dispose: () => void;
+  /** Advances reveals, and ambient life when `ambient` allows it; true while anything still moves. */
+  update: (elapsedSeconds: number, ambient?: boolean) => boolean; telemetry: () => SceneTelemetry04; dispose: () => void;
+  /** Current daylight mood (presentation only) and the tone-mapping exposure it wants. */
+  daylight: () => VerdantDaylight; exposure: () => number;
 }>;
 
 const KEEP04_MOAT_SURFACE_Y = -0.98;
+// World bearings (atan2(x, z)) of the morning and evening sun. Both stay on the
+// camera side of the citadel, so facades are lit from dawn to dusk while the
+// shadows still sweep across the grounds through the day.
+const KEEP04_SUN_MORNING = .9; const KEEP04_SUN_EVENING = -1.5;
+const KEEP04_LIGHT_TARGET = new THREE.Vector3(0, 0, -4);
 
-export function createKeep04Scene(options: Readonly<{ quality: Quality04; reducedMotion: boolean; assets: InnerKeepRuntimeAssetBundle; qaVoxelFailure?: boolean }>): Scene04 {
+const WORKER_VISUAL_FIELDS = ['ordinal', 'phase', 'resource', 'phaseStartedAtMs', 'phaseEndsAtMs'];
+
+export function createKeep04Scene(options: Readonly<{
+  quality: Quality04; reducedMotion: boolean; assets: InnerKeepRuntimeAssetBundle; qaVoxelFailure?: boolean;
+  /** Continuous ambient life (villagers walking, mills turning). Static when off or under reduced motion. */
+  ambient?: boolean;
+  /** Local hour for the daylight mood; defaults to the device clock. Presentation only. */
+  daylightHour?: () => number;
+}>): Scene04 {
   const { quality, assets } = options; const budget = P.budgets[quality];
-  const scene = new THREE.Scene(); scene.background = new THREE.Color(P.distantHaze); scene.fog = new THREE.Fog(P.distantHaze, 150, 300);
+  const animateAmbient = Boolean(options.ambient) && !options.reducedMotion;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(V.haze); scene.fog = new THREE.Fog(V.haze, 175, 390);
   const camera = new THREE.OrthographicCamera(); fitKeep04Camera(camera, 1.4);
   const scenery = new THREE.Group(); scenery.name = 'non-pickable-scenery'; scene.add(scenery);
   const geometries = new Set<THREE.BufferGeometry>(); const materials = new Set<THREE.Material>();
@@ -41,6 +70,11 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
   let voxelPreparationMs: number | null = null;
   let indicatorKey = ''; let selected: THREE.Mesh | null = null; let draft: THREE.Mesh | null = null;
   let visualState: VisualState04 | null = null;
+  let landscape: Keep04Landscape | null = null; let life: Keep04Life | null = null;
+  const hourNow = options.daylightHour ?? (() => verdantLocalHour(Date.now()));
+  let daylight = verdantDaylightAt(hourNow()); let daylightApplied = -1; let applyDaylight: () => void = () => {};
+  let contactBatch: THREE.InstancedMesh | null = null;
+  let nightPools: THREE.InstancedMesh | null = null; let nightPoolMaterial: THREE.MeshBasicMaterial | null = null;
   const pickTargets: THREE.Object3D[] = []; const pickKinds = new Map<THREE.Object3D, Building04>();
   const raycaster = new THREE.Raycaster(); const ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   function mat(color: string) { const material = new THREE.MeshStandardMaterial({ color, roughness: .95 }); materials.add(material); return material; }
@@ -50,6 +84,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
   function dispose() {
     if (disposed) return; disposed = true;
     buildings.forEach(entry => entry.building.dispose()); buildings.clear(); pickTargets.length = 0; pickKinds.clear();
+    life?.dispose(); life = null; landscape?.dispose(); landscape = null;
     entryLandmarks.length = 0;
     instances.forEach(instance => instance.dispose()); instances.clear();
     geometries.forEach(g => g.dispose()); geometries.clear(); materials.forEach(m => m.dispose()); materials.clear();
@@ -58,15 +93,20 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
   try {
     const masonry = mat(P.masonry); const groundMat = mat(P.ground);
     // One unbroken, level legal support deck, with the terracing strictly outside it.
-    const deckGeometry = new THREE.BoxGeometry(88, 1, 72, 22, 1, 18);
+    // A mown courtyard lawn: soft alternating bands and broad tonal patches make
+    // the grounds read as a tended green rather than a display platform.
+    const deckGeometry = new THREE.BoxGeometry(88, 1, 72, 44, 1, 36);
     const deckPositions = deckGeometry.getAttribute('position'); const deckColors = new Float32Array(deckPositions.count * 3);
+    const lawn = new THREE.Color(V.courtyardLawn); const lawnDeep = new THREE.Color(V.courtyardLawnDeep); const lawnTone = new THREE.Color();
     for (let i = 0; i < deckPositions.count; i++) {
       const x = deckPositions.getX(i); const z = deckPositions.getZ(i);
-      const shade = .87 + Math.sin(x * .31 + z * .17) * .085 + Math.cos(z * .39 - x * .13) * .05;
-      deckColors.set([shade, shade, shade], i * 3);
+      const shade = .93 + Math.sin(x * .31 + z * .17) * .05 + Math.cos(z * .39 - x * .13) * .035;
+      const band = Math.floor((x + 44) / 4) % 2 === 0 ? 1.035 : .965;
+      lawnTone.copy(lawn).lerp(lawnDeep, .5 + Math.sin(x * .11 - z * .07) * .3 + Math.cos(z * .16 + x * .05) * .2).multiplyScalar(shade * band);
+      deckColors.set([lawnTone.r, lawnTone.g, lawnTone.b], i * 3);
     }
     deckGeometry.setAttribute('color', new THREE.BufferAttribute(deckColors, 3));
-    const deckMaterial = mat(P.ground); deckMaterial.vertexColors = true;
+    const deckMaterial = mat('#ffffff'); deckMaterial.vertexColors = true;
     mesh(deckGeometry, deckMaterial, 0, -.5, -4).name = 'legal-support-y0';
     // The U-shaped moat sits just above the outer terrace course. It frames
     // the back and sides while keeping the front gate and civic approach open.
@@ -182,15 +222,78 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
       entryLandmarks.push(mesh(new THREE.BoxGeometry(1.6, 3.5, 1.6), masonry, x, 1.75, 33.5),
         mesh(new THREE.ConeGeometry(1.3, 1.1, 4), mat(P.roofTeal), x, 4.05, 33.5));
     }
-    const key = new THREE.DirectionalLight('#fff1d5', 3.0); key.position.set(-35, 75, 50); key.target.position.set(0, 0, -4);
+    // The surrounding vale and its life are decorative and optional: if either
+    // cannot be prepared, the keep, its placement and its picking stay intact.
+    try {
+      landscape = createKeep04Landscape({ quality, reducedMotion: !animateAmbient, plinthGroundAt: (x, z) => {
+        try { return forestGroundAt(x, z); } catch { return 0; }
+      } });
+      scenery.add(landscape.group);
+    } catch { landscape = null; }
+    try {
+      life = createKeep04Life({ quality, animate: animateAmbient, landscape });
+      scenery.add(life.group);
+    } catch { life = null; }
+    // A warm key (sun or moon) with the only shadow, a cool shadow-side fill and
+    // a sky/ground hemisphere. The daylight mood drives all three, the fog and
+    // the window glow; nothing here changes picking, placement or budgets.
+    const key = new THREE.DirectionalLight('#ffeccb', 3.1); key.target.position.copy(KEEP04_LIGHT_TARGET);
     shadow = key.shadow;
     key.castShadow = quality === 'high'; key.shadow.mapSize.set(1024, 1024);
-    Object.assign(key.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 200 }); key.shadow.bias = -.001;
-    scene.add(key, key.target, new THREE.HemisphereLight('#e1eee4', '#526047', 2));
+    Object.assign(key.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 240 }); key.shadow.bias = -.0008;
+    key.shadow.normalBias = .04; key.shadow.radius = 2.5;
+    const fill = new THREE.DirectionalLight('#a9bfd6', .3); fill.target.position.copy(KEEP04_LIGHT_TARGET);
+    const sky = new THREE.HemisphereLight('#e4f0f2', '#5b6a49', 2.05);
+    scene.add(key, key.target, fill, fill.target, sky);
+    const sunDirection = new THREE.Vector3();
+    applyDaylight = () => {
+      const hour = hourNow(); const moodKey = verdantDaylightKey(hour);
+      if (moodKey === daylightApplied) return;
+      daylightApplied = moodKey; daylight = verdantDaylightAt(hour);
+      verdantSunDirection(daylight, KEEP04_SUN_MORNING, KEEP04_SUN_EVENING, sunDirection);
+      key.position.copy(sunDirection).multiplyScalar(120).add(KEEP04_LIGHT_TARGET);
+      key.color.copy(daylight.sunColor); key.intensity = daylight.sunIntensity;
+      key.shadow.intensity = .62 + .33 * (1 - daylight.night);
+      // The fill comes low from the opposite side of the key, lifting shadowed faces with sky colour.
+      fill.position.set(-sunDirection.x, .45, -sunDirection.z).normalize().multiplyScalar(120).add(KEEP04_LIGHT_TARGET);
+      fill.color.copy(daylight.fillColor); fill.intensity = daylight.fillIntensity;
+      sky.color.copy(daylight.skyColor); sky.groundColor.copy(daylight.groundColor); sky.intensity = daylight.hemisphereIntensity;
+      (scene.background as THREE.Color).copy(daylight.hazeColor); (scene.fog as THREE.Fog).color.copy(daylight.hazeColor);
+      landscape?.setNightGlow(daylight.windowGlow); life?.setNightGlow(daylight.windowGlow);
+      if (nightPools && nightPoolMaterial) { nightPools.visible = daylight.windowGlow > .03; nightPoolMaterial.opacity = daylight.windowGlow * .3; }
+    };
+    applyDaylight();
 
     // The catalog-wide quality and size decision is made before loading. Preflight
     // each actual source before admitting it, including models loaded after entry.
     const admitted = new Map<string, InnerKeepRuntimePrefab>(); let sourceTriangles = 0; let sourceDraws = 0;
+    // The vale and its life spend from the same scene target as authored models,
+    // including shadow submissions, so decoration can never crowd out a building.
+    {
+      const vale = landscape?.cost(); const living = life?.cost();
+      sourceTriangles += (vale?.triangles ?? 0) + (vale?.shadowTriangles ?? 0) + (living?.triangles ?? 0) * (quality === 'high' ? 1.5 : 1);
+      sourceDraws += (vale?.drawCalls ?? 0) + (vale?.shadowDrawCalls ?? 0) + (living?.drawCalls ?? 0) + (quality === 'high' ? 3 : 0);
+    }
+    // Soft ground contact under the six buildings: one transparent batch.
+    {
+      const contactGeometry = keep04ContactShadowGeometry(quality === 'reduced' ? 8 : 18); geometries.add(contactGeometry);
+      const contactMaterial = keep04ContactShadowMaterial(); materials.add(contactMaterial);
+      contactBatch = new THREE.InstancedMesh(contactGeometry, contactMaterial, KEEP04_BUILDING_IDS.length);
+      contactBatch.name = 'building-contact-shadows'; contactBatch.raycast = () => {}; contactBatch.count = 0; contactBatch.renderOrder = -1;
+      instances.add(contactBatch); scenery.add(contactBatch);
+      sourceTriangles += (contactGeometry.index!.count / 3) * KEEP04_BUILDING_IDS.length; sourceDraws += 1;
+      // After dusk, warm light spills around each occupied building's base (not on reduced).
+      if (quality !== 'reduced') {
+        nightPoolMaterial = new THREE.MeshBasicMaterial({ color: '#ffae5a', vertexColors: true, transparent: true, opacity: 0,
+          blending: THREE.AdditiveBlending, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
+        materials.add(nightPoolMaterial);
+        nightPools = new THREE.InstancedMesh(contactGeometry, nightPoolMaterial, KEEP04_BUILDING_IDS.length);
+        nightPools.name = 'building-night-light'; nightPools.raycast = () => {}; nightPools.count = 0; nightPools.visible = false;
+        instances.add(nightPools); scenery.add(nightPools);
+        sourceTriangles += (contactGeometry.index!.count / 3) * KEEP04_BUILDING_IDS.length; sourceDraws += 1;
+      }
+    }
+    daylightApplied = -1; applyDaylight();
     function admitPrefab(id: string, prefab: InnerKeepRuntimePrefab) {
       if (admitted.has(id)) return true;
       try {
@@ -262,7 +365,10 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
     }
     function reconcile(state: VisualState04) {
       if (disposed) return;
-      if (Object.keys(state).some(key => !['buildings', 'selectedKind', 'draft', 'draftValid'].includes(key))) throw new TypeError('Unexpected visual state field.');
+      if (Object.keys(state).some(key => !['buildings', 'selectedKind', 'draft', 'draftValid', 'workers'].includes(key))) throw new TypeError('Unexpected visual state field.');
+      for (const worker of state.workers ?? []) {
+        if (Object.keys(worker).some(key => !WORKER_VISUAL_FIELDS.includes(key))) throw new TypeError('Unexpected visual worker field.');
+      }
       const placementFields = ['kind', 'x', 'z', 'rotation'];
       const buildingFields = ['kind', 'placement', 'completedLevel', 'targetLevel', 'phase', 'startsAtMicros', 'completesAtMicros'];
       for (const view of state.buildings) {
@@ -283,6 +389,20 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         scene.add(building.root); buildings.set(view.kind, { key, building, view, reveal: reveal ? -1 : null });
       }
       fallback = baseFallback === 'none' && [...buildings.values()].some(entry => entry.building.fallback) ? 'asset' : baseFallback;
+      if (contactBatch) {
+        let index = 0; const transform = new THREE.Matrix4(); const turn = new THREE.Quaternion(); const up = new THREE.Vector3(0, 1, 0);
+        for (const { view } of buildings.values()) {
+          if (index >= contactBatch.instanceMatrix.count) break;
+          const [width, depth] = KEEP04_FOOTPRINTS[view.kind];
+          transform.compose(new THREE.Vector3(Number(view.placement.x) / 1e6, .035, Number(view.placement.z) / 1e6),
+            turn.setFromAxisAngle(up, -view.placement.rotation * Math.PI / 180000), new THREE.Vector3(width * .64 + .6, 1, depth * .64 + .6));
+          contactBatch.setMatrixAt(index, transform);
+          nightPools?.setMatrixAt(index, transform.scale(new THREE.Vector3(1.45, 1, 1.45)));
+          index++;
+        }
+        contactBatch.count = index; contactBatch.instanceMatrix.needsUpdate = true; contactBatch.computeBoundingSphere();
+        if (nightPools) { nightPools.count = index; nightPools.instanceMatrix.needsUpdate = true; nightPools.computeBoundingSphere(); }
+      }
       pickTargets.length = 0; pickKinds.clear();
       for (const [kind, entry] of buildings) { pickTargets.push(entry.building.root); pickKinds.set(entry.building.root, kind); }
       const nextIndicatorKey = `${state.selectedKind}:${state.draft?.kind}:${state.draft?.x}:${state.draft?.z}:${state.draft?.rotation}:${state.draftValid}:${state.selectedKind ? buildings.get(state.selectedKind)?.key : ''}`;
@@ -292,6 +412,7 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         if (picked) selected = footprint(picked.view.placement, '#dfc6ff', 'selected-footprint');
         if (state.draft && !buildings.has(state.draft.kind)) draft = footprint(state.draft, state.draftValid ? '#d9f3be' : '#ffab7c', 'draft-footprint');
       }
+      life?.reconcile({ buildings: state.buildings, workers: state.workers ?? [] });
       scene.updateMatrixWorld(true);
       visualState = state;
     }
@@ -345,8 +466,15 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         if (!position || Math.abs(position.x) > 44 || position.z < -40 || position.z > 32) return null;
         return Object.freeze({ kind, x: BigInt(Math.round(position.x * 2)) * 500000n, z: BigInt(Math.round(position.z * 2)) * 500000n, rotation: 0 });
       },
-      update: elapsed => {
-        if (disposed || options.reducedMotion) return false; let active = false;
+      update: (elapsed, ambient = true) => {
+        if (disposed) return false;
+        applyDaylight();
+        if (options.reducedMotion) return false; let active = false;
+        if (animateAmbient && ambient) {
+          // Both run every ambient frame; neither touches placement or picking.
+          const turning = landscape?.update(elapsed) ?? false; const living = life?.update(elapsed) ?? false;
+          active = turning || living;
+        }
         for (const entry of buildings.values()) if (entry.reveal !== null) {
           if (entry.reveal === -1) entry.reveal = elapsed;
           const t = Math.max(0, Math.min(1, (elapsed - entry.reveal) / .45)); entry.building.root.scale.setScalar(.94 + .06 * t);
@@ -354,8 +482,12 @@ export function createKeep04Scene(options: Readonly<{ quality: Quality04; reduce
         }
         return active;
       },
-      telemetry: () => ({ ...measureKeep04Object(scene), voxelPreparationMs, voxelQuads: disposed ? 0 : voxelQuads, sceneryInstances: disposed ? 0 : budget.trees, buildingCount: buildings.size, pickTargetCount: pickTargets.length, fallback }),
+      telemetry: () => ({ ...measureKeep04Object(scene), voxelPreparationMs, voxelQuads: disposed ? 0 : voxelQuads, sceneryInstances: disposed ? 0 : budget.trees,
+        landscapeInstances: disposed ? 0 : landscape?.instanceCount ?? 0, lifeActors: disposed ? 0 : life?.actors() ?? 0,
+        buildingCount: buildings.size, pickTargetCount: pickTargets.length, fallback }),
       dispose,
+      daylight: () => daylight,
+      exposure: () => daylight.exposure,
     };
   } catch (error) { dispose(); throw error; }
 }

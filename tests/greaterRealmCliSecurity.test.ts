@@ -650,6 +650,18 @@ describe('Greater Realm atlas CLI security boundary', () => {
         rootSeed,
         rejectedAttempt,
       })).not.toThrow();
+      const majorRiverCount = candidate.aggregate.hydrology.majorRivers;
+      expect(() => verifyGreaterRealmPrivateRejectedAttempt({
+        rootSeed,
+        rejectedAttempt: { ...rejectedAttempt, majorRiverCount },
+      })).not.toThrow();
+      expect(() => verifyGreaterRealmPrivateRejectedAttempt({
+        rootSeed,
+        rejectedAttempt: {
+          ...rejectedAttempt,
+          majorRiverCount: majorRiverCount === 72 ? 71 : majorRiverCount + 1,
+        },
+      })).toThrow('GREATER_REALM_PRIVATE_ATTEMPT_LEDGER_INVALID');
       expect(() => verifyGreaterRealmPrivateRejectedAttempt({
         rootSeed,
         rejectedAttempt: Object.freeze({
@@ -672,10 +684,9 @@ describe('Greater Realm atlas CLI security boundary', () => {
       clearGreaterRealmPrivateCandidateBuffers(candidate);
       rootSeed.fill(0);
     }
-  // Four independent full-candidate generations prove that verification never
-  // trusts the supplied rejection ledger. Two-worker CI measured 329 seconds;
-  // retain a bounded eight-minute ceiling without weakening replay coverage.
-  }, 480_000);
+  // Six full-candidate generations cover historical records, retained river
+  // measurements and tampered counts/proofs without trusting the supplied ledger.
+  }, 720_000);
 
   it('replays out-of-contract active grids only through the branded geography ledger', () => {
     const rootSeed = Uint8Array.from(createHash('sha256')

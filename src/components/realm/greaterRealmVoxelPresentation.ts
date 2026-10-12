@@ -295,14 +295,24 @@ function prefabVoxels(kind: GreaterRealmVoxelPrefabKind) {
     }
   };
   if (kind === 'castle') {
-    box(-2, 2, 0, 5, -2, 2, 8);
-    for (const [x, z] of [[-3, -3], [-3, 2], [2, -3], [2, 2]] as const) {
-      box(x, x + 1, 0, 6, z, z + 1, 9);
-    }
+    // Verdant Citadel keep in the shared semantic palette: grey stone plinth (9),
+    // pale masonry (15), teal roofs (5), timber gate (10), gold lit windows (11)
+    // and one restrained violet banner (12).
+    box(-3, 3, 0, 0, -3, 3, 9);
+    box(-2, 2, 1, 5, -2, 2, 15);
     for (let value = -2; value <= 2; value += 2) {
-      put(value, 6, -2, 9); put(value, 6, 2, 9);
-      put(-2, 6, value, 9); put(2, 6, value, 9);
+      put(value, 6, -2, 15); put(value, 6, 2, 15);
+      put(-2, 6, value, 15); put(2, 6, value, 15);
     }
+    box(-1, 1, 6, 6, -1, 1, 5);
+    put(0, 7, 0, 5);
+    for (const [x, z] of [[-3, -3], [-3, 2], [2, -3], [2, 2]] as const) {
+      box(x, x + 1, 1, 6, z, z + 1, 15);
+      box(x, x + 1, 7, 7, z, z + 1, 5);
+    }
+    put(0, 1, 2, 10); put(0, 2, 2, 10);
+    put(-1, 4, 2, 11); put(1, 4, 2, 11); put(2, 4, 0, 11); put(-2, 4, 0, 11);
+    put(0, 8, 0, 10); put(0, 9, 0, 10); put(1, 9, 0, 12); put(1, 8, 0, 12);
   } else if (kind === 'ruin') {
     box(-3, 2, 0, 1, -1, -1, 8);
     box(-3, -2, 0, 3, -1, 2, 8);

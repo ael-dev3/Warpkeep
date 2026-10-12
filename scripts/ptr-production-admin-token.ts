@@ -30,7 +30,7 @@ const PTR_ATLAS_ADMIN_CLAIM_KEYS = Object.freeze([
 ] as const);
 
 export class PtrProductionAdminTokenError extends Error {
-  constructor(readonly code: string) {
+  constructor(readonly code: string, readonly retryAfterSeconds?: number) {
     super(code);
     this.name = 'PtrProductionAdminTokenError';
   }
@@ -56,6 +56,7 @@ export type PtrOwnerProvisionAuthority = Readonly<{
 }>;
 
 export type PtrAtlasImportAuthority = Readonly<{
+  expiresAt: number;
   issuer: typeof PTR_ADMIN_ISSUER;
   subject: 'service:hermes';
   audience: readonly [typeof PTR_ADMIN_AUDIENCE];
@@ -141,6 +142,7 @@ export function readPtrAtlasImportAuthority(
       || !/^[A-Za-z0-9_-]{1,128}$/u.test(record.jti)
     ) fail(code);
     return Object.freeze({
+      expiresAt: record.exp as number,
       issuer: PTR_ADMIN_ISSUER,
       subject: 'service:hermes',
       audience: Object.freeze([PTR_ADMIN_AUDIENCE] as const),
@@ -323,84 +325,93 @@ function exactTokenResponse(value: unknown): string {
   return record.token;
 }
 
+type PtrAdminTokenRequestOptions = Readonly<{
+  fetchImpl?: typeof fetch;
+  timeoutMilliseconds?: number;
+  signal?: AbortSignal;
+}>;
+const MAXIMUM_MINT_ATTEMPTS = 3;
+
+async function waitForTokenMintRetry(seconds: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) fail('PTR_PRODUCTION_ADMIN_TOKEN_UNAVAILABLE');
+  await new Promise<void>((resolve, reject) => {
+    const cleanup = () => { clearTimeout(timer); signal?.removeEventListener('abort', cancel); };
+    const cancel = () => { cleanup(); reject(new PtrProductionAdminTokenError('PTR_PRODUCTION_ADMIN_TOKEN_UNAVAILABLE')); };
+    const timer = setTimeout(() => { cleanup(); resolve(); }, seconds * 1_000);
+    signal?.addEventListener('abort', cancel, { once: true });
+    if (signal?.aborted) cancel();
+  });
+}
+
 async function requestPtrAdminTokenAtEndpoint(
   secret: string,
   endpoint: typeof PTR_ADMIN_TOKEN_ENDPOINT | typeof PTR_ATLAS_ADMIN_TOKEN_ENDPOINT,
-  options: Readonly<{
-    fetchImpl?: typeof fetch;
-    timeoutMilliseconds?: number;
-  }> = {},
+  options: PtrAdminTokenRequestOptions = {},
 ): Promise<string> {
   if (!validSecret(secret)) fail('PTR_PRODUCTION_ADMIN_SECRET_INVALID');
-  const timeoutMilliseconds = options.timeoutMilliseconds
-    ?? REQUEST_TIMEOUT_MILLISECONDS;
-  if (
-    !Number.isSafeInteger(timeoutMilliseconds)
-    || timeoutMilliseconds < 1
-    || timeoutMilliseconds > REQUEST_TIMEOUT_MILLISECONDS
-  ) fail('PTR_PRODUCTION_ADMIN_TOKEN_REQUEST_INVALID');
+  const timeoutMilliseconds = options.timeoutMilliseconds ?? REQUEST_TIMEOUT_MILLISECONDS;
+  if (!Number.isSafeInteger(timeoutMilliseconds) || timeoutMilliseconds < 1
+    || timeoutMilliseconds > REQUEST_TIMEOUT_MILLISECONDS) fail('PTR_PRODUCTION_ADMIN_TOKEN_REQUEST_INVALID');
   const fetchImpl = options.fetchImpl ?? fetch;
-  if (typeof fetchImpl !== 'function') {
-    fail('PTR_PRODUCTION_ADMIN_TOKEN_REQUEST_INVALID');
-  }
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMilliseconds);
-  const headers = new Headers({
-    accept: 'application/json',
-    authorization: `Bearer ${secret}`,
-  });
+  if (typeof fetchImpl !== 'function') fail('PTR_PRODUCTION_ADMIN_TOKEN_REQUEST_INVALID');
   try {
-    const response = await fetchImpl(endpoint, {
-      method: 'POST',
-      headers,
-      cache: 'no-store',
-      credentials: 'omit',
-      redirect: 'error',
-      referrerPolicy: 'no-referrer',
-      signal: controller.signal,
-    });
-    if (
-      response.status !== 200
-      || response.redirected
-      || response.headers.get('cache-control') !== 'no-store'
-      || !/^application\/json(?:;|$)/iu.test(
-        response.headers.get('content-type') ?? '',
-      )
-    ) fail('PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
-    const text = await readBoundedResponse(response);
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      return fail('PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+    for (let attempt = 0; attempt < MAXIMUM_MINT_ATTEMPTS; attempt++) {
+      if (options.signal?.aborted) fail('PTR_PRODUCTION_ADMIN_TOKEN_UNAVAILABLE');
+      const controller = new AbortController();
+      const cancel = () => controller.abort();
+      options.signal?.addEventListener('abort', cancel, { once: true });
+      const timer = setTimeout(cancel, timeoutMilliseconds);
+      if (options.signal?.aborted) controller.abort();
+      const headers = new Headers({ accept: 'application/json', authorization: `Bearer ${secret}` });
+      let retryAfterSeconds: number | undefined;
+      try {
+        const response = await fetchImpl(endpoint, {
+          method: 'POST', headers, cache: 'no-store', credentials: 'omit', redirect: 'error',
+          referrerPolicy: 'no-referrer', signal: controller.signal,
+        });
+        if (controller.signal.aborted) fail('PTR_PRODUCTION_ADMIN_TOKEN_UNAVAILABLE');
+        if (response.redirected || response.headers.get('cache-control') !== 'no-store'
+          || !/^application\/json(?:;|$)/iu.test(response.headers.get('content-type') ?? ''))
+          fail('PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+        if (response.status === 429) {
+          const value = response.headers.get('retry-after');
+          if (value === null || !/^[1-9][0-9]{0,2}$/u.test(value) || Number(value) > 300)
+            fail('PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+          retryAfterSeconds = Number(value);
+          try { await response.body?.cancel(); } catch { /* Never retain or expose the error body. */ }
+        } else {
+          if (response.status !== 200) fail('PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID');
+          const text = await readBoundedResponse(response);
+          let parsed: unknown;
+          try { parsed = JSON.parse(text); } catch { return fail('PTR_PRODUCTION_ADMIN_TOKEN_RESPONSE_INVALID'); }
+          if (controller.signal.aborted) fail('PTR_PRODUCTION_ADMIN_TOKEN_UNAVAILABLE');
+          return exactTokenResponse(parsed);
+        }
+      } catch (error) {
+        if (error instanceof PtrProductionAdminTokenError) throw error;
+        return fail('PTR_PRODUCTION_ADMIN_TOKEN_UNAVAILABLE');
+      } finally {
+        headers.delete('authorization'); clearTimeout(timer);
+        options.signal?.removeEventListener('abort', cancel);
+      }
+      if (attempt === MAXIMUM_MINT_ATTEMPTS - 1)
+        throw new PtrProductionAdminTokenError('PTR_PRODUCTION_ADMIN_TOKEN_RATE_LIMITED', retryAfterSeconds);
+      await waitForTokenMintRetry(retryAfterSeconds!, options.signal);
     }
-    return exactTokenResponse(parsed);
-  } catch (error) {
-    if (error instanceof PtrProductionAdminTokenError) throw error;
-    return fail('PTR_PRODUCTION_ADMIN_TOKEN_UNAVAILABLE');
-  } finally {
-    headers.delete('authorization');
-    secret = '';
-    clearTimeout(timer);
-  }
+    return fail('PTR_PRODUCTION_ADMIN_TOKEN_RATE_LIMITED');
+  } finally { secret = ''; }
 }
 
 export function requestPtrProductionAdminToken(
   secret: string,
-  options: Readonly<{
-    fetchImpl?: typeof fetch;
-    timeoutMilliseconds?: number;
-  }> = {},
+  options: PtrAdminTokenRequestOptions = {},
 ): Promise<string> {
   return requestPtrAdminTokenAtEndpoint(secret, PTR_ADMIN_TOKEN_ENDPOINT, options);
 }
 
 export function requestPtrAtlasProductionAdminToken(
   secret: string,
-  options: Readonly<{
-    fetchImpl?: typeof fetch;
-    timeoutMilliseconds?: number;
-  }> = {},
+  options: PtrAdminTokenRequestOptions = {},
 ): Promise<string> {
   return requestPtrAdminTokenAtEndpoint(
     secret,

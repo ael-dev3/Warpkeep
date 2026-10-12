@@ -17,7 +17,24 @@ export const LOCAL_FULLSTACK_FOUNDER_COUNT: number;
 export const LOCAL_FULLSTACK_WORKER_COUNT: number;
 export const LOCAL_FULLSTACK_INNER_KEEP_RESOURCES: Readonly<Record<string, bigint>>;
 
-export class LocalFullstackRuntimeError extends Error {}
+export type LocalFullstackCliTerminal = Readonly<{
+  code: number | null;
+  signal: NodeJS.Signals | null;
+  spawnError: string | null;
+  timedOut: boolean;
+  overflow: boolean;
+}>;
+export type LocalFullstackCliResult = Readonly<{
+  code: number;
+  signal: null;
+  spawnError: null;
+  timedOut: false;
+  overflow: false;
+}>;
+export class LocalFullstackRuntimeError extends Error {
+  readonly terminal?: LocalFullstackCliTerminal;
+  readonly lifecycle?: Readonly<{ callbackFailed: boolean; retirementFailed: boolean; closeObserved: boolean }>;
+}
 
 export function runDisposableLocalFullstackCli(
   executable: string,
@@ -26,9 +43,9 @@ export function runDisposableLocalFullstackCli(
     environment: Readonly<Record<string, string>>;
     timeout?: number;
     secrets?: readonly string[];
-    onProcess?: (child: ChildProcess | undefined, previous?: ChildProcess) => void;
+    onProcess?: (child: ChildProcess | undefined, previous?: ChildProcess) => void | Promise<void>;
   }>,
-): Promise<Readonly<{ code: number }>>;
+): Promise<LocalFullstackCliResult>;
 
 export function terminateLocalFullstackProcessGroup(
   child: LocalFullstackProcessHandle | undefined,

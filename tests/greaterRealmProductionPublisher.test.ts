@@ -343,6 +343,11 @@ async function startPublishSupervisorCrashFixture(
     mode,
     supervisorRoot,
   ], { stdio: ['ignore', 'pipe', 'inherit'] });
+  // Observe close from spawn onward, including a fixture that exits before the
+  // parent reaches its intended kill. Do not wait on an already emitted event.
+  const closed = new Promise<Readonly<{ code: number | null; signal: NodeJS.Signals | null }>>(
+    resolvePromise => child.once('close', (code, signal) => resolvePromise({ code, signal })),
+  );
   const identity = await new Promise<GreaterRealmPublishSupervisorIdentity>(
     (resolvePromise, rejectPromise) => {
       let output = '';
@@ -366,7 +371,7 @@ async function startPublishSupervisorCrashFixture(
       });
     },
   );
-  return Object.freeze({ child, identity });
+  return Object.freeze({ child, identity, closed });
 }
 
 async function waitForPublishSupervisor(
@@ -1218,8 +1223,13 @@ describe('Greater Realm production publisher lanes', () => {
     let fixture: Awaited<ReturnType<typeof startPublishSupervisorCrashFixture>> | undefined;
     try {
       fixture = await startPublishSupervisorCrashFixture('pre-gate', supervisorRoot);
-      fixture.child.kill('SIGKILL');
-      await new Promise<void>(resolvePromise => fixture!.child.once('close', () => resolvePromise()));
+      if (fixture.child.exitCode !== null || fixture.child.signalCode !== null) {
+        throw new Error('publish supervisor fixture closed before intended SIGKILL');
+      }
+      if (!fixture.child.kill('SIGKILL')) {
+        throw new Error('publish supervisor fixture SIGKILL was not sent');
+      }
+      expect(await fixture.closed).toEqual({ code: null, signal: 'SIGKILL' });
       const inspection = await waitForPublishSupervisor(
         fixture.identity,
         value => value.status.state === 'pre-gate-zero-write'
@@ -1294,8 +1304,13 @@ describe('Greater Realm production publisher lanes', () => {
         value => value.status.state === 'gate-consumed' && value.processGroupExists,
       );
       pgid = ready.status.pgid as number;
-      fixture.child.kill('SIGKILL');
-      await new Promise<void>(resolvePromise => fixture!.child.once('close', () => resolvePromise()));
+      if (fixture.child.exitCode !== null || fixture.child.signalCode !== null) {
+        throw new Error('publish supervisor fixture closed before intended SIGKILL');
+      }
+      if (!fixture.child.kill('SIGKILL')) {
+        throw new Error('publish supervisor fixture SIGKILL was not sent');
+      }
+      expect(await fixture.closed).toEqual({ code: null, signal: 'SIGKILL' });
       const live = await waitForPublishSupervisor(
         fixture.identity,
         value => value.status.state === 'gate-consumed' && value.processGroupExists,
@@ -1365,9 +1380,7 @@ describe('Greater Realm production publisher lanes', () => {
     let fixture: Awaited<ReturnType<typeof startPublishSupervisorCrashFixture>> | undefined;
     try {
       fixture = await startPublishSupervisorCrashFixture('spawn-authorized', supervisorRoot);
-      if (fixture.child.exitCode === null && fixture.child.signalCode === null) {
-        await new Promise<void>(resolvePromise => fixture!.child.once('close', () => resolvePromise()));
-      }
+      await fixture.closed;
       expect(inspectGreaterRealmPublishSupervisor(fixture.identity)).toMatchObject({
         status: { state: 'spawn-authorized' },
         processGroupExists: false,
@@ -1396,7 +1409,7 @@ describe('Greater Realm production publisher lanes', () => {
           `gate-consumed-${boundary}`,
           supervisorRoot,
         );
-        await new Promise<void>(resolvePromise => fixture!.child.once('close', () => resolvePromise()));
+        await fixture.closed;
         const inspection = await waitForPublishSupervisor(
           fixture.identity,
           value => value.processGroupExists === false,

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { Sha256, updateLengthFramedSha256 } from '../spacetimedb/ptr/src/sha256';
 
 import {
   verifyPtrGreaterRealmRuntimeReleaseArtifacts,
@@ -143,14 +144,21 @@ const IMPORT_RECEIPT_KEYS = Object.freeze([
 ] as const);
 
 export class PtrProductionImportError extends Error {
-  constructor(readonly code: string, readonly submitted = false) {
+  constructor(readonly code: string, readonly submitted = false, readonly diagnosticCode: string | null = null) {
     super(code);
     this.name = 'PtrProductionImportError';
   }
 }
 
-function fail(code: string, submitted = false): never {
-  throw new PtrProductionImportError(code, submitted);
+export function readPtrImportDiagnosticCode(error: unknown): string | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const raw = error instanceof PtrProductionImportError && error.diagnosticCode !== null
+    ? error.diagnosticCode : 'code' in error ? error.code : undefined;
+  return typeof raw === 'string' && /^(?:PTR_|GREATER_REALM_)[A-Z0-9_]{1,120}$/u.test(raw) ? raw : null;
+}
+
+function fail(code: string, submitted = false, diagnosticCode: string | null = null): never {
+  throw new PtrProductionImportError(code, submitted, diagnosticCode);
 }
 
 function exactRecord(
@@ -576,6 +584,49 @@ function assertBoundStatus(
   ) fail('PTR_PRODUCTION_IMPORT_RELEASE_BINDING_INVALID');
 }
 
+/** Recovery admits an independently verified initialized component prefix, before terrain import. */
+export function assertPtrProductionInitialStagedStatus(status: PtrProductionStatus, authority: Authority, componentPrefixCount = 0, regionsImported = false): void {
+  assertBoundStatus(status, authority, 1n);
+  if (!Number.isSafeInteger(componentPrefixCount) || componentPrefixCount < 0 || componentPrefixCount > authority.components.length
+    || typeof regionsImported !== 'boolean' || (regionsImported && componentPrefixCount !== authority.components.length))
+    fail('PTR_PRODUCTION_INITIAL_STAGE_DIFFERENT');
+  const prefix = authority.components.slice(0, componentPrefixCount);
+  const total = (key: string) => prefix.reduce((sum, row) => sum + Number(row[key]), 0);
+  const hash = new Sha256().update('warpkeep.greater-realm.release.v1\n');
+  updateLengthFramedSha256(hash, new TextEncoder().encode(authority.headerJson));
+  if (!status.present || status.state !== 'importing'
+    || status.verificationPhase !== 'components' || status.verificationCursor !== 0n
+    || status.verificationDigest !== hash.serialize() || status.ready || status.importsExact
+    || !status.importMutationsCompiled || status.activationMutationsCompiled
+    || status.regionManifestRows !== (regionsImported ? authority.totals.regionCount : 0)
+    || ['verifiedComponentCount', 'verifiedChunkCount', 'verifiedCellCount', 'verifiedSlotCount',
+      'verifiedResourceNodeCount', 'importedPassableCellCount'].some(key => status[key as keyof PtrProductionStatus] !== 0)
+    || status.componentRows !== BigInt(componentPrefixCount)
+    || status.componentExpectedCellCount !== total('expectedCellCount')
+    || status.componentExpectedSlotCount !== total('expectedSlotCount')
+    || status.componentExpectedResourceNodeCount !== ['expectedFoodNodeCount', 'expectedWoodNodeCount', 'expectedStoneNodeCount', 'expectedGoldNodeCount'].reduce((sum, key) => sum + total(key), 0)
+    || ['chunkRows', 'cellRows', 'slotRows', 'resourceRows', ...ZERO_BOUNDARY_FIELDS]
+      .some(key => status[key as keyof PtrProductionStatus] !== 0n)) fail('PTR_PRODUCTION_INITIAL_STAGE_DIFFERENT');
+}
+
+/** Admit only a separately verified, ownerless, nonpassable terrain prefix. */
+export function assertPtrProductionInitialTerrainPrefixStatus(
+  status: PtrProductionStatus, authority: Authority, componentCount: number,
+  prefix: Readonly<{ chunkCount: number; cellCount: number; digest: string;
+    verificationDigest: string; initialVerificationDigest: string }>,
+): void {
+  if (!prefix || !Number.isSafeInteger(prefix.chunkCount) || prefix.chunkCount < 1
+    || prefix.chunkCount > authority.totals.chunkCount
+    || !Number.isSafeInteger(prefix.cellCount) || prefix.cellCount < 1
+    || prefix.cellCount > authority.totals.cellCount || !SHA256.test(prefix.digest)
+    || typeof prefix.verificationDigest !== 'string' || typeof prefix.initialVerificationDigest !== 'string'
+    || status.chunkRows !== BigInt(prefix.chunkCount) || status.cellRows !== BigInt(prefix.cellCount)
+    || status.verificationDigest !== prefix.verificationDigest)
+    fail('PTR_PRODUCTION_INITIAL_TERRAIN_PREFIX_DIFFERENT');
+  assertPtrProductionInitialStagedStatus({ ...status, chunkRows: 0n, cellRows: 0n,
+    verificationDigest: prefix.initialVerificationDigest }, authority, componentCount, true);
+}
+
 function exactReady(
   status: PtrProductionStatus,
   authority: Authority,
@@ -774,7 +825,7 @@ export async function executePtrProductionImport(input: Readonly<{
         submitted
           ? 'PTR_PRODUCTION_IMPORT_OUTCOME_AMBIGUOUS_MANUAL_RECONCILIATION_REQUIRED'
           : 'PTR_PRODUCTION_IMPORT_INSPECTION_UNAVAILABLE',
-        submitted,
+        submitted, readPtrImportDiagnosticCode(error),
       );
     }
   };
@@ -879,6 +930,7 @@ export async function executePtrProductionImport(input: Readonly<{
     });
     await input.transport.prepareSubmission?.();
     let submissionFailed = false;
+    let submissionDiagnostic: string | null = null;
     input.assertCanStartWrite();
     try {
       await input.transport.submit(
@@ -888,8 +940,9 @@ export async function executePtrProductionImport(input: Readonly<{
         submittedArguments,
         input.assertCanStartWrite,
       );
-    } catch {
+    } catch (error) {
       submissionFailed = true;
+      submissionDiagnostic = readPtrImportDiagnosticCode(error);
     }
     operationsSubmitted += 1;
     const after = await inspect(true);
@@ -908,7 +961,7 @@ export async function executePtrProductionImport(input: Readonly<{
         submissionFailed
           ? 'PTR_PRODUCTION_IMPORT_REJECTED_OR_UNCOMMITTED'
           : 'PTR_PRODUCTION_IMPORT_POSTCONDITION_FAILED',
-        true,
+        true, submissionDiagnostic,
       );
     }
     chain = createHash('sha256')

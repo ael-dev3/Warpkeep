@@ -15,6 +15,7 @@ import {
 } from '../scripts/atlas/greater-realm-candidate-generator';
 import {
   greaterRealmCandidateRejectionCode,
+  greaterRealmCandidateRejectionFrontierTruncationKinds,
 } from '../scripts/atlas/greater-realm-candidate-rejection';
 import { GREATER_REALM_PROOF_KEYS } from '../scripts/atlas/greater-realm-contracts';
 import { GREATER_REALM_ROUTE_CLASS } from '../scripts/atlas/greater-realm-living-world';
@@ -43,7 +44,7 @@ const SAME_FIRST_WORD_BASELINE_ROOT_INDEX = 23_248;
 const SAME_FIRST_WORD_ROOT_INDEX = 41_769;
 const PINNED_ORDINAL = 9;
 const EXPECTED_PINNED_FINAL_DIGEST =
-  '46e23d4a41b38336dbbb4bfb989f734271853673d5eaf2ace4b765e224f1e201';
+  'a3bdf4c9e048b6edde634e0b70e38e6e6697661d26c17e1df757dd24b0f4901c';
 const SAME_FIRST_WORD_ORDINAL = 0;
 const SECONDARY_ORDINAL = 10;
 const REJECTED_ROOT_LABEL = 'greater-realm-secondary-fixture';
@@ -66,6 +67,8 @@ let secondaryEvidence: Readonly<{
 }> | undefined;
 let rejectedFixtureEvidence: Readonly<{
   code: ReturnType<typeof greaterRealmCandidateRejectionCode>;
+  frontierTruncationKinds: readonly string[];
+  searchLanes: readonly string[];
   retiredLargeAuthorityCount: number;
   allRetiredAuthoritiesCleared: boolean;
 }> | undefined;
@@ -317,14 +320,18 @@ beforeAll(() => {
     const uint64Fill = vi.spyOn(BigUint64Array.prototype, 'fill');
     let unexpectedlyGenerated: GreaterRealmPrivateCandidate | undefined;
     let rejectionCode: ReturnType<typeof greaterRealmCandidateRejectionCode>;
+    let frontierTruncationKinds: readonly string[] = Object.freeze([]);
+    const searchLanes: string[] = [];
     try {
       try {
         unexpectedlyGenerated = generateGreaterRealmCandidate({
           rootSeed: rejectedRoot,
           candidateOrdinal: REJECTED_ORDINAL,
+          onGateApronSearchLane: lane => searchLanes.push(lane),
         });
       } catch (error) {
         rejectionCode = greaterRealmCandidateRejectionCode(error);
+        frontierTruncationKinds = greaterRealmCandidateRejectionFrontierTruncationKinds(error);
         if (rejectionCode === undefined) throw error;
       }
       const retiredLargeAuthorities = (
@@ -332,6 +339,8 @@ beforeAll(() => {
       ).filter(values => values.length >= EXPECTED_ACTIVE_CELL_MINIMUM);
       rejectedFixtureEvidence = Object.freeze({
         code: rejectionCode,
+        frontierTruncationKinds,
+        searchLanes: Object.freeze([...searchLanes]),
         retiredLargeAuthorityCount: retiredLargeAuthorities.length,
         allRetiredAuthoritiesCleared: retiredLargeAuthorities.every(values => (
           values.every(value => value === 0n)
@@ -541,13 +550,15 @@ describe('Greater Realm private candidate generator', () => {
     ))).toBe(true);
   });
 
-  it('classifies bounded dry-gate-apron exhaustion as a typed candidate rejection', () => {
+  it('tries bounded repair after apron search limits and clears large topology arrays', () => {
     if (!rejectedFixtureEvidence) {
       throw new Error('GREATER_REALM_REJECTION_EVIDENCE_MISSING');
     }
     expect(rejectedFixtureEvidence.code).toBe(
       'GREATER_REALM_TIER_TWO_DRY_GATE_APRON_SEARCH_NODE_LIMIT',
     );
+    expect(rejectedFixtureEvidence.frontierTruncationKinds).toContain('BUNDLE_OPTION_LIMIT');
+    expect(rejectedFixtureEvidence.searchLanes).toEqual(['ordinary', 'lowlands-repair']);
     expect(rejectedFixtureEvidence.retiredLargeAuthorityCount).toBeGreaterThan(0);
     expect(rejectedFixtureEvidence.allRetiredAuthoritiesCleared).toBe(true);
   }, 180_000);

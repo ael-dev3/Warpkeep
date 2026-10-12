@@ -4,7 +4,7 @@ Status: candidate-generation design only
 
 Atlas: `GENESIS_001_GREATER_REALM`
 
-Generator algorithm: `greater-realm-v2-natural-continent-pr-a.19`
+Generator algorithm: `greater-realm-v2-natural-continent-pr-a.24`
 Terrain-seed namespace: `greater-realm-v2-natural-continent-pr-a.3`
 Private atlas format: `8`
 Living-world authority: `greater-realm-private-living-world-v4`
@@ -72,10 +72,15 @@ the package implementation. There is no mutable random stream and no
 
 The current authority revision binds the two private density channels,
 marsh-aware dressing, domain material records, final water-body metadata, and
-the audited patch/chunk contract as living-world v4, generator `.19`, and
+the audited patch/chunk contract as living-world v4, generator `.22`, and
 private atlas format 8. The terrain-seed namespace intentionally remains `.3`:
 these are authority and package revisions, not authorization to reroll the
-owner's candidate ordinal.
+owner's candidate ordinal. Search revision `.20` added deterministic
+compatibility-aware sibling-group ordering. Revision `.21` raised the bounded
+bundle-pair frontier from 512 to 1,024, but a fresh 256-attempt run still
+terminated at that frontier in 124 geography attempts. Revision `.22` raises
+only that cap from 1,024 to 2,048; both revisions preserve the seed bytes and
+candidate proof contract.
 
 Each candidate runs independently through these stage families:
 

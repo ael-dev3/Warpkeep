@@ -7,11 +7,11 @@ competing sources of gameplay truth.
 
 | Repository | Responsibility | Current status and handoff |
 | --- | --- | --- |
-| [Warpkeep](https://github.com/ael-dev3/Warpkeep) | Private game development: browser/Farcaster client, authoritative gameplay, services, runtime media, validation, and release/recovery operations | `main` holds an earlier integrated 0.4 foundation and preserved G001 implementation. The active, unmerged candidate is [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374). Follow the [execution handoff](../agent-notes/0.4.0/execution-handoff.md) and current refs before continuing it. |
+| [Warpkeep](https://github.com/ael-dev3/Warpkeep) | Private game development: browser/Farcaster client, authoritative gameplay, services, runtime media, validation, and release/recovery operations | `main` holds an earlier integrated 0.4 foundation and preserved G001 implementation. Resolve the development candidate from the latest [execution handoff](../agent-notes/0.4.0/execution-handoff.md), current branch/remote refs and relevant pull requests. Historical PR numbers do not identify current source. |
 | [Warpkeep-Live](https://github.com/ael-dev3/Warpkeep-Live) | Public hosting repository for generated frontend assets and published legal/provenance records | Alpha 0.3.43 is served at [warpkeep.com](https://warpkeep.com/). This repository contains no private development source or unpublished 0.4 build. PTR publication remains part of the game repository's release workflow. |
 | [Warpkeep Assets](https://github.com/ael-dev3/Warpkeep-Assets) | Private visual source archive, dated releases, manifests, provenance, and file-specific reuse terms | Existing archive. A stored asset is not automatically approved, optimized, or integrated into the game. Runtime adoption needs game-side validation and attribution. |
 | [Warpkeep Water Engine](https://github.com/ael-dev3/Warpkeep-Water-Engine) | Planned home for reusable water rendering work | Placeholder repository. Current water implementation and tests live in Warpkeep; no standalone engine package or public demo is established here. |
-| [Tervain](https://github.com/ael-dev3/Tervain) | Private sibling single-player fantasy RPG; suitable original environment art, asset tools and renderer techniques can be shared | Developed alongside Warpkeep with its own player experience, saves and visual identity. Use the source and asset records below before adapting work; it does not own Warpkeep accounts, realms or release authority. |
+| [Tervain](https://github.com/ael-dev3/Tervain) | Public sibling single-player fantasy RPG; suitable original environment art, asset tools and renderer techniques can be shared | Developed alongside Warpkeep with its own player experience, saves and visual identity. Use the source and asset records below before adapting work; it does not own Warpkeep accounts, realms or release authority. |
 | Ael's GitHub profile | Introduce the person, selected public projects, and links to their canonical documentation | Public presentation. Keep descriptions consistent with project evidence; avoid private project information and unsupported release claims. |
 
 ## Runtime and infrastructure remain together
@@ -126,6 +126,38 @@ keeping dependency versions, tests, lifecycle ownership and performance checks
 in their real consumers. Extract a shared package only when both consumers
 need and verify the same implementation; do not add an unused framework to
 make the relationship appear complete.
+
+## Current Tervain source review, 7 October 2026
+
+The public `main` source reviewed for this pass is
+`5962466effb770d1c82f68db46091178f17adbcb`. Its README describes the `0.0.13`
+browser prototype and a longer PC/Steam direction; it does not claim a finished
+desktop package or Steam integration. GitHub's recursive tree response was
+truncated, so this review is based on bounded project documentation and license
+records, not an exhaustive asset inventory or binary inspection.
+
+Tervain's root `LICENSE` offers PolyForm Noncommercial 1.0.0 only to eligible
+original software code as scoped by `LICENSE-SCOPE.md`. It does not license the
+whole repository or its art, music, models, story, branding or third-party
+content. `NOTICE` also distinguishes Warpkeep-derived Apache-2.0 code,
+owner-authorized Warpkeep model copies, per-model permissions and generated
+audio whose commercial/Steam clearance is not established. The shared-asset
+record describes the copied Warpkeep models as archive-only. Tervain's public
+visibility and its code license do not create a blanket grant to move its
+content into Warpkeep. No files were downloaded, copied or imported in this
+review.
+
+The useful carryover for this mobile strategy game is in the working method:
+compose readable routes through layered vegetation and visible landmarks;
+separate menu opening, resource acquisition, saved-world restoration and the
+first ready frame; keep simulation and audio paused until preparation succeeds;
+and validate actual rendered output alongside structural checks. Its
+loading-performance guide specifically favors real renderer warm-up over an
+arbitrary delay. Apply those practices only where a current Warpkeep journey or
+measured defect benefits. Tervain's rugged RPG palette, faction fiction,
+cinematic menu treatment and desktop-only acceptance are not new Warpkeep
+requirements; keep the 0.4 Verdant Citadel direction and mobile performance
+gates authoritative.
 
 ## Keep the ecosystem understandable
 

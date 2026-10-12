@@ -8,14 +8,11 @@ import {
 } from './releaseRecoveryObservation'
 import type { WorkerEnv } from './types'
 
-export {
-  RELEASE_ATTESTATION_PATH,
-  RELEASE_ATTESTATION_PROFILE,
-  createAuthBridge,
-} from './app'
+// Workerd treats every value export as a runtime entrypoint. Keep metadata
+// constants in their owning modules: primitive exports prevent Worker startup.
+export { createAuthBridge } from './app'
 export type { BridgeReleaseAttestation } from './app'
 export {
-  ADMISSION_NOTIFICATION_DELIVERY_CONTRACT_PROFILE,
   AdmissionNotification,
   DurableObjectAdmissionNotificationStore,
   admissionNotificationDeliveryContractDigest,

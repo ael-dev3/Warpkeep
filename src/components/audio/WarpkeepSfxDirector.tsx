@@ -11,6 +11,10 @@ import {
   subscribeWarpkeepWaterAmbience,
   type WarpkeepWaterAmbienceState
 } from './waterAmbience';
+import {
+  subscribeWarpkeepKeepAmbience,
+  type WarpkeepKeepAmbienceState
+} from './keepSoundscape';
 
 export interface WarpkeepSfxDirectorEngine {
   activateFromTrustedGesture: (trusted: boolean) => Promise<boolean>;
@@ -20,6 +24,8 @@ export interface WarpkeepSfxDirectorEngine {
   setHidden: (hidden: boolean) => void;
   setMuted: (muted: boolean) => void;
   setWaterAmbience: (state: WarpkeepWaterAmbienceState) => void;
+  /** Optional so older test engines remain valid; production always provides it. */
+  setKeepAmbience?: (state: WarpkeepKeepAmbienceState) => void;
   stopAll: () => void;
 }
 
@@ -202,6 +208,9 @@ export function WarpkeepSfxDirector({
     const unsubscribeWaterAmbience = subscribeWarpkeepWaterAmbience((state) => {
       engine.setWaterAmbience(state);
     });
+    const unsubscribeKeepAmbience = subscribeWarpkeepKeepAmbience((state) => {
+      engine.setKeepAmbience?.(state);
+    });
 
     window.addEventListener('pointerdown', activate, { capture: true, passive: true });
     window.addEventListener('pointerup', activate, { capture: true, passive: true });
@@ -213,6 +222,7 @@ export function WarpkeepSfxDirector({
       unsubscribeEvents();
       unsubscribeStop();
       unsubscribeWaterAmbience();
+      unsubscribeKeepAmbience();
       window.removeEventListener('pointerdown', activate, true);
       window.removeEventListener('pointerup', activate, true);
       window.removeEventListener('keydown', activate, true);

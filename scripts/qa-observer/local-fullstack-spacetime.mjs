@@ -309,7 +309,14 @@ export async function runDisposableLocalFullstackCli(executable, arguments_, opt
   return new Promise((resolveRun, rejectRun) => {
     let settled = false;
     let timedOut = false;
+    let overflow = false;
+    let spawnError = null;
+    let callbackFailed = false;
+    let retirementFailed = false;
+    let closeObserved = false;
     let deadline;
+    let retirement;
+    let registration = Promise.resolve();
     const child = spawn(executable, arguments_, {
       cwd: REPOSITORY_ROOT,
       detached: true,
@@ -318,50 +325,75 @@ export async function runDisposableLocalFullstackCli(executable, arguments_, opt
       stdio: ['ignore', 'pipe', 'pipe'],
       windowsHide: true,
     });
-    options.onProcess?.(child);
     const terminate = () => {
-      try { killDisposableProcessTree(child.pid, 'SIGKILL'); } catch {
-        try { child.kill('SIGKILL'); } catch {
-          // The bounded failure remains authoritative.
-        }
-      }
+      try { killDisposableProcessTree(child.pid, 'SIGKILL'); }
+      catch { try { child.kill('SIGKILL'); } catch { /* Actual failure remains rejected. */ } }
     };
-    const stdout = collectBounded(child.stdout, terminate);
-    const stderr = collectBounded(child.stderr, terminate);
-    const finish = (callback) => {
+    const outputOverflow = () => { overflow = true; terminate(); };
+    const stdout = collectBounded(child.stdout, outputOverflow);
+    const stderr = collectBounded(child.stderr, outputOverflow);
+    const terminal = (code, signal) => Object.freeze({ code, signal, spawnError, timedOut, overflow });
+    const rejectWithTerminal = (error, actual) => {
+      Object.defineProperty(error, 'terminal', { value: actual, enumerable: true });
+      Object.defineProperty(error, 'lifecycle', { value: Object.freeze({
+        callbackFailed, retirementFailed, closeObserved,
+      }), enumerable: true });
+      rejectRun(error);
+    };
+    const retire = () => {
+      if (!retirement) retirement = terminateLocalFullstackProcessGroup(child)
+        .catch(() => { retirementFailed = true; });
+      return retirement;
+    };
+    const invokeCallback = async (current, previous) => {
+      let callbackDeadline;
+      try {
+        // The callback can await the source-owned IPC ACK. It cannot hold cleanup forever.
+        const callback = current === undefined
+          ? options.onProcess?.(undefined, previous)
+          : options.onProcess?.(current);
+        await Promise.race([Promise.resolve(callback), new Promise((_done, reject) => {
+          callbackDeadline = setTimeout(() => reject(new Error('callback deadline')), SERVER_STOP_TIMEOUT_MILLISECONDS);
+        })]);
+      } catch {
+        callbackFailed = true;
+        await retire();
+      } finally { clearTimeout(callbackDeadline); }
+    };
+    const finish = async (actual) => {
       if (settled) return;
       settled = true;
       clearTimeout(deadline);
-      options.onProcess?.(undefined, child);
-      callback();
-    };
-    child.once('error', () => finish(() => rejectRun(
-      new LocalFullstackRuntimeError('Local CLI process could not start.')
-    )));
-    child.once('close', (code) => finish(() => {
+      await registration;
+      await invokeCallback(undefined, child);
       try {
-        if (timedOut) {
-          rejectRun(new LocalFullstackRuntimeError('Local CLI command exceeded its deadline.'));
-          return;
+        if (callbackFailed || retirementFailed) fail('Local CLI process lifecycle could not be contained.');
+        if (spawnError !== null) fail('Local CLI process could not start.');
+        if (timedOut) fail('Local CLI command exceeded its deadline.');
+        if (overflow) fail('Local CLI output exceeded its bound.');
+        if (!closeObserved || !Number.isSafeInteger(actual.code) || actual.code < 0 || actual.signal !== null) {
+          fail('Local CLI process did not exit normally.');
         }
         const output = `${stdout()}\n${stderr()}`;
         for (const secret of options.secrets ?? []) {
           if (typeof secret === 'string' && secret.length > 0 && output.includes(secret)) {
-            rejectRun(new LocalFullstackRuntimeError('Local CLI exposed disposable authority.'));
-            return;
+            fail('Local CLI exposed disposable authority.');
           }
         }
-        resolveRun(Object.freeze({ code: code ?? 1 }));
+        resolveRun(actual);
       } catch (error) {
-        rejectRun(error instanceof LocalFullstackRuntimeError
-          ? error
-          : new LocalFullstackRuntimeError('Local CLI output could not be contained.'));
+        rejectWithTerminal(error instanceof LocalFullstackRuntimeError ? error
+          : new LocalFullstackRuntimeError('Local CLI output could not be contained.'), actual);
       }
-    }));
-    deadline = setTimeout(() => {
-      timedOut = true;
-      terminate();
-    }, options.timeout ?? COMMAND_TIMEOUT_MILLISECONDS);
+    };
+    // Install all terminal/stream listeners and the command bound BEFORE a fallible callback.
+    child.once('error', error => { spawnError = typeof error.code === 'string' ? error.code : 'SPAWN_ERROR'; });
+    child.once('close', (code, signal) => { closeObserved = true; void finish(terminal(code, signal)); });
+    deadline = setTimeout(() => { timedOut = true; terminate(); }, options.timeout ?? COMMAND_TIMEOUT_MILLISECONDS);
+    registration = invokeCallback(child).then(() => {
+      // If retirement could not obtain a close event, reject observed state without inventing a terminal.
+      if (callbackFailed && !closeObserved) void finish(terminal(child.exitCode, child.signalCode));
+    });
   });
 }
 

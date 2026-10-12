@@ -23,10 +23,9 @@ pull-request comments, CI artifacts, logs, and public SpacetimeDB tables are not
 private storage.
 
 The two additional density channels and marsh-aware dressing rules are bound by
-living-world authority v4, generator algorithm `.19`, and private atlas format
-8. The terrain-seed
-namespace remains `.3`; a package-layout revision is not permission to reroll
-private world authority.
+living-world authority v4, generator algorithm `.22`, and private atlas format
+8. The terrain-seed namespace remains `.3`; a package-layout revision is not
+permission to reroll private world authority.
 
 ## Local workspace controls
 
@@ -149,10 +148,16 @@ left between the durable rename and deletion by a hard crash; malformed,
 substituted, or special entries fail closed.
 
 The current candidate and package authority is
-`greater-realm-v2-natural-continent-pr-a.19`, while the terrain-seed namespace
-remains `.3`. A `.18` checkpoint or package is not resumable, selectable, or
-publishable under `.19`; rotate an authenticated unaccepted or exhausted `.18`
-checkpoint and begin one fresh owner-private `.19` generation instead.
+`greater-realm-v2-natural-continent-pr-a.24`, while the terrain-seed namespace
+remains `.3`. A `.22` or earlier checkpoint/package is not resumable,
+selectable, or publishable under `.23`; rotate an authenticated unaccepted or
+exhausted checkpoint and begin one fresh owner-private `.23` generation
+instead. Revisions `.21` and `.22` raise only the bounded gate-apron
+bundle-pair cap, from 512 to 1,024 and then 2,048. Revision `.23` raises the
+per-child ranked bundle-option frontier from 64 to 128, preserving the
+320,000 search-node bound, candidate proofs, and ownership rules. The
+terrain-seed namespace remains unchanged so this search refinement does not
+reroll private world authority.
 
 Natural-composition review derives only coordinate-free scalar summaries and
 five public proof booleans from final private terrain authority. Temporary land,
@@ -457,15 +462,26 @@ remains fatal. Both rejection forms must reproduce exactly. Accepted attempts mu
 reproduce the complete candidate binary, private manifest, chunk and
 topography-patch manifests, marked seed envelopes, and preview set.
 
-Generator `.19` preserves the `.18` ordinary allocator and adds the bounded
-Lowlands-reserve repair lane only after a complete ordinary no-match. Every
-Tier-II allocator terminal has a frozen typed code, and the bounded gate-apron
-search separately records a complete no-match, node limit, or complete-plan
-limit. Regional hydrogeomorphology also records the failing public region proof
+Generator `.19` preserved the `.18` ordinary allocator and added the bounded
+Lowlands-reserve repair lane only after a complete ordinary no-match. Search
+revision `.20` chooses the next sibling group by its currently compatible
+footprints while retaining the rank diagonal and deterministic group-index
+ties. It changes neither candidate proofs nor ownership rules. Every Tier-II
+allocator terminal has a frozen typed code, and the bounded gate-apron search
+separately records a complete no-match, node limit, or complete-plan limit.
+Regional hydrogeomorphology also records the failing public region proof
 alongside its umbrella gate. The historical `.17` broad Tier-II code remains
 allowlisted only so an authenticated exhausted ledger can be inspected and
-retired; `.19` never emits it. Terrain channels, thresholds, ordinary traversal
-order, atlas format, and the `.3` terrain-seed namespace are unchanged.
+retired; `.20` never emits it. Terrain channels, thresholds, atlas format, and
+the `.3` terrain-seed namespace are unchanged.
+
+The current `.26` search preserves an ordinary-lane match, then runs the
+separately capped Lowlands repair lane after either a complete ordinary
+no-match or ordinary node/complete-plan exhaustion. A repair result still uses
+the common commit path and complete invariant suite; if repair does not find a
+match after an ordinary limit, the ordinary typed limit remains the rejection
+reason. This corrects candidate-yield handling without changing lane caps,
+edge authority, ranking, ownership, or final proofs.
 
 Verification requires exact bytes, bounded sizes, complete inventories,
 authority bindings, and recorded SHA-256 values. Each preview must exactly
