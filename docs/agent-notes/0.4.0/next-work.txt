@@ -1,3 +1,32 @@
+Current next work - 12 October 2026
+
+0.4 is NOT SHIPPED. Atlas finalization, read-only reconciliation and reviewed
+owner provisioning passed. Atlas is ready; PTR owner is enabled. Actual player
+authentication, journey, physical-phone performance and final cutover remain.
+
+Operator checkpoint: 32b9311f9038840c558c1beb54f8968666bc76a6.
+Installed module: 2891aee281c6c77be638635a0aecb5e688194320.
+Genuine import receipt:
+4367c60814b13ed16b52fc4c40673aa19e16264aa995566e4d67b1661b132446.
+Exact receipts/timestamps: 2026-10-11-atlas43-token-activation.md in this folder.
+
+Ordered work, owned by Codex:
+1. Human completes Farcaster's visible Confirm it's you screen: Continue, then
+   Approve in Farcaster Mobile. This is separate 30-day browser wallet access.
+   Reopen https://warpkeep.com/ptr/?miniApp=true through the verified Farcaster
+   preview and complete the actual PTR admission/entry check.
+2. Execute docs/evidence/0.4.0/owner-journey.md with normal server timers, then
+   persistence, reconnect, background/resume and physical-phone R06 measurements.
+3. Complete exact-source frontend/cutover and publication evidence. Preserve
+   Alpha, G001 progress/admission freeze, sealed G002, licensing and rollback;
+   inspect Actions state/triggers under the user's current policy before pushes.
+
+No active release job remains. Do not replay apply/import/resume/provision.
+Retain the genuine journals and use maintained read-only reconciliation for
+missing readback evidence. No new recovery App key, fake player token, admin
+substitute or accelerated timer is needed or accepted as player evidence.
+The entries below are historical; their completed next steps are superseded.
+
 Atlas .53 preserved update and verification recovery - 11 October 2026, 15:27 UTC
 
 The exact reviewed backend update completed successfully. Published source:

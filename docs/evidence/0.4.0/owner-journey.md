@@ -1,5 +1,21 @@
 # 0.4 owner journey evidence
 
+## Production prerequisite readback — 12 October 2026
+
+Atlas finalization, read-only reconciliation and reviewed-owner provisioning
+passed on operator source `32b9311f9038840c558c1beb54f8968666bc76a6` and installed
+module `2891aee281c6c77be638635a0aecb5e688194320`. The atlas is ready and owner
+access is enabled. The [operation record](../../agent-notes/0.4.0/2026-10-11-atlas43-token-activation.md)
+retains exact timestamps and source/receipt/preservation references.
+
+The real Farcaster host preview of `https://warpkeep.com/ptr/?miniApp=true`
+reached its separate **Confirm it's you** browser-wallet prompt. Until Continue
+and Farcaster Mobile approval finish, Quick Auth remains incomplete. This is
+observed host identity gating, not player admission evidence or an unprovisioned
+atlas. No owner gameplay, normal-timer production journey, phone performance or
+release acceptance is claimed. Follow the entry procedure below after that gate;
+retain the distinction between administrator provisioning and real player play.
+
 Recorded 2026-09-09 from the Windows development checkout. This record is an
 evidence boundary, not a claim that the live owner journey is complete.
 

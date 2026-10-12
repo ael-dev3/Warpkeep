@@ -1,3 +1,101 @@
+# Atlas .53 finalization and owner delivery
+
+## Current state — 12 October 2026
+
+**Not shipped.** Atlas finalization and reviewed-owner provisioning are complete.
+The current PTR atlas is ready and its owner is enabled. Genuine administrator
+and import receipts establish those operations, not authenticated player play.
+No owned release process remains active; source holds and cleanup completed.
+
+Reviewed operator source: `32b9311f9038840c558c1beb54f8968666bc76a6`, tree
+`330ec99781f48291b9f41edd3fb49b245761fb2f`. Installed module source:
+`2891aee281c6c77be638635a0aecb5e688194320`, module SHA256
+`cf85c978530afc9ea1bf3285fbdbb9c59942a820d60dc093e25b8442a7beeafd`.
+The accepted atlas package remains sourced from
+`86a24f58a93829d9c4ea04e3d8db1e6c7c6316b2`; no rebuild or restaging occurred.
+
+### Actual operation chronology
+
+All times below are UTC values retained by the native launcher. Relative process
+elapsed-time observations are not used to infer start or finish timestamps.
+
+- Verification inspection: 2026-10-11T16:38:43.517Z–18:13:59.042Z, exit 0.
+  Summary SHA256 `ed9899ff63569bed765245e1b5353d21cc0b1c42f45bb374b5a5e3edba3a8cc0`.
+- Once-only verification: 2026-10-11T18:14:01.865Z–23:25:26.706Z, exit 1 at
+  `BRIDGE_CONFIGURATION_CHANGED_OR_UNOBSERVED` during final observation.
+  Source/index/refs remained held and cleanup completed. Summary SHA256
+  `91f123c521b1efdad715a600ace23d31e87e804c00acefa189ed983a454fe61d`.
+  Atlas finalization had already produced the genuine ready receipt; this was
+  not a failed import or a reason to replay reducers.
+- Verification submission was recorded at 2026-10-11T20:41:59.657Z under fixed
+  key `afe514fb751b8e0a6348b3420c4a7821be90959d3e1261843b2654f24ec0b9c1`.
+  Its reviewed update/prefix/audit bindings matched. The genuine completion ACK
+  was recorded at 22:22:52.549Z, followed by the original import ACK at
+  22:22:54.638Z. All five historical submissions remain retained; historical
+  terrain-recovery ACKs were not invented.
+- Two fresh canonical bridge reads at 23:29:43.631Z and 23:29:43.704Z returned
+  HTTP 200, identical configuration and the correct PTR binding. The failed
+  observation did not retain enough detail to distinguish a read failure from
+  configuration drift; neither historical cause is claimed as proven.
+- Read-only `reconcile-import`: 2026-10-11T23:33:41.002Z–2026-10-12T01:15:29.437Z,
+  exit 0. Complete preservation/configuration and genuine completion lineage
+  passed; no provider writes were authorized. Summary SHA256
+  `aab62984f8b65eb10633f0a012c309c456c641f76b0cc49bd404329588e2a665`;
+  operation SHA256 `19f7280b04112f76fd968e8cc4cfa7a2d78c58de4f99f221898a4136c11bae9a`.
+- Owner inspection: 2026-10-12T01:16:27.389Z–02:57:20.714Z, exit 0; ready atlas,
+  ownerless state and preservation passed. Summary SHA256
+  `c547c4802d92f503553f6f7238970b7f37b2859e9495d28f908b945ee9ba843c`.
+- Owner provisioning: 2026-10-12T02:58:07.104Z–04:41:44.074Z, exit 0. The
+  reviewed owner is enabled; atlas remains ready; source/configuration
+  preservation and cleanup passed. Summary SHA256
+  `cf1421e29ef18c050fdedbe2480b270408e400c2e1ac305a0dc1d70bc9ee8d8b`;
+  operation SHA256 `832e2dec538c5e98df456eb174176ce340278e77aea679e3e97aff049ef26848`.
+
+Genuine atlas import receipt digest:
+`4367c60814b13ed16b52fc4c40673aa19e16264aa995566e4d67b1661b132446`.
+Its maintained schema/digest, reviewed module/atlas bindings and original ACK
+chain were checked. Private receipt/journal contents and owner identifiers stay
+private; the values above are credential-free evidence references.
+
+### Resume without repeating completed work
+
+Do not rerun apply, import, verification resume or provisioning. Preserve their
+retained journals. Missing observation evidence calls for maintained read-only
+reconciliation against the current-module inspection and genuine completion
+lineage, not another attempt key, epoch, forged ACK or player token.
+
+The initial one-hour inspection launcher timed out; its internal execution stage
+was not established by the missing receipt. The corrected finite inspection
+window passed after 95 minutes. Distinct immutable QA callers subsequently
+allowed three hours for inspection and four hours for owner/reconciliation
+reads. Per-response limits, short-token renewal, source/receipt/journal checks
+and owned-process retirement remained unchanged. Keep old callers and evidence
+immutable; choose a new output stem for a genuinely necessary read-only run.
+
+### Remaining acceptance, owned by Codex
+
+The live frontend remains `https://warpkeep.com/ptr/`, build `9ea4821`; Alpha
+remains at `https://warpkeep.com/`. Frontend source paths were unchanged between
+that frontend checkpoint and the reviewed operator checkpoint; this comparison
+does not establish compiled byte identity or player/device acceptance.
+
+A fresh verified Farcaster preview reached **Confirm it's you**, requesting
+Continue and Approve in Farcaster Mobile for 30-day browser wallet access.
+Quick Auth did not finish while that gate remained open. The host is signed in,
+but real player authentication has not been established. The visible prompt was
+handed to the human; no grant or legally binding agreement was accepted by the
+agent. No additional recovery App key is needed.
+
+Complete that identity check, reopen the host preview, select PTR and wait for
+its actual Admitted check before entry. Execute the normal-timer owner journey,
+persistence/reconnect/background cases and physical-phone R06, then complete
+frontend/cutover and release publication evidence. Preserve Alpha, G001 progress
+and admission freeze, sealed G002, licensing and rollback. This documentation
+checkpoint changes no public licensing or gameplay. Apply current user Actions
+policy to future remote actions; local/admin results are not a shipped release.
+
+## Earlier operation evidence
+
 Atlas .53 preserved update and verification recovery - 11 October 2026, 15:27 UTC
 
 The exact reviewed backend update completed successfully. Published source:

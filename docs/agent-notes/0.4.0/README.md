@@ -1,3 +1,44 @@
+# Warpkeep 0.4 agent handoff
+
+## Current release state — 12 October 2026
+
+**Not shipped.** Atlas finalization, read-only reconciliation and reviewed-owner
+provisioning have passed. The PTR atlas is ready and its owner is enabled.
+Authenticated player acceptance and physical-phone performance remain open.
+
+The reviewed operator checkpoint is `32b9311f9038840c558c1beb54f8968666bc76a6`.
+The installed PTR module is `2891aee281c6c77be638635a0aecb5e688194320`.
+The genuine atlas import receipt is
+`4367c60814b13ed16b52fc4c40673aa19e16264aa995566e4d67b1661b132446`.
+Read the [operation record](2026-10-11-atlas43-token-activation.md) for exact
+timestamps, retained receipts, the resolved postflight check and recovery rules.
+
+Remaining work, owned by Codex:
+
+1. Complete Farcaster's separate browser-wallet confirmation, then reopen the
+   verified host preview for `https://warpkeep.com/ptr/?miniApp=true` and enter
+   PTR through its actual admission check. Host login and administrator authority
+   do not establish player authentication.
+2. Follow the [owner journey](../../evidence/0.4.0/owner-journey.md): normal-timer
+   gather → choose → build → benefit → return, persistence, reconnect and
+   background/resume. Complete rendered and physical-phone R06 acceptance.
+3. Finish exact-source frontend/cutover evidence and publication while preserving
+   Alpha, G001 progress/admission freeze, sealed G002, licensing and rollback.
+   Apply the user's current GitHub Actions policy before remote mutations.
+
+The current browser shows Farcaster's **Confirm it's you** request for 30-day
+browser wallet access. The human handoff is Continue, then Approve in Farcaster
+Mobile. Do not manufacture a token or use the owner-administration receipt as
+player evidence. No additional recovery App key is required for this path.
+
+Do not repeat backend apply, import, verification resume or owner provisioning:
+they are complete. No owned release process remains active. Keep genuine
+submission/completion journals; use maintained read-only reconciliation if
+evidence needs to be re-established. The historical instructions below are
+dated evidence and do not supersede this current release state.
+
+## Historical operation evidence
+
 Atlas .53 preserved update and verification recovery - 11 October 2026, 15:27 UTC
 
 The exact reviewed backend update completed successfully. Published source:
