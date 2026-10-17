@@ -34,7 +34,7 @@ The source-bound manifest is 62,752 bytes, SHA-256
 ## Commands and test scope
 
 ```text
-wsl -d Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/native-release-artifact-inputs.mjs
+wsl -d Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/native-release-artifact-inputs.mjs
 .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localReleaseArtifactInputs.test.ts tests/allRealmLocalBindingComposition.test.ts tests/localOperationBundleRuntime.test.ts tests/localPreparedBundleFiles.test.ts
 .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -b
 ```

@@ -63,7 +63,7 @@ native Linux 13 passed (142 ms); pinned TypeScript build exited 0.
 ```text
 .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localPreparedSourcePins.test.ts
 .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -b
-wsl -d Ubuntu-24.04 -- /tmp/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/release-journal-linux-check.mjs --source-pins
+wsl -d Ubuntu-24.04 -- /tmp/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/release-journal-linux-check.mjs --source-pins
 ```
 
 Real source derivation at the audited baseline plus this helper returned:

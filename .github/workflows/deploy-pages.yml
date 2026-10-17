@@ -488,11 +488,10 @@ jobs:
   # verifies this job, its runner, the artifact and the live realm invariants.
   deploy-recovery:
     needs: classify
+    # Halted public archive: never schedule a private production runner.
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      needs.classify.outputs.deployment-lane == 'sealed-g002-recovery'
+      github.event.repository.private == true &&
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && needs.classify.outputs.deployment-lane == 'sealed-g002-recovery')
     runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
     timeout-minutes: 45
     permissions:
@@ -726,9 +725,10 @@ jobs:
 
   private-toolchain:
     needs: classify
+    # Halted public archive: never schedule a private production runner.
     if: >-
-      needs.classify.outputs.deployment-lane == 'gen0' ||
-      needs.classify.outputs.deployment-lane == 'durable'
+      github.event.repository.private == true &&
+      (needs.classify.outputs.deployment-lane == 'gen0' || needs.classify.outputs.deployment-lane == 'durable')
     runs-on:
       - self-hosted
       - Linux
@@ -902,9 +902,10 @@ jobs:
   private-deploy:
     name: Notification Pages private deploy v1
     needs: [classify, build, private-toolchain]
+    # Halted public archive: never schedule a private production runner.
     if: >-
-      needs.classify.outputs.deployment-lane == 'gen0' ||
-      needs.classify.outputs.deployment-lane == 'durable'
+      github.event.repository.private == true &&
+      (needs.classify.outputs.deployment-lane == 'gen0' || needs.classify.outputs.deployment-lane == 'durable')
     runs-on:
       - self-hosted
       - Linux

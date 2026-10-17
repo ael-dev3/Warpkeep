@@ -104,6 +104,7 @@ const preparedPolicyTestSeams = (
   preparedPolicyRuntime as unknown as {
     authBridgeNotificationPreparedPolicyTestSeams?: {
       assertProtectedWorkflowExecutionBoundary(workflowSource: string): void;
+      projectPrivateRepositoryWorkflow(workflowSource: string): string;
     };
   }
 ).authBridgeNotificationPreparedPolicyTestSeams!;
@@ -198,6 +199,7 @@ interface WorkflowStep {
 }
 
 interface WorkflowJob {
+  if?: string;
   environment?: { name?: string };
   env?: Record<string, string>;
   permissions?: Record<string, string>;
@@ -968,6 +970,7 @@ describe('notification-bridge-prepared protected workflow', () => {
     const source = workflow();
     const document = workflowDocument();
     const job = preparedJob();
+    expect(job.if).toBe('github.event.repository.private == true');
     expect(Object.keys(document.on ?? {})).toEqual(['workflow_dispatch']);
     expect(document.permissions).toEqual({ actions: 'read', contents: 'read' });
     expect(document.concurrency).toEqual({
@@ -986,6 +989,24 @@ describe('notification-bridge-prepared protected workflow', () => {
     expect(job.permissions).toEqual({ actions: 'read', contents: 'read' });
     expect(source).not.toMatch(/^\s+runs-on:\s+(?:ubuntu|windows)-/mu);
     expect(source).not.toMatch(/^\s+(?:push|pull_request|workflow_run|schedule):/mu);
+  });
+
+  it('projects only the required private-repository job restriction', () => {
+    const source = workflow();
+    const guard = '    # Halted public archive: never schedule a private production runner.\n'
+      + '    if: github.event.repository.private == true\n';
+    expect(preparedPolicyTestSeams.projectPrivateRepositoryWorkflow(source))
+      .toBe(source.replace(guard, ''));
+    for (const replacement of [
+      '',
+      '    if: github.event.repository.private == false\n',
+      '    if: github.event.repository.private == true || true\n',
+      '    # if: github.event.repository.private == true\n',
+    ]) {
+      expect(() => preparedPolicyTestSeams.assertProtectedWorkflowExecutionBoundary(
+        source.replace(guard, replacement),
+      )).toThrow('AUTH_BRIDGE_PREPARED_WORKFLOW_STRUCTURE_INVALID');
+    }
   });
 
   it('binds dispatch, checkout, and both mutations to exact current main', () => {

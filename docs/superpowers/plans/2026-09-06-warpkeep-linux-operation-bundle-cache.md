@@ -80,7 +80,7 @@ finally { body.fill(0); }
 - [ ] **Step 5: Exercise the committed public bootstrap in WSL.** Use the fixed Node under env-i, no ambient production credentials. First call downloads only missing approved archives; second verifies both and reports installedCount0. Record actual source commit, results and archive identities. Do not install/extract/execute packages. Actual permission failures stop; no escalation or replacement shortcut.
 
 ```powershell
-& 'C:/Windows/System32/wsl.exe' --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/bootstrap-operation-bundle-cache.mjs
+& 'C:/Windows/System32/wsl.exe' --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/bootstrap-operation-bundle-cache.mjs
 ```
 
 ## Self-review and remaining scope

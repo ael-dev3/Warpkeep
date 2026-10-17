@@ -70,7 +70,7 @@ The G001 command environment must be freshly reconstructed, with fixed Node24 bi
 - [ ] **Step 6: Commit scoped source/tests, then run actual native derivation.** Execute from this committed checkout using:
 
 ```powershell
-& 'C:\Windows\System32\wsl.exe' --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --genesis001
+& 'C:\Windows\System32\wsl.exe' --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --genesis001
 ```
 
 Require both real compile/generate cycles to complete and compare; report commit/tree, command, exit/stdout/stderr, compiler identity, bundle/closure digests and diagnostic count. A compile error is incomplete work, not successful installation evidence. Record retained failure roots without credentials; do not delete denied or unrelated paths. Do not rerun already accepted paired native generation unless modified behavior requires it.

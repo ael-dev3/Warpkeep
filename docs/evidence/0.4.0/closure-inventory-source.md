@@ -30,7 +30,7 @@ scanner, not the controlled test dependency.
 .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localPreparedClosureInventory.test.ts
 Windows: 12 passed, 1 Linux symlink test skipped; exit 0.
 
-wsl -d Ubuntu-24.04 -- /tmp/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/release-journal-linux-check.mjs --inventory
+wsl -d Ubuntu-24.04 -- /tmp/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/release-journal-linux-check.mjs --inventory
 Linux: 13 passed; exit 0, 146 ms.
 
 .git/ci-node-22.22.3/node.exe node_modules/typescript/bin/tsc -b

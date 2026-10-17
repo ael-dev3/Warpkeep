@@ -87,7 +87,7 @@ expect(Object.keys(result.genesis001.current).sort()).toEqual([
 - [ ] **Step 6: Actual composed native acceptance.** Execute once at committed source:
 
 ```powershell
-& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --all-realms
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --all-realms
 ```
 
 Record actual source/tree, all metadata/counts, exit code and cleanup. Poll the same process handle through observation timeouts; never restart because a poll expires. On failure retain diagnostics and diagnose exact cause; do not substitute previous independent successes. No remote/provider operation or credentials are needed.

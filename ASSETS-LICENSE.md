@@ -1,10 +1,22 @@
 # Warpkeep Asset Licensing and Provenance
 
+## Current free-reuse grant — 17 October 2026
+
+Development is halted. The owner now dedicates their rights in original
+project assets and creative documentation to CC0 1.0 Universal. See
+[ASSET-REUSE.md](ASSET-REUSE.md) and the complete
+[CC0 terms](LICENSE-CC0-1.0). Reuse, modification, commercial use, and
+redistribution do not require permission or attribution under this grant.
+This additional permission overrides earlier project-owned archive-only and
+attribution restrictions below. Third-party rights and licenses remain intact.
+Dated provenance, release hashes, and previous grants are historical records.
+
+
 This file records the license and provenance status of runtime media, archived references, generated derivatives, and asset manifests. Repository presence or delivery by Ael does not by itself establish copyright ownership or transferable licensing authority.
 
 ## Active policy
 
-Active project-owned creative-content license: CC-BY-4.0
+Active project-owned creative-content license: CC-BY-4.0 OR CC0-1.0
 
 Through v0.2.0, confirmed project-owned creative material was made available under the historical `CC0-1.0` policy. Beginning with v0.3.0, new or modified confirmed project-owned creative material is licensed under `CC-BY-4.0` where Warpkeep has authority to grant it.
 

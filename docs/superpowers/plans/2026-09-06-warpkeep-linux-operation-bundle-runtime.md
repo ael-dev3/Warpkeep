@@ -96,7 +96,7 @@ Existing affected test files: `tests/localBindingRuntime.test.ts`, `tests/localB
 - [ ] **Step 6: Exercise committed public runtime natively.** Use fixed env-i WSL command below; capture source commit/tree, per-lane counts/digests/sizes, two independent-build comparisons, actual load results and cleanup evidence. A failed run is a defect to diagnose, not permission to change expected hashes blindly. No provider or generated repository installation.
 
 ```powershell
-& 'C:/Windows/System32/wsl.exe' --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-operation-bundle-runtime.mjs
+& 'C:/Windows/System32/wsl.exe' --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-operation-bundle-runtime.mjs
 ```
 
 ## Self-review and remaining scope

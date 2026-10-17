@@ -25,7 +25,7 @@ command`. After establishing an offline cached runtime, the direct equivalent
 baseline command passed 6 files and 69 tests:
 
 ```powershell
-& 'C:\Users\heyas\AppData\Local\hermes\node\node.exe' 'node_modules\vitest\vitest.mjs' --run tests/realmChoicePolicy.test.ts tests/RealmChoiceSelector.test.tsx tests/realmChoiceMenuIntegration.test.tsx tests/WarpkeepExperience.test.tsx tests/WarpkeepExperiencePtrRealm.test.tsx tests/PtrRealmProvider.test.tsx --maxWorkers=1
+& 'C:\Users\developer\AppData\Local\hermes\node\node.exe' 'node_modules\vitest\vitest.mjs' --run tests/realmChoicePolicy.test.ts tests/RealmChoiceSelector.test.tsx tests/realmChoiceMenuIntegration.test.tsx tests/WarpkeepExperience.test.tsx tests/WarpkeepExperiencePtrRealm.test.tsx tests/PtrRealmProvider.test.tsx --maxWorkers=1
 ```
 
 Evidence: 6 files passed, 69 tests passed, 0 failed.
@@ -57,7 +57,7 @@ additional Experience-level G002, admitted-G001, and provider error/expiry
 regressions, the initial implementation focused suite passed 81/81:
 
 ```powershell
-& 'C:\Users\heyas\AppData\Local\hermes\node\node.exe' 'node_modules\vitest\vitest.mjs' --run tests/realmChoicePolicy.test.ts tests/RealmChoiceSelector.test.tsx tests/realmChoiceMenuIntegration.test.tsx tests/WarpkeepExperience.test.tsx tests/WarpkeepExperiencePtrRealm.test.tsx tests/PtrRealmProvider.test.tsx --maxWorkers=1
+& 'C:\Users\developer\AppData\Local\hermes\node\node.exe' 'node_modules\vitest\vitest.mjs' --run tests/realmChoicePolicy.test.ts tests/RealmChoiceSelector.test.tsx tests/realmChoiceMenuIntegration.test.tsx tests/WarpkeepExperience.test.tsx tests/WarpkeepExperiencePtrRealm.test.tsx tests/PtrRealmProvider.test.tsx --maxWorkers=1
 ```
 
 Evidence: 6 files passed, 81 tests passed, 0 failed before independent review.
@@ -65,7 +65,7 @@ Evidence: 6 files passed, 81 tests passed, 0 failed before independent review.
 The exact focused-plus-accessibility gate passed:
 
 ```powershell
-& 'C:\Users\heyas\AppData\Local\hermes\node\node.exe' 'node_modules\vitest\vitest.mjs' --run tests/realmChoicePolicy.test.ts tests/RealmChoiceSelector.test.tsx tests/realmChoiceMenuIntegration.test.tsx tests/WarpkeepExperience.test.tsx tests/WarpkeepExperiencePtrRealm.test.tsx tests/PtrRealmProvider.test.tsx tests/realmAccessibilityControls.test.tsx --maxWorkers=1
+& 'C:\Users\developer\AppData\Local\hermes\node\node.exe' 'node_modules\vitest\vitest.mjs' --run tests/realmChoicePolicy.test.ts tests/RealmChoiceSelector.test.tsx tests/realmChoiceMenuIntegration.test.tsx tests/WarpkeepExperience.test.tsx tests/WarpkeepExperiencePtrRealm.test.tsx tests/PtrRealmProvider.test.tsx tests/realmAccessibilityControls.test.tsx --maxWorkers=1
 ```
 
 Evidence: 7 files passed, 94 tests passed, 0 failed before independent review.
@@ -73,7 +73,7 @@ Evidence: 7 files passed, 94 tests passed, 0 failed before independent review.
 The nearest G001 entry/admission regression suite passed:
 
 ```powershell
-& 'C:\Users\heyas\AppData\Local\hermes\node\node.exe' 'node_modules\vitest\vitest.mjs' --run tests/realmChoiceMenuIntegration.test.tsx tests/farcasterAdmissionPanel.test.tsx tests/farcasterMiniAppEntryGate.test.tsx --maxWorkers=1
+& 'C:\Users\developer\AppData\Local\hermes\node\node.exe' 'node_modules\vitest\vitest.mjs' --run tests/realmChoiceMenuIntegration.test.tsx tests/farcasterAdmissionPanel.test.tsx tests/farcasterMiniAppEntryGate.test.tsx --maxWorkers=1
 ```
 
 Evidence: 3 files passed, 50 tests passed, 0 failed. This includes the unchanged
@@ -82,7 +82,7 @@ admitted Genesis 001 callback and suspended-new-admission presentation.
 Root typecheck passed:
 
 ```powershell
-& 'C:\Users\heyas\AppData\Local\hermes\node\node.exe' 'node_modules\typescript\bin\tsc' -b
+& 'C:\Users\developer\AppData\Local\hermes\node\node.exe' 'node_modules\typescript\bin\tsc' -b
 ```
 
 Evidence: exit 0 with no output.
@@ -99,7 +99,7 @@ added for unknown-to-admitted, unknown-to-server-denied, access-error recovery,
 and authority expiry/renewal. The targeted RED command was:
 
 ```powershell
-& 'C:\Users\heyas\AppData\Local\hermes\node\node.exe' 'node_modules\vitest\vitest.mjs' --run tests/WarpkeepExperiencePtrRealm.test.tsx tests/realmChoiceMenuIntegration.test.tsx --maxWorkers=1
+& 'C:\Users\developer\AppData\Local\hermes\node\node.exe' 'node_modules\vitest\vitest.mjs' --run tests/WarpkeepExperiencePtrRealm.test.tsx tests/realmChoiceMenuIntegration.test.tsx --maxWorkers=1
 ```
 
 Evidence: 2 files ran, 35 tests total, 33 passed and 2 failed. The admitted

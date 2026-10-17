@@ -114,7 +114,7 @@ Exit `0`, no diagnostics.
 Exact acceptance command:
 
 ```powershell
-& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --genesis001-compatibility
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --genesis001-compatibility
 ```
 
 Final-implementation exit `0` result:
@@ -196,14 +196,14 @@ The server-output-overflow path was also corrected to kill the inherited standal
 I1 native descendant RED before the supervisor change:
 
 ```powershell
-& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 TMPDIR=/home/snapmeter/.warpkeep/release-preparation-v1/runs /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localBindingProcessGroupProof.mjs
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 TMPDIR=/home/snapmeter/.warpkeep/release-preparation-v1/runs /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localBindingProcessGroupProof.mjs
 ```
 
 Exit `1`: `{"code":"LOCAL_BINDING_RUNTIME_PROCESS_TIMEOUT","parentSurvives":false,"descendantSurvives":true}`. After the group supervisor change the same command exited `0` with both survival fields `false`. The two additional native outcomes also exited `0`:
 
 ```powershell
-& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 TMPDIR=/home/snapmeter/.warpkeep/release-preparation-v1/runs /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localBindingProcessGroupProof.mjs failure-descendant
-& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 TMPDIR=/home/snapmeter/.warpkeep/release-preparation-v1/runs /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localBindingProcessGroupProof.mjs success-descendant
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 TMPDIR=/home/snapmeter/.warpkeep/release-preparation-v1/runs /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localBindingProcessGroupProof.mjs failure-descendant
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 TMPDIR=/home/snapmeter/.warpkeep/release-preparation-v1/runs /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localBindingProcessGroupProof.mjs success-descendant
 ```
 
 Outputs were respectively `LOCAL_BINDING_RUNTIME_PROCESS_FAILED` and `LOCAL_BINDING_RUNTIME_PROCESS_CONTAINMENT_FAILED`, both with `parentSurvives:false` and `descendantSurvives:false`. The latter proves nominal child success is not accepted while a descendant survives.
@@ -253,7 +253,7 @@ Both exited `0` with no diagnostics. A final process readback returned `pgrep` e
 Exact command at implementation commit `9e7d3ff1bafca5a542d3e530d79467d595588750`:
 
 ```powershell
-& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --genesis001-compatibility
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --genesis001-compatibility
 ```
 
 Exit `0`:
@@ -344,7 +344,7 @@ The corrected process helper and fixture were executed under the pinned Linux No
 ```powershell
 $wsl='C:/Windows/System32/wsl.exe'
 $node='/home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node'
-$fixture='/mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localBindingProcessGroupProof.mjs'
+$fixture='/mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/tests/fixtures/localBindingProcessGroupProof.mjs'
 foreach ($scenario in @('timeout-descendant','failure-descendant','success-descendant')) {
   & $wsl --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 TMPDIR=/home/snapmeter/.warpkeep/release-preparation-v1/runs $node $fixture $scenario
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -381,7 +381,7 @@ Both exited `0` with no diagnostics.
 Exact command against implementation commit `e137f6eb7c0ea92037df6fc4a7b48974546acad0`:
 
 ```powershell
-& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --genesis001-compatibility
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --genesis001-compatibility
 ```
 
 Exit `0`:

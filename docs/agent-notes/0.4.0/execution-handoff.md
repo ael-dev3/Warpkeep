@@ -5315,7 +5315,7 @@ later synthetic v3 definition policy and does not prove production acceptance.
 The development branch is `codex/prepared-keep-bindings-fix`, tracked by
 **`upstream/codex/prepared-keep-bindings-fix`** on GitHub. On the current Windows
 machine it is at
-`C:/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree`.
+`C:/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree`.
 `origin` is a local baseline repository; equality with it does not prove GitHub sync.
 
 At `923e024`, the isolated dependency correction completed native preparation
@@ -5605,7 +5605,7 @@ this direct rejection; see the [infrastructure access guide](../../operations/0.
 The repair used the already registered GitHub SSH signing key, whose public
 fingerprint is `SHA256:H0mdBKhWdc4xPiVS6gGE49lZUOTEhXMqB0q1SK1Ofec`. The matching
 private key was already available on the maintained Windows host at
-`C:\Users\heyas\.ssh\warpkeep_signing`; no recovery GitHub App key or new SSH
+`C:\Users\developer\.ssh\warpkeep_signing`; no recovery GitHub App key or new SSH
 key was created. Never copy key material into the repository, notes, terminal
 logs or chat. If the existing signer is not available, stop and ask the owner
 to restore access to that same signer; do not weaken branch rules or use an

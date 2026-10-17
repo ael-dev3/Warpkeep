@@ -1,183 +1,59 @@
 # Warpkeep
 
-**A real person. A permanent keep. A world worth returning to.**
+**Development is halted.** This repository preserves the game's source and
+assets for anyone who wants to study, reuse, or continue the work.
 
-Warpkeep is a persistent strategy world connected to Farcaster. Workers travel
-across the landscape, resources come home, and a keep becomes a place shaped by
-its Keeper's choices. We are building a game that makes the first session
-satisfying and the next visit worthwhile.
+Warpkeep is a persistent strategy game connected to Farcaster: gather
+resources, build a keep, and return to a world that remembers your progress.
+Project site: [warpkeep.com](https://warpkeep.com/).
 
-[Play the current Alpha](https://warpkeep.com/) · [0.4 delivery status](docs/operations/0.4.0-live-delivery-status.md) · [Follow development](https://github.com/ael-dev3/Warpkeep/pulls)
-· [Product direction](docs/design/warpkeep-direction.md) · [Documentation](docs/README.md)
+## Reuse
 
-## The next chapter
+- **Code:** [Apache License 2.0](LICENSE), permitting personal and commercial
+  use, modification, distribution, and forks with its notices.
+- **Original assets and creative documentation:** [CC0 1.0 Universal](LICENSE-CC0-1.0).
+  Copy, modify, redistribute, sell, and use them in your own projects without
+  asking permission or providing attribution. Credit is welcome.
+- **Third-party material:** its original licenses and notices still apply.
 
-Warpkeep 0.4 brings the game together around a clear loop:
+The owner's [CC0 dedication](ASSET-REUSE.md) is effective 17 October 2026 and
+adds free reuse permission to earlier project-owned asset releases, including
+owner-supplied models, images, audio, and video. See [LICENSING.md](LICENSING.md)
+and [the provenance index](ASSETS-LICENSE.md) for scope and third-party credits.
 
-**Gather → choose → build → benefit → return.**
+## Run locally
 
-Choose where your Workers travel and when they return. Turn the resources they
-bring home into a useful improvement. See that improvement change your keep
-and make the next journey or construction project better. Return to a place
-that remembers your effort and offers another worthwhile decision.
-
-Our aim is a satisfying first session and meaningful choices beyond it.
-Clear feedback, dependable progress, thoughtful pacing and comfortable mobile
-controls are central to that experience. The 0.4 scope is a polished visual
-foundation and dependable loop; deeper simulation, freeform editing and social
-systems remain later milestones.
-
-## The Verdant Citadel
-
-The visual direction is an inviting town diorama: pale masonry, dark timber,
-oxidized-teal roofs, restrained violet warp accents and warm signs of activity.
-Layered forest, lightweight voxel scenery and shallow water frame the keep
-without obscuring the decisions inside it.
-
-We judge the result in the rendered game—its composition, readability, motion
-and responsiveness. Detail should serve the experience on a phone as well as
-on a desktop. Reused assets retain their original credits and permissions.
-
-## Where development stands
-
-**Alpha 0.3.43 is live; Warpkeep 0.4 is an open, unpublished candidate.** The
-candidate is assembled on [PR #374](https://github.com/ael-dev3/Warpkeep/pull/374).
-It includes the reviewed work from still-open PRs #375–#378; those older heads
-must not be merged separately while their changes are already in #374.
-
-The candidate brings together:
-
-- The Verdant Citadel 3D menu, castle presentation and Hegemony banners ([#375](https://github.com/ael-dev3/Warpkeep/pull/375)).
-- The eligible FID 539854 castle-film action ([#376](https://github.com/ael-dev3/Warpkeep/pull/376)). Its 289 MB video remains
-  external and click-to-load.
-- Sealed Genesis 002 soundtrack wiring ([#377](https://github.com/ael-dev3/Warpkeep/pull/377)). G002 remains inaccessible;
-  the soundtrack derivative's source terms are unresolved.
-- Hash-pinned Greater Realm tree models ([#378](https://github.com/ael-dev3/Warpkeep/pull/378)). The app uses local runtime
-  copies; the private Warpkeep-Assets source archive is a provenance record, not a
-  runtime download dependency.
-
-The existing gather, Worker dispatch and return, building, construction and
-persistent-progress loop remains the gameplay foundation. The PTR has a
-dedicated lazy-loaded gameplay host that preserves /ptr/ routing and checks its
-owner/session capabilities. No candidate change opens Genesis 002 admissions
-or widens the Genesis 001 admission freeze.
-
-The latest exact source, test/build receipts and publication-plan receipts are maintained on
-[PR #374](https://github.com/ael-dev3/Warpkeep/pull/374). Recent repairs improve
-mobile gestures, reachable controls, short-landscape drawers, confirmation,
-world/keep focus and menu readability. Real client/server testing also found
-and fixed a new-keep initialization failure caused by the server's error format.
-Publication planning now preserves committed Alpha bytes across Windows line
-ending conversion, matching the existing signed publisher.
-Linux recovery now identifies owners by kernel birth, so clock changes cannot
-make an active owner look reused. Ambiguous legacy records remain preserved;
-private deployment tests clean only their newly allocated temporary homes.
-Release preparation also verifies the paired launch scripts and binds reviewed
-operator corrections while preserving the frozen G001 module and build recipe.
-Independent affected tests and scoped rendered checks pass.
-
-The connected local PTR lane exercises the real module and client with normal
-server timers and synthetic authority/atlas. Gathering, construction, improved
-return, exact retry, manual fixture-session renewal and client reconnection pass.
-Automatic Quick Auth expiry through the real browser host still needs the planned
-owner acceptance. Actual-owner play,
-production-atlas pacing and physical-phone performance remain release requirements. Earlier G001 browser fixtures and the
-12,603-test native pass retain their original source scopes. The build's existing
-RealmMapScreen size warning remains under measurement.
-
-Alpha returned HTTP 200 and the unpublished /ptr/ HTTP 404 on 30 September.
-Sealed preparation remains disabled. After the owner's September Actions pause,
-resume exact-head verification, the signed M1/M2 sequence, preservation/readbacks
-and PTR publication on or after October 1. Current [delivery status](docs/operations/0.4.0-live-delivery-status.md)
-and [the handoff](docs/agent-notes/0.4.0/execution-handoff.md) identify the next action.
-
-
-| Realm | Purpose |
-| --- | --- |
-| **Genesis 001** | Preserve the established world, player progress and agreed admission freeze. |
-| **Genesis 002** | Keep the successor realm sealed while its future admissions remain undecided. |
-| **Owner PTR** | Exercise the new playable experience in an isolated realm before broader release. |
-
-The [execution handoff](docs/agent-notes/0.4.0/execution-handoff.md),
-[delivery status](docs/operations/0.4.0-live-delivery-status.md), and
-[release checklist](docs/operations/0.4.0-release-checklist.md) track current
-evidence and exact gates. The [development brief](docs/agent-notes/0.4.0/next-work.txt)
-keeps the next action concise; release status belongs to the linked handoff and
-checklist.
-
-The open [Warpkeep-Assets PR #41](https://github.com/ael-dev3/Warpkeep-Assets/pull/41)
-carries the source archive for the biome trees; [PR #40](https://github.com/ael-dev3/Warpkeep-Assets/pull/40)
-is a study reference with rights still unverified. Their open status does not
-block the app's hash-pinned local runtime models. The Genesis 002 soundtrack
-archive is tracked separately in [Warpkeep-Assets PR #38](https://github.com/ael-dev3/Warpkeep-Assets/pull/38).
-Review the linked provenance records before changing or republishing any source
-asset.
-
-## Build with us
-
-`main` contains an earlier integrated 0.4 development baseline; the active
-0.4 changes are on PR #374. The running game remains at a different
-release stage, and the 0.4 owner PTR is not live. Follow the
-[execution handoff](docs/agent-notes/0.4.0/execution-handoff.md) for the
-current candidate, local verification and remaining hosted release gates.
-
-For a fresh independent checkout, use Git, Node 22 (22.13 or newer within that
-major) and npm 10.9.8:
+Use Git, Node.js 22 (22.13 or newer in that major), and npm 10.9.8:
 
 ```sh
 git clone https://github.com/ael-dev3/Warpkeep.git
 cd Warpkeep
-git switch -c my-change
 npm ci
 npm run dev
 ```
 
-Open the local address printed by Vite. To inspect a synthetic keep, open
-`/dev/keep04-qa.html?scenario=all-six-level-five&quality=high` on that same local
-origin. The fixture demonstrates presentation; it does not connect a real owner
-or establish live gameplay acceptance. Follow [Contributing](CONTRIBUTING.md)
-and [the development workflow](docs/engineering/development-workflow.md) for
-setup, verification, and existing-worktree guidance.
+Open the local address printed by Vite. A synthetic keep presentation is
+available at `/dev/keep04-qa.html?scenario=all-six-level-five&quality=high`.
+Authenticated gameplay requires your own compatible backend and configuration;
+the source license does not provide credentials or access to a hosted realm.
+Use [.env.example](.env.example) for configuration names.
 
-After building a reviewed candidate, `npm run qa:menu-entry` checks its current
-production menu across desktop and mobile layouts. Inspect the saved views;
-this check does not establish authenticated gameplay or phone performance.
-Warpkeep and Tervain share suitable assets and rendering techniques while keeping
-their game rules and worlds separate; follow the
-[repository ecosystem](docs/engineering/repository-ecosystem.md#sharing-with-tervain)
-for source ownership, provenance and reuse.
+The browser uses React, TypeScript, and Three.js. Cloudflare hosts the identity
+bridge, and SpacetimeDB owns persistent gameplay state. See
+[the architecture](docs/technical-architecture.md),
+[the repository map](docs/agent-notes/0.4.0/repo-map.md), and
+[the asset archive](https://github.com/ael-dev3/Warpkeep-Assets).
 
-Stop the development server with `Ctrl+C` in its terminal.
+## Preserved development state
 
-| I want to… | Start here |
-| --- | --- |
-| Understand the game and its future | [Product direction](docs/design/warpkeep-direction.md) and [roadmap](docs/design/roadmap.md) |
-| Work as an agent or return to development | [AGENTS.md](AGENTS.md) and [current handoff](docs/agent-notes/0.4.0/README.md) |
-| Find the implementation | [Architecture](docs/technical-architecture.md) and [repository map](docs/agent-notes/0.4.0/repo-map.md) |
-| Improve the player experience | [Gameplay and visual review](docs/agent-notes/0.4.0/gameplay-and-visuals.md) |
-| Apply the complete inspiration library | [0.4 visual foundation contract](docs/agent-notes/0.4.0/visual-foundation-contract.md) |
-| Understand delivery and outstanding work | [Release and infrastructure notes](docs/agent-notes/0.4.0/release-and-infrastructure.md) |
-| Contribute and publish a change | [Contributing](CONTRIBUTING.md) and [source synchronization](docs/operations/0.4.0-development-sync.md) |
+The repository contains the Alpha history and an unfinished 0.4 development
+candidate. Historical release plans, handoffs, issues, and pull requests record
+work before development halted; they are not a promise of future releases,
+maintenance, support, or continued hosted-service availability.
 
-The browser uses React, TypeScript and Three.js. Cloudflare verifies identity;
-SpacetimeDB owns persistent gameplay. The frontend is a static build whose
-current hosting and live status are tracked in the delivery journal.
-Development and release operations target Windows/WSL and Linux; the
-[infrastructure notes](docs/agent-notes/0.4.0/release-and-infrastructure.md)
-distinguish verified paths from remaining work. Source publication is continuous
-work; production deployment is a verified outcome.
+Privileged self-hosted production workflows are restricted to private
+repositories. The existing repository Actions pause remains in effect. Local
+checks and their definitions remain available to people continuing the project;
+read [the public-source notes](PUBLIC-RELEASE.md) before configuring automation.
 
-## Community and reuse
-
-[Warpkeep channel on Farcaster](https://farcaster.xyz/~/channel/warpkeep) ·
-[Realm Council issue forms](https://github.com/ael-dev3/Warpkeep/issues/new/choose) ·
-[Changelog](CHANGELOG.md) · [Releases](https://github.com/ael-dev3/Warpkeep/releases)
-
-Report sensitive issues through [SECURITY.md](SECURITY.md). Public feedback should
-describe player experience without exposing credentials or private player data.
-
-Software is licensed under Apache-2.0. Creative work and third-party assets follow
-their recorded terms: see [LICENSING.md](LICENSING.md),
-[ASSETS-LICENSE.md](ASSETS-LICENSE.md) and [NOTICE](NOTICE).
-Experimental Community Marks are separate from gameplay resources and carry no
-promise of financial value or rewards.
+Security reports: [SECURITY.md](SECURITY.md).

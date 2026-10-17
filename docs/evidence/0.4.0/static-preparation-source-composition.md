@@ -28,7 +28,7 @@ and a dependency version, with hand-specified expected projected objects.
 .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/localPreparedSourcePins.test.ts
 20 passed, 1 native symlink skip; 738 ms.
 
-wsl -d Ubuntu-24.04 -- /tmp/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/release-journal-linux-check.mjs --source-pins
+wsl -d Ubuntu-24.04 -- /tmp/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/release-journal-linux-check.mjs --source-pins
 21 passed; 208 ms.
 
 .git/ci-node-22.22.3/node.exe node_modules/vitest/vitest.mjs run tests/realmChoicePolicy.test.ts tests/RealmChoiceSelector.test.tsx

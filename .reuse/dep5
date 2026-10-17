@@ -1,6 +1,10 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: Warpkeep
 Source: https://github.com/ael-dev3/Warpkeep
+Comment: The mappings below preserve the historical licensing baseline.
+ The owner additionally dedicates their rights in original assets and
+ creative documentation under CC0-1.0 effective 2026-10-17.
+ See ASSET-REUSE.md; third-party rights remain under their own terms.
 
 Files: src/** scripts/** tests/** services/auth-bridge/** spacetimedb/** .github/** *.ts *.json *.html .env.example .editorconfig .gitleaksignore
 Copyright: 2026 Warpkeep contributors
@@ -52,3 +56,7 @@ Files: public/images/miniapp/warpkeep-portrait-realm-alpha-0.3.43-1284x2778.png 
 Copyright: See ASSETS-LICENSE.md and the provenance records for depicted assets
 License: LicenseRef-Warpkeep-Provenance-Required
 Comment: Privacy-reviewed synthetic captures of the assembled Alpha 0.3.43 release UI; no real account or private state is depicted.
+
+Files: ASSET-REUSE.md PUBLIC-RELEASE.md LICENSE-CC0-1.0
+Copyright: 2026 Warpkeep contributors
+License: CC0-1.0

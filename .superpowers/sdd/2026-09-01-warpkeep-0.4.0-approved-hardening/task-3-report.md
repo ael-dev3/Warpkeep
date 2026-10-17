@@ -3,7 +3,7 @@
 ## Status
 
 Implemented and verified in the isolated
-`C:\Users\heyas\AppData\Local\Temp\Warpkeep-baseline-96e49c` worktree.
+`C:\Users\developer\AppData\Local\Temp\Warpkeep-baseline-96e49c` worktree.
 No lane/reconciliation call site, workflow, generated bundle, derived pin,
 production infrastructure, deployment, push, or merge was changed.
 

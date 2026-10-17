@@ -26,6 +26,8 @@ concurrency:
 
 jobs:
   notification-bridge-prepared-linux:
+    # Halted public archive: never schedule a private production runner.
+    if: github.event.repository.private == true
     # The repository-exclusive Linux account retains the owner-only journal
     # and receipt namespace across restarts. This is the retained production
     # authority; the historical Darwin lane is explicitly separate.

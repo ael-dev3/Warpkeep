@@ -136,9 +136,21 @@ function sha256(source) {
   return createHash('sha256').update(source).digest('hex');
 }
 
+function projectPrivateRepositoryWorkflow(workflow) {
+  const code = 'AUTH_BRIDGE_PREPARED_WORKFLOW_STRUCTURE_INVALID';
+  const jobHeader = 'jobs:\n  notification-bridge-prepared:\n';
+  const guardedHeader = jobHeader
+    + '    # Halted public archive: never schedule a private production runner.\n'
+    + '    if: github.event.repository.private == true\n';
+  exactOccurrence(workflow, guardedHeader, code);
+  // Validate the new restriction separately; every original workflow byte pin
+  // still applies. This does not refresh deployment closures or signed evidence.
+  return workflow.replace(guardedHeader, jobHeader);
+}
+
 function assertCanonicalWorkflowStructure(workflow) {
   const code = 'AUTH_BRIDGE_PREPARED_WORKFLOW_STRUCTURE_INVALID';
-  let canonical = workflow;
+  let canonical = projectPrivateRepositoryWorkflow(workflow);
   for (const name of BOOTSTRAP_PIN_NAMES) {
     const pattern = new RegExp(
       `^      ${name}: '[a-f0-9]{64}'$`,
@@ -1500,7 +1512,10 @@ export function verifyAuthBridgeNotificationPreparedStaticPolicy({
 
 export const authBridgeNotificationPreparedPolicyTestSeams =
   process.env.NODE_ENV === 'test' && process.env.VITEST === 'true'
-    ? Object.freeze({ assertProtectedWorkflowExecutionBoundary })
+    ? Object.freeze({
+      assertProtectedWorkflowExecutionBoundary,
+      projectPrivateRepositoryWorkflow,
+    })
     : undefined;
 
 function main() {

@@ -18,6 +18,8 @@ concurrency:
 
 jobs:
   notification-bridge-b0:
+    # Halted public archive: never schedule a private production runner.
+    if: github.event.repository.private == true
     # This repository-exclusive account retains the owner-only deploy journal
     # and receipt namespace across failed jobs and runner restarts. Never move
     # this mutation onto a GitHub-hosted or ephemeral runner.

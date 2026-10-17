@@ -1554,7 +1554,7 @@ used.
 
 Cloudflare: pinned Node 22.22.3 and repository Wrangler 4.110.0 completed the
 existing `warpkeep-production` profile's identity and deployment reads. The
-profile remains bound to the existing `C:/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep`
+profile remains bound to the existing `C:/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep`
 checkout; its selected account is the expected production account
 `c647739b4535010b0b13e6fc296e2c4e`. The newest `warpkeep-auth-bridge`
 deployment is `b338c098-a33e-4922-a3a4-1c2d92a3b035`, created

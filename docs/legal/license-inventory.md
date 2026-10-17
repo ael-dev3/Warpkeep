@@ -1,5 +1,10 @@
 # Warpkeep License Inventory
 
+**Current owner grant (17 October 2026):** original project assets and creative
+documentation are additionally available under [CC0](../../ASSET-REUSE.md).
+The inventory below records earlier licensing decisions; its restrictions on
+the owner's rights are superseded by that grant. Third-party terms remain.
+
 This inventory records the licensing surface at the Alpha 0.3.0 cutover from post-PR #15 main (`b124c75`). It is a path-based audit, not a claim that every file in a category has identical ownership. File-specific provenance and hashes remain in [`ASSETS-LICENSE.md`](../../ASSETS-LICENSE.md) and the dated reference manifests.
 
 Active software policy is `Apache-2.0`. Active project-owned creative-content policy is `CC-BY-4.0` for new or modified material where authority is confirmed. Historical texts remain at `licenses/legacy/LICENSE-0BSD-v0.2.0` and `licenses/legacy/LICENSE-CC0-1.0-v0.2.0`.

@@ -1,5 +1,10 @@
 # Working on Warpkeep
 
+**Current status: development is halted.** This is a public source archive.
+The current asset permission is in [ASSET-REUSE.md](ASSET-REUSE.md). Historical
+release plans do not authorize resuming work or deploying services. Preserve
+the Actions pause and private-only guards on self-hosted production jobs.
+
 Build a persistent strategy game around a real person, a permanent keep and a
 world worth returning to. Connect **gather → choose → build → benefit → return**
 into a satisfying experience, then ship and improve it through observed play.

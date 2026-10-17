@@ -116,7 +116,7 @@ Exit code: `0`; no diagnostics.
 Installed CLI inspected before compilation:
 
 ```text
-C:\Users\heyas\AppData\Local\Programs\SpacetimeDB\2.6.1\spacetime.exe
+C:\Users\developer\AppData\Local\Programs\SpacetimeDB\2.6.1\spacetime.exe
 spacetimedb-cli 2.6.1; commit 052c83fe984a4c4eb7bb4f9afa5c6b1903891d87
 ```
 

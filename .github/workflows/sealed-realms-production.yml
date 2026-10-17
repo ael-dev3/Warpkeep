@@ -39,12 +39,10 @@ concurrency:
 
 jobs:
   operate_readonly:
+    # Halted public archive: never schedule a private production runner.
     if: >-
-      github.event_name == 'workflow_dispatch' &&
-      github.repository == 'ael-dev3/Warpkeep' &&
-      github.ref == 'refs/heads/main' &&
-      github.sha == inputs.source_commit &&
-      contains(fromJSON('["preflight","activation-evidence-inspect","g001-policy-observe","g001-freeze-census"]'), inputs.operation)
+      github.event.repository.private == true &&
+      (github.event_name == 'workflow_dispatch' && github.repository == 'ael-dev3/Warpkeep' && github.ref == 'refs/heads/main' && github.sha == inputs.source_commit && contains(fromJSON('["preflight","activation-evidence-inspect","g001-policy-observe","g001-freeze-census"]'), inputs.operation))
     environment: notification-bridge-prepared
     runs-on:
       - self-hosted
@@ -251,12 +249,10 @@ jobs:
             "--operation=$WARPKEEP_OPERATION" "--source=$GITHUB_SHA"
 
   observe_ptr:
+    # Halted public archive: never schedule a private production runner.
     if: >-
-      github.event_name == 'workflow_dispatch' &&
-      github.repository == 'ael-dev3/Warpkeep' &&
-      github.ref == 'refs/heads/main' &&
-      github.sha == inputs.source_commit &&
-      inputs.operation == 'ptr-state-inspect'
+      github.event.repository.private == true &&
+      (github.event_name == 'workflow_dispatch' && github.repository == 'ael-dev3/Warpkeep' && github.ref == 'refs/heads/main' && github.sha == inputs.source_commit && inputs.operation == 'ptr-state-inspect')
     permissions:
       actions: read
       checks: read
@@ -462,12 +458,10 @@ jobs:
             "--operation=$WARPKEEP_OPERATION" "--source=$GITHUB_SHA"
 
   operate:
+    # Halted public archive: never schedule a private production runner.
     if: >-
-      github.event_name == 'workflow_dispatch' &&
-      github.repository == 'ael-dev3/Warpkeep' &&
-      github.ref == 'refs/heads/main' &&
-      github.sha == inputs.source_commit &&
-      inputs.operation == 'activation-evidence-generate'
+      github.event.repository.private == true &&
+      (github.event_name == 'workflow_dispatch' && github.repository == 'ael-dev3/Warpkeep' && github.ref == 'refs/heads/main' && github.sha == inputs.source_commit && inputs.operation == 'activation-evidence-generate')
     permissions:
       actions: read
       checks: read
@@ -679,12 +673,10 @@ jobs:
             "--operation=$WARPKEEP_OPERATION" "--source=$GITHUB_SHA"
 
   operate_ptr:
+    # Halted public archive: never schedule a private production runner.
     if: >-
-      github.event_name == 'workflow_dispatch' &&
-      github.repository == 'ael-dev3/Warpkeep' &&
-      github.ref == 'refs/heads/main' &&
-      github.sha == inputs.source_commit &&
-      contains(fromJSON('["ptr-update-inspect","ptr-update-apply"]'), inputs.operation)
+      github.event.repository.private == true &&
+      (github.event_name == 'workflow_dispatch' && github.repository == 'ael-dev3/Warpkeep' && github.ref == 'refs/heads/main' && github.sha == inputs.source_commit && contains(fromJSON('["ptr-update-inspect","ptr-update-apply"]'), inputs.operation))
     permissions:
       actions: read
       checks: read
@@ -891,12 +883,10 @@ jobs:
             "--operation=$WARPKEEP_OPERATION" "--source=$GITHUB_SHA"
 
   operate_g002:
+    # Halted public archive: never schedule a private production runner.
     if: >-
-      github.event_name == 'workflow_dispatch' &&
-      github.repository == 'ael-dev3/Warpkeep' &&
-      github.ref == 'refs/heads/main' &&
-      github.sha == inputs.source_commit &&
-      contains(fromJSON('["g002-update-inspect","g002-update-apply"]'), inputs.operation)
+      github.event.repository.private == true &&
+      (github.event_name == 'workflow_dispatch' && github.repository == 'ael-dev3/Warpkeep' && github.ref == 'refs/heads/main' && github.sha == inputs.source_commit && contains(fromJSON('["g002-update-inspect","g002-update-apply"]'), inputs.operation))
     permissions:
       actions: read
       checks: read
@@ -1103,12 +1093,10 @@ jobs:
             "--operation=$WARPKEEP_OPERATION" "--source=$GITHUB_SHA"
 
   unsupported:
+    # Halted public archive: never schedule a private production runner.
     if: >-
-      github.event_name == 'workflow_dispatch' &&
-      github.repository == 'ael-dev3/Warpkeep' &&
-      github.ref == 'refs/heads/main' &&
-      github.sha == inputs.source_commit &&
-      !contains(fromJSON('["preflight","activation-evidence-inspect","activation-evidence-generate","g001-policy-observe","g001-freeze-census","ptr-update-inspect","ptr-update-apply","g002-update-inspect","g002-update-apply","ptr-state-inspect"]'), inputs.operation)
+      github.event.repository.private == true &&
+      (github.event_name == 'workflow_dispatch' && github.repository == 'ael-dev3/Warpkeep' && github.ref == 'refs/heads/main' && github.sha == inputs.source_commit && !contains(fromJSON('["preflight","activation-evidence-inspect","activation-evidence-generate","g001-policy-observe","g001-freeze-census","ptr-update-inspect","ptr-update-apply","g002-update-inspect","g002-update-apply","ptr-state-inspect"]'), inputs.operation))
     runs-on: [self-hosted, Linux, X64, warpkeep-production-admin, warpkeep-repository-exclusive]
     timeout-minutes: 5
     steps:

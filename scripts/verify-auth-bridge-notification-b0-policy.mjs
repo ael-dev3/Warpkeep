@@ -125,9 +125,21 @@ function sha256(source) {
   return createHash('sha256').update(source).digest('hex');
 }
 
+function projectPrivateRepositoryWorkflow(workflow) {
+  const code = 'AUTH_BRIDGE_NOTIFICATION_B0_WORKFLOW_STRUCTURE_INVALID';
+  const jobHeader = 'jobs:\n  notification-bridge-b0:\n';
+  const guardedHeader = jobHeader
+    + '    # Halted public archive: never schedule a private production runner.\n'
+    + '    if: github.event.repository.private == true\n';
+  exact(workflow, guardedHeader, 1, code);
+  // Only this additional restriction is projected. All original workflow byte
+  // pins, including an outstanding B0 refreeze, retain their existing scope.
+  return workflow.replace(guardedHeader, jobHeader);
+}
+
 function assertCanonicalWorkflowStructure(workflow) {
   const code = 'AUTH_BRIDGE_NOTIFICATION_B0_WORKFLOW_STRUCTURE_INVALID';
-  let canonical = workflow;
+  let canonical = projectPrivateRepositoryWorkflow(workflow);
   for (const name of BOOTSTRAP_PIN_NAMES) {
     const pattern = new RegExp(
       `^      ${name}: '[a-f0-9]{64}'$`,
@@ -911,6 +923,7 @@ export const authBridgeNotificationB0PolicyTestSeams =
       assertExactPredecessorReattestationCount,
       assertInertReleaseIdentity,
       assertProtectedWorkflowExecutionBoundary,
+      projectPrivateRepositoryWorkflow,
     })
     : undefined;
 

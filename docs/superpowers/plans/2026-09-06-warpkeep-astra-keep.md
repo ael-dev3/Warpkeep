@@ -24,7 +24,7 @@
 - Only one scene canvas remains active. Entering the keep stops hidden world rendering.
 - Preserve existing renderer ceilings. Actual-owner PTR journey and physical-phone evidence must be distinguished from local fixtures, emulation and screenshots.
 - Do not change admissions, authentication endpoints, server policy/schema, atlas topology, pinned shared assets, G001 scene implementations or release infrastructure in these tasks.
-- All paths below are relative to `C:/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree`. Preserve unrelated dirty-worktree edits. Stage only each reviewed task's files; this plan author does not commit it.
+- All paths below are relative to `C:/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree`. Preserve unrelated dirty-worktree edits. Stage only each reviewed task's files; this plan author does not commit it.
 
 ## Task order and file ownership
 

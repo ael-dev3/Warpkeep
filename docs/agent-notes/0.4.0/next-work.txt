@@ -246,7 +246,7 @@ C. Safe, complete delivery.
    Finish the evidence ledger and credential-free artifacts/delivery/0.4.0 package.
 
 These are summaries of the existing R01-R18 checklist, not new requirements:
-C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep/docs/operations/0.4.0-release-checklist.md
+C:/Users/developer/Documents/Codex/2026-09-07/wa/work/Warpkeep/docs/operations/0.4.0-release-checklist.md
 
 OLD FINDINGS THAT SHOULD NOT BE REIMPLEMENTED
 
@@ -283,7 +283,7 @@ portrait/landscape, background/resume and reconnect. Emulation is not a phone.
 No final physical-phone result is established in the current evidence.
 
 Canonical measurements/methodology:
-C:/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep/docs/evidence/0.4.0/performance.md
+C:/Users/developer/Documents/Codex/2026-09-07/wa/work/Warpkeep/docs/evidence/0.4.0/performance.md
 
 The cadence recorder's visible Chrome regression was a synthetic one-shot
 sequence: five redraws included a roughly 30.8-second user-idle gap, which the

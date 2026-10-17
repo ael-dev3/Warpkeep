@@ -20,7 +20,7 @@ This is simulated identity for component tests, not authenticated runtime proof.
 Verification:
 
 ```text
-wsl -d Ubuntu-24.04 -- /tmp/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/binding-parent-linux-check.mjs --lifecycle --ambient-owner
+wsl -d Ubuntu-24.04 -- /tmp/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/binding-parent-linux-check.mjs --lifecycle --ambient-owner
 Before: 17 failed, 26 passed.
 After: 43 passed; exit 0, 1.76 seconds.
 

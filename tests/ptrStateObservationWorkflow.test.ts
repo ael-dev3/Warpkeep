@@ -26,12 +26,12 @@ it('scopes PTR observation and update OIDC to their protected jobs', () => {
   expect(update.permissions).toEqual({ 'actions': 'read', 'checks': 'read', 'contents': 'read', 'id-token': 'write' });
   expect(update.environment).toBe('notification-bridge-prepared');
   expect(update['runs-on']).toEqual(['self-hosted', 'Linux', 'X64', 'warpkeep-production-admin', 'warpkeep-repository-exclusive']);
-  expect(update.if.replace(/\s+/gu, ' ').trim()).toBe([
+  expect(update.if.replace(/\s+/gu, ' ').trim()).toBe('github.event.repository.private == true && (' + [
     "github.event_name == 'workflow_dispatch'",
     "github.repository == 'ael-dev3/Warpkeep'",
     "github.ref == 'refs/heads/main'",
     'github.sha == inputs.source_commit',
     'contains(fromJSON(\'["ptr-update-inspect","ptr-update-apply"]\'), inputs.operation)',
-  ].join(' && '));
+  ].join(' && ') + ')');
   expect(JSON.stringify(update)).toContain('ACTIONS_ID_TOKEN_REQUEST_URL|ACTIONS_ID_TOKEN_REQUEST_TOKEN');
 });

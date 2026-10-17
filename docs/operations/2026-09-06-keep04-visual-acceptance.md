@@ -132,7 +132,7 @@ Windows Chrome 151 in a disposable credential-free profile (version/targets/clos
 only, no navigation or measurements). The separate Windows-local entry point is:
 
 ```powershell
-$wkNode = 'C:/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.git/ci-node-22.22.3/node.exe'
+$wkNode = 'C:/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.git/ci-node-22.22.3/node.exe'
 & $wkNode --version
 & $wkNode scripts/qa-observer/keep04-windows-capture.mjs --base-url=http://127.0.0.1:4176
 ```

@@ -1,5 +1,17 @@
 # Warpkeep Licensing
 
+## Current free-reuse grant — 17 October 2026
+
+Development is halted. The owner now dedicates their rights in original
+project assets and creative documentation to CC0 1.0 Universal. See
+[ASSET-REUSE.md](ASSET-REUSE.md) and the complete
+[CC0 terms](LICENSE-CC0-1.0). Reuse, modification, commercial use, and
+redistribution do not require permission or attribution under this grant.
+This additional permission overrides earlier project-owned archive-only and
+attribution restrictions below. Third-party rights and licenses remain intact.
+Dated provenance, release hashes, and previous grants are historical records.
+
+
 This document is the human-readable overview of Warpkeep's release-based licensing policy. It records a forward-looking transition; it does not provide individualized legal advice.
 
 ## Current release policy
@@ -7,7 +19,7 @@ This document is the human-readable overview of Warpkeep's release-based licensi
 Warpkeep Alpha `0.3.0` establishes the active forward-looking policy:
 
 - Active software license: Apache-2.0
-- Active project-owned creative-content license: CC-BY-4.0
+- Active project-owned creative-content license: CC-BY-4.0 OR CC0-1.0
 - Third-party, externally governed, generated, or uncertain-provenance material keeps its own applicable terms and is not relicensed by this policy.
 
 ## Historical releases

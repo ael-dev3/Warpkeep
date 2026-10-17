@@ -57,6 +57,7 @@ const TEST_SOURCE_CLOSURE_MANIFEST_SHA256 = 'a'.repeat(64);
 const policyTestSeams = authBridgeNotificationB0PolicyTestSeams!;
 const policyExecutionBoundaryTestSeams = policyTestSeams as unknown as {
   assertProtectedWorkflowExecutionBoundary(workflowSource: string): void;
+  projectPrivateRepositoryWorkflow(workflowSource: string): string;
 };
 const temporaryDirectories: string[] = [];
 
@@ -509,6 +510,9 @@ describe('notification bridge B0 protected workflow', () => {
   );
 
   it('is manual-only, protected-main-only, and repository-exclusive', () => {
+    const jobs = workflow.jobs as Record<string, { if?: string }>;
+    expect(jobs['notification-bridge-b0']?.if)
+      .toBe('github.event.repository.private == true');
     expect(workflowSource).toContain('workflow_dispatch:');
     expect(workflowSource).not.toMatch(/\b(?:push|schedule|pull_request):/u);
     expect(workflowSource).toContain("GITHUB_REF\" != 'refs/heads/main'");
@@ -539,6 +543,24 @@ describe('notification bridge B0 protected workflow', () => {
       'set-safe-directory: false',
     ]) expect(workflowSource).toContain(exact);
     expect(workflow).toBeTruthy();
+  });
+
+  it('projects only the required private-repository job restriction', () => {
+    const guard = '    # Halted public archive: never schedule a private production runner.\n'
+      + '    if: github.event.repository.private == true\n';
+    expect(policyExecutionBoundaryTestSeams
+      .projectPrivateRepositoryWorkflow(workflowSource))
+      .toBe(workflowSource.replace(guard, ''));
+    for (const replacement of [
+      '',
+      '    if: github.event.repository.private == false\n',
+      '    if: github.event.repository.private == true || true\n',
+      '    # if: github.event.repository.private == true\n',
+    ]) {
+      expect(() => policyExecutionBoundaryTestSeams
+        .projectPrivateRepositoryWorkflow(workflowSource.replace(guard, replacement)))
+        .toThrow('AUTH_BRIDGE_NOTIFICATION_B0_WORKFLOW_STRUCTURE_INVALID');
+    }
   });
 
   it('loads only the existing four workflow credentials and never the seventh secret', () => {

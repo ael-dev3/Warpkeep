@@ -36,7 +36,7 @@ Actual Ubuntu-24.04 / Linux x64 / UID 1000 / Node 22.22.3, private temporary
 Linux filesystem repositories, copied current source and existing dependencies:
 
 ```text
-wsl -d Ubuntu-24.04 -- /tmp/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/release-journal-linux-check.mjs --recovery
+wsl -d Ubuntu-24.04 -- /tmp/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/.superpowers/release-journal-linux-check.mjs --recovery
 18 passed, 1 unsupported-host test skipped; exit 0 (2.09 seconds)
 ```
 

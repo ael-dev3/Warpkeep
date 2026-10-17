@@ -239,7 +239,7 @@ planner process, using the checkout's resolved WSL path:
 ```bash
 export GIT_CONFIG_COUNT=2
 export GIT_CONFIG_KEY_0=safe.directory
-export WARPKEEP_LIVE_ROOT=/mnt/c/Users/heyas/Documents/Codex/2026-09-07/wa/work/Warpkeep-live-pages
+export WARPKEEP_LIVE_ROOT=/mnt/c/Users/developer/Documents/Codex/2026-09-07/wa/work/Warpkeep-live-pages
 export GIT_CONFIG_VALUE_0="$WARPKEEP_LIVE_ROOT"
 export GIT_CONFIG_KEY_1=core.autocrlf
 export GIT_CONFIG_VALUE_1=true

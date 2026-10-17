@@ -715,3 +715,35 @@ describe('GitHub workflow security policy', () => {
     expect(readdirSync(resolve(repositoryRoot, '.github/workflows'))).not.toContain('codeql.yml');
   });
 });
+
+
+describe('public source archive runner isolation', () => {
+  it('requires a private repository before every self-hosted job can run', () => {
+    const directory = resolve(repositoryRoot, '.github/workflows');
+    let selfHostedJobs = 0;
+    for (const filename of readdirSync(directory).filter(name => /\.ya?ml$/u.test(name))) {
+      const document = parse(readFileSync(resolve(directory, filename), 'utf8'));
+      for (const job of Object.values(document.jobs ?? {}) as Array<Record<string, unknown>>) {
+        const runners = Array.isArray(job['runs-on']) ? job['runs-on'] : [job['runs-on']];
+        if (!runners.includes('self-hosted')) continue;
+        selfHostedJobs += 1;
+        const condition = String(job.if ?? '').replace(/\s+/gu, ' ').trim();
+        // A public event must stop before any pre-existing branch, operation,
+        // or OR-separated deployment-lane condition can authorize a runner.
+        expect(condition).toMatch(/^github\.event\.repository\.private == true(?:$| && \()/u);
+        if (condition.includes(' && (')) {
+          expect(condition.endsWith(')')).toBe(true);
+          let depth = 0;
+          const inner = condition.slice(condition.indexOf(' && (') + 4);
+          for (let i = 0; i < inner.length; i += 1) {
+            if (inner[i] === '(') depth += 1;
+            if (inner[i] === ')') depth -= 1;
+            if (depth === 0) expect(i).toBe(inner.length - 1);
+          }
+          expect(depth).toBe(0);
+        }
+      }
+    }
+    expect(selfHostedJobs).toBeGreaterThan(0);
+  });
+});

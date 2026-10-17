@@ -99,7 +99,7 @@ Keep every existing CLI mode and no-argument API unchanged. Add wrong-host/calle
 - [ ] **Step 6: Commit exact source changes, then run the real fixed native check.**
 
 ```powershell
-& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/heyas/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --genesis001-current-check
+& C:/Windows/System32/wsl.exe --distribution Ubuntu-24.04 --user snapmeter -- /usr/bin/env -i LANG=C.UTF-8 LC_ALL=C.UTF-8 /home/snapmeter/.warpkeep/release-preparation-v1/toolchain/node-v22.22.3-linux-x64/bin/node /mnt/c/Users/developer/Documents/Codex/2026-08-11/pl/Warpkeep-0.4.0-worktree/scripts/local-binding-runtime.mjs --genesis001-current-check
 ```
 
 Record source commit/tree, command, exit code, metadata and cleanup outcome. If actual current bindings differ, stop claiming acceptance, preserve the fixed check and provide bounded exact relative-path/digest evidence privately to the controller; do not modify protected inputs or widen comparison. Diagnose the mismatch before deciding the next source-integration action. Native success plus independent review is required to accept this gate.

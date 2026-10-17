@@ -54,15 +54,15 @@ All exact TypeScript commands exited 0 with no diagnostics:
 Both actual pinned CLI builds exited 0 with `Build finished successfully.`:
 
 ```powershell
-& 'C:/Users/heyas/AppData/Local/Programs/SpacetimeDB/2.6.1/spacetime.exe' build --module-path spacetimedb/ptr
-& 'C:/Users/heyas/AppData/Local/Programs/SpacetimeDB/2.6.1/spacetime.exe' build --module-path spacetimedb/genesis002
+& 'C:/Users/developer/AppData/Local/Programs/SpacetimeDB/2.6.1/spacetime.exe' build --module-path spacetimedb/ptr
+& 'C:/Users/developer/AppData/Local/Programs/SpacetimeDB/2.6.1/spacetime.exe' build --module-path spacetimedb/genesis002
 ```
 
 Both exact fresh ABI-generation commands exited 0 and ended `Generate finished successfully.`:
 
 ```powershell
-& 'C:/Users/heyas/AppData/Local/Programs/SpacetimeDB/2.6.1/spacetime.exe' generate --lang typescript --out-dir .git/gameplay04-construction-abi/ptr --module-path spacetimedb/ptr
-& 'C:/Users/heyas/AppData/Local/Programs/SpacetimeDB/2.6.1/spacetime.exe' generate --lang typescript --out-dir .git/gameplay04-construction-abi/genesis002 --module-path spacetimedb/genesis002
+& 'C:/Users/developer/AppData/Local/Programs/SpacetimeDB/2.6.1/spacetime.exe' generate --lang typescript --out-dir .git/gameplay04-construction-abi/ptr --module-path spacetimedb/ptr
+& 'C:/Users/developer/AppData/Local/Programs/SpacetimeDB/2.6.1/spacetime.exe' generate --lang typescript --out-dir .git/gameplay04-construction-abi/genesis002 --module-path spacetimedb/genesis002
 ```
 
 PTR codegen reported these 31 skipped private tables:
